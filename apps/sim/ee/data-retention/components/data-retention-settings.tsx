@@ -1,11 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
-import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import {
   Checkbox,
   Chip,
@@ -16,7 +11,13 @@ import {
   ChipTag,
   Search,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { ArrowRight, Plus } from 'lucide-react'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
 import { useSession } from '@/lib/auth/auth-client'
@@ -30,8 +31,9 @@ import {
 } from '@/lib/guardrails/pii-entities'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
+import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -321,123 +323,117 @@ function PolicyDetail({
     : 'Overrides the organization defaults for the selected workspaces.'
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <Chip leftIcon={ArrowLeft} onClick={onBack}>
-          Data retention
-        </Chip>
-        <div className='flex items-center gap-1'>
-          <SaveDiscardActions
-            dirty={changed}
-            saving={isSaving}
-            onSave={onSave}
-            onDiscard={onDiscard}
-            saveDisabled={!isOrg && draft.workspaceIds.length === 0}
-          />
-          {canRemove && (
-            <Chip variant='destructive' onClick={onRemove} disabled={isSaving}>
-              Remove override
-            </Chip>
-          )}
-        </div>
-      </div>
-
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex w-full max-w-[48rem] flex-col gap-7 pb-6'>
-          <div className='flex flex-col gap-1'>
-            <h1 className='font-medium text-[var(--text-body)] text-lg'>{title}</h1>
-            <p className='text-[var(--text-muted)] text-md'>{description}</p>
+    <SettingsPanel
+      back={{ text: 'Data retention', icon: ArrowLeft, onSelect: onBack }}
+      title={title}
+      description={description}
+      actions={[
+        ...saveDiscardActions({
+          dirty: changed,
+          saving: isSaving,
+          onSave,
+          onDiscard,
+          saveDisabled: !isOrg && draft.workspaceIds.length === 0,
+        }),
+        ...(canRemove
+          ? [
+              {
+                text: 'Remove override',
+                variant: 'destructive',
+                onSelect: onRemove,
+                disabled: isSaving,
+              } satisfies SettingsAction,
+            ]
+          : []),
+      ]}
+    >
+      {!isOrg && (
+        <SettingsSection label='Workspaces'>
+          <div className='flex items-center justify-between gap-3'>
+            <span className='min-w-0 text-[var(--text-muted)] text-small'>
+              {draft.workspaceIds.length > 0
+                ? `Overrides ${draft.workspaceIds.length} workspace${draft.workspaceIds.length === 1 ? '' : 's'}`
+                : 'Select the workspaces this override applies to'}
+            </span>
+            <ChipDropdown
+              multiple
+              value={draft.workspaceIds}
+              onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
+              options={workspaceOptions}
+              placeholder='Select workspaces'
+              className='flex-shrink-0'
+            />
           </div>
+        </SettingsSection>
+      )}
 
-          {!isOrg && (
-            <SettingsSection label='Workspaces'>
-              <div className='flex items-center justify-between gap-3'>
-                <span className='min-w-0 text-[var(--text-muted)] text-small'>
-                  {draft.workspaceIds.length > 0
-                    ? `Overrides ${draft.workspaceIds.length} workspace${draft.workspaceIds.length === 1 ? '' : 's'}`
-                    : 'Select the workspaces this override applies to'}
-                </span>
-                <ChipDropdown
-                  multiple
-                  value={draft.workspaceIds}
-                  onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
-                  options={workspaceOptions}
-                  placeholder='Select workspaces'
-                  className='flex-shrink-0'
-                />
-              </div>
-            </SettingsSection>
-          )}
-
-          <SettingsSection label='Retention'>
-            <div className='flex flex-col gap-3'>
-              <div className='flex items-center justify-between gap-3'>
-                <span className='text-[var(--text-muted)] text-small'>Log retention</span>
-                <RetentionSelect
-                  allowInherit={!isOrg}
-                  value={draft.logDays}
-                  onChange={(logDays) => onChange({ ...draft, logDays })}
-                />
-              </div>
-              <div className='flex items-center justify-between gap-3'>
-                <span className='text-[var(--text-muted)] text-small'>Soft deletion cleanup</span>
-                <RetentionSelect
-                  allowInherit={!isOrg}
-                  value={draft.softDeleteDays}
-                  onChange={(softDeleteDays) => onChange({ ...draft, softDeleteDays })}
-                />
-              </div>
-              <div className='flex items-center justify-between gap-3'>
-                <span className='text-[var(--text-muted)] text-small'>Task cleanup</span>
-                <RetentionSelect
-                  allowInherit={!isOrg}
-                  value={draft.taskCleanupDays}
-                  onChange={(taskCleanupDays) => onChange({ ...draft, taskCleanupDays })}
-                />
-              </div>
-            </div>
-          </SettingsSection>
-
-          {piiEnabled && (
-            <SettingsSection label='PII redaction'>
-              <div className='flex flex-col gap-4'>
-                {!isOrg && (
-                  <div className='flex items-center justify-between gap-3'>
-                    <span className='text-[var(--text-muted)] text-small'>
-                      Inherit the organization defaults or set workspace-specific redaction
-                    </span>
-                    <ChipSwitch
-                      value={draft.piiOverride ? 'override' : 'inherit'}
-                      onChange={(mode) => onChange({ ...draft, piiOverride: mode === 'override' })}
-                      aria-label='PII redaction override mode'
-                      options={[
-                        { value: 'inherit', label: 'Inherit' },
-                        { value: 'override', label: 'Override' },
-                      ]}
-                    />
-                  </div>
-                )}
-                {showPiiGrid && (
-                  <>
-                    <EntityCheckboxGrid
-                      selected={draft.piiEntityTypes}
-                      onChange={(piiEntityTypes) => onChange({ ...draft, piiEntityTypes })}
-                    />
-                    <div className='flex items-center justify-between gap-3'>
-                      <span className='text-[var(--text-muted)] text-small'>Language</span>
-                      <PiiLanguageSelect
-                        value={draft.piiLanguage}
-                        onChange={(piiLanguage) => onChange({ ...draft, piiLanguage })}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </SettingsSection>
-          )}
+      <SettingsSection label='Retention'>
+        <div className='flex flex-col gap-3'>
+          <div className='flex items-center justify-between gap-3'>
+            <span className='text-[var(--text-muted)] text-small'>Log retention</span>
+            <RetentionSelect
+              allowInherit={!isOrg}
+              value={draft.logDays}
+              onChange={(logDays) => onChange({ ...draft, logDays })}
+            />
+          </div>
+          <div className='flex items-center justify-between gap-3'>
+            <span className='text-[var(--text-muted)] text-small'>Soft deletion cleanup</span>
+            <RetentionSelect
+              allowInherit={!isOrg}
+              value={draft.softDeleteDays}
+              onChange={(softDeleteDays) => onChange({ ...draft, softDeleteDays })}
+            />
+          </div>
+          <div className='flex items-center justify-between gap-3'>
+            <span className='text-[var(--text-muted)] text-small'>Task cleanup</span>
+            <RetentionSelect
+              allowInherit={!isOrg}
+              value={draft.taskCleanupDays}
+              onChange={(taskCleanupDays) => onChange({ ...draft, taskCleanupDays })}
+            />
+          </div>
         </div>
-      </div>
-    </div>
+      </SettingsSection>
+
+      {piiEnabled && (
+        <SettingsSection label='PII redaction'>
+          <div className='flex flex-col gap-4'>
+            {!isOrg && (
+              <div className='flex items-center justify-between gap-3'>
+                <span className='text-[var(--text-muted)] text-small'>
+                  Inherit the organization defaults or set workspace-specific redaction
+                </span>
+                <ChipSwitch
+                  value={draft.piiOverride ? 'override' : 'inherit'}
+                  onChange={(mode) => onChange({ ...draft, piiOverride: mode === 'override' })}
+                  aria-label='PII redaction override mode'
+                  options={[
+                    { value: 'inherit', label: 'Inherit' },
+                    { value: 'override', label: 'Override' },
+                  ]}
+                />
+              </div>
+            )}
+            {showPiiGrid && (
+              <>
+                <EntityCheckboxGrid
+                  selected={draft.piiEntityTypes}
+                  onChange={(piiEntityTypes) => onChange({ ...draft, piiEntityTypes })}
+                />
+                <div className='flex items-center justify-between gap-3'>
+                  <span className='text-[var(--text-muted)] text-small'>Language</span>
+                  <PiiLanguageSelect
+                    value={draft.piiLanguage}
+                    onChange={(piiLanguage) => onChange({ ...draft, piiLanguage })}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </SettingsSection>
+      )}
+    </SettingsPanel>
   )
 }
 
@@ -780,16 +776,15 @@ export function DataRetentionSettings() {
         />
       ) : (
         <SettingsPanel
-          actions={
-            <Chip
-              leftIcon={Plus}
-              variant='primary'
-              onClick={openAddOverride}
-              disabled={freeWorkspaces.length === 0}
-            >
-              Add override
-            </Chip>
-          }
+          actions={[
+            {
+              text: 'Add override',
+              icon: Plus,
+              variant: 'primary',
+              onSelect: openAddOverride,
+              disabled: freeWorkspaces.length === 0,
+            },
+          ]}
         >
           <SettingsSection label='Retention policies'>
             <div className='flex flex-col gap-2'>

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { cn } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import { Image } from '@tiptap/extension-image'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { cn } from '@/lib/core/utils/cn'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { normalizeLinkHref } from './markdown-fidelity'
 

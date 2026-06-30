@@ -1,7 +1,7 @@
+import { Badge } from '@sim/emcn'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Badge } from '@/components/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import {

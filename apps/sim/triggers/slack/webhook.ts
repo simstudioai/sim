@@ -177,6 +177,21 @@ export const slackWebhookTrigger: TriggerConfig = {
           description:
             'Timestamp of the message the interaction originated from. Present for block_actions',
         },
+        view: {
+          type: 'json',
+          description:
+            'Full Slack view object for modal interactions: state.values (submitted input values), private_metadata, id, callback_id, and hash. Present for view_submission/view_closed; null otherwise',
+        },
+        message: {
+          type: 'json',
+          description:
+            'Full source message object the interaction came from, including its blocks and text. Present for block_actions on a message; null otherwise',
+        },
+        state: {
+          type: 'json',
+          description:
+            'Current values of all stateful elements in the surface (state.values) at the time of a block action — e.g. inputs read on a button click. Present for block_actions; null otherwise',
+        },
         hasFiles: {
           type: 'boolean',
           description: 'Whether the message has file attachments',

@@ -68,9 +68,19 @@ function appendQuery(path: string, query: unknown): string {
 
     if (Array.isArray(value)) {
       for (const item of value) {
-        if (item !== undefined && item !== null && item !== '') {
-          searchParams.append(key, String(item))
+        if (item === undefined || item === null || item === '') continue
+        // A non-scalar in a query array would stringify to "[object Object]" and
+        // silently corrupt the request. Encode such values as a single JSON
+        // string param and decode them server-side instead. Failing loudly here
+        // keeps the boundary honest (this is how the knowledge tagFilters bug
+        // shipped undetected).
+        if (typeof item === 'object') {
+          throw new Error(
+            `Cannot serialize query param "${key}": arrays of objects are not URL-safe — ` +
+              'encode the value as a JSON string param and decode it server-side.'
+          )
         }
+        searchParams.append(key, String(item))
       }
       continue
     }

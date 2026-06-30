@@ -1,7 +1,7 @@
 import React, { type HTMLAttributes, memo, type ReactNode } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
-import { CopyCodeButton, Tooltip } from '@/components/emcn'
+import { CopyCodeButton, Tooltip } from '@sim/emcn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 
 function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {

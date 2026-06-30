@@ -440,3 +440,207 @@ Revoke a session to immediately invalidate it
 | `success` | boolean | Operation success status |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Clerk Organization Created
+
+Trigger workflow when a Clerk organization is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `organizationId` | string | Clerk organization ID \(data.id\) |
+| `name` | string | Organization name \(data.name\) |
+| `slug` | string | Organization slug \(data.slug\) |
+| `createdBy` | string | User ID of the creator \(data.created_by\) |
+| `membersCount` | number | Number of members \(data.members_count\) |
+| `maxAllowedMemberships` | number | Maximum allowed memberships \(data.max_allowed_memberships\) |
+| `createdAt` | number | Organization creation timestamp \(data.created_at\) |
+
+
+---
+
+### Clerk Organization Membership Created
+
+Trigger workflow when a Clerk organization membership is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `membershipId` | string | Membership ID \(data.id\) |
+| `role` | string | Membership role, e.g. org:admin \(data.role\) |
+| `organizationId` | string | Organization ID \(data.organization.id\) |
+| `userId` | string | User ID of the member \(data.public_user_data.user_id\) |
+| `createdAt` | number | Membership creation timestamp \(data.created_at\) |
+
+
+---
+
+### Clerk Session Created
+
+Trigger workflow when a Clerk session is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `sessionId` | string | Clerk session ID \(data.id\) |
+| `userId` | string | User the session belongs to \(data.user_id\) |
+| `clientId` | string | Client ID for the session \(data.client_id\) |
+| `status` | string | Session status \(data.status\) |
+| `createdAt` | number | Session creation timestamp \(data.created_at\) |
+
+
+---
+
+### Clerk User Created
+
+Trigger workflow when a Clerk user is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `userId` | string | Clerk user ID \(data.id\) |
+| `firstName` | string | User's first name |
+| `lastName` | string | User's last name |
+| `username` | string | User's username |
+| `imageUrl` | string | Profile image URL |
+| `primaryEmailAddressId` | string | Primary email address ID |
+| `emailAddresses` | json | Array of email address objects |
+| `phoneNumbers` | json | Array of phone number objects |
+| `externalId` | string | External system ID linked to the user |
+| `createdAt` | number | User creation timestamp \(data.created_at\) |
+| `updatedAt` | number | User last update timestamp \(data.updated_at\) |
+
+
+---
+
+### Clerk User Deleted
+
+Trigger workflow when a Clerk user is deleted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `userId` | string | Deleted Clerk user ID \(data.id\) |
+| `deleted` | boolean | Whether the user was deleted \(data.deleted\) |
+
+
+---
+
+### Clerk User Updated
+
+Trigger workflow when a Clerk user is updated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `userId` | string | Clerk user ID \(data.id\) |
+| `firstName` | string | User's first name |
+| `lastName` | string | User's last name |
+| `username` | string | User's username |
+| `imageUrl` | string | Profile image URL |
+| `primaryEmailAddressId` | string | Primary email address ID |
+| `emailAddresses` | json | Array of email address objects |
+| `phoneNumbers` | json | Array of phone number objects |
+| `externalId` | string | External system ID linked to the user |
+| `createdAt` | number | User creation timestamp \(data.created_at\) |
+| `updatedAt` | number | User last update timestamp \(data.updated_at\) |
+
+
+---
+
+### Clerk Webhook
+
+Trigger workflow on any Clerk webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+

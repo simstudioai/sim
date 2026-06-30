@@ -1,6 +1,7 @@
 {
   "pages": [
     "index",
+    "a2a",
     "agentmail",
     "agentphone",
     "agiloft",
@@ -215,6 +216,7 @@
     "tinybird",
     "trello",
     "trigger_dev",
+    "twilio",
     "twilio_sms",
     "twilio_voice",
     "typeform",

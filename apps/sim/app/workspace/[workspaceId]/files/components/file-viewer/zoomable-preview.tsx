@@ -2,7 +2,7 @@
 
 import type { MouseEvent, ReactNode } from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
 

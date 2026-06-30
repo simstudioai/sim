@@ -1,9 +1,6 @@
 'use client'
 
 import { type ComponentType, useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
 import {
   Chip,
   ChipConfirmModal,
@@ -13,8 +10,11 @@ import {
   ChipTextarea,
   Send,
   toast,
-} from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter } from 'next/navigation'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { INTEGRATIONS, resolveOAuthServiceForIntegration } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'

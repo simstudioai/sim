@@ -1,10 +1,6 @@
 'use client'
 
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -21,7 +17,11 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -35,7 +35,6 @@ import { syncLocalDraftFromServer } from '@/app/workspace/[workspaceId]/w/[workf
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
-import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
   invalidateDeploymentQueries,
@@ -56,7 +55,6 @@ import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
-  A2aDeploy,
   ApiDeploy,
   ChatDeploy,
   DeployUpgradeGate,
@@ -75,7 +73,7 @@ function GatedTabContent({
   children,
 }: {
   gated: boolean
-  feature: 'API' | 'MCP' | 'A2A'
+  feature: 'API' | 'MCP'
   children: ReactNode
 }) {
   return gated ? <DeployUpgradeGate feature={feature} /> : <>{children}</>
@@ -103,9 +101,9 @@ interface WorkflowDeploymentInfoUI {
   isPublicApi: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'mcp' | 'a2a'
+type TabView = 'general' | 'api' | 'chat' | 'mcp'
 
-const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp', 'a2a'])
+const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp'])
 
 function isDeployModalTab(value: unknown): value is TabView {
   return typeof value === 'string' && DEPLOY_MODAL_TABS.has(value as TabView)
@@ -144,10 +142,6 @@ export function DeployModal({
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [mcpToolSaveDisabledReason, setMcpToolSaveDisabledReason] = useState<string | null>(null)
   const [mcpActiveServerId, setMcpActiveServerId] = useState<string | null>(null)
-  const [a2aSubmitting, setA2aSubmitting] = useState(false)
-  const [a2aCanSave, setA2aCanSave] = useState(false)
-  const [a2aNeedsRepublish, setA2aNeedsRepublish] = useState(false)
-  const [showA2aDeleteConfirm, setShowA2aDeleteConfirm] = useState(false)
 
   const [chatSuccess, setChatSuccess] = useState(false)
   const chatSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -201,13 +195,6 @@ export function DeployModal({
 
   const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '')
   const hasMcpServers = mcpServers.length > 0
-
-  const { data: existingA2aAgent } = useA2AAgentByWorkflow(
-    workflowWorkspaceId || '',
-    workflowId || ''
-  )
-  const hasA2aAgent = !!existingA2aAgent
-  const isA2aPublished = existingA2aAgent?.isPublished ?? false
 
   const deployMutation = useDeployWorkflow()
   const undeployMutation = useUndeployWorkflow()
@@ -526,43 +513,6 @@ export function DeployModal({
     form?.requestSubmit()
   }
 
-  const handleA2aPublish = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const publishTrigger = form?.querySelector('[data-a2a-publish-trigger]') as HTMLButtonElement
-    publishTrigger?.click()
-  }
-
-  const handleA2aUnpublish = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const unpublishTrigger = form?.querySelector(
-      '[data-a2a-unpublish-trigger]'
-    ) as HTMLButtonElement
-    unpublishTrigger?.click()
-  }
-
-  const handleA2aPublishNew = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const publishNewTrigger = form?.querySelector(
-      '[data-a2a-publish-new-trigger]'
-    ) as HTMLButtonElement
-    publishNewTrigger?.click()
-  }
-
-  const handleA2aUpdateRepublish = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const updateRepublishTrigger = form?.querySelector(
-      '[data-a2a-update-republish-trigger]'
-    ) as HTMLButtonElement
-    updateRepublishTrigger?.click()
-  }
-
-  const handleA2aDelete = () => {
-    const form = document.getElementById('a2a-deploy-form')
-    const deleteTrigger = form?.querySelector('[data-a2a-delete-trigger]') as HTMLButtonElement
-    deleteTrigger?.click()
-    setShowA2aDeleteConfirm(false)
-  }
-
   const isSubmitting = deployMutation.isPending || isFinalizingDeploy
   const isUndeploying = undeployMutation.isPending
 
@@ -585,9 +535,6 @@ export function DeployModal({
               {!permissionConfig.hideDeployMcp && (
                 <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
               )}
-              {!permissionConfig.hideDeployA2a && (
-                <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
-              )}
               {!permissionConfig.hideDeployChatbot && (
                 <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               )}
@@ -595,7 +542,7 @@ export function DeployModal({
 
             <ModalBody className='min-h-0 flex-1'>
               <ModalDescription className='sr-only'>
-                Configure and manage workflow deployment settings including API, MCP, A2A, and chat
+                Configure and manage workflow deployment settings including API, MCP, and chat
                 options.
               </ModalDescription>
               {(deployError || deployWarnings.length > 0) && (
@@ -677,24 +624,6 @@ export function DeployModal({
                       onCanSaveChange={setMcpToolCanSave}
                       onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
                       onActiveServerChange={setMcpActiveServerId}
-                    />
-                  )}
-                </GatedTabContent>
-              </ModalTabsContent>
-
-              <ModalTabsContent value='a2a' className='h-full'>
-                <GatedTabContent gated={gateProgrammaticDeploy} feature='A2A'>
-                  {workflowId && (
-                    <A2aDeploy
-                      workflowId={workflowId}
-                      workflowName={workflowMetadata?.name || 'Workflow'}
-                      workflowDescription={workflowMetadata?.description}
-                      isDeployed={isDeployed}
-                      workflowNeedsRedeployment={needsRedeployment}
-                      onSubmittingChange={setA2aSubmitting}
-                      onCanSaveChange={setA2aCanSave}
-                      onNeedsRepublishChange={setA2aNeedsRepublish}
-                      onDeployWorkflow={onDeploy}
                     />
                   )}
                 </GatedTabContent>
@@ -805,77 +734,6 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'a2a' && !gateProgrammaticDeploy && (
-            <ModalFooter className='items-center justify-between'>
-              {hasA2aAgent ? (
-                isA2aPublished ? (
-                  <Badge variant={a2aNeedsRepublish ? 'amber' : 'green'} size='lg' dot>
-                    {a2aNeedsRepublish ? 'Update deployment' : 'Live'}
-                  </Badge>
-                ) : (
-                  <Badge variant='red' size='lg' dot>
-                    Unpublished
-                  </Badge>
-                )
-              ) : (
-                <div />
-              )}
-              <div className='flex items-center gap-2'>
-                {!hasA2aAgent && (
-                  <Button
-                    type='button'
-                    variant='tertiary'
-                    onClick={handleA2aPublishNew}
-                    disabled={a2aSubmitting || !a2aCanSave}
-                  >
-                    {a2aSubmitting ? 'Publishing...' : 'Publish Agent'}
-                  </Button>
-                )}
-
-                {hasA2aAgent && isA2aPublished && (
-                  <>
-                    <Button
-                      type='button'
-                      variant='default'
-                      onClick={handleA2aUnpublish}
-                      disabled={a2aSubmitting}
-                    >
-                      Unpublish
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='tertiary'
-                      onClick={handleA2aUpdateRepublish}
-                      disabled={a2aSubmitting || !a2aCanSave || !a2aNeedsRepublish}
-                    >
-                      {a2aSubmitting ? 'Updating...' : 'Update'}
-                    </Button>
-                  </>
-                )}
-
-                {hasA2aAgent && !isA2aPublished && (
-                  <>
-                    <Button
-                      type='button'
-                      variant='default'
-                      onClick={() => setShowA2aDeleteConfirm(true)}
-                      disabled={a2aSubmitting}
-                    >
-                      Delete
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='tertiary'
-                      onClick={handleA2aPublish}
-                      disabled={a2aSubmitting || !a2aCanSave}
-                    >
-                      {a2aSubmitting ? 'Publishing...' : 'Publish'}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </ModalFooter>
-          )}
         </ModalContent>
       </Modal>
 
@@ -898,26 +756,6 @@ export function DeployModal({
           onClick: handleUndeploy,
           pending: isUndeploying,
           pendingLabel: 'Undeploying...',
-        }}
-      />
-
-      <ChipConfirmModal
-        open={showA2aDeleteConfirm}
-        onOpenChange={setShowA2aDeleteConfirm}
-        srTitle='Delete A2A Agent'
-        title='Delete A2A Agent'
-        text={[
-          'Are you sure you want to delete ',
-          { text: existingA2aAgent?.name || 'this agent', bold: true },
-          '? ',
-          { text: 'This will permanently remove the agent configuration.', error: true },
-          ' This action cannot be undone.',
-        ]}
-        confirm={{
-          label: 'Delete',
-          onClick: handleA2aDelete,
-          pending: a2aSubmitting,
-          pendingLabel: 'Deleting...',
         }}
       />
 

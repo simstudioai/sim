@@ -27,8 +27,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { texts, entityTypes, language } = parsed.data.body
 
   try {
+    const startedAt = performance.now()
     const masked = await maskPIIBatch(texts, entityTypes, language)
-    logger.info('Masked PII batch', { count: texts.length })
+    logger.info('Masked PII batch', {
+      count: texts.length,
+      durationMs: Math.round(performance.now() - startedAt),
+    })
     return NextResponse.json({ masked })
   } catch (error) {
     // An unreachable/misconfigured Presidio sidecar makes maskPIIBatch throw; fail

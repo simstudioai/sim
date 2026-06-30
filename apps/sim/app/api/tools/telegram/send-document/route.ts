@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'
 
@@ -93,11 +94,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
 
-    const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+    let buffer: Buffer
+    let contentType: string
+    try {
+      const downloaded = await downloadServableFileFromStorage(userFile, requestId, logger)
+      buffer = downloaded.buffer
+      contentType = downloaded.contentType
+    } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
+      logger.error(`[${requestId}] Failed to download document ${userFile.name}:`, error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Failed to download document: ${getErrorMessage(error, 'Unknown error')}`,
+        },
+        { status: 500 }
+      )
+    }
+
+    if (buffer.length > maxSize) {
+      const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `The following files exceed Telegram's 50MB limit: ${userFile.name} (${sizeMB}MB)`,
+        },
+        { status: 400 }
+      )
+    }
+
+    const resolvedMimeType = contentType || userFile.type || 'application/octet-stream'
     const filesOutput = [
       {
         name: userFile.name,
-        mimeType: userFile.type || 'application/octet-stream',
+        mimeType: resolvedMimeType,
         data: buffer.toString('base64'),
         size: buffer.length,
       },
@@ -108,7 +139,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const formData = new FormData()
     formData.append('chat_id', validatedData.chatId)
 
-    const blob = new Blob([new Uint8Array(buffer)], { type: userFile.type })
+    const blob = new Blob([new Uint8Array(buffer)], { type: resolvedMimeType })
     formData.append('document', blob, userFile.name)
 
     if (validatedData.caption) {

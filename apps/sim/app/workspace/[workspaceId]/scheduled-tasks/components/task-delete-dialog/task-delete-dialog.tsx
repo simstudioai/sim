@@ -7,7 +7,7 @@ import {
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 
 interface TaskDeleteDialogProps {

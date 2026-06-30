@@ -1,5 +1,5 @@
+import { Label, Tooltip } from '@sim/emcn'
 import { Info } from 'lucide-react'
-import { Label, Tooltip } from '@/components/emcn'
 
 interface SettingRowProps {
   label: string

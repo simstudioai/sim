@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
+import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
+import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { Chip, ChipConfirmModal, toast } from '@/components/emcn'
-import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type {

@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Combobox, Input } from '@/components/emcn'
+import { Button, Combobox, Input } from '@sim/emcn'
 import type { WorkflowSearchReplacementOption } from '@/lib/workflows/search-replace/types'
 
 interface ReplacementControlsProps {

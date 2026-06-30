@@ -2,8 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
-import { ArrowUpDown, ListFilter, Plus, Search } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ArrowUpDown, cn, ListFilter, Plus, Search } from '@sim/emcn'
 
 export interface PreviewColumn {
   id: string

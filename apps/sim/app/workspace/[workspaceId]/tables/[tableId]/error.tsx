@@ -1,8 +1,8 @@
 'use client'
 
+import { Button } from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
-import { Button } from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
 import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
 
 export default function TableError({ error, reset }: ErrorBoundaryProps) {

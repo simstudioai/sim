@@ -1,13 +1,12 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { MoreHorizontal } from 'lucide-react'
 import {
   ChevronDown,
   Chip,
   ChipConfirmModal,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuSeparator,
@@ -15,15 +14,21 @@ import {
   Plus,
   Send,
   Skeleton,
-} from '@/components/emcn'
-import { ManageWorkspace, PanelLeft } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { MoreHorizontal } from 'lucide-react'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
+import { ForkWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-workspace-modal/fork-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
+import { PromoteWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/promote-workspace-modal'
+import { useForkingAvailable } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/use-forking-available'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { useForkLineage } from '@/hooks/queries/workspace-fork'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -96,6 +101,8 @@ function WorkspaceHeaderImpl({
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [isForkModalOpen, setIsForkModalOpen] = useState(false)
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
@@ -120,6 +127,14 @@ function WorkspaceHeaderImpl({
   }, [])
 
   const { navigateToSettings } = useSettingsNavigation()
+  const forkingAvailable = useForkingAvailable(workspaceId)
+  const { canAdmin } = useUserPermissionsContext()
+  // Forking and sync rewrite workflow state and deployments en masse, so they are
+  // workspace-admin only (org owners/admins derive workspace admin server-side via
+  // the resolved viewer permission). Every fork route re-checks this; gating the
+  // entry points here just keeps the UI honest. The server remains the boundary.
+  const canUseForking = forkingAvailable && canAdmin
+  const { data: forkLineage } = useForkLineage(workspaceId, canUseForking)
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
   const isWorkspaceReady = !isWorkspacesLoading && activeWorkspaceFull !== null
@@ -236,6 +251,16 @@ function WorkspaceHeaderImpl({
   const handleUploadLogoAction = () => {
     if (!capturedWorkspaceRef.current) return
     onUploadLogo(capturedWorkspaceRef.current.id)
+  }
+
+  // Always open Manage Forks - rollback and the durable Activity log live here and must
+  // stay reachable at a workspace cap. Only creating a NEW fork is gated (in the modal).
+  const handleForkAction = () => {
+    setIsForkModalOpen(true)
+  }
+
+  const handleSyncAction = () => {
+    setIsPromoteModalOpen(true)
   }
 
   /**
@@ -635,6 +660,9 @@ function WorkspaceHeaderImpl({
         const contextCanAdmin = capturedPermissions === 'admin'
         const capturedWorkspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
         const isOwner = capturedWorkspace && sessionUserId === capturedWorkspace.ownerId
+        // Only the active row can offer fork actions: its lineage/availability is the
+        // data loaded for `workspaceId`. Sync needs a parent; Manage needs children.
+        const showForkInContext = capturedWorkspaceRef.current?.id === workspaceId && canUseForking
 
         return (
           <ContextMenu
@@ -646,9 +674,13 @@ function WorkspaceHeaderImpl({
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
             onUploadLogo={handleUploadLogoAction}
+            onFork={handleForkAction}
+            onSync={handleSyncAction}
             showRename={true}
             showUploadLogo={!!onUploadLogo}
             showLeave={!isOwner && !!onLeaveWorkspace}
+            showFork={showForkInContext}
+            showSync={showForkInContext && Boolean(forkLineage?.parent)}
             disableRename={!contextCanAdmin}
             disableDelete={!contextCanAdmin || workspaces.length <= 1}
             disableUploadLogo={!contextCanAdmin}
@@ -672,6 +704,23 @@ function WorkspaceHeaderImpl({
         workspaceName={activeWorkspace?.name || 'Workspace'}
         inviteDisabledReason={inviteDisabledReason}
         organizationId={activeWorkspaceFull?.organizationId ?? null}
+      />
+      <ForkWorkspaceModal
+        open={isForkModalOpen}
+        onOpenChange={setIsForkModalOpen}
+        sourceWorkspaceId={workspaceId}
+        sourceWorkspaceName={activeWorkspace?.name || 'Workspace'}
+        undoableRun={forkLineage?.undoableRun ?? null}
+        canFork={canCreateWorkspace}
+        onUpgrade={() => {
+          if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+        }}
+      />
+      <PromoteWorkspaceModal
+        open={isPromoteModalOpen}
+        onOpenChange={setIsPromoteModalOpen}
+        workspaceId={workspaceId}
+        parent={forkLineage?.parent ?? null}
       />
       <DeleteModal
         isOpen={isDeleteModalOpen}

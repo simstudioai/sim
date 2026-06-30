@@ -4,6 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -15,7 +16,6 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { toast } from '@/components/emcn'
 import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'

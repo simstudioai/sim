@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
-import { Plus } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -22,8 +19,11 @@ import {
   type FileInputOptions,
   TagInput,
   type TagItem,
-} from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
+import { Plus } from 'lucide-react'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
@@ -420,186 +420,180 @@ export function CredentialSets() {
     const totalCount = activeMembers.length + pendingInvitations.length
 
     return (
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
-            Sim Mailer
-          </Chip>
-          <div />
-        </div>
-
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
-            <SettingsSection label='Details'>
-              <div className='flex items-center gap-4.5'>
-                <div className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>Group Name</span>
-                  <span className='text-[var(--text-secondary)] text-sm'>{viewingSet.name}</span>
-                </div>
-                <div className='h-4 w-px bg-[var(--border)]' />
-                <div className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>Provider</span>
-                  <div className='flex items-center gap-1.5'>
-                    {getProviderIcon(viewingSet.providerId)}
-                    <span className='text-[var(--text-secondary)] text-sm'>
-                      {getProviderDisplayName(viewingSet.providerId as PollingProvider)}
-                    </span>
-                  </div>
+      <SettingsPanel
+        back={{ text: 'Email polling', icon: ArrowLeft, onSelect: handleBackToList }}
+        title={viewingSet.name}
+      >
+        <div className='flex flex-col gap-7'>
+          <SettingsSection label='Details'>
+            <div className='flex items-center gap-4.5'>
+              <div className='flex items-center gap-2'>
+                <span className='font-medium text-[var(--text-primary)] text-sm'>Group Name</span>
+                <span className='text-[var(--text-secondary)] text-sm'>{viewingSet.name}</span>
+              </div>
+              <div className='h-4 w-px bg-[var(--border)]' />
+              <div className='flex items-center gap-2'>
+                <span className='font-medium text-[var(--text-primary)] text-sm'>Provider</span>
+                <div className='flex items-center gap-1.5'>
+                  {getProviderIcon(viewingSet.providerId)}
+                  <span className='text-[var(--text-secondary)] text-sm'>
+                    {getProviderDisplayName(viewingSet.providerId as PollingProvider)}
+                  </span>
                 </div>
               </div>
-            </SettingsSection>
+            </div>
+          </SettingsSection>
 
-            <SettingsSection label='Invite'>
-              <div className='flex flex-col gap-1'>
-                <div className='flex items-center gap-2'>
-                  <TagInput
-                    items={emailItems}
-                    onAdd={(value) => addEmail(value)}
-                    onRemove={removeEmailItem}
-                    placeholder='Enter email addresses'
-                    placeholderWithTags='Add another email'
-                    disabled={createInvitation.isPending}
-                    fileInputOptions={fileInputOptions}
-                    className='flex-1'
-                  />
-                  <Chip
-                    onClick={handleInviteMembers}
-                    disabled={createInvitation.isPending || validEmails.length === 0}
-                  >
-                    {createInvitation.isPending ? 'Sending...' : 'Invite'}
-                  </Chip>
-                </div>
-                {emailError && <p className='text-[var(--text-error)] text-small'>{emailError}</p>}
+          <SettingsSection label='Invite'>
+            <div className='flex flex-col gap-1'>
+              <div className='flex items-center gap-2'>
+                <TagInput
+                  items={emailItems}
+                  onAdd={(value) => addEmail(value)}
+                  onRemove={removeEmailItem}
+                  placeholder='Enter email addresses'
+                  placeholderWithTags='Add another email'
+                  disabled={createInvitation.isPending}
+                  fileInputOptions={fileInputOptions}
+                  className='flex-1'
+                />
+                <Chip
+                  onClick={handleInviteMembers}
+                  disabled={createInvitation.isPending || validEmails.length === 0}
+                >
+                  {createInvitation.isPending ? 'Sending...' : 'Invite'}
+                </Chip>
               </div>
-            </SettingsSection>
+              {emailError && <p className='text-[var(--text-error)] text-small'>{emailError}</p>}
+            </div>
+          </SettingsSection>
 
-            <SettingsSection label='Members'>
-              {membersLoading || pendingInvitationsLoading ? null : totalCount === 0 ? (
-                <p className='text-[var(--text-muted)] text-sm'>
-                  No members yet. Send invitations above.
-                </p>
-              ) : (
-                <div className='flex flex-col gap-4.5'>
-                  {activeMembers.map((member) => {
-                    const name = member.userName || 'Unknown'
-                    const avatarInitial = name.charAt(0).toUpperCase()
+          <SettingsSection label='Members'>
+            {membersLoading || pendingInvitationsLoading ? null : totalCount === 0 ? (
+              <p className='text-[var(--text-muted)] text-sm'>
+                No members yet. Send invitations above.
+              </p>
+            ) : (
+              <div className='flex flex-col gap-4.5'>
+                {activeMembers.map((member) => {
+                  const name = member.userName || 'Unknown'
+                  const avatarInitial = name.charAt(0).toUpperCase()
 
-                    return (
-                      <div key={member.id} className='flex items-center justify-between'>
-                        <div className='flex flex-1 items-center gap-3'>
-                          <Avatar size='md'>
-                            {member.userImage && <AvatarImage src={member.userImage} alt={name} />}
-                            <AvatarFallback
-                              style={{
-                                background: getUserColor(member.userId || member.userEmail || ''),
-                              }}
-                              className='border-0 text-white'
-                            >
-                              {avatarInitial}
-                            </AvatarFallback>
-                          </Avatar>
+                  return (
+                    <div key={member.id} className='flex items-center justify-between'>
+                      <div className='flex flex-1 items-center gap-3'>
+                        <Avatar size='md'>
+                          {member.userImage && <AvatarImage src={member.userImage} alt={name} />}
+                          <AvatarFallback
+                            style={{
+                              background: getUserColor(member.userId || member.userEmail || ''),
+                            }}
+                            className='border-0 text-white'
+                          >
+                            {avatarInitial}
+                          </AvatarFallback>
+                        </Avatar>
 
-                          <div className='min-w-0'>
-                            <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                                {name}
-                              </span>
-                              {member.credentials.length === 0 && (
-                                <Badge variant='red' size='sm'>
-                                  Disconnected
-                                </Badge>
-                              )}
-                            </div>
-                            <div className='truncate text-[var(--text-muted)] text-small'>
-                              {member.userEmail}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className='ml-4 flex items-center gap-1'>
-                          <RowActionsMenu
-                            label='Member actions'
-                            actions={[
-                              {
-                                label: 'Remove',
-                                destructive: true,
-                                disabled: removeMember.isPending,
-                                onSelect: () => handleRemoveMember(member.id),
-                              },
-                            ]}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {pendingInvitations.map((invitation) => {
-                    const email = invitation.email || 'Unknown'
-                    const emailPrefix = email.split('@')[0]
-                    const avatarInitial = emailPrefix.charAt(0).toUpperCase()
-
-                    return (
-                      <div key={invitation.id} className='flex items-center justify-between'>
-                        <div className='flex flex-1 items-center gap-3'>
-                          <Avatar size='md'>
-                            <AvatarFallback
-                              style={{ background: getUserColor(email) }}
-                              className='border-0 text-white'
-                            >
-                              {avatarInitial}
-                            </AvatarFallback>
-                          </Avatar>
-
-                          <div className='min-w-0'>
-                            <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                                {emailPrefix}
-                              </span>
-                              <Badge variant='gray-secondary' size='sm'>
-                                Pending
+                        <div className='min-w-0'>
+                          <div className='flex items-center gap-2'>
+                            <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                              {name}
+                            </span>
+                            {member.credentials.length === 0 && (
+                              <Badge variant='red' size='sm'>
+                                Disconnected
                               </Badge>
-                            </div>
-                            <div className='truncate text-[var(--text-muted)] text-small'>
-                              {email}
-                            </div>
+                            )}
+                          </div>
+                          <div className='truncate text-[var(--text-muted)] text-small'>
+                            {member.userEmail}
                           </div>
                         </div>
+                      </div>
 
-                        <div className='ml-4 flex items-center gap-1'>
-                          <RowActionsMenu
-                            label='Invitation actions'
-                            actions={[
-                              {
-                                label: resendingInvitations.has(invitation.id)
-                                  ? 'Sending...'
-                                  : resendCooldowns[invitation.id]
-                                    ? `Resend (${resendCooldowns[invitation.id]}s)`
-                                    : 'Resend',
-                                disabled:
-                                  resendingInvitations.has(invitation.id) ||
-                                  (resendCooldowns[invitation.id] ?? 0) > 0,
-                                onSelect: () => handleResendInvitation(invitation.id, email),
-                              },
-                              {
-                                label: cancellingInvitations.has(invitation.id)
-                                  ? 'Cancelling...'
-                                  : 'Cancel',
-                                destructive: true,
-                                disabled: cancellingInvitations.has(invitation.id),
-                                onSelect: () => handleCancelInvitation(invitation.id),
-                              },
-                            ]}
-                          />
+                      <div className='ml-4 flex items-center gap-1'>
+                        <RowActionsMenu
+                          label='Member actions'
+                          actions={[
+                            {
+                              label: 'Remove',
+                              destructive: true,
+                              disabled: removeMember.isPending,
+                              onSelect: () => handleRemoveMember(member.id),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {pendingInvitations.map((invitation) => {
+                  const email = invitation.email || 'Unknown'
+                  const emailPrefix = email.split('@')[0]
+                  const avatarInitial = emailPrefix.charAt(0).toUpperCase()
+
+                  return (
+                    <div key={invitation.id} className='flex items-center justify-between'>
+                      <div className='flex flex-1 items-center gap-3'>
+                        <Avatar size='md'>
+                          <AvatarFallback
+                            style={{ background: getUserColor(email) }}
+                            className='border-0 text-white'
+                          >
+                            {avatarInitial}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <div className='min-w-0'>
+                          <div className='flex items-center gap-2'>
+                            <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                              {emailPrefix}
+                            </span>
+                            <Badge variant='gray-secondary' size='sm'>
+                              Pending
+                            </Badge>
+                          </div>
+                          <div className='truncate text-[var(--text-muted)] text-small'>
+                            {email}
+                          </div>
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </SettingsSection>
-          </div>
+
+                      <div className='ml-4 flex items-center gap-1'>
+                        <RowActionsMenu
+                          label='Invitation actions'
+                          actions={[
+                            {
+                              label: resendingInvitations.has(invitation.id)
+                                ? 'Sending...'
+                                : resendCooldowns[invitation.id]
+                                  ? `Resend (${resendCooldowns[invitation.id]}s)`
+                                  : 'Resend',
+                              disabled:
+                                resendingInvitations.has(invitation.id) ||
+                                (resendCooldowns[invitation.id] ?? 0) > 0,
+                              onSelect: () => handleResendInvitation(invitation.id, email),
+                            },
+                            {
+                              label: cancellingInvitations.has(invitation.id)
+                                ? 'Cancelling...'
+                                : 'Cancel',
+                              destructive: true,
+                              disabled: cancellingInvitations.has(invitation.id),
+                              onSelect: () => handleCancelInvitation(invitation.id),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </SettingsSection>
         </div>
-      </div>
+      </SettingsPanel>
     )
   }
 
@@ -612,11 +606,16 @@ export function CredentialSets() {
           placeholder: 'Search polling groups...',
         }}
         actions={
-          canManageCredentialSets && (
-            <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
-              Create Group
-            </Chip>
-          )
+          canManageCredentialSets
+            ? [
+                {
+                  text: 'Create group',
+                  icon: Plus,
+                  variant: 'primary',
+                  onSelect: () => setShowCreateModal(true),
+                },
+              ]
+            : undefined
         }
       >
         <div className='relative'>

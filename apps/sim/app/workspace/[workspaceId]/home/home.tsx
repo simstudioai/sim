@@ -9,12 +9,12 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Button } from '@sim/emcn'
+import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { Button } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'

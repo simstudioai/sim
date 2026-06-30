@@ -1,6 +1,5 @@
 'use client'
 
-import { Sparkles } from 'lucide-react'
 import {
   ChipChevronDown,
   chipContentIconClass,
@@ -12,7 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Plus,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { Sparkles } from 'lucide-react'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 

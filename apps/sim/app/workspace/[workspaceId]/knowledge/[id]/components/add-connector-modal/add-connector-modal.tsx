@@ -1,8 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   ArrowRight,
   Button,
@@ -18,11 +16,13 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
+  cn,
+  handleKeyboardActivation,
   Search,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { ArrowLeft, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,

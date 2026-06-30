@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { ChipDropdown, ChipInput, Search, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChipDropdown, ChipInput, Search, toast } from '@/components/emcn'
 import {
   type OrgRole,
   type PermissionType,

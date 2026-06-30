@@ -105,6 +105,15 @@ const FEATURE_FLAGS = {
       'logging session (no user/org context) so an execution never mixes write paths.',
     fallback: 'REDIS_PROGRESS_MARKERS',
   },
+  'workspace-forking': {
+    description:
+      'Runtime rollout gate for workspace forking (fork/promote/rollback), layered on top of ' +
+      'the existing FORKING_ENABLED / Enterprise-plan gate at the shared assertForkingEnabled ' +
+      'choke point. Enforced ONLY where AppConfig is the source of truth (Sim Cloud), so ' +
+      'operators can dark-launch forking to specific orgs/users/admins without touching ' +
+      'self-hosted/local behaviour. Fallback mirrors FORKING_ENABLED for off-AppConfig reads.',
+    fallback: 'FORKING_ENABLED',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

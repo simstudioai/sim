@@ -1,6 +1,5 @@
 'use client'
-
-import { ChevronDown, Home, Library } from '@/components/emcn'
+import { ChevronDown, cn, Home, Library } from '@sim/emcn'
 import {
   Calendar,
   Database,
@@ -10,8 +9,7 @@ import {
   Settings,
   Table,
   Workflow,
-} from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn/icons'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 export type SidebarView =

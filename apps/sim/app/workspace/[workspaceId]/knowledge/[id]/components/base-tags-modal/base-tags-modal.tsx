@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   Button,
   ChipCombobox,
@@ -13,10 +12,11 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
+  handleKeyboardActivation,
   Trash,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {

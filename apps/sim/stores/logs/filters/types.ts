@@ -28,7 +28,6 @@ export const CORE_TRIGGER_TYPES = [
   'chat',
   'webhook',
   'mcp',
-  'a2a',
   'copilot',
   'mothership',
   'workflow',

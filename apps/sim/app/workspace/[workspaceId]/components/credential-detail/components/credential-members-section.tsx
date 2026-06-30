@@ -1,9 +1,7 @@
 'use client'
-
+import { Avatar, AvatarFallback, Chip, ChipDropdown, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { Avatar, AvatarFallback, Chip, ChipDropdown } from '@/components/emcn'
 import { credentialRoleLockReason, RoleLockTooltip } from '@/components/permissions'
-import { cn } from '@/lib/core/utils/cn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import {
   useRemoveWorkspaceCredentialMember,

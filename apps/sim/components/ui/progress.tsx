@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import * as ProgressPrimitive from '@radix-ui/react-progress'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 
 interface ProgressProps extends React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> {
   indicatorClassName?: string

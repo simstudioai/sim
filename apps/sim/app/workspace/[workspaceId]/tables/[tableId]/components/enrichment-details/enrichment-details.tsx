@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Badge, Button, ChipModalTabs, cn, X } from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
-import { Badge, Button, ChipModalTabs, X } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
 import {
   adjustBgForContrast,

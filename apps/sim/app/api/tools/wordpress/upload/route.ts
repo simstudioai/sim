@@ -11,7 +11,8 @@ import {
   getMimeTypeFromExtension,
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -89,10 +90,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     let fileBuffer: Buffer
+    let resolvedContentType: string
 
     try {
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+      const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+      fileBuffer = servable.buffer
+      resolvedContentType = servable.contentType
     } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
       logger.error(`[${requestId}] Failed to download file:`, error)
       return NextResponse.json(
         {
@@ -104,7 +110,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const filename = validatedData.filename || userFile.name
-    const mimeType = userFile.type || getMimeTypeFromExtension(getFileExtension(filename))
+    const mimeType =
+      resolvedContentType || userFile.type || getMimeTypeFromExtension(getFileExtension(filename))
 
     logger.info(`[${requestId}] Uploading to WordPress`, {
       siteId: validatedData.siteId,

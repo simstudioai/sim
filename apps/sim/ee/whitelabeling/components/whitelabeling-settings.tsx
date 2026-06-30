@@ -1,24 +1,23 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Button, ChipInput, cn, Label, Loader, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Button, ChipInput, Label, Loader, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
+import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -329,15 +328,13 @@ export function WhitelabelingSettings() {
 
   return (
     <SettingsPanel
-      actions={
-        <SaveDiscardActions
-          dirty={hasChanges}
-          saving={updateSettings.isPending}
-          saveDisabled={isUploading}
-          onSave={handleSave}
-          onDiscard={handleDiscard}
-        />
-      }
+      actions={saveDiscardActions({
+        dirty: hasChanges,
+        saving: updateSettings.isPending,
+        saveDisabled: isUploading,
+        onSave: handleSave,
+        onDiscard: handleDiscard,
+      })}
     >
       <SettingsSection label='Brand Identity'>
         <div className='flex flex-col gap-5'>

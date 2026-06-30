@@ -1,10 +1,4 @@
 'use client'
-
-import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useQueryClient } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowRight,
   Badge,
@@ -12,9 +6,15 @@ import {
   ChipLink,
   Credit,
   chipVariants,
+  cn,
   Switch,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams, useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
@@ -34,7 +34,6 @@ import {
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
-import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'

@@ -11,12 +11,18 @@ import {
   useRef,
   useState,
 } from 'react'
+import {
+  Button,
+  chipVariants,
+  cn,
+  Expandable,
+  ExpandableContent,
+  handleKeyboardActivation,
+  Info,
+} from '@sim/emcn'
 import clsx from 'clsx'
 import { ChevronDown, Search } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
-import { Button, chipVariants, Expandable, ExpandableContent, Info } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureEvent } from '@/lib/posthog/client'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { ToolbarItemContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'

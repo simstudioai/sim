@@ -1,14 +1,6 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { format } from 'date-fns'
-import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryState, useQueryStates } from 'nuqs'
-import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
@@ -25,13 +17,21 @@ import {
   chipContentGap,
   chipContentLabelClass,
   chipVariants,
+  cn,
   Loader,
   Tooltip,
   Trash,
-} from '@/components/emcn'
-import { Database, DatabaseX } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Database, DatabaseX } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { format } from 'date-fns'
+import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryState, useQueryStates } from 'nuqs'
+import { usePostHog } from 'posthog-js/react'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { cn } from '@/lib/core/utils/cn'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
@@ -264,13 +264,20 @@ export function KnowledgeBase({
   const activeTagFilters: DocumentTagFilter[] = useMemo(
     () =>
       tagFilterEntries
-        .filter((f) => f.tagSlot && f.value.trim())
+        .filter((f) => {
+          if (!f.tagSlot || !f.value.trim()) return false
+          // A `between` filter only applies once both bounds are set. Sending it
+          // with just the lower bound would be rejected at the API boundary and
+          // break the whole list while the user is still entering the range.
+          if (f.operator === 'between' && !f.valueTo.trim()) return false
+          return true
+        })
         .map((f) => ({
           tagSlot: f.tagSlot,
           fieldType: f.fieldType,
           operator: f.operator,
           value: f.value,
-          ...(f.operator === 'between' && f.valueTo ? { valueTo: f.valueTo } : {}),
+          ...(f.operator === 'between' ? { valueTo: f.valueTo } : {}),
         })),
     [tagFilterEntries]
   )
@@ -1466,10 +1473,24 @@ const createEmptyEntry = (): TagFilterEntry => ({
   tagName: '',
   tagSlot: '',
   fieldType: 'text',
-  operator: 'eq',
+  operator: 'contains',
   value: '',
   valueTo: '',
 })
+
+/**
+ * Default operator when a tag is selected. Text filters default to `contains`
+ * so typing part of a value finds matches (exact `equals` stays one click away
+ * in the operator dropdown); other field types keep their first, equality
+ * operator.
+ */
+function getDefaultOperatorForFieldType(
+  fieldType: FilterFieldType,
+  operators: ReturnType<typeof getOperatorsForFieldType>
+): string {
+  if (fieldType === 'text') return 'contains'
+  return operators[0]?.value ?? 'eq'
+}
 
 interface TagFilterSectionProps {
   tagDefinitions: TagDefinition[]
@@ -1601,7 +1622,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
       tagName,
       tagSlot: def?.tagSlot || '',
       fieldType,
-      operator: operators[0]?.value || 'eq',
+      operator: getDefaultOperatorForFieldType(fieldType, operators),
       value: '',
       valueTo: '',
     })

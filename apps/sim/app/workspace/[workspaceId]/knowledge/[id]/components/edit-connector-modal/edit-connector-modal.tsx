@@ -1,8 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { ExternalLink, RotateCcw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -16,7 +14,9 @@ import {
   ChipModalTabs,
   Skeleton,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { ExternalLink, RotateCcw } from 'lucide-react'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'

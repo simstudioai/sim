@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useRef, useState } from 'react'
 import {
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,7 +12,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import {
   ArrowLeft,
   ArrowRight,
@@ -23,9 +24,8 @@ import {
   PlayOutline,
   Trash,
   Workflow,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
-import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowGroupType } from '@/lib/table'
 import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'

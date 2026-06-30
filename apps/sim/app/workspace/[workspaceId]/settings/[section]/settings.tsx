@@ -129,30 +129,28 @@ export function SettingsPage({ section }: SettingsPageProps) {
 
   return (
     <SettingsSectionProvider section={effectiveSection}>
-      <div className='flex h-full flex-col'>
-        {effectiveSection === 'general' && <General />}
-        {effectiveSection === 'secrets' && <Secrets />}
-        {effectiveSection === 'credential-sets' && <CredentialSets />}
-        {effectiveSection === 'access-control' && <AccessControl />}
-        {effectiveSection === 'audit-logs' && <AuditLogs />}
-        {effectiveSection === 'apikeys' && <ApiKeys />}
-        {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
-        {effectiveSection === 'teammates' && <Teammates />}
-        {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
-        {effectiveSection === 'sso' && <SSO />}
-        {effectiveSection === 'data-retention' && <DataRetentionSettings />}
-        {effectiveSection === 'data-drains' && <DataDrainsSettings />}
-        {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
-        {effectiveSection === 'byok' && <BYOK />}
-        {effectiveSection === 'copilot' && <Copilot />}
-        {effectiveSection === 'mcp' && <MCP />}
-        {effectiveSection === 'custom-tools' && <CustomTools />}
-        {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
-        {effectiveSection === 'inbox' && <Inbox />}
-        {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
-        {effectiveSection === 'admin' && <Admin />}
-        {effectiveSection === 'mothership' && <Mothership />}
-      </div>
+      {effectiveSection === 'general' && <General />}
+      {effectiveSection === 'secrets' && <Secrets />}
+      {effectiveSection === 'credential-sets' && <CredentialSets />}
+      {effectiveSection === 'access-control' && <AccessControl />}
+      {effectiveSection === 'audit-logs' && <AuditLogs />}
+      {effectiveSection === 'apikeys' && <ApiKeys />}
+      {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
+      {effectiveSection === 'teammates' && <Teammates />}
+      {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
+      {effectiveSection === 'sso' && <SSO />}
+      {effectiveSection === 'data-retention' && <DataRetentionSettings />}
+      {effectiveSection === 'data-drains' && <DataDrainsSettings />}
+      {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
+      {effectiveSection === 'byok' && <BYOK />}
+      {effectiveSection === 'copilot' && <Copilot />}
+      {effectiveSection === 'mcp' && <MCP />}
+      {effectiveSection === 'custom-tools' && <CustomTools />}
+      {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
+      {effectiveSection === 'inbox' && <Inbox />}
+      {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
+      {effectiveSection === 'admin' && <Admin />}
+      {effectiveSection === 'mothership' && <Mothership />}
     </SettingsSectionProvider>
   )
 }

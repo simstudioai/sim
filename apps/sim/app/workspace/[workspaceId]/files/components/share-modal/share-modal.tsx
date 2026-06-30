@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { generateShortId } from '@sim/utils/id'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -12,8 +11,9 @@ import {
   ChipModalHeader,
   TagInput,
   type TagItem,
-} from '@/components/emcn'
-import { Send } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Send } from '@sim/emcn/icons'
+import { generateShortId } from '@sim/utils/id'
 import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { getEnv, isTruthy } from '@/lib/core/config/env'

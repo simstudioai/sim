@@ -4,7 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import {
   ArrowDown,
   ArrowUp,
@@ -15,7 +15,7 @@ import {
   RefreshCw,
   Square,
   Trash,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
 import type { ContextMenuState } from '../../types'
 
 interface ContextMenuProps {

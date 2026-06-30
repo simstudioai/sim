@@ -2,12 +2,6 @@
 
 import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { X } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 import {
   Button,
   Checkbox,
@@ -21,10 +15,16 @@ import {
   ChipModalHeader,
   ChipTextarea,
   type ComboboxOption,
+  cn,
   Loader,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { X } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import type { StrategyOptions } from '@/lib/chunkers/types'
-import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'

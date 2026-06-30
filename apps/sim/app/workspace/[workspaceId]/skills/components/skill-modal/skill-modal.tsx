@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import dynamic from 'next/dynamic'
-import { useParams } from 'next/navigation'
 import {
   ChipModal,
   ChipModalBody,
@@ -12,8 +10,10 @@ import {
   ChipModalHeader,
   ChipModalTabs,
   chipFieldSurfaceClass,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import dynamic from 'next/dynamic'
+import { useParams } from 'next/navigation'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import { parseSkillMarkdown } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'

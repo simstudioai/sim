@@ -1,13 +1,11 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { ArrowLeft, ChevronRight, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
+  cn,
   Loader,
   Popover,
   PopoverContent,
@@ -15,9 +13,11 @@ import {
   PopoverTrigger,
   Switch,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { ArrowLeft, ChevronRight, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,
   getIssueBadgeVariant,
@@ -2111,6 +2111,7 @@ export const ToolInput = memo(function ToolInput({
                             toolIndex={toolIndex}
                             subBlock={sbWithTitle}
                             effectiveParamId={effectiveParamId}
+                            toolType={tool.type}
                             toolParams={tool.params}
                             onParamChange={handleParamChange}
                             disabled={disabled}

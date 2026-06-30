@@ -2,6 +2,23 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Badge,
+  Button,
+  ChevronDown,
+  ChipInput,
+  Code,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Duplicate,
+  Search as SearchIcon,
+  Tooltip,
+  useCopyToClipboard,
+} from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
@@ -14,22 +31,6 @@ import {
   X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import {
-  Badge,
-  Button,
-  ChevronDown,
-  ChipInput,
-  Code,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Duplicate,
-  Search as SearchIcon,
-  Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
   adjustBgForContrast,
@@ -46,7 +47,6 @@ import {
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200

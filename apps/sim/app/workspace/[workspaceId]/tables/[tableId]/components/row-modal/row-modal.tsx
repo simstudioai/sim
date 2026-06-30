@@ -1,9 +1,6 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import {
   Checkbox,
   ChipConfirmModal,
@@ -15,7 +12,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import { cleanCellValue, formatValueForInput } from '../../utils'

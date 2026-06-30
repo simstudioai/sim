@@ -93,7 +93,7 @@ Use barrel exports (`index.ts`) when a folder has 3+ exports. Do not re-export f
 
 1. React/core libraries
 2. External libraries
-3. UI components (`@/components/emcn`, `@/components/ui`)
+3. UI components (`@sim/emcn`, `@/components/ui`)
 4. Utilities (`@/lib/...`)
 5. Stores (`@/stores/...`)
 6. Feature imports
@@ -375,7 +375,7 @@ Co-locate a `search-params.ts` per feature exporting the parser map (single sour
 
 ## Styling
 
-Use Tailwind only, no inline styles. Use `cn()` from `@/lib/core/utils/cn` for conditional classes.
+Use Tailwind only, no inline styles. Use `cn()` from `@sim/emcn` for conditional classes.
 
 ```typescript
 <div className={cn('base-classes', isActive && 'active-classes')} />
@@ -391,7 +391,7 @@ On chip components (see "EMCN Components"), drive chrome through PROPS, not `cla
 
 ## EMCN Components
 
-Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA only when 2+ genuine variants exist; otherwise plain `cn()`.
+Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons come from the `@sim/emcn/icons` subpath, and CSS modules from their file path. Never deep-import other component subpaths. Use CVA only when 2+ genuine variants exist; otherwise plain `cn()`.
 
 The chip family is the canonical UI chrome and is progressively replacing the legacy EMCN primitives — always reach for the chip equivalent: `ChipInput` over `Input`, `ChipTextarea` over `Textarea`, `ChipModal`/`ChipModalField` over `Modal`, `ChipSelect`/`ChipCombobox` (searchable) or `ChipDropdown` (simple menu-select) over `Select`/`Combobox`, `ChipSwitch` over `Switch`, `ChipDatePicker` over a raw date field, `Chip`/`ChipLink` for pill buttons/links, `ChipTag` for inline tags/badges. For context/action menus the canonical control is `DropdownMenu` (not a chip, but the standard menu — not a hand-rolled popover). Components OWN their chrome (single source of truth) — consumers pass props, not class overrides. Authoring rules in `.claude/rules/emcn-components.md`; consumer rules in `.claude/rules/sim-styling.md`.
 

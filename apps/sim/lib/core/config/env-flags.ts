@@ -38,7 +38,7 @@ export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
  * Block free-plan accounts from programmatic workflow execution (API key, public
- * API, MCP server, A2A agent server, generic webhooks, cross-origin chat embeds).
+ * API, MCP server, generic webhooks, cross-origin chat embeds).
  * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
  * dark and be enabled per-deployment once verified.
  */
@@ -159,6 +159,12 @@ export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
  * This bypasses hosted requirements for self-hosted deployments
  */
 export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
+
+/**
+ * Is workspace forking enabled via env var override
+ * This bypasses hosted (Enterprise) requirements for self-hosted deployments
+ */
+export const isForkingEnabled = isTruthy(env.FORKING_ENABLED)
 
 /**
  * Is E2B enabled for remote code execution

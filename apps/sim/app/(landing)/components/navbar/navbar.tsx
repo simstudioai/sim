@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { cn } from '@sim/emcn'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { GithubOutlineIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import { SessionContext } from '@/app/_shell/providers/session-provider'
 import {
   BlogDropdown,

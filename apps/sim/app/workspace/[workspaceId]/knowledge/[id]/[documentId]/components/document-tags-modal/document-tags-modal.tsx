@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   Badge,
   Button,
@@ -13,10 +12,11 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  handleKeyboardActivation,
   Label,
   Trash,
-} from '@/components/emcn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import type { DocumentData } from '@/lib/knowledge/types'

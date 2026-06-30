@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
+import { toast } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
-import { toast } from '@/components/emcn'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useImportFileAsTable } from '@/hooks/queries/tables'

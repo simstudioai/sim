@@ -1,8 +1,8 @@
 'use client'
 
+import { cn } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
-import { cn } from '@/lib/core/utils/cn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 interface TemplateCardButtonProps {

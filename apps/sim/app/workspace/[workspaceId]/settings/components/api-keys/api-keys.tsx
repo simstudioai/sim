@@ -1,15 +1,16 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { ChipConfirmModal, Switch, Tooltip, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipConfirmModal, Switch, Tooltip, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -132,6 +133,19 @@ export function ApiKeys() {
     return formatDate(new Date(dateString))
   }
 
+  const actions: SettingsAction[] = [
+    {
+      text: 'Create API key',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => {
+        if (createButtonDisabled) return
+        setIsCreateDialogOpen(true)
+      },
+      disabled: createButtonDisabled,
+    },
+  ]
+
   return (
     <>
       <SettingsPanel
@@ -140,22 +154,10 @@ export function ApiKeys() {
           onChange: setSearchTerm,
           placeholder: 'Search API keys...',
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => {
-              if (createButtonDisabled) return
-              setIsCreateDialogOpen(true)
-            }}
-            disabled={createButtonDisabled}
-          >
-            Create API Key
-          </Chip>
-        }
+        actions={actions}
       >
         {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-          <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-6'>
             {!searchTerm.trim() ? (

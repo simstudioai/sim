@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import {
   blockTypeToIconMap,
   type Integration,

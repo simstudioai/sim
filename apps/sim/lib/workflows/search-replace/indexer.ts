@@ -682,7 +682,13 @@ function isVisibleToolParameter(param: ToolParameterConfig, values: Record<strin
   )
 }
 
-function getToolInputParamConfigs({
+/**
+ * Resolve a stored tool's params to their subBlock configs (the same resolution
+ * the search index + UI use). Exported so cross-workspace remapping (fork/promote)
+ * can detect and rewrite the workspace-scoped resource ids nested inside block
+ * tools, not just the top-level selectors.
+ */
+export function getToolInputParamConfigs({
   tool,
   parentCanonicalModes,
   credentialTypeById,

@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip, ChipInput, Tooltip, toast } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
@@ -18,6 +17,7 @@ import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/cr
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
@@ -943,33 +943,27 @@ export function SecretsManager() {
           onChange: setSearchTerm,
           placeholder: 'Search secrets...',
         }}
-        actions={
-          <>
-            {hasChanges && (
-              <Chip onClick={handleCancel} disabled={isListSaving}>
-                Discard
-              </Chip>
-            )}
-            {hasConflicts || hasInvalidKeys ? (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <div className='inline-flex'>
-                    <Chip disabled>Save</Chip>
-                  </div>
-                </Tooltip.Trigger>
-                {hasConflicts ? (
-                  <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
-                ) : (
-                  <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
-                )}
-              </Tooltip.Root>
-            ) : (
-              <Chip onClick={handleSave} disabled={isLoading || !hasChanges || isListSaving}>
-                {isListSaving ? 'Saving...' : 'Save'}
-              </Chip>
-            )}
-          </>
-        }
+        actions={[
+          ...(hasChanges
+            ? [
+                {
+                  text: 'Discard',
+                  onSelect: handleCancel,
+                  disabled: isListSaving,
+                } satisfies SettingsAction,
+              ]
+            : []),
+          {
+            text: isListSaving ? 'Saving...' : 'Save',
+            onSelect: handleSave,
+            disabled: hasConflicts || hasInvalidKeys || isLoading || !hasChanges || isListSaving,
+            tooltip: hasConflicts
+              ? 'Resolve all conflicts before saving'
+              : hasInvalidKeys
+                ? 'Fix invalid variable names before saving'
+                : undefined,
+          },
+        ]}
       >
         {!isLoading && (
           <div className='flex flex-col gap-7'>

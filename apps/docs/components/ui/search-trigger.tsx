@@ -1,12 +1,12 @@
 'use client'
 
-import { Search } from 'lucide-react'
 import {
   chipContentIconClass,
   chipFilledFillTokens,
   chipGeometryClass,
   TRIGGER_BORDER_CLASS,
-} from '@/components/ui/chip'
+} from '@sim/emcn'
+import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function SearchTrigger() {

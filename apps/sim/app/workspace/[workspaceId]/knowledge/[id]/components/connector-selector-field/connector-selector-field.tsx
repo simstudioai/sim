@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipCombobox, type ComboboxOption, Loader } from '@/components/emcn'
+import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type {
   ConfigFieldMap,

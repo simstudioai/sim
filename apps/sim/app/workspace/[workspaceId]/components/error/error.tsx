@@ -1,9 +1,9 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
+import { Button } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { TriangleAlert } from 'lucide-react'
-import { Button } from '@/components/emcn'
 
 /** Props shape required by Next.js error boundary files (`error.tsx`). */
 export interface ErrorBoundaryProps {

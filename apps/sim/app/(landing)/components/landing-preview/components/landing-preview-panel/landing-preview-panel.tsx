@@ -1,12 +1,12 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { Blimp, BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@sim/emcn'
 import { AnimatePresence, domMax, LazyMotion, m } from 'framer-motion'
 import { ArrowUp } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { Blimp, BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@/components/emcn'
 import { AgentIcon, HubspotIcon, OpenAIIcon, SalesforceIcon } from '@/components/icons'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { captureClientEvent } from '@/lib/posthog/client'

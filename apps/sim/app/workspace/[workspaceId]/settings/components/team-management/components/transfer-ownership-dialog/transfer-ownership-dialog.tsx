@@ -9,10 +9,10 @@ import {
   Banner,
   ChipConfirmModal,
   ChipInput,
+  cn,
   Search,
   Skeleton,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { RosterMember } from '@/hooks/queries/organization'
 

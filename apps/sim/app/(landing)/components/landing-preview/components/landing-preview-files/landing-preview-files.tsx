@@ -1,4 +1,4 @@
-import { File } from '@/components/emcn/icons'
+import { File } from '@sim/emcn/icons'
 import { DocxIcon, PdfIcon } from '@/components/icons/document-icons'
 import type {
   PreviewColumn,

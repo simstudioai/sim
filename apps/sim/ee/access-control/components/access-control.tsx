@@ -1,12 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { ArrowRight, Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Checkbox,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -15,7 +11,10 @@ import {
   ChipModalHeader,
   ChipTag,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { ArrowRight, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -164,16 +163,19 @@ export function AccessControl() {
           onChange: setSearchTerm,
           placeholder: 'Search permission groups...',
         }}
-        actions={
-          <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
-            Create Group
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'Create group',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setShowCreateModal(true),
+          },
+        ]}
       >
         <SettingsSection label={`Permission groups (${permissionGroups.length})`}>
           {permissionGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>
-              No permission groups yet. Click "Create Group" to get started.
+              No permission groups yet. Click "Create group" to get started.
             </SettingsEmptyState>
           ) : filteredGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>

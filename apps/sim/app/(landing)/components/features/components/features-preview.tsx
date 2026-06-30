@@ -4,8 +4,8 @@ import { type SVGProps, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, domAnimation, LazyMotion, m, useInView } from 'framer-motion'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
-import { ChevronDown } from '@/components/emcn'
-import { Database, File, Library, Table, Workflow } from '@/components/emcn/icons'
+import { ChevronDown, cn } from '@sim/emcn'
+import { Database, File, Library, Table, Workflow } from '@sim/emcn/icons'
 import {
   AnthropicIcon,
   GeminiIcon,
@@ -17,7 +17,6 @@ import {
   SlackIcon,
   xAIIcon,
 } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 
 interface FeaturesPreviewProps {
   activeTab: number

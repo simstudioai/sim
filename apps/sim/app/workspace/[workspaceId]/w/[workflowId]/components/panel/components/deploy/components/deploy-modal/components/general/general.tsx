@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
   ChipConfirmModal,
+  cn,
   Expand,
   Label,
   Modal,
@@ -16,8 +16,8 @@ import {
   ModalHeader,
   Skeleton,
   Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'

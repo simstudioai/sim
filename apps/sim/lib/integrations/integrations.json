@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-27",
+  "updatedAt": "2026-06-29",
   "integrations": [
     {
       "type": "onepassword",
@@ -393,7 +393,7 @@
       "slug": "airtable",
       "name": "Airtable",
       "description": "Read, create, and update Airtable",
-      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
+      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
       "bgColor": "#FFFFFF",
       "iconName": "AirtableIcon",
       "docsUrl": "https://docs.sim.ai/integrations/airtable",
@@ -429,9 +429,17 @@
         {
           "name": "Update Multiple Records",
           "description": "Update multiple existing records in an Airtable table"
+        },
+        {
+          "name": "Upsert Records",
+          "description": "Update existing records or create new ones in an Airtable table, matching on the specified merge fields"
+        },
+        {
+          "name": "Delete Records",
+          "description": "Delete one or more records from an Airtable table by ID"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 10,
       "triggers": [
         {
           "id": "airtable_webhook",
@@ -2658,8 +2666,44 @@
         }
       ],
       "operationCount": 11,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "clerk_user_created",
+          "name": "Clerk User Created",
+          "description": "Trigger workflow when a Clerk user is created"
+        },
+        {
+          "id": "clerk_user_updated",
+          "name": "Clerk User Updated",
+          "description": "Trigger workflow when a Clerk user is updated"
+        },
+        {
+          "id": "clerk_user_deleted",
+          "name": "Clerk User Deleted",
+          "description": "Trigger workflow when a Clerk user is deleted"
+        },
+        {
+          "id": "clerk_session_created",
+          "name": "Clerk Session Created",
+          "description": "Trigger workflow when a Clerk session is created"
+        },
+        {
+          "id": "clerk_organization_created",
+          "name": "Clerk Organization Created",
+          "description": "Trigger workflow when a Clerk organization is created"
+        },
+        {
+          "id": "clerk_organization_membership_created",
+          "name": "Clerk Organization Membership Created",
+          "description": "Trigger workflow when a Clerk organization membership is created"
+        },
+        {
+          "id": "clerk_webhook",
+          "name": "Clerk Webhook",
+          "description": "Trigger workflow on any Clerk webhook event"
+        }
+      ],
+      "triggerCount": 7,
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
@@ -4274,7 +4318,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["monitoring", "incident-management", "observability"]
+      "tags": ["monitoring", "incident-management"]
     },
     {
       "type": "dropbox",
@@ -4554,13 +4598,54 @@
       "type": "elevenlabs",
       "slug": "elevenlabs",
       "name": "ElevenLabs",
-      "description": "Convert text to speech with ElevenLabs",
-      "longDescription": "Integrate ElevenLabs into the workflow. Can convert text to speech.",
+      "description": "Generate and transform audio with ElevenLabs",
+      "longDescription": "Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.",
       "bgColor": "#181C1E",
       "iconName": "ElevenLabsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/elevenlabs",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Text to Speech",
+          "description": "Convert text to speech using ElevenLabs voices"
+        },
+        {
+          "name": "Sound Effects",
+          "description": "Generate a sound effect from a text prompt using ElevenLabs"
+        },
+        {
+          "name": "Speech to Speech",
+          "description": "Convert audio into a chosen ElevenLabs voice while preserving content and emotion"
+        },
+        {
+          "name": "Audio Isolation",
+          "description": "Remove background noise from an audio file, isolating the speech using ElevenLabs"
+        },
+        {
+          "name": "List Voices",
+          "description": "List the voices available in your ElevenLabs account"
+        },
+        {
+          "name": "Get Voice",
+          "description": "Get metadata and settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Get Voice Settings",
+          "description": "Get the configured settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Edit Voice Settings",
+          "description": "Update the settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "List Models",
+          "description": "List the models available in ElevenLabs"
+        },
+        {
+          "name": "Get User Info",
+          "description": "Get account and subscription information for the ElevenLabs user"
+        }
+      ],
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5079,12 +5164,28 @@
           "description": "Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information."
         },
         {
+          "name": "Batch Scrape",
+          "description": "Scrape multiple URLs in a single batch job and retrieve structured content from each page."
+        },
+        {
+          "name": "Batch Scrape Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl batch scrape job by its job ID."
+        },
+        {
           "name": "Search",
           "description": "Search for information on the web using Firecrawl"
         },
         {
           "name": "Crawl",
           "description": "Crawl entire websites and extract structured content from all accessible pages"
+        },
+        {
+          "name": "Crawl Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl crawl job by its job ID."
+        },
+        {
+          "name": "Cancel Crawl",
+          "description": "Cancel an in-progress Firecrawl crawl job by its job ID."
         },
         {
           "name": "Map",
@@ -5095,15 +5196,23 @@
           "description": "Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction."
         },
         {
+          "name": "Extract Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl extract job by its job ID."
+        },
+        {
           "name": "Agent",
           "description": "Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs."
         },
         {
           "name": "Parse Document",
           "description": "Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls."
+        },
+        {
+          "name": "Credit Usage",
+          "description": "Retrieve the remaining and allocated Firecrawl credits for the team."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -6233,8 +6342,8 @@
       "type": "google_docs",
       "slug": "google-docs",
       "name": "Google Docs",
-      "description": "Read, write, and create documents",
-      "longDescription": "Integrate Google Docs into the workflow. Can read, write, and create documents.",
+      "description": "Read, write, create, and edit documents",
+      "longDescription": "Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.",
       "bgColor": "#FFFFFF",
       "iconName": "GoogleDocsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_docs",
@@ -6250,9 +6359,33 @@
         {
           "name": "Create Document",
           "description": "Create a new Google Docs document"
+        },
+        {
+          "name": "Insert Text",
+          "description": "Insert text at a specific index in a Google Docs document. When no index is provided, text is appended to the end of the document. Text is inserted literally; Markdown is not interpreted."
+        },
+        {
+          "name": "Find & Replace Text",
+          "description": "Replace all occurrences of a search string with new text across a Google Docs document."
+        },
+        {
+          "name": "Insert Table",
+          "description": "Insert an empty table with the given number of rows and columns into a Google Docs document. When no index is provided, the table is appended to the end of the document."
+        },
+        {
+          "name": "Insert Image",
+          "description": "Insert an inline image from a public URL into a Google Docs document. The image must be publicly accessible and under 50 MB. When no index is provided, the image is appended to the end of the document."
+        },
+        {
+          "name": "Insert Page Break",
+          "description": "Insert a page break into a Google Docs document. When no index is provided, the page break is appended to the end of the document."
+        },
+        {
+          "name": "Apply Text Style",
+          "description": "Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index."
         }
       ],
-      "operationCount": 3,
+      "operationCount": 9,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -6340,11 +6473,35 @@
           "description": "List all permissions (who has access) for a file in Google Drive"
         },
         {
+          "name": "Export File",
+          "description": "Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV"
+        },
+        {
+          "name": "List Revisions",
+          "description": "List the revision history of a file in Google Drive"
+        },
+        {
+          "name": "Get Revision",
+          "description": "Get metadata for a specific revision of a file in Google Drive"
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on a file in Google Drive"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a file in Google Drive"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a file in Google Drive"
+        },
+        {
           "name": "Get Drive Info",
           "description": "Get information about the user and their Google Drive (storage quota, capabilities)"
         }
       ],
-      "operationCount": 18,
+      "operationCount": 24,
       "triggers": [
         {
           "id": "google_drive_poller",
@@ -8023,8 +8180,29 @@
         }
       ],
       "operationCount": 46,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "incidentio_incident_created",
+          "name": "incident.io Incident Created",
+          "description": "Trigger workflow when an incident is created in incident.io"
+        },
+        {
+          "id": "incidentio_incident_updated",
+          "name": "incident.io Incident Updated",
+          "description": "Trigger workflow when an incident is updated in incident.io"
+        },
+        {
+          "id": "incidentio_incident_status_updated",
+          "name": "incident.io Incident Status Updated",
+          "description": "Trigger workflow when an incident"
+        },
+        {
+          "id": "incidentio_alert_created",
+          "name": "incident.io Alert Created",
+          "description": "Trigger workflow when an alert is created in incident.io"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -9924,8 +10102,49 @@
         }
       ],
       "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "loops_email_delivered",
+          "name": "Loops Email Delivered",
+          "description": "Trigger workflow when a Loops email is delivered"
+        },
+        {
+          "id": "loops_email_opened",
+          "name": "Loops Email Opened",
+          "description": "Trigger workflow when a Loops email is opened"
+        },
+        {
+          "id": "loops_email_clicked",
+          "name": "Loops Email Clicked",
+          "description": "Trigger workflow when a link in a Loops email is clicked"
+        },
+        {
+          "id": "loops_email_hard_bounced",
+          "name": "Loops Email Hard Bounced",
+          "description": "Trigger workflow when a Loops email hard bounces"
+        },
+        {
+          "id": "loops_email_soft_bounced",
+          "name": "Loops Email Soft Bounced",
+          "description": "Trigger workflow when a Loops email soft bounces"
+        },
+        {
+          "id": "loops_campaign_email_sent",
+          "name": "Loops Campaign Email Sent",
+          "description": "Trigger workflow when a Loops campaign email is sent"
+        },
+        {
+          "id": "loops_loop_email_sent",
+          "name": "Loops Loop Email Sent",
+          "description": "Trigger workflow when a Loops loop email is sent"
+        },
+        {
+          "id": "loops_transactional_email_sent",
+          "name": "Loops Transactional Email Sent",
+          "description": "Trigger workflow when a Loops transactional email is sent"
+        }
+      ],
+      "triggerCount": 8,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
@@ -10492,9 +10711,29 @@
         {
           "name": "Write Data",
           "description": "Write data to a Microsoft Excel spreadsheet"
+        },
+        {
+          "name": "Clear Range",
+          "description": "Clear the values and/or formatting of a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Format Range",
+          "description": "Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Create Table",
+          "description": "Create a new table over a range of cells in a Microsoft Excel workbook"
+        },
+        {
+          "name": "Sort Range",
+          "description": "Sort a range or table by a column in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Delete Worksheet",
+          "description": "Delete a worksheet (sheet) from a Microsoft Excel workbook"
         }
       ],
-      "operationCount": 2,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -11297,8 +11536,8 @@
       "type": "outlook",
       "slug": "outlook",
       "name": "Outlook",
-      "description": "Send, read, draft, forward, and move Outlook email messages",
-      "longDescription": "Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
+      "description": "Send, read, search, reply, organize, and manage Outlook email",
+      "longDescription": "Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
       "bgColor": "#FFFFFF",
       "iconName": "OutlookIcon",
       "docsUrl": "https://docs.sim.ai/integrations/outlook",
@@ -11316,12 +11555,28 @@
           "description": "Read emails from Outlook"
         },
         {
+          "name": "Search Email",
+          "description": "Search Outlook messages using a free-text query (Microsoft Graph $search)"
+        },
+        {
+          "name": "Reply to Email",
+          "description": "Reply to the sender of an Outlook message with a comment"
+        },
+        {
+          "name": "Reply All",
+          "description": "Reply to all recipients of an Outlook message with a comment"
+        },
+        {
           "name": "Forward Email",
           "description": "Forward an existing Outlook message to specified recipients"
         },
         {
           "name": "Move Email",
           "description": "Move emails between Outlook folders"
+        },
+        {
+          "name": "Copy Email",
+          "description": "Copy an Outlook message to another folder"
         },
         {
           "name": "Mark as Read",
@@ -11332,15 +11587,31 @@
           "description": "Mark an Outlook message as unread"
         },
         {
+          "name": "Set Categories & Flag",
+          "description": "Set the categories, follow-up flag, and importance on an Outlook message"
+        },
+        {
           "name": "Delete Email",
           "description": "Delete an Outlook message (move to Deleted Items)"
         },
         {
-          "name": "Copy Email",
-          "description": "Copy an Outlook message to another folder"
+          "name": "List Folders",
+          "description": "List mail folders in the root of the Outlook mailbox"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new mail folder in the root of the Outlook mailbox"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List the attachments on an Outlook message (metadata only, without contents)"
+        },
+        {
+          "name": "Get Attachment",
+          "description": "Get a single attachment on an Outlook message, including its file contents"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 17,
       "triggers": [
         {
           "id": "outlook_poller",
@@ -11678,7 +11949,7 @@
       "slug": "pinecone",
       "name": "Pinecone",
       "description": "Use Pinecone vector database",
-      "longDescription": "Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.",
+      "longDescription": "Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.",
       "bgColor": "#0D1117",
       "iconName": "PineconeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pinecone",
@@ -11692,6 +11963,14 @@
           "description": "Insert or update text records in a Pinecone index"
         },
         {
+          "name": "Update Vector",
+          "description": "Update the values, sparse values, or metadata of a vector in a Pinecone namespace"
+        },
+        {
+          "name": "Delete Vectors",
+          "description": "Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all"
+        },
+        {
           "name": "Search With Text",
           "description": "Search for similar text in a Pinecone index"
         },
@@ -11702,9 +11981,25 @@
         {
           "name": "Fetch Vectors",
           "description": "Fetch vectors by ID from a Pinecone index"
+        },
+        {
+          "name": "List Vector IDs",
+          "description": "List vector IDs in a Pinecone namespace by prefix (serverless indexes only)"
+        },
+        {
+          "name": "Describe Index Stats",
+          "description": "Get statistics about a Pinecone index, including per-namespace vector counts"
+        },
+        {
+          "name": "List Indexes",
+          "description": "List all Pinecone indexes in the project"
+        },
+        {
+          "name": "Describe Index",
+          "description": "Get the configuration and status of a Pinecone index by name"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -12959,6 +13254,10 @@
           "description": "Retrieve details of a previously sent email by its ID"
         },
         {
+          "name": "Cancel Email",
+          "description": "Cancel a scheduled email before it is sent"
+        },
+        {
           "name": "Create Contact",
           "description": "Create a new contact in Resend"
         },
@@ -12979,11 +13278,39 @@
           "description": "Delete a contact from Resend by ID or email"
         },
         {
+          "name": "Create Audience",
+          "description": "Create a new audience in Resend"
+        },
+        {
+          "name": "Get Audience",
+          "description": "Retrieve details of an audience by ID"
+        },
+        {
+          "name": "List Audiences",
+          "description": "List all audiences in Resend"
+        },
+        {
+          "name": "Delete Audience",
+          "description": "Delete an audience from Resend by ID"
+        },
+        {
+          "name": "Create Broadcast",
+          "description": "Create a broadcast email for an audience in Resend"
+        },
+        {
+          "name": "Send Broadcast",
+          "description": "Send a broadcast immediately or schedule it for later"
+        },
+        {
+          "name": "Get Broadcast",
+          "description": "Retrieve details of a broadcast by ID"
+        },
+        {
           "name": "List Domains",
           "description": "List all verified domains in your Resend account"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 16,
       "triggers": [
         {
           "id": "resend_email_sent",
@@ -13084,8 +13411,39 @@
         }
       ],
       "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "revenuecat_initial_purchase",
+          "name": "RevenueCat Initial Purchase",
+          "description": "Trigger workflow when a subscriber makes their first purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_renewal",
+          "name": "RevenueCat Renewal",
+          "description": "Trigger workflow when a RevenueCat subscription renews"
+        },
+        {
+          "id": "revenuecat_cancellation",
+          "name": "RevenueCat Cancellation",
+          "description": "Trigger workflow when a subscriber cancels a RevenueCat subscription"
+        },
+        {
+          "id": "revenuecat_expiration",
+          "name": "RevenueCat Expiration",
+          "description": "Trigger workflow when a RevenueCat subscription expires"
+        },
+        {
+          "id": "revenuecat_non_renewing_purchase",
+          "name": "RevenueCat Non-Renewing Purchase",
+          "description": "Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_product_change",
+          "name": "RevenueCat Product Change",
+          "description": "Trigger workflow when a subscriber changes their RevenueCat subscription product"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "commerce",
@@ -13630,8 +13988,29 @@
         }
       ],
       "operationCount": 41,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "rootly_incident_created",
+          "name": "Rootly Incident Created",
+          "description": "Trigger workflow when a new incident is created in Rootly"
+        },
+        {
+          "id": "rootly_incident_updated",
+          "name": "Rootly Incident Updated",
+          "description": "Trigger workflow when an incident is updated in Rootly"
+        },
+        {
+          "id": "rootly_incident_resolved",
+          "name": "Rootly Incident Resolved",
+          "description": "Trigger workflow when an incident is resolved in Rootly"
+        },
+        {
+          "id": "rootly_alert_created",
+          "name": "Rootly Alert Created",
+          "description": "Trigger workflow when a new alert is created in Rootly"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -13641,8 +14020,8 @@
       "type": "s3",
       "slug": "s3",
       "name": "S3",
-      "description": "Upload, download, list, and manage S3 files",
-      "longDescription": "Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.",
+      "description": "Upload, download, list, and manage S3 files and buckets",
+      "longDescription": "Integrate S3 into the workflow. Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)",
       "iconName": "S3Icon",
       "docsUrl": "https://docs.sim.ai/integrations/s3",
@@ -13664,11 +14043,35 @@
           "description": "Delete an object from an AWS S3 bucket"
         },
         {
+          "name": "Delete Objects (Batch)",
+          "description": "Delete multiple objects from an AWS S3 bucket in a single batch request"
+        },
+        {
           "name": "Copy Object",
           "description": "Copy an object within or between AWS S3 buckets"
+        },
+        {
+          "name": "Head Object (Metadata)",
+          "description": "Retrieve metadata for an S3 object without downloading its body"
+        },
+        {
+          "name": "Presigned URL",
+          "description": "Generate a time-limited presigned URL to download or upload an S3 object"
+        },
+        {
+          "name": "List Buckets",
+          "description": "List the S3 buckets owned by the authenticated AWS account"
+        },
+        {
+          "name": "Create Bucket",
+          "description": "Create a new AWS S3 bucket in the specified region"
+        },
+        {
+          "name": "Delete Bucket",
+          "description": "Delete an empty AWS S3 bucket"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -14554,8 +14957,34 @@
         }
       ],
       "operationCount": 13,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "sentry_issue_created",
+          "name": "Sentry Issue Created",
+          "description": "Trigger workflow when a new issue is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_resolved",
+          "name": "Sentry Issue Resolved",
+          "description": "Trigger workflow when an issue is resolved in Sentry"
+        },
+        {
+          "id": "sentry_error_created",
+          "name": "Sentry Error Created",
+          "description": "Trigger workflow when a new error event is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_alert",
+          "name": "Sentry Issue Alert",
+          "description": "Trigger workflow when a Sentry issue alert rule fires"
+        },
+        {
+          "id": "sentry_metric_alert",
+          "name": "Sentry Metric Alert",
+          "description": "Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)"
+        }
+      ],
+      "triggerCount": 5,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -16770,7 +17199,7 @@
       "slug": "telegram",
       "name": "Telegram",
       "description": "Interact with Telegram",
-      "longDescription": "Integrate Telegram into the workflow. Can send and delete messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.",
+      "longDescription": "Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete messages; send media, locations, contacts, and polls; react to messages; show chat actions; and look up chat and member info. Can be used in trigger mode to start a workflow when a message is sent to a chat.",
       "bgColor": "#FFFFFF",
       "iconName": "TelegramIcon",
       "docsUrl": "https://docs.sim.ai/integrations/telegram",
@@ -16800,11 +17229,59 @@
           "description": "Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the Telegram Bot API."
         },
         {
+          "name": "Send Location",
+          "description": "Send a point on the map to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Contact",
+          "description": "Send a phone contact to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Poll",
+          "description": "Send a native poll to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Chat Action",
+          "description": "Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Edit Message Text",
+          "description": "Edit the text of an existing message in a Telegram chat or channel through the Telegram Bot API."
+        },
+        {
+          "name": "Forward Message",
+          "description": "Forward a message from one Telegram chat to another through the Telegram Bot API."
+        },
+        {
+          "name": "Copy Message",
+          "description": "Copy a message to another Telegram chat without a forward header through the Telegram Bot API."
+        },
+        {
           "name": "Delete Message",
           "description": "Delete messages in Telegram channels or chats through the Telegram Bot API. Requires the message ID of the message to delete."
+        },
+        {
+          "name": "Pin Message",
+          "description": "Pin a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Unpin Message",
+          "description": "Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins the most recent pinned message when no message ID is given."
+        },
+        {
+          "name": "Set Message Reaction",
+          "description": "Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat",
+          "description": "Get up-to-date information about a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat Member",
+          "description": "Get information about a member of a Telegram chat through the Telegram Bot API."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "telegram_webhook",
@@ -17417,8 +17894,19 @@
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
       "operations": [],
       "operationCount": 0,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "twilio_sms_received",
+          "name": "Twilio SMS Received",
+          "description": "Trigger workflow when an inbound SMS or MMS message is received via Twilio"
+        },
+        {
+          "id": "twilio_sms_status",
+          "name": "Twilio Message Status",
+          "description": "Trigger workflow when a Twilio message status changes (sent, delivered, failed)"
+        }
+      ],
+      "triggerCount": 2,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -18245,12 +18733,37 @@
       "slug": "whatsapp",
       "name": "WhatsApp",
       "description": "Send WhatsApp messages",
-      "longDescription": "Integrate WhatsApp into the workflow. Can send messages.",
+      "longDescription": "Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API.",
       "bgColor": "#25D366",
       "iconName": "WhatsAppIcon",
       "docsUrl": "https://docs.sim.ai/integrations/whatsapp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Send Message",
+          "description": "Send a text message through the WhatsApp Cloud API."
+        },
+        {
+          "name": "Send Template",
+          "description": "Send a pre-approved WhatsApp template message with a language and optional variable components."
+        },
+        {
+          "name": "Send Media",
+          "description": "Send an image, document, video, or audio message via a public link or an uploaded media ID."
+        },
+        {
+          "name": "Send Interactive",
+          "description": "Send an interactive WhatsApp message with reply buttons or a selectable list."
+        },
+        {
+          "name": "Send Reaction",
+          "description": "React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction."
+        },
+        {
+          "name": "Mark As Read",
+          "description": "Mark a received WhatsApp message as read so the sender sees blue checkmarks."
+        }
+      ],
+      "operationCount": 6,
       "triggers": [
         {
           "id": "whatsapp_webhook",
@@ -18262,7 +18775,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation", "customer-support", "marketing"]
     },
     {
       "type": "wikipedia",

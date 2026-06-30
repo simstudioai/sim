@@ -1,7 +1,4 @@
 'use client'
-
-import { format } from 'date-fns'
-import { useParams } from 'next/navigation'
 import {
   Calendar,
   ChipModal,
@@ -10,8 +7,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   chipFieldSurfaceClass,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import { format } from 'date-fns'
+import { useParams } from 'next/navigation'
 import {
   PromptEditor,
   usePromptEditor,

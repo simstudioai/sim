@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import dynamic from 'next/dynamic'
-import { useParams } from 'next/navigation'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -12,8 +10,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   chipFieldSurfaceClass,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import dynamic from 'next/dynamic'
+import { useParams } from 'next/navigation'
 import {
   useGenerateVersionDescription,
   useUpdateDeploymentVersion,

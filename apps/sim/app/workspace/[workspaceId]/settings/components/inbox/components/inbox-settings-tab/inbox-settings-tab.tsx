@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Chip,
@@ -15,7 +12,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useAddInboxSender,

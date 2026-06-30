@@ -694,6 +694,163 @@ List all permissions (who has access) for a file in Google Drive
 |   ↳ `permissionDetails` | json | Details about inherited permissions |
 | `nextPageToken` | string | Token for fetching the next page of permissions |
 
+### `google_drive_export`
+
+Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the Google Workspace file to export |
+| `mimeType` | string | Yes | The target MIME type to export to \(e.g. application/pdf, text/csv\) |
+| `fileName` | string | No | Optional filename override for the exported file |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Exported file stored in execution files |
+| `exportedMimeType` | string | The MIME type the file was exported to |
+
+### `google_drive_list_revisions`
+
+List the revision history of a file in Google Drive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to list revisions for |
+| `pageSize` | number | No | Maximum number of revisions to return \(1-1000, default 200\) |
+| `pageToken` | string | No | The page token to use for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `revisions` | array | List of revisions for the file \(most recent last\) |
+|   ↳ `id` | string | Revision ID |
+|   ↳ `mimeType` | string | MIME type of the revision |
+|   ↳ `modifiedTime` | string | When this revision was created |
+|   ↳ `keepForever` | boolean | Whether this revision is preserved forever |
+|   ↳ `published` | boolean | Whether this revision is published |
+|   ↳ `publishedLink` | string | Public link to the published revision |
+|   ↳ `lastModifyingUser` | json | User who created this revision |
+|   ↳ `originalFilename` | string | Original filename for binary revisions |
+|   ↳ `md5Checksum` | string | MD5 checksum for binary revisions |
+|   ↳ `size` | string | Size of the revision in bytes |
+|   ↳ `exportLinks` | json | Export format links for the revision |
+| `nextPageToken` | string | Token for fetching the next page of revisions |
+
+### `google_drive_get_revision`
+
+Get metadata for a specific revision of a file in Google Drive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file the revision belongs to |
+| `revisionId` | string | Yes | The ID of the revision to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `revision` | json | The revision metadata |
+|   ↳ `id` | string | Revision ID |
+|   ↳ `mimeType` | string | MIME type of the revision |
+|   ↳ `modifiedTime` | string | When this revision was created |
+|   ↳ `keepForever` | boolean | Whether this revision is preserved forever |
+|   ↳ `published` | boolean | Whether this revision is published |
+|   ↳ `publishedLink` | string | Public link to the published revision |
+|   ↳ `lastModifyingUser` | json | User who created this revision |
+|   ↳ `originalFilename` | string | Original filename for binary revisions |
+|   ↳ `md5Checksum` | string | MD5 checksum for binary revisions |
+|   ↳ `size` | string | Size of the revision in bytes |
+|   ↳ `exportLinks` | json | Export format links for the revision |
+
+### `google_drive_list_comments`
+
+List comments on a file in Google Drive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to list comments for |
+| `includeDeleted` | boolean | No | Whether to include deleted comments \(their content is stripped\) |
+| `pageSize` | number | No | Maximum number of comments to return \(1-100, default 20\) |
+| `startModifiedTime` | string | No | Only return comments modified after this RFC 3339 timestamp |
+| `pageToken` | string | No | The page token to use for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | List of comments on the file |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `content` | string | Plain text content of the comment |
+|   ↳ `htmlContent` | string | HTML-formatted content of the comment |
+|   ↳ `author` | json | User who authored the comment |
+|   ↳ `createdTime` | string | When the comment was created |
+|   ↳ `modifiedTime` | string | When the comment was last modified |
+|   ↳ `resolved` | boolean | Whether the comment has been resolved |
+|   ↳ `deleted` | boolean | Whether the comment has been deleted |
+|   ↳ `anchor` | string | Region of the document the comment refers to |
+|   ↳ `quotedFileContent` | json | The file content the comment quotes |
+|   ↳ `replies` | json | Threaded replies to the comment |
+| `nextPageToken` | string | Token for fetching the next page of comments |
+
+### `google_drive_create_comment`
+
+Add a comment to a file in Google Drive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to comment on |
+| `content` | string | Yes | The plain text content of the comment |
+| `anchor` | string | No | A region of the document the comment refers to \(JSON anchor string\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | json | The created comment |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `content` | string | Plain text content of the comment |
+|   ↳ `htmlContent` | string | HTML-formatted content of the comment |
+|   ↳ `author` | json | User who authored the comment |
+|   ↳ `createdTime` | string | When the comment was created |
+|   ↳ `modifiedTime` | string | When the comment was last modified |
+|   ↳ `resolved` | boolean | Whether the comment has been resolved |
+|   ↳ `deleted` | boolean | Whether the comment has been deleted |
+|   ↳ `anchor` | string | Region of the document the comment refers to |
+|   ↳ `quotedFileContent` | json | The file content the comment quotes |
+|   ↳ `replies` | json | Threaded replies to the comment |
+
+### `google_drive_delete_comment`
+
+Delete a comment from a file in Google Drive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file the comment belongs to |
+| `commentId` | string | Yes | The ID of the comment to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the comment was successfully deleted |
+| `fileId` | string | The ID of the file |
+| `commentId` | string | The ID of the deleted comment |
+
 ### `google_drive_get_about`
 
 Get information about the user and their Google Drive (storage quota, capabilities)

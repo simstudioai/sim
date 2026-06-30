@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 
@@ -58,9 +59,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const userFile = userFiles[0]
       const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
       if (denied) return denied
-      buffer = await downloadFileFromStorage(userFile, requestId, logger)
+      let resolvedContentTypeFromStorage: string
+      try {
+        const resolved = await downloadServableFileFromStorage(userFile, requestId, logger)
+        buffer = resolved.buffer
+        resolvedContentTypeFromStorage = resolved.contentType
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        logger.error(`[${requestId}] Failed to download Linq attachment file:`, error)
+        return NextResponse.json(
+          { success: false, error: getErrorMessage(error, 'Unknown error occurred') },
+          { status: 500 }
+        )
+      }
       if (!resolvedFilename) resolvedFilename = userFile.name
-      if (!resolvedContentType) resolvedContentType = userFile.type || 'application/octet-stream'
+      if (!resolvedContentType)
+        resolvedContentType =
+          resolvedContentTypeFromStorage || userFile.type || 'application/octet-stream'
     } else if (fileContent) {
       buffer = Buffer.from(fileContent, 'base64')
       if (!resolvedFilename) resolvedFilename = 'file'

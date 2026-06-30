@@ -2,9 +2,8 @@
 
 import type React from 'react'
 import { useState } from 'react'
-import { AlertCircle } from 'lucide-react'
-import { createPortal } from 'react-dom'
 import {
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,8 +15,9 @@ import {
   ModalContent,
   ModalDescription,
   ModalHeader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { AlertCircle } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'

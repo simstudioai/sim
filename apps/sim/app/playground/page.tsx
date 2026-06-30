@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { ArrowLeft, Folder, Moon, Sun } from 'lucide-react'
-import { notFound, useRouter } from 'next/navigation'
 import {
   Avatar,
   AvatarFallback,
@@ -86,7 +84,9 @@ import {
   Wrap,
   ZoomIn,
   ZoomOut,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { ArrowLeft, Folder, Moon, Sun } from 'lucide-react'
+import { notFound, useRouter } from 'next/navigation'
 import { env, isTruthy } from '@/lib/core/config/env'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
