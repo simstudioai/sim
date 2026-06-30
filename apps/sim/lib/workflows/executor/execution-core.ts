@@ -675,6 +675,30 @@ export async function executeWorkflowCore(
       })
     }
 
+    if (piiRedaction.blockOutputs.enabled) {
+      // Resume / run-from-block restore prior block outputs into state. If those
+      // predate the blockOutputs stage being enabled, re-mask them so downstream
+      // blocks can't read unredacted PII from restored snapshot state. Masking is
+      // idempotent, so outputs already masked in the original run are unaffected.
+      const blockOutputOpts = {
+        entityTypes: piiRedaction.blockOutputs.entityTypes,
+        language: piiRedaction.blockOutputs.language,
+        onFailure: 'throw' as const,
+      }
+      if (snapshot.state?.blockStates) {
+        snapshot.state.blockStates = await redactObjectStrings(
+          snapshot.state.blockStates,
+          blockOutputOpts
+        )
+      }
+      if (runFromBlock?.sourceSnapshot?.blockStates) {
+        runFromBlock.sourceSnapshot.blockStates = await redactObjectStrings(
+          runFromBlock.sourceSnapshot.blockStates,
+          blockOutputOpts
+        )
+      }
+    }
+
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,

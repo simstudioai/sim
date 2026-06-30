@@ -186,7 +186,11 @@ export class BlockExecutor {
       if (isStreamingExecution) {
         const streamingExec = output as StreamingExecution
 
-        if (ctx.onStream) {
+        // Streaming forwards raw chunks to the client before output redaction can
+        // run, which would leak PII. When block-output redaction is enabled we
+        // buffer instead of streaming — the masked final output still reaches the
+        // client through the block-complete callback below.
+        if (ctx.onStream && !ctx.piiBlockOutputRedaction?.enabled) {
           await this.handleStreamingExecution(
             ctx,
             node,
