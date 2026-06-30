@@ -101,15 +101,10 @@ export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
   return raw.filter((file): file is InputFormatFile => {
     if (file === null || typeof file !== 'object') return false
     const f = file as InputFormatFile
-    // Require the full run-ready shape the executor's normalizeStartFile needs,
-    // with a recoverable key: either an explicit non-empty `key`, or an internal
-    // `/api/files/serve/...` URL the executor can recover the key from (same rule
-    // as normalizeStartFile). A partial object or external/signed URL without a
-    // key is rejected so it never opens in uploader mode or reaches the files
-    // channel only to be dropped; it falls back to the JSON editor instead.
-    // Non-empty strings: normalizeStartFile rejects falsy id/name/url/type, and
-    // file normalization is all-or-nothing, so one empty-string field would drop
-    // every file from the run.
+    // Accept only the run-ready shape `normalizeStartFile` accepts (non-empty
+    // id/name/url/type + finite size + recoverable key); file normalization is
+    // all-or-nothing, so anything short of this falls back to the JSON editor
+    // rather than silently dropping every file at run time.
     return (
       typeof f.id === 'string' &&
       f.id.length > 0 &&
