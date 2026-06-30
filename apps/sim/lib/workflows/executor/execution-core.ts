@@ -675,6 +675,11 @@ export async function executeWorkflowCore(
       // predate the blockOutputs stage being enabled, re-mask them so downstream
       // blocks can't read unredacted PII from restored snapshot state. Masking is
       // idempotent, so outputs already masked in the original run are unaffected.
+      // Limitation: this walks inline strings only — values offloaded to
+      // large-value storage are still refs here and are not re-masked. In the
+      // normal flow that is safe (a run with the stage on masks before offload);
+      // the gap is the narrow case of a run that offloaded a large value while
+      // the stage was OFF and is resumed after the stage is turned ON.
       const blockOutputOpts = {
         entityTypes: piiRedaction.blockOutputs.entityTypes,
         language: piiRedaction.blockOutputs.language,
