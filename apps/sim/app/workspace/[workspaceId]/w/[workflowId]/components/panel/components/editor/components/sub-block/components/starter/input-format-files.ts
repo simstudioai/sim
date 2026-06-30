@@ -67,5 +67,9 @@ export function defaultFileFieldMode(value: string | undefined): 'upload' | 'jso
     return 'json'
   }
   if (!Array.isArray(parsed)) return 'json'
-  return parsed.length === 0 || parseInputFormatFiles(parsed).length > 0 ? 'upload' : 'json'
+  if (parsed.length === 0) return 'upload'
+  // Only use the uploader when EVERY entry is run-ready; if any entry is legacy
+  // or partial, stay in JSON mode so the uploader can't drop the entries it
+  // cannot represent when the field is next saved.
+  return parseInputFormatFiles(parsed).length === parsed.length ? 'upload' : 'json'
 }

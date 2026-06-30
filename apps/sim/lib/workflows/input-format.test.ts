@@ -299,6 +299,12 @@ describe('parseInputFormatFiles', () => {
       )
     ).toEqual([])
   })
+
+  it.concurrent('rejects files without a usable key', () => {
+    const { key, ...noKey } = file
+    expect(parseInputFormatFiles(JSON.stringify([noKey]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, key: '' }]))).toEqual([])
+  })
 })
 
 describe('collectInputFormatFiles', () => {

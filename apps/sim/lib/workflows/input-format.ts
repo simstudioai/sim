@@ -85,12 +85,16 @@ export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
     if (file === null || typeof file !== 'object') return false
     const f = file as InputFormatFile
     // Require the full run-ready shape the executor's normalizeStartFile needs,
-    // so a partial object never opens in uploader mode or reaches the files
-    // channel only to be rejected (which would silently drop every file).
+    // including a usable `key` (the uploader always sets one), so a partial
+    // object or an external/signed URL never opens in uploader mode or reaches
+    // the files channel only to be rejected — which would silently drop every
+    // file. Anything short of this falls back to the JSON editor.
     return (
       typeof f.id === 'string' &&
       typeof f.name === 'string' &&
       typeof f.url === 'string' &&
+      typeof f.key === 'string' &&
+      f.key.length > 0 &&
       typeof f.size === 'number' &&
       Number.isFinite(f.size) &&
       typeof f.type === 'string'

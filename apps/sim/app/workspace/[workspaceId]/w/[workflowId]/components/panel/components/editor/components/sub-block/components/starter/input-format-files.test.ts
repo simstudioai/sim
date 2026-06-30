@@ -105,4 +105,8 @@ describe('defaultFileFieldMode', () => {
     expect(defaultFileFieldMode('[{"data":"<base64>","name":"x.pdf"}]')).toBe('json')
     expect(defaultFileFieldMode('{"csv":"a,b,c"}')).toBe('json')
   })
+
+  it.concurrent('uses json when only some entries are run-ready (no silent drop)', () => {
+    expect(defaultFileFieldMode(JSON.stringify([file, { name: 'legacy-only' }]))).toBe('json')
+  })
 })
