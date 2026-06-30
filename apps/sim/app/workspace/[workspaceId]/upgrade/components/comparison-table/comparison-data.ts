@@ -1,3 +1,30 @@
+import {
+  CREDIT_TIERS,
+  CREDITS_PER_DOLLAR,
+  DAILY_REFRESH_RATE,
+  DEFAULT_FREE_CREDITS,
+} from '@/lib/billing/constants'
+
+/**
+ * Looks up a credit tier by name, so a column binds to the right tier even if
+ * {@link CREDIT_TIERS} is reordered or a tier is inserted.
+ */
+function tierByName(name: (typeof CREDIT_TIERS)[number]['name']) {
+  const tier = CREDIT_TIERS.find((t) => t.name === name)
+  if (!tier) throw new Error(`comparison-data: no credit tier named "${name}"`)
+  return tier
+}
+
+const PRO_TIER = tierByName('Pro')
+const MAX_TIER = tierByName('Max')
+
+/** Formats a credit count with thousands separators (e.g. 25000 → "25,000"). */
+const formatCredits = (credits: number): string => credits.toLocaleString('en-US')
+
+/** Daily refresh credits for a plan: 1% of plan dollars/day, in credits. */
+const dailyRefreshCredits = (dollars: number): number =>
+  Math.round(dollars * DAILY_REFRESH_RATE * CREDITS_PER_DOLLAR)
+
 /** A brand icon rendered in a cell instead of a check/em-dash/text. */
 export interface CellIcon {
   /** Icon identifier resolved to a component by the table renderer. */
@@ -58,11 +85,21 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     rows: [
       {
         label: 'Monthly credits',
-        values: ['1,000', '6,000', '25,000', 'Custom'],
+        values: [
+          formatCredits(DEFAULT_FREE_CREDITS * CREDITS_PER_DOLLAR),
+          formatCredits(PRO_TIER.credits),
+          formatCredits(MAX_TIER.credits),
+          'Custom',
+        ],
       },
       {
         label: 'Daily refresh',
-        values: [false, '+50', '+200', 'Custom'],
+        values: [
+          false,
+          `+${formatCredits(dailyRefreshCredits(PRO_TIER.dollars))}`,
+          `+${formatCredits(dailyRefreshCredits(MAX_TIER.dollars))}`,
+          'Custom',
+        ],
       },
     ],
   },
