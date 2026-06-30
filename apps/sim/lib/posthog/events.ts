@@ -360,8 +360,8 @@ export interface PostHogEventMap {
   }
 
   copilot_chat_sent: {
-    workflow_id: string
-    workspace_id: string
+    workflow_id?: string
+    workspace_id?: string
     has_file_attachments: boolean
     has_contexts: boolean
     mode: string

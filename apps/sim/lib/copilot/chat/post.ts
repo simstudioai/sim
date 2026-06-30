@@ -1081,8 +1081,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         authenticatedUserId,
         'copilot_chat_sent',
         {
-          workflow_id: branch.kind === 'workflow' ? branch.workflowId : '',
-          workspace_id: workspaceId ?? '',
+          ...(branch.kind === 'workflow' ? { workflow_id: branch.workflowId } : {}),
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
           has_file_attachments: (body.fileAttachments?.length ?? 0) > 0,
           has_contexts: normalizedContexts.length > 0,
           mode: branch.kind === 'workflow' ? branch.mode : 'agent',
