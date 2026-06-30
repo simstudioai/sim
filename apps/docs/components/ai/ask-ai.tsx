@@ -140,12 +140,12 @@ export function AskAI({ locale }: AskAIProps) {
                       {text ? (
                         <Streamdown
                           className={cn(
-                            'space-y-3 text-base text-[var(--text-primary)] leading-relaxed',
+                            'space-y-3 text-[var(--text-primary)] text-base leading-relaxed',
                             '[&_a]:text-[var(--text-primary)] [&_a]:underline [&_a]:decoration-dashed [&_a]:underline-offset-4',
                             '[&_strong]:font-[600]',
                             '[&_h1]:font-[600] [&_h2]:font-[600] [&_h3]:font-[600] [&_h4]:font-[600]',
-                            '[&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-1',
-                            '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-[var(--surface-5)] [&_pre]:p-3 [&_pre]:text-small [&_code]:font-mono'
+                            '[&_li]:my-1 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5',
+                            '[&_code]:font-mono [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-[var(--surface-5)] [&_pre]:p-3 [&_pre]:text-small'
                           )}
                         >
                           {text}
@@ -184,7 +184,7 @@ export function AskAI({ locale }: AskAIProps) {
           </div>
 
           <form onSubmit={handleSubmit} className='px-3 pb-3'>
-            <div className='cursor-text rounded-2xl border border-[var(--border-1)] bg-white px-2.5 py-2 dark:bg-[var(--surface-5)]'>
+            <div className='flex items-end gap-2 rounded-2xl border border-[var(--border-1)] bg-white px-2.5 py-1.5 dark:bg-[var(--surface-5)]'>
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
@@ -196,34 +196,32 @@ export function AskAI({ locale }: AskAIProps) {
                 }}
                 rows={1}
                 placeholder='Ask Sim about the docs…'
-                className='max-h-32 w-full resize-none bg-transparent font-season text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
+                className='max-h-32 flex-1 resize-none bg-transparent py-1 font-season text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
               />
-              <div className='mt-1 flex items-center justify-end'>
-                {isBusy ? (
-                  <button
-                    type='button'
-                    aria-label='Stop'
-                    onClick={() => stop()}
-                    className='flex size-[28px] items-center justify-center rounded-full bg-[#383838] transition-colors hover:bg-[#575757] dark:bg-[#e0e0e0] dark:hover:bg-[#cfcfcf]'
-                  >
-                    <Square className='size-[12px] fill-white text-white dark:fill-black dark:text-black' />
-                  </button>
-                ) : (
-                  <button
-                    type='submit'
-                    aria-label='Send'
-                    disabled={!input.trim()}
-                    className={cn(
-                      'flex size-[28px] items-center justify-center rounded-full transition-colors',
-                      input.trim()
-                        ? 'bg-[#383838] hover:bg-[#575757] dark:bg-[#e0e0e0] dark:hover:bg-[#cfcfcf]'
-                        : 'bg-[#808080]'
-                    )}
-                  >
-                    <ArrowUp className='size-[16px] text-white dark:text-black' />
-                  </button>
-                )}
-              </div>
+              {isBusy ? (
+                <button
+                  type='button'
+                  aria-label='Stop'
+                  onClick={() => stop()}
+                  className='flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[#383838] transition-colors hover:bg-[#575757] dark:bg-[#e0e0e0] dark:hover:bg-[#cfcfcf]'
+                >
+                  <Square className='size-[12px] fill-white text-white dark:fill-black dark:text-black' />
+                </button>
+              ) : (
+                <button
+                  type='submit'
+                  aria-label='Send'
+                  disabled={!input.trim()}
+                  className={cn(
+                    'flex size-[28px] shrink-0 items-center justify-center rounded-full transition-colors',
+                    input.trim()
+                      ? 'bg-[#383838] hover:bg-[#575757] dark:bg-[#e0e0e0] dark:hover:bg-[#cfcfcf]'
+                      : 'bg-[#808080]'
+                  )}
+                >
+                  <ArrowUp className='size-[16px] text-white dark:text-black' />
+                </button>
+              )}
             </div>
           </form>
         </div>
