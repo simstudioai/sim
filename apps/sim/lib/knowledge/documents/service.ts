@@ -2071,9 +2071,8 @@ export async function hardDeleteDocuments(
     subByUser.set(billedUserId, await getHighestPrioritySubscription(billedUserId))
   }
 
-  // Key the decrement, storage cleanup, log, and return value off the rows this
-  // transaction actually deleted (`returning()`), so a concurrent delete that
-  // claimed some ids first isn't double-counted here.
+  // Key everything off the rows this tx actually deleted (`returning()`) so a
+  // concurrent delete that claimed some ids first isn't double-counted here.
   let deletedDocs: typeof documentsToDelete = []
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))

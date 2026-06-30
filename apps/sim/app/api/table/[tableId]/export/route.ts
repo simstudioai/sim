@@ -56,9 +56,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   const safeName = sanitizeFilename(table.name)
   const filename = `${safeName}.${format}`
 
-  // Record the export before streaming begins. Rows leave the server incrementally,
-  // so a mid-stream failure would still exfiltrate partial data — auditing here
-  // (after access is granted) guarantees every authorized export is recorded.
+  // Audit before streaming: rows leave incrementally, so a mid-stream failure still exfiltrates partial data.
   recordAudit({
     workspaceId: table.workspaceId ?? null,
     actorId: userId,
