@@ -97,7 +97,7 @@ export const GET = withRouteHandler(
         userId,
         'file_downloaded',
         {
-          workspace_id: record.workspaceId ?? '',
+          ...(record.workspaceId ? { workspace_id: record.workspaceId } : {}),
           is_bulk: assetCount > 0,
           file_count: 1 + assetCount,
         },
