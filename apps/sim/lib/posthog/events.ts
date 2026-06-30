@@ -660,7 +660,7 @@ export interface PostHogEventMap {
 
   organization_created: {
     organization_id: string
-    name: string
+    name?: string
   }
 
   /** Org membership lifecycle (distinct from workspace-level membership). */
@@ -690,7 +690,7 @@ export interface PostHogEventMap {
   /** A workflow's edit-lock was toggled on or off. */
   workflow_lock_toggled: {
     workflow_id: string
-    workspace_id: string
+    workspace_id?: string
     locked: boolean
   }
 

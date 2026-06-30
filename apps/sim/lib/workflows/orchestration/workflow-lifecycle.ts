@@ -357,7 +357,11 @@ export async function performUpdateWorkflow(
       captureServerEvent(
         params.userId,
         'workflow_lock_toggled',
-        { workflow_id: params.workflowId, workspace_id: workspaceId ?? '', locked: params.locked },
+        {
+          workflow_id: params.workflowId,
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          locked: params.locked,
+        },
         workspaceId ? { groups: { workspace: workspaceId } } : undefined
       )
     }

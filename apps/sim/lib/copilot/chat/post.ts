@@ -1071,12 +1071,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         },
       })
 
-      // Expose the root gen_ai.agent.execute span's trace identity to
-      // the browser so subsequent HTTP calls (stop, abort, confirm,
-      // SSE reconnect) can echo it back as `traceparent` — making
-      // all side-channel work on this request appear as child spans
-      // of this same trace in Tempo instead of disconnected roots.
-      // W3C traceparent format: `00-<trace-id>-<parent-id>-<flags>`.
       captureServerEvent(
         authenticatedUserId,
         'copilot_chat_sent',
@@ -1090,6 +1084,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         workspaceId ? { groups: { workspace: workspaceId } } : undefined
       )
 
+      // Expose the root gen_ai.agent.execute span's trace identity to
+      // the browser so subsequent HTTP calls (stop, abort, confirm,
+      // SSE reconnect) can echo it back as `traceparent` — making
+      // all side-channel work on this request appear as child spans
+      // of this same trace in Tempo instead of disconnected roots.
+      // W3C traceparent format: `00-<trace-id>-<parent-id>-<flags>`.
       const rootCtx = activeOtelRoot.span.spanContext()
       const rootTraceparent = `00-${rootCtx.traceId}-${rootCtx.spanId}-${
         (rootCtx.traceFlags & 0x1) === 0x1 ? '01' : '00'

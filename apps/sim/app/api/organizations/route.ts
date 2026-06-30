@@ -260,7 +260,10 @@ export const POST = withRouteHandler(async (request: Request) => {
       captureServerEvent(
         user.id,
         'organization_created',
-        { organization_id: organizationId, name: organizationName ?? '' },
+        {
+          organization_id: organizationId,
+          ...(organizationName ? { name: organizationName } : {}),
+        },
         { groups: { organization: organizationId } }
       )
     }
