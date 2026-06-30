@@ -71,7 +71,9 @@ const ReadContext = createContext<ReadContextValue | null>(null)
 /**
  * Serializes only the visible/structural fields — callbacks stay in the ref and
  * the shell dereferences them at call time, so registering never loops and never
- * serves a stale handler. Any new VISIBLE field must be added here too.
+ * serves a stale handler. `scrollContainerRef` is intentionally excluded (refs are
+ * identity-stable and ride along with the first content-bearing register). Any new
+ * VISIBLE field must be added here too.
  */
 function computeSignature(c: SettingsHeaderConfig): string {
   return JSON.stringify({

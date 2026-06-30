@@ -353,12 +353,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   )
 
   if (isLoading) {
-    return <SettingsPanel back={{ text: 'MCP Servers', icon: ArrowLeft, onSelect: onBack }} />
+    return <SettingsPanel back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }} />
   }
 
   if (error || !data) {
     return (
-      <SettingsPanel back={{ text: 'MCP Servers', icon: ArrowLeft, onSelect: onBack }}>
+      <SettingsPanel back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }}>
         <div className='flex min-h-0 flex-1 items-center justify-center'>
           <p className='text-[var(--text-error)] text-xs leading-tight'>
             Failed to load server details
@@ -373,9 +373,10 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   return (
     <>
       <SettingsPanel
-        back={{ text: 'MCP Servers', icon: ArrowLeft, onSelect: onBack }}
+        back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }}
         title={server.name}
         actions={[
+          { text: 'Edit server', onSelect: handleOpenEditServer },
           {
             text: 'Add workflows',
             icon: Plus,
@@ -386,7 +387,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               ? 'All deployed workflows have been added to this server.'
               : undefined,
           },
-          { text: 'Edit server', onSelect: handleOpenEditServer },
         ]}
       >
         <div className='flex min-h-0 flex-1 flex-col'>
@@ -949,7 +949,7 @@ export function WorkflowMcpServers() {
             </div>
           ) : isLoading ? null : !hasServers ? (
             <SettingsEmptyState>
-              Click &quot;Add Server&quot; above to get started
+              Click &quot;Add server&quot; above to get started
             </SettingsEmptyState>
           ) : (
             <div className='flex flex-col gap-2'>

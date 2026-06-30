@@ -12,11 +12,12 @@ import {
   Search,
   toast,
 } from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
+import { ArrowRight, Plus } from 'lucide-react'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
 import { useSession } from '@/lib/auth/auth-client'

@@ -385,7 +385,7 @@ export function MCP() {
 
     return (
       <SettingsPanel
-        back={{ text: 'MCP Tools', icon: ArrowLeft, onSelect: handleBackToList }}
+        back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
         title={server.name || 'Unnamed Server'}
         actions={[
           {
