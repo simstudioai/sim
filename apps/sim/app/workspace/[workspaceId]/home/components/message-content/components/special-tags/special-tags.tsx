@@ -669,7 +669,8 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
 
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
-  const { data: personalEnv } = usePersonalEnvironment()
+  const personalQuery = usePersonalEnvironment()
+  const personalEnv = personalQuery.data
   const { canEdit } = useUserPermissionsContext()
 
   // Setting a workspace var needs write/admin (same gate as the secrets manager);
@@ -686,8 +687,12 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
     if (!canSave) return
     try {
       if (scope === 'personal') {
+        // The personal POST replaces the whole map, so re-read the latest vars
+        // right before merging — a stale snapshot would drop keys saved elsewhere.
+        const { data: latest } = await personalQuery.refetch()
         const merged: Record<string, string> = {}
-        for (const [key, entry] of Object.entries(personalEnv ?? {})) merged[key] = entry.value
+        for (const [key, entry] of Object.entries(latest ?? personalEnv ?? {}))
+          merged[key] = entry.value
         merged[secretName] = value
         await savePersonal.mutateAsync({ variables: merged })
       } else {
