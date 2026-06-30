@@ -67,6 +67,7 @@ export const linqListPhoneNumbersTool: ToolConfig<
           forwardingNumber: {
             type: 'string',
             description: 'Forwarding number in E.164 format, or null',
+            nullable: true,
           },
           healthStatus: {
             type: 'json',

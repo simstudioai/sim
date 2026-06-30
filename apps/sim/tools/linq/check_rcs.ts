@@ -19,7 +19,7 @@ export const linqCheckRcsTool: ToolConfig<LinqCapabilityCheckParams, LinqCapabil
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Phone number (E.164 format) or email address to check',
+      description: 'Phone number (E.164 format) to check',
     },
     from: {
       type: 'string',

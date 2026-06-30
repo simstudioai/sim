@@ -86,7 +86,7 @@ export function linqSetupInstructions(eventType: string): string {
 export function buildLinqExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     {
-      id: 'apiKey',
+      id: 'triggerApiKey',
       title: 'API Key',
       type: 'short-input',
       placeholder: 'Enter your Linq API key',
@@ -98,7 +98,7 @@ export function buildLinqExtraFields(triggerId: string): SubBlockConfig[] {
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
     {
-      id: 'phoneNumbers',
+      id: 'triggerPhoneNumbers',
       title: 'Phone Numbers (Optional)',
       type: 'short-input',
       placeholder: 'Leave empty for all numbers (e.g. +15551234567, +15557654321)',

@@ -88,7 +88,7 @@ Check whether an address (phone number or email) supports RCS
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Linq API key |
-| `address` | string | Yes | Phone number \(E.164 format\) or email address to check |
+| `address` | string | Yes | Phone number \(E.164 format\) to check |
 | `from` | string | No | Sender phone number to check from \(defaults to an available number\) |
 
 #### Output
@@ -636,7 +636,7 @@ Send a message to an existing chat, with optional media, link, effect, or reply
 | --------- | ---- | ----------- |
 | `chatId` | string | ID of the chat the message was sent to |
 | `messageId` | string | ID of the sent message |
-| `deliveryStatus` | string | Delivery status \(pending, queued, sent, delivered, failed\) |
+| `deliveryStatus` | string | Delivery status \(pending, queued, sent, delivered, received, read, failed\) |
 | `sentAt` | string | ISO 8601 timestamp the message was sent |
 | `service` | string | Delivery service \(iMessage, SMS, RCS\) |
 | `message` | json | The full sent message object with parts |
@@ -801,8 +801,8 @@ Trigger workflow when a message is delivered
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
-| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+| `triggerApiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `triggerPhoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
 
 #### Output
 
@@ -825,8 +825,8 @@ Trigger workflow when a message fails to deliver
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
-| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+| `triggerApiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `triggerPhoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
 
 #### Output
 
@@ -849,8 +849,8 @@ Trigger workflow when a message is read
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
-| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+| `triggerApiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `triggerPhoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
 
 #### Output
 
@@ -873,8 +873,8 @@ Trigger workflow when an inbound message is received
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
-| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+| `triggerApiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `triggerPhoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
 
 #### Output
 
@@ -897,8 +897,8 @@ Trigger workflow when a reaction is added to a message
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
-| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+| `triggerApiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `triggerPhoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
 
 #### Output
 
@@ -921,8 +921,8 @@ Trigger on any Linq webhook event (messages, reactions, chats, and more)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
-| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+| `triggerApiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `triggerPhoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
 
 #### Output
 

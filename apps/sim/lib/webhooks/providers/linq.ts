@@ -144,7 +144,7 @@ export const linqHandler: WebhookProviderHandler = {
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const { webhook, requestId } = ctx
     const providerConfig = getProviderConfig(webhook)
-    const apiKey = providerConfig.apiKey as string | undefined
+    const apiKey = providerConfig.triggerApiKey as string | undefined
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (!apiKey) {
@@ -167,7 +167,7 @@ export const linqHandler: WebhookProviderHandler = {
       throw new Error(`Unknown or unsupported Linq trigger type: ${triggerId ?? '(missing)'}`)
     }
 
-    const phoneNumbers = parsePhoneNumbers(providerConfig.phoneNumbers)
+    const phoneNumbers = parsePhoneNumbers(providerConfig.triggerPhoneNumbers)
     const requestBody: Record<string, unknown> = {
       target_url: getNotificationUrl(webhook),
       subscribed_events: events,
