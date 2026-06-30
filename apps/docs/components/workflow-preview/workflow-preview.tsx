@@ -8,6 +8,7 @@ import ReactFlow, {
   applyNodeChanges,
   Background,
   BackgroundVariant,
+  Controls,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
@@ -205,7 +206,7 @@ function PreviewFlow({
       zoomOnScroll={interactive}
       zoomOnDoubleClick={interactive}
       panOnScroll={false}
-      zoomOnPinch={interactive}
+      zoomOnPinch
       panOnDrag
       preventScrolling={interactive}
       autoPanOnNodeDrag={false}
@@ -216,6 +217,7 @@ function PreviewFlow({
       className='h-full w-full'
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color='var(--border)' />
+      <Controls showInteractive={false} position='bottom-left' />
     </ReactFlow>
   )
 }
@@ -233,7 +235,7 @@ function PreviewFlow({
  */
 export function WorkflowPreview({
   workflow,
-  height = 300,
+  height = 340,
   animate = false,
   highlightBlock,
   highlightEdge,
