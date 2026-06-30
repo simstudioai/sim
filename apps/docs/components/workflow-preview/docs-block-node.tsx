@@ -70,25 +70,27 @@ export const DocsBlockNode = memo(function DocsBlockNode({ id, data }: NodeProps
   /**
    * Strip the app's `condition-`/`router-` handle prefixes — the View
    * regenerates them, so passing them through would double-prefix the handle id.
+   * Branch + router-context values render through the editor's `getDisplayValue`,
+   * which shows `-` for a blank value (e.g. an `else` branch); mirror that.
    */
   const conditionRows =
     type === 'condition'
       ? (branches ?? []).map((branch) => ({
           id: branch.id.replace(/^condition-/, ''),
           title: branch.label,
-          value: branch.value ?? '',
+          value: branch.value || '-',
         }))
       : []
   const routerRows =
     type === 'router_v2'
       ? (branches ?? []).map((branch) => ({
           id: branch.id.replace(/^router-/, ''),
-          value: branch.value ?? '',
+          value: branch.value || '-',
         }))
       : []
   /** The View renders the router's leading Context row from this prop, not `rows`. */
   const routerContextValue =
-    type === 'router_v2' ? dataRows.find((row) => row.title === 'Context')?.value : undefined
+    type === 'router_v2' ? dataRows.find((row) => row.title === 'Context')?.value || '-' : undefined
 
   /**
    * Non-branch content only — the View renders condition/router/error rows from
