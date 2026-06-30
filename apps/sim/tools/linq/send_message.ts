@@ -123,7 +123,8 @@ export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMess
         messageId: message.id ?? '',
         deliveryStatus: message.delivery_status ?? null,
         sentAt: message.sent_at ?? null,
-        service: message.service ?? null,
+        service:
+          message.service ?? message.from_handle?.service ?? message.preferred_service ?? null,
         message,
       },
     }

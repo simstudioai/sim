@@ -58,6 +58,7 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
           id: '',
           chatId: '',
           isFromMe: null,
+          deliveryStatus: null,
           isDelivered: null,
           isRead: null,
           service: null,
@@ -76,6 +77,7 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
         id: data.id ?? '',
         chatId: data.chat_id ?? '',
         isFromMe: data.is_from_me ?? null,
+        deliveryStatus: data.delivery_status ?? null,
         isDelivered: data.is_delivered ?? null,
         isRead: data.is_read ?? null,
         service: data.service ?? null,
@@ -96,12 +98,21 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
       description: 'Whether the message was sent by you',
       optional: true,
     },
-    isDelivered: {
-      type: 'boolean',
-      description: 'Whether the message was delivered',
+    deliveryStatus: {
+      type: 'string',
+      description: 'Delivery status (pending, queued, sent, delivered, received, read, failed)',
       optional: true,
     },
-    isRead: { type: 'boolean', description: 'Whether the message was read', optional: true },
+    isDelivered: {
+      type: 'boolean',
+      description: 'Whether the message was delivered (deprecated; use deliveryStatus)',
+      optional: true,
+    },
+    isRead: {
+      type: 'boolean',
+      description: 'Whether the message was read (deprecated; use deliveryStatus)',
+      optional: true,
+    },
     service: {
       type: 'string',
       description: 'Delivery service (iMessage, SMS, RCS)',

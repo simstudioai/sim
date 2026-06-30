@@ -277,8 +277,9 @@ Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iM
 | `id` | string | Message ID |
 | `chatId` | string | ID of the chat the message belongs to |
 | `isFromMe` | boolean | Whether the message was sent by you |
-| `isDelivered` | boolean | Whether the message was delivered |
-| `isRead` | boolean | Whether the message was read |
+| `deliveryStatus` | string | Delivery status \(pending, queued, sent, delivered, received, read, failed\) |
+| `isDelivered` | boolean | Whether the message was delivered \(deprecated; use deliveryStatus\) |
+| `isRead` | boolean | Whether the message was read \(deprecated; use deliveryStatus\) |
 | `service` | string | Delivery service \(iMessage, SMS, RCS\) |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
@@ -374,8 +375,9 @@ Retrieve a single message by ID, including parts, reactions, and delivery status
 | `id` | string | Message ID |
 | `chatId` | string | ID of the chat the message belongs to |
 | `isFromMe` | boolean | Whether the message was sent by you |
-| `isDelivered` | boolean | Whether the message was delivered |
-| `isRead` | boolean | Whether the message was read |
+| `deliveryStatus` | string | Delivery status \(pending, queued, sent, delivered, received, read, failed\) |
+| `isDelivered` | boolean | Whether the message was delivered \(deprecated; use deliveryStatus\) |
+| `isRead` | boolean | Whether the message was read \(deprecated; use deliveryStatus\) |
 | `service` | string | Delivery service \(iMessage, SMS, RCS\) |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
@@ -483,7 +485,8 @@ List all phone numbers assigned to your partner account, with line health
 | `phoneNumbers` | array | Phone numbers assigned to the account |
 |   ↳ `id` | string | Phone number ID |
 |   ↳ `phoneNumber` | string | Phone number in E.164 format |
-|   ↳ `healthStatus` | json | Line health status \(status, doc_url\) |
+|   ↳ `forwardingNumber` | string | Forwarding number in E.164 format, or null |
+|   ↳ `healthStatus` | json | Line reputation/health status \(status, doc_url\) |
 
 ### `linq_list_thread`
 
@@ -548,7 +551,7 @@ List all webhook subscriptions on your account
 
 ### `linq_mark_chat_read`
 
-Mark all messages in a chat as read
+Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)
 
 #### Input
 
@@ -784,4 +787,150 @@ Update a webhook subscription (target URL, events, phone filter, or active state
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Linq Message Delivered
+
+Trigger workflow when a message is delivered
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Event type \(e.g. message.received, message.delivered, reaction.added\) |
+| `eventId` | string | Unique event identifier used for deduplication |
+| `createdAt` | string | ISO 8601 timestamp of when the event occurred |
+| `webhookVersion` | string | Payload schema version of the delivered event |
+| `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
+
+
+---
+
+### Linq Message Failed
+
+Trigger workflow when a message fails to deliver
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Event type \(e.g. message.received, message.delivered, reaction.added\) |
+| `eventId` | string | Unique event identifier used for deduplication |
+| `createdAt` | string | ISO 8601 timestamp of when the event occurred |
+| `webhookVersion` | string | Payload schema version of the delivered event |
+| `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
+
+
+---
+
+### Linq Message Read
+
+Trigger workflow when a message is read
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Event type \(e.g. message.received, message.delivered, reaction.added\) |
+| `eventId` | string | Unique event identifier used for deduplication |
+| `createdAt` | string | ISO 8601 timestamp of when the event occurred |
+| `webhookVersion` | string | Payload schema version of the delivered event |
+| `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
+
+
+---
+
+### Linq Message Received
+
+Trigger workflow when an inbound message is received
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Event type \(e.g. message.received, message.delivered, reaction.added\) |
+| `eventId` | string | Unique event identifier used for deduplication |
+| `createdAt` | string | ISO 8601 timestamp of when the event occurred |
+| `webhookVersion` | string | Payload schema version of the delivered event |
+| `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
+
+
+---
+
+### Linq Reaction Added
+
+Trigger workflow when a reaction is added to a message
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Event type \(e.g. message.received, message.delivered, reaction.added\) |
+| `eventId` | string | Unique event identifier used for deduplication |
+| `createdAt` | string | ISO 8601 timestamp of when the event occurred |
+| `webhookVersion` | string | Payload schema version of the delivered event |
+| `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
+
+
+---
+
+### Linq Webhook (All Events)
+
+Trigger on any Linq webhook event (messages, reactions, chats, and more)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook subscription in Linq. |
+| `phoneNumbers` | string | No | Comma-separated E.164 numbers to restrict which numbers deliver events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Event type \(e.g. message.received, message.delivered, reaction.added\) |
+| `eventId` | string | Unique event identifier used for deduplication |
+| `createdAt` | string | ISO 8601 timestamp of when the event occurred |
+| `webhookVersion` | string | Payload schema version of the delivered event |
+| `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 

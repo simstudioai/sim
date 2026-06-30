@@ -31,7 +31,7 @@ export const linqListPhoneNumbersTool: ToolConfig<
   },
 
   transformResponse: async (response): Promise<LinqListPhoneNumbersResult> => {
-    const data = await response.json()
+    const data = await response.json().catch(() => null)
 
     if (!response.ok) {
       return {
@@ -44,10 +44,12 @@ export const linqListPhoneNumbersTool: ToolConfig<
     return {
       success: true,
       output: {
-        phoneNumbers: (data.phone_numbers ?? []).map((num: Record<string, unknown>) => ({
+        phoneNumbers: (data?.phone_numbers ?? []).map((num: Record<string, unknown>) => ({
           id: (num.id as string) ?? '',
           phoneNumber: (num.phone_number as string) ?? '',
-          healthStatus: (num.health_status as LinqHealthStatus | undefined) ?? null,
+          forwardingNumber: (num.forwarding_number as string | null) ?? null,
+          healthStatus:
+            ((num.reputation ?? num.health_status) as LinqHealthStatus | undefined) ?? null,
         })),
       },
     }
@@ -62,7 +64,14 @@ export const linqListPhoneNumbersTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Phone number ID' },
           phoneNumber: { type: 'string', description: 'Phone number in E.164 format' },
-          healthStatus: { type: 'json', description: 'Line health status (status, doc_url)' },
+          forwardingNumber: {
+            type: 'string',
+            description: 'Forwarding number in E.164 format, or null',
+          },
+          healthStatus: {
+            type: 'json',
+            description: 'Line reputation/health status (status, doc_url)',
+          },
         },
       },
     },

@@ -41,7 +41,7 @@ export const linqCheckRcsTool: ToolConfig<LinqCapabilityCheckParams, LinqCapabil
   },
 
   transformResponse: async (response): Promise<LinqCapabilityCheckResult> => {
-    const data = await response.json()
+    const data = await response.json().catch(() => null)
 
     if (!response.ok) {
       return {
@@ -54,8 +54,8 @@ export const linqCheckRcsTool: ToolConfig<LinqCapabilityCheckParams, LinqCapabil
     return {
       success: true,
       output: {
-        address: data.address ?? '',
-        available: data.available ?? false,
+        address: data?.address ?? '',
+        available: data?.available ?? false,
       },
     }
   },
