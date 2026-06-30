@@ -252,7 +252,7 @@ describe('parseInputFormatFiles', () => {
   const file = {
     id: 'f1',
     name: 'doc.pdf',
-    url: '/api/files/serve/key',
+    url: '/api/files/serve/workspace%2Fws-1%2F1700000000000-doc.pdf?context=workspace',
     key: 'key',
     size: 10,
     type: 'application/pdf',
@@ -312,6 +312,13 @@ describe('parseInputFormatFiles', () => {
     expect(parseInputFormatFiles(JSON.stringify([noKey]))).toEqual([noKey])
   })
 
+  it.concurrent('rejects a key-less file whose internal url yields no key', () => {
+    const { key, ...noKey } = file
+    expect(parseInputFormatFiles(JSON.stringify([{ ...noKey, url: '/api/files/serve/' }]))).toEqual(
+      []
+    )
+  })
+
   it.concurrent('rejects empty-string id/name/url/type (executor treats them as falsy)', () => {
     expect(parseInputFormatFiles(JSON.stringify([{ ...file, id: '' }]))).toEqual([])
     expect(parseInputFormatFiles(JSON.stringify([{ ...file, name: '' }]))).toEqual([])
@@ -324,7 +331,7 @@ describe('collectInputFormatFiles', () => {
   const file = {
     id: 'f1',
     name: 'doc.pdf',
-    url: '/api/files/serve/key',
+    url: '/api/files/serve/workspace%2Fws-1%2F1700000000000-doc.pdf?context=workspace',
     key: 'key',
     size: 10,
     type: 'application/pdf',

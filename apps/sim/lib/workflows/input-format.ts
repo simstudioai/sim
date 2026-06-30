@@ -1,5 +1,5 @@
 import { generateId } from '@sim/utils/id'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
@@ -63,6 +63,22 @@ export type InputFormatFile = Pick<UserFile, 'id' | 'name' | 'url' | 'size' | 't
   Pick<Partial<UserFile>, 'key'>
 
 /**
+ * Whether a file's key is usable at run time: an explicit non-empty `key`, or an
+ * internal `/api/files/serve/...` URL the key can actually be parsed from. This
+ * mirrors `normalizeStartFile` exactly (including the parse, so a malformed
+ * internal URL is rejected rather than accepted on the prefix alone).
+ */
+function hasRecoverableFileKey(file: InputFormatFile): boolean {
+  if (typeof file.key === 'string' && file.key.length > 0) return true
+  if (typeof file.url !== 'string' || !isInternalFileUrl(file.url)) return false
+  try {
+    return parseInternalFileUrl(file.url).key.length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
  * Tolerantly parses a file field's stored value (a JSON string, or an already
  * materialized array) into run-ready file objects. Returns an empty array for
  * legacy free-form values (base64 placeholders, raw text) that don't describe
@@ -91,9 +107,6 @@ export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
     // as normalizeStartFile). A partial object or external/signed URL without a
     // key is rejected so it never opens in uploader mode or reaches the files
     // channel only to be dropped; it falls back to the JSON editor instead.
-    const hasRecoverableKey =
-      (typeof f.key === 'string' && f.key.length > 0) ||
-      (typeof f.url === 'string' && isInternalFileUrl(f.url))
     // Non-empty strings: normalizeStartFile rejects falsy id/name/url/type, and
     // file normalization is all-or-nothing, so one empty-string field would drop
     // every file from the run.
@@ -108,7 +121,7 @@ export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
       Number.isFinite(f.size) &&
       typeof f.type === 'string' &&
       f.type.length > 0 &&
-      hasRecoverableKey
+      hasRecoverableFileKey(f)
     )
   })
 }

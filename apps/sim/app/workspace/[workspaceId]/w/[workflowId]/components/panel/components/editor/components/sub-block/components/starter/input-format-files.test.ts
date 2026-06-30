@@ -10,7 +10,7 @@ import {
 const file: InputFormatFile = {
   id: 'f1',
   name: 'doc.pdf',
-  url: '/api/files/serve/key',
+  url: '/api/files/serve/workspace%2Fws-1%2F1700000000000-doc.pdf?context=workspace',
   key: 'key',
   size: 10,
   type: 'application/pdf',
@@ -20,11 +20,11 @@ describe('filesToControlValue', () => {
   it.concurrent('maps url -> path for the FileUpload value shape', () => {
     expect(filesToControlValue([file])).toEqual([
       {
-        name: 'doc.pdf',
-        path: '/api/files/serve/key',
-        key: 'key',
-        size: 10,
-        type: 'application/pdf',
+        name: file.name,
+        path: file.url,
+        key: file.key,
+        size: file.size,
+        type: file.type,
       },
     ])
   })
@@ -43,9 +43,7 @@ describe('controlValueToFiles', () => {
   })
 
   it.concurrent('matches an existing file by url when key is absent', () => {
-    const control = [
-      { name: 'doc.pdf', path: '/api/files/serve/key', size: 10, type: 'application/pdf' },
-    ]
+    const control = [{ name: 'doc.pdf', path: file.url, size: 10, type: 'application/pdf' }]
     expect(controlValueToFiles(control, [file])[0].id).toBe('f1')
   })
 
@@ -67,11 +65,11 @@ describe('controlValueToFiles', () => {
 
   it.concurrent('normalizes a single object or null to an array', () => {
     const single = {
-      name: 'doc.pdf',
-      path: '/api/files/serve/key',
-      key: 'key',
-      size: 10,
-      type: 'application/pdf',
+      name: file.name,
+      path: file.url,
+      key: file.key,
+      size: file.size,
+      type: file.type,
     }
     expect(controlValueToFiles(single, [file])).toEqual([file])
     expect(controlValueToFiles(null, [file])).toEqual([])
