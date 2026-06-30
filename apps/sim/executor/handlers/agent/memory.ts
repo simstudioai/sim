@@ -3,6 +3,7 @@ import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
+import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
 import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
@@ -58,6 +59,21 @@ export class Memory {
 
     const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
+
+    // Handlers persist their response to memory before the executor redacts the
+    // block output, so mask here too when the block-output stage is enabled —
+    // otherwise raw PII would be stored in memory and read back on later runs.
+    if (ctx.piiBlockOutputRedaction?.enabled && message.content) {
+      message = {
+        ...message,
+        content: await redactObjectStrings(message.content, {
+          entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
+          language: ctx.piiBlockOutputRedaction.language,
+          onFailure: 'throw',
+        }),
+      }
+    }
+
     this.validateContent(message.content)
 
     const key = inputs.conversationId!
