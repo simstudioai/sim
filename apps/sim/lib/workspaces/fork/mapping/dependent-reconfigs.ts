@@ -11,6 +11,7 @@ import {
   evaluateSubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
+import { toScannerBlocks } from '@/lib/workspaces/fork/remap/reference-scan'
 import {
   isSubBlockRequired,
   scanWorkflowReferences,
@@ -201,11 +202,17 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
 export function collectForkDependentReconfigs(
   items: ReconfigItem[],
   sourceStates: Map<string, WorkflowState>,
-  resolveTargetBlockId: ForkBlockIdResolver
+  resolveTargetBlockId: ForkBlockIdResolver,
+  /**
+   * Which target mode to scan. Defaults to `replace` (the reconfigure UI, where the user re-picks
+   * a dependent against a swapped parent). The pre-sync cleared-ref list passes `create` to surface
+   * dependents a new target inherits that a remapped parent will clear (it can't be re-picked yet).
+   */
+  mode: 'create' | 'replace' = 'replace'
 ): ForkDependentReconfig[] {
   const out: ForkDependentReconfig[] = []
   for (const item of items) {
-    if (item.mode !== 'replace') continue
+    if (item.mode !== mode) continue
     const state = sourceStates.get(item.sourceWorkflowId)
     if (!state) continue
     for (const [sourceBlockId, block] of Object.entries(state.blocks)) {
@@ -307,14 +314,9 @@ export function collectForkResourceUsages(
     if (item.mode !== 'replace') continue
     const state = sourceStates.get(item.sourceWorkflowId)
     if (!state) continue
-    const blocks = Object.values(state.blocks).map((block) => ({
-      id: block.id,
-      name: block.name,
-      subBlocks: block.subBlocks as unknown,
-    }))
     // scanWorkflowReferences already dedups by `${kind}:${sourceId}` across the workflow,
     // so each resource appears once per workflow here.
-    for (const reference of scanWorkflowReferences(blocks, () => null).references) {
+    for (const reference of scanWorkflowReferences(toScannerBlocks(state), () => null).references) {
       const key = `${reference.kind}\u0000${reference.sourceId}`
       let usage = byResource.get(key)
       if (!usage) {

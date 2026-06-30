@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
+import type { PromoteCopyResources } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   enqueueWorkflowUndeploySideEffects,
@@ -11,6 +12,14 @@ import {
 } from '@/lib/workflows/deployment-outbox'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
+import { startBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
+import {
+  type ForkContentCopyPayload,
+  type SerializableForkContentRefMaps,
+  scheduleForkContentCopy,
+} from '@/lib/workspaces/fork/copy/content-copy-runner'
+import type { BlobCopyTask } from '@/lib/workspaces/fork/copy/copy-files'
+import type { ForkContentPlan } from '@/lib/workspaces/fork/copy/copy-resources'
 import {
   copyWorkflowStateIntoTarget,
   loadTargetDraftSubBlocks,
@@ -43,6 +52,12 @@ import {
   type ForkMappingUpsert,
   upsertEdgeMappings,
 } from '@/lib/workspaces/fork/mapping/mapping-store'
+import {
+  augmentForkResolver,
+  buildPromoteCopySelection,
+  copyPromoteUnmappedResources,
+  hasPromoteCopySelection,
+} from '@/lib/workspaces/fork/promote/copy-unmapped'
 import {
   computeForkPromotePlan,
   type ForkPromotePlan,
@@ -82,6 +97,12 @@ export interface PromoteForkParams {
     subBlockKey: string
     value: string
   }>
+  /**
+   * Referenced-but-unmapped resources (by source id) the caller chose to copy into the target
+   * before the sync gate. Validated against the plan's copyable candidates, so an arbitrary id is
+   * ignored. Each copied resource's references then resolve to the new copy instead of blocking.
+   */
+  copyResources?: PromoteCopyResources
   requestId?: string
 }
 
@@ -264,6 +285,12 @@ interface PromoteTxApplied {
   needsConfiguration: Array<{ workflowId: string; workflowName: string; blocks: string[] }>
   /** Per-workflow optional dependents a parent change cleared (surfaced, not gated). */
   clearedOptional: Array<{ workflowName: string; blocks: string[] }>
+  /** Heavy content for resources copied into the target this sync, filled best-effort post-commit. */
+  copyContentPlan: ForkContentPlan | null
+  /** Serialized in-content maps for the post-commit skill-body rewrite (paired with the plan). */
+  copyContentRefMaps: SerializableForkContentRefMaps | null
+  /** File blob duplications for copied workspace files, run post-commit by the content-copy runner. */
+  copyContentBlobTasks: BlobCopyTask[]
 }
 
 /**
@@ -352,10 +379,25 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       sourceStates,
     })
 
-    if (plan.unmappedRequired.length > 0) {
+    const now = new Date()
+
+    // Copy the selected referenced-but-unmapped resources into the target BEFORE the gate, so a
+    // user can copy rather than map each one. The gate is evaluated against the post-copy state
+    // (the copy resolves the selected refs), so the copy only runs when the sync will actually
+    // proceed - if required refs remain unmapped, we block without copying anything.
+    const { selection: copySelection, willResolve } = buildPromoteCopySelection(
+      params.copyResources,
+      plan.copyableUnmapped
+    )
+    // plan.unmappedRequired is already references.filter(resolver == null).filter(required), so
+    // subtracting the refs the copy will resolve is equivalent to re-scanning the predicate.
+    const postCopyUnmappedRequired = plan.unmappedRequired.filter(
+      (reference) => !willResolve.has(`${reference.kind}:${reference.sourceId}`)
+    )
+    if (postCopyUnmappedRequired.length > 0) {
       return {
         blocked: 'unmapped',
-        unmappedRequired: plan.unmappedRequired.map((reference) => ({
+        unmappedRequired: postCopyUnmappedRequired.map((reference) => ({
           kind: reference.kind,
           sourceId: reference.sourceId,
           required: reference.required,
@@ -364,8 +406,10 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       }
     }
 
-    const now = new Date()
-    const transform = createForkSubBlockTransform(plan.resolver)
+    // Resolve the source->target folder map BEFORE the copy so the folders already exist in the
+    // target and the copy can rewrite `sim:folder/<id>` references inside copied skill / markdown
+    // bodies (the post-commit content rewrite reads this map). Idempotent: it reuses target
+    // folders that already match by name within the same mapped parent.
     const folderIdMap = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId,
@@ -373,6 +417,42 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       userId,
       now,
     })
+
+    let resolver = plan.resolver
+    let copyContentPlan: ForkContentPlan | null = null
+    let copyContentRefMaps: SerializableForkContentRefMaps | null = null
+    let copyContentBlobTasks: BlobCopyTask[] = []
+    // Knowledge-document ids the synced workflows reference, taken from the plan's already-scanned
+    // references so the copy never re-scans every source state inside this locked tx.
+    const referencedDocumentIds = plan.references
+      .filter((reference) => reference.kind === 'knowledge-document')
+      .map((reference) => reference.sourceId)
+    // Run the copy when the user selected resources to copy OR any document is referenced (a
+    // referenced document under an already-mapped KB is auto-copied into that KB so its reference
+    // remaps instead of clearing). It runs only after the required-reference gate above, so a
+    // blocked sync copies nothing.
+    if (hasPromoteCopySelection(copySelection) || referencedDocumentIds.length > 0) {
+      const copyResult = await copyPromoteUnmappedResources({
+        tx,
+        edge,
+        sourceWorkspaceId,
+        targetWorkspaceId,
+        direction,
+        userId,
+        now,
+        selection: copySelection,
+        workflowIdMap: plan.workflowIdMap,
+        folderIdMap,
+        resolver: plan.resolver,
+        referencedDocumentIds,
+      })
+      resolver = augmentForkResolver(plan.resolver, copyResult.copyIdMapByKind)
+      copyContentPlan = copyResult.contentPlan
+      copyContentRefMaps = copyResult.contentRefMaps
+      copyContentBlobTasks = copyResult.blobTasks
+    }
+
+    const transform = createForkSubBlockTransform(resolver)
 
     // Batch every prior-version read (replace + archive targets) into one query before any
     // write, so the locked apply phase doesn't do N round-trips. Reads are pre-write, so
@@ -634,6 +714,9 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       undeployEventIds,
       needsConfiguration,
       clearedOptional,
+      copyContentPlan,
+      copyContentRefMaps,
+      copyContentBlobTasks,
     }
   })
 
@@ -711,6 +794,62 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         error: getErrorMessage(error),
       })
     }
+  }
+
+  // Fill the heavy content (table rows, KB documents + embeddings) of resources copied into the
+  // target this sync and rewrite copied skill bodies, off the request path. Scheduled AFTER the
+  // deploy loop so every deployed version this sync cut already EXISTS: a failed content fill's
+  // cleanup sweep unions `deployedTargetWorkflowIds`, so it must not race ahead of those versions.
+  // Mirrors fork: a durable status row + Trigger.dev task surfaces a crash as a failed Activity
+  // entry rather than a silently-empty placeholder (runDetached is the non-Trigger fallback); the
+  // runner also clears references + drops the placeholder for any resource whose fill fails.
+  const copyContentPlan = txResult.copyContentPlan
+  const copyBlobTasks = txResult.copyContentBlobTasks
+  const hasCopyContent =
+    copyContentPlan != null &&
+    (copyContentPlan.tables.length > 0 ||
+      copyContentPlan.knowledgeBases.length > 0 ||
+      copyContentPlan.skills.length > 0 ||
+      copyContentPlan.documents.length > 0 ||
+      copyBlobTasks.length > 0)
+  if (copyContentPlan && hasCopyContent) {
+    // Scope the durable record to the workspace whose Manage Forks -> Activity the user is
+    // viewing (the one the sync was initiated from), matching where the route records the sync.
+    const activityWorkspaceId = direction === 'push' ? sourceWorkspaceId : targetWorkspaceId
+    // The sync already committed; failing to record the tracking row must not turn it into a 500.
+    // The runner no-ops its status updates when statusId is absent, so the copy still runs.
+    let statusId: string | undefined
+    try {
+      statusId = await startBackgroundWork(db, {
+        workspaceId: activityWorkspaceId,
+        kind: 'fork_content_copy',
+        // Append-only: each sync's content fill is a distinct entry in the Activity history.
+        supersede: false,
+        message: 'Copying synced resources',
+        metadata: {
+          tables: copyContentPlan.tables.length,
+          knowledgeBases: copyContentPlan.knowledgeBases.length,
+          files: copyBlobTasks.length,
+        },
+      })
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to record sync content-copy status`, {
+        targetWorkspaceId,
+        error: getErrorMessage(error),
+      })
+    }
+
+    const payload: ForkContentCopyPayload = {
+      contentPlan: copyContentPlan,
+      blobTasks: copyBlobTasks,
+      contentRefMaps: txResult.copyContentRefMaps ?? undefined,
+      statusId,
+      // The targets this sync wrote and deployed above, so a failed content fill can sweep the
+      // dropped placeholder from their DEPLOYED version states too, not just drafts.
+      deployedTargetWorkflowIds: txResult.deployTargetIds,
+      requestId,
+    }
+    await scheduleForkContentCopy(payload, { detachedLabel: 'fork-sync-content-copy', requestId })
   }
 
   if (deployFailures.length > 0) {

@@ -122,7 +122,7 @@ function jobReport(job: BackgroundWorkItem): JobReport {
   addGroup('Files', m.fileNames)
   addGroup('Custom tools', m.customToolNames)
   addGroup('Skills', m.skillNames)
-  addGroup('MCP servers', m.mcpServerNames)
+  addGroup('Workflow MCP servers', m.workflowMcpServerNames)
   // Pre-names entries fall back to the per-kind counts.
   if (groups.length === 0) {
     const counts = [

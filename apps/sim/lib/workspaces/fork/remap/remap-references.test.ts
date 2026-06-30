@@ -20,6 +20,7 @@ vi.mock('@/tools/params', () => ({
 }))
 
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import { createForkBootstrapTransform } from '@/lib/workspaces/fork/remap/fork-bootstrap'
 import {
   applyDependentOverrides,
   collectClearedDependents,
@@ -201,6 +202,38 @@ describe('remapToolBlockResources', () => {
     })
     expect(result.params).toEqual({ knowledgeBaseId: 'kb-dst', documentId: '' })
   })
+
+  it('remaps a nested documentId through the doc map when its document was copied', () => {
+    const tool = {
+      type: 'depblock',
+      toolId: 'depblock_run',
+      params: { knowledgeBaseId: 'kb-src', documentId: 'doc-src' },
+    }
+    const map: Record<string, string> = {
+      'knowledge-base:kb-src': 'kb-dst',
+      'knowledge-document:doc-src': 'doc-dst',
+    }
+    const result = remapToolBlockResources(tool, {
+      resolve: (kind, id) => map[`${kind}:${id}`] ?? null,
+      resolveFileKey: () => null,
+      clearUnresolved: true,
+      blockConfigs: {
+        depblock: {
+          subBlocks: [
+            { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+            {
+              id: 'documentId',
+              title: 'Doc',
+              type: 'document-selector',
+              dependsOn: ['knowledgeBaseId'],
+            },
+          ],
+        },
+      },
+    })
+    // documentId is remapped (not cleared as a dependent) because its document was copied.
+    expect(result.params).toEqual({ knowledgeBaseId: 'kb-dst', documentId: 'doc-dst' })
+  })
 })
 
 describe('remapForkSubBlocks', () => {
@@ -283,12 +316,100 @@ describe('remapForkSubBlocks', () => {
     const tools = result.subBlocks.tools.value as Array<{ params: { subject: string } }>
     expect(tools[0].params.subject).toBe('Hi {{NEW}}')
   })
+
+  const fileSubBlock = (): SubBlockRecord => ({
+    file: {
+      id: 'file',
+      type: 'file-upload',
+      value: { key: 'workspace/SRC/a.png', name: 'a.png' },
+    },
+  })
+
+  it('promote mode: records an unmapped file-upload key as a file reference and clears it', () => {
+    const result = remapForkSubBlocks(fileSubBlock(), () => null, 'promote')
+    const keys = result.references.map((r) => `${r.kind}:${r.sourceId}`)
+    expect(keys).toContain('file:workspace/SRC/a.png')
+    // file refs are optional (not required), surfaced for the copy/clear decision.
+    expect(result.references.find((r) => r.kind === 'file')?.required).toBe(false)
+    expect(result.unmapped.map((r) => `${r.kind}:${r.sourceId}`)).toContain(
+      'file:workspace/SRC/a.png'
+    )
+    // An uncopied file key is dropped rather than carried cross-workspace.
+    expect(result.subBlocks.file.value).toBe('')
+  })
+
+  it('promote mode: remaps a file-upload key to the copied target and records it mapped', () => {
+    const result = remapForkSubBlocks(
+      fileSubBlock(),
+      (kind, id) =>
+        kind === 'file' && id === 'workspace/SRC/a.png' ? 'workspace/DST/a.png' : null,
+      'promote'
+    )
+    expect(result.references.map((r) => `${r.kind}:${r.sourceId}`)).toContain(
+      'file:workspace/SRC/a.png'
+    )
+    expect(result.unmapped).toHaveLength(0)
+    expect((result.subBlocks.file.value as { key: string }).key).toBe('workspace/DST/a.png')
+  })
+
+  it('create mode: does not record file references but still remaps copied files', () => {
+    const result = remapForkSubBlocks(
+      fileSubBlock(),
+      (kind, id) =>
+        kind === 'file' && id === 'workspace/SRC/a.png' ? 'workspace/DST/a.png' : null,
+      'create'
+    )
+    expect(result.references).toHaveLength(0)
+    expect((result.subBlocks.file.value as { key: string }).key).toBe('workspace/DST/a.png')
+  })
 })
 
 const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
   ({ name: 'Test', description: '', subBlocks, outputs: {} }) as unknown as BlockConfig
 
 const entry = (id: string, type: string, value: unknown) => ({ id, type, value })
+
+describe('createForkBootstrapTransform document-selector remap', () => {
+  const docBlock = () =>
+    blockWith([
+      { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+      { id: 'documentId', title: 'Doc', type: 'document-selector', dependsOn: ['knowledgeBaseId'] },
+    ])
+  const subBlocks = (): SubBlockRecord => ({
+    knowledgeBaseId: { id: 'knowledgeBaseId', type: 'knowledge-base-selector', value: 'kb-src' },
+    documentId: { id: 'documentId', type: 'document-selector', value: 'doc-src' },
+  })
+
+  it('remaps documentId to the copied document (not cleared as a KB dependent)', () => {
+    vi.mocked(getBlock).mockReturnValue(docBlock())
+    const map: Record<string, string> = {
+      'knowledge-base:kb-src': 'kb-dst',
+      'knowledge-document:doc-src': 'doc-dst',
+    }
+    const transform = createForkBootstrapTransform((kind, id) => map[`${kind}:${id}`] ?? null)
+    const result = transform(subBlocks(), 'knowledge')
+    expect(result.knowledgeBaseId.value).toBe('kb-dst')
+    expect(result.documentId.value).toBe('doc-dst')
+  })
+
+  it('clears documentId when its parent KB was not copied', () => {
+    vi.mocked(getBlock).mockReturnValue(docBlock())
+    const transform = createForkBootstrapTransform(() => null)
+    const result = transform(subBlocks(), 'knowledge')
+    expect(result.knowledgeBaseId.value).toBe('')
+    expect(result.documentId.value).toBe('')
+  })
+
+  it('clears documentId when its KB was copied but the document was not', () => {
+    vi.mocked(getBlock).mockReturnValue(docBlock())
+    const transform = createForkBootstrapTransform((kind, id) =>
+      kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null
+    )
+    const result = transform(subBlocks(), 'knowledge')
+    expect(result.knowledgeBaseId.value).toBe('kb-dst')
+    expect(result.documentId.value).toBe('')
+  })
+})
 
 describe('collectClearedDependents', () => {
   it('flags a required dependent the target had set but the merge left empty', () => {

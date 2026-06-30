@@ -23,7 +23,10 @@ import {
   isNonEmptyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
-import { remapForkFileUploadValue } from '@/lib/workspaces/fork/remap/remap-files'
+import {
+  collectForkFileUploadKeys,
+  remapForkFileUploadValue,
+} from '@/lib/workspaces/fork/remap/remap-files'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 
@@ -38,7 +41,12 @@ export type ForkRemapKind = z.infer<typeof forkRemapKindSchema>
 
 const logger = createLogger('WorkspaceForkRemapReferences')
 
-const REQUIRED_KINDS = new Set<ForkRemapKind>(['credential', 'env-var'])
+/**
+ * Reference kinds whose absence BLOCKS a sync (they gate `requiredComplete` and are resolved by
+ * mapping), as opposed to optional kinds that silently clear. Exported so the cleared-ref preview
+ * can exclude them - a required ref is a blocker, never a silent "will be cleared" item.
+ */
+export const REQUIRED_KINDS = new Set<ForkRemapKind>(['credential', 'env-var'])
 
 /**
  * Id-based override kind for a TOOL param's credential, resolved by subblock id so a
@@ -59,19 +67,42 @@ export const REGISTRY_KIND_TO_FORK_KIND: Partial<
 > = {
   'oauth-credential': 'credential',
   'knowledge-base': 'knowledge-base',
+  'knowledge-document': 'knowledge-document',
   table: 'table',
   'mcp-server': 'mcp-server',
 }
-// `file` and `knowledge-document` are intentionally excluded from the generic
-// registry path. `file-upload` (workspace files) is remapped by storage key via
-// `remapForkFileUploadValue`; `file-selector` (external provider file ids,
-// credential-scoped) carries over unchanged; `document-selector` is cleared by the
-// `dependsOn` rule (clearDependentsOnRemap) when its parent knowledge base is remapped.
-// `mcp-tool-selector` is likewise cleared by `dependsOn` when its `mcp-server-selector`
-// parent is remapped - the tool list is server-scoped and may differ in the target.
+// `file` is intentionally excluded from the generic registry path: `file-upload`
+// (workspace files) is remapped by storage key via `remapForkFileUploadValue`, and
+// `file-selector` (external provider file ids, credential-scoped) carries over
+// unchanged. `document-selector` (`knowledge-document`) IS remapped through the doc-id
+// map when its referenced document was copied into the fork; an unmapped document (its
+// parent KB wasn't copied, or the doc wasn't copyable) resolves to null and is cleared,
+// and `clearDependentsOnRemap` still clears it as a `knowledgeBaseId` dependent when the
+// parent KB itself is unmapped. `mcp-tool-selector` is cleared by `dependsOn` when its
+// `mcp-server-selector` parent is remapped - the tool list is server-scoped and may
+// differ in the target.
 
 /** Matches `{{ENV_KEY}}` references inside subblock values; shared with cascade detection. */
 export const ENV_REF_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
+
+/**
+ * Rewrite `{{ENV}}` references in free text (a copied custom tool's `code`, an MCP url/header)
+ * through an env-name resolver, so a promote that renames an env var (e.g. SLACK_API_KEY ->
+ * SLACK_API_KEY_TEST) keeps the copied text pointing at the right key. A key the resolver leaves
+ * unmapped (null/undefined) or maps to the same name is kept verbatim - a graceful no-op so an env
+ * that exists under the same name in the target still works. Pure; mirrors {@link remapEnvInValue}'s
+ * preserve-by-name policy for the string case.
+ */
+export function rewriteEnvRefsInText(
+  text: string,
+  resolveEnvName: (key: string) => string | null | undefined
+): string {
+  if (!text) return text
+  return text.replace(ENV_REF_PATTERN, (full, key: string) => {
+    const target = resolveEnvName(key)
+    return target && target !== key ? `{{${target}}}` : full
+  })
+}
 
 /**
  * A `credentialSet:<id>` reference points at an ORG-scoped credential set. A fork
@@ -232,8 +263,12 @@ export function remapToolBlockResources(
 
     if (definition.kind === 'file') {
       // file-upload (workspace file) remaps by storage key; file-selector (external
-      // provider id) carries over unchanged.
+      // provider id) carries over unchanged. Each key is recorded as a `file` reference so
+      // a nested tool's workspace file surfaces in the scan / unmapped set and can be copied.
       if (config.type !== 'file-upload') continue
+      for (const fileKey of collectForkFileUploadKeys(currentValue)) {
+        opts.record?.('file', fileKey, opts.resolveFileKey(fileKey) != null)
+      }
       const remapped = remapForkFileUploadValue(currentValue, opts.resolveFileKey)
       if (remapped !== currentValue) {
         setParam(paramId, remapped)
@@ -485,9 +520,25 @@ export function remapForkSubBlocks(
     }
 
     if (subBlockType === 'file-upload') {
-      // Workspace-file refs don't sync on promote (the target lacks the source's
-      // blob); clear them rather than carry a cross-workspace key. On fork, the
-      // resolver returns the copied key. `file-selector` (external) is untouched.
+      // Each workspace-file key is a `file` reference (keyed by storage key). Recording it
+      // surfaces the file in the scan / unmapped set so a sync can copy it into the target,
+      // exactly like fork - rather than silently clearing it. The resolver returns the copied
+      // key once the file has been copied; an unmapped (uncopied) key is dropped by the remap
+      // below. `file-selector` (external provider ids) is untouched.
+      for (const fileKey of collectForkFileUploadKeys(value)) {
+        recordReference(
+          `file:${fileKey}`,
+          {
+            kind: 'file',
+            sourceId: fileKey,
+            blockId: context?.blockId,
+            blockName: context?.blockName,
+            subBlockKey,
+            required: false,
+          },
+          resolve('file', fileKey) != null
+        )
+      }
       value = remapForkFileUploadValue(value, (sourceKey) => resolve('file', sourceKey) ?? null)
     } else if (subBlockType === 'tool-input' || subBlockType === 'skill-input') {
       const record = (kind: ForkRemapKind, sourceId: string, mapped: boolean) =>

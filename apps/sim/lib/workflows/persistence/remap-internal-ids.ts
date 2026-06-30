@@ -144,10 +144,15 @@ export function remapWorkflowReferencesInSubBlocks(
 ): SubBlockRecord {
   if (!workflowIdMap?.size) return subBlocks
   const clearUnmapped = options?.clearUnmapped ?? false
+  let clearedWorkflowSelector = false
   const remapScalar = (value: string): string => {
     const mapped = workflowIdMap.get(value)
     if (mapped) return mapped
-    return clearUnmapped ? '' : value
+    if (clearUnmapped) {
+      clearedWorkflowSelector = true
+      return ''
+    }
+    return value
   }
   const updated: SubBlockRecord = {}
   for (const [key, subBlock] of Object.entries(subBlocks)) {
@@ -177,6 +182,18 @@ export function remapWorkflowReferencesInSubBlocks(
       }
     }
     updated[key] = subBlock
+  }
+  // A cleared workflow selector (its target workflow wasn't copied) leaves the block's
+  // `inputMapping` pointing at a workflow that no longer exists; clear it too so no orphaned
+  // mapping survives. The nested `workflow_input` tool case drops the whole tool (with its
+  // inputMapping) above, so only the top-level block-level inputMapping needs this.
+  if (clearedWorkflowSelector) {
+    for (const [key, subBlock] of Object.entries(updated)) {
+      if (key.replace(/_\d+$/, '') !== 'inputMapping') continue
+      if (!subBlock || typeof subBlock !== 'object') continue
+      if (subBlock.value === '' || subBlock.value == null) continue
+      updated[key] = { ...subBlock, value: '' }
+    }
   }
   return updated
 }

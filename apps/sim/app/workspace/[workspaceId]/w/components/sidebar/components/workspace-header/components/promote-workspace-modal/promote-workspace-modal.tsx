@@ -16,6 +16,7 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight } from 'lucide-react'
 import type {
+  ForkCopyableUnmapped,
   ForkDependentReconfig,
   ForkLineageNodeApi,
   ForkMappingEntry,
@@ -23,7 +24,21 @@ import type {
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import {
+  FileKindRow,
+  ResourceKindRow,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-resource-picker/fork-resource-picker'
+import { selectVisibleClearedRefs } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/cleared-refs-list'
 import { ResourceReconfigure } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/components/resource-reconfigure'
+import {
+  effectiveForkTarget,
+  forkCopyingKeys,
+  forkMappedCopyableKeys,
+  forkRefKey,
+  forkRequiredPending,
+  forkVisibleCopyables,
+  isForkRequiredComplete,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/copy-reconciliation'
 import {
   dependentKey,
   effectiveDependentValue,
@@ -43,7 +58,7 @@ interface PromoteWorkspaceModalProps {
   parent: ForkLineageNodeApi | null
 }
 
-const entryKey = (entry: ForkMappingEntry) => `${entry.kind}:${entry.sourceId}`
+const entryKey = (entry: ForkMappingEntry) => forkRefKey(entry)
 
 /**
  * Whether a mapping entry needs an in-place reconfigure: its effective target was changed
@@ -90,18 +105,42 @@ function takenTargetOwners(
   return owners
 }
 
+/**
+ * The mapping kinds that can be a standalone mapping entry. `knowledge-document` is excluded:
+ * the mapping view (`getForkMappingView`) skips documents — they ride their parent KB via the
+ * reconfigure flow — so a `knowledge-document` mapping section is never reachable.
+ */
+type MappableMappingKind = Exclude<ForkMappingEntry['kind'], 'knowledge-document'>
+
 /** Section label + display order per mapping kind (one mapping step per kind). */
-const MAPPING_SECTION: Record<ForkMappingEntry['kind'], { label: string; order: number }> = {
+const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: number }> = {
   credential: { label: 'Credentials', order: 0 },
   'env-var': { label: 'Secrets', order: 1 },
   table: { label: 'Tables', order: 2 },
   'knowledge-base': { label: 'Knowledge bases', order: 3 },
-  'knowledge-document': { label: 'Knowledge documents', order: 4 },
-  file: { label: 'Files', order: 5 },
-  'mcp-server': { label: 'MCP servers', order: 6 },
-  'custom-tool': { label: 'Custom tools', order: 7 },
-  skill: { label: 'Skills', order: 8 },
+  file: { label: 'Files', order: 4 },
+  'mcp-server': { label: 'MCP servers', order: 5 },
+  'custom-tool': { label: 'Custom tools', order: 6 },
+  skill: { label: 'Skills', order: 7 },
 }
+
+/**
+ * Copyable kinds as expandable sections in the sync "Copy resources" picker, ordered + labeled to
+ * match the fork modal's resource picker exactly. Files nest in a folder ▸ file tree; every other
+ * kind is a flat searchable list.
+ */
+const COPYABLE_KIND_SECTIONS: ReadonlyArray<{
+  kind: ForkCopyableUnmapped['kind']
+  label: string
+}> = [
+  { kind: 'file', label: 'Files' },
+  { kind: 'table', label: 'Tables' },
+  { kind: 'knowledge-base', label: 'Knowledge bases' },
+  { kind: 'custom-tool', label: 'Custom tools' },
+  { kind: 'skill', label: 'Skills' },
+]
+
+const copyableKey = (candidate: ForkCopyableUnmapped) => forkRefKey(candidate)
 
 interface EdgeOption {
   value: string
@@ -157,6 +196,11 @@ export function PromoteWorkspaceModal({
   // `dependentKey`. Folded into the full effective set sent on sync, which promote persists as
   // the stored mapping - so the selection survives every future sync without re-picking.
   const [reconfig, setReconfig] = useState<Record<string, string>>({})
+  // Referenced-but-unmapped resources the user chose to copy into the target (keyed by
+  // `${kind}:${sourceId}`); default-selected once the diff loads. Selected ones are copied on
+  // sync so their references resolve to the copy instead of being cleared.
+  const [copySelected, setCopySelected] = useState<Set<string>>(new Set())
+  const [copyDefaulted, setCopyDefaulted] = useState(false)
   // Wizard step: 0 is the overview; 1..N edit one resource kind each, entered via
   // "Edit mappings". Backing out of step 1 returns to the overview.
   const [step, setStep] = useState(0)
@@ -176,6 +220,8 @@ export function PromoteWorkspaceModal({
     setStep(0)
     setTargets({})
     setReconfig({})
+    setCopySelected(new Set())
+    setCopyDefaulted(false)
   }, [open, selectedKey])
 
   const selected = edgeOptions.find((option) => option.value === selectedKey)
@@ -193,6 +239,59 @@ export function PromoteWorkspaceModal({
     [diff.data?.dependentReconfigs]
   )
   const resourceUsages = useMemo(() => diff.data?.resourceUsages ?? [], [diff.data?.resourceUsages])
+  const copyableUnmapped = useMemo(
+    () => diff.data?.copyableUnmapped ?? [],
+    [diff.data?.copyableUnmapped]
+  )
+  const clearedRefs = useMemo(() => diff.data?.clearedRefs ?? [], [diff.data?.clearedRefs])
+
+  // Copy-vs-map reconciliation: a copyable resource the user has given an effective (in-session
+  // or persisted) mapping target must NOT also appear in the copy list - the user picked map, not
+  // copy. `copyableKey` shares the `${kind}:${sourceId}` keyspace with `entryKey`, so a mapped
+  // entry's key directly excludes its copy candidate. The server enforces the same precedence:
+  // a mapped resource resolves != null, so it never reaches the plan's `copyableUnmapped`, and a
+  // copy request for it is dropped by `buildPromoteCopySelection`.
+  const mappedCopyableKeys = useMemo(
+    () => forkMappedCopyableKeys(entries, targets),
+    [entries, targets]
+  )
+
+  const visibleCopyables = useMemo(
+    () => forkVisibleCopyables(copyableUnmapped, mappedCopyableKeys),
+    [copyableUnmapped, mappedCopyableKeys]
+  )
+
+  // Copyables actually selected for copy (visible + checked), keyed for an O(1) lookup so a
+  // copyable mapping entry in the editor walk can show a "will be copied" note.
+  const copyingKeys = useMemo(
+    () => forkCopyingKeys(visibleCopyables, copySelected),
+    [visibleCopyables, copySelected]
+  )
+
+  // Group the visible copy candidates by kind so each renders as its own expandable section
+  // (chevron + tri-state select-all + count), matching the fork picker. Files nest in a folder ▸
+  // file tree inside their section; every other kind is a flat searchable list.
+  const copyablesByKind = useMemo(() => {
+    const groups = new Map<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>()
+    for (const candidate of visibleCopyables) {
+      const list = groups.get(candidate.kind)
+      if (list) list.push(candidate)
+      else groups.set(candidate.kind, [candidate])
+    }
+    return groups
+  }, [visibleCopyables])
+
+  // Default every copyable referenced resource to "copy" once the diff loads, so the common case
+  // (bring the referenced resources along) needs no clicks; the user can deselect to clear instead.
+  // Seed ONLY from a settled diff for the current direction: on a direction switch the reset clears
+  // `copyDefaulted`, but `useForkDiff` keeps the previous direction's payload (placeholderData) until
+  // the new fetch resolves - seeding from it would latch against stale keys and leave the real
+  // copyables unchecked, clearing their references on Sync.
+  useEffect(() => {
+    if (!open || diff.isPlaceholderData || copyableUnmapped.length === 0 || copyDefaulted) return
+    setCopyDefaulted(true)
+    setCopySelected(new Set(copyableUnmapped.map(copyableKey)))
+  }, [open, diff.isPlaceholderData, copyableUnmapped, copyDefaulted])
 
   // Group dependents by their parent (kind:sourceId) once, so each mapping entry below gets a
   // STABLE `dependents` array reference - a fresh `.filter` per render would defeat
@@ -211,9 +310,11 @@ export function PromoteWorkspaceModal({
   // Effective target for an entry: the user's in-session override if present,
   // else the persisted mapping from the server. Read directly from `entries` so
   // a reopened edge reflects stored mappings without a seeding effect.
-  const targetFor = (entry: ForkMappingEntry) => targets[entryKey(entry)] ?? entry.targetId ?? ''
+  const targetFor = (entry: ForkMappingEntry) => effectiveForkTarget(entry, targets)
 
-  const requiredComplete = entries.every((entry) => !entry.required || targetFor(entry) !== '')
+  // A required reference is satisfied when it has a mapping target OR the user selected it for copy
+  // (the server accepts a copy as resolving a required ref). See `isForkRequiredComplete`.
+  const requiredComplete = isForkRequiredComplete(entries, targets, copyingKeys)
 
   // Every workflow a mapping entry's resource is used in, for the always-on reconfigure
   // listing rendered beneath that mapping (so the credential/KB stays in context).
@@ -228,8 +329,11 @@ export function PromoteWorkspaceModal({
 
   // Group mappings by resource type - one step per kind, required types first.
   const groupedEntries = useMemo(() => {
-    const groups = new Map<ForkMappingEntry['kind'], ForkMappingEntry[]>()
+    const groups = new Map<MappableMappingKind, ForkMappingEntry[]>()
     for (const entry of entries) {
+      // The mapping view never emits a document entry (it rides its KB), so the section is
+      // unreachable - skip defensively so the narrowed `MAPPING_SECTION` lookup stays sound.
+      if (entry.kind === 'knowledge-document') continue
       const list = groups.get(entry.kind)
       if (list) list.push(entry)
       else groups.set(entry.kind, [entry])
@@ -277,6 +381,32 @@ export function PromoteWorkspaceModal({
     return dependentValueFor(field, parent) !== ''
   })
 
+  // Kinds with a required DEPENDENT that still has no value (its parent is mapped): these block
+  // Sync via `reconfigComplete`, so the overview badge for that kind must not read "Fully mapped".
+  const reconfigPendingByKind = new Set<MappableMappingKind>()
+  for (const field of dependentReconfigs) {
+    if (!field.required) continue
+    const parent = entryForDependent(field)
+    if (!parent || targetFor(parent) === '') continue
+    if (dependentValueFor(field, parent) === '') {
+      reconfigPendingByKind.add(parent.kind as MappableMappingKind)
+    }
+  }
+
+  // The references this sync will blank, reactively narrowed to the current selection. A resource
+  // is "resolved" once it has a mapping target OR is selected for copy - the same predicate drives
+  // a `reference` (its own resource) and a `dependent` (its PARENT resource), so mapping or copying
+  // a parent KB makes its child document drop off. `workflow` refs always clear (not resolvable here).
+  const clearedRefsToShow = useMemo(() => {
+    const isResolved = (kind: string, sourceId: string) => {
+      const key = `${kind}:${sourceId}`
+      const entry = entriesByParent.get(key)
+      const mapped = entry ? (targets[key] ?? entry.targetId ?? '') !== '' : false
+      return mapped || copyingKeys.has(key)
+    }
+    return selectVisibleClearedRefs(clearedRefs, isResolved)
+  }, [clearedRefs, entriesByParent, targets, copyingKeys])
+
   // Per-kind status for the overview listing: "Fully mapped" or "n/total mapped",
   // flagged when a REQUIRED target is still missing (which blocks Sync). Reads the
   // effective (override-or-persisted) target so it reflects both remembered mappings
@@ -284,8 +414,10 @@ export function PromoteWorkspaceModal({
   const kindSummaries = groupedEntries.map((group) => {
     const total = group.items.length
     const mapped = group.items.filter((entry) => targetFor(entry) !== '').length
-    const requiredPending = group.items.some((entry) => entry.required && targetFor(entry) === '')
-    return { kind: group.kind, label: group.label, total, mapped, requiredPending }
+    // Mirror the Sync gate: a required ref selected for copy is satisfied, so it is not "pending".
+    const requiredPending = forkRequiredPending(group.items, targets, copyingKeys)
+    const reconfigPending = reconfigPendingByKind.has(group.kind)
+    return { kind: group.kind, label: group.label, total, mapped, requiredPending, reconfigPending }
   })
 
   // Step 0 is the overview; each subsequent step edits one resource kind, entered via
@@ -296,16 +428,22 @@ export function PromoteWorkspaceModal({
   const safeStep = Math.min(step, Math.max(0, stepCount - 1))
   const isLastStep = safeStep >= stepCount - 1
   const currentGroup = safeStep >= 1 ? (groupedEntries[safeStep - 1] ?? null) : null
-  // Gate Sync on the diff being loaded too, not just the mapping: until `diff.data` arrives
-  // `dependentReconfigs` is empty, so `reconfigComplete` is vacuously true and `runPromote` would
-  // omit `dependentValues` - i.e. Sync before the diff loads would bypass dependent gating.
+  // Gate Sync on BOTH queries being settled for the current direction. Beyond loading: a failed/
+  // empty mapping (`!mapping.data`) must not read as "nothing required" (required-ref completeness
+  // can't be determined), and placeholder data after a direction switch is the PREVIOUS direction's
+  // payload - syncing on it would send stale mappings/copies and clear references. Until `diff.data`
+  // arrives `dependentReconfigs` is empty, so `reconfigComplete` is vacuously true and `runPromote`
+  // would bypass dependent gating.
   const syncDisabled =
     submitting ||
     !otherWorkspaceId ||
     !requiredComplete ||
     !reconfigComplete ||
     mapping.isLoading ||
-    !diff.data
+    !mapping.data ||
+    mapping.isPlaceholderData ||
+    !diff.data ||
+    diff.isPlaceholderData
   const headsUp =
     (diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
     (diff.data?.inlineSecretSources.length ?? 0) > 0
@@ -344,6 +482,25 @@ export function PromoteWorkspaceModal({
         ]
       })
 
+      // Copy the referenced-but-unmapped resources the user kept selected, excluding any the user
+      // mapped in-session (reconciliation: maps win). The backend validates each id against the
+      // plan's copy candidates too, so a mapped/stale id is dropped server-side regardless.
+      const selectedCopyables = visibleCopyables.filter((candidate) =>
+        copySelected.has(copyableKey(candidate))
+      )
+      const copyResources = {
+        knowledgeBases: selectedCopyables
+          .filter((c) => c.kind === 'knowledge-base')
+          .map((c) => c.sourceId),
+        tables: selectedCopyables.filter((c) => c.kind === 'table').map((c) => c.sourceId),
+        customTools: selectedCopyables
+          .filter((c) => c.kind === 'custom-tool')
+          .map((c) => c.sourceId),
+        skills: selectedCopyables.filter((c) => c.kind === 'skill').map((c) => c.sourceId),
+        // Files are identified by storage key (the copyable candidate's sourceId is the key).
+        files: selectedCopyables.filter((c) => c.kind === 'file').map((c) => c.sourceId),
+      }
+
       const result = await promote.mutateAsync({
         workspaceId,
         body: {
@@ -354,12 +511,25 @@ export function PromoteWorkspaceModal({
           // stored rows. Collapsing `[]` into omission would make the backend PRESERVE stale rows.
           // Only omit before the diff loads (set unknown), so the existing store is left untouched.
           ...(diff.data ? { dependentValues } : {}),
+          ...(selectedCopyables.length > 0 ? { copyResources } : {}),
         },
       })
 
       if (!result.promoteRunId) {
         if (result.unmappedRequired.length > 0) {
-          toast.error('Map all required credentials and secrets first')
+          // Name the actual blocking kinds rather than always blaming credentials: the server
+          // blocks on required REFERENCES (credentials and/or secrets); required dependents are
+          // gated client-side before this runs (see the Sync button's disabled tooltip).
+          const kinds = new Set(result.unmappedRequired.map((reference) => reference.kind))
+          const what =
+            kinds.has('credential') && kinds.has('env-var')
+              ? 'credentials and secrets'
+              : kinds.has('credential')
+                ? 'credentials'
+                : kinds.has('env-var')
+                  ? 'secrets'
+                  : 'references'
+          toast.error(`Map all required ${what} first`)
           return
         }
         toast.error('Sync did not complete')
@@ -447,6 +617,20 @@ export function PromoteWorkspaceModal({
                 />
               </SettingsSection>
 
+              {/* Surface a failed/pending fetch so the modal never renders blank below the picker. */}
+              {mapping.isError || diff.isError ? (
+                <SettingsSection label='Sync details'>
+                  <div className='text-[var(--text-error)] text-small'>
+                    {getErrorMessage(
+                      mapping.error ?? diff.error,
+                      "Couldn't load sync details. Close and reopen to retry."
+                    )}
+                  </div>
+                </SettingsSection>
+              ) : !diff.data ? (
+                <div className='text-[var(--text-muted)] text-small'>Loading sync details…</div>
+              ) : null}
+
               {/* Always shown once the diff loads so the user sees the section even with nothing
                   deployed - an empty change list means the source has no deployed workflows (every
                   deployed workflow appears here, changed or not), so the muted state nudges a deploy. */}
@@ -506,23 +690,122 @@ export function PromoteWorkspaceModal({
               {kindSummaries.length > 0 ? (
                 <SettingsSection label='Mappings'>
                   <div className='flex flex-col gap-2'>
-                    {kindSummaries.map(({ kind, label, total, mapped, requiredPending }) => {
-                      const complete = mapped === total
-                      return (
-                        <div key={kind} className='flex items-center justify-between gap-2'>
-                          <span className='text-[var(--text-body)] text-small'>{label}</span>
-                          <Badge
-                            variant={
-                              complete ? 'green' : requiredPending ? 'amber' : 'gray-secondary'
-                            }
-                            size='sm'
-                            dot
-                          >
-                            {complete ? 'Fully mapped' : `${mapped}/${total} mapped`}
-                          </Badge>
-                        </div>
+                    {kindSummaries.map(
+                      ({ kind, label, total, mapped, requiredPending, reconfigPending }) => {
+                        const complete = mapped === total && !reconfigPending
+                        return (
+                          <div key={kind} className='flex items-center justify-between gap-2'>
+                            <span className='text-[var(--text-body)] text-small'>{label}</span>
+                            <Badge
+                              variant={
+                                complete
+                                  ? 'green'
+                                  : requiredPending || reconfigPending
+                                    ? 'amber'
+                                    : 'gray-secondary'
+                              }
+                              size='sm'
+                              dot
+                            >
+                              {complete
+                                ? 'Fully mapped'
+                                : reconfigPending && mapped === total
+                                  ? 'Needs setup'
+                                  : `${mapped}/${total} mapped`}
+                            </Badge>
+                          </div>
+                        )
+                      }
+                    )}
+                  </div>
+                </SettingsSection>
+              ) : null}
+
+              {clearedRefsToShow.length > 0 ? (
+                <SettingsSection label='Will be cleared'>
+                  <div className='flex max-h-40 flex-col gap-1 overflow-y-auto'>
+                    {clearedRefsToShow.map((ref, index) => (
+                      <div
+                        key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
+                        className='min-w-0 text-[var(--text-secondary)] text-small'
+                      >
+                        <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> will lose{' '}
+                        <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
+                        {ref.workflowName}
+                      </div>
+                    ))}
+                  </div>
+                  <p className='text-[var(--text-muted)] text-caption'>
+                    Map or copy a reference to keep it. Fields that reference another workflow, or
+                    that hang off a remapped credential or knowledge base, are cleared regardless.
+                  </p>
+                </SettingsSection>
+              ) : null}
+
+              {visibleCopyables.length > 0 ? (
+                <SettingsSection label='Copy resources'>
+                  <div className='flex flex-col gap-2'>
+                    {COPYABLE_KIND_SECTIONS.map((section) => {
+                      const candidates = copyablesByKind.get(section.kind)
+                      if (!candidates || candidates.length === 0) return null
+                      // The picker rows track item ids; copy selection is keyed `${kind}:${id}`
+                      // (matching `copyableKey`), so derive the per-kind selected-id subset and
+                      // re-prefix on toggle.
+                      const selectedIds = new Set(
+                        candidates
+                          .filter((candidate) => copySelected.has(copyableKey(candidate)))
+                          .map((candidate) => candidate.sourceId)
+                      )
+                      const toggleMany = (ids: string[], checked: boolean) =>
+                        setCopySelected((prev) => {
+                          const next = new Set(prev)
+                          for (const id of ids) {
+                            const key = `${section.kind}:${id}`
+                            if (checked) next.add(key)
+                            else next.delete(key)
+                          }
+                          return next
+                        })
+                      const toggleAll = (selectAll: boolean) =>
+                        toggleMany(
+                          candidates.map((candidate) => candidate.sourceId),
+                          selectAll
+                        )
+                      return section.kind === 'file' ? (
+                        <FileKindRow
+                          key={section.kind}
+                          label={section.label}
+                          files={candidates.map((candidate) => ({
+                            id: candidate.sourceId,
+                            label: candidate.label,
+                            folderId: candidate.parentId,
+                            folderName: candidate.parentLabel,
+                          }))}
+                          selected={selectedIds}
+                          onToggleAll={toggleAll}
+                          onToggleItem={(id, checked) => toggleMany([id], checked)}
+                          onToggleMany={toggleMany}
+                          disabled={submitting}
+                        />
+                      ) : (
+                        <ResourceKindRow
+                          key={section.kind}
+                          label={section.label}
+                          items={candidates.map((candidate) => ({
+                            id: candidate.sourceId,
+                            label: candidate.label,
+                          }))}
+                          selected={selectedIds}
+                          onToggleAll={toggleAll}
+                          onToggleItem={(id, checked) => toggleMany([id], checked)}
+                          disabled={submitting}
+                        />
                       )
                     })}
+                    <p className='text-[var(--text-muted)] text-caption'>
+                      These referenced resources aren't in the target yet. Selected ones are copied
+                      during the sync; deselected ones have their references cleared.
+                    </p>
                   </div>
                 </SettingsSection>
               ) : null}
@@ -587,6 +870,12 @@ export function PromoteWorkspaceModal({
                       <div className='mt-1 text-[var(--text-muted)] text-small'>
                         This workspace has more options than shown here. If you don't see the right
                         one, narrow it down by name.
+                      </div>
+                    ) : null}
+                    {copyingKeys.has(entryKey(entry)) ? (
+                      <div className='mt-1 text-[var(--text-muted)] text-small'>
+                        Selected for copy in the overview — it'll be copied into the target. Pick a
+                        target above to map it to an existing one instead.
                       </div>
                     ) : null}
                     {/* Always-on: every workflow this resource is used in, each expandable to

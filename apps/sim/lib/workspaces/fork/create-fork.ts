@@ -6,8 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
-import { runDetached } from '@/lib/core/utils/background'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
@@ -16,7 +14,8 @@ import {
 } from '@/lib/workspaces/fork/background-work/store'
 import {
   type ForkContentCopyPayload,
-  runForkContentCopy,
+  scheduleForkContentCopy,
+  serializeContentRefMaps,
 } from '@/lib/workspaces/fork/copy/content-copy-runner'
 import { planForkFileCopies } from '@/lib/workspaces/fork/copy/copy-files'
 import {
@@ -29,6 +28,7 @@ import {
   resolveForkFolderMapping,
 } from '@/lib/workspaces/fork/copy/copy-workflows'
 import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
+import { buildForkWorkflowIdMap } from '@/lib/workspaces/fork/copy/workflow-id-map'
 import { setForkLockTimeout } from '@/lib/workspaces/fork/lineage/lineage'
 import {
   type ForkBlockPair,
@@ -41,6 +41,7 @@ import {
   seedEdgeMappings,
 } from '@/lib/workspaces/fork/mapping/mapping-store'
 import { createForkBootstrapTransform } from '@/lib/workspaces/fork/remap/fork-bootstrap'
+import { collectReferencedDocumentIds } from '@/lib/workspaces/fork/remap/reference-scan'
 import type { ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references'
 import type { WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { WorkspaceCreationPolicy } from '@/lib/workspaces/policy'
@@ -55,7 +56,8 @@ export interface ForkResourceSelection {
   knowledgeBases: string[]
   customTools: string[]
   skills: string[]
-  mcpServers: string[]
+  /** Workflow-publishing MCP servers (copied as config-only shells); external MCP is never copied. */
+  workflowMcpServers: string[]
 }
 
 const EMPTY_SELECTION: ForkResourceSelection = {
@@ -64,7 +66,7 @@ const EMPTY_SELECTION: ForkResourceSelection = {
   knowledgeBases: [],
   customTools: [],
   skills: [],
-  mcpServers: [],
+  workflowMcpServers: [],
 }
 
 export interface CreateForkParams {
@@ -84,12 +86,14 @@ export interface CreateForkResult {
   workflowsCopied: number
 }
 
+// External MCP servers are intentionally absent: a fork never copies them, so their
+// references resolve to null here and are cleared on remap (re-add + re-auth in the child).
 const FORK_KIND_TO_RESOURCE_TYPE: Partial<Record<ForkRemapKind, ForkResourceType>> = {
   'custom-tool': 'custom_tool',
   skill: 'skill',
-  'mcp-server': 'mcp_server',
   table: 'table',
   'knowledge-base': 'knowledge_base',
+  'knowledge-document': 'knowledge_document',
 }
 
 /**
@@ -111,15 +115,25 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   // fork tx (which can deadlock the pool at saturation).
   const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(source.id)
 
+  // Documents the copied workflows reference (document-selector values + nested documentId
+  // tool params). Those whose parent KB is being copied get a placeholder + id map inside the
+  // fork tx so their references remap to the copied document instead of being cleared.
+  const referencedDocumentIds = collectReferencedDocumentIds(
+    deployedWorkflows.flatMap((wf) => {
+      const sourceState = sourceStates.get(wf.id)
+      return sourceState ? [sourceState] : []
+    })
+  )
+
   const forkedWorkflowNames: string[] = []
   let forkedResourceNames: ForkCopiedResourceNames = {
     tables: [],
     knowledgeBases: [],
     customTools: [],
     skills: [],
-    mcpServers: [],
+    workflowMcpServers: [],
   }
-  const { result, blobTasks, contentPlan } = await db.transaction(async (tx) => {
+  const { result, blobTasks, contentPlan, contentRefMaps } = await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
     const now = new Date()
     const childWorkspaceId = generateId()
@@ -167,8 +181,14 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       }))
     )
 
-    const workflowIdMap = new Map<string, string>()
-    for (const wf of deployedWorkflows) workflowIdMap.set(wf.id, generateId())
+    // The id map (and the identity seed below) covers only the workflows ACTUALLY copied -
+    // those whose deployed state loaded. A deployed source whose state failed to load is
+    // skipped by the copy loop, so it must be excluded here too: keeping it would (1) remap a
+    // copied workflow's reference to a child id that is never created (a dangling ref) instead
+    // of clearing it, and (2) seed a `workspace_fork_resource_map` workflow row pointing at
+    // that never-created target, which a later push would treat as an orphan and archive the
+    // parent's real workflow. Mirrors promote's writtenItems-only identity seed.
+    const workflowIdMap = buildForkWorkflowIdMap(deployedWorkflows, new Set(sourceStates.keys()))
 
     const fileResult = await planForkFileCopies({
       tx,
@@ -176,6 +196,16 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       childWorkspaceId,
       userId,
       fileIds: selection.files,
+      now,
+    })
+
+    // Source -> child folder id map: remaps folder references in the copied workflows below and
+    // feeds the post-commit content-ref rewrite (`sim:folder/<id>` mentions in skill/file bodies).
+    const folderIdMap = await resolveForkFolderMapping({
+      tx,
+      sourceWorkspaceId: source.id,
+      targetWorkspaceId: childWorkspaceId,
+      userId,
       now,
     })
 
@@ -188,11 +218,12 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       selection: {
         customTools: selection.customTools,
         skills: selection.skills,
-        mcpServers: selection.mcpServers,
+        workflowMcpServers: selection.workflowMcpServers,
         tables: selection.tables,
         knowledgeBases: selection.knowledgeBases,
       },
       workflowIdMap,
+      referencedDocumentIds: Array.from(referencedDocumentIds),
     })
     forkedResourceNames = resourceResult.names
 
@@ -203,14 +234,6 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       return resourceResult.idMap.get(resourceType)?.get(sourceId) ?? null
     }
     const transform = createForkBootstrapTransform(resolveCopied)
-
-    const folderIdMap = await resolveForkFolderMapping({
-      tx,
-      sourceWorkspaceId: source.id,
-      targetWorkspaceId: childWorkspaceId,
-      userId,
-      now,
-    })
 
     // The child is brand new, so this loads an empty registry; name collisions can only
     // arise among the copied workflows themselves, which the in-loop claims resolve.
@@ -294,6 +317,20 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       mappingsSeeded: seedEntries.length,
     })
 
+    // Serialized in-content reference maps so the post-commit content copy can rewrite
+    // `sim:` links + embedded URLs inside copied skill bodies and markdown file blobs. Maps
+    // become Records to cross the background-job payload boundary.
+    const contentRefMaps = serializeContentRefMaps({
+      workspaceId: { from: source.id, to: childWorkspaceId },
+      fileKeys: fileResult.keyMap,
+      fileIds: fileResult.idMap,
+      workflows: workflowIdMap,
+      folders: folderIdMap,
+      knowledgeBases: resourceResult.idMap.get('knowledge_base'),
+      tables: resourceResult.idMap.get('table'),
+      skills: resourceResult.idMap.get('skill'),
+    })
+
     return {
       result: {
         workspace: {
@@ -310,6 +347,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       },
       blobTasks: fileResult.blobTasks,
       contentPlan: resourceResult.contentPlan,
+      contentRefMaps,
     }
   })
 
@@ -352,7 +390,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         fileNames: blobTasks.map((task) => task.fileName),
         customToolNames: forkedResourceNames.customTools,
         skillNames: forkedResourceNames.skills,
-        mcpServerNames: forkedResourceNames.mcpServers,
+        workflowMcpServerNames: forkedResourceNames.workflowMcpServers,
       },
     })
   } catch (error) {
@@ -373,34 +411,14 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     return result
   }
 
-  const payload: ForkContentCopyPayload = { contentPlan, blobTasks, statusId, requestId }
-  try {
-    if (isTriggerDevEnabled) {
-      const [{ forkContentCopyTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-        import('@/background/fork-content-copy'),
-        import('@trigger.dev/sdk'),
-        import('@/lib/core/async-jobs/region'),
-      ])
-      await tasks.trigger<typeof forkContentCopyTask>('fork-content-copy', payload, {
-        region: await resolveTriggerRegion(),
-      })
-    } else {
-      runDetached('fork-content-copy', () => runForkContentCopy(payload))
-    }
-  } catch (error) {
-    // The fork itself succeeded; only scheduling the background copy failed. Surface
-    // it on the status row instead of failing the (committed) fork response.
-    logger.error(`[${requestId}] Failed to schedule fork content copy`, {
-      childWorkspaceId: result.workspace.id,
-      error: getErrorMessage(error),
-    })
-    if (statusId) {
-      await finishBackgroundWork(db, statusId, {
-        status: 'failed',
-        error: getErrorMessage(error, 'Could not start the background copy'),
-      }).catch(() => {})
-    }
+  const payload: ForkContentCopyPayload = {
+    contentPlan,
+    blobTasks,
+    contentRefMaps,
+    statusId,
+    requestId,
   }
+  await scheduleForkContentCopy(payload, { detachedLabel: 'fork-content-copy', requestId })
 
   return result
 }
