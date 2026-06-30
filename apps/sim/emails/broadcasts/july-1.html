@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What's new in Sim</title>
+  <style>
+    @font-face {
+      font-family: 'Season Sans';
+      font-style: normal;
+      font-weight: 300 800;
+      font-display: swap;
+      src: url('https://sim.ai/brand/fonts/SeasonSansUprightsVF.woff2') format('woff2');
+    }
+
+    @media only screen and (max-width: 620px) {
+      .container {
+        width: 100% !important;
+      }
+
+      .mobile-pad {
+        padding-right: 20px !important;
+        padding-left: 20px !important;
+      }
+
+      .mobile-stack {
+        display: block !important;
+        width: 100% !important;
+        padding-right: 0 !important;
+        padding-bottom: 16px !important;
+      }
+
+      .mobile-stack-last {
+        padding-bottom: 0 !important;
+      }
+
+      .button-wrap {
+        display: block !important;
+        width: 100% !important;
+      }
+
+      .button-cell {
+        display: block !important;
+        padding-right: 0 !important;
+        padding-bottom: 10px !important;
+      }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#F8F8F8;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">
+    A ton of new things shipped in Sim over the last few months. Here's the rundown.
+  </div>
+
+  <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation" style="background-color:#F8F8F8;">
+    <tr>
+      <td align="center" style="padding:0 16px;">
+        <table class="container" width="600" cellspacing="0" cellpadding="0" border="0" role="presentation" style="max-width:600px;width:100%;">
+          <tr>
+            <td align="left" class="mobile-pad" style="padding:34px 0 24px;">
+              <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="left" style="vertical-align:middle;">
+                    <a href="https://sim.ai" style="color:#1A1A1A;text-decoration:none;" target="_blank">
+                      <svg viewBox="0 0 441 212" width="37" height="18" fill="#1A1A1A" role="img" aria-label="Sim" style="display:block;width:37px;height:18px;">
+                        <path d="M0 160.896H29.5132C29.5132 169.082 32.4645 175.608 38.3671 180.475C44.2698 185.121 52.2493 187.444 62.3058 187.444C73.2363 187.444 81.6534 185.342 87.5559 181.139C93.4585 176.714 96.41 170.852 96.41 163.551C96.41 158.242 94.7701 153.817 91.4909 150.277C88.4306 146.738 82.7462 143.862 74.4386 141.65L46.2373 135.013C32.0273 131.473 21.4244 126.053 14.4287 118.753C7.65155 111.452 4.26302 101.829 4.26302 89.8823C4.26302 79.9274 6.77708 71.2997 11.8053 63.9993C17.0521 56.6983 24.1571 51.0573 33.1204 47.0752C42.3022 43.0931 52.7958 41.102 64.601 41.102C76.4066 41.102 86.5719 43.2037 95.0983 47.407C103.842 51.6103 110.62 57.4729 115.429 64.9947C120.458 72.516 123.081 81.4761 123.299 91.8738H93.7861C93.5679 83.4669 90.8351 76.9405 85.5884 72.2952C80.3417 67.6492 73.0181 65.3265 63.6175 65.3265C53.9982 65.3265 46.5652 67.4278 41.3185 71.6315C36.0717 75.8347 33.4483 81.5865 33.4483 88.8869C33.4483 99.7274 41.3185 107.138 57.0591 111.121L85.2602 118.089C98.8146 121.186 108.98 126.275 115.758 133.354C122.534 140.212 125.923 149.614 125.923 161.56C125.923 171.736 123.19 180.696 117.725 188.439C112.26 195.961 104.717 201.824 95.0983 206.027C85.6978 210.009 74.548 212 61.65 212C42.8488 212 27.8736 207.354 16.7241 198.063C5.57469 188.771 0 176.382 0 160.896Z" />
+                        <path d="M232.8 212H202.125L202.125 49.7551H229.537V77.3879C232.8 68.3361 239.109 60.6617 247.811 54.7009C256.731 48.5194 267.5 45.4286 280.118 45.4286C294.259 45.4286 306.007 49.292 315.362 57.0188C324.717 64.746 330.809 75.0115 333.637 87.8165H328.089C330.265 75.0115 336.247 64.746 346.037 57.0188C355.827 49.292 367.902 45.4286 382.26 45.4286C400.535 45.4286 414.893 50.8374 425.336 61.6551C435.779 72.4727 441 87.2644 441 106.03V212H410.977V113.647C410.977 100.842 407.714 91.0175 401.188 84.174C394.879 77.1091 386.285 73.5768 375.407 73.5768C367.793 73.5768 361.048 75.3432 355.174 78.8754C349.518 82.1867 345.058 87.044 341.795 93.4462C338.532 99.8484 336.9 107.355 336.9 115.965V212H306.551V113.316C306.551 100.511 303.396 90.7966 297.088 84.174C290.778 77.33 282.185 73.908 271.307 73.908C263.693 73.908 256.949 75.6743 251.075 79.2066C245.419 82.5178 240.958 87.3751 237.695 93.7773C234.432 99.9591 232.8 107.355 232.8 115.965V212Z" />
+                        <path d="M184.831 20.551C184.831 31.901 175.636 41.102 164.294 41.102C152.952 41.102 143.757 31.901 143.757 20.551C143.757 9.20101 152.952 0 164.294 0C175.636 0 184.831 9.20101 184.831 20.551Z" />
+                        <path d="M179.426 212H149.162V49.7551C153.756 51.9119 158.884 53.1178 164.294 53.1178C169.704 53.1178 174.833 51.9119 179.426 49.7551V212Z" />
+                      </svg>
+                    </a>
+                  </td>
+                  <td align="right" style="vertical-align:middle;">
+                    <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                      <tr>
+                        <td align="center" style="background-color:#F8F8F8;border:1px solid #E6E6E6;border-radius:8px;">
+                          <a href="https://sim.ai" style="display:inline-block;color:#3B3B3B;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:30px;padding:0 8px;text-decoration:none;" target="_blank">Try Sim</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="border-radius:8px;font-size:0;line-height:0;padding-bottom:28px;">
+              <a href="https://sim.ai" style="color:#1A1A1A;text-decoration:none;" target="_blank">
+                <img src="https://sim.ai/email/broadcast/july-1/hero.gif" width="600" alt="Sim agent terminal" style="display:block;width:100%;border-radius:8px;outline:1px solid rgba(0,0,0,0.1);outline-offset:-1px;" border="0">
+              </a>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:12px;text-align:left;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#E6E6E6;border-radius:6px;">
+                    <span style="display:inline-block;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:12px;font-weight:430;line-height:20px;padding:0 6px;text-decoration:none;">What's new</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+              <h1 style="margin:0;color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">A ton of new things in Sim</h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:14px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0 0 12px;">Hey everyone - Emir here, co-founder and CEO of Sim. We've shipped a ton over the last few months, and rather than spam your inbox along the way, we saved it all for one rundown.</p>
+              <p style="margin:0;">Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Here's what's new.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-top:10px;padding-bottom:34px;">
+              <table class="button-wrap" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td class="button-cell" align="left" style="padding-right:10px;">
+                    <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                      <tr>
+                        <td align="center" style="background-color:#1A1A1A;border-radius:8px;">
+                          <a href="https://sim.ai" style="display:inline-block;color:#FFFFFF;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:30px;padding:0 8px;text-decoration:none;" target="_blank">Open Sim</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td class="button-cell" align="left">
+                    <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                      <tr>
+                        <td align="center" style="background-color:#F8F8F8;border:1px solid #E6E6E6;border-radius:8px;">
+                          <a href="https://docs.sim.ai" style="display:inline-block;color:#3B3B3B;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:30px;padding:0 8px;text-decoration:none;" target="_blank">Read docs</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="padding-bottom:30px;">
+              <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation" style="background-color:#FFFFFF;border-radius:8px;box-shadow:0 0 0 1px rgba(0,0,0,0.06),0 1px 2px -1px rgba(0,0,0,0.06),0 2px 4px rgba(0,0,0,0.04);">
+                <tr>
+                  <td align="left" style="padding:22px 20px 20px;">
+                    <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                      <tr>
+                        <td class="mobile-stack" align="center" width="25%" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:13px;font-weight:430;line-height:18px;padding-right:12px;text-align:center;vertical-align:top;">
+                          <img src="https://sim.ai/email/broadcast/july-1/readme-integrate-mark.svg" width="82" height="82" alt="Integrate" style="display:block;width:82px;height:82px;margin:0 auto 8px;" border="0">
+                          <p style="margin:0;color:#1A1A1A;font-size:13px;line-height:18px;">Integrate</p>
+                        </td>
+                        <td class="mobile-stack" align="center" width="25%" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:13px;font-weight:430;line-height:18px;padding-right:12px;text-align:center;vertical-align:top;">
+                          <img src="https://sim.ai/email/broadcast/july-1/readme-ingest-mark.svg" width="82" height="82" alt="Context" style="display:block;width:82px;height:82px;margin:0 auto 8px;" border="0">
+                          <p style="margin:0;color:#1A1A1A;font-size:13px;line-height:18px;">Context</p>
+                        </td>
+                        <td class="mobile-stack" align="center" width="25%" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:13px;font-weight:430;line-height:18px;padding-right:12px;text-align:center;vertical-align:top;">
+                          <img src="https://sim.ai/email/broadcast/july-1/readme-build-mark.svg" width="82" height="82" alt="Build" style="display:block;width:82px;height:82px;margin:0 auto 8px;" border="0">
+                          <p style="margin:0;color:#1A1A1A;font-size:13px;line-height:18px;">Build</p>
+                        </td>
+                        <td class="mobile-stack mobile-stack-last" align="center" width="25%" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:13px;font-weight:430;line-height:18px;text-align:center;vertical-align:top;">
+                          <img src="https://sim.ai/email/broadcast/july-1/readme-monitor-mark.svg" width="82" height="82" alt="Monitor" style="display:block;width:82px;height:82px;margin:0 auto 8px;" border="0">
+                          <p style="margin:0;color:#1A1A1A;font-size:13px;line-height:18px;">Monitor</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:10px;text-align:left;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#E6E6E6;border-radius:6px;">
+                    <span style="display:inline-block;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:12px;font-weight:430;line-height:20px;padding:0 6px;">Chat</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+              <h2 style="margin:0;color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">Talk to Sim - build everything in plain English</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:14px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0;">Chat is your command center. Sim already knows your workflows, tables, knowledge bases, files, and credentials - so you just ask. Build and deploy a workflow from a single prompt, query a CRM, search your docs, or edit a file, and watch it happen live in a split view next to the conversation. You can even email your workspace, and Sim reads the message, does the work, and replies.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="border-radius:8px;font-size:0;line-height:0;padding-bottom:30px;">
+              <img src="https://sim.ai/email/broadcast/july-1/real-chat-platform.png" width="600" alt="Chat and workflow builder in Sim" style="display:block;width:100%;border-radius:8px;outline:1px solid rgba(0,0,0,0.1);outline-offset:-1px;" border="0">
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:10px;text-align:left;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#E6E6E6;border-radius:6px;">
+                    <span style="display:inline-block;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:12px;font-weight:430;line-height:20px;padding:0 6px;">Tables</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+              <h2 style="margin:0;color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">A database, built in</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:14px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0;">Tables give your agents persistent, structured storage - no external database to set up. Create typed columns, query with filters, insert and upsert rows, and import a CSV with automatic type inference. Everything's available to your workflows and over the API.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="border-radius:8px;font-size:0;line-height:0;padding-bottom:30px;">
+              <img src="https://sim.ai/email/broadcast/july-1/real-tables.png" width="600" alt="Tables in Sim with customer records" style="display:block;width:100%;border-radius:8px;outline:1px solid rgba(0,0,0,0.1);outline-offset:-1px;" border="0">
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:10px;text-align:left;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#E6E6E6;border-radius:6px;">
+                    <span style="display:inline-block;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:12px;font-weight:430;line-height:20px;padding:0 6px;">Knowledge</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+              <h2 style="margin:0;color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">Connect 40+ sources, synced automatically</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:14px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0;">Plug Google Docs, Notion, Slack, GitHub, Salesforce, Confluence, and 40+ more into your agents' memory. Sim fetches on a schedule, chunks, embeds, and keeps everything current with incremental sync. Search semantically with tag filters from any workflow or from Chat.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="border-radius:8px;font-size:0;line-height:0;padding-bottom:30px;">
+              <img src="https://sim.ai/email/broadcast/july-1/real-knowledge.png" width="600" alt="Knowledge bases in Sim" style="display:block;width:100%;border-radius:8px;outline:1px solid rgba(0,0,0,0.1);outline-offset:-1px;" border="0">
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:10px;text-align:left;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#E6E6E6;border-radius:6px;">
+                    <span style="display:inline-block;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:12px;font-weight:430;line-height:20px;padding:0 6px;">Files</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+              <h2 style="margin:0;color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">A built-in file system, with a real editor</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:14px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0;">Upload PDFs, Markdown, JSON, images, and more - preview and edit them right in the browser, or let Sim read and write them for you. Markdown opens in a clean inline editor with a slash menu, formatting, code blocks, and tables. Share any file with a secure link protected by a password, an email code, or SSO.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="border-radius:8px;font-size:0;line-height:0;padding-bottom:30px;">
+              <img src="https://sim.ai/email/broadcast/july-1/real-files.png" width="600" alt="File editor in Sim" style="display:block;width:100%;border-radius:8px;outline:1px solid rgba(0,0,0,0.1);outline-offset:-1px;" border="0">
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:10px;text-align:left;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#E6E6E6;border-radius:6px;">
+                    <span style="display:inline-block;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:12px;font-weight:430;line-height:20px;padding:0 6px;">Scheduled Tasks</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+              <h2 style="margin:0;color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">Put your agents on a schedule</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:30px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0;">Tell Sim what to do and when - &quot;every morning, check Gmail for support tickets and add them to my table.&quot; Full calendar recurrence, minute-level timing, time zones, and pause or resume. Sim runs autonomously with access to your integrations and stops itself when the job is done.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="border-radius:8px;font-size:0;line-height:0;padding-bottom:30px;">
+              <img src="https://sim.ai/email/broadcast/july-1/real-scheduled-tasks.png" width="600" alt="Scheduled Tasks calendar in Sim" style="display:block;width:100%;border-radius:8px;outline:1px solid rgba(0,0,0,0.1);outline-offset:-1px;" border="0">
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:10px;text-align:left;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#E6E6E6;border-radius:6px;">
+                    <span style="display:inline-block;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:12px;font-weight:430;line-height:20px;padding:0 6px;">Built for teams</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+              <h2 style="margin:0;color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">Ready for your whole organization</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:30px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0;">As more teams build on Sim, we added the controls they need: permission groups scoped to your org, allow- and deny-lists down to individual tools and models, PII redaction across runs and logs, and per-workspace data-retention rules. Deploy, promote, and roll back agents over the API or straight from a workflow.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:10px;text-align:left;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#E6E6E6;border-radius:6px;">
+                    <span style="display:inline-block;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:12px;font-weight:430;line-height:20px;padding:0 6px;">And more</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+              <h2 style="margin:0;color:#1A1A1A;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">A fresh look, more models, more integrations</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:30px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0;">Sim got a redesign - the whole workspace, docs, and site now share one cleaner, lighter design system. We added Claude Fable 5, DeepSeek V4, and Mistral Medium 3.5, along with providers like Sakana, Together AI, Baseten, and Ollama Cloud, with multi-key rotation. And we connected Sim to dozens more tools - Square, Brex, Vanta, Temporal, ClickHouse, Attio, and many more.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="padding-bottom:30px;">
+              <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation" style="background-color:#3B3B3B;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);">
+                <tr>
+                  <td align="left" style="padding:24px 26px;">
+                    <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                      <tr>
+                        <td align="left" style="color:#FFFFFF;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;word-break:break-word;padding-bottom:6px;text-align:left;">
+                          <h2 style="margin:0;color:#FFFFFF;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:18px;font-weight:430;line-height:23px;letter-spacing:0;text-wrap:balance;">What comes next</h2>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="left" style="color:#E6E6E6;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;text-align:left;text-wrap:pretty;">
+                          <p style="margin:0;">We're focused on making Sim feel complete from first prompt to production - faster building, deeper context, and clearer visibility after launch.</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:22px;word-break:break-word;padding-bottom:16px;text-align:left;text-wrap:pretty;">
+              <p style="margin:0;">Thanks for building with Sim. More soon.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="left" class="mobile-pad" style="padding-bottom:34px;">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="background-color:#1A1A1A;border-radius:8px;">
+                    <a href="https://sim.ai" style="display:inline-block;color:#FFFFFF;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;font-size:14px;font-weight:430;line-height:30px;padding:0 8px;text-decoration:none;" target="_blank">Open Sim</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="border-radius:8px;font-size:0;line-height:0;padding-bottom:30px;">
+              <img src="https://sim.ai/email/broadcast/july-1/pre-footer.png" width="600" alt="Made with love by the Sim team in San Francisco" style="display:block;width:100%;border-radius:8px;outline:1px solid rgba(0,0,0,0.1);outline-offset:-1px;" border="0">
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="padding-top:18px;padding-bottom:20px;">
+              <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation" height="1" style="border-top:1px solid #E6E6E6;">
+                <tr>
+                  <td height="0" style="font-size:0;line-height:0;">&#173;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad">
+              <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                <tbody>
+                  <tr>
+                    <td align="center" style="padding:0 8px 0 0;">
+                      <a href="https://sim.ai/x" rel="noopener noreferrer" target="_blank">
+                        <img src="https://sim.ai/static/x-icon.png" width="20" height="20" alt="X" style="display:block;" border="0">
+                      </a>
+                    </td>
+                    <td align="center" style="padding:0 8px;">
+                      <a href="https://sim.ai/discord" rel="noopener noreferrer" target="_blank">
+                        <img src="https://sim.ai/static/discord-icon.png" width="20" height="20" alt="Discord" style="display:block;" border="0">
+                      </a>
+                    </td>
+                    <td align="center" style="padding:0 8px;">
+                      <a href="https://sim.ai/github" rel="noopener noreferrer" target="_blank">
+                        <img src="https://sim.ai/static/github-icon.png" width="20" height="20" alt="GitHub" style="display:block;" border="0">
+                      </a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td height="16" style="font-size:1px;line-height:1px;">&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="font-size:12px;font-weight:430;line-height:20px;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;margin:0;">
+              Sim, 80 Langton St, San Francisco, CA 94103, USA
+            </td>
+          </tr>
+
+          <tr>
+            <td height="8" style="font-size:1px;line-height:1px;">&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="font-size:12px;font-weight:430;line-height:20px;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;margin:0;">
+              Questions? <a href="mailto:support@sim.ai" style="color:#525252;text-decoration:underline;font-weight:430;">support@sim.ai</a>
+            </td>
+          </tr>
+
+          <tr>
+            <td height="8" style="font-size:1px;line-height:1px;">&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="font-size:12px;font-weight:430;line-height:20px;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;margin:0;">
+              <a href="https://sim.ai/privacy" style="color:#525252;text-decoration:underline;font-weight:430;" rel="noopener noreferrer" target="_blank">Privacy Policy</a>
+              &nbsp;&bull;&nbsp;
+              <a href="https://sim.ai/terms" style="color:#525252;text-decoration:underline;font-weight:430;" rel="noopener noreferrer" target="_blank">Terms of Service</a>
+              &nbsp;&bull;&nbsp;
+              <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#525252;text-decoration:underline;font-weight:430;" rel="noopener noreferrer" target="_blank">Unsubscribe</a>
+            </td>
+          </tr>
+
+          <tr>
+            <td height="16" style="font-size:1px;line-height:1px;">&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td align="center" class="mobile-pad" style="font-size:12px;font-weight:430;line-height:20px;color:#525252;font-family:'Season Sans',-apple-system,'SF Pro Display','SF Pro Text','Helvetica',sans-serif;margin:0;">
+              &copy; 2026 Sim, All Rights Reserved
+            </td>
+          </tr>
+
+          <tr>
+            <td height="38" style="font-size:1px;line-height:1px;">&nbsp;</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
