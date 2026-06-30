@@ -16,6 +16,7 @@ import {
   REDACTION_FAILED_MARKER,
   redactObjectStrings,
   redactPIIFromExecution,
+  scrubLargeValueRefs,
 } from '@/lib/logs/execution/pii-redaction'
 
 describe('redactPIIFromExecution', () => {
@@ -167,5 +168,32 @@ describe('redactObjectStrings', () => {
     mockMaskPIIBatch.mockRejectedValueOnce(new Error('presidio down'))
     const result = await redactObjectStrings({ text: 'a@b.com' }, { entityTypes: [] })
     expect(result).toEqual({ text: REDACTION_FAILED_MARKER })
+  })
+})
+
+describe('scrubLargeValueRefs', () => {
+  const ref = {
+    __simLargeValueRef: true,
+    version: 1,
+    id: 'lv_abcdef123456',
+    kind: 'object',
+    size: 9_000_000,
+  }
+
+  it('replaces large-value refs with the marker, preserving surrounding structure', () => {
+    const result = scrubLargeValueRefs({
+      traceSpans: [{ blockId: 'b1', status: 'success', output: { big: ref, small: 'hi' } }],
+      finalOutput: ref,
+    })
+    const span = (result.traceSpans as any[])[0]
+    expect(span.blockId).toBe('b1')
+    expect(span.output.big).toBe(REDACTION_FAILED_MARKER)
+    expect(span.output.small).toBe('hi')
+    expect(result.finalOutput).toBe(REDACTION_FAILED_MARKER)
+  })
+
+  it('leaves payloads without refs untouched', () => {
+    const payload = { finalOutput: { answer: 'world', count: 5 } }
+    expect(scrubLargeValueRefs(payload)).toEqual(payload)
   })
 })

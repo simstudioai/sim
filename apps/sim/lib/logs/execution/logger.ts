@@ -35,7 +35,11 @@ import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
-import { type RedactablePayload, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
+import {
+  type RedactablePayload,
+  redactPIIFromExecution,
+  scrubLargeValueRefs,
+} from '@/lib/logs/execution/pii-redaction'
 import {
   clearProgressMarkers,
   type ExecutionProgressMarkers,
@@ -635,10 +639,17 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // truth; re-checking the flag/plan here returns false on a transient read and
     // would silently skip masking, leaking PII (fail-open). Absence of rules
     // yields the disabled default, so non-PII orgs incur only the lookup.
-    const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
+    const resolved = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId })
+    const config = resolved.logs
     if (!config.enabled) return payload
 
-    return redactPIIFromExecution(payload, {
+    // The string redactor can't reach values already offloaded to large-value
+    // storage (>8MB refs). Those are masked before offload only when the
+    // block-output stage is on; when it's off, scrub the refs so the log never
+    // references unredacted bytes.
+    const scrubbed = resolved.blockOutputs.enabled ? payload : scrubLargeValueRefs(payload)
+
+    return redactPIIFromExecution(scrubbed, {
       entityTypes: config.entityTypes,
       language: config.language,
     })
