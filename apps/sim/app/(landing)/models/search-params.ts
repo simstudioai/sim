@@ -21,4 +21,10 @@ export const modelsUrlKeys = {
   clearOnDefault: true,
 } as const
 
+/**
+ * Parsing this in the page's server component opts the route into dynamic
+ * rendering, which populates `useSearchParams` during the server render — so the
+ * client directory's `useQueryStates` filters server-side and the initial HTML
+ * ships the filtered list (crawlable, shareable), with no post-hydration swap.
+ */
 export const modelsSearchParamsCache = createSearchParamsCache(modelsParsers)

@@ -19,4 +19,10 @@ export const pricingUrlKeys = {
   clearOnDefault: true,
 } as const
 
+/**
+ * Parsing this in the page's server component opts the route into dynamic
+ * rendering, which populates `useSearchParams` during the server render — so the
+ * client cards' `useQueryStates` resolves the billing period server-side and the
+ * initial HTML ships the correct prices (no toggle flash on a shared link).
+ */
 export const pricingSearchParamsCache = createSearchParamsCache(pricingParsers)

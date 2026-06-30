@@ -31,8 +31,9 @@ async function fetchReleasesPage(page: number, signal?: AbortSignal): Promise<Ch
  * page 1 and passes it as `initialEntries`, seeded here via `initialData` so the
  * first page stays server-rendered (no client refetch within `staleTime`); the
  * "Show more" control drives `fetchNextPage`. A page that maps to zero entries
- * (end of releases, or all prereleases) ends pagination — matching the prior
- * load-more behavior.
+ * ends pagination, except the server-seeded page 1 alone — so a failed or empty
+ * initial fetch still surfaces "Show more" and can load page 2, matching the
+ * prior client pagination.
  */
 export function useChangelogReleases(initialEntries: ChangelogEntry[]) {
   return useInfiniteQuery({
@@ -40,7 +41,7 @@ export function useChangelogReleases(initialEntries: ChangelogEntry[]) {
     queryFn: ({ pageParam, signal }) => fetchReleasesPage(pageParam, signal),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) =>
-      lastPage.length === 0 ? undefined : allPages.length + 1,
+      lastPage.length === 0 && allPages.length > 1 ? undefined : allPages.length + 1,
     initialData: { pages: [initialEntries], pageParams: [1] },
     staleTime: 60 * 60 * 1000,
   })

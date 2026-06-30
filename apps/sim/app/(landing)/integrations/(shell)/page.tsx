@@ -94,9 +94,6 @@ export default async function IntegrationsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  // Parse on the server so the route renders dynamically with the active
-  // search/category from the URL — the client grid (`useQueryStates`) hydrates in
-  // sync, keeping filtered views crawlable and shareable.
   await integrationsSearchParamsCache.parse(searchParams)
 
   const breadcrumbJsonLd = {

@@ -61,8 +61,6 @@ export const metadata: Metadata = {
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  // Parse on the server so the route renders dynamically with the billing period
-  // from the URL — the client toggle (`useQueryStates`) then hydrates in sync.
   await pricingSearchParamsCache.parse(searchParams)
   return <Pricing />
 }

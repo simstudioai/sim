@@ -87,9 +87,6 @@ export default async function ModelsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  // Parse on the server so the route renders dynamically with the active
-  // search/provider from the URL — the client directory (`useQueryStates`)
-  // hydrates in sync, keeping filtered views crawlable and shareable.
   await modelsSearchParamsCache.parse(searchParams)
 
   const flatModels = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
