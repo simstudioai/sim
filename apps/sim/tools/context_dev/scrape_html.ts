@@ -99,7 +99,8 @@ export const contextDevScrapeHtmlTool: ToolConfig<
     url: { type: 'string', description: 'The scraped URL' },
     type: {
       type: 'string',
-      description: 'Detected content type (html, xml, json, text, csv, markdown, svg, pdf)',
+      description:
+        'Detected content type (html, xml, json, text, csv, markdown, svg, pdf, doc, docx)',
     },
     ...CREDIT_OUTPUTS,
   },

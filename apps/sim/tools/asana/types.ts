@@ -201,6 +201,118 @@ export interface AsanaAddCommentResponse extends ToolResponse {
   }
 }
 
+export interface AsanaCreateProjectParams {
+  accessToken: string
+  workspace: string
+  name: string
+  notes?: string
+}
+
+export interface AsanaProjectRecordResponse extends ToolResponse {
+  output: {
+    ts: string
+    gid: string
+    name: string
+    notes: string
+    archived?: boolean
+    color?: string | null
+    created_at?: string
+    modified_at?: string
+    permalink_url?: string
+  }
+}
+
+export interface AsanaGetProjectParams {
+  accessToken: string
+  projectGid: string
+}
+
+export interface AsanaListWorkspacesParams {
+  accessToken: string
+}
+
+export interface AsanaListWorkspacesResponse extends ToolResponse {
+  output: {
+    ts: string
+    workspaces: Array<{
+      gid: string
+      name: string
+      resource_type?: string
+    }>
+  }
+}
+
+export interface AsanaCreateSubtaskParams {
+  accessToken: string
+  taskGid: string
+  name: string
+  notes?: string
+  assignee?: string
+  due_on?: string
+}
+
+export interface AsanaDeleteTaskParams {
+  accessToken: string
+  taskGid: string
+}
+
+export interface AsanaDeleteTaskResponse extends ToolResponse {
+  output: {
+    ts: string
+    gid: string
+    deleted: true
+  }
+}
+
+export interface AsanaAddFollowersParams {
+  accessToken: string
+  taskGid: string
+  followers: string[]
+}
+
+export interface AsanaAddFollowersResponse extends ToolResponse {
+  output: {
+    ts: string
+    gid: string
+    name: string
+    followers: Array<{
+      gid: string
+      name: string
+    }>
+  }
+}
+
+export interface AsanaCreateSectionParams {
+  accessToken: string
+  projectGid: string
+  name: string
+}
+
+export interface AsanaSectionResponse extends ToolResponse {
+  output: {
+    ts: string
+    gid: string
+    name: string
+    created_at?: string
+  }
+}
+
+export interface AsanaListSectionsParams {
+  accessToken: string
+  projectGid: string
+}
+
+export interface AsanaListSectionsResponse extends ToolResponse {
+  output: {
+    ts: string
+    sections: Array<{
+      gid: string
+      name: string
+      resource_type?: string
+    }>
+  }
+}
+
 export type AsanaResponse =
   | AsanaGetTaskResponse
   | AsanaCreateTaskResponse
@@ -208,3 +320,9 @@ export type AsanaResponse =
   | AsanaGetProjectsResponse
   | AsanaSearchTasksResponse
   | AsanaAddCommentResponse
+  | AsanaProjectRecordResponse
+  | AsanaListWorkspacesResponse
+  | AsanaDeleteTaskResponse
+  | AsanaAddFollowersResponse
+  | AsanaSectionResponse
+  | AsanaListSectionsResponse

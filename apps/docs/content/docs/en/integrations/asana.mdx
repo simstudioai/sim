@@ -209,4 +209,187 @@ Add a comment (story) to an Asana task
 |   ↳ `gid` | string | Author GID |
 |   ↳ `name` | string | Author name |
 
+### `asana_create_subtask`
+
+Create a subtask under an existing Asana task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Yes | GID of the parent Asana task \(numeric string\) |
+| `name` | string | Yes | Name of the subtask |
+| `notes` | string | No | Notes or description for the subtask |
+| `assignee` | string | No | User GID to assign the subtask to |
+| `due_on` | string | No | Due date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Subtask globally unique identifier |
+| `name` | string | Subtask name |
+| `notes` | string | Subtask notes or description |
+| `completed` | boolean | Whether the subtask is completed |
+| `created_at` | string | Subtask creation timestamp |
+| `permalink_url` | string | URL to the subtask in Asana |
+
+### `asana_delete_task`
+
+Delete an Asana task by its GID (moves it to the trash)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Yes | GID of the Asana task to delete \(numeric string\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | GID of the deleted task |
+| `deleted` | boolean | Whether the task was deleted |
+
+### `asana_add_followers`
+
+Add one or more followers to an Asana task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskGid` | string | Yes | GID of the Asana task \(numeric string\) |
+| `followers` | array | Yes | Array of user GIDs to add as followers to the task |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Task globally unique identifier |
+| `name` | string | Task name |
+| `followers` | array | Current followers on the task after the update |
+|   ↳ `gid` | string | Follower GID |
+|   ↳ `name` | string | Follower name |
+
+### `asana_create_project`
+
+Create a new project in an Asana workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) where the project will be created |
+| `name` | string | Yes | Name of the project |
+| `notes` | string | No | Notes or description for the project |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Project globally unique identifier |
+| `name` | string | Project name |
+| `notes` | string | Project notes or description |
+| `archived` | boolean | Whether the project is archived |
+| `color` | string | Project color |
+| `created_at` | string | Project creation timestamp |
+| `modified_at` | string | Project last modified timestamp |
+| `permalink_url` | string | URL to the project in Asana |
+
+### `asana_get_project`
+
+Retrieve a single Asana project by its GID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectGid` | string | Yes | Asana project GID \(numeric string\) to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Project globally unique identifier |
+| `name` | string | Project name |
+| `notes` | string | Project notes or description |
+| `archived` | boolean | Whether the project is archived |
+| `color` | string | Project color |
+| `created_at` | string | Project creation timestamp |
+| `modified_at` | string | Project last modified timestamp |
+| `permalink_url` | string | URL to the project in Asana |
+
+### `asana_list_workspaces`
+
+List all Asana workspaces and organizations the authenticated user belongs to
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of the response |
+| `workspaces` | array | Array of workspaces |
+|   ↳ `gid` | string | Workspace GID |
+|   ↳ `name` | string | Workspace name |
+|   ↳ `resource_type` | string | Resource type \(workspace\) |
+
+### `asana_create_section`
+
+Create a new section in an Asana project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectGid` | string | Yes | GID of the Asana project \(numeric string\) to add the section to |
+| `name` | string | Yes | Name of the section |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of the response |
+| `gid` | string | Section globally unique identifier |
+| `name` | string | Section name |
+| `created_at` | string | Section creation timestamp |
+
+### `asana_list_sections`
+
+List all sections in an Asana project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectGid` | string | Yes | GID of the Asana project \(numeric string\) to list sections from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of the response |
+| `sections` | array | Array of sections in the project |
+|   ↳ `gid` | string | Section GID |
+|   ↳ `name` | string | Section name |
+|   ↳ `resource_type` | string | Resource type \(section\) |
+
 
