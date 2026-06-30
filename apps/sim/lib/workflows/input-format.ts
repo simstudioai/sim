@@ -94,13 +94,20 @@ export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
     const hasRecoverableKey =
       (typeof f.key === 'string' && f.key.length > 0) ||
       (typeof f.url === 'string' && isInternalFileUrl(f.url))
+    // Non-empty strings: normalizeStartFile rejects falsy id/name/url/type, and
+    // file normalization is all-or-nothing, so one empty-string field would drop
+    // every file from the run.
     return (
       typeof f.id === 'string' &&
+      f.id.length > 0 &&
       typeof f.name === 'string' &&
+      f.name.length > 0 &&
       typeof f.url === 'string' &&
+      f.url.length > 0 &&
       typeof f.size === 'number' &&
       Number.isFinite(f.size) &&
       typeof f.type === 'string' &&
+      f.type.length > 0 &&
       hasRecoverableKey
     )
   })

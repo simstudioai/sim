@@ -311,6 +311,13 @@ describe('parseInputFormatFiles', () => {
     const { key, ...noKey } = file
     expect(parseInputFormatFiles(JSON.stringify([noKey]))).toEqual([noKey])
   })
+
+  it.concurrent('rejects empty-string id/name/url/type (executor treats them as falsy)', () => {
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, id: '' }]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, name: '' }]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, url: '' }]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, type: '' }]))).toEqual([])
+  })
 })
 
 describe('collectInputFormatFiles', () => {
