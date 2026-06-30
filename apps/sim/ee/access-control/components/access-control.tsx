@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
   Checkbox,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -164,16 +163,19 @@ export function AccessControl() {
           onChange: setSearchTerm,
           placeholder: 'Search permission groups...',
         }}
-        actions={
-          <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
-            Create Group
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'Create group',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setShowCreateModal(true),
+          },
+        ]}
       >
         <SettingsSection label={`Permission groups (${permissionGroups.length})`}>
           {permissionGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>
-              No permission groups yet. Click "Create Group" to get started.
+              No permission groups yet. Click "Create group" to get started.
             </SettingsEmptyState>
           ) : filteredGroups.length === 0 ? (
             <SettingsEmptyState variant='inline'>

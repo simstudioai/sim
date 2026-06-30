@@ -17,7 +17,7 @@ import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
+import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -328,15 +328,13 @@ export function WhitelabelingSettings() {
 
   return (
     <SettingsPanel
-      actions={
-        <SaveDiscardActions
-          dirty={hasChanges}
-          saving={updateSettings.isPending}
-          saveDisabled={isUploading}
-          onSave={handleSave}
-          onDiscard={handleDiscard}
-        />
-      }
+      actions={saveDiscardActions({
+        dirty: hasChanges,
+        saving: updateSettings.isPending,
+        saveDisabled: isUploading,
+        onSave: handleSave,
+        onDiscard: handleDiscard,
+      })}
     >
       <SettingsSection label='Brand Identity'>
         <div className='flex flex-col gap-5'>
