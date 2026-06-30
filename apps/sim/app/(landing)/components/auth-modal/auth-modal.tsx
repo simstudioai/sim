@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Loader,
   Modal,
@@ -69,7 +69,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const [view, setView] = useState<AuthView>(defaultView)
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
   const [socialLoading, setSocialLoading] = useState<'github' | 'google' | 'microsoft' | null>(null)
-  const brand = useMemo(() => getBrandConfig(), [])
+  const brand = getBrandConfig()
 
   useEffect(() => {
     fetchProviderStatus().then(setProviderStatus)

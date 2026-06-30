@@ -121,7 +121,6 @@ export function LandingPreview({
 }: LandingPreviewProps) {
   const [activeView, setActiveView] = useState<SidebarView>(view)
   const [activeWorkflowId, setActiveWorkflowId] = useState(workflowId)
-  const animationKeyRef = useRef(0)
   const [animationKey, setAnimationKey] = useState(0)
   const [autoTypeHome, setAutoTypeHome] = useState(false)
   const [isDesktop, setIsDesktop] = useState(true)
@@ -129,7 +128,6 @@ export function LandingPreview({
   const demoIndexRef = useRef(0)
   const demoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoCycleActiveRef = useRef(true)
-  const isDesktopRef = useRef(true)
 
   const clearDemoTimer = useCallback(() => {
     if (demoTimerRef.current) {
@@ -144,8 +142,7 @@ export function LandingPreview({
     if (step.type === 'workflow' && step.workflowId) {
       setActiveWorkflowId(step.workflowId)
       setActiveView('workflow')
-      animationKeyRef.current += 1
-      setAnimationKey(animationKeyRef.current)
+      setAnimationKey((k) => k + 1)
     } else if (step.type === 'home') {
       setActiveView('home')
       setAutoTypeHome(true)
@@ -168,7 +165,6 @@ export function LandingPreview({
 
   useEffect(() => {
     const desktop = window.matchMedia('(min-width: 1024px)').matches
-    isDesktopRef.current = desktop
     setIsDesktop(desktop)
     if (!desktop) return
     if (!autoplay) return
@@ -188,8 +184,7 @@ export function LandingPreview({
       setAutoTypeHome(false)
       setActiveWorkflowId(id)
       setActiveView('workflow')
-      animationKeyRef.current += 1
-      setAnimationKey(animationKeyRef.current)
+      setAnimationKey((k) => k + 1)
     },
     [stopAutoCycle]
   )

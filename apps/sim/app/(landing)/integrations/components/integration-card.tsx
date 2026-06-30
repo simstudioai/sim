@@ -61,7 +61,7 @@ export function IntegrationRow({ integration, IconComponent }: IntegrationItemPr
           name={name}
           Icon={IconComponent}
           className='size-8 shrink-0 rounded-xl border border-[var(--border-1)]'
-          iconClassName='h-4 w-4'
+          iconClassName='size-4'
           fallbackClassName='text-[13px]'
           aria-hidden='true'
         />

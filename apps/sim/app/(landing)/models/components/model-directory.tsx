@@ -14,19 +14,15 @@ import {
   MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS,
 } from '@/app/(landing)/models/utils'
 
+const PROVIDER_OPTIONS = MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
+  id: provider.id,
+  name: provider.name,
+  count: provider.modelCount,
+}))
+
 export function ModelDirectory() {
   const [query, setQuery] = useState('')
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null)
-
-  const providerOptions = useMemo(
-    () =>
-      MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
-        id: provider.id,
-        name: provider.name,
-        count: provider.modelCount,
-      })),
-    []
-  )
 
   const normalizedQuery = query.trim().toLowerCase()
 
@@ -107,7 +103,7 @@ export function ModelDirectory() {
         >
           All
         </button>
-        {providerOptions.map((provider) => (
+        {PROVIDER_OPTIONS.map((provider) => (
           <button
             key={provider.id}
             type='button'
@@ -148,7 +144,7 @@ export function ModelDirectory() {
                 <ProviderIcon
                   provider={provider}
                   className='size-8 rounded-xl'
-                  iconClassName='h-4 w-4'
+                  iconClassName='size-4'
                 />
                 <div className='min-w-0 flex-1'>
                   <h3
@@ -197,7 +193,7 @@ export function ModelDirectory() {
                     <ProviderIcon
                       provider={provider}
                       className='size-8 rounded-xl'
-                      iconClassName='h-4 w-4'
+                      iconClassName='size-4'
                     />
                     <div className='min-w-0 flex-1'>
                       <h4 className='text-[14px] text-[var(--text-primary)] leading-snug'>
@@ -229,7 +225,7 @@ function ModelRow({ provider, model }: { provider: CatalogProvider; model: Catal
         <ProviderIcon
           provider={provider}
           className='size-8 shrink-0 rounded-xl'
-          iconClassName='h-4 w-4'
+          iconClassName='size-4'
         />
 
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>

@@ -8,9 +8,9 @@ interface IntegrationIconProps extends HTMLAttributes<HTMLElement> {
   name: string
   /** Optional icon component. When absent, renders the first letter of `name`. */
   Icon?: ComponentType<SVGProps<SVGSVGElement>> | null
-  /** Tailwind size + rounding classes for the container. Default: `h-10 w-10 rounded-xl` */
+  /** Tailwind size + rounding classes for the container. Default: `size-10 rounded-xl` */
   className?: string
-  /** Tailwind size classes for the icon SVG. Default: `h-5 w-5` */
+  /** Tailwind size classes for the icon SVG. Default: `size-5` */
   iconClassName?: string
   /** Tailwind text-size class for the fallback letter. Default: `text-[15px]` */
   fallbackClassName?: string
@@ -28,7 +28,7 @@ export function IntegrationIcon({
   name,
   Icon,
   className,
-  iconClassName = 'h-5 w-5',
+  iconClassName = 'size-5',
   fallbackClassName = 'text-[15px]',
   as: Tag = 'div',
   ...rest

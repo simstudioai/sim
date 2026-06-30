@@ -162,7 +162,7 @@ export default async function ModelPage({
             <ProviderIcon
               provider={provider}
               className='size-16 rounded-xl'
-              iconClassName='h-8 w-8'
+              iconClassName='size-8'
             />
             <div>
               <p className='mb-0.5 text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'>

@@ -196,8 +196,8 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         onClick={() => setToolsExpanded((p) => !p)}
                         className='flex cursor-pointer items-center gap-2'
                       >
-                        <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                          <Blimp className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+                        <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+                          <Blimp className='size-[16px] text-[var(--text-icon)]' />
                         </div>
                         <span className='text-[var(--text-body)] text-sm'>Sim</span>
                         <ChevronDown
@@ -218,9 +218,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         <div className='overflow-hidden'>
                           <div className='flex flex-col gap-1.5 pt-0.5'>
                             <ToolCallRow
-                              icon={
-                                <Table className='h-[15px] w-[15px] text-[var(--text-muted)]' />
-                              }
+                              icon={<Table className='size-[15px] text-[var(--text-muted)]' />}
                               title='Read Customer Leads'
                             />
                           </div>
@@ -343,7 +341,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
 function ToolCallRow({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
     <div className='flex items-center gap-[8px] pl-[24px]'>
-      <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>{icon}</div>
+      <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>{icon}</div>
       <span className='text-[13px] text-[var(--text-muted)]'>{title}</span>
     </div>
   )
@@ -390,7 +388,7 @@ function MiniTablePanel() {
   return (
     <div className='flex h-full w-full flex-col bg-[var(--surface-2)]'>
       <div className='flex items-center gap-2 border-[var(--border)] border-b px-3 py-2'>
-        <Table className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <Table className='size-[14px] text-[var(--text-icon)]' />
         <span className='font-medium text-[var(--text-primary)] text-sm'>Customer Leads</span>
       </div>
       <div className='min-h-0 flex-1 overflow-auto'>
@@ -410,7 +408,7 @@ function MiniTablePanel() {
                     className='border-[var(--border-1)] border-r border-b bg-[var(--surface-1)] p-0 text-left'
                   >
                     <div className='flex items-center gap-1 px-2 py-1.5'>
-                      <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
+                      <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
                       <span className='font-medium text-[11px] text-[var(--text-primary)]'>
                         {col.label}
                       </span>
