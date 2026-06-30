@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://sim.ai" target="_blank" rel="noopener noreferrer">
-    <img src="apps/sim/public/static/readme-hero.gif" alt="Sim — your workflow agent for solving automations. Build, deploy, and manage AI agents visually, conversationally, or with code." width="100%"/>
+    <img src="apps/sim/public/static/readme-banner.png" alt="Sim — Integrate, Context, Build, and Monitor AI agents" width="100%"/>
   </a>
 </p>
 
@@ -35,7 +35,7 @@ Open [http://localhost:3000](http://localhost:3000)
 Docker must be installed and running. Use `-p, --port <port>` to run Sim on a different port, or `--no-pull` to skip pulling the latest Docker images.
 
 <p align="center">
-  <img src="apps/sim/public/static/readme-tour.gif" alt="How Sim works — Integrate, Context, Build, Monitor — shown end to end: start a chat to build an agent, connect Slack and other integrations, add a knowledge base, build the workflow visually, deploy it, and monitor runs in the logs" width="100%"/>
+  <img src="apps/sim/public/static/readme-platform.png" alt="The Sim platform — chat on the left, the visual workflow builder on the right" width="100%"/>
 </p>
 
 ## Capabilities
