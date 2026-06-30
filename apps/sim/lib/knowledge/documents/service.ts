@@ -911,7 +911,6 @@ export async function createDocumentRecords(
       tx
     )
 
-    // Bill stored source bytes to the uploader when known, else the KB owner.
     const billedUserId = uploadedBy ?? kb[0].userId
     const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
     if (totalBytes > 0) {
@@ -1366,7 +1365,6 @@ export async function createSingleDocument(
       tx
     )
 
-    // Bill stored source bytes to the uploader when known, else the KB owner.
     const billedUserId = uploadedBy ?? kb[0].userId
     if (documentData.fileSize > 0) {
       const quotaCheck = await checkStorageQuota(billedUserId, documentData.fileSize)
@@ -2060,9 +2058,8 @@ export async function hardDeleteDocuments(
 
   const existingIds = documentsToDelete.map((doc) => doc.id)
 
-  // Resolve subscriptions for every candidate billed owner before the transaction
-  // (these are reads). Connector-synced documents are never metered at ingest
-  // (the sync engine inserts them directly), so they are excluded here too.
+  // Resolve owner subscriptions before the transaction (reads). Connector-synced
+  // documents are never metered at ingest, so they are excluded from billing here.
   const candidateUserIds = new Set<string>()
   for (const doc of documentsToDelete) {
     if (doc.connectorId || doc.fileSize <= 0) continue
@@ -2074,10 +2071,9 @@ export async function hardDeleteDocuments(
     subByUser.set(billedUserId, await getHighestPrioritySubscription(billedUserId))
   }
 
-  // Everything downstream is keyed off the rows THIS transaction actually deleted
-  // (`returning()`), not the requested ids — so a concurrent delete that removed
-  // some ids first doesn't get double-decremented, double-cleaned, or counted
-  // here, and a rollback leaves the counter untouched.
+  // Key the decrement, storage cleanup, log, and return value off the rows this
+  // transaction actually deleted (`returning()`), so a concurrent delete that
+  // claimed some ids first isn't double-counted here.
   let deletedDocs: typeof documentsToDelete = []
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))

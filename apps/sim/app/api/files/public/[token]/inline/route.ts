@@ -90,8 +90,7 @@ export const GET = withRouteHandler(
       // Content-truth gate (`sniff`): render only genuine raster image bytes; audit after.
       const response = await serveInlineImage(image, { sniff: true })
 
-      // Anonymous external access: null actor FK (not the owner), share owner in
-      // metadata, ip/user-agent carry the trail.
+      // Anonymous access: null actor (owner-as-actor would misread as a self-download).
       recordAudit({
         workspaceId: doc.workspaceId,
         actorId: null,

@@ -649,9 +649,8 @@ export async function deleteTable(
     })
 
   const deleted = result[0]
-  // Audit only genuine user-initiated deletes — rollback/cleanup callers omit
-  // `actingUserId`. The caller emits the `table_deleted` PostHog event (where the
-  // acting user is known), so it is not duplicated here.
+  // Audit only genuine user deletes — rollback callers omit `actingUserId`. The
+  // caller emits the `table_deleted` PostHog event, so it is not duplicated here.
   if (deleted && actingUserId) {
     recordAudit({
       workspaceId: deleted.workspaceId ?? null,

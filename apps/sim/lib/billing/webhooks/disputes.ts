@@ -152,10 +152,8 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
     return
   }
 
-  // Unblock only when we won or the warning closed without a full dispute; a
-  // 'lost' dispute keeps the customer blocked (they owe us). The close is
-  // audited in every case so the chargeback trail is complete — `dispute.status`
-  // in the metadata distinguishes the outcome.
+  // Unblock only on won/warning_closed; a 'lost' dispute stays blocked. The close
+  // is audited in every case (dispute.status in metadata distinguishes the outcome).
   const shouldUnblock = dispute.status === 'won' || dispute.status === 'warning_closed'
 
   const users = await db
