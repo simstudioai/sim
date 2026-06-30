@@ -36,31 +36,6 @@ body.wp-lightbox-open [aria-label="Ask AI"] {
   display: none;
 }
 
-/* Workflow-preview zoom controls — match the canvas chrome (the default
-   react-flow controls are light-themed). */
-.react-flow__controls {
-  box-shadow: var(--shadow-subtle);
-  border: 1px solid var(--border-1);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.react-flow__controls-button {
-  width: 26px;
-  height: 26px;
-  background: var(--surface-4);
-  border-bottom: 1px solid var(--border-1);
-  color: var(--text-icon);
-}
-.react-flow__controls-button:hover {
-  background: var(--surface-active);
-  color: var(--text-primary);
-}
-.react-flow__controls-button svg {
-  max-width: 12px;
-  max-height: 12px;
-  fill: currentColor;
-}
-
 /* Pure white light mode background */
 :root:not(.dark) {
   --color-fd-background: hsl(0, 0%, 100%) !important;

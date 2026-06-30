@@ -8,7 +8,6 @@ import ReactFlow, {
   applyNodeChanges,
   Background,
   BackgroundVariant,
-  Controls,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
@@ -220,7 +219,6 @@ function PreviewFlow({
       className='h-full w-full'
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color='var(--border)' />
-      {interactive && <Controls showInteractive={false} position='bottom-left' />}
     </ReactFlow>
   )
 }
