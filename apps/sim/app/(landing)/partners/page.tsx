@@ -1,54 +1,20 @@
 import { ChipLink } from '@sim/emcn'
-import type { Metadata } from 'next'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { buildLandingMetadata } from '@/lib/landing/seo'
 
 const PAGE_URL = `${SITE_URL}/partners`
 const TITLE = 'Partner Program | Sim'
 const DESCRIPTION =
   "Join the Sim partner program. Build, deploy, and sell AI agent solutions powered by Sim's AI workspace, and earn your certification through Sim Academy."
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  title: { absolute: TITLE },
+export const metadata = buildLandingMetadata({
+  title: TITLE,
   description: DESCRIPTION,
+  path: '/partners',
   keywords:
     'Sim partner program, AI agent partners, AI workspace partners, Sim Academy certification, AI agent reseller, co-marketing',
-  openGraph: {
-    title: TITLE,
-    description: DESCRIPTION,
-    type: 'website',
-    url: PAGE_URL,
-    siteName: 'Sim',
-    locale: 'en_US',
-    images: [
-      {
-        url: '/logo/426-240/reverse/small.png',
-        width: 2130,
-        height: 1200,
-        alt: TITLE,
-        type: 'image/png',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    site: '@simdotai',
-    creator: '@simdotai',
-    title: TITLE,
-    description: DESCRIPTION,
-    images: { url: '/logo/426-240/reverse/small.png', alt: 'Sim' },
-  },
-  alternates: {
-    canonical: PAGE_URL,
-    languages: { 'en-US': PAGE_URL, 'x-default': PAGE_URL },
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
-  },
-  category: 'technology',
-}
+  twitterImageAlt: 'Sim',
+})
 
 const partnersJsonLd = {
   '@context': 'https://schema.org',
