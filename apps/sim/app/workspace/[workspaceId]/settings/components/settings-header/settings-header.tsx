@@ -3,7 +3,6 @@
 import {
   type ComponentType,
   createContext,
-  Fragment,
   type ReactNode,
   type Ref,
   useCallback,
@@ -152,6 +151,7 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
           {actions?.map((action, index) => {
             const chip = (
               <Chip
+                key={action.text}
                 variant={action.variant}
                 active={action.active}
                 leftIcon={action.icon}
@@ -169,7 +169,7 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
                 <Tooltip.Content>{action.tooltip}</Tooltip.Content>
               </Tooltip.Root>
             ) : (
-              <Fragment key={action.text}>{chip}</Fragment>
+              chip
             )
           })}
         </div>
