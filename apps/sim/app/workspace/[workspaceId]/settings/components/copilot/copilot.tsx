@@ -16,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   type CopilotKey,
@@ -103,6 +104,19 @@ export function Copilot() {
   const showEmptyState = !hasKeys
   const showNoResults = searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0
 
+  const actions: SettingsAction[] = [
+    {
+      text: 'Create API key',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => {
+        setIsCreateDialogOpen(true)
+        setCreateError(null)
+      },
+      disabled: isLoading,
+    },
+  ]
+
   return (
     <>
       <SettingsPanel
@@ -111,19 +125,7 @@ export function Copilot() {
           onChange: setSearchTerm,
           placeholder: 'Search API keys...',
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => {
-              setIsCreateDialogOpen(true)
-              setCreateError(null)
-            }}
-            disabled={isLoading}
-          >
-            Create API Key
-          </Chip>
-        }
+        actions={actions}
       >
         {isLoading ? null : showEmptyState ? (
           <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Chip, Plus } from '@sim/emcn'
+import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
@@ -313,17 +313,15 @@ export function TeamManagement() {
   return (
     <>
       <SettingsPanel
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => setInviteModalOpen(true)}
-            disabled={isInvitationsDisabled}
-            title={isInvitationsDisabled ? 'Invitations are disabled' : undefined}
-          >
-            Invite
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'Invite',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setInviteModalOpen(true),
+            disabled: isInvitationsDisabled,
+          },
+        ]}
       >
         <TeamSeatsOverview
           subscriptionData={orgSubscription}

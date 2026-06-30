@@ -170,7 +170,7 @@ export function Teammates() {
           onChange: setSearchTerm,
           placeholder: 'Search teammates...',
         }}
-        actions={
+        aside={
           <Chip
             leftIcon={Plus}
             variant='primary'

@@ -3,7 +3,6 @@
 import { type ReactNode, useState } from 'react'
 import {
   Button,
-  Chip,
   ChipCombobox,
   ChipInput,
   ChipSelect,
@@ -24,8 +23,9 @@ import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
-import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
+import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -449,13 +449,7 @@ export function SSO() {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
-      <SettingsPanel
-        actions={
-          <Button onClick={handleEdit} variant='primary'>
-            Edit
-          </Button>
-        }
-      >
+      <SettingsPanel actions={[{ text: 'Edit', variant: 'primary', onSelect: handleEdit }]}>
         <div className='flex flex-col gap-4.5'>
           <FormField label='Provider ID'>
             <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
@@ -507,7 +501,7 @@ export function SSO() {
   }
 
   return (
-    <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col'>
+    <form onSubmit={handleSubmit} autoComplete='off'>
       <input
         type='text'
         name='fakeusernameremembered'
@@ -535,24 +529,26 @@ export function SSO() {
       <input type='text' name='hidden' className='hidden' autoComplete='off' />
 
       <SettingsPanel
-        actions={
-          <>
-            {isEditing && !hasChanges && (
-              <Chip onClick={handleDiscard} disabled={configureSSOMutation.isPending}>
-                Cancel
-              </Chip>
-            )}
-            <SaveDiscardActions
-              dirty={hasChanges}
-              saving={configureSSOMutation.isPending}
-              saveDisabled={hasAnyErrors(errors) || !isFormValid()}
-              saveLabel={isEditing ? 'Update' : 'Save'}
-              savingLabel={isEditing ? 'Updating...' : 'Saving...'}
-              onSave={() => void handleSubmit()}
-              onDiscard={handleDiscard}
-            />
-          </>
-        }
+        actions={[
+          ...(isEditing && !hasChanges
+            ? [
+                {
+                  text: 'Cancel',
+                  onSelect: handleDiscard,
+                  disabled: configureSSOMutation.isPending,
+                } satisfies SettingsAction,
+              ]
+            : []),
+          ...saveDiscardActions({
+            dirty: hasChanges,
+            saving: configureSSOMutation.isPending,
+            saveDisabled: hasAnyErrors(errors) || !isFormValid(),
+            saveLabel: isEditing ? 'Update' : 'Save',
+            savingLabel: isEditing ? 'Updating...' : 'Saving...',
+            onSave: () => void handleSubmit(),
+            onDiscard: handleDiscard,
+          }),
+        ]}
       >
         <div className='flex flex-col gap-4.5'>
           <FormField label='Provider Type'>
