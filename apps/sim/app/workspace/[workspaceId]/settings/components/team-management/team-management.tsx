@@ -320,6 +320,7 @@ export function TeamManagement() {
             variant: 'primary',
             onSelect: () => setInviteModalOpen(true),
             disabled: isInvitationsDisabled,
+            tooltip: isInvitationsDisabled ? 'Invitations are disabled' : undefined,
           },
         ]}
       >

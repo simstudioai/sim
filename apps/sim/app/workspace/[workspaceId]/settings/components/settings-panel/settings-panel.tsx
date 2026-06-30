@@ -54,8 +54,6 @@ interface SettingsPanelProps {
   description?: string
   /** Overrides the nav-driven docs link (the "Docs" link rendered in the header bar). */
   docsLink?: string
-  /** Escape hatch for a right-aligned widget that genuinely cannot be a chip. Rare. */
-  aside?: ReactNode
   /** Forwarded to the scroll region (e.g. for programmatic scroll-to-bottom). */
   scrollContainerRef?: Ref<HTMLDivElement>
 }
@@ -76,7 +74,6 @@ export function SettingsPanel({
   title,
   description,
   docsLink,
-  aside,
   scrollContainerRef,
 }: SettingsPanelProps) {
   const section = useSettingsSection()
@@ -89,7 +86,6 @@ export function SettingsPanel({
     back,
     actions,
     search,
-    aside,
     scrollContainerRef,
   })
 

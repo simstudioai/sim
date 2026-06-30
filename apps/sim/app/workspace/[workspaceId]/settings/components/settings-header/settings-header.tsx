@@ -8,11 +8,15 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
 import { Chip, ChipInput, ChipLink, Search, Tooltip } from '@sim/emcn'
+
+/** `useLayoutEffect` on the client (flush header changes before paint), `useEffect` during SSR. */
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 /** The strict contract for a settings header action — rendered as a {@link Chip}, data only. */
 export interface SettingsAction {
@@ -24,6 +28,8 @@ export interface SettingsAction {
   disabled?: boolean
   /** Hover/focus tooltip (e.g. why the action is disabled) — the shell renders it; no per-page JSX. */
   tooltip?: string
+  /** Warm a lazy resource on hover/focus (e.g. prefetch the upgrade flow). */
+  onPrefetch?: () => void
 }
 
 export interface SettingsHeaderSearch {
@@ -49,8 +55,6 @@ export interface SettingsHeaderConfig {
   search?: SettingsHeaderSearch
   /** Forwarded to the scroll region (e.g. for programmatic scroll-to-bottom). */
   scrollContainerRef?: Ref<HTMLDivElement>
-  /** Escape hatch for a right-aligned widget that genuinely cannot be a chip. */
-  aside?: ReactNode
 }
 
 const EMPTY_CONFIG: SettingsHeaderConfig = {}
@@ -82,9 +86,9 @@ function computeSignature(c: SettingsHeaderConfig): string {
       x.disabled ?? false,
       x.icon ? 1 : 0,
       x.tooltip ?? '',
+      x.onPrefetch ? 1 : 0,
     ]),
     s: c.search ? [c.search.value, c.search.placeholder ?? '', c.search.disabled ?? false] : null,
-    aside: c.aside ? 1 : 0,
   })
 }
 
@@ -111,25 +115,25 @@ export function SettingsHeaderProvider({ children }: { children: ReactNode }) {
 export function useSettingsHeader(config: SettingsHeaderConfig) {
   const register = useContext(RegisterContext)
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     register?.(config)
   })
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     return () => register?.(EMPTY_CONFIG)
   }, [register])
 }
 
 /**
  * The single owner of settings page chrome: the header bar (back chip, Docs link,
- * action chips, `aside`), the scroll region, and the centered column led by the
- * title + description, then search and `{children}`.
+ * action chips), the scroll region, and the centered column led by the title +
+ * description, then search and `{children}`.
  */
 export function SettingsHeaderShell({ children }: { children: ReactNode }) {
   const read = useContext(ReadContext)
   const configRef = read?.configRef
   const config = configRef?.current ?? EMPTY_CONFIG
-  const { title, description, docsLink, back, actions, search, aside, scrollContainerRef } = config
+  const { title, description, docsLink, back, actions, search, scrollContainerRef } = config
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -147,7 +151,6 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
               Docs
             </ChipLink>
           )}
-          {aside}
           {actions?.map((action, index) => {
             const chip = (
               <Chip
@@ -156,6 +159,16 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
                 active={action.active}
                 leftIcon={action.icon}
                 onClick={() => configRef?.current.actions?.[index]?.onSelect()}
+                onMouseEnter={
+                  action.onPrefetch
+                    ? () => configRef?.current.actions?.[index]?.onPrefetch?.()
+                    : undefined
+                }
+                onFocus={
+                  action.onPrefetch
+                    ? () => configRef?.current.actions?.[index]?.onPrefetch?.()
+                    : undefined
+                }
                 disabled={action.disabled}
               >
                 {action.text}

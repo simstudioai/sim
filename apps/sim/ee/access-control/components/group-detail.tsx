@@ -1274,11 +1274,13 @@ export function GroupDetail({
           },
         ]}
       >
-        <ChipModalTabs
-          tabs={tabs}
-          value={configTab}
-          onChange={(value) => setConfigTab(value as ConfigTab)}
-        />
+        <div className='sticky top-0 z-10 bg-[var(--bg)]'>
+          <ChipModalTabs
+            tabs={tabs}
+            value={configTab}
+            onChange={(value) => setConfigTab(value as ConfigTab)}
+          />
+        </div>
 
         {configTab === 'general' && (
           <>
