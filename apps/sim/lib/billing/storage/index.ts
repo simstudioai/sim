@@ -3,5 +3,4 @@ export {
   decrementStorageUsage,
   decrementStorageUsageInTx,
   incrementStorageUsage,
-  releaseDeletedFileStorage,
 } from './tracking'
