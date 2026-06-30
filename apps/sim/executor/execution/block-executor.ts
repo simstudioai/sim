@@ -186,18 +186,20 @@ export class BlockExecutor {
       if (isStreamingExecution) {
         const streamingExec = output as StreamingExecution
 
-        // Streaming forwards raw chunks to the client before output redaction can
-        // run, which would leak PII. When block-output redaction is enabled we
-        // buffer instead of streaming — the masked final output still reaches the
-        // client through the block-complete callback below.
-        if (ctx.onStream && !ctx.piiBlockOutputRedaction?.enabled) {
+        // The stream must still be drained to populate `execution.output`, but
+        // forwarding raw chunks to the client (or persisting them to memory)
+        // before redaction would leak PII. When block-output redaction is on we
+        // drain in buffer-only mode (no `onStream`, content masked before it's
+        // stored); the masked final output reaches the client via block-complete.
+        if (ctx.onStream) {
           await this.handleStreamingExecution(
             ctx,
             node,
             block,
             streamingExec,
             resolvedInputs,
-            normalizeStringArray(ctx.selectedOutputs)
+            normalizeStringArray(ctx.selectedOutputs),
+            !ctx.piiBlockOutputRedaction?.enabled
           )
         }
 
@@ -734,7 +736,8 @@ export class BlockExecutor {
     block: SerializedBlock,
     streamingExec: StreamingExecution,
     resolvedInputs: Record<string, any>,
-    selectedOutputs: string[]
+    selectedOutputs: string[],
+    forwardToClient = true
   ): Promise<void> {
     const blockId = node.id
 
@@ -749,50 +752,73 @@ export class BlockExecutor {
     let drainError: unknown
     let sourceFullyDrained = false
 
-    const clientSource = new ReadableStream<Uint8Array>({
-      async pull(controller) {
+    if (forwardToClient) {
+      const clientSource = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          try {
+            const { done, value } = await sourceReader.read()
+            if (done) {
+              const tail = decoder.decode()
+              if (tail) accumulated.push(tail)
+              sourceFullyDrained = true
+              controller.close()
+              return
+            }
+            accumulated.push(decoder.decode(value, { stream: true }))
+            controller.enqueue(value)
+          } catch (error) {
+            drainError = error
+            controller.error(error)
+          }
+        },
+        async cancel(reason) {
+          try {
+            await sourceReader.cancel(reason)
+          } catch {}
+        },
+      })
+
+      const processedClientStream = streamingResponseFormatProcessor.processStream(
+        clientSource,
+        blockId,
+        selectedOutputs,
+        responseFormat
+      )
+
+      try {
+        await ctx.onStream?.({
+          stream: processedClientStream,
+          execution: streamingExec.execution,
+        })
+      } catch (error) {
+        this.execLogger.error('Error in onStream callback', { blockId, error })
+        await processedClientStream.cancel().catch(() => {})
+      } finally {
         try {
+          sourceReader.releaseLock()
+        } catch {}
+      }
+    } else {
+      // Buffer-only drain: consume the source so `execution.output` is complete,
+      // but never forward raw chunks to the client (block-output redaction is on).
+      try {
+        while (true) {
           const { done, value } = await sourceReader.read()
           if (done) {
             const tail = decoder.decode()
             if (tail) accumulated.push(tail)
             sourceFullyDrained = true
-            controller.close()
-            return
+            break
           }
           accumulated.push(decoder.decode(value, { stream: true }))
-          controller.enqueue(value)
-        } catch (error) {
-          drainError = error
-          controller.error(error)
         }
-      },
-      async cancel(reason) {
+      } catch (error) {
+        drainError = error
+      } finally {
         try {
-          await sourceReader.cancel(reason)
+          sourceReader.releaseLock()
         } catch {}
-      },
-    })
-
-    const processedClientStream = streamingResponseFormatProcessor.processStream(
-      clientSource,
-      blockId,
-      selectedOutputs,
-      responseFormat
-    )
-
-    try {
-      await ctx.onStream?.({
-        stream: processedClientStream,
-        execution: streamingExec.execution,
-      })
-    } catch (error) {
-      this.execLogger.error('Error in onStream callback', { blockId, error })
-      await processedClientStream.cancel().catch(() => {})
-    } finally {
-      try {
-        sourceReader.releaseLock()
-      } catch {}
+      }
     }
 
     if (drainError) {
@@ -814,9 +840,20 @@ export class BlockExecutor {
       return
     }
 
-    const fullContent = accumulated.join('')
+    let fullContent = accumulated.join('')
     if (!fullContent) {
       return
+    }
+
+    if (!forwardToClient && ctx.piiBlockOutputRedaction?.enabled) {
+      // Mask before the content is written to `execution.output` or persisted to
+      // memory via `onFullContent`, so the streamed agent response can't leak PII
+      // through either path. The block-output redaction below is then idempotent.
+      fullContent = await redactObjectStrings(fullContent, {
+        entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
+        language: ctx.piiBlockOutputRedaction.language,
+        onFailure: 'throw',
+      })
     }
 
     const executionOutput = streamingExec.execution?.output

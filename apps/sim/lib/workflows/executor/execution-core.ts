@@ -12,12 +12,7 @@ import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblock
 import { eq } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
-import {
-  DEFAULT_PII_REDACTION,
-  type EffectivePiiRedaction,
-  resolveEffectivePiiRedaction,
-} from '@/lib/billing/retention'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
@@ -647,22 +642,22 @@ export async function executeWorkflowCore(
 
     // Resolve the org/workspace PII redaction policy once; serves both the input
     // stage (below) and the block-outputs stage (threaded into the executor).
-    // Same fail-safe stance as the logs stage: presence of a rule implies
-    // entitlement, so we never re-check the plan (which would fail open on a
-    // transient lookup error and leak PII).
-    let piiRedaction: EffectivePiiRedaction = DEFAULT_PII_REDACTION
-    if (await isFeatureEnabled('pii-redaction')) {
-      const [row] = await db
-        .select({ orgSettings: organization.dataRetentionSettings })
-        .from(workspace)
-        .leftJoin(organization, eq(organization.id, workspace.organizationId))
-        .where(eq(workspace.id, providedWorkspaceId))
-        .limit(1)
-      piiRedaction = resolveEffectivePiiRedaction({
-        orgSettings: row?.orgSettings,
-        workspaceId: providedWorkspaceId,
-      })
-    }
+    // Resolved from stored rules UNCONDITIONALLY — deliberately NOT gated on the
+    // `pii-redaction` feature flag. The flag gates configuration (the settings
+    // route); a transient/false flag read at execution time would skip masking
+    // and leak PII (fail-open). Stored rules are only writable by entitled orgs,
+    // so their presence is the source of truth; absence yields the disabled
+    // default (one indexed lookup, no masking cost for non-PII orgs).
+    const [row] = await db
+      .select({ orgSettings: organization.dataRetentionSettings })
+      .from(workspace)
+      .leftJoin(organization, eq(organization.id, workspace.organizationId))
+      .where(eq(workspace.id, providedWorkspaceId))
+      .limit(1)
+    const piiRedaction: EffectivePiiRedaction = resolveEffectivePiiRedaction({
+      orgSettings: row?.orgSettings,
+      workspaceId: providedWorkspaceId,
+    })
 
     if (piiRedaction.input.enabled) {
       // Redact the input before the workflow sees it. `onFailure: 'throw'` aborts

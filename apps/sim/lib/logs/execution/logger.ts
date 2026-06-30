@@ -29,7 +29,6 @@ import {
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import {
@@ -622,8 +621,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
   ): Promise<RedactablePayload> {
     if (!workspaceId) return payload
 
-    if (!(await isFeatureEnabled('pii-redaction'))) return payload
-
     const [row] = await db
       .select({ orgSettings: organization.dataRetentionSettings })
       .from(workspace)
@@ -632,11 +629,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .limit(1)
     if (!row) return payload
 
-    // Rules are only writable by enterprise orgs (route-gated), so an enabled
-    // rule already implies entitlement. We deliberately do NOT re-check
-    // `isWorkspaceOnEnterprisePlan` here: it returns false on transient lookup
-    // errors, which would silently skip masking and leak PII (fail-open). When
-    // rules are present we always redact (fail-safe; over-redaction at worst).
+    // Resolve from stored rules UNCONDITIONALLY — deliberately NOT gated on the
+    // `pii-redaction` feature flag or the enterprise-plan check. Rules are only
+    // writable by entitled orgs (route-gated), so their presence is the source of
+    // truth; re-checking the flag/plan here returns false on a transient read and
+    // would silently skip masking, leaking PII (fail-open). Absence of rules
+    // yields the disabled default, so non-PII orgs incur only the lookup.
     const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
     if (!config.enabled) return payload
 
