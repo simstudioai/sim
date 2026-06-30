@@ -102,8 +102,6 @@ export const POST = withRouteHandler(
 
       logger.info(`Admin API: Exporting ${workflowExports.length} workflows`)
 
-      // No workflow resolved (every requested id failed to load) — nothing was
-      // exfiltrated, so don't record a successful export.
       const auditExport = () => {
         if (workflowExports.length === 0) return
         recordAudit({

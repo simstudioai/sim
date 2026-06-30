@@ -95,6 +95,11 @@ export async function generateCopilotUploadUrl(
     )
   }
 
+  const quotaCheck = await checkStorageQuota(userId, fileSize)
+  if (!quotaCheck.allowed) {
+    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+  }
+
   const presignedUrlResponse = await generatePresignedUploadUrl({
     fileName,
     contentType,
@@ -144,9 +149,8 @@ export async function uploadCopilotFile(options: {
     userId: options.userId,
   })
 
-  // Storage is metered centrally when the copilot metadata row is created
-  // (see insertFileMetadata), so every ingest path stays symmetric — no
-  // per-path increment here.
+  // Storage is incremented centrally when the metadata row is created (see
+  // insertFileMetadata), so there is no per-path increment here.
   return {
     id: fileInfo.key,
     key: fileInfo.key,
@@ -256,12 +260,10 @@ export async function deleteCopilotFile(key: string): Promise<void> {
     return null
   })
 
-  // Settle storage accounting (atomic metadata soft-delete + quota decrement)
-  // BEFORE removing the blob. If accounting can't be completed, the file is left
-  // fully intact — blob, active metadata, and counter all consistent — so a retry
-  // re-runs cleanly rather than orphaning the blob with an inflated counter. A
-  // failed metadata *read* (vs a genuine missing row) also blocks the blob delete,
-  // since a row may still exist and would be left un-decremented.
+  // Settle accounting (atomic soft-delete + decrement) BEFORE removing the blob,
+  // and only delete the blob if it succeeded — so any failure (including a failed
+  // metadata read, which may hide a still-active row) leaves the file fully intact
+  // and retryable rather than orphaning the blob with an inflated counter.
   let released = !metadataReadFailed
   if (metadata) {
     try {
