@@ -283,6 +283,8 @@ export async function createTable(
       ? { id: data.jobId, type: data.jobType ?? 'import', startedAt: now }
       : null
 
+  // Starter rows count against the plan too. Checked before the tx (the lookup is a
+  // separate pool read) — a new table starts empty, so the footprint is just these.
   const initialRowCount = data.initialRowCount ?? 0
   let rowLimit: number | undefined
   if (initialRowCount > 0) {
@@ -415,8 +417,7 @@ export async function addTableColumnsWithTx(
   trx: DbTransaction,
   table: TableDefinition,
   columns: { id?: string; name: string; type: string; required?: boolean; unique?: boolean }[],
-  requestId: string,
-  actingUserId?: string
+  requestId: string
 ): Promise<TableDefinition> {
   if (columns.length === 0) return table
 
@@ -479,25 +480,36 @@ export async function addTableColumnsWithTx(
     `[${requestId}] Added ${additions.length} column(s) to table ${table.id}: ${additions.map((c) => c.name).join(', ')}`
   )
 
-  const columnActorId = actingUserId ?? table.createdBy
-  if (columnActorId) {
-    recordAudit({
-      workspaceId: table.workspaceId ?? null,
-      actorId: columnActorId,
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: table.id,
-      resourceName: table.name,
-      description: `Added ${additions.length} column(s) to table "${table.name}"`,
-      metadata: { op: 'add_columns', columns: additions.map((c) => c.name) },
-    })
-  }
-
   return {
     ...table,
     schema: updatedSchema,
     updatedAt: now,
   }
+}
+
+/**
+ * Records the "columns added" audit for a table. The column add shares a
+ * transaction with the import's row inserts, so the caller MUST emit this only
+ * AFTER that transaction commits — auditing inside the tx would log a false
+ * success if a later row batch rolls it back. Skipped when no actor resolves.
+ */
+export function auditTableColumnsAdded(
+  table: TableDefinition,
+  columnNames: string[],
+  actingUserId?: string
+): void {
+  const actorId = actingUserId ?? table.createdBy
+  if (!actorId || columnNames.length === 0) return
+  recordAudit({
+    workspaceId: table.workspaceId ?? null,
+    actorId,
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: table.id,
+    resourceName: table.name,
+    description: `Added ${columnNames.length} column(s) to table "${table.name}"`,
+    metadata: { op: 'add_columns', columns: columnNames },
+  })
 }
 
 /**
