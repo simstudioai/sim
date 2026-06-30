@@ -163,11 +163,13 @@ function buildInputFormatInput(inputFormatValue: unknown): Record<string, any> |
     }
   }
 
-  // Route file[] fields to the dedicated `files` channel, but never clobber a
-  // user field that is itself named `files` (a reserved-name config error the
-  // executor surfaces on its own).
+  // Route file[] fields to the dedicated `files` channel. `files` is the start
+  // block's canonical file channel (the chat trigger names its own file field
+  // `files`), so uploaded files must own it and take precedence over a plain
+  // field that happens to be named `files` — dropping real attachments would be
+  // the worse outcome.
   const files = collectInputFormatFiles(inputFormatValue)
-  if (files.length > 0 && !('files' in testInput)) testInput.files = files
+  if (files.length > 0) testInput.files = files
 
   return Object.keys(testInput).length > 0 ? testInput : undefined
 }
