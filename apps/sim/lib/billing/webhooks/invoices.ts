@@ -993,35 +993,41 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
           resolutionSource,
         })
 
-        const failureOrgScoped = await isSubscriptionOrgScoped(sub)
-        const failureEntityType = failureOrgScoped ? 'organization' : 'user'
-        const failureActorId = await resolveBillingActorId(failureOrgScoped, sub.referenceId)
+        // Best-effort instrumentation; its DB reads must never abort the
+        // user-blocking that follows, so the whole block is guarded.
+        try {
+          const failureOrgScoped = await isSubscriptionOrgScoped(sub)
+          const failureEntityType = failureOrgScoped ? 'organization' : 'user'
+          const failureActorId = await resolveBillingActorId(failureOrgScoped, sub.referenceId)
 
-        recordAudit({
-          actorId: failureActorId,
-          action: AuditAction.INVOICE_PAYMENT_FAILED,
-          resourceType: AuditResourceType.BILLING,
-          resourceId: invoice.id,
-          description: `Invoice payment of $${failedAmount.toFixed(2)} failed for ${failureEntityType} ${sub.referenceId} (attempt ${attemptCount})`,
-          metadata: {
-            entityType: failureEntityType,
-            referenceId: sub.referenceId,
-            plan: sub.plan,
+          recordAudit({
+            actorId: failureActorId,
+            action: AuditAction.INVOICE_PAYMENT_FAILED,
+            resourceType: AuditResourceType.BILLING,
+            resourceId: invoice.id,
+            description: `Invoice payment of $${failedAmount.toFixed(2)} failed for ${failureEntityType} ${sub.referenceId} (attempt ${attemptCount})`,
+            metadata: {
+              entityType: failureEntityType,
+              referenceId: sub.referenceId,
+              plan: sub.plan,
+              amount: failedAmount,
+              currency: invoice.currency ?? 'usd',
+              attemptCount,
+              invoiceType: invoiceType ?? 'subscription',
+              invoiceId: invoice.id,
+            },
+          })
+          captureServerEvent(failureActorId, 'payment_failed', {
+            plan: sub.plan ?? 'unknown',
             amount: failedAmount,
             currency: invoice.currency ?? 'usd',
-            attemptCount,
-            invoiceType: invoiceType ?? 'subscription',
-            invoiceId: invoice.id,
-          },
-        })
-        captureServerEvent(failureActorId, 'payment_failed', {
-          plan: sub.plan ?? 'unknown',
-          amount: failedAmount,
-          currency: invoice.currency ?? 'usd',
-          entity_type: failureEntityType,
-          reference_id: sub.referenceId,
-          attempt_count: attemptCount,
-        })
+            entity_type: failureEntityType,
+            reference_id: sub.referenceId,
+            attempt_count: attemptCount,
+          })
+        } catch (auditError) {
+          logger.warn('Failed to record payment_failed instrumentation', { auditError })
+        }
 
         if (attemptCount >= 1) {
           logger.error('Payment failure - blocking users', {
@@ -1033,7 +1039,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
             stripeSubscriptionId,
           })
 
-          if (failureOrgScoped) {
+          if (await isSubscriptionOrgScoped(sub)) {
             const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
             logger.info('Blocked org members due to payment failure', {
               invoiceType: invoiceType ?? 'subscription',
