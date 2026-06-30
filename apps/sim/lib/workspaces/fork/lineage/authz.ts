@@ -1,5 +1,5 @@
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isAppConfigEnabled, isBillingEnabled, isForkingEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { type ForkEdge, resolveForkEdge } from '@/lib/workspaces/fork/lineage/lineage'
@@ -10,20 +10,19 @@ import { getWorkspaceCreationPolicy, type WorkspaceCreationPolicy } from '@/lib/
 export type PromoteDirection = 'push' | 'pull'
 
 /**
- * Gate shared by every fork/promote route. A runtime `workspace-forking` flag is the
- * master rollout switch: on Sim Cloud it's resolved from AppConfig with org/user
- * context (dark-launchable to specific orgs/users/admins), and off-AppConfig it falls
- * back to `FORKING_ENABLED`, leaving self-hosted behaviour unchanged. An off/absent
- * flag 404s so a newer image never silently exposes forking. On Sim Cloud the
- * Enterprise-plan entitlement still applies on top of the flag. Mirrors the
- * data-drains gate - this repo gates EE features by plan + flag, not by directory.
+ * Gate shared by every fork/promote route. The deployment/entitlement gate is
+ * unchanged: on Sim Cloud the gate is the Enterprise plan; on self-hosted it's
+ * `FORKING_ENABLED`, which 404s when unset so a newer image doesn't silently expose
+ * forking. Mirrors the data-drains gate - this repo gates EE features by plan + env
+ * flag, not by directory.
+ *
+ * Layered on top is the runtime `workspace-forking` flag, a rollout switch enforced
+ * ONLY where AppConfig is the source of truth (Sim Cloud). It lets us dark-launch
+ * forking to specific orgs/users/admins without a redeploy; self-hosted/local
+ * deployments have no AppConfig, so their behaviour is untouched by the flag.
  */
 async function assertForkingEnabled(organizationId: string | null, userId: string): Promise<void> {
-  const flagEnabled = await isFeatureEnabled('workspace-forking', {
-    userId,
-    orgId: organizationId,
-  })
-  if (!flagEnabled) {
+  if (!isBillingEnabled && !isForkingEnabled) {
     throw new ForkError('Workspace forking is not enabled on this deployment', 404)
   }
   if (isBillingEnabled) {
@@ -33,6 +32,12 @@ async function assertForkingEnabled(organizationId: string | null, userId: strin
     if (!hasEnterprise) {
       throw new ForkError('Workspace forking is available on Enterprise plans only', 403)
     }
+  }
+  if (
+    isAppConfigEnabled &&
+    !(await isFeatureEnabled('workspace-forking', { userId, orgId: organizationId }))
+  ) {
+    throw new ForkError('Workspace forking is not enabled on this deployment', 404)
   }
 }
 
