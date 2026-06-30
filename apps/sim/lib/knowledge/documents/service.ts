@@ -2059,7 +2059,6 @@ export async function hardDeleteDocuments(
   }
 
   const existingIds = documentsToDelete.map((doc) => doc.id)
-  const docInfoById = new Map(documentsToDelete.map((doc) => [doc.id, doc]))
 
   // Resolve subscriptions for every candidate billed owner before the transaction
   // (these are reads). Connector-synced documents are never metered at ingest
@@ -2075,10 +2074,11 @@ export async function hardDeleteDocuments(
     subByUser.set(billedUserId, await getHighestPrioritySubscription(billedUserId))
   }
 
-  // Decrement inside the same transaction that deletes the rows, driven by the
-  // rows THIS transaction actually deleted (`returning()`) — so a concurrent
-  // delete of the same ids removes 0 rows and decrements nothing (no double
-  // decrement), and a rollback leaves the counter untouched (no inflation).
+  // Everything downstream is keyed off the rows THIS transaction actually deleted
+  // (`returning()`), not the requested ids — so a concurrent delete that removed
+  // some ids first doesn't get double-decremented, double-cleaned, or counted
+  // here, and a rollback leaves the counter untouched.
+  let deletedDocs: typeof documentsToDelete = []
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
     const deletedRows = await tx
@@ -2086,26 +2086,28 @@ export async function hardDeleteDocuments(
       .where(inArray(document.id, existingIds))
       .returning({ id: document.id })
 
+    const deletedIds = new Set(deletedRows.map((row) => row.id))
+    deletedDocs = documentsToDelete.filter((doc) => deletedIds.has(doc.id))
+
     const bytesByUser = new Map<string, number>()
-    for (const { id } of deletedRows) {
-      const info = docInfoById.get(id)
-      if (!info || info.connectorId || info.fileSize <= 0) continue
-      const billedUserId = info.uploadedBy ?? info.kbUserId
+    for (const doc of deletedDocs) {
+      if (doc.connectorId || doc.fileSize <= 0) continue
+      const billedUserId = doc.uploadedBy ?? doc.kbUserId
       if (!billedUserId) continue
-      bytesByUser.set(billedUserId, (bytesByUser.get(billedUserId) ?? 0) + info.fileSize)
+      bytesByUser.set(billedUserId, (bytesByUser.get(billedUserId) ?? 0) + doc.fileSize)
     }
     for (const [billedUserId, bytes] of bytesByUser) {
       await decrementStorageUsageInTx(tx, subByUser.get(billedUserId) ?? null, billedUserId, bytes)
     }
   })
 
-  await deleteDocumentStorageFiles(documentsToDelete, requestId)
+  await deleteDocumentStorageFiles(deletedDocs, requestId)
 
-  logger.info(`[${requestId}] Hard deleted ${existingIds.length} documents`, {
-    documentIds: existingIds,
+  logger.info(`[${requestId}] Hard deleted ${deletedDocs.length} documents`, {
+    documentIds: deletedDocs.map((doc) => doc.id),
   })
 
-  return existingIds.length
+  return deletedDocs.length
 }
 
 export async function deleteDocument(
