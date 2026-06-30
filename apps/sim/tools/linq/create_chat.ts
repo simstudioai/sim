@@ -136,7 +136,7 @@ export const linqCreateChatTool: ToolConfig<LinqCreateChatParams, LinqCreateChat
         service: chat.service ?? null,
         handles: chat.handles ?? [],
         healthStatus: chat.health_status ?? null,
-        message: data.message ?? chat.message ?? null,
+        message: chat.message ?? null,
       },
     }
   },
