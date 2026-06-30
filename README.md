@@ -35,7 +35,7 @@ Open [http://localhost:3000](http://localhost:3000)
 Docker must be installed and running. Use `-p, --port <port>` to run Sim on a different port, or `--no-pull` to skip pulling the latest Docker images.
 
 <p align="center">
-  <img src="apps/sim/public/static/readme-tour.gif" alt="How Sim works — Integrate, Ingest, Build, Monitor — shown end to end: start a chat to build an agent, connect Slack and other integrations, add a knowledge base, build the workflow visually, deploy it, and monitor runs in the logs" width="100%"/>
+  <img src="apps/sim/public/static/readme-tour.gif" alt="How Sim works — Integrate, Context, Build, Monitor — shown end to end: start a chat to build an agent, connect Slack and other integrations, add a knowledge base, build the workflow visually, deploy it, and monitor runs in the logs" width="100%"/>
 </p>
 
 ## Capabilities

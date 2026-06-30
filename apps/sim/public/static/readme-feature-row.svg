@@ -1,6 +1,6 @@
 <svg width="800" height="190" viewBox="0 0 800 190" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Sim feature areas</title>
-  <desc id="desc">Four feature illustrations labeled Integrate, Ingest, Build, and Monitor.</desc>
+  <desc id="desc">Four feature illustrations labeled Integrate, Context, Build, and Monitor.</desc>
   <rect x="0.5" y="0.5" width="799" height="189" rx="10" fill="#F8F8F8" stroke="#E6E6E6"/>
   <g aria-label="Integrate">
     <g transform="translate(37 10) scale(0.35)">
@@ -44,7 +44,7 @@
     </g>
     <text x="100" y="166" text-anchor="middle" fill="#525252" font-family="SeasonSans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="430">Integrate</text>
   </g>
-  <g aria-label="Ingest">
+  <g aria-label="Context">
     <g transform="translate(237 10) scale(0.35)">
       <g transform="translate(15.0000 30.7143) scale(0.402930)">
       <path d="M487.711 338.782L736.182 482.247C743.824 486.652 747.645 484.444 747.645 475.623V188.711C747.645 179.89 743.824 173.272 736.182 168.856L487.711 25.4083C480.069 20.9921 476.248 23.1943 476.248 32.0147V318.945C476.248 327.766 480.069 334.378 487.711 338.782Z" fill="#D4D4D4"/>
@@ -132,7 +132,7 @@
       </defs>
       </g>
     </g>
-    <text x="300" y="166" text-anchor="middle" fill="#525252" font-family="SeasonSans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="430">Ingest</text>
+    <text x="300" y="166" text-anchor="middle" fill="#525252" font-family="SeasonSans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="430">Context</text>
   </g>
   <g aria-label="Build">
     <g transform="translate(437 10) scale(0.35)">
