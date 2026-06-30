@@ -202,6 +202,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       responseFormat,
       workflowId,
       workspaceId,
+      userId: auth.userId,
       stream,
       messages,
       environmentVariables,

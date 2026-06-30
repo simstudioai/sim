@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
+import { cn } from '@sim/emcn'
 import Link from 'next/link'
-import { cn } from '@/lib/core/utils/cn'
 import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/components'
 
 /**

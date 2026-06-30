@@ -1,3 +1,6 @@
+import { db } from '@sim/db'
+import { workflowSchedule } from '@sim/db/schema'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
@@ -82,6 +85,26 @@ async function resolveResource(
       minute: '2-digit',
     })
     title = `${workflowName} — ${timestamp}`
+  }
+  if (resourceType === 'scheduledtask') {
+    if (!item.id) return { error: 'scheduledtask resources require `id`.' }
+    if (!context.workspaceId)
+      return { error: 'Opening a scheduled task requires workspace context.' }
+    const [schedule] = await db
+      .select({ id: workflowSchedule.id, jobTitle: workflowSchedule.jobTitle })
+      .from(workflowSchedule)
+      .where(
+        and(
+          eq(workflowSchedule.id, item.id),
+          eq(workflowSchedule.sourceWorkspaceId, context.workspaceId),
+          eq(workflowSchedule.sourceType, 'job'),
+          isNull(workflowSchedule.archivedAt)
+        )
+      )
+      .limit(1)
+    if (!schedule) return { error: `No scheduled task with id "${item.id}".` }
+    resourceId = schedule.id
+    title = schedule.jobTitle || 'Scheduled Task'
   }
 
   return { type: resourceType, id: resourceId, title }

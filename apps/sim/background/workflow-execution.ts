@@ -13,6 +13,7 @@ import {
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -206,5 +207,8 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
 export const workflowExecutionTask = task({
   id: 'workflow-execution',
   machine: 'medium-1x',
+  queue: {
+    concurrencyLimit: WORKFLOW_EXECUTION_CONCURRENCY_LIMIT,
+  },
   run: executeWorkflowJob,
 })

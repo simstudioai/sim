@@ -12,29 +12,19 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gt,
-  gte,
-  inArray,
-  isNotNull,
-  isNull,
-  lt,
-  lte,
-  ne,
-  type SQL,
-  sql,
-} from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
-import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import {
+  buildTagFilterCondition,
+  type TagFilterCondition,
+} from '@/lib/knowledge/documents/tag-filter'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
@@ -447,6 +437,7 @@ async function dispatchViaBatchTrigger(
 ): Promise<number> {
   let dispatched = 0
   const batchIds: string[] = []
+  const region = await resolveTriggerRegion()
   for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
     const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
     try {
@@ -462,6 +453,7 @@ async function dispatchViaBatchTrigger(
               `knowledgeBaseId:${payload.knowledgeBaseId}`,
               `documentId:${payload.documentId}`,
             ],
+            region,
           },
         }))
       )
@@ -515,7 +507,6 @@ export async function processDocumentAsync(
     // KB config + workspace billing + doc tags in one JOIN (was 3 SELECTs).
     const contextRows = await db
       .select({
-        userId: knowledgeBase.userId,
         workspaceId: knowledgeBase.workspaceId,
         chunkingConfig: knowledgeBase.chunkingConfig,
         embeddingModel: knowledgeBase.embeddingModel,
@@ -644,7 +635,12 @@ export async function processDocumentAsync(
           kbConfig.maxSize,
           kbConfig.overlap,
           kbConfig.minSize,
-          ctx.userId,
+          // Authorize the source file (and run OCR/processing) as the billed
+          // actor — the uploader when known, else the workspace billed account —
+          // the same principal embeddings are billed to. Using the KB owner here
+          // would authorize an attacker-supplied internal fileUrl against the
+          // owner, letting a KB write-member ingest a file only the owner can read.
+          billingUserId,
           ctx.workspaceId,
           rawConfig?.strategy,
           rawConfig?.strategyOptions
@@ -988,145 +984,6 @@ export async function createDocumentRecords(
 
     return returnData
   })
-}
-
-export interface TagFilterCondition {
-  tagSlot: string
-  fieldType: 'text' | 'number' | 'date' | 'boolean'
-  operator: string
-  value: unknown
-  valueTo?: unknown
-}
-
-const ALLOWED_TAG_SLOTS = new Set([
-  'tag1',
-  'tag2',
-  'tag3',
-  'tag4',
-  'tag5',
-  'tag6',
-  'tag7',
-  'number1',
-  'number2',
-  'number3',
-  'number4',
-  'number5',
-  'date1',
-  'date2',
-  'boolean1',
-  'boolean2',
-  'boolean3',
-])
-
-function escapeLikePattern(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
-}
-
-function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
-  if (!ALLOWED_TAG_SLOTS.has(filter.tagSlot)) return undefined
-
-  const col = document[filter.tagSlot as keyof typeof document]
-
-  if (filter.fieldType === 'text') {
-    const v = String(filter.value ?? '')
-    switch (filter.operator) {
-      case 'eq':
-        return eq(col as typeof document.tag1, v)
-      case 'neq':
-        return ne(col as typeof document.tag1, v)
-      case 'contains': {
-        const escaped = escapeLikePattern(v)
-        return sql`LOWER(${col}) LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
-      }
-      case 'not_contains': {
-        const escaped = escapeLikePattern(v)
-        return sql`LOWER(${col}) NOT LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
-      }
-      case 'starts_with': {
-        const escaped = escapeLikePattern(v)
-        return sql`LOWER(${col}) LIKE LOWER(${`${escaped}%`}) ESCAPE '\\'`
-      }
-      case 'ends_with': {
-        const escaped = escapeLikePattern(v)
-        return sql`LOWER(${col}) LIKE LOWER(${`%${escaped}`}) ESCAPE '\\'`
-      }
-      default:
-        return undefined
-    }
-  }
-
-  if (filter.fieldType === 'number') {
-    const num = Number(filter.value)
-    if (Number.isNaN(num)) return undefined
-    switch (filter.operator) {
-      case 'eq':
-        return eq(col as typeof document.number1, num)
-      case 'neq':
-        return ne(col as typeof document.number1, num)
-      case 'gt':
-        return gt(col as typeof document.number1, num)
-      case 'gte':
-        return gte(col as typeof document.number1, num)
-      case 'lt':
-        return lt(col as typeof document.number1, num)
-      case 'lte':
-        return lte(col as typeof document.number1, num)
-      case 'between': {
-        const numTo = Number(filter.valueTo)
-        if (Number.isNaN(numTo)) return undefined
-        return and(
-          gte(col as typeof document.number1, num),
-          lte(col as typeof document.number1, numTo)
-        )
-      }
-      default:
-        return undefined
-    }
-  }
-
-  if (filter.fieldType === 'date') {
-    const v = String(filter.value ?? '')
-    switch (filter.operator) {
-      case 'eq':
-        return eq(col as typeof document.date1, new Date(v))
-      case 'neq':
-        return ne(col as typeof document.date1, new Date(v))
-      case 'gt':
-        return gt(col as typeof document.date1, new Date(v))
-      case 'gte':
-        return gte(col as typeof document.date1, new Date(v))
-      case 'lt':
-        return lt(col as typeof document.date1, new Date(v))
-      case 'lte':
-        return lte(col as typeof document.date1, new Date(v))
-      case 'between': {
-        if (!filter.valueTo) return undefined
-        const valueTo = String(filter.valueTo)
-        return and(
-          gte(col as typeof document.date1, new Date(v)),
-          lte(col as typeof document.date1, new Date(valueTo))
-        )
-      }
-      default:
-        return undefined
-    }
-  }
-
-  if (filter.fieldType === 'boolean') {
-    const boolVal =
-      typeof filter.value === 'boolean' ? filter.value : parseBooleanValue(String(filter.value))
-    if (boolVal === null) return undefined
-    switch (filter.operator) {
-      case 'eq':
-        return eq(col as typeof document.boolean1, boolVal)
-      case 'neq':
-        return ne(col as typeof document.boolean1, boolVal)
-      default:
-        return undefined
-    }
-  }
-
-  return undefined
 }
 
 export async function getDocuments(
@@ -1902,8 +1759,6 @@ export async function updateDocument(
   })
 
   await db.transaction(async (tx) => {
-    await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
-
     const hasTagUpdates = ALL_TAG_SLOTS.some((field) => typedUpdateData[field] !== undefined)
 
     if (hasTagUpdates) {
@@ -1921,6 +1776,8 @@ export async function updateDocument(
         .set(embeddingUpdateData)
         .where(eq(embedding.documentId, documentId))
     }
+
+    await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
   })
 
   const updatedDocument = await db

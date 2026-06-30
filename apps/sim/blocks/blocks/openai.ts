@@ -58,6 +58,7 @@ export const OpenAIBlock: BlockConfig = {
 
 export const OpenAIBlockMeta = {
   tags: ['llm', 'vector-search'],
+  url: 'https://openai.com',
   templates: [
     {
       icon: OpenAIIcon,

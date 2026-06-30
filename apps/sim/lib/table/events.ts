@@ -122,7 +122,7 @@ export type TableEvent =
       kind: 'job'
       tableId: string
       jobId: string
-      type: 'import' | 'delete' | 'export' | 'backfill'
+      type: 'import' | 'delete' | 'export' | 'backfill' | 'update'
       status: 'running' | 'ready' | 'failed' | 'canceled'
       /** Rows processed so far (running) or in total (ready). */
       progress?: number

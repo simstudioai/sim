@@ -44,9 +44,9 @@ import {
 import {
   type BlockState,
   calculateNextRunTime as calculateNextTime,
+  computeNextRunAt,
   getScheduleTimeValues,
   getSubBlockValue,
-  validateCronExpression,
 } from '@/lib/workflows/schedules/utils'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -1036,17 +1036,17 @@ function buildJobPrompt(jobRecord: {
     }
     parts.push('')
     parts.push(
-      'Use this history to avoid duplicate work. After completing meaningful work this run, call update_job_history to record what you did.'
+      'Use this history to avoid duplicate work. After completing meaningful work this run, call update_scheduled_task_history to record what you did.'
     )
   } else if (jobRecord.runCount > 0) {
     parts.push('')
     parts.push(
-      'No previous run history recorded. After completing meaningful work, call update_job_history to record what you did for future runs.'
+      'No previous run history recorded. After completing meaningful work, call update_scheduled_task_history to record what you did for future runs.'
     )
   } else {
     parts.push('')
     parts.push(
-      'This is the first run. After completing meaningful work, call update_job_history to record what you did so future runs have context.'
+      'This is the first run. After completing meaningful work, call update_scheduled_task_history to record what you did so future runs have context.'
     )
   }
 
@@ -1055,7 +1055,7 @@ function buildJobPrompt(jobRecord: {
     parts.push('COMPLETION PROTOCOL:')
     parts.push('This is a poll-until-done job. After executing the task above:')
     parts.push(
-      `- If the success condition is met, take the required action, then call complete_job(jobId: "${jobRecord.id}") to stop the job.`
+      `- If the success condition is met, take the required action, then call complete_scheduled_task(jobId: "${jobRecord.id}") to stop the scheduled task.`
     )
     parts.push(
       '- If the success condition is NOT met, do nothing extra. The job will run again on schedule.'
@@ -1089,7 +1089,7 @@ async function createJobLogEntry(params: {
       success,
       responseBody,
     } = params
-    const name = jobTitle || 'Mothership Job'
+    const name = jobTitle || 'Sim Job'
 
     const toolCallsList = (responseBody?.toolCalls || []).map((tc: Record<string, unknown>) => ({
       name: tc.name,
@@ -1241,6 +1241,9 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       workspaceId: jobRecord.sourceWorkspaceId,
       userId: jobRecord.sourceUserId,
       chatId: jobRecord.sourceChatId || generateId(),
+      ...(jobRecord.contexts && jobRecord.contexts.length > 0
+        ? { contexts: jobRecord.contexts }
+        : {}),
     }
 
     const startTime = new Date()
@@ -1274,7 +1277,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
           errorMessage: errorText,
         })
 
-        throw new Error(`Mothership execution failed (${response.status}): ${errorText}`)
+        throw new Error(`Sim execution failed (${response.status}): ${errorText}`)
       }
 
       let responseBody: Record<string, any> = {}
@@ -1282,7 +1285,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       try {
         responseBody = await response.json()
         const toolCalls = responseBody?.toolCalls as Array<{ name?: string }> | undefined
-        wasCompletedByTool = toolCalls?.some((tc) => tc.name === 'complete_job') ?? false
+        wasCompletedByTool = toolCalls?.some((tc) => tc.name === 'complete_scheduled_task') ?? false
       } catch {
         if (timeoutController.isTimedOut()) {
           throw new Error(getTimeoutErrorMessage(null, timeoutController.timeoutMs))
@@ -1331,14 +1334,16 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       let nextRunAt: Date | null = null
 
       if (!isOneTime && jobRecord.cronExpression) {
-        const validation = validateCronExpression(
-          jobRecord.cronExpression,
-          jobRecord.timezone || 'UTC'
-        )
-        nextRunAt = validation.nextRun || null
+        nextRunAt = computeNextRunAt({
+          cronExpression: jobRecord.cronExpression,
+          timezone: jobRecord.timezone || 'UTC',
+          from: now,
+          excludedDates: jobRecord.excludedDates,
+          endsAt: jobRecord.endsAt,
+        })
       }
 
-      const maxRunsReached = jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns
+      const maxRunsReached = Boolean(jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns)
       if (maxRunsReached) {
         logger.info(`[${requestId}] Job hit maxRuns limit`, {
           scheduleId: payload.scheduleId,
@@ -1347,16 +1352,18 @@ export async function executeJobInline(payload: JobExecutionPayload) {
         })
       }
 
+      const isComplete = isOneTime || maxRunsReached || !nextRunAt
+
       await applyScheduleUpdate(
         payload.scheduleId,
         {
           lastRanAt: now,
           updatedAt: now,
-          nextRunAt: isOneTime || maxRunsReached ? null : nextRunAt,
+          nextRunAt: isComplete ? null : nextRunAt,
           failedCount: 0,
           lastQueuedAt: null,
           runCount: newRunCount,
-          status: isOneTime || maxRunsReached ? 'completed' : 'active',
+          status: isComplete ? 'completed' : 'active',
         },
         requestId,
         `Error updating job ${payload.scheduleId} after success`,
@@ -1374,26 +1381,32 @@ export async function executeJobInline(payload: JobExecutionPayload) {
 
     const newFailedCount = (payload.failedCount || 0) + 1
     const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+    const newRunCount = (jobRecord.runCount || 0) + 1
 
     let nextRunAt: Date | null = null
     if (jobRecord.cronExpression) {
-      const validation = validateCronExpression(
-        jobRecord.cronExpression,
-        jobRecord.timezone || 'UTC'
-      )
-      nextRunAt = validation.nextRun || null
+      nextRunAt = computeNextRunAt({
+        cronExpression: jobRecord.cronExpression,
+        timezone: jobRecord.timezone || 'UTC',
+        from: now,
+        excludedDates: jobRecord.excludedDates,
+        endsAt: jobRecord.endsAt,
+      })
     }
+
+    const maxRunsReached = Boolean(jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns)
+    const isComplete = !jobRecord.cronExpression || maxRunsReached || !nextRunAt
 
     await applyScheduleUpdate(
       payload.scheduleId,
       {
         updatedAt: now,
-        nextRunAt,
+        nextRunAt: shouldDisable || !isComplete ? nextRunAt : null,
         failedCount: newFailedCount,
         lastFailedAt: now,
         lastQueuedAt: null,
-        runCount: (jobRecord.runCount || 0) + 1,
-        status: shouldDisable ? 'disabled' : 'active',
+        runCount: newRunCount,
+        status: shouldDisable ? 'disabled' : isComplete ? 'completed' : 'active',
       },
       requestId,
       `Error updating job ${payload.scheduleId} after failure`,

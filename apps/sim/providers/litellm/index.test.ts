@@ -29,6 +29,10 @@ vi.mock('@/stores/providers', () => ({
 }))
 
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getProviderModels: () => [],
   getProviderDefaultModel: () => '',
 }))

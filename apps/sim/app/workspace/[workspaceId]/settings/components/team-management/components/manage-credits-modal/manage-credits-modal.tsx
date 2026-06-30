@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
 import {
   ChipModal,
   ChipModalBody,
@@ -10,8 +9,8 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Info,
-} from '@/components/emcn'
-import { CopyableValueField } from '@/app/workspace/[workspaceId]/components/credential-detail/components/copyable-value-field'
+} from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   useOrganizationMemberUsageLimit,
   useUpdateOrganizationMemberUsageLimit,
@@ -73,6 +72,9 @@ export function ManageCreditsModal({
   const isSaving = updateLimit.isPending
 
   const creditsUsed = data ? data.creditsUsed.toLocaleString() : '—'
+  const creditsUsedTitle = data
+    ? `Credits used this ${data.billingInterval === 'year' ? 'year' : 'month'}`
+    : 'Credits used'
 
   const handleSave = () => {
     if (!userId) return
@@ -96,13 +98,12 @@ export function ManageCreditsModal({
         {member ? `Manage credits — ${member.name || member.email}` : 'Manage credits'}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='Credits used'>
-          <CopyableValueField
-            id='member-credits-used'
-            value={isLoading ? 'Loading…' : creditsUsed}
-            copyLabel='Copy credits used'
-          />
-        </ChipModalField>
+        <ChipModalField
+          type='copy'
+          title={creditsUsedTitle}
+          value={isLoading ? 'Loading…' : creditsUsed}
+          copyLabel='Copy credits used'
+        />
         <ChipModalField
           type='input'
           inputType='number'

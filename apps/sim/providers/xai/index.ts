@@ -6,6 +6,8 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createStreamingExecution } from '@/providers/streaming-execution'
+import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   Message,
@@ -79,14 +81,7 @@ export const xAIProvider: ProviderConfig = {
     }
     const formattedMessages = formatMessagesForProvider(allMessages, 'xai') as Message[]
     const tools = request.tools?.length
-      ? request.tools.map((tool) => ({
-          type: 'function',
-          function: {
-            name: tool.id,
-            description: tool.description,
-            parameters: tool.parameters,
-          },
-        }))
+      ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
       : undefined
     if (tools?.length && request.responseFormat) {
       logger.warn(
@@ -125,60 +120,37 @@ export const xAIProvider: ProviderConfig = {
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
-      const streamingResult = {
-        stream: createReadableStreamFromXAIStream(streamResponse, (content, usage) => {
-          streamingResult.execution.output.content = content
-          streamingResult.execution.output.tokens = {
-            input: usage.prompt_tokens,
-            output: usage.completion_tokens,
-            total: usage.total_tokens,
-          }
+      const streamingResult = createStreamingExecution({
+        model: request.model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: { kind: 'simple', segmentName: request.model },
+        initialTokens: { input: 0, output: 0, total: 0 },
+        initialCost: { input: 0, output: 0, total: 0 },
+        isStreaming: true,
+        createStream: ({ output }) =>
+          createReadableStreamFromXAIStream(streamResponse, (content, usage) => {
+            output.content = content
+            output.tokens = {
+              input: usage.prompt_tokens,
+              output: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
 
-          const costResult = calculateCost(
-            request.model,
-            usage.prompt_tokens,
-            usage.completion_tokens
-          )
-          streamingResult.execution.output.cost = {
-            input: costResult.input,
-            output: costResult.output,
-            total: costResult.total,
-          }
-        }),
-        execution: {
-          success: true,
-          output: {
-            content: '',
-            model: request.model,
-            tokens: { input: 0, output: 0, total: 0 },
-            toolCalls: undefined,
-            providerTiming: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-              timeSegments: [
-                {
-                  type: 'model',
-                  name: request.model,
-                  startTime: providerStartTime,
-                  endTime: Date.now(),
-                  duration: Date.now() - providerStartTime,
-                },
-              ],
-            },
-            cost: { input: 0, output: 0, total: 0 },
-          },
-          logs: [],
-          metadata: {
-            startTime: providerStartTimeISO,
-            endTime: new Date().toISOString(),
-            duration: Date.now() - providerStartTime,
-          },
-          isStreaming: true,
-        },
-      }
+            const costResult = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+          }),
+      })
 
-      return streamingResult as StreamingExecution
+      return streamingResult
     }
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
@@ -520,73 +492,62 @@ export const xAIProvider: ProviderConfig = {
 
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
-        const streamingResult = {
-          stream: createReadableStreamFromXAIStream(streamResponse as any, (content, usage) => {
-            streamingResult.execution.output.content = content
-            streamingResult.execution.output.tokens = {
-              input: tokens.input + usage.prompt_tokens,
-              output: tokens.output + usage.completion_tokens,
-              total: tokens.total + usage.total_tokens,
-            }
-
-            const streamCost = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            const tc = sumToolCosts(toolResults)
-            streamingResult.execution.output.cost = {
-              input: accumulatedCost.input + streamCost.input,
-              output: accumulatedCost.output + streamCost.output,
-              toolCost: tc || undefined,
-              total: accumulatedCost.total + streamCost.total + tc,
-            }
-          }),
-          execution: {
-            success: true,
-            output: {
-              content: '',
-              model: request.model,
-              tokens: {
-                input: tokens.input,
-                output: tokens.output,
-                total: tokens.total,
-              },
-              toolCalls:
-                toolCalls.length > 0
-                  ? {
-                      list: toolCalls,
-                      count: toolCalls.length,
-                    }
-                  : undefined,
-              providerTiming: {
-                startTime: providerStartTimeISO,
-                endTime: new Date().toISOString(),
-                duration: Date.now() - providerStartTime,
-                modelTime: modelTime,
-                toolsTime: toolsTime,
-                firstResponseTime: firstResponseTime,
-                iterations: iterationCount + 1,
-                timeSegments: timeSegments,
-              },
-              cost: {
-                input: accumulatedCost.input,
-                output: accumulatedCost.output,
-                toolCost: undefined as number | undefined,
-                total: accumulatedCost.total,
-              },
-            },
-            logs: [],
-            metadata: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-            },
-            isStreaming: true,
+        const streamingResult = createStreamingExecution({
+          model: request.model,
+          providerStartTime,
+          providerStartTimeISO,
+          timing: {
+            kind: 'accumulated',
+            modelTime,
+            toolsTime,
+            firstResponseTime,
+            iterations: iterationCount + 1,
+            timeSegments,
           },
-        }
+          initialTokens: {
+            input: tokens.input,
+            output: tokens.output,
+            total: tokens.total,
+          },
+          initialCost: {
+            input: accumulatedCost.input,
+            output: accumulatedCost.output,
+            toolCost: undefined as number | undefined,
+            total: accumulatedCost.total,
+          },
+          toolCalls:
+            toolCalls.length > 0
+              ? {
+                  list: toolCalls,
+                  count: toolCalls.length,
+                }
+              : undefined,
+          isStreaming: true,
+          createStream: ({ output }) =>
+            createReadableStreamFromXAIStream(streamResponse as any, (content, usage) => {
+              output.content = content
+              output.tokens = {
+                input: tokens.input + usage.prompt_tokens,
+                output: tokens.output + usage.completion_tokens,
+                total: tokens.total + usage.total_tokens,
+              }
 
-        return streamingResult as StreamingExecution
+              const streamCost = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              const tc = sumToolCosts(toolResults)
+              output.cost = {
+                input: accumulatedCost.input + streamCost.input,
+                output: accumulatedCost.output + streamCost.output,
+                toolCost: tc || undefined,
+                total: accumulatedCost.total + streamCost.total + tc,
+              }
+            }),
+        })
+
+        return streamingResult
       }
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()

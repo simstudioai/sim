@@ -2,6 +2,7 @@ import type {
   GitLabMergeMergeRequestParams,
   GitLabMergeMergeRequestResponse,
 } from '@/tools/gitlab/types'
+import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabMergeMergeRequestTool: ToolConfig<
@@ -19,6 +20,12 @@ export const gitlabMergeMergeRequestTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'GitLab Personal Access Token',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
     },
     projectId: {
       type: 'string',
@@ -66,8 +73,8 @@ export const gitlabMergeMergeRequestTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId))
-      return `https://gitlab.com/api/v4/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/merge`
+      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/merge`
     },
     method: 'PUT',
     headers: (params) => ({

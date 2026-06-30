@@ -1,7 +1,7 @@
 'use client'
 
-import { Bell, Library, RefreshCw } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+import { Library, RefreshCw } from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
@@ -18,7 +18,6 @@ const COLUMNS = [
 
 const ACTIONS: ChromeActionSpec[] = [
   { text: 'Export', icon: Download },
-  { text: 'Notifications', icon: Bell },
   { text: 'Refresh', icon: RefreshCw },
   { text: 'Logs', active: true },
   { text: 'Dashboard' },

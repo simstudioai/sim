@@ -95,12 +95,14 @@ export const googleBigQueryGetTableTool: ToolConfig<
     type: {
       type: 'string',
       description: 'Table type (TABLE, VIEW, SNAPSHOT, MATERIALIZED_VIEW, EXTERNAL)',
+      optional: true,
     },
     description: { type: 'string', description: 'Table description', optional: true },
-    numRows: { type: 'string', description: 'Total number of rows' },
+    numRows: { type: 'string', description: 'Total number of rows', optional: true },
     numBytes: {
       type: 'string',
       description: 'Total size in bytes, excluding data in streaming buffer',
+      optional: true,
     },
     schema: {
       type: 'array',
@@ -122,11 +124,20 @@ export const googleBigQueryGetTableTool: ToolConfig<
         },
       },
     },
-    creationTime: { type: 'string', description: 'Table creation time (milliseconds since epoch)' },
+    creationTime: {
+      type: 'string',
+      description: 'Table creation time (milliseconds since epoch)',
+      optional: true,
+    },
     lastModifiedTime: {
       type: 'string',
       description: 'Last modification time (milliseconds since epoch)',
+      optional: true,
     },
-    location: { type: 'string', description: 'Geographic location where the table resides' },
+    location: {
+      type: 'string',
+      description: 'Geographic location where the table resides',
+      optional: true,
+    },
   },
 }

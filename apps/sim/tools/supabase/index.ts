@@ -3,6 +3,7 @@ import { deleteTool } from '@/tools/supabase/delete'
 import { getRowTool } from '@/tools/supabase/get_row'
 import { insertTool } from '@/tools/supabase/insert'
 import { introspectTool } from '@/tools/supabase/introspect'
+import { invokeFunctionTool } from '@/tools/supabase/invoke_function'
 import { queryTool } from '@/tools/supabase/query'
 import { rpcTool } from '@/tools/supabase/rpc'
 import { storageCopyTool } from '@/tools/supabase/storage_copy'
@@ -30,6 +31,7 @@ export const supabaseUpsertTool = upsertTool
 export const supabaseVectorSearchTool = vectorSearchTool
 export const supabaseRpcTool = rpcTool
 export const supabaseIntrospectTool = introspectTool
+export const supabaseInvokeFunctionTool = invokeFunctionTool
 export const supabaseTextSearchTool = textSearchTool
 export const supabaseCountTool = countTool
 export const supabaseStorageUploadTool = storageUploadTool

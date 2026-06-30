@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipConfirmModal } from '@/components/emcn'
+import { ChipConfirmModal } from '@sim/emcn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { useDeleteChunk } from '@/hooks/queries/kb/knowledge'
 
@@ -35,7 +35,7 @@ export function DeleteChunkModal({
       onOpenChange={onClose}
       srTitle='Delete Chunk'
       title='Delete Chunk'
-      description='Are you sure you want to delete this chunk? This action cannot be undone.'
+      text='Are you sure you want to delete this chunk? This action cannot be undone.'
       confirm={{
         label: 'Delete',
         onClick: handleDeleteChunk,

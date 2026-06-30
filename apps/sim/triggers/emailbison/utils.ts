@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
@@ -499,12 +500,8 @@ export function isEmailBisonEventMatch(triggerId: string, body: Record<string, u
   if (!expectedEventType) return false
 
   const event = body.event
-  if (!isRecord(event)) return false
+  if (!isRecordLike(event)) return false
 
   const actualEventType = event.type
   return typeof actualEventType === 'string' && actualEventType.toLowerCase() === expectedEventType
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipInput, Search } from '@/components/emcn'
+import { ChipInput, Search } from '@sim/emcn'
 import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
 

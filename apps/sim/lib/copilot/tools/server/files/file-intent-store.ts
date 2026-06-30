@@ -11,6 +11,11 @@ export type PendingFileIntent = {
   userId: string
   chatId?: string
   messageId?: string
+  // The invoking file subagent's channel id (its outer tool_use id). Lets
+  // edit_content consume the intent for ITS OWN file subagent instead of the
+  // latest in the message, so two file agents writing concurrently never cross
+  // their content into each other's file.
+  channelId?: string
   fileRecord: WorkspaceFileRecord
   existingContent?: string
   edit?: {
@@ -33,6 +38,10 @@ export type PendingFileIntent = {
 export type FileIntentScope = {
   chatId?: string
   messageId?: string
+  // When set, consumeLatestFileIntent only considers intents from this subagent
+  // channel — the key to isolating concurrent file subagents. Omitted by callers
+  // that intentionally span the whole message (e.g. clearIntentsForWorkspace).
+  channelId?: string
 }
 
 const logger = createLogger('FileIntentStore')
@@ -53,6 +62,14 @@ function getWorkspaceRedisKey(workspaceId: string): string {
 
 function scopeMatches(intent: PendingFileIntent, scope?: FileIntentScope): boolean {
   return intent.chatId === scope?.chatId && intent.messageId === scope?.messageId
+}
+
+// Channel filter for consume: when a scope carries a channelId, only the
+// matching file subagent's intent qualifies. No channelId => message-wide
+// (legacy / main-agent) behavior. Deliberately separate from scopeMatches so
+// clearIntentsForWorkspace keeps clearing every channel in a message.
+function channelMatches(intent: PendingFileIntent, scope?: FileIntentScope): boolean {
+  return !scope?.channelId || intent.channelId === scope.channelId
 }
 
 function buildScopedField(fileId: string, scope?: FileIntentScope): string {
@@ -200,7 +217,11 @@ export async function consumeLatestFileIntent(
     let latest: PendingFileIntent | undefined
     let latestKey: string | undefined
     for (const [key, intent] of memoryStore) {
-      if (intent.workspaceId === workspaceId && scopeMatches(intent, scope)) {
+      if (
+        intent.workspaceId === workspaceId &&
+        scopeMatches(intent, scope) &&
+        channelMatches(intent, scope)
+      ) {
         if (!latest || intent.createdAt > latest.createdAt) {
           latest = intent
           latestKey = key
@@ -225,7 +246,7 @@ export async function consumeLatestFileIntent(
       staleFields.push(field)
       continue
     }
-    if (!scopeMatches(parsed, scope)) {
+    if (!scopeMatches(parsed, scope) || !channelMatches(parsed, scope)) {
       continue
     }
     if (!latest || parsed.createdAt > latest.createdAt) {

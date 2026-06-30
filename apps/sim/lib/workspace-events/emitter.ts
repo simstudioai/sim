@@ -1,13 +1,17 @@
 import { createLogger } from '@sim/logger'
+import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { generateShortId } from '@sim/utils/id'
-import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   isSimRuleEventType,
   SIM_RULE_COOLDOWN_HOURS,
   SIM_TRIGGER_PROVIDER,
 } from '@/lib/workspace-events/constants'
-import { buildDeployEventPayload, buildExecutionEventPayload } from '@/lib/workspace-events/payload'
+import {
+  buildDeployEventPayload,
+  buildExecutionEventPayload,
+  buildUndeployEventPayload,
+} from '@/lib/workspace-events/payload'
 import { evaluateRule } from '@/lib/workspace-events/rules'
 import { claimCooldown, isWithinCooldown, readLastFiredAt } from '@/lib/workspace-events/state'
 import {
@@ -158,6 +162,39 @@ export async function emitExecutionCompletedEvent(log: WorkflowExecutionLog): Pr
 }
 
 /**
+ * Shared dispatch loop for workflow lifecycle events: matches subscriptions
+ * on event type and workflow scope, never notifying the source workflow about
+ * itself. Fire-and-forget: failures never affect the lifecycle operation.
+ */
+async function emitWorkflowLifecycleEvent(params: {
+  eventType: 'workflow_deployed' | 'workflow_undeployed'
+  workflowId: string
+  workspaceId: string
+  payload: SimEventPayload
+}): Promise<void> {
+  try {
+    const subscriptions = await fetchSimTriggerSubscriptions(params.workspaceId)
+    if (subscriptions.length === 0) return
+
+    for (const subscription of subscriptions) {
+      const config = parseSubscriptionConfig(subscription.webhook.providerConfig)
+      if (!config) continue
+      if (config.eventType !== params.eventType) continue
+
+      if (subscription.webhook.workflowId === params.workflowId) continue
+      if (!matchesWorkflowScope(config, params.workflowId)) continue
+
+      await dispatchSimEvent(subscription, params.payload)
+    }
+  } catch (error) {
+    logger.error(`Failed to emit ${params.eventType} event`, {
+      error,
+      workflowId: params.workflowId,
+    })
+  }
+}
+
+/**
  * Emits a workflow_deployed event to subscribed side-effect workflows.
  *
  * Fired on any deployment activation (fresh deploy, redeploy, version
@@ -169,30 +206,36 @@ export async function emitWorkflowDeployedEvent(params: {
   workspaceId: string
   version: number | null
 }): Promise<void> {
-  try {
-    const subscriptions = await fetchSimTriggerSubscriptions(params.workspaceId)
-    if (subscriptions.length === 0) return
-
-    for (const subscription of subscriptions) {
-      const config = parseSubscriptionConfig(subscription.webhook.providerConfig)
-      if (!config) continue
-      if (config.eventType !== 'workflow_deployed') continue
-
-      if (subscription.webhook.workflowId === params.workflowId) continue
-      if (!matchesWorkflowScope(config, params.workflowId)) continue
-
-      const payload = buildDeployEventPayload({
-        workflowId: params.workflowId,
-        workflowName: params.workflowName,
-        version: params.version,
-      })
-
-      await dispatchSimEvent(subscription, payload)
-    }
-  } catch (error) {
-    logger.error('Failed to emit workflow deployed event', {
-      error,
+  await emitWorkflowLifecycleEvent({
+    eventType: 'workflow_deployed',
+    workflowId: params.workflowId,
+    workspaceId: params.workspaceId,
+    payload: buildDeployEventPayload({
       workflowId: params.workflowId,
-    })
-  }
+      workflowName: params.workflowName,
+      version: params.version,
+    }),
+  })
+}
+
+/**
+ * Emits a workflow_undeployed event to subscribed side-effect workflows.
+ *
+ * Fired when a workflow is taken offline. Fire-and-forget: failures never
+ * affect the undeploy.
+ */
+export async function emitWorkflowUndeployedEvent(params: {
+  workflowId: string
+  workflowName: string
+  workspaceId: string
+}): Promise<void> {
+  await emitWorkflowLifecycleEvent({
+    eventType: 'workflow_undeployed',
+    workflowId: params.workflowId,
+    workspaceId: params.workspaceId,
+    payload: buildUndeployEventPayload({
+      workflowId: params.workflowId,
+      workflowName: params.workflowName,
+    }),
+  })
 }

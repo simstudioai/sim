@@ -1,14 +1,14 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId, generateShortId } from '@sim/utils/id'
 import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
   WorkflowLockedError,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
@@ -31,6 +31,7 @@ import {
   findConflictingWebhookPathOwner,
   syncWebhooksForCredentialSet,
 } from '@/lib/webhooks/utils.server'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
 const logger = createLogger('WebhooksAPI')
@@ -151,12 +152,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }
 
-    const workspacePermissionRows = await db
-      .select({ workspaceId: permissions.entityId })
-      .from(permissions)
-      .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace')))
-
-    const workspaceIds = workspacePermissionRows.map((row) => row.workspaceId)
+    const accessibleRows = await listAccessibleWorkspaceRowsForUser(session.user.id, 'all')
+    const workspaceIds = accessibleRows.map((row) => row.workspace.id)
     if (workspaceIds.length === 0) {
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }

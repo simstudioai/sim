@@ -110,6 +110,17 @@ export async function extractGraphError(response: Response): Promise<string> {
   return parseGraphErrorMessage(response.status, response.statusText, errorText)
 }
 
+/**
+ * Escape a string for use inside an OData single-quoted literal (e.g. a
+ * `worksheets('...')` or `tables('...')` key). OData escapes an embedded single
+ * quote by doubling it, so a name like `O'Brien` becomes `O''Brien`; without this
+ * the apostrophe terminates the literal early and breaks the request URL.
+ * `encodeURIComponent` leaves apostrophes untouched, so the doubling must happen here.
+ */
+export function escapeODataString(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
 /** Pattern for Microsoft Graph item/drive IDs: alphanumeric, hyphens, underscores, and ! (for SharePoint b!<base64> format) */
 export const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
 
@@ -138,6 +149,56 @@ export function getItemBasePath(spreadsheetId: string, driveId?: string): string
     return `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
   }
   return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
+}
+
+/**
+ * Resolves a worksheet name and cell address from either an explicit sheet name
+ * plus address, or a combined "Sheet1!A1:B2" range string.
+ *
+ * - When `sheetName` is provided, `address` is treated as a bare cell address (e.g. "A1:B2").
+ * - When `sheetName` is omitted, `address` must be a combined "Sheet1!A1:B2" range.
+ *
+ * Throws when a worksheet name cannot be determined or the combined format is invalid.
+ */
+export function resolveSheetAndAddress(
+  address: string | undefined,
+  sheetName?: string
+): { sheetName: string; address: string } {
+  const trimmedAddress = address?.trim()
+  if (!trimmedAddress) {
+    throw new Error('A cell range is required (e.g., "A1:B2" or "Sheet1!A1:B2")')
+  }
+
+  const trimmedSheet = sheetName?.trim()
+  if (trimmedSheet) {
+    return { sheetName: trimmedSheet, address: trimmedAddress }
+  }
+
+  const match = trimmedAddress.match(/^([^!]+)!(.+)$/)
+  if (!match) {
+    throw new Error(
+      `Invalid range format: "${address}". Provide a sheet name, or use the combined format "Sheet1!A1:B2"`
+    )
+  }
+
+  return { sheetName: match[1], address: match[2] }
+}
+
+/**
+ * Builds the Graph API URL for a worksheet range object, resolving the sheet name
+ * from either an explicit `sheetName` param or a combined "Sheet1!A1:B2" address.
+ * The returned URL has no trailing segment, so callers append `/clear`, `/sort/apply`,
+ * `/format/fill`, `/format/font`, or nothing for the range object itself.
+ */
+export function buildWorksheetRangeUrl(
+  basePath: string,
+  address: string | undefined,
+  sheetName?: string
+): string {
+  const resolved = resolveSheetAndAddress(address, sheetName)
+  const encodedSheet = encodeURIComponent(escapeODataString(resolved.sheetName))
+  const encodedAddress = encodeURIComponent(resolved.address)
+  return `${basePath}/workbook/worksheets('${encodedSheet}')/range(address='${encodedAddress}')`
 }
 
 export function trimTrailingEmptyRowsAndColumns(matrix: ExcelCellValue[][]): ExcelCellValue[][] {

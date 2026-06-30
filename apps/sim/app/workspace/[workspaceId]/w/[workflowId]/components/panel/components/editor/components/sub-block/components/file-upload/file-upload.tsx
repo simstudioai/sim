@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import { Button, Combobox, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -8,12 +9,10 @@ import { randomFloat } from '@sim/utils/random'
 import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Combobox } from '@/components/emcn/components'
 import { Progress } from '@/components/ui/progress'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
-import { cn } from '@/lib/core/utils/cn'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -24,6 +23,8 @@ import {
   useWorkspaceFiles,
   workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
+import { getProviderAttachmentMaxBytes } from '@/providers/attachments'
+import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -167,6 +168,7 @@ export function FileUpload({
 }: FileUploadProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const [modelValue] = useSubBlockValue(blockId, 'model')
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -190,6 +192,17 @@ export function FileUpload({
   const queryClient = useQueryClient()
 
   const value = isPreview ? previewValue : storeValue
+
+  const maxSizeInBytes = useMemo(() => {
+    const fallback = maxSize * 1024 * 1024
+    if (typeof modelValue !== 'string' || !modelValue) return fallback
+    try {
+      return Math.max(fallback, getProviderAttachmentMaxBytes(getProviderFromModel(modelValue)))
+    } catch {
+      return fallback
+    }
+  }, [modelValue, maxSize])
+  const maxSizeLabel = `${Math.round(maxSizeInBytes / (1024 * 1024))}MB`
 
   /**
    * Checks if a file's MIME type matches the accepted types
@@ -278,25 +291,19 @@ export function FileUpload({
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    const existingFiles = Array.isArray(value) ? value : value ? [value] : []
-    const existingTotalSize = existingFiles.reduce((sum, file) => sum + file.size, 0)
-
-    const maxSizeInBytes = maxSize * 1024 * 1024
     const validFiles: File[] = []
-    let totalNewSize = 0
     let sizeExceededFile: string | null = null
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
-      if (existingTotalSize + totalNewSize + file.size > maxSizeInBytes) {
-        const errorMessage = `Adding ${file.name} would exceed the maximum size limit of ${maxSize}MB`
+      if (file.size > maxSizeInBytes) {
+        const errorMessage = `${file.name} exceeds the maximum file size of ${maxSizeLabel}`
         logger.error(errorMessage, activeWorkflowId)
         if (!sizeExceededFile) {
           sizeExceededFile = errorMessage
         }
       } else {
         validFiles.push(file)
-        totalNewSize += file.size
       }
     }
 

@@ -1,8 +1,6 @@
 'use client'
 
 import { type ComponentType, useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import {
   ChipModal,
   ChipModalBody,
@@ -11,7 +9,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   SecretInput,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -287,10 +287,12 @@ function GoogleServiceAccountModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
-        secondaryAction={{
-          label: 'Setup guide',
-          onClick: () => openDocs(GOOGLE_SERVICE_ACCOUNT_DOCS_URL),
-        }}
+        secondaryActions={[
+          {
+            label: 'Setup guide',
+            onClick: () => openDocs(GOOGLE_SERVICE_ACCOUNT_DOCS_URL),
+          },
+        ]}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
           onClick: handleSubmit,
@@ -427,10 +429,12 @@ function AtlassianServiceAccountModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
-        secondaryAction={{
-          label: 'Setup guide',
-          onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
-        }}
+        secondaryActions={[
+          {
+            label: 'Setup guide',
+            onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
+          },
+        ]}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
           onClick: handleSubmit,

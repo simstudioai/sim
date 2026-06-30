@@ -3,7 +3,7 @@ import { RateLimiter } from './rate-limiter'
 import type { ConsumeResult, RateLimitStorageAdapter, TokenStatus } from './storage'
 import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS, RateLimitError } from './types'
 
-vi.mock('@/lib/core/config/feature-flags', () => ({ isBillingEnabled: true }))
+vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
 
 interface MockAdapter {
   consumeTokens: Mock

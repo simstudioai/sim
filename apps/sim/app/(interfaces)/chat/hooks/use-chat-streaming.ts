@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { readSSEEvents } from '@/lib/core/utils/sse'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ChatFile, ChatMessage } from '@/app/(interfaces)/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/(interfaces)/chat/constants'
@@ -125,14 +126,12 @@ export function useChatStreaming() {
       streamingOptions?.voiceSettings?.autoPlayResponses &&
       streamingOptions?.audioStreamHandler
 
-    const reader = response.body?.getReader()
-    if (!reader) {
+    if (!response.body) {
       setIsLoading(false)
       setIsStreamingResponse(false)
       return
     }
 
-    const decoder = new TextDecoder()
     let accumulatedText = ''
     let lastAudioPosition = 0
 
@@ -192,264 +191,252 @@ export function useChatStreaming() {
 
     setIsLoading(false)
 
+    let terminated = false
+
     try {
-      while (true) {
-        // Check if aborted
-        if (abortControllerRef.current === null) {
-          break
+      await readSSEEvents<{
+        blockId?: string
+        chunk?: string
+        event?: string
+        error?: string
+        data?: {
+          success: boolean
+          error?: string | { message?: string }
+          output?: Record<string, Record<string, any>>
         }
+      }>(response.body, {
+        signal: abortControllerRef.current.signal,
+        onParseError: (_data, parseError) => {
+          logger.error('Error parsing stream data:', parseError)
+        },
+        onEvent: async (json) => {
+          const { blockId, chunk: contentChunk, event: eventType } = json
 
-        const { done, value } = await reader.read()
-
-        if (done) {
-          flushUI()
-          // Stream any remaining text for TTS
-          if (
-            shouldPlayAudio &&
-            streamingOptions?.audioStreamHandler &&
-            accumulatedText.length > lastAudioPosition
-          ) {
-            const remainingText = accumulatedText.substring(lastAudioPosition).trim()
-            if (remainingText) {
-              try {
-                await streamingOptions.audioStreamHandler(remainingText)
-              } catch (error) {
-                logger.error('TTS error for remaining text:', error)
-              }
-            }
-          }
-          break
-        }
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n\n')
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.substring(6)
-
-            if (data === '[DONE]') {
-              continue
-            }
-
-            try {
-              const json = JSON.parse(data)
-              const { blockId, chunk: contentChunk, event: eventType } = json
-
-              if (eventType === 'error' || json.event === 'error') {
-                const errorMessage = json.error || CHAT_ERROR_MESSAGES.GENERIC_ERROR
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === messageId
-                      ? {
-                          ...msg,
-                          content: errorMessage,
-                          isStreaming: false,
-                          type: 'assistant' as const,
-                        }
-                      : msg
-                  )
-                )
-                setIsLoading(false)
-                return
-              }
-
-              if (eventType === 'final' && json.data) {
-                flushUI()
-                const finalData = json.data as {
-                  success: boolean
-                  error?: string | { message?: string }
-                  output?: Record<string, Record<string, any>>
-                }
-
-                const outputConfigs = streamingOptions?.outputConfigs
-                const formattedOutputs: string[] = []
-                let extractedFiles: ChatFile[] = []
-
-                const formatValue = (value: any): string | null => {
-                  if (value === null || value === undefined) {
-                    return null
-                  }
-
-                  if (isUserFileWithMetadata(value)) {
-                    return null
-                  }
-
-                  if (Array.isArray(value) && value.length === 0) {
-                    return null
-                  }
-
-                  if (typeof value === 'string') {
-                    return value
-                  }
-
-                  if (typeof value === 'object') {
-                    try {
-                      return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
-                    } catch {
-                      return String(value)
+          if (eventType === 'error' || json.event === 'error') {
+            const errorMessage = json.error || CHAT_ERROR_MESSAGES.GENERIC_ERROR
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      content: errorMessage,
+                      isStreaming: false,
+                      type: 'assistant' as const,
                     }
-                  }
+                  : msg
+              )
+            )
+            setIsLoading(false)
+            terminated = true
+            return true
+          }
 
+          if (eventType === 'final' && json.data) {
+            flushUI()
+            const finalData = json.data
+
+            const outputConfigs = streamingOptions?.outputConfigs
+            const formattedOutputs: string[] = []
+            let extractedFiles: ChatFile[] = []
+
+            const formatValue = (value: any): string | null => {
+              if (value === null || value === undefined) {
+                return null
+              }
+
+              if (isUserFileWithMetadata(value)) {
+                return null
+              }
+
+              if (Array.isArray(value) && value.length === 0) {
+                return null
+              }
+
+              if (typeof value === 'string') {
+                return value
+              }
+
+              if (typeof value === 'object') {
+                try {
+                  return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
+                } catch {
                   return String(value)
                 }
+              }
 
-                const getOutputValue = (blockOutputs: Record<string, any>, path?: string) => {
-                  if (!path || path === 'content') {
-                    if (blockOutputs.content !== undefined) return blockOutputs.content
-                    if (blockOutputs.result !== undefined) return blockOutputs.result
-                    return blockOutputs
+              return String(value)
+            }
+
+            const getOutputValue = (blockOutputs: Record<string, any>, path?: string) => {
+              if (!path || path === 'content') {
+                if (blockOutputs.content !== undefined) return blockOutputs.content
+                if (blockOutputs.result !== undefined) return blockOutputs.result
+                return blockOutputs
+              }
+
+              if (blockOutputs[path] !== undefined) {
+                return blockOutputs[path]
+              }
+
+              if (path.includes('.')) {
+                return path.split('.').reduce<any>((current, segment) => {
+                  if (current && typeof current === 'object' && segment in current) {
+                    return current[segment]
                   }
-
-                  if (blockOutputs[path] !== undefined) {
-                    return blockOutputs[path]
-                  }
-
-                  if (path.includes('.')) {
-                    return path.split('.').reduce<any>((current, segment) => {
-                      if (current && typeof current === 'object' && segment in current) {
-                        return current[segment]
-                      }
-                      return undefined
-                    }, blockOutputs)
-                  }
-
                   return undefined
-                }
-
-                if (outputConfigs?.length && finalData.output) {
-                  for (const config of outputConfigs) {
-                    const blockOutputs = finalData.output[config.blockId]
-                    if (!blockOutputs) continue
-
-                    const value = getOutputValue(blockOutputs, config.path)
-
-                    if (isUserFileWithMetadata(value)) {
-                      extractedFiles.push({
-                        id: value.id,
-                        name: value.name,
-                        url: value.url,
-                        key: value.key,
-                        size: value.size,
-                        type: value.type,
-                        context: value.context,
-                      })
-                      continue
-                    }
-
-                    const nestedFiles = extractFilesFromData(value)
-                    if (nestedFiles.length > 0) {
-                      extractedFiles = [...extractedFiles, ...nestedFiles]
-                      continue
-                    }
-
-                    const formatted = formatValue(value)
-                    if (formatted) {
-                      formattedOutputs.push(formatted)
-                    }
-                  }
-                }
-
-                let finalContent = accumulatedText
-
-                if (formattedOutputs.length > 0) {
-                  const nonEmptyOutputs = formattedOutputs.filter((output) => output.trim())
-                  if (nonEmptyOutputs.length > 0) {
-                    const combinedOutputs = nonEmptyOutputs.join('\n\n')
-                    finalContent = finalContent
-                      ? `${finalContent.trim()}\n\n${combinedOutputs}`
-                      : combinedOutputs
-                  }
-                }
-
-                if (!finalContent && extractedFiles.length === 0) {
-                  if (finalData.error) {
-                    if (typeof finalData.error === 'string') {
-                      finalContent = finalData.error
-                    } else if (typeof finalData.error?.message === 'string') {
-                      finalContent = finalData.error.message
-                    }
-                  } else if (finalData.success && finalData.output) {
-                    const fallbackOutput = Object.values(finalData.output)
-                      .map((block) => formatValue(block)?.trim())
-                      .filter(Boolean)[0]
-                    if (fallbackOutput) {
-                      finalContent = fallbackOutput
-                    }
-                  }
-                }
-
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === messageId
-                      ? {
-                          ...msg,
-                          isStreaming: false,
-                          content: finalContent ?? msg.content,
-                          files: extractedFiles.length > 0 ? extractedFiles : undefined,
-                        }
-                      : msg
-                  )
-                )
-
-                accumulatedTextRef.current = ''
-                lastStreamedPositionRef.current = 0
-                lastDisplayedPositionRef.current = 0
-                audioStreamingActiveRef.current = false
-
-                return
+                }, blockOutputs)
               }
 
-              if (blockId && contentChunk) {
-                if (!messageIdMap.has(blockId)) {
-                  messageIdMap.set(blockId, messageId)
+              return undefined
+            }
+
+            if (outputConfigs?.length && finalData.output) {
+              for (const config of outputConfigs) {
+                const blockOutputs = finalData.output[config.blockId]
+                if (!blockOutputs) continue
+
+                const value = getOutputValue(blockOutputs, config.path)
+
+                if (isUserFileWithMetadata(value)) {
+                  extractedFiles.push({
+                    id: value.id,
+                    name: value.name,
+                    url: value.url,
+                    key: value.key,
+                    size: value.size,
+                    type: value.type,
+                    context: value.context,
+                  })
+                  continue
                 }
 
-                accumulatedText += contentChunk
-                accumulatedTextRef.current = accumulatedText
-                logger.debug('[useChatStreaming] Received chunk', {
-                  blockId,
-                  chunkLength: contentChunk.length,
-                  totalLength: accumulatedText.length,
-                  messageId,
-                  chunk: contentChunk.substring(0, 20),
-                })
-                uiDirty = true
-                scheduleUIFlush()
-
-                // Real-time TTS for voice mode
-                if (shouldPlayAudio && streamingOptions?.audioStreamHandler) {
-                  const newText = accumulatedText.substring(lastAudioPosition)
-                  const sentenceEndings = ['. ', '! ', '? ', '.\n', '!\n', '?\n', '.', '!', '?']
-                  let sentenceEnd = -1
-
-                  for (const ending of sentenceEndings) {
-                    const index = newText.indexOf(ending)
-                    if (index > 0) {
-                      sentenceEnd = index + ending.length
-                      break
-                    }
-                  }
-
-                  if (sentenceEnd > 0) {
-                    const sentence = newText.substring(0, sentenceEnd).trim()
-                    if (sentence && sentence.length >= 3) {
-                      try {
-                        await streamingOptions.audioStreamHandler(sentence)
-                        lastAudioPosition += sentenceEnd
-                      } catch (error) {
-                        logger.error('TTS error:', error)
-                      }
-                    }
-                  }
+                const nestedFiles = extractFilesFromData(value)
+                if (nestedFiles.length > 0) {
+                  extractedFiles = [...extractedFiles, ...nestedFiles]
+                  continue
                 }
-              } else if (blockId && eventType === 'end') {
-                setMessages((prev) =>
-                  prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg))
-                )
+
+                const formatted = formatValue(value)
+                if (formatted) {
+                  formattedOutputs.push(formatted)
+                }
               }
-            } catch (parseError) {
-              logger.error('Error parsing stream data:', parseError)
+            }
+
+            let finalContent = accumulatedText
+
+            if (formattedOutputs.length > 0) {
+              const nonEmptyOutputs = formattedOutputs.filter((output) => output.trim())
+              if (nonEmptyOutputs.length > 0) {
+                const combinedOutputs = nonEmptyOutputs.join('\n\n')
+                finalContent = finalContent
+                  ? `${finalContent.trim()}\n\n${combinedOutputs}`
+                  : combinedOutputs
+              }
+            }
+
+            if (!finalContent && extractedFiles.length === 0) {
+              if (finalData.error) {
+                if (typeof finalData.error === 'string') {
+                  finalContent = finalData.error
+                } else if (typeof finalData.error?.message === 'string') {
+                  finalContent = finalData.error.message
+                }
+              } else if (finalData.success && finalData.output) {
+                const fallbackOutput = Object.values(finalData.output)
+                  .map((block) => formatValue(block)?.trim())
+                  .filter(Boolean)[0]
+                if (fallbackOutput) {
+                  finalContent = fallbackOutput
+                }
+              }
+            }
+
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      isStreaming: false,
+                      content: finalContent ?? msg.content,
+                      files: extractedFiles.length > 0 ? extractedFiles : undefined,
+                    }
+                  : msg
+              )
+            )
+
+            accumulatedTextRef.current = ''
+            lastStreamedPositionRef.current = 0
+            lastDisplayedPositionRef.current = 0
+            audioStreamingActiveRef.current = false
+
+            terminated = true
+            return true
+          }
+
+          if (blockId && contentChunk) {
+            if (!messageIdMap.has(blockId)) {
+              messageIdMap.set(blockId, messageId)
+            }
+
+            accumulatedText += contentChunk
+            accumulatedTextRef.current = accumulatedText
+            logger.debug('[useChatStreaming] Received chunk', {
+              blockId,
+              chunkLength: contentChunk.length,
+              totalLength: accumulatedText.length,
+              messageId,
+              chunk: contentChunk.substring(0, 20),
+            })
+            uiDirty = true
+            scheduleUIFlush()
+
+            if (shouldPlayAudio && streamingOptions?.audioStreamHandler) {
+              const newText = accumulatedText.substring(lastAudioPosition)
+              const sentenceEndings = ['. ', '! ', '? ', '.\n', '!\n', '?\n', '.', '!', '?']
+              let sentenceEnd = -1
+
+              for (const ending of sentenceEndings) {
+                const index = newText.indexOf(ending)
+                if (index > 0) {
+                  sentenceEnd = index + ending.length
+                  break
+                }
+              }
+
+              if (sentenceEnd > 0) {
+                const sentence = newText.substring(0, sentenceEnd).trim()
+                if (sentence && sentence.length >= 3) {
+                  try {
+                    await streamingOptions.audioStreamHandler(sentence)
+                    lastAudioPosition += sentenceEnd
+                  } catch (error) {
+                    logger.error('TTS error:', error)
+                  }
+                }
+              }
+            }
+          } else if (blockId && eventType === 'end') {
+            setMessages((prev) =>
+              prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg))
+            )
+          }
+        },
+      })
+
+      if (!terminated) {
+        flushUI()
+        if (
+          shouldPlayAudio &&
+          streamingOptions?.audioStreamHandler &&
+          accumulatedText.length > lastAudioPosition
+        ) {
+          const remainingText = accumulatedText.substring(lastAudioPosition).trim()
+          if (remainingText) {
+            try {
+              await streamingOptions.audioStreamHandler(remainingText)
+            } catch (error) {
+              logger.error('TTS error for remaining text:', error)
             }
           }
         }

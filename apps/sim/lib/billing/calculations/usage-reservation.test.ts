@@ -8,7 +8,7 @@ const { mockFlags } = vi.hoisted(() => ({
   mockFlags: { isBillingEnabled: true },
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isBillingEnabled() {
     return mockFlags.isBillingEnabled
   },

@@ -172,8 +172,8 @@ export function useCreateWorkflowMcpServer() {
       logger.info(`Created workflow MCP server: ${name}`)
       return data.data.server
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+    onSettled: (_data, _error, variables) => {
+      return queryClient.invalidateQueries({
         queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
       })
     },
@@ -211,13 +211,15 @@ export function useUpdateWorkflowMcpServer() {
       logger.info(`Updated workflow MCP server: ${serverId}`)
       return data.data.server
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
-      })
+    onSettled: (_data, _error, variables) => {
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
+        }),
+      ])
     },
   })
 }
@@ -243,8 +245,8 @@ export function useDeleteWorkflowMcpServer() {
       logger.info(`Deleted workflow MCP server: ${serverId}`)
       return data
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+    onSettled: (_data, _error, variables) => {
+      return queryClient.invalidateQueries({
         queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
       })
     },
@@ -260,7 +262,7 @@ interface AddWorkflowMcpToolParams {
   workflowId: string
   toolName?: string
   toolDescription?: string
-  parameterSchema?: Record<string, unknown>
+  parameterDescriptionOverrides?: Record<string, string>
 }
 
 export function useAddWorkflowMcpTool() {
@@ -273,27 +275,29 @@ export function useAddWorkflowMcpTool() {
       workflowId,
       toolName,
       toolDescription,
-      parameterSchema,
+      parameterDescriptionOverrides,
     }: AddWorkflowMcpToolParams) => {
       const data = await requestJson(createWorkflowMcpToolContract, {
         params: { id: serverId },
         query: { workspaceId },
-        body: { workflowId, toolName, toolDescription, parameterSchema },
+        body: { workflowId, toolName, toolDescription, parameterDescriptionOverrides },
       })
 
       logger.info(`Added tool to workflow MCP server: ${serverId}`)
       return data.data.tool
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.tools(variables.workspaceId, variables.serverId),
-      })
+    onSettled: (_data, _error, variables) => {
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workflowMcpServerKeys.tools(variables.workspaceId, variables.serverId),
+        }),
+      ])
     },
   })
 }
@@ -307,6 +311,11 @@ interface UpdateWorkflowMcpToolParams {
   toolId: string
   toolName?: string
   toolDescription?: string
+  parameterDescriptionOverrides?: Record<string, string>
+  /**
+   * Full edited schema sent by the Settings edit modal, which has no Start-block context to compute
+   * sparse overrides; the server diffs it against the deployed base to extract the overrides.
+   */
   parameterSchema?: Record<string, unknown>
 }
 
@@ -329,8 +338,8 @@ export function useUpdateWorkflowMcpTool() {
       logger.info(`Updated tool ${toolId} in workflow MCP server: ${serverId}`)
       return data.data.tool
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+    onSettled: (_data, _error, variables) => {
+      return queryClient.invalidateQueries({
         queryKey: workflowMcpServerKeys.tools(variables.workspaceId, variables.serverId),
       })
     },
@@ -359,16 +368,18 @@ export function useDeleteWorkflowMcpTool() {
       logger.info(`Deleted tool ${toolId} from workflow MCP server: ${serverId}`)
       return data
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.tools(variables.workspaceId, variables.serverId),
-      })
+    onSettled: (_data, _error, variables) => {
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workflowMcpServerKeys.tools(variables.workspaceId, variables.serverId),
+        }),
+      ])
     },
   })
 }

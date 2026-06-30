@@ -822,9 +822,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   ...FileV4Block,
   type: 'file_v5',
   name: 'File',
-  description: 'Read, get content, fetch, write, and append files',
+  description:
+    'Read, get content, fetch, write, append, compress, decompress, and manage sharing for files',
   longDescription:
-    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.',
+    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
   hideFromToolbar: false,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. Use it to pick files or pass file references downstream (e.g. as attachments).
@@ -833,6 +834,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Get Content's "contents" can be large; it is persisted through the execution large-value system automatically, so prefer it over inlining file text any other way.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
   - Use Write to create a new workspace file and Append to add content to an existing one.
+  - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "files" output.
+  - Use Decompress to extract a .zip archive back into the workspace; the extracted files are returned in the "files" output, ready to chain into Get Content or downstream blocks.
   `,
   subBlocks: [
     {
@@ -845,6 +848,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'Fetch', id: 'file_fetch' },
         { label: 'Write', id: 'file_write' },
         { label: 'Append', id: 'file_append' },
+        { label: 'Compress', id: 'file_compress' },
+        { label: 'Decompress', id: 'file_decompress' },
+        { label: 'Manage Sharing', id: 'file_manage_sharing' },
       ],
       value: () => 'file_read',
     },
@@ -962,9 +968,136 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       condition: { field: 'operation', value: 'file_append' },
       required: { field: 'operation', value: 'file_append' },
     },
+    {
+      id: 'compressFile',
+      title: 'Files',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'compressInput',
+      acceptedTypes: '*',
+      placeholder: 'Select workspace files',
+      multiple: true,
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_compress' },
+      required: { field: 'operation', value: 'file_compress' },
+    },
+    {
+      id: 'compressFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'compressInput',
+      placeholder: 'Workspace file ID or JSON array of IDs',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_compress' },
+      required: { field: 'operation', value: 'file_compress' },
+    },
+    {
+      id: 'archiveName',
+      title: 'Archive Name',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'archive.zip (auto-named from source if omitted)',
+      condition: { field: 'operation', value: 'file_compress' },
+    },
+    {
+      id: 'decompressFile',
+      title: 'Archive',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'decompressInput',
+      acceptedTypes: '.zip',
+      placeholder: 'Select a .zip archive',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_decompress' },
+      required: { field: 'operation', value: 'file_decompress' },
+    },
+    {
+      id: 'decompressFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'decompressInput',
+      placeholder: 'Workspace file ID of the .zip archive',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_decompress' },
+      required: { field: 'operation', value: 'file_decompress' },
+    },
+    {
+      id: 'shareFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'shareInput',
+      acceptedTypes: '*',
+      placeholder: 'Select a workspace file',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_manage_sharing' },
+      required: { field: 'operation', value: 'file_manage_sharing' },
+    },
+    {
+      id: 'shareFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'shareInput',
+      placeholder: 'Workspace file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_manage_sharing' },
+      required: { field: 'operation', value: 'file_manage_sharing' },
+    },
+    {
+      id: 'shareVisibility',
+      title: 'Visibility',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { label: 'Private (disable link)', id: 'private' },
+        { label: 'Anyone with the link', id: 'public' },
+        { label: 'Password protected', id: 'password' },
+        { label: 'Email allowlist', id: 'email' },
+        { label: 'SSO', id: 'sso' },
+      ],
+      value: () => 'public',
+      condition: { field: 'operation', value: 'file_manage_sharing' },
+    },
+    {
+      id: 'sharePassword',
+      title: 'Password',
+      type: 'short-input' as SubBlockType,
+      password: true,
+      placeholder: 'Password for the public link',
+      condition: {
+        field: 'operation',
+        value: 'file_manage_sharing',
+        and: { field: 'shareVisibility', value: 'password' },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_manage_sharing',
+        and: { field: 'shareVisibility', value: 'password' },
+      },
+    },
+    {
+      id: 'shareAllowedEmails',
+      title: 'Allowed Emails',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Comma- or newline-separated emails or @domain patterns',
+      condition: {
+        field: 'operation',
+        value: 'file_manage_sharing',
+        and: { field: 'shareVisibility', value: ['email', 'sso'] },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_manage_sharing',
+        and: { field: 'shareVisibility', value: ['email', 'sso'] },
+      },
+    },
   ],
   tools: {
-    access: ['file_read', 'file_get_content', 'file_fetch', 'file_write', 'file_append'],
+    access: [
+      'file_read',
+      'file_get_content',
+      'file_fetch',
+      'file_write',
+      'file_append',
+      'file_compress',
+      'file_decompress',
+      'file_manage_sharing',
+    ],
     config: {
       tool: (params) => params.operation || 'file_read',
       params: (params) => {
@@ -1003,6 +1136,118 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
             content: params.appendContent,
             workspaceId: params._context?.workspaceId,
           }
+        }
+
+        if (operation === 'file_compress') {
+          const compressInput = params.compressInput
+          if (!compressInput) {
+            throw new Error('File is required for compress')
+          }
+
+          const archiveName =
+            typeof params.archiveName === 'string' && params.archiveName.trim()
+              ? params.archiveName.trim()
+              : undefined
+
+          const fileIds = parseReadFileIds(compressInput)
+          if (fileIds) {
+            return {
+              fileId: fileIds,
+              archiveName,
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+
+          const normalized = normalizeFileInput(compressInput)
+          if (!normalized || normalized.length === 0) {
+            throw new Error('File is required for compress')
+          }
+
+          return {
+            fileInput: normalized,
+            archiveName,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_decompress') {
+          const decompressInput = params.decompressInput
+          if (!decompressInput) {
+            throw new Error('File is required for decompress')
+          }
+
+          const fileIds = parseReadFileIds(decompressInput)
+          if (fileIds) {
+            const ids = Array.isArray(fileIds) ? fileIds : [fileIds]
+            if (ids.length > 1) {
+              throw new Error('Decompress accepts a single .zip archive at a time')
+            }
+            return {
+              fileId: ids[0],
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+
+          const normalized = normalizeFileInput(decompressInput)
+          if (!normalized || normalized.length === 0) {
+            throw new Error('File is required for decompress')
+          }
+          if (normalized.length > 1) {
+            throw new Error('Decompress accepts a single .zip archive at a time')
+          }
+
+          return {
+            fileInput: normalized[0],
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_manage_sharing') {
+          const shareInput = params.shareInput
+          if (!shareInput) {
+            throw new Error('File is required to manage sharing')
+          }
+
+          const allowedEmails =
+            typeof params.shareAllowedEmails === 'string'
+              ? params.shareAllowedEmails
+                  .split(/[\n,]/)
+                  .map((email) => email.trim())
+                  .filter(Boolean)
+              : undefined
+
+          const visibility = (params.shareVisibility as string) || 'public'
+          const isActive = visibility !== 'private'
+          const shareParams = {
+            isActive,
+            // When disabling, leave authType unset so the stored access mode is preserved.
+            authType: isActive ? visibility : undefined,
+            password: params.sharePassword,
+            allowedEmails,
+            workspaceId: params._context?.workspaceId,
+          }
+
+          // Canonical IDs (advanced mode or upstream references) resolve directly.
+          const fileIds = parseReadFileIds(shareInput)
+          if (fileIds) {
+            if (Array.isArray(fileIds) && fileIds.length > 1) {
+              throw new Error('Manage Sharing accepts a single file at a time')
+            }
+            return { fileId: Array.isArray(fileIds) ? fileIds[0] : fileIds, ...shareParams }
+          }
+
+          // The basic picker yields a file object; it carries an id only sometimes,
+          // so prefer the id when present and otherwise pass the object for the
+          // route to resolve via its storage key.
+          const normalized = normalizeFileInput(shareInput, { single: true })
+          const file = normalized as Record<string, unknown> | null
+          if (!file) {
+            throw new Error('Could not determine the file to share')
+          }
+          if (typeof file.id === 'string' && file.id) {
+            return { fileId: file.id, ...shareParams }
+          }
+          return { fileInput: normalized, ...shareParams }
         }
 
         if (operation === 'file_fetch') {
@@ -1089,11 +1334,34 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     contentType: { type: 'string', description: 'MIME content type for write' },
     appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },
+    compressInput: {
+      type: 'json',
+      description: 'Selected workspace files or canonical file IDs to compress',
+    },
+    archiveName: { type: 'string', description: 'Name for the compressed .zip archive' },
+    decompressInput: {
+      type: 'json',
+      description: 'Selected .zip archive or canonical file ID to extract',
+    },
+    shareInput: {
+      type: 'json',
+      description: 'Selected workspace file or canonical file ID to manage sharing for',
+    },
+    shareVisibility: {
+      type: 'string',
+      description: 'Link visibility: private, public, password, email, or sso',
+    },
+    sharePassword: { type: 'string', description: 'Password for a password-protected link' },
+    shareAllowedEmails: {
+      type: 'string',
+      description: 'Allowed emails or @domain patterns for email/SSO access',
+    },
   },
   outputs: {
     files: {
       type: 'file[]',
-      description: 'Workspace file objects (read) or fetched file objects (fetch)',
+      description:
+        'Workspace file objects with share status (read), fetched file objects (fetch), the compressed archive (compress), or extracted files (decompress)',
     },
     contents: {
       type: 'array',
@@ -1117,7 +1385,24 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     url: {
       type: 'string',
-      description: 'URL to access the file (write and append)',
+      description:
+        'URL to access the file (write and append), or the public share link when shared; empty when set to private (manage sharing)',
+    },
+    isActive: {
+      type: 'boolean',
+      description: 'Whether the public link is enabled (manage sharing)',
+    },
+    authType: {
+      type: 'string',
+      description: 'Public link access mode: public, password, email, or sso (manage sharing)',
+    },
+    hasPassword: {
+      type: 'boolean',
+      description: 'Whether the public link is password-protected (manage sharing)',
+    },
+    allowedEmails: {
+      type: 'array',
+      description: 'Allowed emails/domains for email or SSO access (manage sharing)',
     },
   },
 }

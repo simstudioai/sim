@@ -1,16 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import { Chip, ChipConfirmModal, ChipInput, Search } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipConfirmModal, ChipInput, Search } from '@/components/emcn'
+import { useQueryState } from 'nuqs'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
-import type { SkillDefinition } from '@/hooks/queries/skills'
+import { skillIdParam, skillIdUrlKeys } from '@/app/workspace/[workspaceId]/skills/search-params'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
 
 const logger = createLogger('SkillsSettings')
@@ -67,10 +68,16 @@ export function Skills() {
   const deleteSkillMutation = useDeleteSkill()
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [editingSkill, setEditingSkill] = useState<SkillDefinition | null>(null)
+  const [editingSkillId, setEditingSkillId] = useQueryState(skillIdParam.key, {
+    ...skillIdParam.parser,
+    ...skillIdUrlKeys,
+  })
   const [showAddForm, setShowAddForm] = useState(false)
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+  /** Derive the skill being edited from the loaded list — never store the object in the URL. */
+  const editingSkill = editingSkillId ? (skills.find((s) => s.id === editingSkillId) ?? null) : null
 
   const filteredSkills = skills.filter((s) => {
     if (!searchTerm.trim()) return true
@@ -109,18 +116,18 @@ export function Skills() {
 
   const handleSkillSaved = () => {
     setShowAddForm(false)
-    setEditingSkill(null)
+    setEditingSkillId(null)
   }
 
   const showNoResults = searchTerm.trim() && filteredSkills.length === 0
 
+  const handleOpenAddForm = () => {
+    setEditingSkillId(null)
+    setShowAddForm(true)
+  }
+
   const addButton = (
-    <Chip
-      variant='primary'
-      onClick={() => setShowAddForm(true)}
-      disabled={isLoading}
-      leftIcon={Plus}
-    >
+    <Chip variant='primary' onClick={handleOpenAddForm} disabled={isLoading} leftIcon={Plus}>
       Add to Sim
     </Chip>
   )
@@ -154,7 +161,7 @@ export function Skills() {
                     key={s.id}
                     name={s.name}
                     description={s.description}
-                    onClick={() => setEditingSkill(s)}
+                    onClick={() => setEditingSkillId(s.id)}
                   />
                 ))}
               </SkillSection>
@@ -172,12 +179,12 @@ export function Skills() {
         onOpenChange={(open) => {
           if (!open) {
             setShowAddForm(false)
-            setEditingSkill(null)
+            setEditingSkillId(null)
           }
         }}
         onSave={handleSkillSaved}
         onDelete={(skillId) => {
-          setEditingSkill(null)
+          setEditingSkillId(null)
           handleDeleteClick(skillId)
         }}
         initialValues={editingSkill ?? undefined}
@@ -188,13 +195,11 @@ export function Skills() {
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Skill'
         title='Delete Skill'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{skillToDelete?.name}</span>?{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: skillToDelete?.name ?? 'this skill', bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDeleteSkill,

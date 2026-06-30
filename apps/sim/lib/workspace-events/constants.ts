@@ -17,6 +17,7 @@ export const SIM_PLAIN_EVENT_TYPES = [
   'execution_success',
   'execution_error',
   'workflow_deployed',
+  'workflow_undeployed',
 ] as const
 
 /** Rule-based events ported from the legacy notification alert rules. */

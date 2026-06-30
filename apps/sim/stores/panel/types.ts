@@ -31,6 +31,7 @@ export type ChatContext =
   | { kind: 'file'; fileId: string; label: string }
   | { kind: 'folder'; folderId: string; label: string }
   | { kind: 'filefolder'; fileFolderId: string; label: string }
+  | { kind: 'scheduledtask'; scheduleId: string; label: string }
   | { kind: 'docs'; label: string }
   | { kind: 'slash_command'; command: string; label: string }
   | { kind: 'integration'; blockType: string; label: string }

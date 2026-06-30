@@ -1210,6 +1210,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
 
 export const SapS4HanaBlockMeta = {
   tags: ['automation'],
+  url: 'https://www.sap.com/products/erp/s4hana.html',
   templates: [
     {
       icon: SapS4HanaIcon,

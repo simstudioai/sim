@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, Download, Loader } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { Music } from 'lucide-react'
-import { Button, Download, Loader } from '@/components/emcn'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
+import { getBrowserOrigin } from '@/lib/core/utils/urls'
 import type { ChatFile } from '@/app/(interfaces)/chat/components/message/message'
 
 const logger = createLogger('ChatFileDownload')
@@ -53,6 +54,21 @@ function getFileUrl(file: ChatFile): string {
   return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
 }
 
+/**
+ * Validates that a URL uses an http(s) scheme before it is opened in a new window.
+ * Rejects `javascript:`, `data:`, `blob:`, `vbscript:`, and other schemes that could
+ * execute script in the chat origin, since `file.url` originates from untrusted
+ * workflow/agent output.
+ */
+export function isSafeHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, getBrowserOrigin() ?? undefined)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 async function triggerDownload(url: string, filename: string): Promise<void> {
   const response = await fetch(url)
   if (!response.ok) {
@@ -88,8 +104,8 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
       await triggerDownload(url, file.name)
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-      if (file.url) {
-        window.open(file.url, '_blank')
+      if (file.url && isSafeHttpUrl(file.url)) {
+        window.open(file.url, '_blank', 'noopener,noreferrer')
       }
     } finally {
       setIsDownloading(false)

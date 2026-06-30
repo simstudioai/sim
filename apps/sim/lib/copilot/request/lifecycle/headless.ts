@@ -25,7 +25,7 @@ export async function runHeadlessCopilotLifecycle(
         ? requestPayload.messageId
         : generateId()
   const trace = new TraceCollector()
-  const requestSpan = trace.startSpan('Headless Mothership Request', 'request', {
+  const requestSpan = trace.startSpan('Headless Sim Agent Request', 'request', {
     route: options.goRoute,
     workflowId: options.workflowId,
     workspaceId: options.workspaceId,

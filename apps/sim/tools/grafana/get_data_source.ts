@@ -44,8 +44,6 @@ export const getDataSourceTool: ToolConfig<
     url: (params) => {
       const baseUrl = params.baseUrl.replace(/\/$/, '')
       const id = params.dataSourceId.trim()
-      // Numeric DB id route only matches purely-numeric ids up to int64 length;
-      // anything else is treated as a UID (Grafana UIDs are short slug strings).
       const isNumericId = /^\d+$/.test(id) && id.length <= 18
       if (isNumericId) {
         return `${baseUrl}/api/datasources/${id}`

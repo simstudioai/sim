@@ -1,8 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { ArrowUp, Mic, Paperclip, Slash } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ArrowUp, cn, Mic, Paperclip, Slash } from '@sim/emcn'
 
 interface LandingPreviewChatInputProps {
   value: string

@@ -9,8 +9,7 @@
 // old per-script `--check`, but accounts for post-generate formatting.
 
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -19,11 +18,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const GENERATORS = [
   'scripts/sync-mothership-stream-contract.ts',
   'scripts/sync-tool-catalog.ts',
-  'scripts/sync-request-trace-contract.ts',
   'scripts/sync-trace-spans-contract.ts',
   'scripts/sync-trace-attributes-contract.ts',
   'scripts/sync-trace-attribute-values-contract.ts',
   'scripts/sync-trace-events-contract.ts',
+  'scripts/sync-metrics-contract.ts',
+  'scripts/sync-vfs-snapshot-contract.ts',
 ]
 
 // Generated files under this path. We biome-format this whole dir on
@@ -103,9 +103,7 @@ function runCheck(): void {
   }
 
   if (stale.length > 0) {
-    console.error(
-      `Generated contracts are stale: ${stale.join(', ')}. Run: bun run mship:generate`,
-    )
+    console.error(`Generated contracts are stale: ${stale.join(', ')}. Run: bun run mship:generate`)
     process.exit(1)
   }
   console.log('All generated contracts up to date.')

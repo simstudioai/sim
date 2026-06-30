@@ -3,9 +3,11 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import {
   type BlockRunStatus,
   defaultWorkflowExecutionState,
+  deriveExecutionFlags,
   type EdgeRunStatus,
   type ExecutionActions,
   type ExecutionState,
+  type ExecutionStatus,
   initialState,
   type WorkflowExecutionState,
 } from './types'
@@ -78,9 +80,12 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
     })
   },
 
-  setIsExecuting: (workflowId, isExecuting) => {
-    const patch: Partial<WorkflowExecutionState> = { isExecuting }
-    if (isExecuting) {
+  setStatus: (workflowId, status, options) => {
+    const patch: Partial<WorkflowExecutionState> = {
+      status,
+      ...deriveExecutionFlags(status),
+    }
+    if (options?.clearRunPath) {
       patch.lastRunPath = new Map()
       patch.lastRunEdges = new Map()
     }
@@ -89,10 +94,24 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
     })
   },
 
+  setIsExecuting: (workflowId, isExecuting) => {
+    const current = getOrCreate(get().workflowExecutions, workflowId)
+    const nextStatus: ExecutionStatus = isExecuting
+      ? current.status === 'debugging'
+        ? 'debugging'
+        : 'running'
+      : 'idle'
+    get().setStatus(workflowId, nextStatus, { clearRunPath: isExecuting })
+  },
+
   setIsDebugging: (workflowId, isDebugging) => {
-    set({
-      workflowExecutions: updatedMap(get().workflowExecutions, workflowId, { isDebugging }),
-    })
+    const current = getOrCreate(get().workflowExecutions, workflowId)
+    const nextStatus: ExecutionStatus = isDebugging
+      ? 'debugging'
+      : current.status === 'debugging'
+        ? 'running'
+        : current.status
+    get().setStatus(workflowId, nextStatus)
   },
 
   setExecutor: (workflowId, executor) => {

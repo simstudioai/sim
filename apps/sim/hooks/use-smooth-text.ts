@@ -101,23 +101,45 @@ export function useSmoothText(
   const revealedRef = useRef(revealed)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevContentRef = useRef(content)
+  const prevIsStreamingRef = useRef(isStreaming)
 
   let effectiveRevealed = revealed
+
   if (
-    snapOnNonAppend &&
-    content !== prevContentRef.current &&
-    !content.startsWith(prevContentRef.current) &&
+    isStreaming &&
+    !prevIsStreamingRef.current &&
+    content.length > RESUME_SKIP_THRESHOLD &&
     revealed < content.length
   ) {
     effectiveRevealed = content.length
     revealedRef.current = content.length
     setRevealed(content.length)
   }
-  prevContentRef.current = content
+
+  if (
+    snapOnNonAppend &&
+    content !== prevContentRef.current &&
+    !content.startsWith(prevContentRef.current) &&
+    effectiveRevealed < content.length
+  ) {
+    effectiveRevealed = content.length
+    revealedRef.current = content.length
+    setRevealed(content.length)
+  }
 
   contentRef.current = content
 
   const hasBacklog = effectiveRevealed < content.length
+
+  // Advance the previous-input trackers on commit, never during render. A concurrent render can be
+  // started and then thrown away before it commits (interrupted by a higher-priority update); a
+  // render-phase write persists on that discarded attempt, so the retried render would read a stale
+  // `prev` and skip the snap. Updating them in a committed effect keeps `prev` in lockstep with the
+  // render that actually committed, so the snap decision is identical across discarded attempts.
+  useEffect(() => {
+    prevContentRef.current = content
+    prevIsStreamingRef.current = isStreaming
+  }, [content, isStreaming])
 
   useEffect(() => {
     const run = () => {

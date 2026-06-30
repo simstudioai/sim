@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { TABLE_LIMITS } from '../constants'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   type ColumnDefinition,
   coerceRowToSchema,
@@ -15,7 +15,7 @@ import {
   validateTableName,
   validateTableSchema,
   validateUniqueConstraints,
-} from '../validation'
+} from '@/lib/table/validation'
 
 describe('Validation', () => {
   describe('validateTableName', () => {

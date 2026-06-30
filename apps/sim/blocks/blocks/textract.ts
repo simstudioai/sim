@@ -292,6 +292,7 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
 
 export const TextractBlockMeta = {
   tags: ['document-processing', 'ocr', 'cloud'],
+  url: 'https://aws.amazon.com/textract',
   templates: [
     {
       icon: TextractIcon,

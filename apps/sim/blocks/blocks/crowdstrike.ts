@@ -213,6 +213,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
 
 export const CrowdStrikeBlockMeta = {
   tags: ['identity', 'monitoring'],
+  url: 'https://www.crowdstrike.com',
   templates: [
     {
       icon: CrowdStrikeIcon,

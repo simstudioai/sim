@@ -19,7 +19,7 @@ import {
   hasUsableSubscriptionStatus,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 

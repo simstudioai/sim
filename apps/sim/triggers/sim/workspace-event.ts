@@ -10,10 +10,10 @@ import type { TriggerConfig } from '@/triggers/types'
 
 export const simWorkspaceEventTrigger: TriggerConfig = {
   id: SIM_WORKSPACE_EVENT_TRIGGER_ID,
-  name: 'Sim',
+  name: 'Sim Workspace Events',
   provider: SIM_TRIGGER_PROVIDER,
   description:
-    'Triggers when workspace events occur: execution errors or successes, deployments, and alert conditions like latency or cost spikes',
+    'Triggers when workspace events occur: run errors or successes, deployments, and alert conditions like latency or cost spikes',
   version: '1.0.0',
   icon: SimTriggerIcon,
 
@@ -23,9 +23,10 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       title: 'Event',
       type: 'dropdown',
       options: [
-        { id: 'execution_error', label: 'Execution Error', group: 'Events' },
-        { id: 'execution_success', label: 'Execution Success', group: 'Events' },
+        { id: 'execution_error', label: 'Run Error', group: 'Events' },
+        { id: 'execution_success', label: 'Run Success', group: 'Events' },
         { id: 'workflow_deployed', label: 'Workflow Deployed', group: 'Events' },
+        { id: 'workflow_undeployed', label: 'Workflow Undeployed', group: 'Events' },
         { id: 'consecutive_failures', label: 'Consecutive Failures', group: 'Alert Conditions' },
         { id: 'failure_rate', label: 'Failure Rate', group: 'Alert Conditions' },
         { id: 'latency_threshold', label: 'Latency Threshold', group: 'Alert Conditions' },
@@ -58,7 +59,7 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       type: 'short-input',
       placeholder: String(SIM_RULE_DEFAULTS.consecutiveFailures),
       defaultValue: String(SIM_RULE_DEFAULTS.consecutiveFailures),
-      description: 'Fire after this many consecutive failed executions.',
+      description: 'Fire after this many consecutive failed runs.',
       required: { field: 'eventType', value: 'consecutive_failures' },
       mode: 'trigger',
       condition: { field: 'eventType', value: 'consecutive_failures' },
@@ -81,7 +82,7 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       type: 'short-input',
       placeholder: String(SIM_RULE_DEFAULTS.durationThresholdMs),
       defaultValue: String(SIM_RULE_DEFAULTS.durationThresholdMs),
-      description: 'Fire when an execution takes longer than this many milliseconds.',
+      description: 'Fire when a run takes longer than this many milliseconds.',
       required: { field: 'eventType', value: 'latency_threshold' },
       mode: 'trigger',
       condition: { field: 'eventType', value: 'latency_threshold' },
@@ -92,8 +93,7 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       type: 'short-input',
       placeholder: String(SIM_RULE_DEFAULTS.latencySpikePercent),
       defaultValue: String(SIM_RULE_DEFAULTS.latencySpikePercent),
-      description:
-        'Fire when an execution is this much slower than the average over the time window.',
+      description: 'Fire when a run is this much slower than the average over the time window.',
       required: { field: 'eventType', value: 'latency_spike' },
       mode: 'trigger',
       condition: { field: 'eventType', value: 'latency_spike' },
@@ -143,7 +143,7 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       type: 'short-input',
       placeholder: String(SIM_RULE_DEFAULTS.inactivityHours),
       defaultValue: String(SIM_RULE_DEFAULTS.inactivityHours),
-      description: 'Fire when a watched workflow has no executions for this many hours.',
+      description: 'Fire when a watched workflow has no runs for this many hours.',
       required: { field: 'eventType', value: 'no_activity' },
       mode: 'trigger',
       condition: { field: 'eventType', value: 'no_activity' },
@@ -157,7 +157,7 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
         'Choose the workspace event or alert condition to react to',
         'Optionally narrow it to specific workflows — leaving the selection empty watches every workflow (this workflow is always excluded; it never triggers itself)',
         'Deploy this workflow — events only fire for deployed workflows',
-        'Executions started by this trigger never emit workspace events, so chains and loops are not possible',
+        'Runs started by this trigger never emit workspace events, so chains and loops are not possible',
       ]
         .map(
           (instruction, index) =>

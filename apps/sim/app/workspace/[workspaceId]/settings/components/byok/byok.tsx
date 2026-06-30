@@ -6,6 +6,9 @@ import {
   AnthropicIcon,
   BasetenIcon,
   BrandfetchIcon,
+  DatagmaIcon,
+  DropcontactIcon,
+  EnrowIcon,
   ExaAIIcon,
   FalIcon,
   FindymailIcon,
@@ -14,7 +17,9 @@ import {
   GeminiIcon,
   GoogleIcon,
   HunterIOIcon,
+  IcypeasIcon,
   JinaAIIcon,
+  LeadMagicIcon,
   LinkupIcon,
   MillionVerifierIcon,
   MistralIcon,
@@ -37,6 +42,7 @@ import {
   type BYOKManagerProvider,
   type BYOKProviderSection,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useBYOKKeys, useDeleteBYOKKey, useUpsertBYOKKey } from '@/hooks/queries/byok-keys'
 import type { BYOKProviderId } from '@/tools/types'
 
@@ -203,6 +209,41 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     placeholder: 'Enter your Wiza API key',
   },
   {
+    id: 'datagma',
+    name: 'Datagma',
+    icon: DatagmaIcon,
+    description: 'Email, phone, person, and company enrichment',
+    placeholder: 'Enter your Datagma API key',
+  },
+  {
+    id: 'dropcontact',
+    name: 'Dropcontact',
+    icon: DropcontactIcon,
+    description: 'GDPR-compliant contact enrichment and email finding',
+    placeholder: 'Enter your Dropcontact API key',
+  },
+  {
+    id: 'leadmagic',
+    name: 'LeadMagic',
+    icon: LeadMagicIcon,
+    description: 'Email finding, validation, and B2B profile enrichment',
+    placeholder: 'Enter your LeadMagic API key',
+  },
+  {
+    id: 'icypeas',
+    name: 'Icypeas',
+    icon: IcypeasIcon,
+    description: 'Email finding and verification',
+    placeholder: 'Enter your Icypeas API key',
+  },
+  {
+    id: 'enrow',
+    name: 'Enrow',
+    icon: EnrowIcon,
+    description: 'Email finding and verification',
+    placeholder: 'Enter your Enrow API key',
+  },
+  {
     id: 'zerobounce',
     name: 'ZeroBounce',
     icon: ZeroBounceIcon,
@@ -267,6 +308,11 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'findymail',
       'prospeo',
       'wiza',
+      'datagma',
+      'dropcontact',
+      'leadmagic',
+      'icypeas',
+      'enrow',
       'zerobounce',
       'neverbounce',
       'millionverifier',
@@ -294,37 +340,33 @@ export function BYOK() {
   }, [keys])
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col pt-6 pb-6'>
-          <BYOKKeyManager
-            multiKey
-            providers={PROVIDERS}
-            sections={PROVIDER_SECTIONS}
-            keysByProvider={keysByProvider}
-            maxKeysPerProvider={MAX_BYOK_KEYS_PER_PROVIDER}
-            isLoading={isLoading}
-            isSaving={upsertKey.isPending}
-            isDeleting={deleteKey.isPending}
-            onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
-              await upsertKey.mutateAsync({
-                workspaceId,
-                providerId: providerId as BYOKProviderId,
-                apiKey,
-                keyId,
-                name,
-              })
-            }}
-            onDeleteKey={async (providerId, keyId) => {
-              await deleteKey.mutateAsync({
-                workspaceId,
-                providerId: providerId as BYOKProviderId,
-                keyId,
-              })
-            }}
-          />
-        </div>
-      </div>
-    </div>
+    <SettingsPanel>
+      <BYOKKeyManager
+        multiKey
+        providers={PROVIDERS}
+        sections={PROVIDER_SECTIONS}
+        keysByProvider={keysByProvider}
+        maxKeysPerProvider={MAX_BYOK_KEYS_PER_PROVIDER}
+        isLoading={isLoading}
+        isSaving={upsertKey.isPending}
+        isDeleting={deleteKey.isPending}
+        onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
+          await upsertKey.mutateAsync({
+            workspaceId,
+            providerId: providerId as BYOKProviderId,
+            apiKey,
+            keyId,
+            name,
+          })
+        }}
+        onDeleteKey={async (providerId, keyId) => {
+          await deleteKey.mutateAsync({
+            workspaceId,
+            providerId: providerId as BYOKProviderId,
+            keyId,
+          })
+        }}
+      />
+    </SettingsPanel>
   )
 }

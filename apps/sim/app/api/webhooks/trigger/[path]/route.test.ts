@@ -106,6 +106,7 @@ const {
   executeMock,
   getWorkspaceBilledAccountUserIdMock,
   queueWebhookExecutionMock,
+  isWorkspaceApiExecutionEntitledMock,
 } = vi.hoisted(() => ({
   generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
   validateSlackSignatureMock: vi.fn().mockResolvedValue(true),
@@ -133,6 +134,12 @@ const {
     const { NextResponse } = await import('next/server')
     return NextResponse.json({ message: 'Webhook processed' })
   }),
+  isWorkspaceApiExecutionEntitledMock: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@/lib/billing/core/api-access', () => ({
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
+  isWorkspaceApiExecutionEntitled: isWorkspaceApiExecutionEntitledMock,
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({
@@ -392,6 +399,7 @@ describe('Webhook Trigger API Route', () => {
       isFromNormalizedTables: true,
     })
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
+    isWorkspaceApiExecutionEntitledMock.mockResolvedValue(true)
 
     mockExecutionDependencies()
     mockTriggerDevSdk()
@@ -598,6 +606,70 @@ describe('Webhook Trigger API Route', () => {
 
       const data = await response.json()
       expect(data.message).toBe('Webhook processed')
+    })
+
+    it('blocks a generic webhook when the workspace is on the free plan', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'test-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+        rateLimitCount: 100,
+        rateLimitPeriod: 60,
+      })
+      testData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+      })
+      isWorkspaceApiExecutionEntitledMock.mockResolvedValueOnce(false)
+
+      const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const response = await POST(req as any, { params })
+
+      expect(response.status).toBe(402)
+    })
+
+    it('returns 402 (not 500) when every webhook in a shared path is generic and free', async () => {
+      testData.webhooks.push(
+        {
+          id: 'generic-webhook-a',
+          provider: 'generic',
+          path: 'test-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+          rateLimitCount: 100,
+          rateLimitPeriod: 60,
+        },
+        {
+          id: 'generic-webhook-b',
+          provider: 'generic',
+          path: 'test-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+          rateLimitCount: 100,
+          rateLimitPeriod: 60,
+        }
+      )
+      testData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+      })
+      isWorkspaceApiExecutionEntitledMock.mockResolvedValue(false)
+
+      const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const response = await POST(req as any, { params })
+
+      expect(response.status).toBe(402)
     })
 
     it('should authenticate with Bearer token when no custom header is configured', async () => {

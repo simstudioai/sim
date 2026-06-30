@@ -1,9 +1,9 @@
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { useShallow } from 'zustand/react/shallow'
-import { toast } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
@@ -286,7 +286,7 @@ const notifyBlockError = ({
     toast.error(displayName, {
       description: errorMessage,
       action: {
-        label: 'Fix in Copilot',
+        label: 'Fix in Chat',
         onClick: () => sendMothershipMessage(copilotMessage),
       },
     })

@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipLink, Send } from '@/components/emcn'
-import { ArrowLeft, Key } from '@/components/emcn/icons'
+import { Chip, ChipCopyInput, ChipLink, Send } from '@sim/emcn'
+import { ArrowLeft, Key } from '@sim/emcn/icons'
 import {
   AddPeopleModal,
-  CopyableValueField,
   CredentialDetailHeading,
   CredentialDetailLayout,
   CredentialMembersSection,
@@ -91,7 +90,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
         />
 
         <DetailSection title='Key'>
-          <CopyableValueField value={credential.envKey || ''} copyLabel='Copy key' />
+          <ChipCopyInput value={credential.envKey || ''} copyLabel='Copy key' />
         </DetailSection>
 
         <DetailSection title='Value'>

@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { importTableAsyncContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -38,7 +38,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(importTableAsyncContract, request, {})
   if (!parsed.success) return parsed.response
-  const { workspaceId, fileKey, fileName } = parsed.data.body
+  const { workspaceId, fileKey, fileName, deleteSourceFile } = parsed.data.body
 
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   if (permission !== 'write' && permission !== 'admin') {
@@ -84,7 +84,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         schema: { columns: [{ name: 'column_1', type: 'string' }] },
         workspaceId,
         userId,
-        maxRows: planLimits.maxRowsPerTable,
         maxTables: planLimits.maxTables,
         jobStatus: 'running',
         jobType: 'import',
@@ -111,16 +110,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     fileName,
     delimiter,
     mode: 'create',
+    deleteSourceFile,
   }
   if (isTriggerDevEnabled) {
     // Trigger.dev runs the import outside the web container, so it survives app deploys.
     try {
-      const [{ tableImportTask }, { tasks }] = await Promise.all([
+      const [{ tableImportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-import'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableImportTask>('table-import', importPayload, {
         tags: [`tableId:${table.id}`, `jobId:${importId}`],
+        region: await resolveTriggerRegion(),
       })
     } catch (error) {
       // A failed dispatch must not leave a ghost `running` job holding the

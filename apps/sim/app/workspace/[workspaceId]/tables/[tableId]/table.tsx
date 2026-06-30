@@ -1,14 +1,21 @@
 'use client'
 
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
+import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
+import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { Chip, ChipConfirmModal, toast } from '@/components/emcn'
-import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  Filter,
+  Sort,
+  TableRow as TableRowType,
+  WorkflowGroup,
+} from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
@@ -38,6 +45,7 @@ import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
+  EnrichmentDetails,
   EnrichmentsSidebar,
   NewColumnDropdown,
   RowModal,
@@ -52,6 +60,11 @@ import {
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
+import {
+  DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
+  tableDetailParsers,
+  tableDetailUrlKeys,
+} from './search-params'
 import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
 
@@ -78,12 +91,14 @@ type SlideoutState =
   | { kind: 'enrichments'; editGroup?: WorkflowGroup }
   | { kind: 'workflow'; config: WorkflowConfig }
   | { kind: 'execution'; executionId: string }
+  | { kind: 'enrichment-details'; rowId: string; groupId: string }
 
 type SlideoutAction =
   | { type: 'OPEN_COLUMN'; config: ColumnConfig }
   | { type: 'OPEN_ENRICHMENTS'; editGroup?: WorkflowGroup }
   | { type: 'OPEN_WORKFLOW'; config: WorkflowConfig }
   | { type: 'OPEN_EXECUTION'; executionId: string }
+  | { type: 'OPEN_ENRICHMENT_DETAILS'; rowId: string; groupId: string }
   | { type: 'CLOSE' }
 
 function slideoutReducer(_state: SlideoutState, action: SlideoutAction): SlideoutState {
@@ -96,6 +111,8 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
       return { kind: 'workflow', config: action.config }
     case 'OPEN_EXECUTION':
       return { kind: 'execution', executionId: action.executionId }
+    case 'OPEN_ENRICHMENT_DETAILS':
+      return { kind: 'enrichment-details', rowId: action.rowId, groupId: action.groupId }
     case 'CLOSE':
       return { kind: 'none' }
   }
@@ -156,8 +173,24 @@ export function Table({
     selectionStats: { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false },
     singleWorkflowCell: null,
   })
-  const [queryOptions, setQueryOptions] = useState<QueryOptions>({ filter: null, sort: null })
+  const [filter, setFilter] = useState<Filter | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
+
+  const [{ sort: sortColumn, dir: sortDirection }, setSortParams] = useQueryStates(
+    tableDetailParsers,
+    tableDetailUrlKeys
+  )
+
+  /** Resolved single-column sort, or `null` when no column is active. */
+  const sortQuery = useMemo<Sort | null>(
+    () => (sortColumn ? { [sortColumn]: sortDirection } : null),
+    [sortColumn, sortDirection]
+  )
+
+  const queryOptions = useMemo<QueryOptions>(
+    () => ({ filter, sort: sortQuery }),
+    [filter, sortQuery]
+  )
 
   const userPermissions = useUserPermissionsContext()
 
@@ -175,6 +208,9 @@ export function Table({
   }, [])
   const onOpenExecutionDetails = useCallback((executionId: string) => {
     dispatch({ type: 'OPEN_EXECUTION', executionId })
+  }, [])
+  const onOpenEnrichmentDetails = useCallback((rowId: string, groupId: string) => {
+    dispatch({ type: 'OPEN_ENRICHMENT_DETAILS', rowId, groupId })
   }, [])
   const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
   const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
@@ -463,26 +499,22 @@ export function Table({
     [columns]
   )
 
-  const sortConfig = useMemo<SortConfig>(() => {
-    let active: SortConfig['active'] = null
-    if (queryOptions.sort) {
-      const entries = Object.entries(queryOptions.sort)
-      if (entries.length > 0) {
-        const [column, direction] = entries[0]
-        active = { column, direction }
-      }
-    }
-    return {
+  const sortConfig = useMemo<SortConfig>(
+    () => ({
       options: columnOptions,
-      active,
-      onSort: (column, direction) =>
-        setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } })),
-      onClear: () => setQueryOptions((prev) => ({ ...prev, sort: null })),
-    }
-  }, [columnOptions, queryOptions.sort])
+      active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
+      onSort: (column, direction) => setSortParams({ sort: column, dir: direction }),
+      /**
+       * Clearing writes the default direction (stripped by clearOnDefault) and
+       * drops the column, leaving a clean URL with no active sort.
+       */
+      onClear: () => setSortParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION }),
+    }),
+    [columnOptions, sortColumn, sortDirection, setSortParams]
+  )
 
-  const handleFilterApply = (filter: Filter | null) => {
-    setQueryOptions((prev) => ({ ...prev, filter }))
+  const handleFilterApply = (next: Filter | null) => {
+    setFilter(next)
   }
 
   const breadcrumbs = useMemo(
@@ -565,7 +597,7 @@ export function Table({
   const sidebarReservedPx =
     slideout.kind === 'column' || slideout.kind === 'workflow' || slideout.kind === 'enrichments'
       ? COLUMN_SIDEBAR_WIDTH
-      : slideout.kind === 'execution'
+      : slideout.kind === 'execution' || slideout.kind === 'enrichment-details'
         ? logPanelWidth
         : 0
 
@@ -592,6 +624,10 @@ export function Table({
   const columnConfig = slideout.kind === 'column' ? slideout.config : null
   const workflowConfig = slideout.kind === 'workflow' ? slideout.config : null
   const executionId = slideout.kind === 'execution' ? slideout.executionId : null
+  const enrichmentDetailsTarget = slideout.kind === 'enrichment-details' ? slideout : null
+  const enrichmentDetailsGroupName =
+    enrichmentDetailsTarget &&
+    tableWorkflowGroups.find((g) => g.id === enrichmentDetailsTarget.groupId)?.name
   // Fetch the workflow log when the execution-details slideout is open. Reuses
   // the logs page's <LogDetails> directly — no intermediate wrapper needed for
   // a one-line query forward.
@@ -610,7 +646,7 @@ export function Table({
   )
 
   return (
-    <div className='relative flex h-full flex-col overflow-hidden'>
+    <Resource>
       {!embedded && (
         <Resource.Header
           icon={TableIcon}
@@ -640,9 +676,9 @@ export function Table({
           }
         />
       )}
-      {/* Sort + filter render in both modes (left-aligned). In embedded (mothership)
-          mode there's no Resource.Header, so the run/stop control rides in the options
-          bar's right-aligned `aside` slot — opposite the left-aligned filter/sort. */}
+      {/* Sort + filter render in both modes. In embedded (mothership) mode there's no
+          Resource.Header, so the run/stop control rides in the options bar's `aside`
+          slot, just left of filter/sort. */}
       <Resource.Options
         sort={sortConfig}
         filter={filterConfig}
@@ -674,6 +710,7 @@ export function Table({
         onOpenEnrichments={onOpenEnrichments}
         onOpenEnrichmentConfig={onOpenEnrichmentConfig}
         onOpenExecutionDetails={onOpenExecutionDetails}
+        onOpenEnrichmentDetails={onOpenEnrichmentDetails}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteAllByFilter={onRequestDeleteAllByFilter}
@@ -746,7 +783,12 @@ export function Table({
                   const id = selection.singleWorkflowCell?.executionId
                   if (id) onOpenExecutionDetails(id)
                 }
-              : undefined
+              : selection.singleWorkflowCell?.canViewEnrichment
+                ? () => {
+                    const cell = selection.singleWorkflowCell
+                    if (cell) onOpenEnrichmentDetails(cell.rowId, cell.groupId)
+                  }
+                : undefined
           }
         />
       )}
@@ -783,6 +825,14 @@ export function Table({
       <LogDetails
         log={executionLog ?? null}
         isOpen={Boolean(executionId)}
+        onClose={onCloseSlideout}
+      />
+      <EnrichmentDetails
+        tableId={tableId}
+        rowId={enrichmentDetailsTarget?.rowId ?? null}
+        groupId={enrichmentDetailsTarget?.groupId ?? null}
+        groupName={enrichmentDetailsGroupName ?? undefined}
+        isOpen={Boolean(enrichmentDetailsTarget)}
         onClose={onCloseSlideout}
       />
       {tableData && (
@@ -823,7 +873,7 @@ export function Table({
         }}
         srTitle='Delete rows'
         title='Delete rows'
-        description={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
+        text={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
           deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
         }${queryOptions.filter ? ' matching the current filter' : ''}? This can't be undone.`}
         confirm={{
@@ -863,34 +913,25 @@ export function Table({
             ? `Delete ${deletingColumns.length} Columns`
             : 'Delete Column'
         }
-        description={
-          <>
-            {deletingColumns && deletingColumns.length > 1 ? (
-              <>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>
-                  {deletingColumns.length} columns
-                </span>
-                ?{' '}
-              </>
-            ) : (
-              <>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>
-                  {(deletingColumns &&
+        text={[
+          'Are you sure you want to delete ',
+          deletingColumns && deletingColumns.length > 1
+            ? { text: `${deletingColumns.length} columns`, bold: true }
+            : {
+                text:
+                  (deletingColumns &&
                     columns.find((c) => getColumnId(c) === deletingColumns[0])?.name) ??
-                    deletingColumns?.[0]}
-                </span>
-                ?{' '}
-              </>
-            )}
-            <span className='text-[var(--text-error)]'>
-              This will remove all data in{' '}
-              {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
-            </span>{' '}
-            You can undo this action.
-          </>
-        }
+                  deletingColumns?.[0] ??
+                  'this column',
+                bold: true,
+              },
+          '? ',
+          {
+            text: `This will remove all data in ${deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.`,
+            error: true,
+          },
+          ' You can undo this action.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleConfirmDeleteColumns,
@@ -902,16 +943,13 @@ export function Table({
           onOpenChange={setShowDeleteTableConfirm}
           srTitle='Delete Table'
           title='Delete Table'
-          description={
-            <>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>
-                All {tableData?.rowCount ?? 0} rows will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </>
-          }
+          text={[
+            'Are you sure you want to delete ',
+            { text: tableData?.name ?? 'this table', bold: true },
+            '? ',
+            { text: `All ${tableData?.rowCount ?? 0} rows will be removed.`, error: true },
+            ' You can restore it from Recently Deleted in Settings.',
+          ]}
           confirm={{
             label: 'Delete',
             onClick: handleDeleteTable,
@@ -920,6 +958,6 @@ export function Table({
           }}
         />
       )}
-    </div>
+    </Resource>
   )
 }

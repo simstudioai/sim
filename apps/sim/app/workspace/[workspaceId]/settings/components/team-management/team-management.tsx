@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { Chip, Plus } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   NoOrganizationView,
   OrganizationInviteModal,
@@ -74,9 +75,6 @@ export function TeamManagement() {
 
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
-  // Seats are consumed only by accepted members (seat count is reconciled to the
-  // member count on accept/removal). Pending invites are surfaced separately and
-  // do not count as used until they are accepted.
   const usedSeats = organizationBillingData?.data?.members?.length ?? 0
   const reservedSeats = organizationBillingData?.data?.usedSeats ?? 0
   const pendingSeats = Math.max(0, reservedSeats - usedSeats)
@@ -313,50 +311,37 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
-        <div className='flex items-center'>
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => setInviteModalOpen(true)}
-            disabled={isInvitationsDisabled}
-            title={isInvitationsDisabled ? 'Invitations are disabled' : undefined}
-          >
-            Invite
-          </Chip>
-        </div>
-      </div>
+    <>
+      <SettingsPanel
+        actions={[
+          {
+            text: 'Invite',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setInviteModalOpen(true),
+            disabled: isInvitationsDisabled,
+            tooltip: isInvitationsDisabled ? 'Invitations are disabled' : undefined,
+          },
+        ]}
+      >
+        <TeamSeatsOverview
+          subscriptionData={orgSubscription}
+          isLoadingSubscription={isOrgBillingLoading}
+          totalSeats={totalSeats}
+          usedSeats={usedSeats}
+          pendingSeats={pendingSeats}
+        />
 
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
-          <div className='flex flex-col gap-1'>
-            <h1 className='font-medium text-[var(--text-body)] text-lg'>Organization</h1>
-            <p className='text-[var(--text-muted)] text-md'>
-              Manage members and their access across every workspace in your organization.
-            </p>
-          </div>
-
-          <TeamSeatsOverview
-            subscriptionData={orgSubscription}
-            isLoadingSubscription={isOrgBillingLoading}
-            totalSeats={totalSeats}
-            usedSeats={usedSeats}
-            pendingSeats={pendingSeats}
-          />
-
-          <OrganizationMemberLists
-            organizationId={displayOrganization.id}
-            roster={roster ?? null}
-            isLoadingRoster={isLoadingRoster}
-            currentUserId={session?.user?.id ?? ''}
-            currentUserEmail={session?.user?.email ?? ''}
-            onRemoveMember={handleRemoveMember}
-            onTransferOwnership={handleOpenTransferDialog}
-          />
-        </div>
-      </div>
+        <OrganizationMemberLists
+          organizationId={displayOrganization.id}
+          roster={roster ?? null}
+          isLoadingRoster={isLoadingRoster}
+          currentUserId={session?.user?.id ?? ''}
+          currentUserEmail={session?.user?.email ?? ''}
+          onRemoveMember={handleRemoveMember}
+          onTransferOwnership={handleOpenTransferDialog}
+        />
+      </SettingsPanel>
 
       <OrganizationInviteModal
         open={inviteModalOpen}
@@ -403,6 +388,6 @@ export function TeamManagement() {
           })
         }
       />
-    </div>
+    </>
   )
 }

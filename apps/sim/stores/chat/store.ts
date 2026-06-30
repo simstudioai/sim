@@ -254,8 +254,20 @@ export const useChatStore = create<ChatState>()(
       }),
       {
         name: 'chat-store',
+        /**
+         * Persist only the durable chat state — message history (with transient
+         * blob `previewUrl`s stripped since they are not valid across reloads),
+         * per-workflow output selections and conversation ids, and the floating
+         * chat's open state, position, and dimensions. Actions and any transient
+         * UI flags are intentionally excluded.
+         */
         partialize: (state) => ({
-          ...state,
+          isChatOpen: state.isChatOpen,
+          chatPosition: state.chatPosition,
+          chatWidth: state.chatWidth,
+          chatHeight: state.chatHeight,
+          selectedWorkflowOutputs: state.selectedWorkflowOutputs,
+          conversationIds: state.conversationIds,
           messages: state.messages.map((msg) => ({
             ...msg,
             attachments: msg.attachments?.map((att) => ({

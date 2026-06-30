@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { IncidentioIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { incidentioConnectorMeta } from '@/connectors/incidentio/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
@@ -354,66 +354,7 @@ async function fetchIncidentUpdates(
 }
 
 export const incidentioConnector: ConnectorConfig = {
-  id: 'incidentio',
-  name: 'incident.io',
-  description: 'Sync incidents and postmortems from incident.io into your knowledge base',
-  version: '1.0.0',
-  icon: IncidentioIcon,
-
-  auth: {
-    mode: 'apiKey',
-    label: 'API Key',
-    placeholder: 'Enter your incident.io API key',
-  },
-
-  supportsIncrementalSync: true,
-
-  configFields: [
-    {
-      id: 'statusCategory',
-      title: 'Status Category',
-      type: 'dropdown',
-      required: false,
-      mode: 'advanced',
-      options: [
-        { label: 'All', id: '' },
-        { label: 'Live (active)', id: 'live' },
-        { label: 'Paused', id: 'paused' },
-        { label: 'Closed', id: 'closed' },
-        { label: 'Triage', id: 'triage' },
-        { label: 'Learning (post-incident)', id: 'learning' },
-        { label: 'Declined', id: 'declined' },
-        { label: 'Merged', id: 'merged' },
-        { label: 'Canceled', id: 'canceled' },
-      ],
-      description:
-        'Only sync incidents in this status category. Leave as All to sync every category.',
-    },
-    {
-      id: 'mode',
-      title: 'Mode',
-      type: 'dropdown',
-      required: false,
-      mode: 'advanced',
-      options: [
-        { label: 'All', id: '' },
-        { label: 'Standard (real incidents)', id: 'standard' },
-        { label: 'Retrospective', id: 'retrospective' },
-        { label: 'Test', id: 'test' },
-        { label: 'Tutorial', id: 'tutorial' },
-      ],
-      description:
-        'Only sync incidents of this mode. Use Standard to exclude test/tutorial incidents.',
-    },
-    {
-      id: 'maxIncidents',
-      title: 'Max Incidents',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 200 (default: unlimited)',
-      description: 'Cap the number of incidents synced. Leave empty to sync all incidents.',
-    },
-  ],
+  ...incidentioConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -572,17 +513,6 @@ export const incidentioConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'status', displayName: 'Status', fieldType: 'text' },
-    { id: 'statusCategory', displayName: 'Status Category', fieldType: 'text' },
-    { id: 'severity', displayName: 'Severity', fieldType: 'text' },
-    { id: 'incidentType', displayName: 'Incident Type', fieldType: 'text' },
-    { id: 'mode', displayName: 'Mode', fieldType: 'text' },
-    { id: 'visibility', displayName: 'Visibility', fieldType: 'text' },
-    { id: 'incidentDate', displayName: 'Incident Date', fieldType: 'date' },
-    { id: 'reportedBy', displayName: 'Reported By', fieldType: 'text' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

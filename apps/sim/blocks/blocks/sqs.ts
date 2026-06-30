@@ -159,6 +159,7 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
 
 export const SQSBlockMeta = {
   tags: ['cloud', 'messaging', 'automation'],
+  url: 'https://aws.amazon.com/sqs',
   templates: [
     {
       icon: SQSIcon,

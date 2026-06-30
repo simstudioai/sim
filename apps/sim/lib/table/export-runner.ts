@@ -10,14 +10,18 @@ import {
   toCsvRow,
 } from '@/lib/table/export-format'
 import {
-  getTableById,
   markJobFailed,
   markJobReady,
   selectExportRowPage,
   setJobResultKey,
   updateJobProgress,
-} from '@/lib/table/service'
-import { deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
+} from '@/lib/table/jobs/service'
+import { getTableById } from '@/lib/table/service'
+import {
+  createMultipartUpload,
+  deleteFile,
+  type MultipartUploadHandle,
+} from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('TableExportRunner')
 
@@ -47,6 +51,7 @@ export interface TableExportPayload {
 export async function runTableExport(payload: TableExportPayload): Promise<void> {
   const { jobId, tableId, workspaceId, format } = payload
   const requestId = generateId().slice(0, 8)
+  let handle: MultipartUploadHandle | null = null
   let uploadedKey: string | null = null
 
   try {
@@ -58,16 +63,22 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     // id → name on the way out (export is a name-friendly boundary).
     const nameById = buildNameById(table.schema)
 
-    const chunks: string[] = []
-    if (format === 'csv') {
-      chunks.push(`${toCsvRow(columns.map((c) => neutralizeCsvFormula(c.name)))}\n`)
-    } else {
-      chunks.push('[')
-    }
+    const fileName = `${sanitizeExportFilename(table.name)}.${format}`
+    // The key is pinned up front so the streaming upload writes exactly where the download
+    // route presigns; the *returned* key (from `complete`) is recorded as the source of truth.
+    const key = `workspace/${workspaceId}/exports/${tableId}/${jobId}/${fileName}`
+    const contentType = format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json'
+
+    // Stream the serialized file straight into storage in bounded parts instead of buffering the
+    // whole thing in heap — a 1M-row export no longer holds hundreds of MB resident.
+    handle = await createMultipartUpload({ key, context: 'workspace', contentType })
+    await handle.write(
+      format === 'csv' ? `${toCsvRow(columns.map((c) => neutralizeCsvFormula(c.name)))}\n` : '['
+    )
 
     let exported = 0
     let firstJsonRow = true
-    let after: { position: number; id: string } | null = null
+    let after: { orderKey: string; id: string } | null = null
     while (true) {
       // Ownership gate before every page: a canceled job stops within one batch.
       const owns = await updateJobProgress(tableId, exported, jobId)
@@ -76,36 +87,31 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       const page = await selectExportRowPage(table, after, EXPORT_BATCH_SIZE)
       if (page.length === 0) break
 
+      const pageChunks: string[] = []
       for (const row of page) {
         if (format === 'csv') {
-          chunks.push(`${toCsvRow(columns.map((c) => formatCsvValue(row.data[getColumnId(c)])))}\n`)
+          pageChunks.push(
+            `${toCsvRow(columns.map((c) => formatCsvValue(row.data[getColumnId(c)])))}\n`
+          )
         } else {
           const prefix = firstJsonRow ? '' : ','
           firstJsonRow = false
-          chunks.push(prefix + JSON.stringify(rowDataIdToName(row.data, nameById)))
+          pageChunks.push(prefix + JSON.stringify(rowDataIdToName(row.data, nameById)))
         }
       }
+      await handle.write(pageChunks.join(''))
 
       exported += page.length
       const last = page[page.length - 1]
-      after = { position: last.position, id: last.id }
+      after = { orderKey: last.orderKey, id: last.id }
       if (page.length < EXPORT_BATCH_SIZE) break
     }
-    if (format === 'json') chunks.push(']')
+    if (format === 'json') await handle.write(']')
 
-    const fileName = `${sanitizeExportFilename(table.name)}.${format}`
-    const key = `workspace/${workspaceId}/exports/${tableId}/${jobId}/${fileName}`
-    // `preserveKey` keeps the custom key verbatim (without it the provider rewrites the key to a
-    // timestamped, path-stripped name), and the *returned* key is recorded as the source of truth
-    // either way — the download route presigns exactly what was written.
-    const uploaded = await uploadFile({
-      file: Buffer.from(chunks.join(''), 'utf8'),
-      fileName,
-      contentType: format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json',
-      context: 'workspace',
-      customKey: key,
-      preserveKey: true,
-    })
+    const ownsFinalize = await updateJobProgress(tableId, exported, jobId)
+    if (!ownsFinalize) throw new JobSupersededError()
+
+    const uploaded = await handle.complete()
     uploadedKey = uploaded.key
     await setJobResultKey(tableId, jobId, uploaded.key)
 
@@ -129,8 +135,14 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       logger.info(`[${requestId}] Export finished but no longer owns the run`, { tableId, jobId })
     }
   } catch (err) {
-    // A partial/orphaned upload from this attempt is useless — clean it up best-effort.
-    if (uploadedKey) await deleteFile({ key: uploadedKey, context: 'workspace' }).catch(() => {})
+    // A partial/orphaned upload from this attempt is useless — clean it up best-effort. An
+    // in-flight multipart upload (not yet completed) is aborted so no staged parts linger; a
+    // completed-but-unannounced upload is removed by key.
+    if (uploadedKey) {
+      await deleteFile({ key: uploadedKey, context: 'workspace' }).catch(() => {})
+    } else if (handle) {
+      await handle.abort().catch(() => {})
+    }
     if (err instanceof JobSupersededError) {
       logger.info(`[${requestId}] Export superseded/canceled; stopping`, { tableId, jobId })
     } else {

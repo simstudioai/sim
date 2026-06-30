@@ -9,7 +9,14 @@
  */
 
 import { generateId } from '@sim/utils/id'
-import type { ColumnDefinition, Filter, RowData, Sort, TableSchema, WorkflowGroup } from './types'
+import type {
+  ColumnDefinition,
+  Filter,
+  RowData,
+  Sort,
+  TableSchema,
+  WorkflowGroup,
+} from '@/lib/table/types'
 
 /**
  * Resolves a column's stable storage key. Falls back to `name` for legacy

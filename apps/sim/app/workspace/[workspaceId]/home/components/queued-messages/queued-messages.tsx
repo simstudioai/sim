@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { cn, Tooltip } from '@sim/emcn'
 import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash2, X } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 

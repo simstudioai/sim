@@ -1,0 +1,5 @@
+export { deploymentsDeployTool } from '@/tools/deployments/deploy'
+export { deploymentsGetVersionTool } from '@/tools/deployments/get_version'
+export { deploymentsListVersionsTool } from '@/tools/deployments/list_versions'
+export { deploymentsPromoteTool } from '@/tools/deployments/promote'
+export { deploymentsUndeployTool } from '@/tools/deployments/undeploy'

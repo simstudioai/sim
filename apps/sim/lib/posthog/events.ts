@@ -91,6 +91,11 @@ export interface PostHogEventMap {
     membership_intent?: string
   }
 
+  workspace_member_added: {
+    workspace_id: string
+    member_role: string
+  }
+
   workspace_member_removed: {
     workspace_id: string
     is_self_removal: boolean
@@ -217,30 +222,6 @@ export interface PostHogEventMap {
     notification_id: string
     workspace_id: string
     notification_type: string
-  }
-
-  a2a_agent_deleted: {
-    agent_id: string
-    workflow_id: string
-    workspace_id: string
-  }
-
-  a2a_agent_published: {
-    agent_id: string
-    workflow_id: string
-    workspace_id: string
-  }
-
-  a2a_agent_unpublished: {
-    agent_id: string
-    workflow_id: string
-    workspace_id: string
-  }
-
-  a2a_agent_created: {
-    agent_id: string
-    workflow_id: string
-    workspace_id: string
   }
 
   block_added: {
@@ -569,8 +550,11 @@ export interface PostHogEventMap {
       | 'docs'
       | 'connected_account'
       | 'integration'
+      | 'action'
     query_length: number
     workspace_id: string
+    /** Present when `result_type` is `action`; the id of the action that ran. */
+    action_id?: string
   }
 
   /** A home-page suggested action was clicked. `action_id` is the candidate id (e.g. `gmail-0`). */

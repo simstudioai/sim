@@ -465,6 +465,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
 
 export const ServiceNowBlockMeta = {
   tags: ['customer-support', 'ticketing', 'incident-management'],
+  url: 'https://www.servicenow.com',
   templates: [
     {
       icon: ServiceNowIcon,

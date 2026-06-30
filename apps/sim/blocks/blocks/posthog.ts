@@ -1328,6 +1328,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const PostHogBlockMeta = {
   tags: ['data-analytics', 'monitoring', 'feature-flags'],
+  url: 'https://posthog.com',
   templates: [
     {
       icon: PosthogIcon,

@@ -2,14 +2,13 @@
 
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { cn, toast, useToast } from '@sim/emcn'
+import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { toast, useToast } from '@/components/emcn'
-import { Loader, TableX } from '@/components/emcn/icons'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
-import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -127,6 +126,10 @@ export interface SelectionSnapshot {
     /** True iff the exec is in a state that produced a server log
      *  (completed / error / running). Drives the View execution button. */
     canViewExecution: boolean
+    /** True iff this is an enrichment group with a terminal run (completed /
+     *  error) — drives "View execution" opening the enrichment details panel
+     *  instead of a workflow execution log. */
+    canViewEnrichment: boolean
   } | null
 }
 
@@ -153,6 +156,8 @@ interface TableGridProps {
   /** Open the enrichments slideout in edit mode for an existing enrichment group. */
   onOpenEnrichmentConfig: (group: WorkflowGroup) => void
   onOpenExecutionDetails: (executionId: string) => void
+  /** Open the enrichment details panel (cost + provider cascade) for a cell. */
+  onOpenEnrichmentDetails: (rowId: string, groupId: string) => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
@@ -283,6 +288,7 @@ export function TableGrid({
   onOpenEnrichments,
   onOpenEnrichmentConfig,
   onOpenExecutionDetails,
+  onOpenEnrichmentDetails,
   onOpenRowModal,
   onRequestDeleteRows,
   onRequestDeleteAllByFilter,
@@ -619,7 +625,7 @@ export function TableGrid({
 
   const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
   const { colWidth: checkboxColWidth, numRegionWidth } = checkboxColLayout(
-    tableData?.maxRows ?? 0,
+    tableData?.rowCount ?? 0,
     hasWorkflowColumns
   )
 
@@ -1005,6 +1011,9 @@ export function TableGrid({
   let contextMenuExecutionId: string | null = null
   let contextMenuIsWorkflowColumn = false
   let contextMenuHasStartedRun = false
+  // The (rowId, groupId) of the right-clicked enrichment cell when it has a
+  // terminal run — drives "View execution" opening the enrichment details panel.
+  let contextMenuEnrichment: { rowId: string; groupId: string } | null = null
   // The workflow group of the right-clicked cell, when it's a workflow-output
   // column. Scopes the run/re-run menu items to just that cell's group (the
   // cascade re-runs dependents on its own) instead of every group on the row.
@@ -1025,7 +1034,8 @@ export function TableGrid({
         _exec?.status === 'pending' &&
         typeof _exec?.jobId === 'string' &&
         _exec.jobId.startsWith('paused-')
-      // Enrichment cells have no workflow execution trace to open.
+      // Enrichment cells have no workflow execution trace; a terminal run opens
+      // the enrichment details panel instead.
       const _isEnrichmentGroup = workflowGroupById.get(_gid)?.type === 'enrichment'
       contextMenuHasStartedRun =
         !_isEnrichmentGroup &&
@@ -1034,10 +1044,22 @@ export function TableGrid({
           _exec?.status === 'running' ||
           _isPaused)
       contextMenuExecutionId = _exec?.executionId ?? null
+      if (
+        _isEnrichmentGroup &&
+        (_exec?.status === 'completed' || _exec?.status === 'error') &&
+        contextMenu.row
+      ) {
+        contextMenuEnrichment = { rowId: contextMenu.row.id, groupId: _gid }
+      }
     }
   }
 
   function handleViewExecution() {
+    if (contextMenuEnrichment) {
+      onOpenEnrichmentDetails(contextMenuEnrichment.rowId, contextMenuEnrichment.groupId)
+      closeContextMenu()
+      return
+    }
     if (!contextMenuExecutionId) return
     onOpenExecutionDetails(contextMenuExecutionId)
     closeContextMenu()
@@ -3369,8 +3391,8 @@ export function TableGrid({
     // running/completed/error.
     const isPaused =
       status === 'pending' && typeof exec?.jobId === 'string' && exec.jobId.startsWith('paused-')
-    // Enrichment groups have no workflow execution to open — never offer "View
-    // execution" for them.
+    // Enrichment groups have no workflow execution / trace; instead a terminal
+    // run exposes the enrichment details panel (cost + provider cascade).
     const isEnrichmentGroup = workflowGroupById.get(groupId)?.type === 'enrichment'
     return {
       rowId: row.id,
@@ -3383,6 +3405,7 @@ export function TableGrid({
         !isEnrichmentGroup &&
         Boolean(exec?.executionId) &&
         (status === 'completed' || status === 'error' || status === 'running' || isPaused),
+      canViewEnrichment: isEnrichmentGroup && (status === 'completed' || status === 'error'),
     }
   }, [normalizedSelection, rows, displayColumns, workflowGroupById])
 
@@ -3474,7 +3497,8 @@ export function TableGrid({
           prev.singleWorkflowCell.rowId === singleWorkflowCell.rowId &&
           prev.singleWorkflowCell.groupId === singleWorkflowCell.groupId &&
           prev.singleWorkflowCell.executionId === singleWorkflowCell.executionId &&
-          prev.singleWorkflowCell.canViewExecution === singleWorkflowCell.canViewExecution
+          prev.singleWorkflowCell.canViewExecution === singleWorkflowCell.canViewExecution &&
+          prev.singleWorkflowCell.canViewEnrichment === singleWorkflowCell.canViewEnrichment
     const sameRunScope =
       (prev?.selectedRunScope ?? null) === null && selectedRunScope === null
         ? true
@@ -3879,7 +3903,10 @@ export function TableGrid({
         onInsertBelow={handleInsertRowBelow}
         onDuplicate={handleDuplicateRow}
         onViewExecution={handleViewExecution}
-        canViewExecution={Boolean(contextMenuExecutionId) && contextMenuHasStartedRun}
+        canViewExecution={
+          (Boolean(contextMenuExecutionId) && contextMenuHasStartedRun) ||
+          Boolean(contextMenuEnrichment)
+        }
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
         onRunWorkflows={

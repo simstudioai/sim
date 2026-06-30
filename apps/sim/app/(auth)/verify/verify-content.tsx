@@ -1,8 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { cn, InputOTP, InputOTPGroup, InputOTPSlot } from '@sim/emcn'
 import {
   AuthFormMessage,
   AuthHeader,
@@ -32,15 +31,18 @@ function VerificationForm({
   const {
     otp,
     email,
-    isLoading,
-    isVerified,
-    isInvalidOtp,
+    status,
+    isResending,
     errorMessage,
     isOtpComplete,
     verifyCode,
     resendCode,
     handleOtpChange,
   } = useVerification({ hasEmailService, isProduction, isEmailVerificationEnabled })
+
+  const isVerified = status === 'verified'
+  const isLoading = status === 'verifying' || isResending
+  const isInvalidOtp = status === 'error'
 
   const [countdown, setCountdown] = useState(0)
   const [isResendDisabled, setIsResendDisabled] = useState(false)

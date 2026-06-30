@@ -2,6 +2,10 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { webhookTriggerGetContract, webhookTriggerPostContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
+import {
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
+  isWorkspaceApiExecutionEntitled,
+} from '@/lib/billing/core/api-access'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -65,6 +69,17 @@ async function handleWebhookPost(
   request: NextRequest,
   context: { params: Promise<{ path: string }> }
 ): Promise<NextResponse> {
+  const receivedAt = Date.now()
+  /**
+   * Slack signs every interactive request with the originating interaction time.
+   * Capturing it lets the executor surface the true trigger_id age (the window
+   * that expires at 3s) instead of only the in-workflow block timings.
+   */
+  const slackRequestTimestamp = request.headers.get('x-slack-request-timestamp')
+  const triggerTimestampMs = slackRequestTimestamp
+    ? Number(slackRequestTimestamp) * 1000
+    : undefined
+
   const requestId = generateRequestId()
   const parsed = await parseRequest(webhookTriggerPostContract, request, context)
   if (!parsed.success) return parsed.response
@@ -122,8 +137,22 @@ async function handleWebhookPost(
   // Process each webhook
   // For credential sets with shared paths, each webhook represents a different credential
   const responses: NextResponse[] = []
+  let billingBlocked = false
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
+    // Generic ("custom") webhooks are an unauthenticated programmatic execution
+    // surface, so they fall under the same paid-plan gate as the API. Provider
+    // webhooks (slack, github, ...) are unaffected.
+    if (
+      foundWebhook.provider === 'generic' &&
+      !(await isWorkspaceApiExecutionEntitled(foundWorkflow.workspaceId))
+    ) {
+      logger.warn(`[${requestId}] Generic webhook blocked: workspace on free plan`)
+      billingBlocked = true
+      if (webhooksForPath.length > 1) continue
+      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    }
+
     const authError = await verifyProviderAuth(
       foundWebhook,
       foundWorkflow,
@@ -182,11 +211,16 @@ async function handleWebhookPost(
       actorUserId: preprocessResult.actorUserId,
       executionId: preprocessResult.executionId,
       correlation: preprocessResult.correlation,
+      receivedAt,
+      triggerTimestampMs: Number.isFinite(triggerTimestampMs) ? triggerTimestampMs : undefined,
     })
     responses.push(response)
   }
 
   if (responses.length === 0) {
+    if (billingBlocked) {
+      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    }
     return new NextResponse('No webhooks processed successfully', { status: 500 })
   }
 

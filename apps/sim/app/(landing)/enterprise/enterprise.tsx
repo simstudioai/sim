@@ -1,5 +1,4 @@
-import { ChipLink } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ChipLink, cn } from '@sim/emcn'
 import {
   SolutionsCardRow,
   SolutionsHero,

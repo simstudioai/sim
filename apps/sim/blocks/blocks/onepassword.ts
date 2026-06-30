@@ -270,6 +270,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
 
 export const OnePasswordBlockMeta = {
   tags: ['secrets-management', 'identity'],
+  url: 'https://1password.com',
   templates: [
     {
       icon: OnePasswordIcon,

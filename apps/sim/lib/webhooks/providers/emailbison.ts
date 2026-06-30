@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -19,7 +20,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (!triggerId) return true
 
-    if (!isRecord(body)) {
+    if (!isRecordLike(body)) {
       logger.warn(`[${requestId}] Email Bison webhook payload was not an object`)
       return false
     }
@@ -36,9 +37,9 @@ export const emailBisonHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
-    const payload = isRecord(body) ? unwrapEmailBisonPayload(body) : {}
-    const event = isRecord(payload.event) ? payload.event : null
-    const data = isRecord(payload.data) ? payload.data : null
+    const payload = isRecordLike(body) ? unwrapEmailBisonPayload(body) : {}
+    const event = isRecordLike(payload.event) ? payload.event : null
+    const data = isRecordLike(payload.data) ? payload.data : null
     const providerConfig = getProviderConfig(webhook)
     const triggerId = providerConfig.triggerId as string | undefined
     const input: Record<string, unknown> = {
@@ -176,7 +177,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
       )
     }
 
-    const data = isRecord(responseBody?.data) ? responseBody.data : null
+    const data = isRecordLike(responseBody?.data) ? responseBody.data : null
     const externalId = data?.id
     if (externalId === undefined || externalId === null || externalId === '') {
       throw new Error('Email Bison webhook was created but the API response did not include an ID.')
@@ -245,7 +246,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
 async function parseJsonResponse(response: Response): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await response.json()
-    return isRecord(body) ? body : null
+    return isRecordLike(body) ? body : null
   } catch {
     return null
   }
@@ -257,19 +258,19 @@ function extractEmailBisonError(body: Record<string, unknown> | null): string | 
   if (typeof body.error === 'string') return body.error
 
   const data = body.data
-  if (isRecord(data) && typeof data.message === 'string') return data.message
+  if (isRecordLike(data) && typeof data.message === 'string') return data.message
 
   return null
 }
 
 function unwrapEmailBisonPayload(body: Record<string, unknown>): Record<string, unknown> {
-  if (isRecord(body.event)) return body
+  if (isRecordLike(body.event)) return body
 
   const data = body.data
-  if (isRecord(data) && isRecord(data.event)) return data
+  if (isRecordLike(data) && isRecordLike(data.event)) return data
 
-  const payload = isRecord(data) ? data.payload : body.payload
-  if (isRecord(payload) && isRecord(payload.event)) return payload
+  const payload = isRecordLike(data) ? data.payload : body.payload
+  if (isRecordLike(payload) && isRecordLike(payload.event)) return payload
 
   return body
 }
@@ -288,16 +289,12 @@ function toNumberOrNull(value: unknown): number | null {
 }
 
 function toRecordOrNull(value: unknown): Record<string, unknown> | null {
-  return isRecord(value) ? value : null
+  return isRecordLike(value) ? value : null
 }
 
 function renameTypeField(value: unknown, targetKey: string): Record<string, unknown> | null {
-  if (!isRecord(value)) return null
+  if (!isRecordLike(value)) return null
 
   const { type, ...rest } = value
   return { ...rest, [targetKey]: type ?? null }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

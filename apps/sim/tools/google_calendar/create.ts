@@ -1,10 +1,18 @@
 import {
   CALENDAR_API_BASE,
+  type CalendarAttendee,
   type GoogleCalendarApiEventResponse,
   type GoogleCalendarCreateParams,
   type GoogleCalendarCreateResponse,
   type GoogleCalendarEventRequestBody,
 } from '@/tools/google_calendar/types'
+import {
+  assertRecurringTimeZone,
+  buildEventDateTime,
+  buildGoogleMeetConferenceData,
+  normalizeAttendees,
+  normalizeRecurrence,
+} from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCreateResponse> = {
@@ -54,28 +62,40 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Start date and time. MUST include timezone offset (e.g., 2025-06-03T10:00:00-08:00) OR provide timeZone parameter',
+        'Start time. Use a datetime with timezone offset (2025-06-03T10:00:00-08:00) or a date (2025-06-03) for an all-day event',
     },
     endDateTime: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'End date and time. MUST include timezone offset (e.g., 2025-06-03T11:00:00-08:00) OR provide timeZone parameter',
+        'End time. Use a datetime with timezone offset (2025-06-03T11:00:00-08:00) or a date (2025-06-04) for an all-day event',
     },
     timeZone: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Time zone (e.g., America/Los_Angeles). Required if datetime does not include offset. Defaults to America/Los_Angeles if not provided.',
-      default: 'America/Los_Angeles',
+        'IANA time zone (e.g., America/Los_Angeles). Used as-is when provided. For recurring events a time zone is required to expand the recurrence correctly; for one-off events it is only needed when the datetime omits a UTC offset (a naive datetime defaults to America/Los_Angeles).',
     },
     attendees: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description: 'Array of attendee email addresses',
+    },
+    recurrence: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Recurrence rule(s) in RFC 5545 format (e.g., RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR). Separate multiple rules with newlines.',
+    },
+    addGoogleMeet: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Attach a Google Meet video conference link to the event',
     },
     sendUpdates: {
       type: 'string',
@@ -93,11 +113,12 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       if (params.sendUpdates !== undefined) {
         queryParams.append('sendUpdates', params.sendUpdates)
       }
+      if (params.addGoogleMeet) {
+        queryParams.append('conferenceDataVersion', '1')
+      }
 
       const queryString = queryParams.toString()
-      const finalUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events${queryString ? `?${queryString}` : ''}`
-
-      return finalUrl
+      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events${queryString ? `?${queryString}` : ''}`
     },
     method: 'POST',
     headers: (params: GoogleCalendarCreateParams) => ({
@@ -105,21 +126,17 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       'Content-Type': 'application/json',
     }),
     body: (params: GoogleCalendarCreateParams): GoogleCalendarEventRequestBody => {
-      // Default timezone if not provided and datetime doesn't include offset
-      const timeZone = params.timeZone || 'America/Los_Angeles'
-      const needsTimezone =
-        !params.startDateTime.includes('+') && !params.startDateTime.includes('-', 10)
+      const recurrence = normalizeRecurrence(params.recurrence)
+      const isRecurring = recurrence.length > 0
+
+      if (isRecurring) {
+        assertRecurringTimeZone([params.startDateTime, params.endDateTime], params.timeZone)
+      }
 
       const eventData: GoogleCalendarEventRequestBody = {
         summary: params.summary,
-        start: {
-          dateTime: params.startDateTime,
-          ...(needsTimezone ? { timeZone } : {}),
-        },
-        end: {
-          dateTime: params.endDateTime,
-          ...(needsTimezone ? { timeZone } : {}),
-        },
+        start: buildEventDateTime(params.startDateTime, params.timeZone),
+        end: buildEventDateTime(params.endDateTime, params.timeZone),
       }
 
       if (params.description) {
@@ -130,29 +147,17 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
         eventData.location = params.location
       }
 
-      // Always set timezone if explicitly provided
-      if (params.timeZone) {
-        eventData.start.timeZone = params.timeZone
-        eventData.end.timeZone = params.timeZone
+      const attendees = normalizeAttendees(params.attendees)
+      if (attendees.length > 0) {
+        eventData.attendees = attendees
       }
 
-      // Handle both string and array cases for attendees
-      let attendeeList: string[] = []
-      if (params.attendees) {
-        const attendees = params.attendees as string | string[]
-        if (Array.isArray(attendees)) {
-          attendeeList = attendees.filter((email: string) => email && email.trim().length > 0)
-        } else if (typeof attendees === 'string' && attendees.trim().length > 0) {
-          // Convert comma-separated string to array
-          attendeeList = attendees
-            .split(',')
-            .map((email: string) => email.trim())
-            .filter((email: string) => email.length > 0)
-        }
+      if (isRecurring) {
+        eventData.recurrence = recurrence
       }
 
-      if (attendeeList.length > 0) {
-        eventData.attendees = attendeeList.map((email: string) => ({ email }))
+      if (params.addGoogleMeet) {
+        eventData.conferenceData = buildGoogleMeetConferenceData()
       }
 
       return eventData
@@ -169,10 +174,12 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
         metadata: {
           id: data.id,
           htmlLink: data.htmlLink,
+          hangoutLink: data.hangoutLink,
           status: data.status,
           summary: data.summary,
           description: data.description,
           location: data.location,
+          recurrence: data.recurrence,
           start: data.start,
           end: data.end,
           attendees: data.attendees,
@@ -187,7 +194,7 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
     content: { type: 'string', description: 'Event creation confirmation message' },
     metadata: {
       type: 'json',
-      description: 'Created event metadata including ID, status, and details',
+      description: 'Created event metadata including ID, status, Meet link, and details',
     },
   },
 }
@@ -197,15 +204,17 @@ interface GoogleCalendarCreateV2Response {
   output: {
     id: string
     htmlLink: string
+    hangoutLink: string | null
     status: string
     summary: string | null
     description: string | null
     location: string | null
-    start: any
-    end: any
-    attendees: any | null
-    creator: any
-    organizer: any
+    recurrence: string[] | null
+    start: GoogleCalendarApiEventResponse['start']
+    end: GoogleCalendarApiEventResponse['end']
+    attendees: CalendarAttendee[] | null
+    creator: GoogleCalendarApiEventResponse['creator'] | null
+    organizer: GoogleCalendarApiEventResponse['organizer'] | null
   }
 }
 
@@ -226,29 +235,33 @@ export const createV2Tool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendar
         output: {
           id: data.id,
           htmlLink: data.htmlLink,
+          hangoutLink: data.hangoutLink ?? null,
           status: data.status,
           summary: data.summary ?? null,
           description: data.description ?? null,
           location: data.location ?? null,
+          recurrence: data.recurrence ?? null,
           start: data.start,
           end: data.end,
           attendees: data.attendees ?? null,
-          creator: data.creator,
-          organizer: data.organizer,
+          creator: data.creator ?? null,
+          organizer: data.organizer ?? null,
         },
       }
     },
     outputs: {
       id: { type: 'string', description: 'Event ID' },
       htmlLink: { type: 'string', description: 'Event link' },
+      hangoutLink: { type: 'string', description: 'Google Meet link', optional: true },
       status: { type: 'string', description: 'Event status' },
       summary: { type: 'string', description: 'Event title', optional: true },
       description: { type: 'string', description: 'Event description', optional: true },
       location: { type: 'string', description: 'Event location', optional: true },
+      recurrence: { type: 'json', description: 'Recurrence rules', optional: true },
       start: { type: 'json', description: 'Event start' },
       end: { type: 'json', description: 'Event end' },
       attendees: { type: 'json', description: 'Event attendees', optional: true },
-      creator: { type: 'json', description: 'Event creator' },
-      organizer: { type: 'json', description: 'Event organizer' },
+      creator: { type: 'json', description: 'Event creator', optional: true },
+      organizer: { type: 'json', description: 'Event organizer', optional: true },
     },
   }

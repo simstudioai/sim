@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { isEmailVerificationEnabled, isProd } from '@/lib/core/config/feature-flags'
+import { isEmailVerificationEnabled, isProd } from '@/lib/core/config/env-flags'
 import { hasEmailService } from '@/lib/messaging/email/mailer'
 import { VerifyContent } from '@/app/(auth)/verify/verify-content'
 

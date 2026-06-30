@@ -12,6 +12,7 @@ import {
   CreditsExhaustedEmail,
   EnterpriseSubscriptionEmail,
   FreeTierUpgradeEmail,
+  LimitThresholdEmail,
   PaymentFailedEmail,
   PlanWelcomeEmail,
   UsageThresholdEmail,
@@ -20,12 +21,14 @@ import {
   BatchInvitationEmail,
   InvitationEmail,
   PollingGroupInvitationEmail,
+  WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
 import { HelpConfirmationEmail } from '@/components/emails/support'
+import type { UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-export { getEmailSubject } from './subjects'
+export { getEmailSubject, getLimitEmailSubject } from './subjects'
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -152,6 +155,18 @@ export async function renderFreeTierUpgradeEmail(params: {
   )
 }
 
+export async function renderLimitThresholdEmail(params: {
+  kind: 'warning' | 'reached'
+  reason: UpgradeReason
+  userName?: string
+  usageLabel: string
+  limitLabel: string
+  percentUsed: number
+  upgradeLink: string
+}): Promise<string> {
+  return await render(LimitThresholdEmail(params))
+}
+
 export async function renderPlanWelcomeEmail(params: {
   planName: string
   userName?: string
@@ -211,6 +226,20 @@ export async function renderWorkspaceInvitationEmail(
       inviterName,
       workspaceNames,
       invitationLink,
+    })
+  )
+}
+
+export async function renderWorkspaceAddedEmail(
+  inviterName: string,
+  workspaceName: string,
+  workspaceLink: string
+): Promise<string> {
+  return await render(
+    WorkspaceAddedEmail({
+      inviterName,
+      workspaceName,
+      workspaceLink,
     })
   )
 }

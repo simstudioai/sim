@@ -1,5 +1,5 @@
+import { cn } from '@sim/emcn'
 import Link from 'next/link'
-import { cn } from '@/lib/core/utils/cn'
 import type { CatalogModel, CatalogProvider } from '@/app/(landing)/models/utils'
 
 export function ProviderIcon({

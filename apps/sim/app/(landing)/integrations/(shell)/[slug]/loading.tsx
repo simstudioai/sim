@@ -1,4 +1,4 @@
-import { Loader } from '@/components/emcn'
+import { Loader } from '@sim/emcn'
 
 export default function IntegrationDetailLoading() {
   return (

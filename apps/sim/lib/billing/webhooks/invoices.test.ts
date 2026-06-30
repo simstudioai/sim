@@ -230,11 +230,12 @@ describe('invoice billing recovery', () => {
     expect(mockBlockOrgMembers).not.toHaveBeenCalled()
   })
 
-  it('coordinates org usage reset with owner tracker and organization locks', async () => {
-    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] })
-    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] })
-    queueSelectResponse({ limitResult: [{ id: 'org-1' }] })
-    queueSelectResponse({ whereResult: [{ userId: 'owner-1' }, { userId: 'member-1' }] })
+  it('locks member userStats before the organization row during usage reset', async () => {
+    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] }) // owner member row
+    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] }) // owner userStats
+    queueSelectResponse({ whereResult: [{ userId: 'owner-1' }, { userId: 'member-1' }] }) // member ids
+    queueSelectResponse({ whereResult: [] }) // all-member userStats FOR UPDATE (pre-org lock)
+    queueSelectResponse({ limitResult: [{ id: 'org-1' }] }) // organization
     queueSelectResponse({
       whereResult: [
         { userId: 'owner-1', current: '125', currentCopilot: '10' },
@@ -248,9 +249,17 @@ describe('invoice billing recovery', () => {
 
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(2)
-    expect(Object.keys(dbChainMockFns.select.mock.calls[0][0] ?? {})).toEqual(['userId'])
-    expect(Object.keys(dbChainMockFns.select.mock.calls[1][0] ?? {})).toEqual(['userId'])
-    expect(Object.keys(dbChainMockFns.select.mock.calls[2][0] ?? {})).toEqual(['id'])
+
+    const whereArgs = dbChainMockFns.where.mock.calls.map(
+      (call) => call[0] as { type?: string; column?: string; left?: string }
+    )
+    const allMemberStatsLockIndex = whereArgs.findIndex(
+      (arg) => arg?.type === 'inArray' && arg?.column === 'userId'
+    )
+    const orgLockIndex = whereArgs.findIndex((arg) => arg?.type === 'eq' && arg?.left === 'id')
+    expect(allMemberStatsLockIndex).toBeGreaterThanOrEqual(0)
+    expect(orgLockIndex).toBeGreaterThanOrEqual(0)
+    expect(allMemberStatsLockIndex).toBeLessThan(orgLockIndex)
 
     const statsReset = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
     expect(statsReset.currentPeriodCost).not.toBe('0')

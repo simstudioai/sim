@@ -1,5 +1,5 @@
+import { ChipLink } from '@sim/emcn'
 import Link from 'next/link'
-import { ChipLink } from '@/components/emcn'
 import {
   GitHubChip,
   LogoMark,
@@ -36,11 +36,21 @@ import {
  */
 
 interface NavbarProps {
-  /** Formatted GitHub star count (e.g. "28.8k"), fetched server-side at build/revalidate time. */
-  stars: string
+  /**
+   * Formatted GitHub star count (e.g. "28.8k"), fetched server-side at
+   * build/revalidate time. Omitted by non-marketing shells that reuse this
+   * navbar without a stars fetch (the GitHub chip is hidden when absent).
+   */
+  stars?: string
+  /**
+   * Render only the Sim wordmark - no nav menus, GitHub chip, auth chips, or
+   * mobile sheet. Used by non-marketing shells (resume, public-file auth) that
+   * want the brand header without the full marketing navigation.
+   */
+  logoOnly?: boolean
 }
 
-export function Navbar({ stars }: NavbarProps) {
+export function Navbar({ stars, logoOnly = false }: NavbarProps) {
   return (
     <NavbarShell>
       <nav
@@ -58,27 +68,31 @@ export function Navbar({ stars }: NavbarProps) {
           </LogoMark>
         </Link>
 
-        <div className='hidden items-center gap-1 lg:flex'>
-          {NAV_MENUS.map((menu) => (
-            <NavMenuChip key={menu.label} menu={menu} />
-          ))}
-          <ChipLink href='/pricing' itemProp='url'>
-            Pricing
-          </ChipLink>
-          <GitHubChip stars={stars} />
-        </div>
+        {!logoOnly && (
+          <>
+            <div className='hidden items-center gap-1 lg:flex'>
+              {NAV_MENUS.map((menu) => (
+                <NavMenuChip key={menu.label} menu={menu} />
+              ))}
+              <ChipLink href='/pricing' itemProp='url'>
+                Pricing
+              </ChipLink>
+              {stars !== undefined && <GitHubChip stars={stars} />}
+            </div>
 
-        <div className='ml-auto hidden items-center gap-1 lg:flex'>
-          <ChipLink href='/login'>Log in</ChipLink>
-          <ChipLink href='/demo' className='border border-[var(--border-1)]'>
-            Contact sales
-          </ChipLink>
-          <ChipLink variant='primary' href='/signup'>
-            Sign up
-          </ChipLink>
-        </div>
+            <div className='ml-auto hidden items-center gap-1 lg:flex'>
+              <ChipLink href='/login'>Log in</ChipLink>
+              <ChipLink href='/demo' className='border border-[var(--border-1)]'>
+                Contact sales
+              </ChipLink>
+              <ChipLink variant='primary' href='/signup'>
+                Sign up
+              </ChipLink>
+            </div>
 
-        <MobileNav stars={stars} />
+            <MobileNav stars={stars ?? '0'} />
+          </>
+        )}
       </nav>
     </NavbarShell>
   )

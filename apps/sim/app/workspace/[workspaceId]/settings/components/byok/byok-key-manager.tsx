@@ -1,9 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff, Search } from 'lucide-react'
 import {
   Button,
   Chip,
@@ -14,14 +11,18 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Eye, EyeOff, Search } from 'lucide-react'
 import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
 import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const logger = createLogger('BYOKKeyManager')
@@ -323,9 +324,9 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
             ))}
           </div>
         ) : showNoResults ? (
-          <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+          <SettingsEmptyState variant='inline'>
             No providers found matching "{searchTerm}"
-          </div>
+          </SettingsEmptyState>
         ) : sections ? (
           <div className='flex flex-col gap-7'>
             {sections.map((section) => {
@@ -382,7 +383,6 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               : `This key will be used for all ${editingMeta?.name} requests in this workspace. Your key is encrypted and stored securely.`}
           </p>
           <ChipModalField type='custom' title='API Key' required>
-            {/* Hidden decoy fields to prevent browser autofill */}
             <input
               type='text'
               name='fakeusernameremembered'
@@ -457,21 +457,15 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
         }}
         srTitle='Delete API Key'
         title='Delete API Key'
-        description={
-          <>
-            Are you sure you want to delete the{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{deleteMeta?.name}</span> API
-            key?{' '}
-            {isDeletingLastKey ? (
-              <span className='text-[var(--text-error)]'>
-                This workspace will revert to using platform hosted keys.
-              </span>
-            ) : (
-              <>Requests will continue using the remaining {deleteMeta?.name} keys.</>
-            )}{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete the ',
+          { text: deleteMeta?.name ?? 'selected', bold: true },
+          ' API key? ',
+          isDeletingLastKey
+            ? { text: 'This workspace will revert to using platform hosted keys.', error: true }
+            : `Requests will continue using the remaining ${deleteMeta?.name ?? 'provider'} keys.`,
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,

@@ -49,7 +49,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotRunRow[]> {
 
 export const copilotRunsSource: DrainSource<CopilotRunRow> = {
   type: 'copilot_runs',
-  displayName: 'Copilot runs',
+  displayName: 'Chat runs',
   pages,
   serialize(row) {
     return {

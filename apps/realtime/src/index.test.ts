@@ -73,6 +73,10 @@ vi.mock('@/middleware/permissions', () => ({
   checkRolePermission: vi.fn().mockReturnValue({
     allowed: true,
   }),
+  checkWorkflowOperationPermission: vi.fn().mockResolvedValue({
+    allowed: true,
+    role: 'admin',
+  }),
 }))
 
 vi.mock('@/database/operations', () => ({

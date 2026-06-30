@@ -89,11 +89,123 @@ export interface MicrosoftExcelWorksheetToolParams {
   worksheetName: string
 }
 
+export interface MicrosoftExcelClearRangeParams {
+  accessToken: string
+  spreadsheetId: string
+  driveId?: string
+  sheetName?: string
+  range: string
+  applyTo?: 'All' | 'Formats' | 'Contents'
+}
+
+export interface MicrosoftExcelClearRangeResponse extends ToolResponse {
+  output: {
+    cleared: boolean
+    range: string
+    applyTo: string
+    metadata: MicrosoftExcelMetadata
+  }
+}
+
+export interface MicrosoftExcelFormatRangeParams {
+  accessToken: string
+  spreadsheetId: string
+  driveId?: string
+  sheetName?: string
+  range: string
+  fillColor?: string
+  fontBold?: boolean
+  fontItalic?: boolean
+  fontColor?: string
+  fontSize?: number
+  fontName?: string
+}
+
+export interface MicrosoftExcelFormatRangeResponse extends ToolResponse {
+  output: {
+    formatted: boolean
+    range: string
+    fill: { color: string | null } | null
+    font: {
+      bold: boolean | null
+      italic: boolean | null
+      color: string | null
+      name: string | null
+      size: number | null
+    } | null
+    metadata: MicrosoftExcelMetadata
+  }
+}
+
+export interface MicrosoftExcelCreateTableParams {
+  accessToken: string
+  spreadsheetId: string
+  driveId?: string
+  address: string
+  hasHeaders?: boolean
+}
+
+export interface MicrosoftExcelCreateTableResponse extends ToolResponse {
+  output: {
+    table: {
+      id: string
+      name: string
+      showHeaders: boolean
+      showTotals: boolean
+      style: string | null
+    }
+    metadata: MicrosoftExcelMetadata
+  }
+}
+
+export interface MicrosoftExcelDeleteWorksheetParams {
+  accessToken: string
+  spreadsheetId: string
+  driveId?: string
+  worksheetName: string
+}
+
+export interface MicrosoftExcelDeleteWorksheetResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    worksheetName: string
+    metadata: MicrosoftExcelMetadata
+  }
+}
+
+export interface MicrosoftExcelSortRangeParams {
+  accessToken: string
+  spreadsheetId: string
+  driveId?: string
+  sheetName?: string
+  range?: string
+  tableName?: string
+  sortColumn: number
+  sortAscending?: boolean
+  hasHeaders?: boolean
+  matchCase?: boolean
+}
+
+export interface MicrosoftExcelSortRangeResponse extends ToolResponse {
+  output: {
+    sorted: boolean
+    target: string
+    sortColumn: number
+    ascending: boolean
+    metadata: MicrosoftExcelMetadata
+  }
+}
+
 export type MicrosoftExcelResponse =
   | MicrosoftExcelReadResponse
   | MicrosoftExcelWriteResponse
   | MicrosoftExcelTableAddResponse
   | MicrosoftExcelWorksheetAddResponse
+  | MicrosoftExcelClearRangeResponse
+  | MicrosoftExcelFormatRangeResponse
+  | MicrosoftExcelCreateTableResponse
+  | MicrosoftExcelDeleteWorksheetResponse
+  | MicrosoftExcelSortRangeResponse
 
 // V2 Types - with separate sheetName param
 export interface MicrosoftExcelV2ToolParams {

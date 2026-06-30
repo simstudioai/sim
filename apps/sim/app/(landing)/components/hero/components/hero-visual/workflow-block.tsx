@@ -1,4 +1,4 @@
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 interface WorkflowBlockProps {

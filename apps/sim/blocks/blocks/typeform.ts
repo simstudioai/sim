@@ -458,6 +458,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
 
 export const TypeformBlockMeta = {
   tags: ['forms', 'data-analytics'],
+  url: 'https://www.typeform.com',
   templates: [
     {
       icon: TypeformIcon,

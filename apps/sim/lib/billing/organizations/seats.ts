@@ -6,7 +6,7 @@ import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
 const logger = createLogger('OrganizationSeats')

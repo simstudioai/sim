@@ -6,7 +6,7 @@ import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
   WorkflowLockedError,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {

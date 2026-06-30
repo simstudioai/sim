@@ -30,6 +30,10 @@ import {
 } from '@/lib/api/contracts/mcp'
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
+import {
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
+  isWorkspaceApiExecutionEntitled,
+} from '@/lib/billing/core/api-access'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   assertContentLengthWithinLimit,
@@ -49,6 +53,7 @@ import {
   MCP_TOOL_BRIDGE_ACTOR_HEADER,
   MCP_TOOL_BRIDGE_HEADER,
 } from '@/lib/mcp/constants'
+import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowMcpServeAPI')
@@ -312,6 +317,15 @@ async function authorizeMcpServeRequest(
   server: WorkflowMcpServeServer,
   options: { requireAuthForPublic?: boolean } = {}
 ): Promise<{ response?: NextResponse; executeAuthContext?: ExecuteAuthContext }> {
+  if (!(await isWorkspaceApiExecutionEntitled(server.workspaceId))) {
+    return {
+      response: NextResponse.json(
+        { error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE },
+        { status: 402 }
+      ),
+    }
+  }
+
   if (server.isPublic && !options.requireAuthForPublic) return {}
 
   const auth = await checkHybridAuth(request, { requireWorkflowId: false })
@@ -588,8 +602,11 @@ async function handleToolsList(
         toolName: workflowMcpTool.toolName,
         toolDescription: workflowMcpTool.toolDescription,
         parameterSchema: workflowMcpTool.parameterSchema,
+        workflowName: workflow.name,
+        workflowDescription: workflow.description,
       })
       .from(workflowMcpTool)
+      .innerJoin(workflow, eq(workflowMcpTool.workflowId, workflow.id))
       .where(
         and(
           eq(workflowMcpTool.serverId, serverId),
@@ -616,7 +633,10 @@ async function handleToolsList(
         )
         return {
           name: tool.toolName,
-          description: tool.toolDescription || `Execute workflow: ${tool.toolName}`,
+          description:
+            tool.toolDescription?.trim() ||
+            getMeaningfulWorkflowDescription(tool.workflowDescription, tool.workflowName) ||
+            `Execute workflow: ${tool.toolName}`,
           inputSchema: {
             type: 'object' as const,
             properties: schema?.properties || {},

@@ -4,12 +4,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { deleteTableRowsAsyncContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
-import { markTableJobRunning, releaseJobClaim } from '@/lib/table/service'
+import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import type { TableDeleteJobPayload } from '@/lib/table/types'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
@@ -86,14 +86,15 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     // Trigger.dev runs the delete outside the web container (survives deploys) and retries —
     // safe: the keyset + cutoff walk just deletes whatever remains.
     try {
-      const [{ tableDeleteTask }, { tasks }] = await Promise.all([
+      const [{ tableDeleteTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-delete'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableDeleteTask>(
         'table-delete',
         { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff: cutoff.toISOString() },
-        { tags: [`tableId:${tableId}`, `jobId:${jobId}`] }
+        { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
       )
     } catch (error) {
       // A failed dispatch must not leave a ghost `running` job holding the

@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
-import { PillsRing } from '@/components/emcn'
+import { PillsRing } from '@sim/emcn'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallStatus } from '../../../../types'
-import { getToolIcon } from '../../utils'
+import { getToolIcon, resolveToolDisplayState } from '../../utils'
 
 function CircleCheck({ className }: { className?: string }) {
   return (
@@ -58,13 +58,14 @@ function Hyphen({ className }: { className?: string }) {
 }
 
 function StatusIcon({ status, toolName }: { status: ToolCallStatus; toolName: string }) {
-  if (status === 'executing') {
+  const display = resolveToolDisplayState(status)
+  if (display === 'spinner') {
     return <PillsRing className='size-[15px] text-[var(--text-tertiary)]' animate />
   }
-  if (status === 'cancelled') {
+  if (display === 'cancelled') {
     return <CircleStop className='size-[15px] text-[var(--text-tertiary)]' />
   }
-  if (status === 'interrupted') {
+  if (display === 'interrupted') {
     return <Hyphen className='size-[15px] text-[var(--text-tertiary)]' />
   }
   const Icon = getToolIcon(toolName)

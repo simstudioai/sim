@@ -1,7 +1,7 @@
+import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import { FAQ } from '@/lib/blog/faq'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blog/seo'

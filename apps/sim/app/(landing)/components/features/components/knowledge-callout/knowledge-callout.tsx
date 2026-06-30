@@ -1,4 +1,4 @@
-import { Database, File } from '@/components/emcn'
+import { Database, File } from '@sim/emcn'
 import { CalloutFrame } from '@/app/(landing)/components/features/components/feature-stage/feature-stage'
 
 /**

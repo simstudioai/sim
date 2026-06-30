@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { inlineFileRefQuerySchema } from '@/lib/api/contracts/primitives'
+import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
@@ -13,6 +15,21 @@ export const workspaceFileParamsSchema = workspaceFilesParamsSchema.extend({
 
 export const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
+})
+
+/**
+ * Binary stream of an image embedded in a workspace markdown document, scoped to the
+ * workspace in the path. The route serves the bytes only when the referenced file is a
+ * `workspace` file belonging to `[id]` — cross-workspace references do not resolve.
+ */
+export const getInlineWorkspaceFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/inline',
+  params: workspaceFilesParamsSchema,
+  query: inlineFileRefQuerySchema,
+  response: {
+    mode: 'binary',
+  },
 })
 
 const workspaceFileNameSchema = z
@@ -49,6 +66,7 @@ export const workspaceFileRecordSchema = z.object({
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
+  share: shareRecordSchema.nullable().optional(),
 })
 
 const workspaceFileSuccessSchema = z.object({

@@ -211,6 +211,7 @@ export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
 
 export const ExtendBlockMeta = {
   tags: ['document-processing', 'ocr'],
+  url: 'https://www.extend.ai',
   templates: [
     {
       icon: ExtendIcon,

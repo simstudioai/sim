@@ -1,37 +1,51 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import type { DataRetentionSettings } from '@sim/db/schema'
+import { member, organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateOrganizationDataRetentionContract } from '@/lib/api/contracts/organization'
+import {
+  type OrganizationRetentionValues,
+  updateOrganizationDataRetentionContract,
+} from '@/lib/api/contracts/organization'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import {
-  CLEANUP_CONFIG,
-  type OrganizationRetentionSettings,
-} from '@/lib/billing/cleanup-dispatcher'
+import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { coercePiiLanguage } from '@/lib/guardrails/pii-entities'
 
 const logger = createLogger('DataRetentionAPI')
 
-function enterpriseDefaults(): OrganizationRetentionSettings {
+function enterpriseDefaults(): OrganizationRetentionValues {
   return {
     logRetentionHours: CLEANUP_CONFIG['cleanup-logs'].defaults.enterprise,
     softDeleteRetentionHours: CLEANUP_CONFIG['cleanup-soft-deletes'].defaults.enterprise,
     taskCleanupHours: CLEANUP_CONFIG['cleanup-tasks'].defaults.enterprise,
+    piiRedaction: null,
+    retentionOverrides: null,
   }
 }
 
 function normalizeConfigured(
-  settings: Partial<OrganizationRetentionSettings> | null | undefined
-): OrganizationRetentionSettings {
+  settings: DataRetentionSettings | null | undefined
+): OrganizationRetentionValues {
   return {
     logRetentionHours: settings?.logRetentionHours ?? null,
     softDeleteRetentionHours: settings?.softDeleteRetentionHours ?? null,
     taskCleanupHours: settings?.taskCleanupHours ?? null,
+    piiRedaction: settings?.piiRedaction?.rules
+      ? {
+          rules: settings.piiRedaction.rules.map((rule) => ({
+            ...rule,
+            language: coercePiiLanguage(rule.language),
+          })),
+        }
+      : null,
+    retentionOverrides: settings?.retentionOverrides ?? null,
   }
 }
 
@@ -73,6 +87,7 @@ export const GET = withRouteHandler(
     }
 
     const isEnterprise = !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
+    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction')
     const configured = normalizeConfigured(org.dataRetentionSettings)
     const defaults = enterpriseDefaults()
 
@@ -83,6 +98,7 @@ export const GET = withRouteHandler(
         defaults,
         configured,
         effective: isEnterprise ? configured : defaults,
+        piiRedactionEnabled,
       },
     })
   }
@@ -151,8 +167,10 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
+    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction')
+
     const current = normalizeConfigured(currentOrg.dataRetentionSettings)
-    const merged: OrganizationRetentionSettings = { ...current }
+    const merged: DataRetentionSettings = { ...current }
     if (body.logRetentionHours !== undefined) {
       merged.logRetentionHours = body.logRetentionHours
     }
@@ -161,6 +179,41 @@ export const PUT = withRouteHandler(
     }
     if (body.taskCleanupHours !== undefined) {
       merged.taskCleanupHours = body.taskCleanupHours
+    }
+    if (body.piiRedaction !== undefined) {
+      if (!piiRedactionEnabled) {
+        return NextResponse.json(
+          { error: 'PII redaction is not enabled for this organization' },
+          { status: 403 }
+        )
+      }
+      merged.piiRedaction = body.piiRedaction
+    }
+    if (body.retentionOverrides !== undefined) {
+      merged.retentionOverrides = body.retentionOverrides
+    }
+
+    const targetedWorkspaceIds = new Set<string>()
+    for (const override of body.retentionOverrides ?? []) {
+      targetedWorkspaceIds.add(override.workspaceId)
+    }
+    for (const rule of body.piiRedaction?.rules ?? []) {
+      if (rule.workspaceId) targetedWorkspaceIds.add(rule.workspaceId)
+    }
+    if (targetedWorkspaceIds.size > 0) {
+      const ids = [...targetedWorkspaceIds]
+      const orgWorkspaces = await db
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(and(eq(workspace.organizationId, organizationId), inArray(workspace.id, ids)))
+      const known = new Set(orgWorkspaces.map((row) => row.id))
+      const unknown = ids.filter((id) => !known.has(id))
+      if (unknown.length > 0) {
+        return NextResponse.json(
+          { error: `Override targets workspaces outside this organization: ${unknown.join(', ')}` },
+          { status: 400 }
+        )
+      }
     }
 
     const [updated] = await db
@@ -197,6 +250,7 @@ export const PUT = withRouteHandler(
         defaults,
         configured,
         effective: configured,
+        piiRedactionEnabled,
       },
     })
   }

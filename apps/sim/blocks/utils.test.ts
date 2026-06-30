@@ -34,7 +34,7 @@ const { mockProviders } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isHosted() {
     return mockIsHosted.value
   },
@@ -47,10 +47,18 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
 }))
 
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getHostedModels: mockGetHostedModels,
   getProviderModels: mockGetProviderModels,
   getProviderIcon: mockGetProviderIcon,
   getBaseModelProviders: mockGetBaseModelProviders,
+}))
+
+vi.mock('@/providers/utils', () => ({
+  getProviderFromModel: vi.fn(() => 'openai'),
 }))
 
 vi.mock('@/stores/providers/store', () => ({

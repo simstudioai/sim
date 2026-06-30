@@ -1,10 +1,13 @@
+import { createLogger } from '@sim/logger'
 import type {
   SalesforceGetOpportunitiesParams,
   SalesforceGetOpportunitiesResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('SalesforceGetOpportunities')
 
 export const salesforceGetOpportunitiesTool: ToolConfig<
   SalesforceGetOpportunitiesParams,
@@ -55,8 +58,9 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.opportunityId) {
+        const opportunityId = requireId(params.opportunityId, 'Opportunity ID')
         const fields = params.fields || 'Id,Name,AccountId,Amount,StageName,CloseDate,Probability'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Opportunity/${params.opportunityId}?fields=${fields}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Opportunity/${opportunityId}?fields=${encodeURIComponent(fields)}`
       }
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields = params.fields || 'Id,Name,AccountId,Amount,StageName,CloseDate,Probability'
@@ -73,8 +77,10 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
 
   transformResponse: async (response, params?) => {
     const data = await response.json()
-    if (!response.ok)
-      throw new Error(data[0]?.message || data.message || 'Failed to fetch opportunities')
+    if (!response.ok) {
+      logger.error('Failed to fetch opportunities', { data, status: response.status })
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to fetch opportunities'))
+    }
     if (params?.opportunityId) {
       return {
         success: true,

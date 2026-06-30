@@ -22,7 +22,7 @@
  */
 
 import { db } from '@sim/db'
-import { permissionGroupMember, permissions, user, workspace } from '@sim/db/schema'
+import { permissions, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import {
@@ -269,15 +269,6 @@ export const DELETE = withRouteHandler(
         await tx.delete(permissions).where(eq(permissions.id, memberId))
 
         await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, existingMember.userId)
-
-        await tx
-          .delete(permissionGroupMember)
-          .where(
-            and(
-              eq(permissionGroupMember.userId, existingMember.userId),
-              eq(permissionGroupMember.workspaceId, workspaceId)
-            )
-          )
       })
 
       logger.info(`Admin API: Removed member ${memberId} from workspace ${workspaceId}`, {

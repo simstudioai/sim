@@ -14,8 +14,8 @@ import {
   Folder,
   FolderInput,
   Pencil,
-} from '@/components/emcn'
-import { Download, Trash } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Link, Trash } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 
@@ -28,6 +28,7 @@ interface FileRowContextMenuProps {
   onRename: () => void
   onDelete: () => void
   onMove?: (optionValue: string) => void
+  onShare?: () => void
   moveOptions?: MoveOptionNode[]
   canEdit: boolean
   selectedCount: number
@@ -42,6 +43,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   onRename,
   onDelete,
   onMove,
+  onShare,
   moveOptions,
   canEdit,
   selectedCount,
@@ -83,6 +85,12 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
               <DropdownMenuItem onSelect={onRename}>
                 <Pencil />
                 Rename
+              </DropdownMenuItem>
+            )}
+            {!isMultiSelect && onShare && (
+              <DropdownMenuItem onSelect={onShare}>
+                <Link />
+                Share
               </DropdownMenuItem>
             )}
             {onMove && moveOptions && moveOptions.length > 0 && (

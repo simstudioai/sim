@@ -299,6 +299,7 @@ Common patch fields: outputs, end_time, status, error`,
 
 export const LangsmithBlockMeta = {
   tags: ['monitoring', 'llm'],
+  url: 'https://www.langchain.com/langsmith',
   templates: [
     {
       icon: LangsmithIcon,

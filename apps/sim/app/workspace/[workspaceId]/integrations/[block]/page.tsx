@@ -1,3 +1,6 @@
+import { Suspense } from 'react'
+import { ChipLink } from '@sim/emcn'
+import { ArrowLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { INTEGRATIONS } from '@/lib/integrations'
@@ -24,5 +27,19 @@ export default async function IntegrationBlockPage({
   const integration = INTEGRATIONS.find((i) => i.slug === block)
   if (!integration) notFound()
 
-  return <IntegrationBlockDetail integration={integration} workspaceId={workspaceId} />
+  return (
+    <Suspense
+      fallback={
+        <div className='flex h-full flex-col bg-[var(--bg)]'>
+          <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+            <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
+              Integrations
+            </ChipLink>
+          </div>
+        </div>
+      }
+    >
+      <IntegrationBlockDetail integration={integration} workspaceId={workspaceId} />
+    </Suspense>
+  )
 }

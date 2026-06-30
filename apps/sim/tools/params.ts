@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import {
   buildCanonicalIndex,
@@ -733,7 +734,7 @@ export function deepMergeInputMapping(
   if (typeof userInputMapping === 'string') {
     try {
       const parsed = JSON.parse(userInputMapping)
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      if (isRecordLike(parsed)) {
         parsedUserMapping = parsed
       }
     } catch {

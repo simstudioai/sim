@@ -1100,6 +1100,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
 
 export const CloudflareBlockMeta = {
   tags: ['cloud', 'monitoring'],
+  url: 'https://www.cloudflare.com',
   templates: [
     {
       icon: CloudflareIcon,

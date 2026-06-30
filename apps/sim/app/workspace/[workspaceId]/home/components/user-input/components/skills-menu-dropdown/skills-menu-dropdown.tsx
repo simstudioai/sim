@@ -1,9 +1,8 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/emcn'
+import { cn, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@sim/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 
 /**

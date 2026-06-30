@@ -988,6 +988,272 @@ Copy forms from one Jira issue to another
 | `copiedForms` | json | Array of successfully copied forms |
 | `errors` | json | Array of errors encountered during copy |
 
+### `jsm_list_object_schemas`
+
+List Assets (Insight/CMDB) object schemas in Jira Service Management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `startAt` | number | No | Pagination start index \(e.g., 0, 50\) |
+| `maxResults` | number | No | Maximum schemas to return \(e.g., 25, 50\) |
+| `includeCounts` | boolean | No | Include object and object-type counts per schema |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `schemas` | array | List of Assets object schemas |
+|   ↳ `id` | string | Schema ID |
+|   ↳ `name` | string | Schema name |
+|   ↳ `objectSchemaKey` | string | Schema key |
+|   ↳ `status` | string | Schema status |
+|   ↳ `description` | string | Schema description |
+|   ↳ `objectCount` | number | Number of objects |
+|   ↳ `objectTypeCount` | number | Number of object types |
+| `total` | number | Total number of schemas |
+| `isLast` | boolean | Whether this is the last page |
+
+### `jsm_get_object_schema`
+
+Get a single Assets (Insight/CMDB) object schema by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `schemaId` | string | Yes | The Assets object schema ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `schema` | json | The Assets object schema |
+|   ↳ `id` | string | Schema ID |
+|   ↳ `name` | string | Schema name |
+|   ↳ `objectSchemaKey` | string | Schema key |
+|   ↳ `status` | string | Schema status |
+|   ↳ `description` | string | Schema description |
+|   ↳ `objectCount` | number | Number of objects |
+|   ↳ `objectTypeCount` | number | Number of object types |
+
+### `jsm_list_object_types`
+
+List object types within an Assets (Insight/CMDB) object schema
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `schemaId` | string | Yes | The Assets object schema ID to list object types for |
+| `excludeAbstract` | boolean | No | Exclude abstract object types from the result |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `objectTypes` | array | List of object types in the schema |
+|   ↳ `id` | string | Object type ID |
+|   ↳ `name` | string | Object type name |
+|   ↳ `description` | string | Object type description |
+|   ↳ `objectSchemaId` | string | Parent schema ID |
+|   ↳ `objectCount` | number | Number of objects |
+|   ↳ `abstractObjectType` | boolean | Whether the type is abstract |
+|   ↳ `inherited` | boolean | Whether the type inherits attributes |
+| `total` | number | Total number of object types |
+
+### `jsm_get_object_type_attributes`
+
+Get the attribute definitions for an Assets (Insight/CMDB) object type. Use the returned attribute IDs to build create/update payloads or map columns.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `objectTypeId` | string | Yes | The Assets object type ID |
+| `onlyValueEditable` | boolean | No | Return only attributes whose values can be edited |
+| `query` | string | No | Filter attributes by a search query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `attributes` | array | Attribute definitions for the object type |
+|   ↳ `id` | string | Attribute definition ID — use as objectTypeAttributeId in create/update |
+|   ↳ `name` | string | Attribute name |
+|   ↳ `label` | boolean | Whether this attribute is the object label |
+|   ↳ `type` | number | Data type discriminator \(integer enum\) |
+|   ↳ `defaultType` | json | Default data type \{ id, name \} |
+|   ↳ `editable` | boolean | Whether the value is editable |
+|   ↳ `minimumCardinality` | number | Minimum number of values \(&gt;= 1 means required\) |
+|   ↳ `maximumCardinality` | number | Maximum number of values |
+|   ↳ `uniqueAttribute` | boolean | Whether values must be unique |
+| `total` | number | Total number of attributes |
+
+### `jsm_search_objects_aql`
+
+Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. objectType = "Host" AND Status = "Running". Supports pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `qlQuery` | string | Yes | AQL query string \(e.g., objectType = "Host" AND "Operating System" = "Ubuntu"\) |
+| `page` | number | No | Page number \(1-based, defaults to 1\) |
+| `resultsPerPage` | number | No | Results per page \(e.g., 25, 50\) |
+| `includeAttributes` | boolean | No | Include resolved attribute values on each object \(defaults to true\) |
+| `objectTypeId` | string | No | Optionally scope the search to a single object type ID |
+| `objectSchemaId` | string | No | Optionally scope the search to a single object schema ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `objects` | array | Matching Assets objects |
+|   ↳ `id` | string | Object ID |
+|   ↳ `label` | string | Object label |
+|   ↳ `objectKey` | string | Object key \(e.g., HOST-123\) |
+|   ↳ `objectType` | json | Object type metadata |
+|   ↳ `attributes` | json | Resolved attribute values |
+| `total` | number | Total number of matching objects \(totalFilterCount\) |
+| `pageNumber` | number | Current page number |
+| `pageSize` | number | Number of objects on this page |
+
+### `jsm_get_object`
+
+Get a single Assets (Insight/CMDB) object by ID, including its attribute values
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `objectId` | string | Yes | The Assets object ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `object` | json | The Assets object |
+|   ↳ `id` | string | Object ID |
+|   ↳ `label` | string | Human-readable object label |
+|   ↳ `objectKey` | string | Object key \(e.g., HOST-123\) |
+|   ↳ `globalId` | string | Global object ID |
+|   ↳ `objectType` | json | Object type metadata |
+|   ↳ `attributes` | json | Resolved attribute values for the object |
+|   ↳ `hasAvatar` | boolean | Whether the object has an avatar |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `link` | string | Self link to the object |
+
+### `jsm_create_object`
+
+Create an Assets (Insight/CMDB) object of a given object type. Attributes use objectTypeAttributeId values from the object type definition.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `objectTypeId` | string | Yes | The object type ID to create the object under |
+| `attributes` | json | Yes | Array of attributes: \[\{ objectTypeAttributeId, objectAttributeValues: \[\{ value \}\] \}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `object` | json | The created Assets object |
+|   ↳ `id` | string | Object ID |
+|   ↳ `label` | string | Human-readable object label |
+|   ↳ `objectKey` | string | Object key \(e.g., HOST-123\) |
+|   ↳ `globalId` | string | Global object ID |
+|   ↳ `objectType` | json | Object type metadata |
+|   ↳ `attributes` | json | Resolved attribute values for the object |
+|   ↳ `hasAvatar` | boolean | Whether the object has an avatar |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `link` | string | Self link to the object |
+
+### `jsm_update_object`
+
+Update an existing Assets (Insight/CMDB) object. Provide the attributes to change using their objectTypeAttributeId values.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `objectId` | string | Yes | The Assets object ID to update |
+| `attributes` | json | Yes | Array of attributes to set: \[\{ objectTypeAttributeId, objectAttributeValues: \[\{ value \}\] \}\] |
+| `objectTypeId` | string | No | Optional object type ID \(only if changing the type\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `object` | json | The updated Assets object |
+|   ↳ `id` | string | Object ID |
+|   ↳ `label` | string | Human-readable object label |
+|   ↳ `objectKey` | string | Object key \(e.g., HOST-123\) |
+|   ↳ `globalId` | string | Global object ID |
+|   ↳ `objectType` | json | Object type metadata |
+|   ↳ `attributes` | json | Resolved attribute values for the object |
+|   ↳ `hasAvatar` | boolean | Whether the object has an avatar |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `link` | string | Self link to the object |
+
+### `jsm_delete_object`
+
+Delete an Assets (Insight/CMDB) object by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
+| `objectId` | string | Yes | The Assets object ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `objectId` | string | The deleted object ID |
+| `deleted` | boolean | Whether the object was deleted |
+
 
 
 ## Triggers

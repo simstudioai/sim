@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import type { SidebarView } from '@/app/(landing)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
 import { LandingPreviewMount } from '@/app/(landing)/components/landing-preview/landing-preview-mount'
 

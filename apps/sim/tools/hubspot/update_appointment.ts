@@ -46,7 +46,7 @@ export const hubspotUpdateAppointmentTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Appointment properties to update as JSON object (e.g., {"hs_meeting_title": "Updated Call", "hs_meeting_location": "Zoom"})',
+        'Appointment properties to update as JSON object (e.g., {"hs_appointment_name": "Updated Call", "hs_appointment_start": "2024-01-15T10:00:00Z"})',
     },
   },
 

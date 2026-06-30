@@ -1,0 +1,1 @@
+ALTER TABLE "table_row_executions" ADD COLUMN "enrichment_details" jsonb;

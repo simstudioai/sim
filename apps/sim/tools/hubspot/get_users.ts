@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotGetUsersParams, HubSpotGetUsersResponse } from '@/tools/hubspot/types'
-import { PAGING_OUTPUT, USERS_ARRAY_OUTPUT } from '@/tools/hubspot/types'
+import { GENERIC_CRM_ARRAY_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotGetUsers')
@@ -27,13 +27,20 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to return (default: 100, max: 100)',
+      description: 'Number of results to return (default: 10, max: 100)',
     },
     after: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Pagination cursor for next page of results (from previous response)',
+    },
+    properties: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of HubSpot user property names to return (e.g., "hs_email,hs_given_name,hs_family_name")',
     },
   },
 
@@ -47,6 +54,9 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       }
       if (params.after) {
         queryParams.append('after', params.after)
+      }
+      if (params.properties) {
+        queryParams.append('properties', params.properties)
       }
 
       const queryString = queryParams.toString()
@@ -87,7 +97,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
   },
 
   outputs: {
-    users: USERS_ARRAY_OUTPUT,
+    users: GENERIC_CRM_ARRAY_OUTPUT,
     paging: PAGING_OUTPUT,
     totalItems: { type: 'number', description: 'Total number of users returned' },
     success: { type: 'boolean', description: 'Operation success status' },

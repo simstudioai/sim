@@ -237,7 +237,10 @@ export async function clearState(rowId: string): Promise<void> {
  * Two-tier serialization (each caller runs its OWN `fn()` — callers consume
  * `McpClient` instances that can't be shared, unlike a scalar access token):
  *   1) In-process: per-row Promise chain. Concurrent callers queue; each
- *      runs `fn()` after the previous settles.
+ *      runs `fn()` after the previous settles. The queue wait is bounded —
+ *      a caller whose turn does not arrive within
+ *      {@link REFRESH_QUEUE_WAIT_TIMEOUT_MS} rejects without ever running
+ *      its `fn()`, so a wedged link cannot accumulate callers indefinitely.
  *   2) Cross-process: Redis mutex (`acquireLock` / `releaseLock`) with a TTL
  *      watchdog that periodically extends the lock while `fn()` runs, so
  *      long-running refreshes don't drop the lock and let another process
@@ -251,18 +254,59 @@ const REFRESH_LOCK_EXTEND_INTERVAL_MS = 5_000
 const REFRESH_POLL_INTERVAL_MS = 100
 const REFRESH_MAX_WAIT_MS = 30_000
 
+/**
+ * Deadline on the in-process QUEUE WAIT only — the time a caller spends
+ * waiting for its turn behind queued predecessors. Without it, one hung
+ * link wedges every subsequent caller for that row until process restart.
+ * Sized to survive one legitimately slow predecessor: up to
+ * REFRESH_MAX_WAIT_MS of cross-process lock contention plus the MCP SDK's
+ * 60s initialize timeout. Deliberately NOT applied to the caller's own
+ * `fn()` run — aborting a running `fn()` would orphan a connected
+ * `McpClient` and abandon a possibly mid-rotation refresh; `fn()` is
+ * bounded by its own SDK/HTTP/Redis timeouts instead.
+ */
+const REFRESH_QUEUE_WAIT_TIMEOUT_MS = 90_000
+
 const inflightChains = new Map<string, Promise<unknown>>()
 
 export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promise<T>): Promise<T> {
   const lockKey = `mcp:oauth:refresh:${rowId}`
   const prev = inflightChains.get(lockKey) ?? Promise.resolve()
-  const next = prev.catch(() => undefined).then(() => runWithRedisMutex(lockKey, rowId, fn))
+  const prevSettled = prev.catch(() => undefined)
+
+  let queueTimedOut = false
+  const next = prevSettled.then(() => {
+    if (queueTimedOut) {
+      throw new Error(`MCP OAuth refresh queue for ${rowId} abandoned after timeout`)
+    }
+    return runWithRedisMutex(lockKey, rowId, fn)
+  })
   inflightChains.set(lockKey, next)
   const cleanup = () => {
     if (inflightChains.get(lockKey) === next) inflightChains.delete(lockKey)
   }
   next.then(cleanup, cleanup)
-  return next as Promise<T>
+
+  let queueTimer: ReturnType<typeof setTimeout> | undefined
+  const queueDeadline = new Promise<never>((_, reject) => {
+    queueTimer = setTimeout(() => {
+      queueTimedOut = true
+      reject(
+        new Error(
+          `MCP OAuth refresh queue for ${rowId} stalled for ${REFRESH_QUEUE_WAIT_TIMEOUT_MS}ms`
+        )
+      )
+    }, REFRESH_QUEUE_WAIT_TIMEOUT_MS)
+    queueTimer.unref?.()
+  })
+
+  try {
+    await Promise.race([prevSettled, queueDeadline])
+  } finally {
+    clearTimeout(queueTimer)
+  }
+
+  return next
 }
 
 async function runWithRedisMutex<T>(

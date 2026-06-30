@@ -1,7 +1,7 @@
 'use client'
 
-import { Plus } from '@/components/emcn'
-import { Database } from '@/components/emcn/icons'
+import { Plus } from '@sim/emcn'
+import { Database } from '@sim/emcn/icons'
 import {
   type BreadcrumbItem,
   type ChromeActionSpec,
@@ -27,7 +27,7 @@ const ACTIONS: ChromeActionSpec[] = [
 
 const BREADCRUMBS: BreadcrumbItem[] = [
   { label: 'Knowledge Base', icon: Database, onClick: noop },
-  { label: '…', terminal: true },
+  { label: '…', icon: Database, terminal: true },
 ]
 
 export default function KnowledgeBaseLoading() {

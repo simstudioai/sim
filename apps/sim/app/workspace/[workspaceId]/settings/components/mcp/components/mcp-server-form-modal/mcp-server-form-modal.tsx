@@ -1,9 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Button,
   ChipInput,
@@ -14,9 +11,12 @@ import {
   ChipModalFooter,
   type ChipModalFooterAction,
   ChipModalHeader,
+  cn,
   SecretInput,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {
   checkEnvVarTrigger,
@@ -806,7 +806,7 @@ export function McpServerFormModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
-        secondaryAction={secondaryAction}
+        secondaryActions={secondaryAction ? [secondaryAction] : undefined}
         primaryAction={primaryAction}
       />
     </ChipModal>

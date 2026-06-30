@@ -1,57 +1,42 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { DEFAULTS, LOOP, PARALLEL } from '@/executor/constants'
+import { DEFAULTS } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
 import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
+import { SubflowNodeIdCodec } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')
 
-const BRANCH_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
-const BRANCH_INDEX_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`)
-const LOOP_SENTINEL_START_PATTERN = new RegExp(
-  `${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.START_SUFFIX}`
-)
-const LOOP_SENTINEL_END_PATTERN = new RegExp(
-  `${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.END_SUFFIX}`
-)
-const PARALLEL_SENTINEL_START_PATTERN = new RegExp(
-  `${PARALLEL.SENTINEL.PREFIX}(.+)${PARALLEL.SENTINEL.START_SUFFIX}`
-)
-const PARALLEL_SENTINEL_END_PATTERN = new RegExp(
-  `${PARALLEL.SENTINEL.PREFIX}(.+)${PARALLEL.SENTINEL.END_SUFFIX}`
-)
-
+/**
+ * Builds the loop sentinel-start node ID for a container.
+ */
 export function buildSentinelStartId(loopId: string): string {
-  return `${LOOP.SENTINEL.PREFIX}${loopId}${LOOP.SENTINEL.START_SUFFIX}`
+  return SubflowNodeIdCodec.buildLoopSentinelStartId(loopId)
 }
 
+/**
+ * Builds the loop sentinel-end node ID for a container.
+ */
 export function buildSentinelEndId(loopId: string): string {
-  return `${LOOP.SENTINEL.PREFIX}${loopId}${LOOP.SENTINEL.END_SUFFIX}`
+  return SubflowNodeIdCodec.buildLoopSentinelEndId(loopId)
 }
 
 export function buildParallelSentinelStartId(parallelId: string): string {
-  return `${PARALLEL.SENTINEL.PREFIX}${parallelId}${PARALLEL.SENTINEL.START_SUFFIX}`
+  return SubflowNodeIdCodec.buildParallelSentinelStartId(parallelId)
 }
 
 export function buildParallelSentinelEndId(parallelId: string): string {
-  return `${PARALLEL.SENTINEL.PREFIX}${parallelId}${PARALLEL.SENTINEL.END_SUFFIX}`
+  return SubflowNodeIdCodec.buildParallelSentinelEndId(parallelId)
 }
 
 export function isLoopSentinelNodeId(nodeId: string): boolean {
-  return (
-    nodeId.startsWith(LOOP.SENTINEL.PREFIX) &&
-    (nodeId.endsWith(LOOP.SENTINEL.START_SUFFIX) || nodeId.endsWith(LOOP.SENTINEL.END_SUFFIX))
-  )
+  return SubflowNodeIdCodec.isLoopSentinelNodeId(nodeId)
 }
 
 export function isParallelSentinelNodeId(nodeId: string): boolean {
-  return (
-    nodeId.startsWith(PARALLEL.SENTINEL.PREFIX) &&
-    (nodeId.endsWith(PARALLEL.SENTINEL.START_SUFFIX) ||
-      nodeId.endsWith(PARALLEL.SENTINEL.END_SUFFIX))
-  )
+  return SubflowNodeIdCodec.isParallelSentinelNodeId(nodeId)
 }
 
 export function isSentinelNodeId(nodeId: string): boolean {
@@ -59,19 +44,11 @@ export function isSentinelNodeId(nodeId: string): boolean {
 }
 
 export function extractLoopIdFromSentinel(sentinelId: string): string | null {
-  const startMatch = sentinelId.match(LOOP_SENTINEL_START_PATTERN)
-  if (startMatch) return startMatch[1]
-  const endMatch = sentinelId.match(LOOP_SENTINEL_END_PATTERN)
-  if (endMatch) return endMatch[1]
-  return null
+  return SubflowNodeIdCodec.extractLoopIdFromSentinel(sentinelId)
 }
 
 export function extractParallelIdFromSentinel(sentinelId: string): string | null {
-  const startMatch = sentinelId.match(PARALLEL_SENTINEL_START_PATTERN)
-  if (startMatch) return startMatch[1]
-  const endMatch = sentinelId.match(PARALLEL_SENTINEL_END_PATTERN)
-  if (endMatch) return endMatch[1]
-  return null
+  return SubflowNodeIdCodec.extractParallelIdFromSentinel(sentinelId)
 }
 
 /**
@@ -79,24 +56,20 @@ export function extractParallelIdFromSentinel(sentinelId: string): string | null
  * Example: ("blockId", 2) → "blockId₍2₎"
  */
 export function buildBranchNodeId(baseId: string, branchIndex: number): string {
-  return `${baseId}${PARALLEL.BRANCH.PREFIX}${branchIndex}${PARALLEL.BRANCH.SUFFIX}`
+  return SubflowNodeIdCodec.buildBranchNodeId(baseId, branchIndex)
 }
+
 export function extractBaseBlockId(branchNodeId: string): string {
-  return branchNodeId.replace(BRANCH_PATTERN, '')
+  return SubflowNodeIdCodec.extractBaseBlockId(branchNodeId)
 }
 
 export function extractBranchIndex(branchNodeId: string): number | null {
-  const match = branchNodeId.match(BRANCH_INDEX_PATTERN)
-  return match ? Number.parseInt(match[1], 10) : null
+  return SubflowNodeIdCodec.extractBranchIndex(branchNodeId)
 }
 
 export function isBranchNodeId(nodeId: string): boolean {
-  return BRANCH_PATTERN.test(nodeId)
+  return SubflowNodeIdCodec.isBranchNodeId(nodeId)
 }
-
-const OUTER_BRANCH_PATTERN = /__obranch-(\d+)/
-const OUTER_BRANCH_STRIP_PATTERN = /__obranch-\d+/g
-const CLONE_DIGEST_STRIP_PATTERN = /__clone[0-9a-f]+/gi
 
 /**
  * Extracts the outer branch index from a cloned subflow ID.
@@ -104,14 +77,11 @@ const CLONE_DIGEST_STRIP_PATTERN = /__clone[0-9a-f]+/gi
  * Returns undefined if the ID is not a clone.
  */
 export function extractOuterBranchIndex(clonedId: string): number | undefined {
-  const match = clonedId.match(OUTER_BRANCH_PATTERN)
-  return match ? Number.parseInt(match[1], 10) : undefined
+  return SubflowNodeIdCodec.extractOuterBranchIndex(clonedId)
 }
 
 export function extractInnermostOuterBranchIndex(clonedId: string): number | undefined {
-  const matches = Array.from(clonedId.matchAll(/__obranch-(\d+)/g))
-  const lastMatch = matches.at(-1)
-  return lastMatch ? Number.parseInt(lastMatch[1], 10) : undefined
+  return SubflowNodeIdCodec.extractInnermostOuterBranchIndex(clonedId)
 }
 
 /**
@@ -119,23 +89,21 @@ export function extractInnermostOuterBranchIndex(clonedId: string): number | und
  * from a node ID, returning the original workflow-level block ID.
  */
 export function stripCloneSuffixes(nodeId: string): string {
-  return extractBaseBlockId(
-    nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_DIGEST_STRIP_PATTERN, '')
-  )
+  return SubflowNodeIdCodec.stripCloneSuffixes(nodeId)
 }
 
 /**
  * Builds a stable ID for an output scoped to a global outer parallel branch.
  */
 export function buildOuterBranchScopedId(originalId: string, branchIndex: number): string {
-  return `${originalId}__obranch-${branchIndex}`
+  return SubflowNodeIdCodec.buildOuterBranchScopedId(originalId, branchIndex)
 }
 
 /**
  * Builds a cloned subflow ID from an original ID and outer branch index.
  */
 export function buildClonedSubflowId(originalId: string, branchIndex: number): string {
-  return buildOuterBranchScopedId(originalId, branchIndex)
+  return SubflowNodeIdCodec.buildOuterBranchScopedId(originalId, branchIndex)
 }
 
 /**
@@ -143,7 +111,7 @@ export function buildClonedSubflowId(originalId: string, branchIndex: number): s
  * returning the original workflow-level subflow ID.
  */
 export function stripOuterBranchSuffix(id: string): string {
-  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_DIGEST_STRIP_PATTERN, '')
+  return SubflowNodeIdCodec.stripOuterBranchSuffix(id)
 }
 
 /**
@@ -163,67 +131,16 @@ export function findEffectiveContainerId(
   executionMap: Map<string, unknown>,
   mappedBranchIndex?: number
 ): string {
-  if (mappedBranchIndex !== undefined && mappedBranchIndex > 0) {
-    const cloneSuffix = `__obranch-${mappedBranchIndex}`
-    const candidateId = buildClonedSubflowId(originalId, mappedBranchIndex)
-    if (executionMap.has(candidateId)) {
-      return candidateId
-    }
-
-    for (const scopeId of executionMap.keys()) {
-      if (scopeId.endsWith(cloneSuffix) && stripOuterBranchSuffix(scopeId) === originalId) {
-        return scopeId
-      }
-    }
-  }
-
-  // Prefer the cloned variant when currentNodeId carries an __obranch-N suffix.
-  // During concurrent parallel-in-loop execution both the original (branch 0)
-  // and cloned variants coexist in the map; the clone is the correct scope.
-  const match = currentNodeId.match(OUTER_BRANCH_PATTERN)
-  if (match) {
-    const branchIndex = Number.parseInt(match[1], 10)
-    const cloneSuffix = `__obranch-${branchIndex}`
-    if (currentNodeId.includes('__clone')) {
-      for (const scopeId of executionMap.keys()) {
-        if (
-          scopeId.includes('__clone') &&
-          scopeId.endsWith(cloneSuffix) &&
-          stripOuterBranchSuffix(scopeId) === originalId
-        ) {
-          return scopeId
-        }
-      }
-    }
-
-    const candidateId = buildClonedSubflowId(originalId, branchIndex)
-    if (executionMap.has(candidateId)) {
-      return candidateId
-    }
-
-    for (const scopeId of executionMap.keys()) {
-      if (scopeId.endsWith(cloneSuffix) && stripOuterBranchSuffix(scopeId) === originalId) {
-        return scopeId
-      }
-    }
-  }
-
-  // Return original ID — for branch-0 (non-cloned) or when scope is missing.
-  // Callers handle the missing-scope case gracefully.
-  return originalId
+  return SubflowNodeIdCodec.findEffectiveContainerId(
+    originalId,
+    currentNodeId,
+    executionMap,
+    mappedBranchIndex
+  )
 }
 
 export function normalizeNodeId(nodeId: string): string {
-  if (isBranchNodeId(nodeId)) {
-    return extractBaseBlockId(nodeId)
-  }
-  if (isLoopSentinelNodeId(nodeId)) {
-    return extractLoopIdFromSentinel(nodeId) || nodeId
-  }
-  if (isParallelSentinelNodeId(nodeId)) {
-    return extractParallelIdFromSentinel(nodeId) || nodeId
-  }
-  return nodeId
+  return SubflowNodeIdCodec.normalizeNodeId(nodeId)
 }
 
 type SubflowContainerType = 'loop' | 'parallel'

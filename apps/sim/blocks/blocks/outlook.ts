@@ -9,10 +9,10 @@ import { getTrigger } from '@/triggers'
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
   name: 'Outlook',
-  description: 'Send, read, draft, forward, and move Outlook email messages',
+  description: 'Send, read, search, reply, organize, and manage Outlook email',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/integrations/outlook',
   category: 'tools',
   integrationType: IntegrationType.Email,
@@ -28,12 +28,20 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Send Email', id: 'send_outlook' },
         { label: 'Draft Email', id: 'draft_outlook' },
         { label: 'Read Email', id: 'read_outlook' },
+        { label: 'Search Email', id: 'search_outlook' },
+        { label: 'Reply to Email', id: 'reply_outlook' },
+        { label: 'Reply All', id: 'reply_all_outlook' },
         { label: 'Forward Email', id: 'forward_outlook' },
         { label: 'Move Email', id: 'move_outlook' },
+        { label: 'Copy Email', id: 'copy_outlook' },
         { label: 'Mark as Read', id: 'mark_read_outlook' },
         { label: 'Mark as Unread', id: 'mark_unread_outlook' },
+        { label: 'Set Categories & Flag', id: 'update_message_outlook' },
         { label: 'Delete Email', id: 'delete_outlook' },
-        { label: 'Copy Email', id: 'copy_outlook' },
+        { label: 'List Folders', id: 'list_folders_outlook' },
+        { label: 'Create Folder', id: 'create_folder_outlook' },
+        { label: 'List Attachments', id: 'list_attachments_outlook' },
+        { label: 'Get Attachment', id: 'get_attachment_outlook' },
       ],
       value: () => 'send_outlook',
     },
@@ -80,8 +88,11 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'comment',
       title: 'Comment',
       type: 'long-input',
-      placeholder: 'Optional comment to include when forwarding',
-      condition: { field: 'operation', value: ['forward_outlook'] },
+      placeholder: 'Message to include when forwarding or replying',
+      condition: {
+        field: 'operation',
+        value: ['forward_outlook', 'reply_outlook', 'reply_all_outlook'],
+      },
       required: false,
     },
     {
@@ -191,10 +202,13 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     },
     {
       id: 'maxResults',
-      title: 'Number of Emails',
+      title: 'Number of Results',
       type: 'short-input',
-      placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
-      condition: { field: 'operation', value: 'read_outlook' },
+      placeholder: 'Number of results to retrieve',
+      condition: {
+        field: 'operation',
+        value: ['read_outlook', 'search_outlook', 'list_folders_outlook'],
+      },
     },
     {
       id: 'includeAttachments',
@@ -238,7 +252,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'move_outlook' },
       required: true,
     },
-    // Mark as Read/Unread, Delete - Message ID field
+    // Single-message operations - Message ID field
     {
       id: 'actionMessageId',
       title: 'Message ID',
@@ -246,7 +260,16 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: 'ID of the email',
       condition: {
         field: 'operation',
-        value: ['mark_read_outlook', 'mark_unread_outlook', 'delete_outlook'],
+        value: [
+          'mark_read_outlook',
+          'mark_unread_outlook',
+          'delete_outlook',
+          'reply_outlook',
+          'reply_all_outlook',
+          'update_message_outlook',
+          'list_attachments_outlook',
+          'get_attachment_outlook',
+        ],
       },
       required: true,
     },
@@ -286,6 +309,85 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'copy_outlook' },
       required: true,
     },
+    // Search Email - Query field
+    {
+      id: 'searchQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Text to search across subject, body, sender, and recipients',
+      condition: { field: 'operation', value: 'search_outlook' },
+      required: true,
+    },
+    // List Folders - Include hidden folders toggle
+    {
+      id: 'includeHiddenFolders',
+      title: 'Include Hidden Folders',
+      type: 'switch',
+      condition: { field: 'operation', value: 'list_folders_outlook' },
+      mode: 'advanced',
+    },
+    // Create Folder - Folder name field
+    {
+      id: 'folderName',
+      title: 'Folder Name',
+      type: 'short-input',
+      placeholder: 'Name of the new folder',
+      condition: { field: 'operation', value: 'create_folder_outlook' },
+      required: true,
+    },
+    // Create Folder - Hidden toggle
+    {
+      id: 'folderIsHidden',
+      title: 'Hidden Folder',
+      type: 'switch',
+      condition: { field: 'operation', value: 'create_folder_outlook' },
+      mode: 'advanced',
+    },
+    // Get Attachment - Attachment ID field
+    {
+      id: 'attachmentId',
+      title: 'Attachment ID',
+      type: 'short-input',
+      placeholder: 'ID of the attachment to retrieve',
+      condition: { field: 'operation', value: 'get_attachment_outlook' },
+      required: true,
+    },
+    // Set Categories & Flag - Categories field
+    {
+      id: 'categories',
+      title: 'Categories',
+      type: 'short-input',
+      placeholder: 'Comma-separated category names (replaces existing categories)',
+      condition: { field: 'operation', value: 'update_message_outlook' },
+      required: false,
+    },
+    // Set Categories & Flag - Flag status
+    {
+      id: 'flagStatus',
+      title: 'Flag Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Not Flagged', id: 'notFlagged' },
+        { label: 'Flagged', id: 'flagged' },
+        { label: 'Complete', id: 'complete' },
+      ],
+      condition: { field: 'operation', value: 'update_message_outlook' },
+      required: false,
+    },
+    // Set Categories & Flag - Importance
+    {
+      id: 'importance',
+      title: 'Importance',
+      type: 'dropdown',
+      options: [
+        { label: 'Low', id: 'low' },
+        { label: 'Normal', id: 'normal' },
+        { label: 'High', id: 'high' },
+      ],
+      condition: { field: 'operation', value: 'update_message_outlook' },
+      mode: 'advanced',
+      required: false,
+    },
     ...getTrigger('outlook_poller').subBlocks,
   ],
   tools: {
@@ -293,12 +395,20 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       'outlook_send',
       'outlook_draft',
       'outlook_read',
+      'outlook_search',
+      'outlook_reply',
+      'outlook_reply_all',
       'outlook_forward',
       'outlook_move',
+      'outlook_copy',
       'outlook_mark_read',
       'outlook_mark_unread',
+      'outlook_update_message',
       'outlook_delete',
-      'outlook_copy',
+      'outlook_list_folders',
+      'outlook_create_folder',
+      'outlook_list_attachments',
+      'outlook_get_attachment',
     ],
     config: {
       tool: (params) => {
@@ -321,6 +431,22 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
             return 'outlook_delete'
           case 'copy_outlook':
             return 'outlook_copy'
+          case 'search_outlook':
+            return 'outlook_search'
+          case 'reply_outlook':
+            return 'outlook_reply'
+          case 'reply_all_outlook':
+            return 'outlook_reply_all'
+          case 'update_message_outlook':
+            return 'outlook_update_message'
+          case 'list_folders_outlook':
+            return 'outlook_list_folders'
+          case 'create_folder_outlook':
+            return 'outlook_create_folder'
+          case 'list_attachments_outlook':
+            return 'outlook_list_attachments'
+          case 'get_attachment_outlook':
+            return 'outlook_get_attachment'
           default:
             throw new Error(`Invalid Outlook operation: ${params.operation}`)
         }
@@ -335,8 +461,17 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           moveMessageId,
           actionMessageId,
           copyMessageId,
+          searchQuery,
+          folderName,
+          folderIsHidden,
+          includeHiddenFolders,
+          categories,
+          maxResults,
           ...rest
         } = params
+
+        // Agent calls may deliver booleans as the strings "true"/"false"
+        const toBool = (value: unknown): boolean => value === true || value === 'true'
 
         // folder is already the canonical param - use it directly
         const effectiveFolder = folder ? String(folder).trim() : ''
@@ -347,8 +482,27 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           rest.attachments = normalizedAttachments
         }
 
+        if (maxResults != null && maxResults !== '') {
+          rest.maxResults = Number(maxResults)
+        }
+
         if (rest.operation === 'read_outlook') {
           rest.folder = effectiveFolder || 'INBOX'
+        }
+
+        if (rest.operation === 'search_outlook' && searchQuery) {
+          rest.query = String(searchQuery).trim()
+        }
+
+        if (rest.operation === 'list_folders_outlook') {
+          rest.includeHiddenFolders = toBool(includeHiddenFolders)
+        }
+
+        if (rest.operation === 'create_folder_outlook') {
+          if (folderName) {
+            rest.displayName = String(folderName).trim()
+          }
+          rest.isHidden = toBool(folderIsHidden)
         }
 
         // Handle move operation
@@ -364,11 +518,28 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         }
 
         if (
-          ['mark_read_outlook', 'mark_unread_outlook', 'delete_outlook'].includes(rest.operation)
+          [
+            'mark_read_outlook',
+            'mark_unread_outlook',
+            'delete_outlook',
+            'reply_outlook',
+            'reply_all_outlook',
+            'update_message_outlook',
+            'list_attachments_outlook',
+            'get_attachment_outlook',
+          ].includes(rest.operation)
         ) {
           if (actionMessageId) {
             rest.messageId = actionMessageId
           }
+        }
+
+        if (
+          rest.operation === 'update_message_outlook' &&
+          categories != null &&
+          categories !== ''
+        ) {
+          rest.categories = categories
         }
 
         if (rest.operation === 'copy_outlook') {
@@ -417,6 +588,18 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       type: 'string',
       description: 'Destination folder ID for copy (canonical param)',
     },
+    // Search operation inputs
+    searchQuery: { type: 'string', description: 'Free-text search query' },
+    // Folder operation inputs
+    folderName: { type: 'string', description: 'Name of the new folder' },
+    folderIsHidden: { type: 'boolean', description: 'Whether the new folder is hidden' },
+    includeHiddenFolders: { type: 'boolean', description: 'Include hidden folders when listing' },
+    // Attachment operation inputs
+    attachmentId: { type: 'string', description: 'ID of the attachment to retrieve' },
+    // Update message operation inputs
+    categories: { type: 'string', description: 'Comma-separated category names' },
+    flagStatus: { type: 'string', description: 'Follow-up flag status' },
+    importance: { type: 'string', description: 'Message importance level' },
   },
   outputs: {
     // Common outputs
@@ -447,6 +630,11 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     },
     isRead: { type: 'boolean', description: 'Whether email is read' },
     importance: { type: 'string', description: 'Email importance level' },
+    // Folder operation outputs
+    folders: { type: 'json', description: 'Array of mail folder objects' },
+    // Update message operation outputs
+    categories: { type: 'json', description: 'Categories assigned to the message' },
+    flagStatus: { type: 'string', description: 'Follow-up flag status of the message' },
     // Trigger outputs
     email: { type: 'json', description: 'Email data from trigger' },
     rawEmail: { type: 'json', description: 'Complete raw email data from Microsoft Graph API' },
@@ -459,6 +647,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
 
 export const OutlookBlockMeta = {
   tags: ['microsoft-365', 'messaging', 'automation'],
+  url: 'https://www.microsoft.com/microsoft-365/outlook',
   templates: [
     {
       icon: OutlookIcon,

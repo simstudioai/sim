@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, permissionGroupMember, permissions, workspace } from '@sim/db/schema'
+import { member, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -85,16 +85,10 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      if (
-        isRemovingWorkspaceOwner &&
-        !isSelf &&
-        session.user.id !== workspaceRow[0].billedAccountUserId
-      ) {
-        return NextResponse.json(
-          { error: 'Only the workspace owner or billing account can remove the workspace owner' },
-          { status: 403 }
-        )
-      }
+      // Removing the workspace owner is allowed for any admin: ownership transfers
+      // to the billing account in the transaction below. The billing account itself
+      // stays protected by the guard above (and personal workspaces, where owner ==
+      // billing account, are blocked there).
 
       // Prevent removing yourself if you're the last admin
       if (isSelf && userPermission?.permissionType === 'admin' && !isRemovingWorkspaceOwner) {
@@ -150,15 +144,6 @@ export const DELETE = withRouteHandler(
             )
 
           await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
-
-          await tx
-            .delete(permissionGroupMember)
-            .where(
-              and(
-                eq(permissionGroupMember.userId, userId),
-                eq(permissionGroupMember.workspaceId, workspaceId)
-              )
-            )
 
           return { ownershipTransferred: didTransferOwnership, workflowOwnershipReassignment }
         }

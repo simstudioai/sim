@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { InstantlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -1100,12 +1101,12 @@ function parseStringList(value: unknown): string[] | undefined {
 }
 
 function parseJsonObject(value: unknown): Record<string, unknown> | undefined {
-  if (isPlainObject(value)) return value
+  if (isRecordLike(value)) return value
   if (typeof value !== 'string' || value.trim() === '') return undefined
 
   try {
     const parsed: unknown = JSON.parse(value)
-    return isPlainObject(parsed) ? parsed : undefined
+    return isRecordLike(parsed) ? parsed : undefined
   } catch {
     return undefined
   }
@@ -1249,12 +1250,9 @@ function optionalIdParam(value: unknown): string | undefined {
   return trimmed
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export const InstantlyBlockMeta = {
   tags: ['sales-engagement', 'email-marketing', 'automation'],
+  url: 'https://instantly.ai',
   templates: [
     {
       icon: InstantlyIcon,

@@ -51,7 +51,7 @@ vi.mock('@/app/api/workflows/utils', () => ({
 
 vi.mock('@/lib/core/config/env', () => ({ env: { ELEVENLABS_API_KEY: 'test-key' } }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: false,
   getCostMultiplier: () => 1,
 }))

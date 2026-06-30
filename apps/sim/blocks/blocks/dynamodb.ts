@@ -831,6 +831,7 @@ Return ONLY the expression - no explanations.`,
 
 export const DynamoDBBlockMeta = {
   tags: ['cloud', 'data-analytics'],
+  url: 'https://aws.amazon.com/dynamodb',
   templates: [
     {
       icon: DynamoDBIcon,

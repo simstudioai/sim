@@ -10,7 +10,7 @@
 // become compile errors.
 
 export const TraceEvent = {
-  BedrockInvokeRetryWithoutImages: 'bedrock.invoke.retry_without_images',
+  ContextTransform: 'context.transform',
   CopilotOutputFileError: 'copilot.output_file.error',
   CopilotSseFirstEvent: 'copilot.sse.first_event',
   CopilotSseIdleGapExceeded: 'copilot.sse.idle_gap_exceeded',
@@ -33,7 +33,7 @@ export type TraceEventValue = (typeof TraceEvent)[TraceEventKey]
 
 /** Readonly sorted list of every canonical event name. */
 export const TraceEventValues: readonly TraceEventValue[] = [
-  'bedrock.invoke.retry_without_images',
+  'context.transform',
   'copilot.output_file.error',
   'copilot.sse.first_event',
   'copilot.sse.idle_gap_exceeded',

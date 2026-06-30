@@ -388,6 +388,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
 
 export const OktaBlockMeta = {
   tags: ['identity', 'automation'],
+  url: 'https://www.okta.com',
   templates: [
     {
       icon: OktaIcon,

@@ -424,6 +424,7 @@ Example 3 (Data Collection):
 
 export const StagehandBlockMeta = {
   tags: ['web-scraping', 'automation', 'agentic'],
+  url: 'https://www.stagehand.dev',
   templates: [
     {
       icon: StagehandIcon,

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { PLATFORM_VISUAL } from '@/app/(landing)/components/platform-page/constants'
 
 /**

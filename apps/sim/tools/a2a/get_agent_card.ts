@@ -1,11 +1,10 @@
-import type { A2AGetAgentCardParams, A2AGetAgentCardResponse } from '@/tools/a2a/types'
-import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
+import type { A2AAgentCardResponse, A2AGetAgentCardParams } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentCardResponse> = {
+export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AAgentCardResponse> = {
   id: 'a2a_get_agent_card',
   name: 'A2A Get Agent Card',
-  description: 'Fetch the Agent Card (discovery document) for an A2A agent.',
+  description: 'Fetch the Agent Card (discovery document) for an external A2A agent.',
   version: '1.0.0',
 
   params: {
@@ -17,6 +16,7 @@ export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentC
     },
     apiKey: {
       type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'API key for authentication (if required)',
     },
@@ -25,32 +25,52 @@ export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentC
   request: {
     url: '/api/tools/a2a/get-agent-card',
     method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
+    headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => {
-      const body: Record<string, string> = {
-        agentUrl: params.agentUrl,
-      }
+      const body: Record<string, unknown> = { agentUrl: params.agentUrl }
       if (params.apiKey) body.apiKey = params.apiKey
       return body
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-    return data
-  },
+  transformResponse: async (response: Response) => response.json(),
 
   outputs: {
-    name: A2A_OUTPUT_PROPERTIES.agentName,
-    description: A2A_OUTPUT_PROPERTIES.agentDescription,
-    url: A2A_OUTPUT_PROPERTIES.agentEndpoint,
-    provider: A2A_OUTPUT_PROPERTIES.agentProvider,
-    capabilities: A2A_OUTPUT_PROPERTIES.agentCapabilities,
-    skills: A2A_OUTPUT_PROPERTIES.agentSkills,
-    version: A2A_OUTPUT_PROPERTIES.version,
-    defaultInputModes: A2A_OUTPUT_PROPERTIES.defaultInputModes,
-    defaultOutputModes: A2A_OUTPUT_PROPERTIES.defaultOutputModes,
+    name: { type: 'string', description: 'Agent display name' },
+    description: { type: 'string', description: 'Agent description' },
+    url: { type: 'string', description: 'Agent endpoint URL' },
+    version: { type: 'string', description: "The agent's own version" },
+    protocolVersion: { type: 'string', description: 'A2A protocol version the agent exposes' },
+    capabilities: {
+      type: 'json',
+      description: 'Agent capability flags',
+      properties: {
+        streaming: { type: 'boolean', description: 'Supports streaming responses' },
+        pushNotifications: { type: 'boolean', description: 'Supports push notifications' },
+        extendedAgentCard: { type: 'boolean', description: 'Provides an extended agent card' },
+      },
+    },
+    skills: {
+      type: 'array',
+      description: 'Skills the agent can perform',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Skill identifier' },
+          name: { type: 'string', description: 'Skill name' },
+          description: { type: 'string', description: 'Skill description' },
+        },
+      },
+    },
+    defaultInputModes: {
+      type: 'array',
+      description: 'Default accepted input media types',
+      items: { type: 'string' },
+    },
+    defaultOutputModes: {
+      type: 'array',
+      description: 'Default produced output media types',
+      items: { type: 'string' },
+    },
   },
 }

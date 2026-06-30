@@ -1,14 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { SlackIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { DEFAULT_MAX_MESSAGES, slackConnectorMeta } from '@/connectors/slack/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseMultiValue, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('SlackConnector')
 
 const SLACK_API_BASE = 'https://slack.com/api'
-const DEFAULT_MAX_MESSAGES = 1000
 const MESSAGES_PER_PAGE = 200
 
 /**
@@ -484,56 +483,7 @@ async function buildSlackChannelDocument(
 }
 
 export const slackConnector: ConnectorConfig = {
-  id: 'slack',
-  name: 'Slack',
-  description: 'Sync channel messages from Slack',
-  version: '1.0.0',
-  icon: SlackIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'slack',
-    requiredScopes: [
-      'channels:read',
-      'channels:history',
-      'groups:read',
-      'groups:history',
-      'users:read',
-    ],
-  },
-
-  configFields: [
-    {
-      id: 'channelSelector',
-      title: 'Channels',
-      type: 'selector',
-      selectorKey: 'slack.channels',
-      canonicalParamId: 'channel',
-      mode: 'basic',
-      multi: true,
-      placeholder: 'Select one or more channels',
-      required: true,
-      description: 'Channels to sync messages from',
-    },
-    {
-      id: 'channel',
-      title: 'Channels',
-      type: 'short-input',
-      canonicalParamId: 'channel',
-      mode: 'advanced',
-      multi: true,
-      placeholder: 'e.g. general, C01ABC23DEF (comma-separated for multiple)',
-      required: true,
-      description: 'Channel names or IDs to sync messages from',
-    },
-    {
-      id: 'maxMessages',
-      title: 'Max Messages',
-      type: 'short-input',
-      required: false,
-      placeholder: `e.g. 500 (default: ${DEFAULT_MAX_MESSAGES})`,
-    },
-  ],
+  ...slackConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -740,12 +690,6 @@ export const slackConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'channelName', displayName: 'Channel Name', fieldType: 'text' },
-    { id: 'messageCount', displayName: 'Message Count', fieldType: 'number' },
-    { id: 'lastActivity', displayName: 'Last Activity', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

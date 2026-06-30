@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
@@ -22,7 +22,10 @@ import {
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
-import { emitWorkflowDeployedEvent } from '@/lib/workspace-events/emitter'
+import {
+  emitWorkflowDeployedEvent,
+  emitWorkflowUndeployedEvent,
+} from '@/lib/workspace-events/emitter'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
@@ -287,6 +290,15 @@ export async function performFullUndeploy(
 
   await notifySocketDeploymentChanged(workflowId)
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
+
+  const undeployWorkspaceId = workflowData.workspaceId as string | null
+  if (undeployWorkspaceId) {
+    void emitWorkflowUndeployedEvent({
+      workflowId,
+      workflowName: (workflowData.name as string) || workflowId,
+      workspaceId: undeployWorkspaceId,
+    })
+  }
 
   return { success: true, warnings: sideEffectWarning ? [sideEffectWarning] : undefined }
 }

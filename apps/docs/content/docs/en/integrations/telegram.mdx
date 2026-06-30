@@ -53,7 +53,7 @@ Learn how to use the Telegram Tool in Sim to seamlessly automate message deliver
 
 ## Usage Instructions
 
-Integrate Telegram into the workflow. Can send and delete messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.
+Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete messages; send media, locations, contacts, and polls; react to messages; show chat actions; and look up chat and member info. Can be used in trigger mode to start a workflow when a message is sent to a chat.
 
 
 
@@ -375,6 +375,285 @@ Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the T
 |     ↳ `file_id` | string | Document file ID |
 |     ↳ `file_unique_id` | string | Unique document file identifier |
 |     ↳ `file_size` | number | Size of document file in bytes |
+
+### `telegram_edit_message_text`
+
+Edit the text of an existing message in a Telegram chat or channel through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `messageId` | number | Yes | Identifier of the message to edit |
+| `text` | string | Yes | New text of the message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Edited Telegram message data |
+|   ↳ `message_id` | number | Unique Telegram message identifier |
+|   ↳ `date` | number | Unix timestamp when message was sent |
+|   ↳ `text` | string | Text content of the edited message |
+
+### `telegram_forward_message`
+
+Forward a message from one Telegram chat to another through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Destination chat ID \(numeric, can be negative for groups\) |
+| `fromChatId` | string | Yes | Source chat ID the original message belongs to |
+| `messageId` | number | Yes | Identifier of the message to forward in the source chat |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Forwarded Telegram message data |
+|   ↳ `message_id` | number | Identifier of the forwarded message |
+|   ↳ `date` | number | Unix timestamp when message was sent |
+|   ↳ `text` | string | Text content of the forwarded message |
+
+### `telegram_copy_message`
+
+Copy a message to another Telegram chat without a forward header through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Destination chat ID \(numeric, can be negative for groups\) |
+| `fromChatId` | string | Yes | Source chat ID the original message belongs to |
+| `messageId` | number | Yes | Identifier of the message to copy in the source chat |
+| `caption` | string | No | New caption for the copied media \(keeps the original if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Copied message identifier |
+|   ↳ `message_id` | number | Identifier of the new copied message |
+
+### `telegram_send_location`
+
+Send a point on the map to a Telegram chat through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `latitude` | number | Yes | Latitude of the location |
+| `longitude` | number | Yes | Longitude of the location |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Telegram message data for the sent location |
+|   ↳ `message_id` | number | Unique Telegram message identifier |
+|   ↳ `date` | number | Unix timestamp when message was sent |
+
+### `telegram_send_contact`
+
+Send a phone contact to a Telegram chat through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `phoneNumber` | string | Yes | Contact's phone number |
+| `firstName` | string | Yes | Contact's first name |
+| `lastName` | string | No | Contact's last name |
+| `vcard` | string | No | Additional data about the contact in the form of a vCard |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Telegram message data for the sent contact |
+|   ↳ `message_id` | number | Unique Telegram message identifier |
+|   ↳ `date` | number | Unix timestamp when message was sent |
+
+### `telegram_send_poll`
+
+Send a native poll to a Telegram chat through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `question` | string | Yes | Poll question \(1-300 characters\) |
+| `options` | json | Yes | List of 2-10 answer options as text strings |
+| `isAnonymous` | boolean | No | Whether the poll needs to be anonymous \(defaults to true\) |
+| `allowsMultipleAnswers` | boolean | No | Whether the poll allows multiple answers |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Telegram message data for the sent poll |
+|   ↳ `message_id` | number | Unique Telegram message identifier |
+|   ↳ `date` | number | Unix timestamp when message was sent |
+
+### `telegram_pin_message`
+
+Pin a message in a Telegram chat through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `messageId` | number | Yes | Identifier of the message to pin |
+| `disableNotification` | boolean | No | Pass true to pin silently without notifying chat members |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Pin operation result |
+|   ↳ `ok` | boolean | API response success status |
+|   ↳ `result` | boolean | Whether the message was pinned |
+
+### `telegram_unpin_message`
+
+Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins the most recent pinned message when no message ID is given.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `messageId` | number | No | Identifier of the message to unpin \(omit to unpin the most recent one\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Unpin operation result |
+|   ↳ `ok` | boolean | API response success status |
+|   ↳ `result` | boolean | Whether the message was unpinned |
+
+### `telegram_set_message_reaction`
+
+Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `messageId` | number | Yes | Identifier of the target message |
+| `reaction` | string | No | Emoji to react with \(leave empty to remove the reaction\) |
+| `isBig` | boolean | No | Pass true to show the reaction with a big animation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Reaction operation result |
+|   ↳ `ok` | boolean | API response success status |
+|   ↳ `result` | boolean | Whether the reaction was set |
+
+### `telegram_send_chat_action`
+
+Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `action` | string | Yes | Type of action to broadcast \(e.g. typing, upload_photo, record_video, upload_document, find_location\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Chat action result |
+|   ↳ `ok` | boolean | API response success status |
+|   ↳ `result` | boolean | Whether the action was broadcast |
+
+### `telegram_get_chat`
+
+Get up-to-date information about a Telegram chat through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID or @username \(numeric, can be negative for groups\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Telegram chat information |
+|   ↳ `id` | number | Unique chat identifier |
+|   ↳ `type` | string | Chat type \(private, group, supergroup, channel\) |
+|   ↳ `title` | string | Chat title for groups and channels |
+|   ↳ `username` | string | Chat username, if available |
+|   ↳ `first_name` | string | First name for private chats |
+|   ↳ `last_name` | string | Last name for private chats |
+|   ↳ `description` | string | Chat description |
+|   ↳ `bio` | string | Bio of the other party in a private chat |
+|   ↳ `invite_link` | string | Primary invite link for the chat |
+|   ↳ `linked_chat_id` | number | Linked discussion or channel chat ID |
+
+### `telegram_get_chat_member`
+
+Get information about a member of a Telegram chat through the Telegram Bot API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot API Token |
+| `chatId` | string | Yes | Telegram chat ID or @username \(numeric, can be negative for groups\) |
+| `userId` | number | Yes | Unique identifier of the target user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | object | Telegram chat member information |
+|   ↳ `status` | string | Member's status \(creator, administrator, member, restricted, left, kicked\) |
+|   ↳ `user` | object | Information about the user |
+|     ↳ `id` | number | Unique user identifier |
+|     ↳ `is_bot` | boolean | Whether the user is a bot |
+|     ↳ `first_name` | string | User's first name |
+|     ↳ `last_name` | string | User's last name |
+|     ↳ `username` | string | User's username |
 
 
 

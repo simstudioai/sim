@@ -8,7 +8,7 @@ export const createTableTool: ToolConfig<ClickHouseCreateTableParams, ClickHouse
   id: 'clickhouse_create_table',
   name: 'ClickHouse Create Table',
   description: 'Create a new MergeTree-family table in ClickHouse',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

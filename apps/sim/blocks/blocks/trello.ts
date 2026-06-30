@@ -73,9 +73,16 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
         { label: 'Get Lists', id: 'trello_list_lists' },
         { label: 'List Cards', id: 'trello_list_cards' },
         { label: 'Create Card', id: 'trello_create_card' },
+        { label: 'Get Card', id: 'trello_get_card' },
         { label: 'Update Card', id: 'trello_update_card' },
         { label: 'Get Actions', id: 'trello_get_actions' },
         { label: 'Add Comment', id: 'trello_add_comment' },
+        { label: 'Add Checklist', id: 'trello_add_checklist' },
+        { label: 'Add Label', id: 'trello_add_label' },
+        { label: 'Add Member', id: 'trello_add_member' },
+        { label: 'Create Board', id: 'trello_create_board' },
+        { label: 'Get Board', id: 'trello_get_board' },
+        { label: 'Create List', id: 'trello_create_list' },
       ],
       value: () => 'trello_list_lists',
     },
@@ -111,11 +118,17 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['trello_list_lists', 'trello_list_cards', 'trello_get_actions'],
+        value: [
+          'trello_list_lists',
+          'trello_list_cards',
+          'trello_get_actions',
+          'trello_get_board',
+          'trello_create_list',
+        ],
       },
       required: {
         field: 'operation',
-        value: 'trello_list_lists',
+        value: ['trello_list_lists', 'trello_get_board', 'trello_create_list'],
       },
     },
     {
@@ -128,11 +141,17 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['trello_list_lists', 'trello_list_cards', 'trello_get_actions'],
+        value: [
+          'trello_list_lists',
+          'trello_list_cards',
+          'trello_get_actions',
+          'trello_get_board',
+          'trello_create_list',
+        ],
       },
       required: {
         field: 'operation',
-        value: 'trello_list_lists',
+        value: ['trello_list_lists', 'trello_get_board', 'trello_create_list'],
       },
     },
     {
@@ -156,11 +175,26 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
       placeholder: 'Enter Trello card ID',
       condition: {
         field: 'operation',
-        value: ['trello_update_card', 'trello_get_actions', 'trello_add_comment'],
+        value: [
+          'trello_update_card',
+          'trello_get_actions',
+          'trello_add_comment',
+          'trello_get_card',
+          'trello_add_checklist',
+          'trello_add_label',
+          'trello_add_member',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['trello_update_card', 'trello_add_comment'],
+        value: [
+          'trello_update_card',
+          'trello_add_comment',
+          'trello_get_card',
+          'trello_add_checklist',
+          'trello_add_label',
+          'trello_add_member',
+        ],
       },
     },
     {
@@ -327,6 +361,120 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
       },
       required: true,
     },
+    {
+      id: 'boardName',
+      title: 'Board Name',
+      type: 'short-input',
+      placeholder: 'Enter board name',
+      condition: {
+        field: 'operation',
+        value: 'trello_create_board',
+      },
+      required: true,
+    },
+    {
+      id: 'boardDesc',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Enter board description',
+      condition: {
+        field: 'operation',
+        value: 'trello_create_board',
+      },
+    },
+    {
+      id: 'idOrganization',
+      title: 'Workspace ID',
+      type: 'short-input',
+      placeholder: 'Enter workspace/organization ID or name',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_create_board',
+      },
+    },
+    {
+      id: 'defaultLists',
+      title: 'Default Lists',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave Unset', id: '' },
+        { label: 'Create Default Lists', id: 'true' },
+        { label: 'No Default Lists', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_create_board',
+      },
+    },
+    {
+      id: 'listName',
+      title: 'List Name',
+      type: 'short-input',
+      placeholder: 'Enter list name',
+      condition: {
+        field: 'operation',
+        value: 'trello_create_list',
+      },
+      required: true,
+    },
+    {
+      id: 'listPos',
+      title: 'List Position',
+      type: 'short-input',
+      placeholder: 'top, bottom, or a positive float',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_create_list',
+      },
+    },
+    {
+      id: 'checklistName',
+      title: 'Checklist Name',
+      type: 'short-input',
+      placeholder: 'Enter checklist name',
+      condition: {
+        field: 'operation',
+        value: 'trello_add_checklist',
+      },
+      required: true,
+    },
+    {
+      id: 'checklistPos',
+      title: 'Checklist Position',
+      type: 'short-input',
+      placeholder: 'top, bottom, or a positive float',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_add_checklist',
+      },
+    },
+    {
+      id: 'labelId',
+      title: 'Label ID',
+      type: 'short-input',
+      placeholder: 'Enter Trello label ID',
+      condition: {
+        field: 'operation',
+        value: 'trello_add_label',
+      },
+      required: true,
+    },
+    {
+      id: 'memberId',
+      title: 'Member ID',
+      type: 'short-input',
+      placeholder: 'Enter Trello member ID',
+      condition: {
+        field: 'operation',
+        value: 'trello_add_member',
+      },
+      required: true,
+    },
   ],
   tools: {
     access: [
@@ -336,6 +484,13 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
       'trello_update_card',
       'trello_get_actions',
       'trello_add_comment',
+      'trello_create_board',
+      'trello_get_board',
+      'trello_create_list',
+      'trello_get_card',
+      'trello_add_checklist',
+      'trello_add_label',
+      'trello_add_member',
     ],
     config: {
       tool: (params) => getTrimmedString(params.operation) ?? 'trello_list_lists',
@@ -462,6 +617,126 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
             }
           }
 
+          case 'trello_create_board': {
+            const name = getTrimmedString(params.boardName)
+
+            if (!name) {
+              throw new Error('Board name is required.')
+            }
+
+            return {
+              ...baseParams,
+              name,
+              desc: getTrimmedString(params.boardDesc),
+              idOrganization: getTrimmedString(params.idOrganization),
+              defaultLists: parseOptionalBooleanInput(params.defaultLists),
+            }
+          }
+
+          case 'trello_get_board': {
+            const boardId = getTrimmedString(params.boardId)
+
+            if (!boardId) {
+              throw new Error('Board ID is required.')
+            }
+
+            return {
+              ...baseParams,
+              boardId,
+            }
+          }
+
+          case 'trello_create_list': {
+            const boardId = getTrimmedString(params.boardId)
+            const name = getTrimmedString(params.listName)
+
+            if (!boardId) {
+              throw new Error('Board ID is required.')
+            }
+
+            if (!name) {
+              throw new Error('List name is required.')
+            }
+
+            return {
+              ...baseParams,
+              boardId,
+              name,
+              pos: getTrimmedString(params.listPos),
+            }
+          }
+
+          case 'trello_get_card': {
+            const cardId = getTrimmedString(params.cardId)
+
+            if (!cardId) {
+              throw new Error('Card ID is required.')
+            }
+
+            return {
+              ...baseParams,
+              cardId,
+            }
+          }
+
+          case 'trello_add_checklist': {
+            const cardId = getTrimmedString(params.cardId)
+            const name = getTrimmedString(params.checklistName)
+
+            if (!cardId) {
+              throw new Error('Card ID is required.')
+            }
+
+            if (!name) {
+              throw new Error('Checklist name is required.')
+            }
+
+            return {
+              ...baseParams,
+              cardId,
+              name,
+              pos: getTrimmedString(params.checklistPos),
+            }
+          }
+
+          case 'trello_add_label': {
+            const cardId = getTrimmedString(params.cardId)
+            const labelId = getTrimmedString(params.labelId)
+
+            if (!cardId) {
+              throw new Error('Card ID is required.')
+            }
+
+            if (!labelId) {
+              throw new Error('Label ID is required.')
+            }
+
+            return {
+              ...baseParams,
+              cardId,
+              labelId,
+            }
+          }
+
+          case 'trello_add_member': {
+            const cardId = getTrimmedString(params.cardId)
+            const memberId = getTrimmedString(params.memberId)
+
+            if (!cardId) {
+              throw new Error('Card ID is required.')
+            }
+
+            if (!memberId) {
+              throw new Error('Member ID is required.')
+            }
+
+            return {
+              ...baseParams,
+              cardId,
+              memberId,
+            }
+          }
+
           default:
             return baseParams
         }
@@ -489,6 +764,25 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
     limit: { type: 'number', description: 'Maximum number of board actions to return' },
     page: { type: 'number', description: 'Page number for action results' },
     text: { type: 'string', description: 'Comment text' },
+    boardName: { type: 'string', description: 'Board name' },
+    boardDesc: { type: 'string', description: 'Board description' },
+    idOrganization: {
+      type: 'string',
+      description: 'Workspace/organization ID or name for a new board',
+    },
+    defaultLists: {
+      type: 'boolean',
+      description: 'Whether to create default lists on a new board',
+    },
+    listName: { type: 'string', description: 'List name' },
+    listPos: { type: 'string', description: 'List position (top, bottom, or positive float)' },
+    checklistName: { type: 'string', description: 'Checklist name' },
+    checklistPos: {
+      type: 'string',
+      description: 'Checklist position (top, bottom, or positive float)',
+    },
+    labelId: { type: 'string', description: 'Label ID to attach to a card' },
+    memberId: { type: 'string', description: 'Member ID to assign to a card' },
   },
   outputs: {
     lists: {
@@ -503,7 +797,27 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
     card: {
       type: 'json',
       description:
-        'Created or updated card (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
+        'Created, updated, or fetched card (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
+    },
+    board: {
+      type: 'json',
+      description: 'Created or fetched board (id, name, desc, url, closed, idOrganization)',
+    },
+    list: {
+      type: 'json',
+      description: 'Created list (id, name, closed, pos, idBoard)',
+    },
+    checklist: {
+      type: 'json',
+      description: 'Created checklist (id, name, idCard, idBoard, pos)',
+    },
+    labelIds: {
+      type: 'json',
+      description: 'Label IDs applied to a card after adding a label',
+    },
+    memberIds: {
+      type: 'json',
+      description: 'Member IDs assigned to a card after adding a member',
     },
     actions: {
       type: 'json',
@@ -528,6 +842,7 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
 
 export const TrelloBlockMeta = {
   tags: ['project-management', 'ticketing'],
+  url: 'https://trello.com',
   templates: [
     {
       icon: TrelloIcon,

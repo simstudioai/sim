@@ -2,23 +2,23 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { formatDuration } from '@sim/utils/formatting'
-import clsx from 'clsx'
-import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
-import Link from 'next/link'
-import { List, type RowComponentProps, useListRef } from 'react-window'
 import {
   Button,
   ChevronDown,
+  handleKeyboardActivation,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-} from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import clsx from 'clsx'
+import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -549,7 +549,7 @@ const EntryNodeRow = memo(function EntryNodeRow({
 })
 
 interface TerminalLogListRowProps {
-  rows: VisibleTerminalRow[]
+  row: VisibleTerminalRow
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
   expandedNodes: Set<string>
@@ -557,23 +557,22 @@ interface TerminalLogListRowProps {
 }
 
 function TerminalLogListRow({
-  index,
-  style,
-  ...props
-}: RowComponentProps<TerminalLogListRowProps>) {
-  const { rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode } = props
-  const row = rows[index]
-
+  row,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+}: TerminalLogListRowProps) {
   if (row.rowType === 'separator') {
     return (
-      <div style={style} className='px-[6px]'>
+      <div className='px-[6px]'>
         <div className='mx-[4px] mt-[6px] border-[var(--border)] border-t' />
       </div>
     )
   }
 
   return (
-    <div style={style} className='px-[6px]'>
+    <div className='px-[6px]'>
       <div className='ml-[4px]' style={{ paddingLeft: row.depth === 0 ? 0 : row.depth * 16 }}>
         <EntryNodeRow
           node={row.node!}
@@ -601,30 +600,19 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const listRef = useListRef(null)
-  const [listHeight, setListHeight] = useState(400)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const rows = useMemo(
     () => flattenVisibleExecutionRows(executionGroups, expandedNodes),
     [executionGroups, expandedNodes]
   )
 
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const updateHeight = () => {
-      if (container.clientHeight > 0) {
-        setListHeight(container.clientHeight)
-      }
-    }
-
-    updateHeight()
-    const resizeObserver = new ResizeObserver(updateHeight)
-    resizeObserver.observe(container)
-    return () => resizeObserver.disconnect()
-  }, [])
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => TERMINAL_CONFIG.LOG_ROW_HEIGHT_PX,
+    overscan: 8,
+  })
 
   const rowsRef = useRef(rows)
   rowsRef.current = rows
@@ -638,32 +626,35 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
     )
 
     if (rowIndex !== -1) {
-      listRef.current?.scrollToRow({ index: rowIndex, align: 'smart' })
+      virtualizer.scrollToIndex(rowIndex, { align: 'auto' })
     }
-  }, [selectedEntryId, listRef])
+  }, [selectedEntryId, virtualizer])
 
-  const rowProps = useMemo<TerminalLogListRowProps>(
-    () => ({
-      rows,
-      selectedEntryId,
-      onSelectEntry,
-      expandedNodes,
-      onToggleNode,
-    }),
-    [rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode]
-  )
+  const virtualItems = virtualizer.getVirtualItems()
 
   return (
-    <div ref={containerRef} className='h-full'>
-      <List
-        listRef={listRef}
-        defaultHeight={listHeight}
-        rowCount={rows.length}
-        rowHeight={TERMINAL_CONFIG.LOG_ROW_HEIGHT_PX}
-        rowComponent={TerminalLogListRow}
-        rowProps={rowProps}
-        overscanCount={8}
-      />
+    <div ref={scrollRef} className='h-full overflow-y-auto'>
+      <div className='relative w-full' style={{ height: virtualizer.getTotalSize() }}>
+        {virtualItems.map((virtualItem) => (
+          <div
+            key={virtualItem.key}
+            data-index={virtualItem.index}
+            className='absolute top-0 left-0 w-full'
+            style={{
+              height: virtualItem.size,
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            <TerminalLogListRow
+              row={rows[virtualItem.index]}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={onSelectEntry}
+              expandedNodes={expandedNodes}
+              onToggleNode={onToggleNode}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   )
 })
@@ -1377,7 +1368,7 @@ export const Terminal = memo(function Terminal() {
                         <Button
                           variant='ghost'
                           onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
+                          aria-label={isTraining ? 'Stop training' : 'Train Sim'}
                           className={clsx(
                             '!p-1.5 -m-1.5',
                             isTraining && 'text-orange-600 dark:text-orange-400'
@@ -1391,7 +1382,7 @@ export const Terminal = memo(function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
+                        <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

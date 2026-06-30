@@ -233,6 +233,7 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
 
 export const ReductoBlockMeta = {
   tags: ['document-processing', 'ocr'],
+  url: 'https://reducto.ai',
   templates: [
     {
       icon: ReductoIcon,

@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="grafana"
-  color="#FFFFFF"
+  color="#F46800"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -401,6 +401,34 @@ List all alert notification contact points
 |   ↳ `disableResolveMessage` | boolean | Whether resolve messages are disabled |
 |   ↳ `provenance` | string | Provisioning source \(empty if API-managed\) |
 
+### `grafana_create_contact_point`
+
+Create a notification contact point (e.g., Slack, email, PagerDuty)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `name` | string | Yes | Name of the contact point \(groups receivers shown in the UI\) |
+| `type` | string | Yes | Receiver type \(e.g., slack, email, pagerduty, webhook\) |
+| `settings` | string | Yes | JSON object of type-specific settings \(e.g., \{"addresses":"a@b.com"\} for email, \{"url":"..."\} for slack\) |
+| `disableResolveMessage` | boolean | No | Do not send a notification when the alert resolves |
+| `disableProvenance` | boolean | No | Set X-Disable-Provenance header so the contact point remains editable in the UI |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | UID of the created contact point |
+| `name` | string | Name of the contact point |
+| `type` | string | Receiver type |
+| `settings` | json | Type-specific settings |
+| `disableResolveMessage` | boolean | Whether resolve notifications are suppressed |
+| `provenance` | string | Provisioning source \(empty if API-managed\) |
+
 ### `grafana_create_annotation`
 
 Create an annotation on a dashboard or as a global annotation
@@ -584,6 +612,26 @@ Get a data source by its ID or UID
 | `version` | number | Data source version |
 | `readOnly` | boolean | Whether the data source is read-only |
 
+### `grafana_check_data_source_health`
+
+Test connectivity to a data source by its UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dataSourceUid` | string | Yes | The UID of the data source to health-check \(e.g., P1234AB5678\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Health status of the data source \(e.g., OK\) |
+| `message` | string | Detailed health message from the data source |
+
 ### `grafana_list_folders`
 
 List all folders in Grafana
@@ -654,5 +702,113 @@ Create a new folder in Grafana
 | `updatedBy` | string | Username of who last updated the folder |
 | `updated` | string | Timestamp when the folder was last updated |
 | `version` | number | Version number of the folder |
+
+### `grafana_get_folder`
+
+Get a folder by its UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `folderUid` | string | Yes | The UID of the folder to retrieve \(e.g., folder-abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The numeric ID of the folder |
+| `uid` | string | The UID of the folder |
+| `title` | string | The title of the folder |
+| `url` | string | The URL path to the folder |
+| `parentUid` | string | Parent folder UID \(nested folders only\) |
+| `parents` | array | Ancestor folder hierarchy \(nested folders only\) |
+| `hasAcl` | boolean | Whether the folder has custom ACL permissions |
+| `canSave` | boolean | Whether the current user can save the folder |
+| `canEdit` | boolean | Whether the current user can edit the folder |
+| `canAdmin` | boolean | Whether the current user has admin rights on the folder |
+| `createdBy` | string | Username of who created the folder |
+| `created` | string | Timestamp when the folder was created |
+| `updatedBy` | string | Username of who last updated the folder |
+| `updated` | string | Timestamp when the folder was last updated |
+| `version` | number | Version number of the folder |
+
+### `grafana_update_folder`
+
+Update (rename) a folder. Fetches the current folder and merges your changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `folderUid` | string | Yes | The UID of the folder to update \(e.g., folder-abc123\) |
+| `title` | string | Yes | New title for the folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The numeric ID of the folder |
+| `uid` | string | The UID of the folder |
+| `title` | string | The updated title of the folder |
+| `url` | string | The URL path to the folder |
+| `parentUid` | string | Parent folder UID \(nested folders only\) |
+| `parents` | array | Ancestor folder hierarchy \(nested folders only\) |
+| `hasAcl` | boolean | Whether the folder has custom ACL permissions |
+| `canSave` | boolean | Whether the current user can save the folder |
+| `canEdit` | boolean | Whether the current user can edit the folder |
+| `canAdmin` | boolean | Whether the current user has admin rights on the folder |
+| `createdBy` | string | Username of who created the folder |
+| `created` | string | Timestamp when the folder was created |
+| `updatedBy` | string | Username of who last updated the folder |
+| `updated` | string | Timestamp when the folder was last updated |
+| `version` | number | Version number of the folder |
+
+### `grafana_delete_folder`
+
+Delete a folder by its UID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `folderUid` | string | Yes | The UID of the folder to delete \(e.g., folder-abc123\) |
+| `forceDeleteRules` | boolean | No | Delete any alert rules stored in the folder along with it \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uid` | string | The UID of the deleted folder |
+| `message` | string | Confirmation message |
+
+### `grafana_get_health`
+
+Check the health of the Grafana instance (version, database status)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commit` | string | Git commit hash of the running Grafana build |
+| `database` | string | Database health status \(e.g., ok\) |
+| `version` | string | Grafana version |
 
 

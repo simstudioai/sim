@@ -1,4 +1,4 @@
-import { Mail } from '@/components/emcn/icons'
+import { Mail } from '@sim/emcn/icons'
 import { MailchimpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -1463,6 +1463,7 @@ Return ONLY the JSON array - no explanations or markdown.`,
 
 export const MailchimpBlockMeta = {
   tags: ['email-marketing', 'marketing', 'automation'],
+  url: 'https://mailchimp.com',
   templates: [
     {
       icon: Mail,

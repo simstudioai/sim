@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-12",
+  "updatedAt": "2026-06-30",
   "integrations": [
     {
       "type": "onepassword",
@@ -239,7 +239,7 @@
         },
         {
           "name": "Update Contact",
-          "description": "Update a contact"
+          "description": "Update a contact's fields"
         },
         {
           "name": "Delete Contact",
@@ -349,7 +349,7 @@
       "operations": [
         {
           "name": "Domain Rating",
-          "description": "Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website"
+          "description": "Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website's backlink profile on a scale from 0 to 100."
         },
         {
           "name": "Backlinks",
@@ -393,7 +393,7 @@
       "slug": "airtable",
       "name": "Airtable",
       "description": "Read, create, and update Airtable",
-      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
+      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
       "bgColor": "#FFFFFF",
       "iconName": "AirtableIcon",
       "docsUrl": "https://docs.sim.ai/integrations/airtable",
@@ -429,9 +429,17 @@
         {
           "name": "Update Multiple Records",
           "description": "Update multiple existing records in an Airtable table"
+        },
+        {
+          "name": "Upsert Records",
+          "description": "Update existing records or create new ones in an Airtable table, matching on the specified merge fields"
+        },
+        {
+          "name": "Delete Records",
+          "description": "Delete one or more records from an Airtable table by ID"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 10,
       "triggers": [
         {
           "id": "airtable_webhook",
@@ -770,7 +778,7 @@
       "operations": [
         {
           "name": "Search People",
-          "description": "Search Apollo"
+          "description": "Search Apollo's database for people using demographic filters"
         },
         {
           "name": "Enrich Person",
@@ -782,7 +790,7 @@
         },
         {
           "name": "Search Organizations",
-          "description": "Search Apollo"
+          "description": "Search Apollo's database for companies using filters"
         },
         {
           "name": "Enrich Organization",
@@ -802,7 +810,7 @@
         },
         {
           "name": "Search Contacts",
-          "description": "Search your team"
+          "description": "Search your team's contacts in Apollo"
         },
         {
           "name": "Bulk Create Contacts",
@@ -822,7 +830,7 @@
         },
         {
           "name": "Search Accounts",
-          "description": "Search your team"
+          "description": "Search your team's accounts in Apollo. Display limit: 50,000 records (100 records per page, 500 pages max). Use filters to narrow results. Master key required."
         },
         {
           "name": "Bulk Create Accounts",
@@ -838,7 +846,7 @@
         },
         {
           "name": "Search Opportunities",
-          "description": "Search and list all deals/opportunities in your team"
+          "description": "Search and list all deals/opportunities in your team's Apollo account"
         },
         {
           "name": "Get Opportunity",
@@ -850,7 +858,7 @@
         },
         {
           "name": "Search Sequences",
-          "description": "Search for sequences/campaigns in your team"
+          "description": "Search for sequences/campaigns in your team's Apollo account (master key required)"
         },
         {
           "name": "Add to Sequence",
@@ -866,7 +874,7 @@
         },
         {
           "name": "Get Email Accounts",
-          "description": "Get list of team"
+          "description": "Get list of team's linked email accounts in Apollo"
         }
       ],
       "operationCount": 25,
@@ -941,9 +949,41 @@
         {
           "name": "Add Comment",
           "description": "Add a comment (story) to an Asana task"
+        },
+        {
+          "name": "Create Subtask",
+          "description": "Create a subtask under an existing Asana task"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Delete an Asana task by its GID (moves it to the trash)"
+        },
+        {
+          "name": "Add Followers",
+          "description": "Add one or more followers to an Asana task"
+        },
+        {
+          "name": "Create Project",
+          "description": "Create a new project in an Asana workspace"
+        },
+        {
+          "name": "Get Project",
+          "description": "Retrieve a single Asana project by its GID"
+        },
+        {
+          "name": "List Workspaces",
+          "description": "List all Asana workspaces and organizations the authenticated user belongs to"
+        },
+        {
+          "name": "Create Section",
+          "description": "Create a new section in an Asana project"
+        },
+        {
+          "name": "List Sections",
+          "description": "List all sections in an Asana project"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 14,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -2024,7 +2064,7 @@
         },
         {
           "name": "Get Work Items Batch",
-          "description": "Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "
+          "description": "Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. \"123,456,789\"). Requests with more than 200 IDs are automatically split into chunks."
         },
         {
           "name": "Create Work Item",
@@ -2658,8 +2698,44 @@
         }
       ],
       "operationCount": 11,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "clerk_user_created",
+          "name": "Clerk User Created",
+          "description": "Trigger workflow when a Clerk user is created"
+        },
+        {
+          "id": "clerk_user_updated",
+          "name": "Clerk User Updated",
+          "description": "Trigger workflow when a Clerk user is updated"
+        },
+        {
+          "id": "clerk_user_deleted",
+          "name": "Clerk User Deleted",
+          "description": "Trigger workflow when a Clerk user is deleted"
+        },
+        {
+          "id": "clerk_session_created",
+          "name": "Clerk Session Created",
+          "description": "Trigger workflow when a Clerk session is created"
+        },
+        {
+          "id": "clerk_organization_created",
+          "name": "Clerk Organization Created",
+          "description": "Trigger workflow when a Clerk organization is created"
+        },
+        {
+          "id": "clerk_organization_membership_created",
+          "name": "Clerk Organization Membership Created",
+          "description": "Trigger workflow when a Clerk organization membership is created"
+        },
+        {
+          "id": "clerk_webhook",
+          "name": "Clerk Webhook",
+          "description": "Trigger workflow on any Clerk webhook event"
+        }
+      ],
+      "triggerCount": 7,
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
@@ -3337,6 +3413,113 @@
       "tags": ["knowledge-base", "content-management", "note-taking"]
     },
     {
+      "type": "context_dev",
+      "slug": "context-dev",
+      "name": "Context.dev",
+      "description": "Scrape, crawl, search, extract, and enrich web and brand data",
+      "longDescription": "Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.",
+      "bgColor": "#ffffff",
+      "iconName": "ContextDevIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/context_dev",
+      "operations": [
+        {
+          "name": "Scrape Markdown",
+          "description": "Scrape any URL and return clean, LLM-ready markdown content."
+        },
+        {
+          "name": "Scrape HTML",
+          "description": "Scrape any URL and return the raw HTML content of the page."
+        },
+        {
+          "name": "Scrape Images",
+          "description": "Discover every image asset on a page, with optional dimension and type enrichment."
+        },
+        {
+          "name": "Screenshot",
+          "description": "Capture a screenshot of any web page and store it as a downloadable image file."
+        },
+        {
+          "name": "Crawl Website",
+          "description": "Crawl an entire website and return each discovered page as clean markdown."
+        },
+        {
+          "name": "Map Sitemap",
+          "description": "Build a sitemap of a domain and return every discovered page URL."
+        },
+        {
+          "name": "Web Search",
+          "description": "Search the web with natural language and optionally scrape results to markdown."
+        },
+        {
+          "name": "Extract Structured Data",
+          "description": "Crawl a website and extract structured data matching a provided JSON schema."
+        },
+        {
+          "name": "Extract Product",
+          "description": "Detect and extract structured product details from a single product page URL."
+        },
+        {
+          "name": "Extract Products",
+          "description": "Extract the product catalog from a brand's website by domain (beta)."
+        },
+        {
+          "name": "Scrape Fonts",
+          "description": "Extract the font families, usage stats, and font files used by a domain."
+        },
+        {
+          "name": "Scrape Styleguide",
+          "description": "Extract a domain's design system: colors, typography, spacing, shadows, and UI components."
+        },
+        {
+          "name": "Classify NAICS",
+          "description": "Classify a brand into NAICS industry codes from its domain or company name."
+        },
+        {
+          "name": "Classify SIC",
+          "description": "Classify a brand into SIC industry codes from its domain or company name."
+        },
+        {
+          "name": "Get Brand by Domain",
+          "description": "Retrieve brand data for a domain: logos, colors, backdrops, socials, address, and industry."
+        },
+        {
+          "name": "Get Brand by Name",
+          "description": "Retrieve brand data by company name: logos, colors, socials, address, and industry."
+        },
+        {
+          "name": "Get Brand by Email",
+          "description": "Retrieve brand data from a work email address. Free/disposable emails are rejected (422)."
+        },
+        {
+          "name": "Get Brand by Ticker",
+          "description": "Retrieve brand data for a public company by its stock ticker symbol."
+        },
+        {
+          "name": "Get Brand (Simplified)",
+          "description": "Retrieve essential brand data for a domain: title, colors, logos, and backdrops."
+        },
+        {
+          "name": "Identify Transaction",
+          "description": "Identify the brand behind a raw bank/card transaction descriptor and return its brand data."
+        },
+        {
+          "name": "Prefetch Domain",
+          "description": "Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits)."
+        },
+        {
+          "name": "Prefetch by Email",
+          "description": "Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected."
+        }
+      ],
+      "operationCount": 22,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "enrichment", "automation"]
+    },
+    {
       "type": "convex",
       "slug": "convex",
       "name": "Convex",
@@ -3711,6 +3894,45 @@
       "tags": ["monitoring", "incident-management", "error-tracking"]
     },
     {
+      "type": "datagma",
+      "slug": "datagma",
+      "name": "Datagma",
+      "description": "Find verified B2B emails, mobile phones, and enrich person or company profiles",
+      "longDescription": "Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DatagmaIcon",
+      "docsUrl": "https://docs.sim.ai/tools/datagma",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a verified work email from a person's full name and company. Uses 1 credit when a verified email is found."
+        },
+        {
+          "name": "Enrich Person",
+          "description": "Enrich a person's profile using their email, LinkedIn URL, or full name and company. Returns job title, company, location, and social data. Uses 2 credits per match; add 30 credits when a phone number is found."
+        },
+        {
+          "name": "Enrich Company",
+          "description": "Enrich a company profile using a domain, company name, or SIREN number (France). Returns size, industry, revenue, and description. Uses 2 credits per match."
+        },
+        {
+          "name": "Find Phone",
+          "description": "Find a mobile phone number from a person's LinkedIn URL. Optionally supply an email to improve match accuracy. Uses 30 credits when a number is found."
+        },
+        {
+          "name": "Get Remaining Credits",
+          "description": "Check remaining credit balance on a Datagma account. Free — no credits consumed."
+        }
+      ],
+      "operationCount": 5,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "daytona",
       "slug": "daytona",
       "name": "Daytona",
@@ -4052,6 +4274,85 @@
       "tags": ["e-signatures", "document-processing"]
     },
     {
+      "type": "downdetector",
+      "slug": "downdetector",
+      "name": "Downdetector",
+      "description": "Monitor outages and service status with Downdetector",
+      "longDescription": "Track real-time service outages with the Downdetector Enterprise API. Search monitored companies, read their current status and report trends, inspect problem indicators, and pull incident timelines to power outage alerts and dashboards. Requires a Downdetector Enterprise API plan.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DowndetectorIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/downdetector",
+      "operations": [
+        {
+          "name": "Search Companies",
+          "description": "Search Downdetector for monitored companies by name, slug, country, or category. Returns matching companies with their ids and slugs, which you can use with the other Downdetector operations."
+        },
+        {
+          "name": "Get Company",
+          "description": "Get details for a Downdetector company by id, including its current status, 24h report statistics, baseline, and available problem indicators."
+        },
+        {
+          "name": "Get Company Status",
+          "description": "Get the current detected status for a Downdetector company. Returns \"success\" (no problems), \"warning\", or \"danger\" (likely outage)."
+        },
+        {
+          "name": "Get Company Baseline",
+          "description": "Get the current baseline report value for a Downdetector company. This is the expected average number of reports for the current period, used to judge whether current reports are abnormal."
+        },
+        {
+          "name": "Get Company Last 15 Minutes",
+          "description": "Get the number of outage reports for a Downdetector company over the last 15 minutes. A convenient near-real-time signal for threshold-based alerting."
+        },
+        {
+          "name": "Get Company Indicators",
+          "description": "Get the problem indicators (e.g. \"App crashing\", \"Login\", \"Server connection\") reported for a Downdetector company over a time period, with the report counts and percentages for each."
+        },
+        {
+          "name": "Get Reports",
+          "description": "Get the number of outage reports over time for one or more company slugs, bucketed by interval. Useful for plotting report trends or detecting spikes. Defaults to the last 24 hours."
+        },
+        {
+          "name": "Get Company Incidents",
+          "description": "Get the list of incidents (outages) for a Downdetector company. Defaults to the last 24 hours unless a date range is provided."
+        },
+        {
+          "name": "Get Company Attribution",
+          "description": "Get the incident attribution for a Downdetector company while it is in an outage state — whether the issue is internal (isolated) or external (a dependency), the estimated user impact, and the related incident. Requires Incident Attribution access."
+        },
+        {
+          "name": "Get Company Events",
+          "description": "Get the published events (such as detected outages) for a Downdetector company, including the measured vs expected report volume for each event."
+        },
+        {
+          "name": "Get Site Companies",
+          "description": "List the companies monitored on a Downdetector site, including each company’s current status. Useful for discovering the companies available on a regional status page."
+        },
+        {
+          "name": "Get Provider",
+          "description": "Get details for a Downdetector provider (ISP or network operator) by id, such as its name and Downdetector id."
+        },
+        {
+          "name": "List Incidents",
+          "description": "List all incidents (outages) across every company that were active in the chosen time period, or in the last 24 hours if no date range is provided."
+        },
+        {
+          "name": "List Categories",
+          "description": "List all Downdetector categories (e.g. \"Telecom\", \"Gaming\", \"Social Media\"). Use the returned category id to filter company searches."
+        },
+        {
+          "name": "List Sites",
+          "description": "List all available Downdetector sites (regional status-page domains). Each site groups the companies monitored for a given country/region."
+        }
+      ],
+      "operationCount": 15,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "incident-management"]
+    },
+    {
       "type": "dropbox",
       "slug": "dropbox",
       "name": "Dropbox",
@@ -4110,6 +4411,29 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["cloud", "document-processing"]
+    },
+    {
+      "type": "dropcontact",
+      "slug": "dropcontact",
+      "name": "Dropcontact",
+      "description": "Enrich B2B contacts with verified email, phone, and company data",
+      "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
+      "bgColor": "#0066FF",
+      "iconName": "DropcontactIcon",
+      "docsUrl": "https://docs.sim.ai/tools/dropcontact",
+      "operations": [
+        {
+          "name": "Enrich Contact",
+          "description": "Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then polls until the result is ready (up to 2 minutes). Charges 1 credit only when a verified email is returned. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL."
+        }
+      ],
+      "operationCount": 1,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "dspy",
@@ -4306,13 +4630,54 @@
       "type": "elevenlabs",
       "slug": "elevenlabs",
       "name": "ElevenLabs",
-      "description": "Convert text to speech with ElevenLabs",
-      "longDescription": "Integrate ElevenLabs into the workflow. Can convert text to speech.",
+      "description": "Generate and transform audio with ElevenLabs",
+      "longDescription": "Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.",
       "bgColor": "#181C1E",
       "iconName": "ElevenLabsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/elevenlabs",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Text to Speech",
+          "description": "Convert text to speech using ElevenLabs voices"
+        },
+        {
+          "name": "Sound Effects",
+          "description": "Generate a sound effect from a text prompt using ElevenLabs"
+        },
+        {
+          "name": "Speech to Speech",
+          "description": "Convert audio into a chosen ElevenLabs voice while preserving content and emotion"
+        },
+        {
+          "name": "Audio Isolation",
+          "description": "Remove background noise from an audio file, isolating the speech using ElevenLabs"
+        },
+        {
+          "name": "List Voices",
+          "description": "List the voices available in your ElevenLabs account"
+        },
+        {
+          "name": "Get Voice",
+          "description": "Get metadata and settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Get Voice Settings",
+          "description": "Get the configured settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Edit Voice Settings",
+          "description": "Update the settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "List Models",
+          "description": "List the models available in ElevenLabs"
+        },
+        {
+          "name": "Get User Info",
+          "description": "Get account and subscription information for the ElevenLabs user"
+        }
+      ],
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4433,7 +4798,7 @@
         },
         {
           "name": "Find Email",
-          "description": "Find a person"
+          "description": "Find a person's work email address using their full name and company domain."
         },
         {
           "name": "LinkedIn to Work Email",
@@ -4529,11 +4894,11 @@
         },
         {
           "name": "Search People Activities",
-          "description": "Get a person"
+          "description": "Get a person's LinkedIn activities (posts, comments, or articles) by profile ID."
         },
         {
           "name": "Search Company Activities",
-          "description": "Get a company"
+          "description": "Get a company's LinkedIn activities (posts, comments, or articles) by company ID."
         },
         {
           "name": "Reverse Hash Lookup",
@@ -4555,6 +4920,33 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment"]
+    },
+    {
+      "type": "enrow",
+      "slug": "enrow",
+      "name": "Enrow",
+      "description": "Find and verify B2B emails with triple-verified accuracy",
+      "longDescription": "Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.",
+      "bgColor": "#FFFFFF",
+      "iconName": "EnrowIcon",
+      "docsUrl": "https://enrow.readme.io",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://enrow.readme.io/reference/find-single-email)"
+        },
+        {
+          "name": "Verify Email",
+          "description": "Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://enrow.readme.io/reference/verify-single-email)"
+        }
+      ],
+      "operationCount": 2,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "evernote",
@@ -4738,11 +5130,11 @@
       "operations": [
         {
           "name": "Find Email From Name",
-          "description": "Find someone"
+          "description": "Find someone's email from their name and a company domain or company name. Uses one finder credit when a verified email is found."
         },
         {
           "name": "Find Email From LinkedIn",
-          "description": "Find someone"
+          "description": "Find someone's email from a LinkedIn profile URL or username. Uses one finder credit when a verified email is found."
         },
         {
           "name": "Find Emails By Domain",
@@ -4766,7 +5158,7 @@
         },
         {
           "name": "Find Phone",
-          "description": "Find someone"
+          "description": "Find someone's phone number from a LinkedIn profile URL. Uses 10 finder credits if a phone is found. EU citizens are excluded for legal reasons."
         },
         {
           "name": "Search Technologies",
@@ -4804,12 +5196,28 @@
           "description": "Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information."
         },
         {
+          "name": "Batch Scrape",
+          "description": "Scrape multiple URLs in a single batch job and retrieve structured content from each page."
+        },
+        {
+          "name": "Batch Scrape Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl batch scrape job by its job ID."
+        },
+        {
           "name": "Search",
           "description": "Search for information on the web using Firecrawl"
         },
         {
           "name": "Crawl",
           "description": "Crawl entire websites and extract structured content from all accessible pages"
+        },
+        {
+          "name": "Crawl Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl crawl job by its job ID."
+        },
+        {
+          "name": "Cancel Crawl",
+          "description": "Cancel an in-progress Firecrawl crawl job by its job ID."
         },
         {
           "name": "Map",
@@ -4820,15 +5228,23 @@
           "description": "Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction."
         },
         {
+          "name": "Extract Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl extract job by its job ID."
+        },
+        {
           "name": "Agent",
           "description": "Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs."
         },
         {
           "name": "Parse Document",
           "description": "Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls."
+        },
+        {
+          "name": "Credit Usage",
+          "description": "Retrieve the remaining and allocated Firecrawl credits for the team."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5432,11 +5848,90 @@
         {
           "name": "Cancel Pipeline",
           "description": "Cancel a running GitLab pipeline"
+        },
+        {
+          "name": "List Repository Tree",
+          "description": "List files and directories in a GitLab project repository"
+        },
+        {
+          "name": "Get File",
+          "description": "Get the contents of a file from a GitLab project repository"
+        },
+        {
+          "name": "Create File",
+          "description": "Create a new file in a GitLab project repository"
+        },
+        {
+          "name": "Update File",
+          "description": "Update an existing file in a GitLab project repository"
+        },
+        {
+          "name": "List Commits",
+          "description": "List commits in a GitLab project repository"
+        },
+        {
+          "name": "List Branches",
+          "description": "List branches in a GitLab project repository"
+        },
+        {
+          "name": "Create Branch",
+          "description": "Create a new branch in a GitLab project repository"
+        },
+        {
+          "name": "Get MR Changes",
+          "description": "Get the file changes (diffs) of a GitLab merge request"
+        },
+        {
+          "name": "Approve Merge Request",
+          "description": "Approve a GitLab merge request"
+        },
+        {
+          "name": "List Pipeline Jobs",
+          "description": "List jobs for a GitLab pipeline"
+        },
+        {
+          "name": "Get Job Log",
+          "description": "Get the log (trace) of a GitLab job"
+        },
+        {
+          "name": "Play Job",
+          "description": "Trigger (play) a manual GitLab job"
         }
       ],
-      "operationCount": 19,
-      "triggers": [],
-      "triggerCount": 0,
+      "operationCount": 31,
+      "triggers": [
+        {
+          "id": "gitlab_push",
+          "name": "GitLab Push",
+          "description": "Trigger workflow when commits are pushed to a GitLab project"
+        },
+        {
+          "id": "gitlab_merge_request",
+          "name": "GitLab Merge Request",
+          "description": "Trigger workflow when a merge request is opened, updated, or merged in GitLab"
+        },
+        {
+          "id": "gitlab_issue",
+          "name": "GitLab Issue",
+          "description": "Trigger workflow when an issue is opened, updated, or closed in GitLab"
+        },
+        {
+          "id": "gitlab_pipeline",
+          "name": "GitLab Pipeline",
+          "description": "Trigger workflow when a pipeline status changes in GitLab"
+        },
+        {
+          "id": "gitlab_comment",
+          "name": "GitLab Comment",
+          "description": "Trigger workflow when a comment is added on a commit, merge request, or issue"
+        },
+        {
+          "id": "gitlab_webhook",
+          "name": "GitLab Event",
+          "description": "Trigger workflow from any GitLab webhook event"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
@@ -5785,7 +6280,7 @@
         },
         {
           "name": "List Calendars",
-          "description": "List all calendars in the user"
+          "description": "List all calendars in the user's calendar list"
         },
         {
           "name": "Quick Add (Natural Language)",
@@ -5794,9 +6289,29 @@
         {
           "name": "Invite Attendees",
           "description": "Invite attendees to an existing Google Calendar event"
+        },
+        {
+          "name": "Check Free/Busy",
+          "description": "Query free/busy information for one or more Google Calendars"
+        },
+        {
+          "name": "Create Calendar",
+          "description": "Create a new secondary calendar"
+        },
+        {
+          "name": "Share Calendar",
+          "description": "Grant a user, group, or domain access to a calendar by creating an ACL rule"
+        },
+        {
+          "name": "List Sharing",
+          "description": "List the access control rules (sharing) for a calendar"
+        },
+        {
+          "name": "Remove Sharing",
+          "description": "Revoke an access control rule (sharing) from a calendar"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 15,
       "triggers": [
         {
           "id": "google_calendar_poller",
@@ -5859,8 +6374,8 @@
       "type": "google_docs",
       "slug": "google-docs",
       "name": "Google Docs",
-      "description": "Read, write, and create documents",
-      "longDescription": "Integrate Google Docs into the workflow. Can read, write, and create documents.",
+      "description": "Read, write, create, and edit documents",
+      "longDescription": "Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.",
       "bgColor": "#FFFFFF",
       "iconName": "GoogleDocsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_docs",
@@ -5876,9 +6391,57 @@
         {
           "name": "Create Document",
           "description": "Create a new Google Docs document"
+        },
+        {
+          "name": "Insert Text",
+          "description": "Insert text at a specific index in a Google Docs document. When no index is provided, text is appended to the end of the document. Text is inserted literally; Markdown is not interpreted."
+        },
+        {
+          "name": "Find & Replace Text",
+          "description": "Replace all occurrences of a search string with new text across a Google Docs document."
+        },
+        {
+          "name": "Insert Table",
+          "description": "Insert an empty table with the given number of rows and columns into a Google Docs document. When no index is provided, the table is appended to the end of the document."
+        },
+        {
+          "name": "Insert Image",
+          "description": "Insert an inline image from a public URL into a Google Docs document. The image must be publicly accessible and under 50 MB. When no index is provided, the image is appended to the end of the document."
+        },
+        {
+          "name": "Insert Page Break",
+          "description": "Insert a page break into a Google Docs document. When no index is provided, the page break is appended to the end of the document."
+        },
+        {
+          "name": "Apply Text Style",
+          "description": "Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Apply Paragraph Style",
+          "description": "Apply a named paragraph style (such as a heading or title) and/or alignment to the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Create Bullets",
+          "description": "Add bulleted or numbered list formatting to the paragraphs overlapping a range of text in a Google Docs document, using a chosen bullet glyph preset."
+        },
+        {
+          "name": "Delete Bullets",
+          "description": "Remove bullet or numbered list formatting from the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Delete Content Range",
+          "description": "Delete all content between a start and end character index in a Google Docs document. The endIndex is exclusive and must be greater than the startIndex."
+        },
+        {
+          "name": "Create Named Range",
+          "description": "Create a named range over a span of content in a Google Docs document so it can be referenced or deleted later. The name may be 1-256 characters and need not be unique."
+        },
+        {
+          "name": "Delete Named Range",
+          "description": "Delete one or more named ranges from a Google Docs document by their ID or by name. Provide exactly one of namedRangeId or name; deleting by name removes all ranges sharing that name. The content itself is not removed."
         }
       ],
-      "operationCount": 3,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -5966,11 +6529,35 @@
           "description": "List all permissions (who has access) for a file in Google Drive"
         },
         {
+          "name": "Export File",
+          "description": "Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV"
+        },
+        {
+          "name": "List Revisions",
+          "description": "List the revision history of a file in Google Drive"
+        },
+        {
+          "name": "Get Revision",
+          "description": "Get metadata for a specific revision of a file in Google Drive"
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on a file in Google Drive"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a file in Google Drive"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a file in Google Drive"
+        },
+        {
           "name": "Get Drive Info",
           "description": "Get information about the user and their Google Drive (storage quota, capabilities)"
         }
       ],
-      "operationCount": 18,
+      "operationCount": 24,
       "triggers": [
         {
           "id": "google_drive_poller",
@@ -6091,7 +6678,7 @@
         },
         {
           "name": "Update Member Role",
-          "description": "Update a member"
+          "description": "Update a member's role in a Google Group (promote or demote)"
         },
         {
           "name": "Remove Member",
@@ -6192,9 +6779,17 @@
         {
           "name": "Air Quality",
           "description": "Get current air quality data for a location"
+        },
+        {
+          "name": "Pollen Forecast",
+          "description": "Get a daily pollen forecast (grass, tree, weed) for a location"
+        },
+        {
+          "name": "Solar Potential",
+          "description": "Get solar potential and panel insights for the building nearest a location"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -6335,9 +6930,21 @@
         {
           "name": "Copy Sheet",
           "description": "Copy a sheet from one spreadsheet to another"
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows from a sheet in a Google Sheets spreadsheet"
+        },
+        {
+          "name": "Delete Sheet",
+          "description": "Delete a sheet/tab from a Google Sheets spreadsheet"
+        },
+        {
+          "name": "Delete Spreadsheet",
+          "description": "Permanently delete a Google Sheets spreadsheet using the Google Drive API"
         }
       ],
-      "operationCount": 11,
+      "operationCount": 14,
       "triggers": [
         {
           "id": "google_sheets_poller",
@@ -6392,11 +6999,11 @@
         },
         {
           "name": "Replace All Shapes With Image",
-          "description": "Find every shape whose text matches the given token (e.g. {{cover-image}}) and replace it with an image, preserving the shape"
+          "description": "Find every shape whose text matches the given token (e.g. {{cover-image}}) and replace it with an image, preserving the shape's position and bounds."
         },
         {
           "name": "Replace Image",
-          "description": "Replace the source of an existing image with a new image URL, preserving the image"
+          "description": "Replace the source of an existing image with a new image URL, preserving the image's position, size, and properties."
         },
         {
           "name": "Update Image Properties",
@@ -6468,7 +7075,7 @@
         },
         {
           "name": "Update Shape Properties",
-          "description": "Update a shape"
+          "description": "Update a shape's appearance — background fill color, outline, link, content alignment, autofit. Pass only the properties you want to change."
         },
         {
           "name": "Update Page Properties",
@@ -6504,7 +7111,7 @@
         },
         {
           "name": "Update Line Category",
-          "description": "Change a connector line"
+          "description": "Change a connector line's category (STRAIGHT, BENT, or CURVED)."
         },
         {
           "name": "Reroute Line",
@@ -6560,7 +7167,7 @@
         },
         {
           "name": "Replace All Shapes With Sheets Chart",
-          "description": "Find every shape matching a text token (e.g. {{revenue-chart}}) and replace each with the same embedded Sheets chart, preserving the shape"
+          "description": "Find every shape matching a text token (e.g. {{revenue-chart}}) and replace each with the same embedded Sheets chart, preserving the shape's position and bounds."
         },
         {
           "name": "Embed Video",
@@ -6705,7 +7312,7 @@
       "name": "Grafana",
       "description": "Interact with Grafana dashboards, alerts, and annotations",
       "longDescription": "Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.",
-      "bgColor": "#FFFFFF",
+      "bgColor": "#F46800",
       "iconName": "GrafanaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/grafana",
       "operations": [
@@ -6754,6 +7361,10 @@
           "description": "List all alert notification contact points"
         },
         {
+          "name": "Create Contact Point",
+          "description": "Create a notification contact point (e.g., Slack, email, PagerDuty)"
+        },
+        {
           "name": "Create Annotation",
           "description": "Create an annotation on a dashboard or as a global annotation"
         },
@@ -6778,15 +7389,35 @@
           "description": "Get a data source by its ID or UID"
         },
         {
+          "name": "Check Data Source Health",
+          "description": "Test connectivity to a data source by its UID"
+        },
+        {
           "name": "List Folders",
           "description": "List all folders in Grafana"
         },
         {
           "name": "Create Folder",
           "description": "Create a new folder in Grafana"
+        },
+        {
+          "name": "Get Folder",
+          "description": "Get a folder by its UID"
+        },
+        {
+          "name": "Update Folder",
+          "description": "Update (rename) a folder. Fetches the current folder and merges your changes."
+        },
+        {
+          "name": "Delete Folder",
+          "description": "Delete a folder by its UID"
+        },
+        {
+          "name": "Get Health",
+          "description": "Check the health of the Grafana instance (version, database status)"
         }
       ],
-      "operationCount": 19,
+      "operationCount": 25,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -7191,7 +7822,7 @@
         },
         {
           "name": "Create Deal",
-          "description": "Create a new deal in HubSpot. Requires at least a dealname property"
+          "description": "Create a new deal in HubSpot with the given properties (e.g., dealname, amount, dealstage)"
         },
         {
           "name": "Update Deal",
@@ -7216,6 +7847,42 @@
         {
           "name": "Search Tickets",
           "description": "Search for tickets in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Get Notes",
+          "description": "Retrieve all notes from HubSpot account with pagination support"
+        },
+        {
+          "name": "Create Note",
+          "description": "Log a note in HubSpot and optionally associate it with contacts, companies, or deals. Requires hs_timestamp and hs_note_body properties"
+        },
+        {
+          "name": "Search Notes",
+          "description": "Search for notes in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Get Emails",
+          "description": "Retrieve all email engagements from HubSpot account with pagination support"
+        },
+        {
+          "name": "Create Email",
+          "description": "Log an email engagement in HubSpot and optionally associate it with contacts. Requires the hs_timestamp property"
+        },
+        {
+          "name": "Search Emails",
+          "description": "Search for email engagements in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Get Properties",
+          "description": "Read property definitions and their enumeration (picklist) options for a HubSpot object type, e.g. the values for lifecyclestage or hs_lead_status on contacts"
+        },
+        {
+          "name": "List Associations",
+          "description": "List records of one object type associated with a given record, e.g. all emails or notes logged on a contact"
+        },
+        {
+          "name": "Create Association",
+          "description": "Associate two HubSpot records. Creates the default (unlabeled) association unless an association type ID is provided"
         },
         {
           "name": "Get Line Items",
@@ -7270,7 +7937,7 @@
           "description": "Retrieve all users from HubSpot account"
         }
       ],
-      "operationCount": 29,
+      "operationCount": 38,
       "triggers": [
         {
           "id": "hubspot_poller",
@@ -7347,9 +8014,36 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
+      "type": "icypeas",
+      "slug": "icypeas",
+      "name": "Icypeas",
+      "description": "Find and verify professional email addresses",
+      "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
+      "bgColor": "#d4d4d4",
+      "iconName": "IcypeasIcon",
+      "docsUrl": "https://docs.sim.ai/tools/icypeas",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a professional email address from a first name, last name, and company domain or name. Submits the search and polls until a result is available. Costs 1 credit per found email (https://www.icypeas.com/pricing)."
+        },
+        {
+          "name": "Verify Email",
+          "description": "Verify whether an email address is valid and deliverable. Submits the verification and polls until a result is available. Costs 0.1 credit per verification (https://www.icypeas.com/pricing)."
+        }
+      ],
+      "operationCount": 2,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "incidentio",
-      "slug": "incidentio",
-      "name": "incidentio",
+      "slug": "incident-io",
+      "name": "incident.io",
       "description": "Manage incidents with incident.io",
       "longDescription": "Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.",
       "bgColor": "#FFFFFF",
@@ -7542,8 +8236,29 @@
         }
       ],
       "operationCount": 46,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "incidentio_incident_created",
+          "name": "incident.io Incident Created",
+          "description": "Trigger workflow when an incident is created in incident.io"
+        },
+        {
+          "id": "incidentio_incident_updated",
+          "name": "incident.io Incident Updated",
+          "description": "Trigger workflow when an incident is updated in incident.io"
+        },
+        {
+          "id": "incidentio_incident_status_updated",
+          "name": "incident.io Incident Status Updated",
+          "description": "Trigger workflow when an incident"
+        },
+        {
+          "id": "incidentio_alert_created",
+          "name": "incident.io Alert Created",
+          "description": "Trigger workflow when an alert is created in incident.io"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -8070,9 +8785,29 @@
         {
           "name": "Search Users",
           "description": "Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress."
+        },
+        {
+          "name": "List Projects",
+          "description": "List Jira projects visible to the user, with optional name/key filtering and pagination. Returns each project with id, key, name, and type."
+        },
+        {
+          "name": "Get Project",
+          "description": "Get the details of a single Jira project by its ID or key, including its type, lead, components, issue types, and versions."
+        },
+        {
+          "name": "Get Transitions",
+          "description": "Get the workflow transitions available for an issue in its current status. Use the returned transition IDs with the Transition Issue operation."
+        },
+        {
+          "name": "List Issue Types",
+          "description": "List all issue types visible to the user across projects (e.g., Task, Bug, Story, Epic, Subtask). Useful for discovering valid issue types before creating an issue."
+        },
+        {
+          "name": "Get Fields",
+          "description": "Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues."
         }
       ],
-      "operationCount": 25,
+      "operationCount": 30,
       "triggers": [
         {
           "id": "jira_issue_created",
@@ -8302,9 +9037,45 @@
         {
           "name": "Copy Forms",
           "description": "Copy forms from one Jira issue to another"
+        },
+        {
+          "name": "List Asset Schemas",
+          "description": "List Assets (Insight/CMDB) object schemas in Jira Service Management"
+        },
+        {
+          "name": "Get Asset Schema",
+          "description": "Get a single Assets (Insight/CMDB) object schema by ID"
+        },
+        {
+          "name": "List Asset Object Types",
+          "description": "List object types within an Assets (Insight/CMDB) object schema"
+        },
+        {
+          "name": "Get Asset Object Type Attributes",
+          "description": "Get the attribute definitions for an Assets (Insight/CMDB) object type. Use the returned attribute IDs to build create/update payloads or map columns."
+        },
+        {
+          "name": "Search Assets (AQL)",
+          "description": "Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. objectType = \"Host\" AND Status = \"Running\". Supports pagination."
+        },
+        {
+          "name": "Get Asset Object",
+          "description": "Get a single Assets (Insight/CMDB) object by ID, including its attribute values"
+        },
+        {
+          "name": "Create Asset Object",
+          "description": "Create an Assets (Insight/CMDB) object of a given object type. Attributes use objectTypeAttributeId values from the object type definition."
+        },
+        {
+          "name": "Update Asset Object",
+          "description": "Update an existing Assets (Insight/CMDB) object. Provide the attributes to change using their objectTypeAttributeId values."
+        },
+        {
+          "name": "Delete Asset Object",
+          "description": "Delete an Assets (Insight/CMDB) object by ID"
         }
       ],
-      "operationCount": 34,
+      "operationCount": 43,
       "triggers": [
         {
           "id": "jsm_request_created",
@@ -8399,7 +9170,7 @@
         },
         {
           "name": "Get Fills",
-          "description": "Retrieve your portfolio"
+          "description": "Retrieve your portfolio's fills/trades from Kalshi"
         },
         {
           "name": "Get Settlements",
@@ -8613,6 +9384,61 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["feature-flags", "ci-cd"]
+    },
+    {
+      "type": "leadmagic",
+      "slug": "leadmagic",
+      "name": "LeadMagic",
+      "description": "Find and enrich B2B contacts, emails, mobile numbers, and company data",
+      "longDescription": "Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "LeadMagicIcon",
+      "docsUrl": "https://docs.sim.ai/tools/leadmagic",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find someone's verified work email from their name and company domain. Charges 1 credit when a valid email is found; free when no result."
+        },
+        {
+          "name": "Validate Email",
+          "description": "Verify an email address for deliverability. Charges 0.25 credits for definitive SMTP results (valid/invalid); unknown and RFC-invalid results are free."
+        },
+        {
+          "name": "Find Mobile",
+          "description": "Find a person's direct mobile number from their LinkedIn profile URL or email. Charges 5 credits when a number is found; free when no result."
+        },
+        {
+          "name": "Profile Search",
+          "description": "Enrich a LinkedIn profile with work history, education, skills, and contact data. Charges 1 credit per successful enrichment; free when profile not found."
+        },
+        {
+          "name": "Profile to Email",
+          "description": "Extract a verified work email from a LinkedIn profile URL. Charges 5 credits when an email is found; free when no result."
+        },
+        {
+          "name": "Email to Profile",
+          "description": "Retrieve a LinkedIn profile URL from a work or personal email address. Charges 10 credits when a profile is found; free when no result."
+        },
+        {
+          "name": "Company Search",
+          "description": "Enrich company data including firmographics, headcount, funding, and social profiles by domain, LinkedIn URL, or name. Charges 1 credit when a company is found; free when no result."
+        },
+        {
+          "name": "Role Finder",
+          "description": "Find the person holding a specific job role at a company. Charges 2 credits when a matching person is found; free when no result."
+        },
+        {
+          "name": "Get Credits",
+          "description": "Retrieve the current credit balance for the authenticated LeadMagic account. This endpoint is free and consumes no credits."
+        }
+      ],
+      "operationCount": 9,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "lemlist",
@@ -9352,8 +10178,49 @@
         }
       ],
       "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "loops_email_delivered",
+          "name": "Loops Email Delivered",
+          "description": "Trigger workflow when a Loops email is delivered"
+        },
+        {
+          "id": "loops_email_opened",
+          "name": "Loops Email Opened",
+          "description": "Trigger workflow when a Loops email is opened"
+        },
+        {
+          "id": "loops_email_clicked",
+          "name": "Loops Email Clicked",
+          "description": "Trigger workflow when a link in a Loops email is clicked"
+        },
+        {
+          "id": "loops_email_hard_bounced",
+          "name": "Loops Email Hard Bounced",
+          "description": "Trigger workflow when a Loops email hard bounces"
+        },
+        {
+          "id": "loops_email_soft_bounced",
+          "name": "Loops Email Soft Bounced",
+          "description": "Trigger workflow when a Loops email soft bounces"
+        },
+        {
+          "id": "loops_campaign_email_sent",
+          "name": "Loops Campaign Email Sent",
+          "description": "Trigger workflow when a Loops campaign email is sent"
+        },
+        {
+          "id": "loops_loop_email_sent",
+          "name": "Loops Loop Email Sent",
+          "description": "Trigger workflow when a Loops loop email is sent"
+        },
+        {
+          "id": "loops_transactional_email_sent",
+          "name": "Loops Transactional Email Sent",
+          "description": "Trigger workflow when a Loops transactional email is sent"
+        }
+      ],
+      "triggerCount": 8,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
@@ -9399,7 +10266,7 @@
         },
         {
           "name": "Get Guest",
-          "description": "Retrieve a single guest"
+          "description": "Retrieve a single guest's details on a Luma event, including approval status, registration timestamps, and contact info."
         },
         {
           "name": "Add Guests",
@@ -9411,7 +10278,7 @@
         },
         {
           "name": "Update Guest Status",
-          "description": "Update a guest"
+          "description": "Update a guest's approval status on a Luma event — approve, decline, waitlist, or set to pending. Identify the guest by email or guest ID."
         }
       ],
       "operationCount": 11,
@@ -9920,9 +10787,29 @@
         {
           "name": "Write Data",
           "description": "Write data to a Microsoft Excel spreadsheet"
+        },
+        {
+          "name": "Clear Range",
+          "description": "Clear the values and/or formatting of a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Format Range",
+          "description": "Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Create Table",
+          "description": "Create a new table over a range of cells in a Microsoft Excel workbook"
+        },
+        {
+          "name": "Sort Range",
+          "description": "Sort a range or table by a column in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Delete Worksheet",
+          "description": "Delete a worksheet (sheet) from a Microsoft Excel workbook"
         }
       ],
-      "operationCount": 2,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -10169,6 +11056,14 @@
           "description": "Update column values of an item on a Monday.com board"
         },
         {
+          "name": "Change Column Value",
+          "description": "Update a single column's value on a Monday.com item"
+        },
+        {
+          "name": "Duplicate Item",
+          "description": "Duplicate an existing item on a Monday.com board"
+        },
+        {
           "name": "Delete Item",
           "description": "Delete an item from a Monday.com board"
         },
@@ -10191,9 +11086,21 @@
         {
           "name": "Create Group",
           "description": "Create a new group on a Monday.com board"
+        },
+        {
+          "name": "Get Groups",
+          "description": "Get the groups on a Monday.com board"
+        },
+        {
+          "name": "Create Board",
+          "description": "Create a new board in Monday.com"
+        },
+        {
+          "name": "Create Column",
+          "description": "Create a new column on a Monday.com board"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "monday_item_created",
@@ -10345,7 +11252,7 @@
       "operations": [
         {
           "name": "Query (MATCH)",
-          "description": "Execute MATCH queries to read nodes and relationships from Neo4j graph database. For best performance and to prevent large result sets, include LIMIT in your query (e.g., "
+          "description": "Execute MATCH queries to read nodes and relationships from Neo4j graph database. For best performance and to prevent large result sets, include LIMIT in your query (e.g., \"MATCH (n:User) RETURN n LIMIT 100\") or use LIMIT $limit with a limit parameter."
         },
         {
           "name": "Create Nodes/Relationships",
@@ -10725,8 +11632,8 @@
       "type": "outlook",
       "slug": "outlook",
       "name": "Outlook",
-      "description": "Send, read, draft, forward, and move Outlook email messages",
-      "longDescription": "Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
+      "description": "Send, read, search, reply, organize, and manage Outlook email",
+      "longDescription": "Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
       "bgColor": "#FFFFFF",
       "iconName": "OutlookIcon",
       "docsUrl": "https://docs.sim.ai/integrations/outlook",
@@ -10744,12 +11651,28 @@
           "description": "Read emails from Outlook"
         },
         {
+          "name": "Search Email",
+          "description": "Search Outlook messages using a free-text query (Microsoft Graph $search)"
+        },
+        {
+          "name": "Reply to Email",
+          "description": "Reply to the sender of an Outlook message with a comment"
+        },
+        {
+          "name": "Reply All",
+          "description": "Reply to all recipients of an Outlook message with a comment"
+        },
+        {
           "name": "Forward Email",
           "description": "Forward an existing Outlook message to specified recipients"
         },
         {
           "name": "Move Email",
           "description": "Move emails between Outlook folders"
+        },
+        {
+          "name": "Copy Email",
+          "description": "Copy an Outlook message to another folder"
         },
         {
           "name": "Mark as Read",
@@ -10760,15 +11683,31 @@
           "description": "Mark an Outlook message as unread"
         },
         {
+          "name": "Set Categories & Flag",
+          "description": "Set the categories, follow-up flag, and importance on an Outlook message"
+        },
+        {
           "name": "Delete Email",
           "description": "Delete an Outlook message (move to Deleted Items)"
         },
         {
-          "name": "Copy Email",
-          "description": "Copy an Outlook message to another folder"
+          "name": "List Folders",
+          "description": "List mail folders in the root of the Outlook mailbox"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new mail folder in the root of the Outlook mailbox"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List the attachments on an Outlook message (metadata only, without contents)"
+        },
+        {
+          "name": "Get Attachment",
+          "description": "Get a single attachment on an Outlook message, including its file contents"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 17,
       "triggers": [
         {
           "id": "outlook_poller",
@@ -10819,8 +11758,39 @@
         }
       ],
       "operationCount": 6,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "pagerduty_incident_triggered",
+          "name": "PagerDuty Incident Triggered",
+          "description": "Trigger workflow when a new incident is triggered in PagerDuty"
+        },
+        {
+          "id": "pagerduty_incident_acknowledged",
+          "name": "PagerDuty Incident Acknowledged",
+          "description": "Trigger workflow when an incident is acknowledged in PagerDuty"
+        },
+        {
+          "id": "pagerduty_incident_resolved",
+          "name": "PagerDuty Incident Resolved",
+          "description": "Trigger workflow when an incident is resolved in PagerDuty"
+        },
+        {
+          "id": "pagerduty_incident_escalated",
+          "name": "PagerDuty Incident Escalated",
+          "description": "Trigger workflow when an incident is escalated in PagerDuty"
+        },
+        {
+          "id": "pagerduty_incident_reassigned",
+          "name": "PagerDuty Incident Reassigned",
+          "description": "Trigger workflow when an incident is reassigned in PagerDuty"
+        },
+        {
+          "id": "pagerduty_webhook",
+          "name": "PagerDuty Incident Event",
+          "description": "Trigger workflow from any PagerDuty incident event"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -10936,7 +11906,7 @@
         },
         {
           "name": "Search",
-          "description": "Get ranked search results from Perplexity"
+          "description": "Get ranked search results from Perplexity's continuously refreshed index with advanced filtering and customization options"
         }
       ],
       "operationCount": 2,
@@ -11075,18 +12045,26 @@
       "slug": "pinecone",
       "name": "Pinecone",
       "description": "Use Pinecone vector database",
-      "longDescription": "Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.",
+      "longDescription": "Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.",
       "bgColor": "#0D1117",
       "iconName": "PineconeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pinecone",
       "operations": [
         {
           "name": "Generate Embeddings",
-          "description": "Generate embeddings from text using Pinecone"
+          "description": "Generate embeddings from text using Pinecone's hosted models"
         },
         {
           "name": "Upsert Text",
           "description": "Insert or update text records in a Pinecone index"
+        },
+        {
+          "name": "Update Vector",
+          "description": "Update the values, sparse values, or metadata of a vector in a Pinecone namespace"
+        },
+        {
+          "name": "Delete Vectors",
+          "description": "Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all"
         },
         {
           "name": "Search With Text",
@@ -11099,9 +12077,25 @@
         {
           "name": "Fetch Vectors",
           "description": "Fetch vectors by ID from a Pinecone index"
+        },
+        {
+          "name": "List Vector IDs",
+          "description": "List vector IDs in a Pinecone namespace by prefix (serverless indexes only)"
+        },
+        {
+          "name": "Describe Index Stats",
+          "description": "Get statistics about a Pinecone index, including per-namespace vector counts"
+        },
+        {
+          "name": "List Indexes",
+          "description": "List all Pinecone indexes in the project"
+        },
+        {
+          "name": "Describe Index",
+          "description": "Get the configuration and status of a Pinecone index by name"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -11374,7 +12368,7 @@
         },
         {
           "name": "Run Query (HogQL)",
-          "description": "Execute a HogQL query in PostHog. HogQL is PostHog"
+          "description": "Execute a HogQL query in PostHog. HogQL is PostHog's SQL-like query language for analytics. Use this for advanced data retrieval and analysis."
         },
         {
           "name": "List Insights",
@@ -12308,7 +13302,7 @@
         },
         {
           "name": "Command",
-          "description": "Execute a raw Redis command as a JSON array (e.g. ["
+          "description": "Execute a raw Redis command as a JSON array (e.g. [\"HSET\", \"key\", \"field\", \"value\"])."
         }
       ],
       "operationCount": 22,
@@ -12356,6 +13350,10 @@
           "description": "Retrieve details of a previously sent email by its ID"
         },
         {
+          "name": "Cancel Email",
+          "description": "Cancel a scheduled email before it is sent"
+        },
+        {
           "name": "Create Contact",
           "description": "Create a new contact in Resend"
         },
@@ -12376,11 +13374,39 @@
           "description": "Delete a contact from Resend by ID or email"
         },
         {
+          "name": "Create Audience",
+          "description": "Create a new audience in Resend"
+        },
+        {
+          "name": "Get Audience",
+          "description": "Retrieve details of an audience by ID"
+        },
+        {
+          "name": "List Audiences",
+          "description": "List all audiences in Resend"
+        },
+        {
+          "name": "Delete Audience",
+          "description": "Delete an audience from Resend by ID"
+        },
+        {
+          "name": "Create Broadcast",
+          "description": "Create a broadcast email for an audience in Resend"
+        },
+        {
+          "name": "Send Broadcast",
+          "description": "Send a broadcast immediately or schedule it for later"
+        },
+        {
+          "name": "Get Broadcast",
+          "description": "Retrieve details of a broadcast by ID"
+        },
+        {
           "name": "List Domains",
           "description": "List all verified domains in your Resend account"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 16,
       "triggers": [
         {
           "id": "resend_email_sent",
@@ -12481,8 +13507,39 @@
         }
       ],
       "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "revenuecat_initial_purchase",
+          "name": "RevenueCat Initial Purchase",
+          "description": "Trigger workflow when a subscriber makes their first purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_renewal",
+          "name": "RevenueCat Renewal",
+          "description": "Trigger workflow when a RevenueCat subscription renews"
+        },
+        {
+          "id": "revenuecat_cancellation",
+          "name": "RevenueCat Cancellation",
+          "description": "Trigger workflow when a subscriber cancels a RevenueCat subscription"
+        },
+        {
+          "id": "revenuecat_expiration",
+          "name": "RevenueCat Expiration",
+          "description": "Trigger workflow when a RevenueCat subscription expires"
+        },
+        {
+          "id": "revenuecat_non_renewing_purchase",
+          "name": "RevenueCat Non-Renewing Purchase",
+          "description": "Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_product_change",
+          "name": "RevenueCat Product Change",
+          "description": "Trigger workflow when a subscriber changes their RevenueCat subscription product"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "commerce",
@@ -13027,8 +14084,29 @@
         }
       ],
       "operationCount": 41,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "rootly_incident_created",
+          "name": "Rootly Incident Created",
+          "description": "Trigger workflow when a new incident is created in Rootly"
+        },
+        {
+          "id": "rootly_incident_updated",
+          "name": "Rootly Incident Updated",
+          "description": "Trigger workflow when an incident is updated in Rootly"
+        },
+        {
+          "id": "rootly_incident_resolved",
+          "name": "Rootly Incident Resolved",
+          "description": "Trigger workflow when an incident is resolved in Rootly"
+        },
+        {
+          "id": "rootly_alert_created",
+          "name": "Rootly Alert Created",
+          "description": "Trigger workflow when a new alert is created in Rootly"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -13038,8 +14116,8 @@
       "type": "s3",
       "slug": "s3",
       "name": "S3",
-      "description": "Upload, download, list, and manage S3 files",
-      "longDescription": "Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.",
+      "description": "Upload, download, list, and manage S3 files and buckets",
+      "longDescription": "Integrate S3 into the workflow. Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)",
       "iconName": "S3Icon",
       "docsUrl": "https://docs.sim.ai/integrations/s3",
@@ -13061,11 +14139,35 @@
           "description": "Delete an object from an AWS S3 bucket"
         },
         {
+          "name": "Delete Objects (Batch)",
+          "description": "Delete multiple objects from an AWS S3 bucket in a single batch request"
+        },
+        {
           "name": "Copy Object",
           "description": "Copy an object within or between AWS S3 buckets"
+        },
+        {
+          "name": "Head Object (Metadata)",
+          "description": "Retrieve metadata for an S3 object without downloading its body"
+        },
+        {
+          "name": "Presigned URL",
+          "description": "Generate a time-limited presigned URL to download or upload an S3 object"
+        },
+        {
+          "name": "List Buckets",
+          "description": "List the S3 buckets owned by the authenticated AWS account"
+        },
+        {
+          "name": "Create Bucket",
+          "description": "Create a new AWS S3 bucket in the specified region"
+        },
+        {
+          "name": "Delete Bucket",
+          "description": "Delete an empty AWS S3 bucket"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -13078,7 +14180,7 @@
       "slug": "salesforce",
       "name": "Salesforce",
       "description": "Interact with Salesforce CRM",
-      "longDescription": "Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.",
+      "longDescription": "Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.",
       "bgColor": "#FFFFFF",
       "iconName": "SalesforceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/salesforce",
@@ -13117,7 +14219,7 @@
         },
         {
           "name": "Get Leads",
-          "description": "Get lead(s) from Salesforce"
+          "description": "Retrieve lead(s) from Salesforce CRM"
         },
         {
           "name": "Create Lead",
@@ -13181,11 +14283,11 @@
         },
         {
           "name": "List Reports",
-          "description": "Get a list of reports accessible by the current user"
+          "description": "Get a list of up to 200 recently viewed reports for the current user"
         },
         {
           "name": "Get Report",
-          "description": "Get metadata and describe information for a specific report"
+          "description": "Get the describe (definition and metadata) for a specific report"
         },
         {
           "name": "Run Report",
@@ -13197,7 +14299,7 @@
         },
         {
           "name": "List Dashboards",
-          "description": "Get a list of dashboards accessible by the current user"
+          "description": "Get a list of recently used dashboards for the current user"
         },
         {
           "name": "Get Dashboard",
@@ -13222,9 +14324,29 @@
         {
           "name": "List Objects",
           "description": "Get a list of all available Salesforce objects"
+        },
+        {
+          "name": "Create Custom Field",
+          "description": "Create a custom field on a Salesforce object (e.g., Account) using the Tooling API"
+        },
+        {
+          "name": "Update Custom Field",
+          "description": "Update an existing custom field on a Salesforce object using the Tooling API"
+        },
+        {
+          "name": "Delete Custom Field",
+          "description": "Delete a custom field from a Salesforce object using the Tooling API"
+        },
+        {
+          "name": "Create Custom Object",
+          "description": "Create a custom object in Salesforce using the Tooling API"
+        },
+        {
+          "name": "Run Tooling Query",
+          "description": "Execute a SOQL query against the Tooling API to inspect metadata objects"
         }
       ],
-      "operationCount": 35,
+      "operationCount": 40,
       "triggers": [
         {
           "id": "salesforce_record_created",
@@ -13599,7 +14721,7 @@
         },
         {
           "name": "Update Customer",
-          "description": "Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Customer is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlocked, BillingIsBlockedForCustomer (Edm.String reason codes like "
+          "description": ""
         },
         {
           "name": "List Suppliers",
@@ -13931,8 +15053,34 @@
         }
       ],
       "operationCount": 13,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "sentry_issue_created",
+          "name": "Sentry Issue Created",
+          "description": "Trigger workflow when a new issue is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_resolved",
+          "name": "Sentry Issue Resolved",
+          "description": "Trigger workflow when an issue is resolved in Sentry"
+        },
+        {
+          "id": "sentry_error_created",
+          "name": "Sentry Error Created",
+          "description": "Trigger workflow when a new error event is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_alert",
+          "name": "Sentry Issue Alert",
+          "description": "Trigger workflow when a Sentry issue alert rule fires"
+        },
+        {
+          "id": "sentry_metric_alert",
+          "name": "Sentry Metric Alert",
+          "description": "Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)"
+        }
+      ],
+      "triggerCount": 5,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -14453,10 +15601,38 @@
         },
         {
           "name": "Publish View",
-          "description": "Publish a static view to a user"
+          "description": "Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience."
+        },
+        {
+          "name": "Schedule Message",
+          "description": "Schedule a message to be sent to a Slack channel or DM at a future time."
+        },
+        {
+          "name": "List Scheduled Messages",
+          "description": "List pending scheduled messages in a Slack workspace, optionally filtered by channel."
+        },
+        {
+          "name": "Delete Scheduled Message",
+          "description": "Delete a pending scheduled message before it posts to Slack."
+        },
+        {
+          "name": "Archive Conversation",
+          "description": "Archive a Slack channel so it is closed to new activity."
+        },
+        {
+          "name": "Rename Conversation",
+          "description": "Rename an existing Slack channel."
+        },
+        {
+          "name": "Set Conversation Topic",
+          "description": "Set the topic for a Slack channel (max 250 characters)."
+        },
+        {
+          "name": "Set Conversation Purpose",
+          "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 35,
+      "operationCount": 42,
       "triggers": [
         {
           "id": "slack_webhook",
@@ -14516,6 +15692,1064 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email"
+    },
+    {
+      "type": "sportmonks",
+      "slug": "sportmonks",
+      "name": "Sportmonks",
+      "description": "Access Sportmonks football, motorsport, odds, and reference data",
+      "longDescription": "Integrate the Sportmonks sports data APIs into the workflow from a single block. Football: fixtures, livescores, leagues, seasons, stages, rounds, teams, squads, players, coaches, referees, venues, standings, topscorers, transfers, schedules, commentaries, TV stations, rivals, expected goals (xG), and predictions. Motorsport: sessions, drivers, teams, championship standings, laps, and pitstops. Odds: pre-match and in-play odds, bookmakers, and markets. Core: continents, countries, regions, cities, types, and time zones.",
+      "bgColor": "#171534",
+      "iconName": "SportmonksIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/sportmonks",
+      "operations": [
+        {
+          "name": "Football: Get Expected xG by Player",
+          "description": "Retrieve lineup-level expected goals (xG) values per player from Sportmonks"
+        },
+        {
+          "name": "Football: Get Expected xG by Team",
+          "description": "Retrieve fixture-level expected goals (xG) values per team from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Commentaries",
+          "description": "Retrieve all textual commentaries available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Fixtures",
+          "description": "Retrieve all football fixtures available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Players",
+          "description": "Retrieve all football players available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Rivals",
+          "description": "Retrieve all teams with their rivals information from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Teams",
+          "description": "Retrieve all football teams available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Transfer Rumours",
+          "description": "Retrieve all transfer rumours available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Transfers",
+          "description": "Retrieve all transfers available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Brackets by Season",
+          "description": "Retrieve the knockout-stage tournament bracket (stages and progression edges) for a season ID"
+        },
+        {
+          "name": "Football: Get Coach by ID",
+          "description": "Retrieve a single football coach by their ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Coaches",
+          "description": "Retrieve all football coaches available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Coaches by Country",
+          "description": "Retrieve all coaches for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Commentaries by Fixture",
+          "description": "Retrieve textual commentary for a fixture by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Current Leagues by Team",
+          "description": "Retrieve all current leagues for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Expected Lineups by Player",
+          "description": "Retrieve the premium expected lineups for a player ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Expected Lineups by Team",
+          "description": "Retrieve the premium expected lineups for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Extended Team Squad",
+          "description": "Retrieve all squad entries for a team (based on current seasons) by team ID"
+        },
+        {
+          "name": "Football: Get Fixture by ID",
+          "description": "Retrieve a single football fixture by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Fixtures by Date",
+          "description": "Retrieve all football fixtures on a specific date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Fixtures by Date Range",
+          "description": "Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max range is 100 days."
+        },
+        {
+          "name": "Football: Get Fixtures by Date Range for Team",
+          "description": "Retrieve fixtures for a team within a date range (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Fixtures by Multiple IDs",
+          "description": "Retrieve multiple football fixtures by a comma-separated list of IDs (max 50)"
+        },
+        {
+          "name": "Football: Get Grouped Standings by Round",
+          "description": "Retrieve the standing table for a round ID grouped by group where applicable from Sportmonks"
+        },
+        {
+          "name": "Football: Get Head to Head",
+          "description": "Retrieve the head-to-head fixtures between two teams from Sportmonks"
+        },
+        {
+          "name": "Football: Get Inplay Livescores",
+          "description": "Retrieve all fixtures that are currently being played (in-play) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Last Updated Coaches",
+          "description": "Retrieve all coaches that have received updates in the past two hours"
+        },
+        {
+          "name": "Football: Get Latest Updated Fixtures",
+          "description": "Retrieve all fixtures that have received updates within the last 10 seconds"
+        },
+        {
+          "name": "Football: Get Latest Updated Livescores",
+          "description": "Retrieve all livescores that have received updates within the last 10 seconds"
+        },
+        {
+          "name": "Football: Get Last Updated Players",
+          "description": "Retrieve all players that have received updates in the past two hours"
+        },
+        {
+          "name": "Football: Get Latest Team of the Week",
+          "description": "Retrieve the latest Team of the Week (TOTW) for a league ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Latest Transfers",
+          "description": "Retrieve the latest transfers available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get League by ID",
+          "description": "Retrieve a single football league by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Leagues",
+          "description": "Retrieve all football leagues available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Leagues by Country",
+          "description": "Retrieve all leagues for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Leagues by Date",
+          "description": "Retrieve all leagues with fixtures on a given date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Leagues by Team",
+          "description": "Retrieve all current and historical leagues for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Live Leagues",
+          "description": "Retrieve all leagues that have fixtures currently being played from Sportmonks"
+        },
+        {
+          "name": "Football: Get Live Probabilities",
+          "description": "Retrieve all live (in-play) prediction probabilities from Sportmonks"
+        },
+        {
+          "name": "Football: Get Live Probabilities by Fixture",
+          "description": "Retrieve all live (in-play) prediction probabilities for a fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Live Standings by League",
+          "description": "Retrieve the live standing table for a league ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Livescores",
+          "description": "Retrieve fixtures starting within 15 minutes and currently in progress from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Match Facts",
+          "description": "Retrieve all available match facts within your Sportmonks subscription (beta)"
+        },
+        {
+          "name": "Football: Get Match Facts by Date Range",
+          "description": "Retrieve match facts within a date range (YYYY-MM-DD) from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Match Facts by Fixture",
+          "description": "Retrieve match facts for a fixture ID from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Match Facts by League",
+          "description": "Retrieve match facts for a league ID from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Past Fixtures by TV Station",
+          "description": "Retrieve all past fixtures that were available for a TV station ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Player by ID",
+          "description": "Retrieve a single football player by their ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Players by Country",
+          "description": "Retrieve all players for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Post-Match News",
+          "description": "Retrieve all post-match news articles available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Post-Match News by Season",
+          "description": "Retrieve all post-match news articles for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Predictability by League",
+          "description": "Retrieve the predictions model performance for a league ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Pre-Match News",
+          "description": "Retrieve all pre-match news articles available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Pre-Match News by Season",
+          "description": "Retrieve all pre-match news articles for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Pre-Match News for Upcoming Fixtures",
+          "description": "Retrieve all pre-match news articles for upcoming fixtures from Sportmonks"
+        },
+        {
+          "name": "Football: Get Probabilities",
+          "description": "Retrieve all prediction probabilities available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Predictions by Fixture",
+          "description": "Retrieve prediction probabilities for a fixture by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Referee by ID",
+          "description": "Retrieve a single football referee by their ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Referees",
+          "description": "Retrieve all football referees available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Referees by Country",
+          "description": "Retrieve all referees for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Referees by Season",
+          "description": "Retrieve all referees for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Rivals by Team",
+          "description": "Retrieve rival teams for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Round by ID",
+          "description": "Retrieve a single football round by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Round Statistics",
+          "description": "Retrieve all available statistics for a round ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Rounds",
+          "description": "Retrieve all football rounds available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Rounds by Season",
+          "description": "Retrieve all rounds for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Schedules by Season",
+          "description": "Retrieve the full schedule (stages, rounds and fixtures) for a season by season ID"
+        },
+        {
+          "name": "Football: Get Schedules by Season and Team",
+          "description": "Retrieve the full season schedule for a specific team by season ID and team ID"
+        },
+        {
+          "name": "Football: Get Schedules by Team",
+          "description": "Retrieve the full schedule (stages, rounds and fixtures) for a team by team ID"
+        },
+        {
+          "name": "Football: Get Season by ID",
+          "description": "Retrieve a single football season by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Seasons",
+          "description": "Retrieve all football seasons available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Seasons by Team",
+          "description": "Retrieve all seasons for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Stage by ID",
+          "description": "Retrieve a single football stage by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Stage Statistics",
+          "description": "Retrieve all available statistics for a stage ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Stages",
+          "description": "Retrieve all football stages available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Stages by Season",
+          "description": "Retrieve all stages for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Standing Corrections by Season",
+          "description": "Retrieve point corrections (awarded or deducted) for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Standings",
+          "description": "Retrieve all standings available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Standings by Round",
+          "description": "Retrieve the full standing table for a round ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Standings by Season",
+          "description": "Retrieve the full league standings table for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get State by ID",
+          "description": "Retrieve a single fixture state by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get States",
+          "description": "Retrieve all fixture states (e.g. Not Started, 1st Half, Full Time) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Team by ID",
+          "description": "Retrieve a single football team by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Team Rankings",
+          "description": "Retrieve all team rankings available within your Sportmonks subscription (beta)"
+        },
+        {
+          "name": "Football: Get Team Rankings by Date",
+          "description": "Retrieve team rankings for a given date (YYYY-MM-DD) from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Team Rankings by Team",
+          "description": "Retrieve team rankings for a team ID from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Team Squad",
+          "description": "Retrieve the current domestic squad for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Team Squad by Season",
+          "description": "Retrieve the (historical) squad for a team in a specific season from Sportmonks"
+        },
+        {
+          "name": "Football: Get Teams by Country",
+          "description": "Retrieve all teams for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Teams by Season",
+          "description": "Retrieve all teams for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Topscorers by Season",
+          "description": "Retrieve the topscorers (goals, assists, cards) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Topscorers by Stage",
+          "description": "Retrieve topscorers for a stage by stage ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Team of the Week",
+          "description": "Retrieve all available Team of the Week (TOTW) entries from Sportmonks"
+        },
+        {
+          "name": "Football: Get Team of the Week by Round",
+          "description": "Retrieve the Team of the Week (TOTW) for a round ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer by ID",
+          "description": "Retrieve a single transfer by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer Rumour by ID",
+          "description": "Retrieve a single transfer rumour by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer Rumours Between Dates",
+          "description": "Retrieve transfer rumours within a date range (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer Rumours by Player",
+          "description": "Retrieve transfer rumours for a player ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer Rumours by Team",
+          "description": "Retrieve transfer rumours for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfers Between Dates",
+          "description": "Retrieve transfers within a date range (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfers by Player",
+          "description": "Retrieve transfers for a player by player ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfers by Team",
+          "description": "Retrieve transfers for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get TV Station by ID",
+          "description": "Retrieve a single TV station by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get TV Stations",
+          "description": "Retrieve all TV stations available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get TV Stations by Fixture",
+          "description": "Retrieve broadcasting TV stations for a fixture by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Upcoming Fixtures by Market",
+          "description": "Retrieve all upcoming fixtures for a market ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Upcoming Fixtures by TV Station",
+          "description": "Retrieve all upcoming fixtures available for a TV station ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Value Bets",
+          "description": "Retrieve all value bets available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Value Bets by Fixture",
+          "description": "Retrieve value bet predictions for a fixture by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Venue by ID",
+          "description": "Retrieve a single football venue by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Venues",
+          "description": "Retrieve all football venues available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Venues by Season",
+          "description": "Retrieve all venues for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Search Coaches",
+          "description": "Search for football coaches by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Fixtures",
+          "description": "Search for football fixtures by name (participants) from Sportmonks"
+        },
+        {
+          "name": "Football: Search Leagues",
+          "description": "Search for football leagues by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Players",
+          "description": "Search for football players by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Referees",
+          "description": "Search for football referees by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Rounds",
+          "description": "Search for football rounds by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Seasons",
+          "description": "Search for football seasons by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Stages",
+          "description": "Search for football stages by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Teams",
+          "description": "Search for football teams by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Venues",
+          "description": "Search for football venues by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Fixtures",
+          "description": "Retrieve all motorsport fixtures (sessions) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Current Leagues by Team",
+          "description": "Retrieve the current motorsport leagues for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Driver by ID",
+          "description": "Retrieve a single motorsport driver by their ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Driver Standings",
+          "description": "Retrieve all driver championship standings from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Driver Standings by Season",
+          "description": "Retrieve the drivers championship standings for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Drivers",
+          "description": "Retrieve all motorsport drivers from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Drivers by Country",
+          "description": "Retrieve all motorsport drivers for a country by country ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Drivers by Season",
+          "description": "Retrieve all motorsport drivers for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Fixture by ID",
+          "description": "Retrieve a single motorsport fixture (session) by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Fixtures by Date",
+          "description": "Retrieve motorsport fixtures (sessions) on a specific date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Fixtures by Date Range",
+          "description": "Retrieve motorsport fixtures (sessions) between two dates (YYYY-MM-DD, max 100 days) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Fixtures by IDs",
+          "description": "Retrieve multiple motorsport fixtures (sessions) by their IDs (max 50) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Laps by Fixture",
+          "description": "Retrieve all laps for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Laps by Fixture and Driver",
+          "description": "Retrieve all laps for a motorsport fixture and driver from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Laps by Fixture and Lap Number",
+          "description": "Retrieve all laps for a motorsport fixture and lap number from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Laps by Fixture",
+          "description": "Retrieve the latest laps for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Pitstops by Fixture",
+          "description": "Retrieve the latest pitstops for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Stints by Fixture",
+          "description": "Retrieve the latest tyre stints for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Updated Drivers",
+          "description": "Retrieve the most recently updated motorsport drivers from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Updated Fixtures",
+          "description": "Retrieve the most recently updated motorsport fixtures (sessions) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get League by ID",
+          "description": "Retrieve a single motorsport league by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Leagues",
+          "description": "Retrieve all motorsport leagues from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Leagues by Country",
+          "description": "Retrieve all motorsport leagues for a country by country ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Leagues by Fixture Date",
+          "description": "Retrieve all motorsport leagues with fixtures on a specific date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Leagues by Live",
+          "description": "Retrieve all motorsport leagues that currently have live fixtures from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Leagues by Team",
+          "description": "Retrieve all current and historical motorsport leagues for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Livescores",
+          "description": "Retrieve all live motorsport fixtures (sessions) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Pitstops by Fixture",
+          "description": "Retrieve all pitstops for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Pitstops by Fixture and Driver",
+          "description": "Retrieve all pitstops for a motorsport fixture and driver from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Pitstops by Fixture and Lap Number",
+          "description": "Retrieve all pitstops for a motorsport fixture and lap number from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Race Results by Season and Driver",
+          "description": "Retrieve race results (stages with fixtures, lineups and lineup details) for a season and driver from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Race Results by Season and Team",
+          "description": "Retrieve race results (stages with fixtures, lineups and lineup details) for a season and team from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Schedules by Season",
+          "description": "Retrieve the full schedule (stages with nested fixtures and venues) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Season by ID",
+          "description": "Retrieve a single motorsport season by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Seasons",
+          "description": "Retrieve all motorsport seasons from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stage by ID",
+          "description": "Retrieve a single motorsport stage (race weekend) by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Stages",
+          "description": "Retrieve all motorsport stages (race weekends) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stages by Season",
+          "description": "Retrieve all motorsport stages (race weekends) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get State by ID",
+          "description": "Retrieve a single motorsport fixture state by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All States",
+          "description": "Retrieve all possible motorsport fixture states from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stints by Fixture",
+          "description": "Retrieve all tyre stints for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stints by Fixture and Driver",
+          "description": "Retrieve all tyre stints for a motorsport fixture and driver from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stints by Fixture and Stint Number",
+          "description": "Retrieve all tyre stints for a motorsport fixture and stint number from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Team by ID",
+          "description": "Retrieve a single motorsport team (constructor) by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Team Standings",
+          "description": "Retrieve all team (constructor) championship standings from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Team Standings by Season",
+          "description": "Retrieve the constructors championship standings for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Teams",
+          "description": "Retrieve all motorsport teams (constructors) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Teams by Country",
+          "description": "Retrieve all motorsport teams (constructors) for a country by country ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Teams by Season",
+          "description": "Retrieve all motorsport teams (constructors) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Venue by ID",
+          "description": "Retrieve a single motorsport venue (racing track) by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Venues",
+          "description": "Retrieve all motorsport venues (racing tracks) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Venues by Season",
+          "description": "Retrieve all motorsport venues (racing tracks) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Drivers",
+          "description": "Search for motorsport drivers by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Leagues",
+          "description": "Search for motorsport leagues by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Stages",
+          "description": "Search for motorsport stages (race weekends) by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Teams",
+          "description": "Search for motorsport teams (constructors) by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Venues",
+          "description": "Search for motorsport venues (racing tracks) by name from Sportmonks"
+        },
+        {
+          "name": "Odds: Get All Historical Odds",
+          "description": "Retrieve all available historical (premium) pre-match odd values from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get All In-play Odds",
+          "description": "Retrieve all available live (in-play) odds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get All Pre-match Odds",
+          "description": "Retrieve all available pre-match odds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get All Premium Odds",
+          "description": "Retrieve all available premium (historical) pre-match odds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Bookmaker by ID",
+          "description": "Retrieve a single bookmaker by its ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Bookmaker Event IDs by Fixture",
+          "description": "Retrieve bookmakers' own event ids mapped to a Sportmonks fixture via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Bookmakers",
+          "description": "Retrieve all bookmakers from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Bookmakers by Fixture",
+          "description": "Retrieve all bookmakers available for a fixture from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get In-play Odds by Fixture",
+          "description": "Retrieve live (in-play) odds for a fixture by fixture ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get In-play Odds by Fixture and Bookmaker",
+          "description": "Retrieve live (in-play) odds for a fixture from a specific bookmaker via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get In-play Odds by Fixture and Market",
+          "description": "Retrieve live (in-play) odds for a fixture on a specific market via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Last Updated In-play Odds",
+          "description": "Retrieve in-play odds updated in the last 10 seconds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Last Updated Pre-match Odds",
+          "description": "Retrieve pre-match odds updated in the last 10 seconds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Market by ID",
+          "description": "Retrieve a single betting market by its ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Markets",
+          "description": "Retrieve all betting markets from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Pre-match Odds by Fixture",
+          "description": "Retrieve pre-match odds for a fixture by fixture ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Pre-match Odds by Fixture and Bookmaker",
+          "description": "Retrieve pre-match odds for a fixture from a specific bookmaker via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Pre-match Odds by Fixture and Market",
+          "description": "Retrieve pre-match odds for a fixture on a specific market via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Premium Odds by Fixture",
+          "description": "Retrieve premium (historical) pre-match odds for a fixture from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Premium Odds by Fixture and Bookmaker",
+          "description": "Retrieve premium pre-match odds for a fixture from a specific bookmaker via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Premium Odds by Fixture and Market",
+          "description": "Retrieve premium pre-match odds for a fixture on a specific market via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Updated Historical Odds Between Time Range",
+          "description": "Retrieve historical (premium) odds updated between two UNIX timestamps (max 5 minutes) from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Updated Premium Odds Between Time Range",
+          "description": "Retrieve premium odds updated between two UNIX timestamps (max 5 minutes) from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Search Bookmakers",
+          "description": "Search for bookmakers by name from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Search Markets",
+          "description": "Search for betting markets by name from the Sportmonks Odds API"
+        },
+        {
+          "name": "Core: Get Cities",
+          "description": "Retrieve all cities from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get City by ID",
+          "description": "Retrieve a single city by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Continent by ID",
+          "description": "Retrieve a single continent by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Continents",
+          "description": "Retrieve all continents from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Countries",
+          "description": "Retrieve all countries from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Country by ID",
+          "description": "Retrieve a single country by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get All Entity Filters",
+          "description": "Retrieve all available filters grouped per entity from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get My Usage",
+          "description": "Retrieve your Sportmonks API usage aggregated per 5 minutes"
+        },
+        {
+          "name": "Core: Get Region by ID",
+          "description": "Retrieve a single region by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Regions",
+          "description": "Retrieve all regions from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Timezones",
+          "description": "Retrieve all supported time zones (IANA names) from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Type by ID",
+          "description": "Retrieve a single type by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Type by Entity",
+          "description": "Retrieve the available types grouped per entity from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Types",
+          "description": "Retrieve all types (reference data describing events, statistics, positions, etc.) from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Search Cities",
+          "description": "Search for cities by name from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Search Countries",
+          "description": "Search for countries by name from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Search Regions",
+          "description": "Search for regions by name from the Sportmonks Core API"
+        }
+      ],
+      "operationCount": 221,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics"]
+    },
+    {
+      "type": "square",
+      "slug": "square",
+      "name": "Square",
+      "description": "Process payments and manage Square commerce data",
+      "longDescription": "Integrate Square into the workflow. Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).",
+      "bgColor": "#000000",
+      "iconName": "SquareIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/square",
+      "operations": [
+        {
+          "name": "Create Payment",
+          "description": "Take a payment using a payment source such as a card nonce or a card on file"
+        },
+        {
+          "name": "Get Payment",
+          "description": "Retrieve details for a single payment by its ID"
+        },
+        {
+          "name": "List Payments",
+          "description": "List payments taken by the account, optionally filtered by location and time range"
+        },
+        {
+          "name": "Cancel Payment",
+          "description": "Cancel (void) an authorized payment that has not been captured"
+        },
+        {
+          "name": "Complete Payment",
+          "description": "Capture (complete) a payment that was authorized with delayed capture"
+        },
+        {
+          "name": "Refund Payment",
+          "description": "Refund all or part of a completed payment"
+        },
+        {
+          "name": "Get Refund",
+          "description": "Retrieve a single payment refund by its ID"
+        },
+        {
+          "name": "List Refunds",
+          "description": "List payment refunds, optionally filtered by location, status, and time range"
+        },
+        {
+          "name": "Create Customer",
+          "description": "Create a new customer profile in the Square customer directory"
+        },
+        {
+          "name": "Get Customer",
+          "description": "Retrieve a single customer profile by its ID"
+        },
+        {
+          "name": "List Customers",
+          "description": "List customer profiles in the Square customer directory"
+        },
+        {
+          "name": "Search Customers",
+          "description": "Search customer profiles using filters such as email, phone, or creation date"
+        },
+        {
+          "name": "Update Customer",
+          "description": "Update fields on an existing customer profile"
+        },
+        {
+          "name": "Delete Customer",
+          "description": "Delete a customer profile from the Square customer directory"
+        },
+        {
+          "name": "List Locations",
+          "description": "List all locations associated with the Square account"
+        },
+        {
+          "name": "Get Location",
+          "description": "Retrieve a single location by its ID"
+        },
+        {
+          "name": "Create Order",
+          "description": "Create an order with line items, taxes, discounts, and fulfillments"
+        },
+        {
+          "name": "Get Order",
+          "description": "Retrieve a single order by its ID"
+        },
+        {
+          "name": "Search Orders",
+          "description": "Search orders across one or more locations using filters and sorting"
+        },
+        {
+          "name": "Pay Order",
+          "description": "Pay for an order using one or more already-approved payments"
+        },
+        {
+          "name": "Create Invoice",
+          "description": "Create a draft invoice for an existing order and customer"
+        },
+        {
+          "name": "Get Invoice",
+          "description": "Retrieve a single invoice by its ID"
+        },
+        {
+          "name": "List Invoices",
+          "description": "List invoices for a specific location"
+        },
+        {
+          "name": "Search Invoices",
+          "description": "Search invoices across one or more locations"
+        },
+        {
+          "name": "Publish Invoice",
+          "description": "Publish a draft invoice so it is sent to the customer and becomes payable"
+        },
+        {
+          "name": "Cancel Invoice",
+          "description": "Cancel a published invoice that is unpaid or partially paid"
+        },
+        {
+          "name": "Delete Invoice",
+          "description": "Delete a draft invoice"
+        },
+        {
+          "name": "Upsert Catalog Object",
+          "description": "Create or update a catalog object such as an item, variation, or category"
+        },
+        {
+          "name": "Get Catalog Object",
+          "description": "Retrieve a single catalog object by its ID"
+        },
+        {
+          "name": "List Catalog",
+          "description": "List catalog objects, optionally filtered by type"
+        },
+        {
+          "name": "Search Catalog Objects",
+          "description": "Search catalog objects by type and query filters"
+        },
+        {
+          "name": "Create Catalog Image",
+          "description": "Upload an image and attach it to the catalog, optionally to a specific item"
+        },
+        {
+          "name": "Delete Catalog Object",
+          "description": "Delete a catalog object and its children (e.g. an item and its variations)"
+        },
+        {
+          "name": "Batch Retrieve Inventory Counts",
+          "description": "Retrieve current inventory counts for catalog items across locations"
+        }
+      ],
+      "operationCount": 34,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "subscriptions", "automation"]
     },
     {
       "type": "ssh",
@@ -14844,7 +17078,7 @@
       "slug": "supabase",
       "name": "Supabase",
       "description": "Use Supabase database",
-      "longDescription": "Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).",
+      "longDescription": "Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).",
       "bgColor": "#1C1C1C",
       "iconName": "SupabaseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/supabase",
@@ -14888,6 +17122,10 @@
         {
           "name": "Call RPC Function",
           "description": "Call a PostgreSQL function in Supabase"
+        },
+        {
+          "name": "Invoke Edge Function",
+          "description": "Invoke a Supabase Edge Function over HTTP"
         },
         {
           "name": "Introspect Schema",
@@ -14938,7 +17176,7 @@
           "description": "Delete a storage bucket in Supabase"
         }
       ],
-      "operationCount": 22,
+      "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -15051,25 +17289,25 @@
       "name": "Tavily",
       "description": "Search and extract information",
       "longDescription": "Integrate Tavily into the workflow. Can search the web and extract content from specific URLs. Requires API Key.",
-      "bgColor": "#0066FF",
+      "bgColor": "#FFFFFF",
       "iconName": "TavilyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tavily",
       "operations": [
         {
           "name": "Search",
-          "description": "Perform AI-powered web searches using Tavily"
+          "description": "Perform AI-powered web searches using Tavily's search API. Returns structured results with titles, URLs, snippets, and optional raw content, optimized for relevance and accuracy."
         },
         {
           "name": "Extract Content",
-          "description": "Extract raw content from multiple web pages simultaneously using Tavily"
+          "description": "Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs."
         },
         {
           "name": "Crawl Website",
-          "description": "Systematically crawl and extract content from websites using Tavily"
+          "description": "Systematically crawl and extract content from websites using Tavily's crawl API. Supports depth control, path filtering, domain restrictions, and natural language instructions for targeted crawling."
         },
         {
           "name": "Map Website",
-          "description": "Discover and visualize website structure using Tavily"
+          "description": "Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions."
         }
       ],
       "operationCount": 4,
@@ -15085,7 +17323,7 @@
       "slug": "telegram",
       "name": "Telegram",
       "description": "Interact with Telegram",
-      "longDescription": "Integrate Telegram into the workflow. Can send and delete messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.",
+      "longDescription": "Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete messages; send media, locations, contacts, and polls; react to messages; show chat actions; and look up chat and member info. Can be used in trigger mode to start a workflow when a message is sent to a chat.",
       "bgColor": "#FFFFFF",
       "iconName": "TelegramIcon",
       "docsUrl": "https://docs.sim.ai/integrations/telegram",
@@ -15115,11 +17353,59 @@
           "description": "Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the Telegram Bot API."
         },
         {
+          "name": "Send Location",
+          "description": "Send a point on the map to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Contact",
+          "description": "Send a phone contact to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Poll",
+          "description": "Send a native poll to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Chat Action",
+          "description": "Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Edit Message Text",
+          "description": "Edit the text of an existing message in a Telegram chat or channel through the Telegram Bot API."
+        },
+        {
+          "name": "Forward Message",
+          "description": "Forward a message from one Telegram chat to another through the Telegram Bot API."
+        },
+        {
+          "name": "Copy Message",
+          "description": "Copy a message to another Telegram chat without a forward header through the Telegram Bot API."
+        },
+        {
           "name": "Delete Message",
           "description": "Delete messages in Telegram channels or chats through the Telegram Bot API. Requires the message ID of the message to delete."
+        },
+        {
+          "name": "Pin Message",
+          "description": "Pin a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Unpin Message",
+          "description": "Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins the most recent pinned message when no message ID is given."
+        },
+        {
+          "name": "Set Message Reaction",
+          "description": "Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat",
+          "description": "Get up-to-date information about a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat Member",
+          "description": "Get information about a member of a Telegram chat through the Telegram Bot API."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "telegram_webhook",
@@ -15233,6 +17519,213 @@
       "tags": ["automation"]
     },
     {
+      "type": "thrive",
+      "slug": "thrive",
+      "name": "Thrive",
+      "description": "Manage users, audiences, learning and CPD on Thrive",
+      "longDescription": "Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ThriveIcon",
+      "docsUrl": "https://docs.sim.ai/tools/thrive",
+      "operations": [
+        {
+          "name": "Create User",
+          "description": "Create a new user in Thrive."
+        },
+        {
+          "name": "Update User",
+          "description": "Update an existing user in Thrive by ref. Only the fields provided are changed."
+        },
+        {
+          "name": "Delete User",
+          "description": "Permanently delete (obfuscate) a user in Thrive by ref while retaining training history."
+        },
+        {
+          "name": "Suspend User",
+          "description": "Suspend a user in Thrive by ref, marking the account inactive."
+        },
+        {
+          "name": "Search Users",
+          "description": "Search users in Thrive and return basic user information with pagination."
+        },
+        {
+          "name": "Get User by ID",
+          "description": "Get a single user in Thrive by their ID and return basic user information."
+        },
+        {
+          "name": "Get User by Ref",
+          "description": "Get a single user in Thrive by their ref and return basic user information."
+        },
+        {
+          "name": "List Audiences",
+          "description": "List audiences and structures in Thrive with pagination."
+        },
+        {
+          "name": "Create Audience",
+          "description": "Create a new audience or structure in Thrive."
+        },
+        {
+          "name": "Get Audience",
+          "description": "Get a single audience or structure in Thrive by id or reference."
+        },
+        {
+          "name": "Update Audience",
+          "description": "Update an audience in Thrive, optionally moving it to a new parent."
+        },
+        {
+          "name": "Delete Audience",
+          "description": "Delete an audience in Thrive (only if it has no child audiences)."
+        },
+        {
+          "name": "List Audience Members",
+          "description": "List the members of a Thrive audience with pagination."
+        },
+        {
+          "name": "Add Audience Members",
+          "description": "Add members to a Thrive audience by email, ref, or id."
+        },
+        {
+          "name": "Replace Audience Members",
+          "description": "Replace a Thrive audience's entire members list with the given users (does not support an empty array)."
+        },
+        {
+          "name": "Remove Audience Member",
+          "description": "Remove a single member from a Thrive audience."
+        },
+        {
+          "name": "List Audience Managers",
+          "description": "List the managers of a Thrive audience."
+        },
+        {
+          "name": "Add Audience Managers",
+          "description": "Add managers to a Thrive audience with their permissions."
+        },
+        {
+          "name": "Replace Audience Managers",
+          "description": "Replace a Thrive audience's entire manager list with the given managers (does not support an empty array)."
+        },
+        {
+          "name": "Remove Audience Manager",
+          "description": "Remove a single manager from a Thrive audience."
+        },
+        {
+          "name": "List Assignments",
+          "description": "List compliance assignments in Thrive, optionally filtered by audience."
+        },
+        {
+          "name": "Create Assignment",
+          "description": "Create a compliance assignment in Thrive for an audience and content item."
+        },
+        {
+          "name": "Get Assignment",
+          "description": "Get a single compliance assignment in Thrive by its ID."
+        },
+        {
+          "name": "Update Assignment",
+          "description": "Update a compliance assignment in Thrive."
+        },
+        {
+          "name": "Delete Assignment",
+          "description": "Delete a compliance assignment in Thrive."
+        },
+        {
+          "name": "List Enrolments",
+          "description": "List enrolments for a compliance assignment in Thrive."
+        },
+        {
+          "name": "Get Enrolment",
+          "description": "Get a single enrolment for a compliance assignment in Thrive."
+        },
+        {
+          "name": "List Completions",
+          "description": "List learning completion records in Thrive, optionally filtered by user or content."
+        },
+        {
+          "name": "Get Completion",
+          "description": "Get a single learning completion record in Thrive by its ID."
+        },
+        {
+          "name": "Create Completion",
+          "description": "Record a learning completion in Thrive for a user and content item."
+        },
+        {
+          "name": "Query Content",
+          "description": "Query content records in Thrive with pagination and filtering options."
+        },
+        {
+          "name": "Get Content",
+          "description": "Get a single content record in Thrive by its ID."
+        },
+        {
+          "name": "Query Activities",
+          "description": "Query activity records in Thrive with pagination and filtering options."
+        },
+        {
+          "name": "Get Activity",
+          "description": "Get a single activity record in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Categories",
+          "description": "Query CPD categories in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Category",
+          "description": "Get a single CPD category in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Entries",
+          "description": "Query CPD log entries in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Entry",
+          "description": "Get a single CPD log entry in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Requirements",
+          "description": "Query CPD requirement summaries in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Requirement",
+          "description": "Get a single CPD requirement summary in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD User Summaries",
+          "description": "Query CPD user log summaries in Thrive and return results with pagination."
+        },
+        {
+          "name": "List Tags",
+          "description": "List tags in Thrive and return tag information with pagination."
+        },
+        {
+          "name": "Get Tag",
+          "description": "Get a single tag in Thrive by its ID."
+        },
+        {
+          "name": "Add User Tags",
+          "description": "Add one or more tags to a learner in Thrive."
+        },
+        {
+          "name": "Remove User Tags",
+          "description": "Remove one or more tags from a learner in Thrive."
+        },
+        {
+          "name": "Update User Skills",
+          "description": "Update skills and levels for a learner in Thrive."
+        },
+        {
+          "name": "Get Skill Levels",
+          "description": "Get the available skill levels configured in Thrive."
+        }
+      ],
+      "operationCount": 47,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["content-management", "knowledge-base", "automation"]
+    },
+    {
       "type": "tinybird",
       "slug": "tinybird",
       "name": "Tinybird",
@@ -15298,6 +17791,10 @@
           "description": "Create a new card in a Trello list"
         },
         {
+          "name": "Get Card",
+          "description": "Retrieve a single Trello card by ID"
+        },
+        {
           "name": "Update Card",
           "description": "Update an existing card on Trello"
         },
@@ -15308,9 +17805,33 @@
         {
           "name": "Add Comment",
           "description": "Add a comment to a Trello card"
+        },
+        {
+          "name": "Add Checklist",
+          "description": "Add a checklist to a Trello card"
+        },
+        {
+          "name": "Add Label",
+          "description": "Attach an existing label to a Trello card"
+        },
+        {
+          "name": "Add Member",
+          "description": "Assign a member to a Trello card"
+        },
+        {
+          "name": "Create Board",
+          "description": "Create a new Trello board"
+        },
+        {
+          "name": "Get Board",
+          "description": "Retrieve a single Trello board by ID"
+        },
+        {
+          "name": "Create List",
+          "description": "Create a new list on a Trello board"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -15525,8 +18046,19 @@
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
       "operations": [],
       "operationCount": 0,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "twilio_sms_received",
+          "name": "Twilio SMS Received",
+          "description": "Trigger workflow when an inbound SMS or MMS message is received via Twilio"
+        },
+        {
+          "id": "twilio_sms_status",
+          "name": "Twilio Message Status",
+          "description": "Trigger workflow when a Twilio message status changes (sent, delivered, failed)"
+        }
+      ],
+      "triggerCount": 2,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -15698,7 +18230,7 @@
         },
         {
           "name": "Command",
-          "description": "Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., ["
+          "description": "Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., [\"HSET\", \"myhash\", \"field1\", \"value1\"])."
         }
       ],
       "operationCount": 16,
@@ -15708,6 +18240,121 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud"]
+    },
+    {
+      "type": "uptimerobot",
+      "slug": "uptimerobot",
+      "name": "UptimeRobot",
+      "description": "Monitor uptime, manage incidents, maintenance windows, and status pages",
+      "longDescription": "Integrate UptimeRobot into your workflow. Create and manage monitors, inspect incidents, schedule maintenance windows, manage alert contacts, and publish public status pages using the UptimeRobot v3 API.",
+      "bgColor": "#111921",
+      "iconName": "UptimeRobotIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/uptimerobot",
+      "operations": [
+        {
+          "name": "List Monitors",
+          "description": "List monitors in your UptimeRobot account, with optional filters and pagination"
+        },
+        {
+          "name": "Get Monitor",
+          "description": "Get the details of a single UptimeRobot monitor by ID"
+        },
+        {
+          "name": "Create Monitor",
+          "description": "Create a new monitor in UptimeRobot"
+        },
+        {
+          "name": "Update Monitor",
+          "description": "Update an existing UptimeRobot monitor. Only the provided fields are changed."
+        },
+        {
+          "name": "Delete Monitor",
+          "description": "Permanently delete an UptimeRobot monitor by ID"
+        },
+        {
+          "name": "Pause Monitor",
+          "description": "Pause an UptimeRobot monitor so it stops running checks"
+        },
+        {
+          "name": "Start Monitor",
+          "description": "Resume a paused UptimeRobot monitor so it starts running checks again"
+        },
+        {
+          "name": "List Incidents",
+          "description": "List incidents across your UptimeRobot account (last 24 hours by default), with optional filters"
+        },
+        {
+          "name": "Get Incident",
+          "description": "Get the details of a single UptimeRobot incident by ID"
+        },
+        {
+          "name": "List Maintenance Windows",
+          "description": "List maintenance windows in your UptimeRobot account"
+        },
+        {
+          "name": "Get Maintenance Window",
+          "description": "Get the details of a single UptimeRobot maintenance window by ID"
+        },
+        {
+          "name": "Create Maintenance Window",
+          "description": "Create a new maintenance window to suppress alerts during planned downtime"
+        },
+        {
+          "name": "Update Maintenance Window",
+          "description": "Update an existing maintenance window. Only the provided fields are changed."
+        },
+        {
+          "name": "Delete Maintenance Window",
+          "description": "Permanently delete an UptimeRobot maintenance window by ID"
+        },
+        {
+          "name": "List Alert Contacts",
+          "description": "List the personal alert contacts in your UptimeRobot account"
+        },
+        {
+          "name": "Get Alert Contact",
+          "description": "Get the details of a single UptimeRobot alert contact by ID"
+        },
+        {
+          "name": "Create Alert Contact",
+          "description": "Create an email alert contact in UptimeRobot. The contact must be confirmed via email before it can receive alerts."
+        },
+        {
+          "name": "Delete Alert Contact",
+          "description": "Permanently delete an UptimeRobot alert contact by ID"
+        },
+        {
+          "name": "List Status Pages",
+          "description": "List the public status pages in your UptimeRobot account"
+        },
+        {
+          "name": "Get Status Page",
+          "description": "Get the details of a single UptimeRobot public status page by ID"
+        },
+        {
+          "name": "Create Status Page",
+          "description": "Create a public status page in UptimeRobot, optionally with a logo and icon image"
+        },
+        {
+          "name": "Update Status Page",
+          "description": "Update a public status page in UptimeRobot. Only the provided fields are changed; logo and icon images can be replaced."
+        },
+        {
+          "name": "Delete Status Page",
+          "description": "Permanently delete an UptimeRobot public status page by ID"
+        },
+        {
+          "name": "Get Account",
+          "description": "Get details about the authenticated UptimeRobot account, including plan and limits"
+        }
+      ],
+      "operationCount": 24,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "incident-management", "automation"]
     },
     {
       "type": "vanta",
@@ -15924,7 +18571,7 @@
         },
         {
           "name": "Update Project Domain",
-          "description": "Update a project domain"
+          "description": "Update a project domain's configuration on Vercel"
         },
         {
           "name": "Verify Project Domain",
@@ -16238,12 +18885,37 @@
       "slug": "whatsapp",
       "name": "WhatsApp",
       "description": "Send WhatsApp messages",
-      "longDescription": "Integrate WhatsApp into the workflow. Can send messages.",
+      "longDescription": "Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API.",
       "bgColor": "#25D366",
       "iconName": "WhatsAppIcon",
       "docsUrl": "https://docs.sim.ai/integrations/whatsapp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Send Message",
+          "description": "Send a text message through the WhatsApp Cloud API."
+        },
+        {
+          "name": "Send Template",
+          "description": "Send a pre-approved WhatsApp template message with a language and optional variable components."
+        },
+        {
+          "name": "Send Media",
+          "description": "Send an image, document, video, or audio message via a public link or an uploaded media ID."
+        },
+        {
+          "name": "Send Interactive",
+          "description": "Send an interactive WhatsApp message with reply buttons or a selectable list."
+        },
+        {
+          "name": "Send Reaction",
+          "description": "React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction."
+        },
+        {
+          "name": "Mark As Read",
+          "description": "Mark a received WhatsApp message as read so the sender sees blue checkmarks."
+        }
+      ],
+      "operationCount": 6,
       "triggers": [
         {
           "id": "whatsapp_webhook",
@@ -16255,7 +18927,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation", "customer-support", "marketing"]
     },
     {
       "type": "wikipedia",
@@ -16304,7 +18976,7 @@
       "operations": [
         {
           "name": "Prospect Search",
-          "description": "Search Wiza"
+          "description": "Search Wiza's database of prospects using person, company, and financial filters"
         },
         {
           "name": "Company Enrichment",
@@ -16586,11 +19258,11 @@
         },
         {
           "name": "Delete Bookmark",
-          "description": "Remove a tweet from the authenticated user"
+          "description": "Remove a tweet from the authenticated user's bookmarks"
         },
         {
           "name": "Get My Profile",
-          "description": "Get the authenticated user"
+          "description": "Get the authenticated user's profile information"
         },
         {
           "name": "Search Users",
@@ -16813,8 +19485,34 @@
         }
       ],
       "operationCount": 26,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "zendesk_ticket_created",
+          "name": "Zendesk Ticket Created",
+          "description": "Trigger workflow when a new ticket is created in Zendesk"
+        },
+        {
+          "id": "zendesk_ticket_status_changed",
+          "name": "Zendesk Ticket Status Changed",
+          "description": "Trigger workflow when a ticket status changes in Zendesk"
+        },
+        {
+          "id": "zendesk_ticket_comment_added",
+          "name": "Zendesk Ticket Comment Added",
+          "description": "Trigger workflow when a comment is added to a Zendesk ticket"
+        },
+        {
+          "id": "zendesk_ticket_priority_changed",
+          "name": "Zendesk Ticket Priority Changed",
+          "description": "Trigger workflow when a ticket priority changes in Zendesk"
+        },
+        {
+          "id": "zendesk_webhook",
+          "name": "Zendesk Ticket Event",
+          "description": "Trigger workflow from any Zendesk ticket event"
+        }
+      ],
+      "triggerCount": 5,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "support",

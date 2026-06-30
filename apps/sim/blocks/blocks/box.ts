@@ -601,6 +601,7 @@ export const BoxBlock: BlockConfig = {
 
 export const BoxBlockMeta = {
   tags: ['cloud', 'content-management', 'e-signatures'],
+  url: 'https://www.box.com',
   templates: [
     {
       icon: BoxCompanyIcon,

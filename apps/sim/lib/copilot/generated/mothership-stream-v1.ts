@@ -148,7 +148,6 @@ export interface MothershipStreamV1ToolCallDescriptor {
   mode: MothershipStreamV1ToolMode
   partial?: boolean
   phase: 'call'
-  requiresConfirmation?: boolean
   status?: MothershipStreamV1ToolStatus
   toolCallId: string
   toolName: string
@@ -160,11 +159,7 @@ export interface MothershipStreamV1AdditionalPropertiesMap {
 export interface MothershipStreamV1ToolUI {
   clientExecutable?: boolean
   hidden?: boolean
-  icon?: string
   internal?: boolean
-  phaseLabel?: string
-  requiresConfirmation?: boolean
-  title?: string
 }
 export interface MothershipStreamV1ToolArgsDeltaEventEnvelope {
   payload: MothershipStreamV1ToolArgsDeltaPayload
@@ -319,6 +314,7 @@ export interface MothershipStreamV1CheckpointPausePayload {
   runId: string
 }
 export interface MothershipStreamV1CheckpointPauseFrame {
+  checkpointId?: string
   parentToolCallId: string
   parentToolName: string
   pendingToolIds: string[]

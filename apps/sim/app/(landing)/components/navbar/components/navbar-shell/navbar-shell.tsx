@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 
 /**
  * Frosted near-white surface for the scrolled bar - `--bg` at 92% + a strong 40px

@@ -1,5 +1,4 @@
-import { chipBorderShadowRing } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { chipBorderShadowRing, cn } from '@sim/emcn'
 import { HeroVisual } from '@/app/(landing)/components/hero/components/hero-visual/hero-visual'
 import { HeroCta } from '@/app/(landing)/components/hero-cta'
 import { TrustedBy } from '@/app/(landing)/components/trusted-by'

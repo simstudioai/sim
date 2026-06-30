@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ThinkingLoader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { LandingPreviewChatInput } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-input'
 import { LandingPreviewChatTitleBar } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-title-bar'
 import type { PreviewChat } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/hooks/use-landing-submit'
+import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
 
 interface LandingPreviewChatProps {
   /** The scripted exchange to play, or `null` to show only the input. */

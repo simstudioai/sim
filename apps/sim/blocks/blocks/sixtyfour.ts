@@ -298,6 +298,7 @@ export const SixtyfourBlock: BlockConfig = {
 
 export const SixtyfourBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://sixtyfour.ai',
   templates: [
     {
       icon: SixtyfourIcon,

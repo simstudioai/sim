@@ -10,8 +10,8 @@ import type { ToolConfig } from '@/tools/types'
 const logger = createLogger('SalesforceReports')
 
 /**
- * Get metadata for a specific report
- * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_get_reportmetadata.htm
+ * Get the describe (definition and metadata) for a specific report
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/analytics_api_report_describe.htm
  */
 export const salesforceGetReportTool: ToolConfig<
   SalesforceGetReportParams,
@@ -19,7 +19,7 @@ export const salesforceGetReportTool: ToolConfig<
 > = {
   id: 'salesforce_get_report',
   name: 'Get Report Metadata from Salesforce',
-  description: 'Get metadata and describe information for a specific report',
+  description: 'Get the describe (definition and metadata) for a specific report',
   version: '1.0.0',
 
   oauth: {

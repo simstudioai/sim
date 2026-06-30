@@ -5,11 +5,10 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
-import { isPlainRecord } from '@/lib/core/utils/records'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
@@ -151,7 +150,7 @@ function parseVariableValueByType(value: unknown, type: string): unknown {
   }
 
   if (type === 'object') {
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value
+    if (isRecordLike(value)) return value
     if (typeof value === 'string' && value.trim()) {
       try {
         return JSON.parse(value)
@@ -350,51 +349,6 @@ export async function executeWorkflowCore(
   }
 
   try {
-    let blocks
-    let edges: Edge[]
-    let loops
-    let parallels
-
-    // Use workflowStateOverride if provided (for diff workflows)
-    if (metadata.workflowStateOverride) {
-      blocks = metadata.workflowStateOverride.blocks
-      edges = metadata.workflowStateOverride.edges
-      loops = metadata.workflowStateOverride.loops || {}
-      parallels = metadata.workflowStateOverride.parallels || {}
-      deploymentVersionId = metadata.workflowStateOverride.deploymentVersionId
-
-      logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
-        blocksCount: Object.keys(blocks).length,
-        edgesCount: edges.length,
-      })
-    } else if (useDraftState) {
-      const draftData = await loadWorkflowFromNormalizedTables(workflowId)
-
-      if (!draftData) {
-        throw new Error('Workflow not found or not yet saved')
-      }
-
-      blocks = draftData.blocks
-      edges = draftData.edges
-      loops = draftData.loops
-      parallels = draftData.parallels
-
-      logger.info(
-        `[${requestId}] Using draft workflow state from normalized tables (client execution)`
-      )
-    } else {
-      const deployedData = await loadDeployedWorkflowState(workflowId)
-      blocks = deployedData.blocks
-      edges = deployedData.edges
-      loops = deployedData.loops
-      parallels = deployedData.parallels
-      deploymentVersionId = deployedData.deploymentVersionId
-
-      logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
-    }
-
-    const mergedStates = mergeSubblockStateWithValues(blocks)
-
     const personalEnvUserId =
       metadata.isClientSession && metadata.sessionUserId
         ? metadata.sessionUserId
@@ -404,8 +358,69 @@ export async function executeWorkflowCore(
       throw new Error('Missing workflowUserId in execution metadata')
     }
 
-    const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
-      await getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId)
+    /**
+     * Resolves the workflow state from the override, the draft tables, or the
+     * deployed snapshot. The async load (draft/deployed) has no data dependency
+     * on the environment load, so the two are awaited concurrently below.
+     */
+    const loadWorkflowState = async () => {
+      if (metadata.workflowStateOverride) {
+        const override = metadata.workflowStateOverride
+        logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
+          blocksCount: Object.keys(override.blocks).length,
+          edgesCount: override.edges.length,
+        })
+        return {
+          blocks: override.blocks,
+          edges: override.edges,
+          loops: override.loops || {},
+          parallels: override.parallels || {},
+          deploymentVersionId: override.deploymentVersionId,
+        }
+      }
+
+      if (useDraftState) {
+        const draftData = await loadWorkflowFromNormalizedTables(workflowId)
+
+        if (!draftData) {
+          throw new Error('Workflow not found or not yet saved')
+        }
+
+        logger.info(
+          `[${requestId}] Using draft workflow state from normalized tables (client execution)`
+        )
+        return {
+          blocks: draftData.blocks,
+          edges: draftData.edges,
+          loops: draftData.loops,
+          parallels: draftData.parallels,
+          deploymentVersionId: undefined,
+        }
+      }
+
+      const deployedData = await loadDeployedWorkflowState(workflowId)
+      logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
+      return {
+        blocks: deployedData.blocks,
+        edges: deployedData.edges,
+        loops: deployedData.loops,
+        parallels: deployedData.parallels,
+        deploymentVersionId: deployedData.deploymentVersionId,
+      }
+    }
+
+    const [workflowState, env] = await Promise.all([
+      loadWorkflowState(),
+      getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId),
+    ])
+
+    const { blocks, loops, parallels } = workflowState
+    const edges: Edge[] = workflowState.edges
+    deploymentVersionId = workflowState.deploymentVersionId
+
+    const mergedStates = mergeSubblockStateWithValues(blocks)
+
+    const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } = env
 
     // Use encrypted values for logging (don't log decrypted secrets)
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })

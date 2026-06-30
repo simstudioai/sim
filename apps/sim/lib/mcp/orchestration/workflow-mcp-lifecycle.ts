@@ -21,7 +21,6 @@ import {
   addMcpToolMetadataUsageRow,
   createMcpToolMetadataUsageRow,
   getMcpServerToolMetadataUsageRows,
-  getMcpToolDescriptionForStorage,
   getMcpToolMetadataSizes,
   getMcpToolMetadataUsageFromRows,
   type McpToolMetadataUsage,
@@ -29,7 +28,12 @@ import {
   validateMcpToolMetadataForStorage,
 } from '@/lib/mcp/tool-limits'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import {
+  applyDescriptionOverrides,
+  extractDescriptionOverrides,
+  pruneOverridesToSchema,
+  sanitizeToolName,
+} from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 
 const logger = createLogger('WorkflowMcpOrchestration')
@@ -110,6 +114,8 @@ export interface PerformCreateWorkflowMcpToolParams extends ActorMetadata {
   workflowId: string
   toolName?: string
   toolDescription?: string | null
+  parameterDescriptionOverrides?: Record<string, string>
+  /** Legacy full schema accepted during rollout; converted to overrides. */
   parameterSchema?: Record<string, unknown>
 }
 
@@ -127,6 +133,8 @@ export interface PerformUpdateWorkflowMcpToolParams extends ActorMetadata {
   userId: string
   toolName?: string
   toolDescription?: string | null
+  parameterDescriptionOverrides?: Record<string, string>
+  /** Legacy full schema accepted during rollout; converted to overrides. */
   parameterSchema?: Record<string, unknown>
 }
 
@@ -156,6 +164,7 @@ interface PreparedWorkflowMcpTool {
   toolName: string
   toolDescription: string | null
   parameterSchema: unknown
+  parameterDescriptionOverrides: Record<string, string>
 }
 
 interface WorkflowMcpToolWorkflowRecord {
@@ -213,18 +222,23 @@ async function prepareWorkflowMcpTool(params: {
   workflowRecord: WorkflowMcpToolWorkflowRecord
   toolName?: string
   toolDescription?: string | null
-  parameterSchema?: Record<string, unknown>
+  parameterDescriptionOverrides?: Record<string, string>
+  legacyParameterSchema?: Record<string, unknown>
 }): Promise<PreparedWorkflowMcpTool> {
   const { workflowRecord } = params
   const toolName = sanitizeToolName(params.toolName?.trim() || workflowRecord.name)
   const toolDescription =
-    params.toolDescription !== undefined
-      ? params.toolDescription?.trim() || `Execute ${workflowRecord.name} workflow`
-      : getMcpToolDescriptionForStorage(workflowRecord.description, workflowRecord.name)
-  const parameterSchema =
-    params.parameterSchema && Object.keys(params.parameterSchema).length > 0
-      ? params.parameterSchema
-      : await generateParameterSchemaForWorkflow(workflowRecord.id)
+    params.toolDescription !== undefined ? params.toolDescription?.trim() || null : null
+
+  const baseSchema = await generateParameterSchemaForWorkflow(workflowRecord.id)
+  const requestedOverrides =
+    params.parameterDescriptionOverrides ??
+    (params.legacyParameterSchema
+      ? extractDescriptionOverrides(params.legacyParameterSchema, baseSchema)
+      : {})
+  const parameterDescriptionOverrides = pruneOverridesToSchema(requestedOverrides, baseSchema)
+  const parameterSchema = applyDescriptionOverrides(baseSchema, parameterDescriptionOverrides)
+
   const metadataLimitError = validateMcpToolMetadataForStorage({
     toolName,
     toolDescription,
@@ -239,6 +253,7 @@ async function prepareWorkflowMcpTool(params: {
     toolName,
     toolDescription,
     parameterSchema,
+    parameterDescriptionOverrides,
   }
 }
 
@@ -471,6 +486,7 @@ export async function performCreateWorkflowMcpServer(
           toolName: preparedTool.toolName,
           toolDescription: preparedTool.toolDescription,
           parameterSchema: preparedTool.parameterSchema,
+          parameterDescriptionOverrides: preparedTool.parameterDescriptionOverrides,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -690,9 +706,11 @@ export async function performCreateWorkflowMcpTool(
       workflowRecord,
       toolName: params.toolName,
       toolDescription: params.toolDescription,
-      parameterSchema: params.parameterSchema,
+      parameterDescriptionOverrides: params.parameterDescriptionOverrides,
+      legacyParameterSchema: params.parameterSchema,
     })
-    const { toolName, toolDescription, parameterSchema } = preparedTool
+    const { toolName, toolDescription, parameterSchema, parameterDescriptionOverrides } =
+      preparedTool
 
     const toolId = generateId()
     const tool = await db.transaction(async (tx) => {
@@ -805,6 +823,7 @@ export async function performCreateWorkflowMcpTool(
           toolName,
           toolDescription,
           parameterSchema,
+          parameterDescriptionOverrides,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -880,7 +899,35 @@ export async function performUpdateWorkflowMcpTool(
     if (params.toolDescription !== undefined) {
       updateData.toolDescription = params.toolDescription?.trim() || null
     }
-    if (params.parameterSchema !== undefined) updateData.parameterSchema = params.parameterSchema
+
+    const overridesProvided =
+      params.parameterDescriptionOverrides !== undefined || params.parameterSchema !== undefined
+    if (overridesProvided) {
+      const [toolRow] = await db
+        .select({ workflowId: workflowMcpTool.workflowId })
+        .from(workflowMcpTool)
+        .where(
+          and(
+            eq(workflowMcpTool.id, params.toolId),
+            eq(workflowMcpTool.serverId, params.serverId),
+            isNull(workflowMcpTool.archivedAt)
+          )
+        )
+        .limit(1)
+      if (!toolRow) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
+
+      const baseSchema = await generateParameterSchemaForWorkflow(toolRow.workflowId)
+      const overrides = pruneOverridesToSchema(
+        params.parameterDescriptionOverrides ??
+          (params.parameterSchema
+            ? extractDescriptionOverrides(params.parameterSchema, baseSchema)
+            : {}),
+        baseSchema
+      )
+      updateData.parameterDescriptionOverrides = overrides
+      updateData.parameterSchema = applyDescriptionOverrides(baseSchema, overrides)
+    }
+
     const updatedFields = Object.keys(updateData).filter((key) => key !== 'updatedAt')
 
     const tool = await db.transaction(async (tx) => {

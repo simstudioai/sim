@@ -47,7 +47,8 @@ export const salesforceDescribeObjectTool: ToolConfig<
         )
       }
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      return `${instanceUrl}/services/data/v59.0/sobjects/${params.objectName}/describe`
+      const objectName = params.objectName.trim()
+      return `${instanceUrl}/services/data/v59.0/sobjects/${objectName}/describe`
     },
     method: 'GET',
     headers: (params) => ({
@@ -71,7 +72,7 @@ export const salesforceDescribeObjectTool: ToolConfig<
     return {
       success: true,
       output: {
-        objectName: params?.objectName || '',
+        objectName: data.name ?? params?.objectName ?? '',
         label: data.label,
         labelPlural: data.labelPlural,
         fields: data.fields,

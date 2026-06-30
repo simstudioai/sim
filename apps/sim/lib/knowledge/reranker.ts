@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { isSupportedRerankerModel } from '@/lib/knowledge/reranker-models'
 

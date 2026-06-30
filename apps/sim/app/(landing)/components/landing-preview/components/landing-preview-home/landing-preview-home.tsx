@@ -1,11 +1,10 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowRight, Blimp, Checkbox, ChevronDown, cn, Shuffle } from '@sim/emcn'
+import { TypeBoolean, TypeNumber, TypeText } from '@sim/emcn/icons'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import { Mail, MessageSquare, Table } from 'lucide-react'
-import { ArrowRight, Blimp, Checkbox, ChevronDown, Shuffle } from '@/components/emcn'
-import { TypeBoolean, TypeNumber, TypeText } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingPreviewChatInput } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-input'
 import { LandingPreviewChatTitleBar } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-title-bar'

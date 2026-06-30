@@ -1,13 +1,10 @@
 'use client'
 
-import type { ChangeEvent } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { Chip, ChipInput, ChipModalField, Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Chip, ChipInput, ChipTextarea, Loader } from '@/components/emcn'
-import { Upload } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { importSkillContract } from '@/lib/api/contracts'
-import { cn } from '@/lib/core/utils/cn'
 import {
   extractSkillFromZip,
   parseSkillMarkdown,
@@ -33,19 +30,35 @@ function isAcceptedFile(file: File): boolean {
 }
 
 export function SkillImport({ onImport }: SkillImportProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const [dragCounter, setDragCounter] = useState(0)
-  const isDragging = dragCounter > 0
-  const [fileState, setFileState] = useState<ImportState>('idle')
-  const [fileError, setFileError] = useState('')
-
   const [githubUrl, setGithubUrl] = useState('')
   const [githubState, setGithubState] = useState<ImportState>('idle')
   const [githubError, setGithubError] = useState('')
 
-  const [pasteContent, setPasteContent] = useState('')
-  const [pasteError, setPasteError] = useState('')
+  const [fileState, setFileState] = useState<ImportState>('idle')
+  const [fileError, setFileError] = useState('')
+
+  const handleGithubImport = useCallback(async () => {
+    const trimmed = githubUrl.trim()
+    if (!trimmed) {
+      setGithubError('Please enter a GitHub URL')
+      setGithubState('error')
+      return
+    }
+
+    setGithubState('loading')
+    setGithubError('')
+
+    try {
+      const data = await requestJson(importSkillContract, { body: { url: trimmed } })
+      const parsed = parseSkillMarkdown(data.content)
+      setGithubState('idle')
+      onImport(parsed)
+    } catch (err) {
+      const message = getErrorMessage(err, 'Failed to import from GitHub')
+      setGithubError(message)
+      setGithubState('error')
+    }
+  }, [githubUrl, onImport])
 
   const processFile = useCallback(
     async (file: File) => {
@@ -84,130 +97,17 @@ export function SkillImport({ onImport }: SkillImportProps) {
     [onImport]
   )
 
-  const handleFileChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (file) processFile(file)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    },
-    [processFile]
-  )
-
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragCounter((prev) => prev + 1)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragCounter((prev) => prev - 1)
-  }, [])
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-  }, [])
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setDragCounter(0)
-      const file = e.dataTransfer.files?.[0]
+  const handleFiles = useCallback(
+    (files: File[]) => {
+      const file = files[0]
       if (file) processFile(file)
     },
     [processFile]
   )
-
-  const handleGithubImport = useCallback(async () => {
-    const trimmed = githubUrl.trim()
-    if (!trimmed) {
-      setGithubError('Please enter a GitHub URL')
-      setGithubState('error')
-      return
-    }
-
-    setGithubState('loading')
-    setGithubError('')
-
-    try {
-      const data = await requestJson(importSkillContract, { body: { url: trimmed } })
-      const parsed = parseSkillMarkdown(data.content)
-      setGithubState('idle')
-      onImport(parsed)
-    } catch (err) {
-      const message = getErrorMessage(err, 'Failed to import from GitHub')
-      setGithubError(message)
-      setGithubState('error')
-    }
-  }, [githubUrl, onImport])
-
-  const handlePasteImport = useCallback(() => {
-    const trimmed = pasteContent.trim()
-    if (!trimmed) {
-      setPasteError('Please paste some content first')
-      return
-    }
-
-    setPasteError('')
-    const parsed = parseSkillMarkdown(trimmed)
-    onImport(parsed)
-  }, [pasteContent, onImport])
 
   return (
     <div className='flex flex-col gap-4'>
-      {/* File drop zone */}
-      <div className='flex flex-col gap-[9px]'>
-        <span className='pl-0.5 font-normal text-[var(--text-muted)] text-sm'>Upload File</span>
-        <button
-          type='button'
-          onClick={() => fileInputRef.current?.click()}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          disabled={fileState === 'loading'}
-          className={cn(
-            'flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 transition-colors',
-            'border-[var(--border-1)] bg-[var(--surface-5)] hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]',
-            isDragging && 'border-[var(--text-muted)] bg-[var(--surface-active)]',
-            fileState === 'loading' && 'pointer-events-none opacity-60'
-          )}
-        >
-          <input
-            ref={fileInputRef}
-            type='file'
-            accept='.md,.zip'
-            onChange={handleFileChange}
-            className='hidden'
-          />
-          {fileState === 'loading' ? (
-            <Loader className='size-[16px] text-[var(--text-tertiary)]' animate />
-          ) : (
-            <Upload className='size-[16px] text-[var(--text-tertiary)]' />
-          )}
-          <div className='flex flex-col gap-0.5 text-center'>
-            <span className='text-[var(--text-primary)] text-sm'>
-              {isDragging ? 'Drop file here' : 'Drop file here or click to browse'}
-            </span>
-            <span className='text-[11px] text-[var(--text-muted)]'>
-              .md file with YAML frontmatter, or .zip containing a SKILL.md
-            </span>
-          </div>
-        </button>
-        {fileError && <p className='text-[12px] text-[var(--text-error)]'>{fileError}</p>}
-      </div>
-
-      <ImportDivider />
-
-      {/* GitHub URL */}
-      <div className='flex flex-col gap-[9px]'>
-        <span className='pl-0.5 font-normal text-[var(--text-muted)] text-sm'>
-          Import from GitHub
-        </span>
+      <ChipModalField type='custom' title='Import from GitHub' error={githubError || undefined}>
         <div className='flex gap-2'>
           <ChipInput
             placeholder='https://github.com/owner/repo/blob/main/SKILL.md'
@@ -217,7 +117,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
               if (githubError) setGithubError('')
             }}
             disabled={githubState === 'loading'}
-            className='flex-1'
+            className='min-w-0 flex-1'
           />
           <Chip
             flush
@@ -227,42 +127,27 @@ export function SkillImport({ onImport }: SkillImportProps) {
             {githubState === 'loading' ? <Loader className='size-[14px]' animate /> : 'Fetch'}
           </Chip>
         </div>
-        {githubError && <p className='text-[12px] text-[var(--text-error)]'>{githubError}</p>}
-      </div>
+      </ChipModalField>
 
       <ImportDivider />
 
-      {/* Paste content */}
-      <div className='flex flex-col gap-[9px]'>
-        <span className='pl-0.5 font-normal text-[var(--text-muted)] text-sm'>
-          Paste SKILL.md Content
-        </span>
-        <ChipTextarea
-          placeholder={
-            '---\nname: my-skill\ndescription: What this skill does\n---\n\n# Instructions...'
-          }
-          value={pasteContent}
-          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
-            setPasteContent(e.target.value)
-            if (pasteError) setPasteError('')
-          }}
-          resizable
-          className='min-h-[120px] font-mono leading-relaxed'
-        />
-        {pasteError && <p className='text-[12px] text-[var(--text-error)]'>{pasteError}</p>}
-        <div className='flex justify-end'>
-          <Chip variant='primary' flush onClick={handlePasteImport} disabled={!pasteContent.trim()}>
-            Import
-          </Chip>
-        </div>
-      </div>
+      <ChipModalField
+        type='file'
+        title='Upload File'
+        accept='.md,.zip'
+        onChange={handleFiles}
+        loading={fileState === 'loading'}
+        label={fileState === 'loading' ? 'Importing…' : undefined}
+        description='.md file with YAML frontmatter, or .zip containing a SKILL.md'
+        error={fileError || undefined}
+      />
     </div>
   )
 }
 
 function ImportDivider() {
   return (
-    <div className='flex items-center gap-3 px-1'>
+    <div className='flex items-center gap-3 px-2'>
       <div className='h-px flex-1 bg-[var(--border)]' />
       <span className='text-[11px] text-[var(--text-muted)]'>or</span>
       <div className='h-px flex-1 bg-[var(--border)]' />

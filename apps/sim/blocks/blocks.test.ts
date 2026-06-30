@@ -172,7 +172,12 @@ describe.concurrent('Blocks Module', () => {
         'file_fetch',
         'file_write',
         'file_append',
+        'file_compress',
+        'file_decompress',
+        'file_manage_sharing',
       ])
+      expect(block?.tools.config?.tool({ operation: 'file_compress' })).toBe('file_compress')
+      expect(block?.tools.config?.tool({ operation: 'file_decompress' })).toBe('file_decompress')
       expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.multiple).toBe(true)
       expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
       expect(block?.tools.config?.tool({ operation: 'file_get_content' })).toBe('file_get_content')
@@ -576,6 +581,7 @@ describe.concurrent('Blocks Module', () => {
         'text',
         'router-input',
         'table-selector',
+        'column-selector',
         'filter-builder',
         'sort-builder',
         'skill-input',

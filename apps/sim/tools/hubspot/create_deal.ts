@@ -9,7 +9,8 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
   {
     id: 'hubspot_create_deal',
     name: 'Create Deal in HubSpot',
-    description: 'Create a new deal in HubSpot. Requires at least a dealname property',
+    description:
+      'Create a new deal in HubSpot with the given properties (e.g., dealname, amount, dealstage)',
     version: '1.0.0',
 
     oauth: {
@@ -64,8 +65,18 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
           }
         }
         const body: Record<string, unknown> = { properties }
-        if (params.associations && params.associations.length > 0) {
-          body.associations = params.associations
+        let associations = params.associations
+        if (typeof associations === 'string') {
+          try {
+            associations = JSON.parse(associations)
+          } catch (e) {
+            throw new Error(
+              'Invalid JSON format for associations. Please provide a valid JSON array.'
+            )
+          }
+        }
+        if (Array.isArray(associations) && associations.length > 0) {
+          body.associations = associations
         }
         return body
       },

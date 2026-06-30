@@ -1,4 +1,4 @@
-import { Blimp } from '@/components/emcn'
+import { Blimp } from '@sim/emcn'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -17,13 +17,13 @@ interface MothershipResponse extends ToolResponse {
 
 export const MothershipBlock: BlockConfig<MothershipResponse> = {
   type: 'mothership',
-  name: 'Mothership',
-  description: 'Query the Mothership AI agent',
+  name: 'Sim',
+  description: 'Talk to Sim',
   longDescription:
-    'The Mothership block sends messages to the Mothership AI agent, which has access to subagents, integration tools, memory, and workspace context. Use it to perform complex multi-step reasoning, cross-service queries, or any task that benefits from the full Mothership intelligence within a workflow.',
+    'The Sim block sends messages to Sim, which has access to subagents, integration tools, memory, and workspace context. Use it to perform complex multi-step reasoning, cross-service queries, or any task that benefits from the full Sim intelligence within a workflow.',
   bestPractices: `
   - Use for tasks that require multi-step reasoning, tool use, or cross-service coordination.
-  - The Mothership picks its own model and tools internally — you only provide a prompt.
+  - Sim picks its own model and tools internally — you only provide a prompt.
   `,
   category: 'blocks',
   bgColor: '#802FDE',
@@ -33,7 +33,7 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
       id: 'prompt',
       title: 'Prompt',
       type: 'long-input',
-      placeholder: 'Enter your prompt for the Mothership...',
+      placeholder: 'Enter your prompt for Sim...',
     },
     {
       id: 'conversationId',
@@ -67,21 +67,21 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
   inputs: {
     prompt: {
       type: 'string',
-      description: 'The prompt to send to the Mothership AI agent',
+      description: 'The prompt to send to Sim',
     },
     conversationId: {
       type: 'string',
-      description: 'Mothership chat ID to continue; generated when omitted',
+      description: 'Chat ID to continue; generated when omitted',
     },
     files: {
       type: 'file',
-      description: 'Files to send to Mothership as attachments',
+      description: 'Files to send to Sim as attachments',
     },
   },
   outputs: {
     content: { type: 'string', description: 'Generated response content' },
     model: { type: 'string', description: 'Model used for generation' },
-    conversationId: { type: 'string', description: 'Mothership chat ID used for this request' },
+    conversationId: { type: 'string', description: 'Chat ID used for this request' },
     tokens: { type: 'json', description: 'Token usage statistics' },
     toolCalls: { type: 'json', description: 'Tool calls made during execution' },
     cost: { type: 'json', description: 'Cost of the execution' },

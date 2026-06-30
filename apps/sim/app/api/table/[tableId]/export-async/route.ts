@@ -4,12 +4,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { exportTableAsyncContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runTableExport, type TableExportPayload } from '@/lib/table/export-runner'
-import { markTableJobRunning, releaseJobClaim } from '@/lib/table/service'
+import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import type { TableExportJobPayload } from '@/lib/table/types'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -61,12 +61,14 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const payload: TableExportPayload = { jobId, tableId, workspaceId, format }
   if (isTriggerDevEnabled) {
     try {
-      const [{ tableExportTask }, { tasks }] = await Promise.all([
+      const [{ tableExportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-export'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableExportTask>('table-export', payload, {
         tags: [`tableId:${tableId}`, `jobId:${jobId}`],
+        region: await resolveTriggerRegion(),
       })
     } catch (error) {
       // A failed dispatch must not leave a ghost `running` job holding the

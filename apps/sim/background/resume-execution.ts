@@ -6,6 +6,7 @@ import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { isExecCancelled } from '@/lib/table/deps'
 import type { RowData, RowExecutionMetadata } from '@/lib/table/types'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 
 const logger = createLogger('TriggerResumeExecution')
 
@@ -50,7 +51,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
     // philosophy). Aborting here also stops the wasted compute the guard alone
     // can't prevent. Read the cell's current exec and bail if cancelled.
     if (cellContext) {
-      const { getRowById } = await import('@/lib/table/service')
+      const { getRowById } = await import('@/lib/table/rows/service')
       const cellRow = await getRowById(
         cellContext.tableId,
         cellContext.rowId,
@@ -323,7 +324,8 @@ async function continueCascadeAfterResume(cellContext: {
   workspaceId: string
   groupId: string
 }): Promise<void> {
-  const { getTableById, getRowById } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
   const { runRowCascadeLoop } = await import('@/background/workflow-column-execution')
 
@@ -349,6 +351,9 @@ export const resumeExecutionTask = task({
   machine: 'medium-1x',
   retry: {
     maxAttempts: 1,
+  },
+  queue: {
+    concurrencyLimit: RESUME_EXECUTION_CONCURRENCY_LIMIT,
   },
   run: executeResumeJob,
 })

@@ -16,7 +16,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
 import type {
   Filter,
@@ -31,16 +31,16 @@ import type {
 
 const logger = createLogger('WorkflowGroupScheduler')
 
-import { getColumnId } from './column-keys'
-import { USER_TABLE_ROWS_SQL_NAME } from './constants'
-import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
-import type { DispatchLimit, DispatchMode } from './dispatcher'
-import { buildFilterClause } from './sql'
+import { getColumnId } from '@/lib/table/column-keys'
+import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from '@/lib/table/deps'
+import type { DispatchLimit, DispatchMode } from '@/lib/table/dispatcher'
+import { buildFilterClause } from '@/lib/table/sql'
 
 export {
   getUnmetGroupDeps,
   optimisticallyScheduleNewlyEligibleGroups,
-} from './deps'
+} from '@/lib/table/deps'
 
 /**
  * Per-(row, group) eligibility for both the auto-fire reactor and manual
@@ -367,9 +367,12 @@ export async function cancelWorkflowGroupRuns(
   rowId?: string,
   options?: { groupIds?: string[]; filter?: Filter; excludeRowIds?: string[] }
 ): Promise<number> {
-  const { getTableById, updateRow } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { updateRow } = await import('@/lib/table/rows/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
-  const { listActiveDispatches, markActiveDispatchesCancelled } = await import('./dispatcher')
+  const { listActiveDispatches, markActiveDispatchesCancelled } = await import(
+    '@/lib/table/dispatcher'
+  )
 
   const table = await getTableById(tableId)
   if (!table) {
@@ -661,7 +664,7 @@ export async function runWorkflowColumn(opts: {
   if (rowIds && rowIds.length === 0) return { dispatchId: null }
   // Lazy imports: `./service` and `./dispatcher` both close cycles back to
   // this module; `@trigger.dev/sdk` is heavy and only needed on this op.
-  const { getTableById } = await import('./service')
+  const { getTableById } = await import('@/lib/table/service')
   const table = await getTableById(tableId)
   if (!table) throw new Error('Table not found')
   if (table.workspaceId !== workspaceId) throw new Error('Invalid workspace ID')
@@ -761,14 +764,15 @@ export async function runWorkflowColumn(opts: {
   if (isTriggerDevEnabled) {
     // Trigger.dev runs `tableRunDispatcherTask`, which loops `dispatcherStep`
     // until done with CRIU-checkpointed waits between windows.
-    const [{ tableRunDispatcherTask }, { tasks }] = await Promise.all([
+    const [{ tableRunDispatcherTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
       import('@/background/table-run-dispatcher'),
       import('@trigger.dev/sdk'),
+      import('@/lib/core/async-jobs/region'),
     ])
     await tasks.trigger<typeof tableRunDispatcherTask>(
       'table-run-dispatcher',
       { dispatchId },
-      { concurrencyKey: dispatchId }
+      { concurrencyKey: dispatchId, region: await resolveTriggerRegion() }
     )
   } else {
     // Local / no-trigger.dev: drive the same loop in-process, fire-and-forget

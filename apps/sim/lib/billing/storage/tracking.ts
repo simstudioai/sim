@@ -8,24 +8,80 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage/limits'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('StorageTracking')
+
+/** Format bytes as a `GB` label for usage-limit emails (2dp usage, whole-number limit). */
+function formatGb(bytes: number, decimals: number): string {
+  return `${(bytes / 1024 ** 3).toFixed(decimals)} GB`
+}
+
+/**
+ * Best-effort storage threshold evaluation after a usage change. Re-reads the
+ * (now updated) usage and plan limit, then delegates dedup + send to
+ * {@link maybeNotifyLimit}. Never throws.
+ *
+ * The caller passes the subscription it already resolved for the increment/
+ * decrement, so the whole path (usage read, limit, scope) reuses a single
+ * `getHighestPrioritySubscription` instead of re-fetching it three times.
+ *
+ * @param rearmOnly - True on decrements, so a shrink that leaves usage above a
+ *   threshold re-arms but never sends (a drop is not a fresh crossing).
+ */
+async function maybeNotifyStorageLimit(
+  userId: string,
+  workspaceId: string,
+  sub: HighestPrioritySubscription | null,
+  rearmOnly = false
+): Promise<void> {
+  try {
+    const [usage, limit] = await Promise.all([
+      getUserStorageUsage(userId, sub),
+      getUserStorageLimit(userId, sub),
+    ])
+
+    await maybeNotifyLimit({
+      category: 'storage',
+      billedUserId: userId,
+      workspaceId,
+      currentUsage: usage,
+      limit,
+      usageLabel: formatGb(usage, 2),
+      limitLabel: formatGb(limit, 0),
+      rearmOnly,
+      subscription: sub,
+    })
+  } catch (error) {
+    logger.error('Error evaluating storage limit notification:', error)
+  }
+}
 
 /**
  * Increment storage usage after successful file upload
  * Only tracks if billing is enabled
+ *
+ * @param workspaceId - When provided, evaluates the storage usage-limit email
+ *   (80% / 100%) after the increment. Best-effort; never blocks the upload.
  */
-export async function incrementStorageUsage(userId: string, bytes: number): Promise<void> {
+export async function incrementStorageUsage(
+  userId: string,
+  bytes: number,
+  workspaceId?: string
+): Promise<void> {
   if (!isBillingEnabled) {
     logger.debug('Billing disabled, skipping storage increment')
     return
   }
 
+  let sub: HighestPrioritySubscription | null = null
   try {
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
-    const sub = await getHighestPrioritySubscription(userId)
+    sub = await getHighestPrioritySubscription(userId)
 
     // Org-scoped subs pool at the org level; personal plans per-user.
     if (isOrgScopedSubscription(sub, userId) && sub) {
@@ -51,21 +107,35 @@ export async function incrementStorageUsage(userId: string, bytes: number): Prom
     logger.error('Error incrementing storage usage:', error)
     throw error
   }
+
+  if (workspaceId) {
+    void maybeNotifyStorageLimit(userId, workspaceId, sub)
+  }
 }
 
 /**
  * Decrement storage usage after file deletion
  * Only tracks if billing is enabled
+ *
+ * @param workspaceId - When provided, re-evaluates the storage threshold state
+ *   after the decrement. Usage only drops here, so this can only re-arm a
+ *   previously-sent threshold (it never sends), keeping the re-warning correct
+ *   after a shrink. Best-effort; never blocks the caller.
  */
-export async function decrementStorageUsage(userId: string, bytes: number): Promise<void> {
+export async function decrementStorageUsage(
+  userId: string,
+  bytes: number,
+  workspaceId?: string
+): Promise<void> {
   if (!isBillingEnabled) {
     logger.debug('Billing disabled, skipping storage decrement')
     return
   }
 
+  let sub: HighestPrioritySubscription | null = null
   try {
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
-    const sub = await getHighestPrioritySubscription(userId)
+    sub = await getHighestPrioritySubscription(userId)
 
     if (isOrgScopedSubscription(sub, userId) && sub) {
       await db
@@ -89,5 +159,9 @@ export async function decrementStorageUsage(userId: string, bytes: number): Prom
   } catch (error) {
     logger.error('Error decrementing storage usage:', error)
     throw error
+  }
+
+  if (workspaceId) {
+    void maybeNotifyStorageLimit(userId, workspaceId, sub, true)
   }
 }

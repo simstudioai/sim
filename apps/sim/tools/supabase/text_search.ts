@@ -77,8 +77,12 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
     url: (params) => {
       const tableValidation = validateDatabaseIdentifier(params.table, 'table')
       if (!tableValidation.isValid) throw new Error(tableValidation.error)
+      const columnValidation = validateDatabaseIdentifier(params.column, 'column')
+      if (!columnValidation.isValid) throw new Error(columnValidation.error)
       const searchType = params.searchType || 'websearch'
       const language = params.language || 'english'
+      const languageValidation = validateDatabaseIdentifier(language, 'language')
+      if (!languageValidation.isValid) throw new Error(languageValidation.error)
 
       let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
 

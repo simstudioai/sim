@@ -128,9 +128,129 @@ describe('twilioHandler', () => {
 
   describe('extractIdempotencyId', () => {
     it('prefers MessageSid, falls back to CallSid', () => {
-      expect(twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1' })).toBe('SM1')
+      expect(
+        twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1', SmsStatus: 'received' })
+      ).toBe('SM1')
       expect(twilioHandler.extractIdempotencyId!({ CallSid: 'CA1' })).toBe('CA1')
       expect(twilioHandler.extractIdempotencyId!({})).toBeNull()
+    })
+
+    it('keys status callbacks by SID + status so each delivery state is distinct', () => {
+      const sent = twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1', MessageStatus: 'sent' })
+      const delivered = twilioHandler.extractIdempotencyId!({
+        MessageSid: 'SM1',
+        MessageStatus: 'delivered',
+      })
+      expect(sent).toBe('SM1:sent')
+      expect(delivered).toBe('SM1:delivered')
+      expect(sent).not.toBe(delivered)
+    })
+  })
+
+  describe('matchEvent', () => {
+    const match = (triggerId: string, body: Record<string, unknown>) =>
+      twilioHandler.matchEvent!({
+        body,
+        request: new Request('http://localhost/test') as never,
+        rawBody: '',
+        requestId: 'r1',
+        providerConfig: { triggerId },
+        webhook: {},
+        workflow: {},
+      })
+
+    const inbound = { MessageSid: 'SM1', From: '+1', Body: 'hi', SmsStatus: 'received' }
+    const status = { MessageSid: 'SM1', MessageStatus: 'delivered', SmsStatus: 'delivered' }
+
+    it('routes inbound messages only to the received trigger', () => {
+      expect(match('twilio_sms_received', inbound)).toBe(true)
+      expect(match('twilio_sms_status', inbound)).toBe(false)
+    })
+
+    it('routes delivery callbacks only to the status trigger', () => {
+      expect(match('twilio_sms_status', status)).toBe(true)
+      expect(match('twilio_sms_received', status)).toBe(false)
+    })
+
+    it('passes through when no triggerId is configured', () => {
+      expect(match('', inbound)).toBe(true)
+    })
+
+    it('matches neither trigger for an ambiguous payload missing status fields', () => {
+      const ambiguous = { MessageSid: 'SM1', From: '+1' }
+      expect(match('twilio_sms_received', ambiguous)).toBe(false)
+      expect(match('twilio_sms_status', ambiguous)).toBe(false)
+    })
+  })
+
+  describe('formatInput', () => {
+    const ctx = (body: Record<string, unknown>) => ({
+      webhook: {},
+      workflow: { id: 'wf1', userId: 'u1' },
+      body,
+      headers: {},
+      requestId: 'r1',
+    })
+
+    it('maps inbound SMS params to aligned output keys', async () => {
+      const body = {
+        MessageSid: 'SM123',
+        AccountSid: 'AC123',
+        From: '+15551234567',
+        To: '+15557654321',
+        Body: 'hello world',
+        NumMedia: '0',
+        NumSegments: '1',
+        SmsStatus: 'received',
+        ApiVersion: '2010-04-01',
+        FromCity: 'SAN FRANCISCO',
+        FromState: 'CA',
+        FromCountry: 'US',
+      }
+      const { input } = await twilioHandler.formatInput!(ctx(body))
+      const i = input as Record<string, unknown>
+      expect(i.messageSid).toBe('SM123')
+      expect(i.from).toBe('+15551234567')
+      expect(i.to).toBe('+15557654321')
+      expect(i.body).toBe('hello world')
+      expect(i.smsStatus).toBe('received')
+      expect(i.numMedia).toBe('0')
+      expect(i.media).toEqual([])
+      expect(i.fromCity).toBe('SAN FRANCISCO')
+      expect(i.raw).toBe(JSON.stringify(body))
+    })
+
+    it('extracts MMS media items from NumMedia / MediaUrl{N}', async () => {
+      const body = {
+        MessageSid: 'MM123',
+        NumMedia: '2',
+        MediaUrl0: 'https://api.twilio.com/media/0',
+        MediaContentType0: 'image/jpeg',
+        MediaUrl1: 'https://api.twilio.com/media/1',
+        MediaContentType1: 'image/png',
+      }
+      const { input } = await twilioHandler.formatInput!(ctx(body))
+      const i = input as Record<string, unknown>
+      expect(i.media).toEqual([
+        { url: 'https://api.twilio.com/media/0', contentType: 'image/jpeg' },
+        { url: 'https://api.twilio.com/media/1', contentType: 'image/png' },
+      ])
+    })
+
+    it('maps status-callback params including ErrorCode on failure', async () => {
+      const body = {
+        MessageSid: 'SM999',
+        MessageStatus: 'failed',
+        SmsStatus: 'failed',
+        ErrorCode: '30008',
+        From: '+15550000000',
+        To: '+15551111111',
+      }
+      const { input } = await twilioHandler.formatInput!(ctx(body))
+      const i = input as Record<string, unknown>
+      expect(i.messageStatus).toBe('failed')
+      expect(i.errorCode).toBe('30008')
+      expect(i.media).toEqual([])
     })
   })
 })

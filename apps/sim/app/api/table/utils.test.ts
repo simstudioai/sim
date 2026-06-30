@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { TableRowLimitError } from '@/lib/table/billing'
 import { rootErrorMessage, rowWriteErrorResponse } from '@/app/api/table/utils'
 
 /** Mimics drizzle's DrizzleQueryError: message is the failed SQL, real error on `cause`. */
@@ -17,7 +18,7 @@ describe('rootErrorMessage', () => {
   })
 
   it('unwraps the cause chain to the deepest error', () => {
-    const root = new Error('Maximum row limit (10000) reached for table tbl_abc')
+    const root = new Error('Value for column "email" must be unique')
     expect(rootErrorMessage(wrapLikeDrizzle(root))).toBe(root.message)
   })
 
@@ -27,14 +28,13 @@ describe('rootErrorMessage', () => {
 })
 
 describe('rowWriteErrorResponse', () => {
-  it('rewrites the DB row-limit trigger error into a friendly 400', async () => {
-    const error = wrapLikeDrizzle(
-      new Error('Maximum row limit (10000) reached for table tbl_2b15ec29647040e7b8eb5d2949f556cf')
-    )
-    const response = rowWriteErrorResponse(error)
+  it('passes the plan row-limit error through as a 400', async () => {
+    const response = rowWriteErrorResponse(new TableRowLimitError(10000))
     expect(response?.status).toBe(400)
     const body = await response?.json()
-    expect(body.error).toBe('Row limit exceeded — this table is capped at 10,000 rows')
+    expect(body.error).toBe(
+      'This table has reached its row limit (10,000 rows) on your current plan.'
+    )
   })
 
   it('passes known validation messages through as 400', async () => {

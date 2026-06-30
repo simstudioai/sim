@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useState } from 'react'
+import { Duplicate, Tooltip } from '@sim/emcn'
 import { Check, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
-import { Duplicate, Tooltip } from '@/components/emcn'
 import {
   ChatFileDownload,
   ChatFileDownloadAll,
@@ -49,7 +49,7 @@ const HTML_ESCAPES: Record<string, string> = {
 /**
  * Escapes HTML entities so untrusted strings are safe to interpolate into markup.
  */
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] || c)
 }
 
@@ -129,28 +129,10 @@ export const ClientChatMessage = memo(
                     const isInteractive =
                       !!attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
 
-                    const openAttachmentPreview = () => {
+                    const handleOpenPreview = () => {
                       const validDataUrl = attachment.dataUrl?.trim()
                       if (!validDataUrl?.startsWith('data:')) return
-                      const newWindow = window.open('', '_blank')
-                      if (newWindow) {
-                        newWindow.document.write(`
-                          <!DOCTYPE html>
-                          <html>
-                            <head>
-                              <title>${attachment.name}</title>
-                              <style>
-                                body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
-                                img { max-width: 100%; max-height: 100vh; object-fit: contain; }
-                              </style>
-                            </head>
-                            <body>
-                              <img src="${validDataUrl}" alt="${attachment.name}" />
-                            </body>
-                          </html>
-                        `)
-                        newWindow.document.close()
-                      }
+                      openAttachmentPreview(attachment.name, validDataUrl)
                     }
 
                     return (
@@ -170,14 +152,14 @@ export const ClientChatMessage = memo(
                           if (!isInteractive) return
                           e.preventDefault()
                           e.stopPropagation()
-                          openAttachmentPreview()
+                          handleOpenPreview()
                         }}
                         onKeyDown={(e) => {
                           if (!isInteractive) return
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
                             e.stopPropagation()
-                            openAttachmentPreview()
+                            handleOpenPreview()
                           }
                         }}
                       >

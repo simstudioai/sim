@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { GooDefs } from '@/app/(landing)/components/mothership/components/iso-marks/goo-defs'
 import {
   type Edge,

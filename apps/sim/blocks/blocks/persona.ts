@@ -565,6 +565,7 @@ export const PersonaBlock: BlockConfig<PersonaResponse> = {
 
 export const PersonaBlockMeta = {
   tags: ['identity'],
+  url: 'https://withpersona.com',
   templates: [
     {
       icon: PersonaIcon,

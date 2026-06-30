@@ -1017,6 +1017,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
 
 export const WordPressBlockMeta = {
   tags: ['content-management', 'seo'],
+  url: 'https://wordpress.org',
   templates: [
     {
       icon: WordpressIcon,

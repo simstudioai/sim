@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { highlight, languages } from '@sim/emcn'
 import { useParams } from 'next/navigation'
-import { highlight, languages } from '@/components/emcn'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,

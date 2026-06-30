@@ -1,18 +1,18 @@
+import { isRecordLike } from '@sim/utils/object'
 import { MEMORY_OUTPUT_PROPERTIES, type Mem0GetMemoriesParams } from '@/tools/mem0/types'
-import { isRecord } from '@/tools/mem0/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const getMemoriesFromResponse = (data: unknown): unknown[] => {
   if (Array.isArray(data)) return data
-  if (!isRecord(data)) return []
+  if (!isRecordLike(data)) return []
   if (Array.isArray(data.results)) return data.results
-  if (isRecord(data.memory)) return [data.memory]
+  if (isRecordLike(data.memory)) return [data.memory]
   if (data.id) return [data]
   return []
 }
 
 const getMemoryId = (memory: unknown): string | undefined =>
-  isRecord(memory) && typeof memory.id === 'string' ? memory.id : undefined
+  isRecordLike(memory) && typeof memory.id === 'string' ? memory.id : undefined
 
 /**
  * Get Memories Tool
@@ -122,11 +122,11 @@ export const mem0GetMemoriesTool: ToolConfig<Mem0GetMemoriesParams> = {
       output: {
         memories,
         ids,
-        ...(isRecord(data) && typeof data.count === 'number' ? { count: data.count } : {}),
-        ...(isRecord(data) && (typeof data.next === 'string' || data.next === null)
+        ...(isRecordLike(data) && typeof data.count === 'number' ? { count: data.count } : {}),
+        ...(isRecordLike(data) && (typeof data.next === 'string' || data.next === null)
           ? { next: data.next }
           : {}),
-        ...(isRecord(data) && (typeof data.previous === 'string' || data.previous === null)
+        ...(isRecordLike(data) && (typeof data.previous === 'string' || data.previous === null)
           ? { previous: data.previous }
           : {}),
       },

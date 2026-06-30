@@ -83,6 +83,17 @@ function normalizeOtlpMetricsUrl(url: string): string {
   }
 }
 
+// deployment.environment in the GO value space (dev | staging | prod) without
+// any new infra env var. Every deployed Sim tier already gets
+// APPCONFIG_ENVIRONMENT = the infra env name (dev | staging | production), so we
+// reuse it and map production -> prod to match Go's `OTEL_DEPLOYMENT_ENVIRONMENT`
+// (and thus a single Grafana $env filter spans Sim + Go). Returns undefined when
+// unset (local dev) so the OTEL_/NODE_ENV fallbacks still apply.
+function deploymentEnvFromAppConfig(v: string | undefined): string | undefined {
+  if (!v) return undefined
+  return v === 'production' ? 'prod' : v
+}
+
 // Sampling ratio from env (mirrors Go's `samplerFromEnv`); fallback
 // is 100% everywhere. Retention caps cost, not sampling.
 function resolveSamplingRatio(_isLocalEndpoint: boolean): number {
@@ -270,11 +281,15 @@ async function initializeOpenTelemetry() {
       resourceFromAttributes({
         [ATTR_SERVICE_NAME]: telemetryConfig.serviceName,
         [ATTR_SERVICE_VERSION]: telemetryConfig.serviceVersion,
-        // OTEL_ → DEPLOYMENT_ENVIRONMENT → NODE_ENV; matches Go's
-        // `resourceEnvFromEnv()` so both halves tag the same value.
+        // OTEL_ → DEPLOYMENT_ENVIRONMENT → APPCONFIG_ENVIRONMENT (mapped to the
+        // Go value space) → NODE_ENV. Matches Go's `resourceEnvFromEnv()` so a
+        // single $env spans Sim + Go. APPCONFIG_ENVIRONMENT (already set on every
+        // deployed tier) is the fix that stops deployed Sim tagging everything
+        // "production" via the NODE_ENV fallback — no new infra env var needed.
         [ATTR_DEPLOYMENT_ENVIRONMENT]:
           process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
           process.env.DEPLOYMENT_ENVIRONMENT ||
+          deploymentEnvFromAppConfig(process.env.APPCONFIG_ENVIRONMENT) ||
           env.NODE_ENV ||
           'development',
         'service.namespace': 'mothership',

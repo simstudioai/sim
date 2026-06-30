@@ -11,7 +11,7 @@ import {
 import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
-import { isBillingEnabled, isOrganizationsEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getBrowserOrigin } from '@/lib/core/utils/urls'
 import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/session-provider'
 

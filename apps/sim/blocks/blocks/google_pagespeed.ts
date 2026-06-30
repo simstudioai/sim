@@ -128,6 +128,7 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
 
 export const GooglePagespeedBlockMeta = {
   tags: ['google-workspace', 'seo', 'monitoring'],
+  url: 'https://pagespeed.web.dev',
   templates: [
     {
       icon: GooglePagespeedIcon,
@@ -187,6 +188,16 @@ export const GooglePagespeedBlockMeta = {
       category: 'engineering',
       tags: ['devops', 'seo', 'monitoring'],
       alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GooglePagespeedIcon,
+      title: 'PageSpeed competitor benchmark',
+      prompt:
+        'Build a workflow that runs Google PageSpeed Insights against my homepage and a list of competitor URLs on mobile, compares the performance scores and Core Web Vitals side by side, and writes the ranked benchmark to a sheet.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+      alsoIntegrations: ['google_sheets'],
     },
   ],
   skills: [

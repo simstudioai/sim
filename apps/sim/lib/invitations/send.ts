@@ -9,17 +9,20 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import {
   getEmailSubject,
   renderBatchInvitationEmail,
   renderInvitationEmail,
+  renderWorkspaceAddedEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { computeInvitationExpiry, normalizeEmail } from '@/lib/invitations/core'
+import { computeInvitationExpiry } from '@/lib/invitations/core'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('InvitationSend')
 
@@ -204,10 +207,11 @@ export async function sendInvitationEmail(
       inviteUrl
     )
 
+    const brandName = getBrandConfig().name
     const subject =
       workspaceNames.length === 1
-        ? `You've been invited to join "${workspaceNames[0]}" on Sim`
-        : `You've been invited to join ${workspaceNames.length} workspaces on Sim`
+        ? `You've been invited to join "${workspaceNames[0]}" on ${brandName}`
+        : `You've been invited to join ${workspaceNames.length} workspaces on ${brandName}`
 
     const result = await sendEmail({
       to: input.email,
@@ -272,6 +276,41 @@ export async function sendInvitationEmail(
     to: input.email,
     subject: getEmailSubject('invitation'),
     html: emailHtml,
+    emailType: 'transactional',
+  })
+  if (!result.success) {
+    return { success: false, error: result.message }
+  }
+  return { success: true }
+}
+
+export interface SendWorkspaceAddedEmailInput {
+  email: string
+  inviterName: string
+  workspaceId: string
+  workspaceName: string
+}
+
+/**
+ * Lightweight notification sent when an existing organization member is added
+ * directly to a workspace. Unlike an invitation email, this links straight to
+ * the workspace and has no acceptance step.
+ */
+export async function sendWorkspaceAddedEmail(
+  input: SendWorkspaceAddedEmailInput
+): Promise<SendInvitationEmailResult> {
+  const workspaceLink = `${getBaseUrl()}/workspace/${input.workspaceId}/home`
+  const emailHtml = await renderWorkspaceAddedEmail(
+    input.inviterName,
+    input.workspaceName,
+    workspaceLink
+  )
+
+  const result = await sendEmail({
+    to: input.email,
+    subject: getEmailSubject('workspace-added'),
+    html: emailHtml,
+    from: getFromEmailAddress(),
     emailType: 'transactional',
   })
   if (!result.success) {

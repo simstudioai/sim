@@ -39,9 +39,22 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Maximum number of responses to return (service may return fewer). Defaults to 5000.',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Page token from a previous list response to fetch the next page of responses',
+    },
+    filter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Filter responses, e.g. "timestamp > 2024-01-01T00:00:00Z" (RFC3339 UTC). Only timestamp filters are supported.',
     },
   },
 
@@ -52,6 +65,8 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
         : buildListResponsesUrl({
             formId: params.formId,
             pageSize: params.pageSize ? Number(params.pageSize) : undefined,
+            pageToken: params.pageToken,
+            filter: params.filter,
           }),
     method: 'GET',
     headers: (params: GoogleFormsGetResponsesParams) => ({
@@ -147,6 +162,7 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
       const normalized = sorted.map((r) => normalizeResponse(r))
       const output: Record<string, unknown> = {
         responses: normalized,
+        nextPageToken: listData.nextPageToken ?? null,
         raw: listData,
       }
       return {
@@ -187,6 +203,11 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
           },
         },
       },
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token to fetch the next page of responses (null when no more pages)',
+      optional: true,
     },
     response: {
       type: 'object',

@@ -1,0 +1,5 @@
+export { zendeskTicketCommentAddedTrigger } from './ticket_comment_added'
+export { zendeskTicketCreatedTrigger } from './ticket_created'
+export { zendeskTicketPriorityChangedTrigger } from './ticket_priority_changed'
+export { zendeskTicketStatusChangedTrigger } from './ticket_status_changed'
+export { zendeskWebhookTrigger } from './webhook'

@@ -671,6 +671,7 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
 
 export const ZoomBlockMeta = {
   tags: ['meeting', 'calendar', 'scheduling'],
+  url: 'https://www.zoom.com',
   templates: [
     {
       icon: ZoomIcon,

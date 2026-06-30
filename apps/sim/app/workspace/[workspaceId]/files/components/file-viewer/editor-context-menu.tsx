@@ -1,6 +1,5 @@
 'use client'
 
-import { Scissors } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,8 +7,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Clipboard, Duplicate, Search, SelectAll } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Clipboard, Duplicate, Search, SelectAll } from '@sim/emcn/icons'
+import { Scissors } from 'lucide-react'
 
 interface EditorContextMenuProps {
   isOpen: boolean

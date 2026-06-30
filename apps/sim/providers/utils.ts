@@ -5,7 +5,7 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
-import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/feature-flags'
+import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/env-flags'
 import {
   normalizeRecord,
   normalizeStringRecord,
@@ -151,6 +151,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   xai: buildProviderMetadata('xai'),
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
+  sakana: buildProviderMetadata('sakana'),
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),

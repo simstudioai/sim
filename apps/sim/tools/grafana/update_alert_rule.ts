@@ -1,9 +1,4 @@
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
 import { ALERT_RULE_OUTPUT_FIELDS, type GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
-import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolResponse> = {
@@ -136,163 +131,40 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
   },
 
   request: {
-    url: (params) =>
-      `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
-    method: 'GET',
-    headers: (params) => {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-      if (params.organizationId) {
-        headers['X-Grafana-Org-Id'] = params.organizationId
-      }
-      return headers
-    },
+    url: () => '/api/tools/grafana/update_alert_rule',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      apiKey: params.apiKey,
+      baseUrl: params.baseUrl,
+      organizationId: params.organizationId,
+      alertRuleUid: params.alertRuleUid,
+      title: params.title,
+      folderUid: params.folderUid,
+      ruleGroup: params.ruleGroup,
+      condition: params.condition,
+      data: params.data,
+      forDuration: params.forDuration,
+      noDataState: params.noDataState,
+      execErrState: params.execErrState,
+      annotations: params.annotations,
+      labels: params.labels,
+      isPaused: params.isPaused,
+      keepFiringFor: params.keepFiringFor,
+      missingSeriesEvalsToResolve: params.missingSeriesEvalsToResolve,
+      notificationSettings: params.notificationSettings,
+      record: params.record,
+      disableProvenance: params.disableProvenance,
+    }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
     return {
-      success: true,
-      output: {
-        _existingRule: data,
-      },
+      success: data.success ?? true,
+      output: data.output ?? {},
+      ...(data.error ? { error: data.error } : {}),
     }
-  },
-
-  postProcess: async (result, params) => {
-    const existingRule = result.output._existingRule
-
-    if (!existingRule || !existingRule.uid) {
-      return {
-        success: false,
-        output: {},
-        error: 'Failed to fetch existing alert rule',
-      }
-    }
-
-    const updatedRule: Record<string, unknown> = {
-      ...existingRule,
-    }
-
-    if (params.title) updatedRule.title = params.title
-    if (params.folderUid) updatedRule.folderUID = params.folderUid
-    if (params.ruleGroup) updatedRule.ruleGroup = params.ruleGroup
-    if (params.condition) updatedRule.condition = params.condition
-    if (params.forDuration) updatedRule.for = params.forDuration
-    if (params.noDataState) updatedRule.noDataState = params.noDataState
-    if (params.execErrState) updatedRule.execErrState = params.execErrState
-    if (params.isPaused !== undefined) updatedRule.isPaused = params.isPaused
-    if (params.keepFiringFor) updatedRule.keep_firing_for = params.keepFiringFor
-    if (params.missingSeriesEvalsToResolve !== undefined) {
-      updatedRule.missingSeriesEvalsToResolve = params.missingSeriesEvalsToResolve
-    }
-
-    if (params.notificationSettings) {
-      try {
-        updatedRule.notification_settings = JSON.parse(params.notificationSettings)
-      } catch {
-        return {
-          success: false,
-          output: {},
-          error: 'Invalid JSON for notificationSettings parameter',
-        }
-      }
-    }
-
-    if (params.record) {
-      try {
-        updatedRule.record = JSON.parse(params.record)
-      } catch {
-        return {
-          success: false,
-          output: {},
-          error: 'Invalid JSON for record parameter',
-        }
-      }
-    }
-
-    if (params.data) {
-      try {
-        updatedRule.data = JSON.parse(params.data)
-      } catch {
-        return {
-          success: false,
-          output: {},
-          error: 'Invalid JSON for data parameter',
-        }
-      }
-    }
-
-    if (params.annotations) {
-      try {
-        updatedRule.annotations = {
-          ...(existingRule.annotations || {}),
-          ...JSON.parse(params.annotations),
-        }
-      } catch {
-        return {
-          success: false,
-          output: {},
-          error: 'Invalid JSON for annotations parameter',
-        }
-      }
-    }
-
-    if (params.labels) {
-      try {
-        updatedRule.labels = {
-          ...(existingRule.labels || {}),
-          ...JSON.parse(params.labels),
-        }
-      } catch {
-        return {
-          success: false,
-          output: {},
-          error: 'Invalid JSON for labels parameter',
-        }
-      }
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
-    }
-    if (params.organizationId) {
-      headers['X-Grafana-Org-Id'] = params.organizationId
-    }
-    if (params.disableProvenance) {
-      headers['X-Disable-Provenance'] = 'true'
-    }
-
-    const updateUrl = `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`
-    const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
-    if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-      return {
-        success: false,
-        output: {},
-        error: `Invalid Grafana baseUrl: ${urlValidation.error}`,
-      }
-    }
-
-    const updateResponse = await secureFetchWithPinnedIP(updateUrl, urlValidation.resolvedIP, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(updatedRule),
-    })
-
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
-      return {
-        success: false,
-        output: {},
-        error: `Failed to update alert rule: ${errorText}`,
-      }
-    }
-
-    const data = (await updateResponse.json()) as Record<string, unknown>
-    return { success: true, output: mapAlertRule(data) }
   },
 
   outputs: ALERT_RULE_OUTPUT_FIELDS,

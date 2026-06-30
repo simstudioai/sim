@@ -1,32 +1,47 @@
 import { truncate } from '@sim/utils/string'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Serialize workflow metadata for VFS meta.json
+ * Serialize workflow metadata for VFS meta.json.
+ *
+ * `locked` is the EFFECTIVE lock — true when the workflow is locked directly or
+ * sits inside a locked folder. A locked workflow cannot be edited, moved,
+ * renamed, or deleted (mutations are rejected server-side with a 423). The
+ * mothership should read this before attempting any workflow mutation.
+ * `inheritedFolderLock` carries the resolved containing-folder lock (the
+ * caller computes folder inheritance; see workspace-vfs materializeWorkflows).
  */
-export function serializeWorkflowMeta(wf: {
-  id: string
-  name: string
-  description?: string | null
-  folderId?: string | null
-  isDeployed: boolean
-  deployedAt?: Date | null
-  runCount: number
-  lastRunAt?: Date | null
-  createdAt: Date
-  updatedAt: Date
-}): string {
+export function serializeWorkflowMeta(
+  wf: {
+    id: string
+    name: string
+    description?: string | null
+    folderId?: string | null
+    isDeployed: boolean
+    deployedAt?: Date | null
+    runCount: number
+    lastRunAt?: Date | null
+    createdAt: Date
+    updatedAt: Date
+    locked?: boolean
+  },
+  options?: { inheritedFolderLock?: boolean }
+): string {
+  const directLock = wf.locked ?? false
+  const locked = directLock || (options?.inheritedFolderLock ?? false)
   return JSON.stringify(
     {
       id: wf.id,
       name: wf.name,
       description: wf.description || undefined,
       folderId: wf.folderId || undefined,
+      locked,
+      lockedBy: locked ? (directLock ? 'workflow' : 'folder') : undefined,
       isDeployed: wf.isDeployed,
       deployedAt: wf.deployedAt?.toISOString(),
       runCount: wf.runCount,
@@ -542,14 +557,6 @@ export interface DeploymentData {
     toolName: string
     toolDescription?: string | null
   }>
-  a2a?: {
-    id: string
-    name: string
-    description?: string | null
-    version: string
-    isPublished: boolean
-    capabilities: unknown
-  } | null
   versions?: Array<{
     id: string
     version: number
@@ -601,18 +608,6 @@ export function serializeDeployments(data: DeploymentData): string {
       toolName: m.toolName,
       toolDescription: m.toolDescription || undefined,
     }))
-  }
-
-  if (data.a2a) {
-    result.a2a = {
-      id: data.a2a.id,
-      name: data.a2a.name,
-      description: data.a2a.description || undefined,
-      version: data.a2a.version,
-      isPublished: data.a2a.isPublished,
-      capabilities: data.a2a.capabilities,
-      agentUrl: `/api/a2a/serve/${data.a2a.id}`,
-    }
   }
 
   return JSON.stringify(result, null, 2)

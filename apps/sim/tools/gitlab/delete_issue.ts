@@ -1,4 +1,5 @@
 import type { GitLabDeleteIssueParams, GitLabDeleteIssueResponse } from '@/tools/gitlab/types'
+import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDeleteIssueResponse> =
@@ -14,6 +15,12 @@ export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDe
         required: true,
         visibility: 'user-only',
         description: 'GitLab Personal Access Token',
+      },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
       },
       projectId: {
         type: 'string',
@@ -31,8 +38,8 @@ export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDe
 
     request: {
       url: (params) => {
-        const encodedId = encodeURIComponent(String(params.projectId))
-        return `https://gitlab.com/api/v4/projects/${encodedId}/issues/${params.issueIid}`
+        const encodedId = encodeURIComponent(String(params.projectId).trim())
+        return `${getGitLabApiBase(params.host)}/projects/${encodedId}/issues/${params.issueIid}`
       },
       method: 'DELETE',
       headers: (params) => ({

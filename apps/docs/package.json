@@ -15,9 +15,13 @@
     "format:check": "biome format ."
   },
   "dependencies": {
+    "@ai-sdk/openai": "2.0.107",
+    "@ai-sdk/react": "2.0.205",
     "@sim/db": "workspace:*",
-    "@tabler/icons-react": "^3.31.0",
+    "@sim/emcn": "workspace:*",
+    "@sim/workflow-renderer": "workspace:*",
     "@vercel/og": "^0.6.5",
+    "ai": "5.0.203",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
@@ -31,10 +35,13 @@
     "postgres": "^3.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "remark-breaks": "^4.0.0",
     "shiki": "4.0.0",
+    "streamdown": "2.5.0",
     "tailwind-merge": "^3.0.2",
     "reactflow": "^11.11.4",
-    "framer-motion": "^12.5.0"
+    "framer-motion": "^12.5.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
@@ -43,7 +50,6 @@
     "@types/node": "^22.14.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.0.4",
-    "dotenv-cli": "^8.0.0",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.0.12",
     "typescript": "^5.8.2"

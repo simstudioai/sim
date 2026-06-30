@@ -3,13 +3,15 @@
 import { type ComponentPropsWithoutRef, memo, useEffect, useMemo, useRef } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
+// prismjs core must load before its language components — they register on the
+// global `Prism` it installs (on `window`/`global`); fixes SSR + client order.
+import 'prismjs'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
-import '@/components/emcn/components/code/code.css'
-import { Checkbox, CopyCodeButton, highlight, languages } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import '@sim/emcn/components/code/code.css'
+import { Checkbox, CopyCodeButton, cn, highlight, languages } from '@sim/emcn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   type ContentSegment,
@@ -279,6 +281,7 @@ interface ChatContentProps {
   isStreaming?: boolean
   onOptionSelect?: (id: string) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onRevealStateChange?: (isRevealing: boolean) => void
 }
 
 function ChatContentInner({
@@ -286,14 +289,33 @@ function ChatContentInner({
   isStreaming = false,
   onOptionSelect,
   onWorkspaceResourceSelect,
+  onRevealStateChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
+
+  const onRevealStateChangeRef = useRef(onRevealStateChange)
+  onRevealStateChangeRef.current = onRevealStateChange
 
   const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
   const streamedContent = useSmoothText(displayContent, isStreaming)
   const isRevealing = isStreaming || streamedContent.length < displayContent.length
 
+  useEffect(() => {
+    onRevealStateChangeRef.current?.(isRevealing)
+  }, [isRevealing])
+
+  /**
+   * One-way latch: once a message has streamed in this mount, keep rendering it
+   * through Streamdown's streaming/animation pipeline for the rest of its life.
+   * Drives `mode`, `animated`, AND `isAnimating` together — all three must stay
+   * constant across the completion boundary. Streamdown removes the per-word
+   * `<span>` wrappers (and re-parses the whole message) the instant `isAnimating`
+   * goes false, so wiring `isAnimating` to `isRevealing` (which flips at
+   * completion) reintroduces the streaming→static flash this latch exists to
+   * prevent. Content is stable once revealed, so a permanently-true
+   * `isAnimating` never re-fades anything.
+   */
   const streamedThisSession = useRef(false)
   if (isStreaming) streamedThisSession.current = true
   const keepStreamingTree = isRevealing || streamedThisSession.current
@@ -372,7 +394,7 @@ function ChatContentInner({
                 <Streamdown
                   mode={keepStreamingTree ? undefined : 'static'}
                   animated={keepStreamingTree ? STREAM_ANIMATION : false}
-                  isAnimating={isRevealing}
+                  isAnimating={keepStreamingTree}
                   components={MARKDOWN_COMPONENTS}
                 >
                   {group.markdown}
@@ -398,7 +420,7 @@ function ChatContentInner({
       <Streamdown
         mode={keepStreamingTree ? undefined : 'static'}
         animated={keepStreamingTree ? STREAM_ANIMATION : false}
-        isAnimating={isRevealing}
+        isAnimating={keepStreamingTree}
         components={MARKDOWN_COMPONENTS}
       >
         {streamedContent}

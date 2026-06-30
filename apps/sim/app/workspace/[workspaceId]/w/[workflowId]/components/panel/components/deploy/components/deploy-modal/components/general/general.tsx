@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
   ChipConfirmModal,
+  cn,
   Expand,
   Label,
   Modal,
@@ -16,8 +16,8 @@ import {
   ModalHeader,
   Skeleton,
   Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
@@ -25,6 +25,7 @@ import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/w
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
+import { formatVersionLabel } from './format-version-label'
 
 const logger = createLogger('GeneralDeploy')
 
@@ -198,7 +199,7 @@ export function GeneralDeploy({
           <div className='relative mb-[6.5px]'>
             <Label className='block truncate pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {previewMode === 'selected' && selectedVersionInfo
-                ? selectedVersionInfo.name || `v${selectedVersion}`
+                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
                 : 'Live Workflow'}
             </Label>
             <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
@@ -210,7 +211,9 @@ export function GeneralDeploy({
               >
                 <ButtonGroupItem value='active'>Live</ButtonGroupItem>
                 <ButtonGroupItem value='selected' className='truncate'>
-                  {selectedVersionInfo?.name || `v${selectedVersion}`}
+                  {selectedVersionInfo
+                    ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
+                    : `v${selectedVersion}`}
                 </ButtonGroupItem>
               </ButtonGroup>
             </div>
@@ -279,18 +282,20 @@ export function GeneralDeploy({
         onOpenChange={setShowLoadDialog}
         srTitle='Load Deployment'
         title='Load Deployment'
-        description={
-          <>
-            Are you sure you want to load{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {versionToLoadInfo?.name || `v${versionToLoad?.version}`}
-            </span>
-            ?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will replace your current workflow with the deployed version.
-            </span>
-          </>
-        }
+        text={[
+          'Are you sure you want to load ',
+          {
+            text: versionToLoadInfo
+              ? formatVersionLabel(versionToLoadInfo.version, versionToLoadInfo.name)
+              : `v${versionToLoad?.version}`,
+            bold: true,
+          },
+          '? ',
+          {
+            text: 'This will replace your current workflow with the deployed version.',
+            error: true,
+          },
+        ]}
         confirm={{
           label: 'Load deployment',
           onClick: confirmLoadDeployment,
@@ -303,18 +308,16 @@ export function GeneralDeploy({
         onOpenChange={setShowPromoteDialog}
         srTitle='Promote to live'
         title='Promote to live'
-        description={
-          <>
-            Are you sure you want to promote{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {versionToPromoteInfo?.name || `v${versionToPromote?.version}`}
-            </span>{' '}
-            to live?{' '}
-            <span className='text-[var(--text-primary)]'>
-              This version will become the active deployment and serve all API requests.
-            </span>
-          </>
-        }
+        text={[
+          'Are you sure you want to promote ',
+          {
+            text: versionToPromoteInfo
+              ? formatVersionLabel(versionToPromoteInfo.version, versionToPromoteInfo.name)
+              : `v${versionToPromote?.version}`,
+            bold: true,
+          },
+          ' to live? This version will become the active deployment and serve all API requests.',
+        ]}
         confirm={{
           label: 'Promote to live',
           onClick: confirmPromoteToLive,
@@ -328,7 +331,7 @@ export function GeneralDeploy({
           <ModalContent size='full' className='flex h-[90vh] flex-col'>
             <ModalHeader>
               {previewMode === 'selected' && selectedVersionInfo
-                ? selectedVersionInfo.name || `v${selectedVersion}`
+                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
                 : 'Live Workflow'}
             </ModalHeader>
             <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>

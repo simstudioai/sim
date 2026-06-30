@@ -3,7 +3,7 @@ import type {
   SalesforceCreateLeadResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceCreateLeadTool: ToolConfig<
@@ -98,13 +98,14 @@ export const salesforceCreateLeadTool: ToolConfig<
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok) throw new Error(data[0]?.message || data.message || 'Failed to create lead')
+    if (!response.ok)
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to create lead'))
     return {
       success: true,
       output: {
         id: data.id,
-        success: data.success,
-        created: true,
+        success: data.success === true,
+        created: data.success === true,
       },
     }
   },

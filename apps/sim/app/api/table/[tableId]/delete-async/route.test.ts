@@ -28,17 +28,20 @@ vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('job-id-xyz'),
   generateShortId: vi.fn().mockReturnValue('short-id'),
 }))
-vi.mock('@/lib/table/service', () => ({
+vi.mock('@/lib/table/jobs/service', () => ({
   markTableJobRunning: mockMarkTableJobRunning,
   releaseJobClaim: mockReleaseJobClaim,
 }))
 vi.mock('@/lib/table/delete-runner', () => ({ runTableDelete: mockRunTableDelete }))
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isTriggerDevEnabled() {
     return flags.triggerDev
   },
 }))
 vi.mock('@/background/table-delete', () => ({ tableDeleteTask: { id: 'table-delete' } }))
+vi.mock('@/lib/core/async-jobs/region', () => ({
+  resolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
+}))
 vi.mock('@trigger.dev/sdk', () => ({
   tasks: { trigger: mockTasksTrigger },
   task: (config: unknown) => config,
@@ -196,7 +199,7 @@ describe('POST /api/table/[tableId]/delete-async', () => {
         excludeRowIds: ['row_keep'],
         cutoff: expect.any(String),
       }),
-      { tags: ['tableId:tbl_1', 'jobId:job-id-xyz'] }
+      { tags: ['tableId:tbl_1', 'jobId:job-id-xyz'], region: 'us-east-1' }
     )
   })
 

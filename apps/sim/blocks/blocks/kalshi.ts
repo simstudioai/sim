@@ -940,6 +940,7 @@ export const KalshiV2Block: BlockConfig = {
 
 export const KalshiBlockMeta = {
   tags: ['prediction-markets', 'data-analytics'],
+  url: 'https://kalshi.com',
   templates: [
     {
       icon: KalshiIcon,
@@ -1036,4 +1037,5 @@ export const KalshiBlockMeta = {
 
 export const KalshiV2BlockMeta = {
   tags: ['prediction-markets', 'data-analytics'],
+  url: 'https://kalshi.com',
 } as const satisfies BlockMeta

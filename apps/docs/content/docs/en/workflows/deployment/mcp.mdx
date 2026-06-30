@@ -82,8 +82,8 @@ Once your workflow is deployed, you can expose it as an MCP tool:
   />
 </div>
 
-3. Configure the tool name and description
-4. Add descriptions for each parameter (helps AI understand inputs)
+3. Configure the tool name and description (the description defaults to the workflow's description)
+4. Review the parameter descriptions (prefilled from your Start block inputs) and override any per tool
 5. Select which MCP servers to add it to
 6. Click **Save Tool**
 
@@ -97,10 +97,14 @@ The workflow must be deployed before it can be added as an MCP tool.
 Use lowercase letters, numbers, and underscores. The name should be descriptive and follow MCP naming conventions (e.g., `search_documents`, `send_email`).
 
 ### Description
-Write a clear description of what the tool does. This helps AI assistants understand when to use the tool.
+Write a clear description of what the tool does. This helps AI assistants understand when to use the tool. If you leave it blank, the tool falls back to the workflow's description.
 
 ### Parameters
-Your workflow's input format fields become tool parameters. Add descriptions to each parameter to help AI assistants provide correct values.
+Your workflow's input format fields become tool parameters. Each parameter's description defaults to the description set on that input in the Start block; edit it here to override it for this tool (the Start block stays the default source). Descriptions help AI assistants provide correct values.
+
+<Callout type="info">
+Parameter descriptions live on your Start block inputs. A deployed tool picks up Start block changes the next time you redeploy the workflow; use a per-tool override only when a tool needs a different description than the default.
+</Callout>
 
 ## Connecting MCP Clients
 
@@ -220,7 +224,7 @@ Workflows execute using the same deployment version as API calls, ensuring consi
   { question: "How do I authenticate MCP client connections?", answer: "Include your API key in the X-API-Key header when connecting via mcp-remote or other HTTP-based MCP transports. The server validates authentication using hybrid auth that supports both session-based and API key-based access." },
   { question: "Can I add the same workflow to multiple MCP servers?", answer: "Yes. When configuring a workflow as an MCP tool, you can select multiple MCP servers to add it to. Each server exposes its own URL, so you can organize tools into different servers for different use cases or clients." },
   { question: "What naming conventions should I follow for tool names?", answer: "Use lowercase letters, numbers, and underscores only. The name should be descriptive and follow MCP naming conventions, such as search_documents or send_email. This helps AI assistants understand and correctly invoke your tools." },
-  { question: "How are workflow inputs mapped to MCP tool parameters?", answer: "Your workflow's input format fields automatically become MCP tool parameters. You can add descriptions to each parameter in the MCP configuration to help AI assistants understand what values to provide." },
+  { question: "How are workflow inputs mapped to MCP tool parameters?", answer: "Your workflow's input format fields automatically become MCP tool parameters. Each parameter's description defaults to the description set on that input in the Start block, and you can override it per tool in the MCP configuration to help AI assistants understand what values to provide." },
 ]} />
 
 

@@ -175,7 +175,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         // orphan under a phantom parent. (Regression landed 2026-04-21.)
         let cancelReason: CopilotRequestCancelReasonValue | undefined
         try {
-          const requestSpan = collector.startSpan('Mothership Request', 'request', {
+          const requestSpan = collector.startSpan('Sim Agent Request', 'request', {
             streamId,
             chatId,
             runId,

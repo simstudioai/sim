@@ -1,25 +1,23 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-// import { useParams } from 'next/navigation'
-import { createLogger } from '@sim/logger'
-import { formatDate } from '@sim/utils/formatting'
-import { Plus } from 'lucide-react'
 import {
   Chip,
   ChipConfirmModal,
-  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Search,
   SecretReveal,
-  // Switch,
-} from '@/components/emcn'
-// import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { formatDate } from '@sim/utils/formatting'
+import { Plus } from 'lucide-react'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -33,28 +31,10 @@ const logger = createLogger('CopilotSettings')
  * Copilot Keys management component for handling API keys used with the Copilot feature.
  * Provides functionality to create, view, and delete copilot API keys.
  */
-// function McpServerSkeleton() {
-//   return (
-//     <div className='flex items-center justify-between gap-3'>
-//       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-//         <Skeleton className='h-5 w-[120px]' />
-//         <Skeleton className='h-5 w-[80px]' />
-//       </div>
-//       <Skeleton className='h-5 w-[36px] rounded-full' />
-//     </div>
-//   )
-// }
-
 export function Copilot() {
-  // const params = useParams()
-  // const workspaceId = params.workspaceId as string
-
   const { data: keys = [], isLoading } = useCopilotKeys()
   const generateKey = useGenerateCopilotKey()
   const deleteKeyMutation = useDeleteCopilotKey()
-
-  // const { data: mcpServers = [], isLoading: mcpLoading } = useMcpServers(workspaceId)
-  // const updateServer = useUpdateMcpServer()
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newKeyName, setNewKeyName] = useState('')
@@ -64,20 +44,6 @@ export function Copilot() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
-
-  // const enabledServers = mcpServers.filter((s) => s.enabled)
-
-  // const handleToggleCopilot = async (serverId: string, enabled: boolean) => {
-  //   try {
-  //     await updateServer.mutateAsync({
-  //       workspaceId,
-  //       serverId,
-  //       updates: { copilotEnabled: enabled },
-  //     })
-  //   } catch (error) {
-  //     logger.error('Failed to toggle MCP server for Mothership', { error })
-  //   }
-  // }
 
   const filteredKeys = useMemo(() => {
     if (!searchTerm.trim()) return keys
@@ -95,7 +61,7 @@ export function Copilot() {
     const isDuplicate = keys.some((k) => k.name === trimmedName)
     if (isDuplicate) {
       setCreateError(
-        `A Copilot API key named "${trimmedName}" already exists. Please choose a different name.`
+        `A Chat API key named "${trimmedName}" already exists. Please choose a different name.`
       )
       return
     }
@@ -138,118 +104,66 @@ export function Copilot() {
   const showEmptyState = !hasKeys
   const showNoResults = searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0
 
+  const actions: SettingsAction[] = [
+    {
+      text: 'Create API key',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => {
+        setIsCreateDialogOpen(true)
+        setCreateError(null)
+      },
+      disabled: isLoading,
+    },
+  ]
+
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        {/* Fixed header bar */}
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
-            <Chip
-              leftIcon={Plus}
-              variant='primary'
-              onClick={() => {
-                setIsCreateDialogOpen(true)
-                setCreateError(null)
-              }}
-              disabled={isLoading}
-            >
-              Create API Key
-            </Chip>
-          </div>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            {/* MCP Tools Section — uncomment when ready to allow users to toggle MCP servers for Mothership
-            <div className='flex flex-col gap-2'>
-              <div className='font-medium text-sm text-[var(--text-secondary)]'>
-                MCP Tools
-              </div>
-              {mcpLoading ? (
-                <div className='flex flex-col gap-2'>
-                  <McpServerSkeleton />
-                  <McpServerSkeleton />
-                </div>
-              ) : enabledServers.length === 0 ? (
-                <div className='text-sm text-[var(--text-muted)]'>
-                  No MCP servers configured. Add servers in the MCP Tools tab.
-                </div>
-              ) : (
-                <div className='flex flex-col gap-2'>
-                  {enabledServers.map((server) => (
-                    <div key={server.id} className='flex items-center justify-between gap-3'>
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='truncate font-medium text-base'>{server.name}</span>
-                        <p className='truncate text-sm text-[var(--text-muted)]'>
-                          {server.toolCount ?? 0} tool{server.toolCount === 1 ? '' : 's'}
-                        </p>
-                      </div>
-                      <Switch
-                        checked={server.copilotEnabled ?? false}
-                        onCheckedChange={(checked) => handleToggleCopilot(server.id, checked)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            */}
-
-            {/* Search Input */}
-            <ChipInput
-              icon={Search}
-              placeholder='Search API keys...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-
-            {/* Keys List */}
-            {isLoading ? null : showEmptyState ? (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "Create API Key" above to get started
-              </div>
-            ) : (
-              <div className='flex flex-col gap-2'>
-                {filteredKeys.map((key) => (
-                  <div key={key.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                      <div className='flex items-center gap-1.5'>
-                        <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
-                          {key.name || 'Unnamed Key'}
-                        </span>
-                        <span className='text-[var(--text-secondary)] text-sm'>
-                          (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                        </span>
-                      </div>
-                      <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                        {key.displayKey}
-                      </p>
-                    </div>
-                    <Chip
-                      className='flex-shrink-0'
-                      onClick={() => {
-                        setDeleteKey(key)
-                        setShowDeleteDialog(true)
-                      }}
-                    >
-                      Delete
-                    </Chip>
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search API keys...',
+        }}
+        actions={actions}
+      >
+        {isLoading ? null : showEmptyState ? (
+          <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
+        ) : (
+          <div className='flex flex-col gap-2'>
+            {filteredKeys.map((key) => (
+              <div key={key.id} className='flex items-center justify-between gap-3'>
+                <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                  <div className='flex items-center gap-1.5'>
+                    <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                      {key.name || 'Unnamed Key'}
+                    </span>
+                    <span className='text-[var(--text-secondary)] text-sm'>
+                      (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                    </span>
                   </div>
-                ))}
-                {showNoResults && (
-                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                    No API keys found matching "{searchTerm}"
-                  </div>
-                )}
+                  <p className='truncate text-[12px] text-[var(--text-muted)]'>{key.displayKey}</p>
+                </div>
+                <Chip
+                  className='flex-shrink-0'
+                  onClick={() => {
+                    setDeleteKey(key)
+                    setShowDeleteDialog(true)
+                  }}
+                >
+                  Delete
+                </Chip>
               </div>
+            ))}
+            {showNoResults && (
+              <SettingsEmptyState variant='inline'>
+                No API keys found matching "{searchTerm}"
+              </SettingsEmptyState>
             )}
           </div>
-        </div>
-      </div>
+        )}
+      </SettingsPanel>
 
-      {/* Create API Key Dialog */}
       <ChipModal
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
@@ -260,8 +174,8 @@ export function Copilot() {
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            This key will allow access to Copilot features. Make sure to copy it after creation as
-            you won't be able to see it again.
+            This key will allow access to Chat features. Make sure to copy it after creation as you
+            won't be able to see it again.
           </p>
           <ChipModalField
             type='input'
@@ -290,7 +204,6 @@ export function Copilot() {
         />
       </ChipModal>
 
-      {/* New API Key Dialog */}
       <ChipModal
         open={showNewKeyDialog}
         onOpenChange={(open) => {
@@ -329,7 +242,6 @@ export function Copilot() {
         />
       </ChipModal>
 
-      {/* Delete Confirmation Dialog */}
       <ChipConfirmModal
         open={showDeleteDialog}
         onOpenChange={(open) => {
@@ -340,18 +252,13 @@ export function Copilot() {
         }}
         srTitle='Delete API key'
         title='Delete API key'
-        description={
-          <>
-            Deleting{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {deleteKey?.name || 'Unnamed Key'}
-            </span>{' '}
-            <span className='text-[var(--text-error)]'>
-              will immediately revoke access for any integrations using it.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Deleting ',
+          { text: deleteKey?.name || 'Unnamed Key', bold: true },
+          ' ',
+          { text: 'will immediately revoke access for any integrations using it.', error: true },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDeleteKey,

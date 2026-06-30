@@ -1,17 +1,19 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import {
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+  toast,
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -74,6 +76,10 @@ export function InviteModal({
 
   const validateEmail = useCallback(
     (email: string): string | null => {
+      const formatResult = quickValidateEmail(email)
+      if (!formatResult.isValid) {
+        return formatResult.reason ?? 'Invalid email'
+      }
       if (workspacePermissions?.users?.some((user) => user.email === email)) {
         return `${email} is already a teammate in this workspace`
       }
@@ -100,11 +106,30 @@ export function InviteModal({
       { workspaceId, organizationId, invitations },
       {
         onSuccess: (result) => {
+          const parts: string[] = []
+          if (result.added.length > 0) {
+            parts.push(`${result.added.length} member${result.added.length === 1 ? '' : 's'} added`)
+          }
+          if (result.successful.length > 0) {
+            parts.push(
+              `${result.successful.length} invite${result.successful.length === 1 ? '' : 's'} sent`
+            )
+          }
+          if (parts.length > 0) {
+            toast.success(parts.join(' · '))
+          }
+
           if (result.failed.length > 0) {
+            // Keep the failed addresses in the field with the error for retry.
             setEmails(result.failed.map((f) => f.email))
-            setErrorMessage(result.failed[0].error)
+            setErrorMessage(
+              result.failed.length === 1
+                ? result.failed[0].error
+                : `${result.failed.length} invitations failed. ${result.failed[0].error}`
+            )
             return
           }
+
           setEmails([])
           onOpenChange(false)
         },

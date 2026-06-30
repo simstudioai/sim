@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
-import { requestJson } from '@/lib/api/client/request'
-import { listWebhooksByBlockContract, updateWebhookContract } from '@/lib/api/contracts/webhooks'
+import { useReactivateWebhook, useWebhookQuery } from '@/hooks/queries/webhooks'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -34,13 +33,6 @@ export interface UseWebhookInfoReturn {
  */
 export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookInfoReturn {
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const [webhookStatus, setWebhookStatus] = useState<{
-    isDisabled: boolean
-    webhookId: string | undefined
-  }>({
-    isDisabled: false,
-    webhookId: undefined,
-  })
 
   const isWebhookConfigured = useSubBlockStore(
     useCallback(
@@ -76,62 +68,29 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
     )
   )
 
-  const fetchWebhookStatus = useCallback(async () => {
-    if (!workflowId || !blockId || !isWebhookConfigured) {
-      setWebhookStatus({ isDisabled: false, webhookId: undefined })
-      return
-    }
+  const { data: webhook } = useWebhookQuery(workflowId, blockId, isWebhookConfigured)
+  const isDisabled = isWebhookConfigured && webhook?.isActive === false
+  const webhookId = isWebhookConfigured ? webhook?.id : undefined
 
-    try {
-      const data = await requestJson(listWebhooksByBlockContract, {
-        query: { workflowId, blockId },
-      })
-      const webhooks = data.webhooks
-
-      if (webhooks.length > 0) {
-        const webhook = webhooks[0].webhook
-        const isActive = webhook.isActive !== false
-        setWebhookStatus({
-          isDisabled: !isActive,
-          webhookId: webhook.id,
-        })
-      } else {
-        setWebhookStatus({ isDisabled: false, webhookId: undefined })
-      }
-    } catch (error) {
-      logger.error('Error fetching webhook status:', error)
-      setWebhookStatus({ isDisabled: false, webhookId: undefined })
-    }
-  }, [workflowId, blockId, isWebhookConfigured])
-
-  useEffect(() => {
-    fetchWebhookStatus()
-  }, [fetchWebhookStatus])
-
+  const reactivateMutation = useReactivateWebhook()
   const reactivateWebhook = useCallback(
-    async (webhookId: string) => {
+    async (id: string) => {
       try {
-        await requestJson(updateWebhookContract, {
-          params: { id: webhookId },
-          body: {
-            isActive: true,
-            failedCount: 0,
-          },
-        })
-        await fetchWebhookStatus()
+        await reactivateMutation.mutateAsync({ webhookId: id, workflowId, blockId })
       } catch (error) {
         logger.error('Error reactivating webhook:', error)
       }
     },
-    [fetchWebhookStatus]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workflowId, blockId]
   )
 
   return {
     isWebhookConfigured,
     webhookProvider,
     webhookPath,
-    isDisabled: webhookStatus.isDisabled,
-    webhookId: webhookStatus.webhookId,
+    isDisabled,
+    webhookId,
     reactivateWebhook,
   }
 }

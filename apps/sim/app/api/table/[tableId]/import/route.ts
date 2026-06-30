@@ -25,8 +25,7 @@ import {
   createCsvParser,
   dispatchAfterBatchInsert,
   generateColumnId,
-  importAppendRows,
-  importReplaceRows,
+  getMaxRowsPerTable,
   inferColumnType,
   markTableJobRunning,
   releaseJobClaim,
@@ -34,7 +33,9 @@ import {
   type TableDefinition,
   type TableSchema,
   validateMapping,
+  wouldExceedRowLimit,
 } from '@/lib/table'
+import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import {
   accessError,
   checkAccess,
@@ -265,11 +266,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     claimedImportId = syncImportId
 
     if (mode === 'append') {
-      if (prospectiveTable.rowCount + coerced.length > prospectiveTable.maxRows) {
-        const deficit = prospectiveTable.rowCount + coerced.length - prospectiveTable.maxRows
+      const maxRows = await getMaxRowsPerTable(workspaceId)
+      if (wouldExceedRowLimit(maxRows, prospectiveTable.rowCount, coerced.length)) {
+        const deficit = prospectiveTable.rowCount + coerced.length - maxRows
         return NextResponse.json(
           {
-            error: `Append would exceed table row limit (${prospectiveTable.maxRows}). Currently ${prospectiveTable.rowCount} rows, ${coerced.length} new rows, ${deficit} over.`,
+            error: `Append would exceed table row limit (${maxRows}). Currently ${prospectiveTable.rowCount} rows, ${coerced.length} new rows, ${deficit} over.`,
           },
           { status: 400 }
         )

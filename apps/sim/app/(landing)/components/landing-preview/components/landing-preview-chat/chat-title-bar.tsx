@@ -1,4 +1,4 @@
-import { BubbleChatDelay, ChevronDown, PanelLeft, X } from '@/components/emcn'
+import { BubbleChatDelay, ChevronDown, PanelLeft, X } from '@sim/emcn'
 
 interface LandingPreviewChatTitleBarProps {
   /** Chat name shown in the switcher chip. */

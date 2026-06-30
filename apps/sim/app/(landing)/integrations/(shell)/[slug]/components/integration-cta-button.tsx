@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip } from '@/components/emcn'
+import { Chip } from '@sim/emcn'
 import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 

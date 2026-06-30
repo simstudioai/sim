@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Combobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -155,11 +155,8 @@ export function SkillInput({
                   }}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <div
-                      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
-                      style={{ backgroundColor: '#e0e0e0' }}
-                    >
-                      <AgentSkillsIcon className='size-[10px] text-[var(--border)]' />
+                    <div className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--border-1)]'>
+                      <AgentSkillsIcon className='size-[10px] text-[var(--text-icon)]' />
                     </div>
                     <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                       {formatDisplayText(skillName, { workflowSearchHighlight })}

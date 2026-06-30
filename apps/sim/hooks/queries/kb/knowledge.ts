@@ -1,6 +1,6 @@
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from '@/components/emcn'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -66,8 +66,9 @@ export const knowledgeKeys = {
   lists: () => [...knowledgeKeys.all, 'list'] as const,
   list: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
     [...knowledgeKeys.lists(), workspaceId ?? 'all', scope] as const,
+  details: () => [...knowledgeKeys.all, 'detail'] as const,
   detail: (knowledgeBaseId?: string) =>
-    [...knowledgeKeys.all, 'detail', knowledgeBaseId ?? ''] as const,
+    [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
   tagUsage: (knowledgeBaseId: string) =>
@@ -80,6 +81,8 @@ export const knowledgeKeys = {
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'tagDefinitions'] as const,
   chunks: (knowledgeBaseId: string, documentId: string, paramsKey: string) =>
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'chunks', paramsKey] as const,
+  chunkSearch: (knowledgeBaseId: string, documentId: string, searchKey: string) =>
+    [...knowledgeKeys.document(knowledgeBaseId, documentId), 'search', searchKey] as const,
 }
 
 export async function fetchKnowledgeBases(
@@ -363,11 +366,7 @@ export function useDocumentChunkSearchQuery(
 ) {
   const searchKey = serializeSearchParams(params)
   return useQuery({
-    queryKey: [
-      ...knowledgeKeys.document(params.knowledgeBaseId, params.documentId),
-      'search',
-      searchKey,
-    ],
+    queryKey: knowledgeKeys.chunkSearch(params.knowledgeBaseId, params.documentId, searchKey),
     queryFn: ({ signal }) => fetchAllDocumentChunks(params, signal),
     enabled:
       (options?.enabled ?? true) &&

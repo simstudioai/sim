@@ -1,8 +1,8 @@
 'use client'
 
 import { type CSSProperties, type ReactNode, useState } from 'react'
-import { ThinkingLoader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
+import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
 
 interface LogoMarkProps {
   /** Server-rendered Sim wordmark, shown by default. */

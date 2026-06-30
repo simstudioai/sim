@@ -97,8 +97,8 @@ export function useCreateApiKey() {
 
       return requestJson(createPersonalApiKeyContract, { body: { name } })
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+    onSettled: (_data, _error, variables) => {
+      return queryClient.invalidateQueries({
         queryKey: apiKeysKeys.combined(variables.workspaceId),
       })
     },
@@ -130,8 +130,8 @@ export function useDeleteApiKey() {
 
       return requestJson(deletePersonalApiKeyContract, { params: { id: keyId } })
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+    onSettled: (_data, _error, variables) => {
+      return queryClient.invalidateQueries({
         queryKey: apiKeysKeys.combined(variables.workspaceId),
       })
     },
@@ -162,8 +162,8 @@ export function useUpdateWorkspaceApiKeySettings() {
         body: { allowPersonalApiKeys },
       })
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
+    onSettled: (_data, _error, variables) => {
+      return queryClient.invalidateQueries({
         queryKey: workspaceKeys.settings(variables.workspaceId),
       })
     },

@@ -4,6 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -14,7 +15,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { toast } from '@/components/emcn'
+import { useRouter } from 'next/navigation'
 import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
@@ -43,6 +44,7 @@ import {
   exportDownloadContract,
   exportTableAsyncContract,
   findTableRowsContract,
+  getEnrichmentDetailContract,
   getTableContract,
   type InsertTableRowBodyInput,
   importIntoTableAsyncContract,
@@ -69,8 +71,10 @@ import {
   updateTableRowContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
   CsvHeaderMapping,
+  EnrichmentRunDetail,
   Filter,
   RowData,
   RowExecutionMetadata,
@@ -92,29 +96,9 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { type TableQueryScope, tableKeys } from '@/hooks/queries/utils/table-keys'
 
 const logger = createLogger('TableQueries')
-
-type TableQueryScope = 'active' | 'archived' | 'all'
-
-export const tableKeys = {
-  all: ['tables'] as const,
-  lists: () => [...tableKeys.all, 'list'] as const,
-  list: (workspaceId?: string, scope: TableQueryScope = 'active') =>
-    [...tableKeys.lists(), workspaceId ?? '', scope] as const,
-  details: () => [...tableKeys.all, 'detail'] as const,
-  detail: (tableId: string) => [...tableKeys.details(), tableId] as const,
-  exportJobs: (workspaceId?: string) =>
-    [...tableKeys.all, 'export-jobs', workspaceId ?? ''] as const,
-  rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
-  infiniteRows: (tableId: string, paramsKey: string) =>
-    [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
-  rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
-  find: (tableId: string, paramsKey: string) =>
-    [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
-  activeDispatches: (tableId: string) =>
-    [...tableKeys.detail(tableId), 'active-dispatches'] as const,
-}
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
   TableIdParamsInput & {
@@ -258,12 +242,25 @@ export function useTablesList(
  * Fetch a single table by id.
  */
 export function useTable(workspaceId: string | undefined, tableId: string | undefined) {
+  // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
   return useQuery({
     queryKey: tableKeys.detail(tableId ?? ''),
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
     staleTime: 30 * 1000,
   })
+}
+
+/**
+ * Shared table-detail query options so non-component callers (e.g. selector
+ * providers) can `ensureQueryData` the same cache entry `useTable` populates.
+ */
+export function getTableDetailQueryOptions(workspaceId: string, tableId: string) {
+  return {
+    queryKey: tableKeys.detail(tableId),
+    queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
+    staleTime: 30 * 1000,
+  }
 }
 
 export interface TableRunState {
@@ -282,6 +279,44 @@ async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promis
     runningCellCount: response.data.runningCellCount,
     runningByRowId: response.data.runningByRowId,
   }
+}
+
+async function fetchEnrichmentDetail(
+  tableId: string,
+  rowId: string,
+  groupId: string,
+  signal?: AbortSignal
+): Promise<EnrichmentRunDetail | null> {
+  const response = await requestJson(getEnrichmentDetailContract, {
+    params: { tableId, rowId, groupId },
+    signal,
+  })
+  return response.data.detail
+}
+
+/**
+ * Enrichment cascade breakdown for one cell, fetched on demand when the
+ * enrichment details panel opens. Kept off the hot grid read — only queried
+ * while `enabled` (panel open with a selected row + group).
+ *
+ * `staleTime: 0` so reopening the panel always refetches: a cell can be re-run
+ * between opens (the run writes new `enrichmentDetails` in the background with no
+ * client invalidation), and the panel is opened on demand, so a fresh fetch per
+ * open keeps the cascade in sync without a cached stale run.
+ */
+export function useEnrichmentDetail(
+  tableId: string,
+  rowId: string | null,
+  groupId: string | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: tableKeys.enrichmentDetail(tableId, rowId ?? '', groupId ?? ''),
+    queryFn: ({ signal }) =>
+      fetchEnrichmentDetail(tableId, rowId as string, groupId as string, signal),
+    enabled: Boolean(tableId && rowId && groupId) && (options?.enabled ?? true),
+    staleTime: 0,
+  })
 }
 
 /** Count groups flipped to in-flight (`pending`) by an optimistic schedule that
@@ -571,8 +606,26 @@ export function useDeleteTable(workspaceId: string) {
  * Populates the cache on success so the new row is immediately available
  * without waiting for the background refetch triggered by invalidation.
  */
+/**
+ * Toasts a failed row write. A plan row-limit failure (the best-effort cap in
+ * `assertRowCapacity`) gets an "Upgrade" action routing to the explore-plans page;
+ * other errors are a plain auto-dismissing toast. Validation errors are surfaced
+ * inline, not here.
+ */
+function notifyRowWriteError(error: Error, onUpgrade: () => void): void {
+  if (isValidationError(error)) return
+  if (error.message.toLowerCase().includes('row limit')) {
+    toast.error(error.message, {
+      action: { label: 'Upgrade', onClick: onUpgrade },
+    })
+    return
+  }
+  toast.error(error.message, { duration: 5000 })
+}
+
 export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async (
@@ -617,10 +670,8 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
       })
     },
-    onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
+    onError: (error) =>
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
       // cache + its `totalCount`; only refresh the count surfaces here so a late
@@ -783,6 +834,7 @@ type BatchCreateTableRowsResponse = ContractJsonResponse<typeof batchCreateTable
  */
 export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async (
@@ -798,10 +850,8 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
+    onError: (error) =>
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -1214,7 +1264,8 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+      // exact: rowsRoot nests under detail, so a prefix match would needlessly refetch all rows
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
     },
   })
 }
@@ -1430,6 +1481,38 @@ export function useImportCsvAsync() {
     },
     onError: (error) => {
       logger.error('Failed to start async CSV import:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
+interface ImportFileAsTableParams {
+  workspaceId: string
+  fileKey: string
+  fileName: string
+}
+
+/**
+ * Kicks off a background import into a new table from a file ALREADY in workspace storage
+ * (e.g. the file viewer's "Import as a table"). Reuses the existing object — no re-upload —
+ * and sets `deleteSourceFile: false` so the user's original file survives the import (the normal
+ * upload-import flow deletes its single-use copy). Resolves with `{ tableId, importId }`; progress
+ * and the terminal state arrive over the table-events SSE stream.
+ */
+export function useImportFileAsTable() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
+      const response = await requestJson(importTableAsyncContract, {
+        body: { workspaceId, fileKey, fileName, deleteSourceFile: false },
+      })
+      return response.data
+    },
+    onError: (error) => {
+      logger.error('Failed to start import from file:', error)
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {

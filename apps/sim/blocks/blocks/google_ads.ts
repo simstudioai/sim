@@ -295,6 +295,7 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
 
 export const GoogleAdsBlockMeta = {
   tags: ['marketing', 'google-workspace', 'data-analytics'],
+  url: 'https://ads.google.com',
   templates: [
     {
       icon: GoogleAdsIcon,

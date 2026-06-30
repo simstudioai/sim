@@ -64,9 +64,11 @@ export function useSavePersonalEnvironment() {
 
       logger.info('Saved personal environment variables')
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
-      queryClient.invalidateQueries({ queryKey: environmentKeys.workspaces() })
+    onSettled: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: environmentKeys.personal() }),
+        queryClient.invalidateQueries({ queryKey: environmentKeys.workspaces() }),
+      ])
     },
   })
 }
@@ -90,11 +92,10 @@ export function useUpsertWorkspaceEnvironment() {
       logger.info(`Upserted workspace environment variables for workspace: ${workspaceId}`)
       return data
     },
-    onSettled: (_data, _error, variables) => {
+    onSettled: (_data, _error, variables) =>
       queryClient.invalidateQueries({
         queryKey: environmentKeys.workspace(variables.workspaceId),
-      })
-    },
+      }),
   })
 }
 
@@ -117,10 +118,9 @@ export function useRemoveWorkspaceEnvironment() {
       logger.info(`Removed ${keys.length} workspace environment keys for workspace: ${workspaceId}`)
       return data
     },
-    onSettled: (_data, _error, variables) => {
+    onSettled: (_data, _error, variables) =>
       queryClient.invalidateQueries({
         queryKey: environmentKeys.workspace(variables.workspaceId),
-      })
-    },
+      }),
   })
 }

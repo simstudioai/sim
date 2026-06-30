@@ -19,19 +19,53 @@ import {
   agentMailMessageSchema,
   webhookSvixHeadersSchema,
 } from '@/lib/api/contracts/webhooks'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import {
+  assertContentLengthWithinLimit,
+  isPayloadSizeLimitError,
+  readStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
+import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 
 const logger = createLogger('AgentMailWebhook')
 
 const AUTOMATED_SENDERS = ['mailer-daemon@', 'noreply@', 'no-reply@', 'postmaster@']
 const MAX_EMAILS_PER_HOUR = 20
 
+const AGENTMAIL_BODY_LABEL = 'AgentMail webhook body'
+
+/**
+ * Bound the unauthenticated AgentMail webhook body before buffering it for Svix
+ * signature verification, so an oversized payload cannot exhaust pod memory.
+ */
+async function readAgentMailBody(req: Request): Promise<string> {
+  assertContentLengthWithinLimit(req.headers, WEBHOOK_MAX_BODY_BYTES, AGENTMAIL_BODY_LABEL)
+  const buffer = await readStreamToBufferWithLimit(req.body, {
+    maxBytes: WEBHOOK_MAX_BODY_BYTES,
+    label: AGENTMAIL_BODY_LABEL,
+  })
+  return new TextDecoder().decode(buffer)
+}
+
 export const POST = withRouteHandler(async (req: Request) => {
   try {
-    const rawBody = await req.text()
+    let rawBody: string
+    try {
+      rawBody = await readAgentMailBody(req)
+    } catch (bodyError) {
+      if (isPayloadSizeLimitError(bodyError)) {
+        logger.warn('Rejected oversized AgentMail webhook body', {
+          maxBytes: WEBHOOK_MAX_BODY_BYTES,
+          observedBytes: bodyError.observedBytes,
+        })
+        return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+      }
+      throw bodyError
+    }
     const headersResult = webhookSvixHeadersSchema.safeParse({
       'svix-id': req.headers.get('svix-id'),
       'svix-timestamp': req.headers.get('svix-timestamp'),
@@ -201,6 +235,7 @@ export const POST = withRouteHandler(async (req: Request) => {
           { taskId },
           {
             tags: [`workspaceId:${result.id}`, `taskId:${taskId}`],
+            region: await resolveTriggerRegion(),
           }
         )
         await db

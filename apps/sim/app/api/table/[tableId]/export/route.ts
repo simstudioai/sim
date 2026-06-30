@@ -7,7 +7,7 @@ import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
-import { queryRows } from '@/lib/table/service'
+import { queryRows } from '@/lib/table/rows/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableExport')

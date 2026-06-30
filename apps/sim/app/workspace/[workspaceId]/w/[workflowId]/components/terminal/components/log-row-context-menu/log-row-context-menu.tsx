@@ -1,13 +1,7 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
-} from '@/components/emcn'
+import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
 import type {
   ContextMenuPosition,
   TerminalFilters,
@@ -84,7 +78,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           </>
         )}
 
-        {/* Fix in Copilot - only for error rows */}
+        {/* Fix in Chat - only for error rows */}
         {entry && !entry.success && (
           <>
             <PopoverItem
@@ -93,7 +87,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Fix in Copilot
+              Fix in Chat
             </PopoverItem>
             <PopoverDivider />
           </>

@@ -7,14 +7,16 @@ import {
 } from '@/lib/api/contracts/organization'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
+import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   getOrgMemberUsageLimit,
   getOrgMemberWorkspaceUsage,
   setOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrgMemberUsageLimitAPI')
@@ -48,9 +50,10 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    const [usage, limitDollars] = await Promise.all([
+    const [usage, limitDollars, orgSubscription] = await Promise.all([
       getOrgMemberWorkspaceUsage(organizationId, memberId),
       getOrgMemberUsageLimit(organizationId, memberId),
+      getOrganizationSubscription(organizationId),
     ])
 
     return NextResponse.json({
@@ -58,6 +61,7 @@ export const GET = withRouteHandler(
       data: {
         creditsUsed: dollarsToCredits(usage),
         creditLimit: limitDollars === null ? null : dollarsToCredits(limitDollars),
+        billingInterval: resolveBillingInterval(orgSubscription),
       },
     })
   }

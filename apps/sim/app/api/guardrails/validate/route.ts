@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import { guardrailsValidateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'

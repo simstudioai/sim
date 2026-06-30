@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
-import { Search } from '@/components/emcn'
+import { Search } from '@sim/emcn'
 import {
   GithubIcon,
   GmailIcon,

@@ -1,4 +1,4 @@
-import { ClipboardList, Table } from '@/components/emcn/icons'
+import { ClipboardList, Table } from '@sim/emcn/icons'
 import { CirclebackIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -54,6 +54,7 @@ export const CirclebackBlock: BlockConfig = {
 
 export const CirclebackBlockMeta = {
   tags: ['meeting', 'note-taking'],
+  url: 'https://circleback.ai',
   templates: [
     {
       icon: CirclebackIcon,

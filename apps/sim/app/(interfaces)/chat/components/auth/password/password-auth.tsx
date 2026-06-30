@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { cn, Input, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input, Label } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { useChatPasswordAuth } from '@/hooks/queries/chats'
 

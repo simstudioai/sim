@@ -1,6 +1,4 @@
 import type { AgiloftSearchRecordsParams, AgiloftSearchResponse } from '@/tools/agiloft/types'
-import { buildSearchRecordsUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftSearchRecordsTool: ToolConfig<
@@ -71,82 +69,29 @@ export const agiloftSearchRecordsTool: ToolConfig<
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'GET',
-    headers: () => ({}),
+    url: () => '/api/tools/agiloft/search_records',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+      query: params.query,
+      fields: params.fields,
+      page: params.page,
+      limit: params.limit,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftSearchResponse>(
-      params,
-      (base) => ({
-        url: buildSearchRecordsUrl(base, params),
-        method: 'GET',
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: { records: [], totalCount: 0, page: 0, limit: 25 },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const records: Record<string, unknown>[] = []
-        const result = (data.result ?? data) as Record<string, unknown>
-
-        if (Array.isArray(result)) {
-          for (const item of result as Record<string, unknown>[]) {
-            records.push(item)
-          }
-        } else {
-          const lengthRaw = result.EWREST_length ?? data.EWREST_length
-          const count = typeof lengthRaw === 'string' ? Number(lengthRaw) : (lengthRaw as number)
-          if (typeof count === 'number' && Number.isFinite(count)) {
-            const source = (result.EWREST_length != null ? result : data) as Record<string, unknown>
-            for (let i = 0; i < count; i++) {
-              const record: Record<string, unknown> = {}
-              for (const key of Object.keys(source)) {
-                const match = key.match(/^EWREST_(.+)_(\d+)$/)
-                if (match && Number(match[2]) === i) {
-                  record[match[1]] = source[key]
-                }
-              }
-              if (Object.keys(record).length > 0) {
-                records.push(record)
-              }
-            }
-          }
-        }
-
-        const totalCountRaw =
-          result.totalCount ??
-          result.total ??
-          result.count ??
-          result.EWREST_length ??
-          data.totalCount ??
-          data.total ??
-          data.count ??
-          data.EWREST_length ??
-          records.length
-        const totalCount =
-          typeof totalCountRaw === 'string' ? Number(totalCountRaw) : (totalCountRaw as number)
-        const page = params.page ? Number(params.page) : 0
-        const limit = params.limit ? Number(params.limit) : 25
-
-        return {
-          success: data.success !== false,
-          output: {
-            records,
-            totalCount,
-            page,
-            limit,
-          },
-        }
-      }
-    )
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: data.success ?? true,
+      output: data.output,
+      ...(data.error ? { error: data.error } : {}),
+    }
   },
 
   outputs: {

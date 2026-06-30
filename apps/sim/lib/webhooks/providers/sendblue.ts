@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   EventMatchContext,
@@ -27,7 +28,7 @@ export const sendblueHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (!triggerId || !(triggerId in SENDBLUE_TRIGGER_IS_OUTBOUND)) return true
 
-    if (!isRecord(body)) {
+    if (!isRecordLike(body)) {
       logger.warn(`[${requestId}] Sendblue webhook payload was not an object`)
       return false
     }
@@ -43,7 +44,7 @@ export const sendblueHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown): string | null {
-    if (!isRecord(body)) return null
+    if (!isRecordLike(body)) return null
     const handle = body.message_handle
     if (typeof handle !== 'string' || handle.length === 0) return null
     // A single outbound message emits multiple status callbacks (e.g. SENT then
@@ -54,7 +55,7 @@ export const sendblueHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = isRecord(body) ? body : {}
+    const b = isRecordLike(body) ? body : {}
     return {
       input: {
         account_email: b.accountEmail ?? b.account_email ?? null,
@@ -88,8 +89,4 @@ export const sendblueHandler: WebhookProviderHandler = {
       },
     }
   },
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

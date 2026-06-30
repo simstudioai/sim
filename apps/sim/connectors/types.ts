@@ -28,6 +28,13 @@ export interface ExternalDocument {
   contentHash: string
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
+  /**
+   * When set, the document was intentionally not indexed (e.g. it exceeds the
+   * connector's size limit). The sync engine records it as a `failed` document
+   * carrying this reason so it is visible in the knowledge base UI instead of
+   * being silently dropped.
+   */
+  skippedReason?: string
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }
@@ -67,6 +74,8 @@ export interface ConnectorConfigField {
 
   /** Selector key from the selector registry (used when type is 'selector') */
   selectorKey?: SelectorKey
+  /** MIME type filter passed to the selector context (e.g. limit a Google Drive picker to folders) */
+  mimeType?: string
   /** Field IDs this field depends on — clears when deps change */
   dependsOn?: string[] | { all?: string[]; any?: string[] }
 
@@ -85,15 +94,15 @@ export interface ConnectorConfigField {
 }
 
 /**
- * Declarative config for a knowledge source connector.
+ * Client-safe declarative metadata for a knowledge source connector.
  *
- * Mirrors ToolConfig/TriggerConfig pattern:
- * - Purely declarative metadata (id, name, icon, oauth, configFields)
- * - Runtime functions for data fetching (listDocuments, getDocument, validateConfig)
- *
- * Adding a new connector = creating one of these + registering it.
+ * This is the half of a connector that the add-connector UI needs (name, icon,
+ * auth, config fields). It intentionally contains no runtime fetch functions, so
+ * it never pulls server-only code (e.g. `input-validation.server`, `undici`) into
+ * the client bundle. Each connector exports its meta from a sibling `meta.ts`,
+ * mirroring the `XBlockMeta` pattern in `blocks/`.
  */
-export interface ConnectorConfig {
+export interface ConnectorMeta {
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */
@@ -118,6 +127,26 @@ export interface ConnectorConfig {
    */
   supportsIncrementalSync?: boolean
 
+  /**
+   * Tag definitions this connector populates. Shown in the add-connector modal
+   * as opt-out checkboxes. On connector creation, tag definitions are auto-created
+   * on the KB for enabled slots, and mapTags output is filtered to only include them.
+   */
+  tagDefinitions?: ConnectorTagDefinition[]
+}
+
+/**
+ * Full server-side connector definition: client-safe {@link ConnectorMeta} plus
+ * the runtime functions for fetching data. Lives in the connector's main module
+ * alongside the metadata it spreads in.
+ *
+ * Mirrors ToolConfig/TriggerConfig pattern:
+ * - Purely declarative metadata (via {@link ConnectorMeta})
+ * - Runtime functions for data fetching (listDocuments, getDocument, validateConfig)
+ *
+ * Adding a new connector = creating one of these + registering it.
+ */
+export interface ConnectorConfig extends ConnectorMeta {
   /**
    * List all documents from the configured source (handles pagination via cursor).
    * syncContext is a mutable object shared across all pages of a single sync run —
@@ -154,20 +183,13 @@ export interface ConnectorConfig {
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */
   mapTags?: (metadata: Record<string, unknown>) => Record<string, unknown>
-
-  /**
-   * Tag definitions this connector populates. Shown in the add-connector modal
-   * as opt-out checkboxes. On connector creation, tag definitions are auto-created
-   * on the KB for enabled slots, and mapTags output is filtered to only include them.
-   */
-  tagDefinitions?: ConnectorTagDefinition[]
 }
 
 /**
  * A tag that a connector populates, with a semantic ID and human-readable name.
  * Slots are dynamically assigned on connector creation via getNextAvailableSlot.
  */
-interface ConnectorTagDefinition {
+export interface ConnectorTagDefinition {
   /** Semantic ID matching a key returned by mapTags (e.g. 'labels', 'version') */
   id: string
   /** Human-readable name shown in UI (e.g. 'Labels', 'Last Modified') */
@@ -204,4 +226,13 @@ export interface DocumentTags {
  */
 export interface ConnectorRegistry {
   [connectorId: string]: ConnectorConfig
+}
+
+/**
+ * Registry mapping connector IDs to their client-safe metadata. Backs the
+ * add-connector UI without pulling server-only runtime code into the client
+ * bundle. See `@/connectors/registry`.
+ */
+export interface ConnectorMetaRegistry {
+  [connectorId: string]: ConnectorMeta
 }

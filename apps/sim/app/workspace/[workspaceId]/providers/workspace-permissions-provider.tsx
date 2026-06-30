@@ -2,22 +2,32 @@
 
 import type React from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
+import { useToast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { useToast } from '@/components/emcn'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import {
   useWorkspacePermissionsQuery,
   type WorkspacePermissions,
   workspaceKeys,
 } from '@/hooks/queries/workspace'
+import { useStableFlag } from '@/hooks/use-stable-flag'
 import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
 const logger = createLogger('WorkspacePermissionsProvider')
+
+/**
+ * Anti-flicker timing for the "Reconnecting..." toast. Socket.IO flips
+ * `isReconnecting` on any disconnect — including sub-second transport hiccups
+ * that recover on the first retry — so we delay surfacing the toast until the
+ * drop has lasted long enough to matter, then hold it on screen long enough to
+ * read. Together these suppress both flicker modes (flash-on and flash-off)
+ * while still alerting on real outages.
+ */
+const RECONNECTING_TOAST_DELAY_MS = 2000
+const RECONNECTING_TOAST_MIN_VISIBLE_MS = 1500
 
 interface PersistentToastOptions {
   description?: string
@@ -111,16 +121,19 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   const workspaceId = params?.workspaceId as string
   const urlWorkflowId = params?.workflowId as string | undefined
   const queryClient = useQueryClient()
-  const { toast } = useToast()
 
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
   const { isReconnecting, isRetryingWorkflowJoin, blockedJoinWorkflowId } = useSocket()
 
   const isOfflineMode = hasOperationError
   const isJoinBlocked = Boolean(blockedJoinWorkflowId) && blockedJoinWorkflowId === urlWorkflowId
+  const showReconnecting = useStableFlag(isReconnecting, {
+    delayMs: RECONNECTING_TOAST_DELAY_MS,
+    minVisibleMs: RECONNECTING_TOAST_MIN_VISIBLE_MS,
+  })
   const realtimeStatusMessage = isOfflineMode
     ? null
-    : isReconnecting
+    : showReconnecting
       ? 'Reconnecting...'
       : isRetryingWorkflowJoin
         ? 'Joining workflow...'
@@ -137,20 +150,6 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     description: 'Changes cannot be saved. Refresh to retry.',
     action: { label: 'Refresh', onClick: () => window.location.reload() },
   })
-
-  useRegisterGlobalCommands(() =>
-    createCommands([
-      {
-        id: 'clear-notifications',
-        handler: () => {
-          toast.dismissAll()
-        },
-        overrides: {
-          allowInEditable: false,
-        },
-      },
-    ])
-  )
 
   const {
     data: workspacePermissions,

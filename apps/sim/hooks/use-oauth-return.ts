@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { toast } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
-import { toast } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { listWorkspaceCredentialsContract } from '@/lib/api/contracts'
 import {

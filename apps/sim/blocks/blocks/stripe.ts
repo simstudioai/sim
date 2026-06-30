@@ -845,6 +845,7 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
 
 export const StripeBlockMeta = {
   tags: ['payments', 'subscriptions', 'webhooks'],
+  url: 'https://stripe.com',
   templates: [
     {
       icon: GoogleSheetsIcon,

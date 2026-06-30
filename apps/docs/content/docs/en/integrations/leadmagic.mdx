@@ -1,0 +1,275 @@
+---
+title: LeadMagic
+description: Find and enrich B2B contacts, emails, mobile numbers, and company data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="leadmagic"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LeadMagic](https://leadmagic.io/) is a B2B contact and company data platform for finding and enriching emails, direct mobile numbers, LinkedIn profiles, and firmographics from minimal input.
+
+With LeadMagic, you can:
+
+- **Find and validate work emails:** Resolve verified work emails by name or company, and check the deliverability of an existing address.
+- **Find direct mobile numbers:** Look up mobile phone numbers for a contact.
+- **Enrich and cross-reference profiles:** Enrich a LinkedIn profile, reverse-lookup a profile from an email, or find the email behind a profile.
+- **Research accounts:** Search companies by domain and identify the people holding a given role at an account.
+- **Check your credit balance:** Monitor remaining LeadMagic credits before running large jobs.
+
+In Sim, the LeadMagic integration lets your agents find, verify, and enrich B2B contacts and companies inside a workflow — automating lead generation, account research, and CRM enrichment without leaving Sim.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.
+
+
+
+## Actions
+
+### `leadmagic_validate_email`
+
+Verify an email address for deliverability. Charges 0.25 credits for definitive SMTP results (valid/invalid); unknown and RFC-invalid results are free.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Email address to validate \(e.g., john@example.com\) |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | The validated email address |
+| `email_status` | string | Validation result: valid, invalid, or unknown |
+| `is_domain_catch_all` | boolean | Whether the domain accepts all emails \(catch-all\) |
+| `credits_consumed` | number | Credits charged for this request \(0.25 for definitive results\) |
+| `message` | string | Human-readable status message |
+| `mx_record` | string | MX record for the domain |
+| `mx_provider` | string | Email provider \(e.g., Google, Microsoft\) |
+| `mx_gateway` | string | MX gateway for the domain |
+| `mx_security_gateway` | boolean | Whether the domain uses a security gateway |
+| `company_name` | string | Company name associated with the email domain |
+| `company_industry` | string | Industry of the company |
+| `company_size` | string | Company size range |
+
+### `leadmagic_find_email`
+
+Find someone's verified work email from their name and company domain. Charges 1 credit when a valid email is found; free when no result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `first_name` | string | No | Person's first name \(use with last_name, or use full_name instead\) |
+| `last_name` | string | No | Person's last name \(use with first_name, or use full_name instead\) |
+| `full_name` | string | No | Person's full name \(alternative to first_name + last_name\) |
+| `domain` | string | No | Company domain \(preferred, e.g. stripe.com\) |
+| `company_name` | string | No | Company name \(fallback if domain is unavailable\) |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | Found work email address |
+| `status` | string | Result status \(valid, invalid, etc.\) |
+| `credits_consumed` | number | Credits charged \(1 when email found\) |
+| `message` | string | Human-readable status message |
+| `employment_verified` | boolean | Whether employment at the company was verified |
+| `has_mx` | boolean | Whether the domain has a valid MX record |
+| `mx_record` | string | MX record for the email domain |
+| `mx_provider` | string | Email provider |
+| `company_name` | string | Company name |
+| `company_industry` | string | Company industry |
+| `company_size` | string | Company size range |
+| `company_profile_url` | string | Company LinkedIn/B2B profile URL |
+
+### `leadmagic_find_mobile`
+
+Find a person's direct mobile number from their LinkedIn profile URL or email. Charges 5 credits when a number is found; free when no result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `profile_url` | string | No | LinkedIn profile URL \(provide at least one identifier\) |
+| `work_email` | string | No | Work email address \(provide at least one identifier\) |
+| `personal_email` | string | No | Personal email address \(provide at least one identifier\) |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `profile_url` | string | LinkedIn profile URL used for lookup |
+| `email` | string | Email address associated with the profile |
+| `mobile_number` | string | Direct mobile phone number |
+| `credits_consumed` | number | Credits charged \(5 when mobile found\) |
+| `message` | string | Status message from the API |
+
+### `leadmagic_profile_search`
+
+Enrich a LinkedIn profile with work history, education, skills, and contact data. Charges 1 credit per successful enrichment; free when profile not found.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `profile_url` | string | Yes | LinkedIn profile URL or username \(e.g., https://linkedin.com/in/johndoe\) |
+| `extended_response` | boolean | No | Include additional profile image URL in the response \(default: false\) |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `profile_url` | string | LinkedIn profile URL |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `full_name` | string | Full name |
+| `professional_title` | string | Current job title |
+| `bio` | string | Profile bio / summary |
+| `location` | string | Location string |
+| `country` | string | Country |
+| `followers_range` | string | LinkedIn follower range |
+| `company_name` | string | Current employer |
+| `company_industry` | string | Industry of current employer |
+| `company_website` | string | Company website |
+| `total_tenure_years` | string | Total professional tenure in years |
+| `total_tenure_months` | string | Total professional tenure in months |
+| `work_experience` | array | Work history entries |
+| `education` | array | Education history entries |
+| `certifications` | array | Professional certifications |
+| `credits_consumed` | number | Credits charged \(1 when profile found\) |
+| `message` | string | Human-readable status message |
+
+### `leadmagic_profile_to_email`
+
+Extract a verified work email from a LinkedIn profile URL. Charges 5 credits when an email is found; free when no result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `profile_url` | string | Yes | LinkedIn profile URL or username \(e.g., https://linkedin.com/in/johndoe\) |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | Work email address found for this profile |
+| `profile_url` | string | LinkedIn profile URL used for lookup |
+| `credits_consumed` | number | Credits charged \(5 when email found\) |
+| `message` | string | Human-readable status message |
+
+### `leadmagic_email_to_profile`
+
+Retrieve a LinkedIn profile URL from a work or personal email address. Charges 10 credits when a profile is found; free when no result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `work_email` | string | No | Work email address \(provide at least one of work_email or personal_email\) |
+| `personal_email` | string | No | Personal email address \(provide at least one of work_email or personal_email\) |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `profile_url` | string | LinkedIn profile URL for the provided email |
+| `credits_consumed` | number | Credits charged \(10 when profile found\) |
+| `message` | string | Human-readable status message |
+
+### `leadmagic_company_search`
+
+Enrich company data including firmographics, headcount, funding, and social profiles by domain, LinkedIn URL, or name. Charges 1 credit when a company is found; free when no result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `company_domain` | string | No | Company website domain \(e.g., stripe.com\). Provide at least one identifier. |
+| `profile_url` | string | No | LinkedIn company profile URL \(e.g., https://linkedin.com/company/stripe\). Provide at least one identifier. |
+| `company_name` | string | No | Company name \(fallback if domain/URL unavailable\). Provide at least one identifier. |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyName` | string | Company name |
+| `companyId` | number | Internal company identifier |
+| `industry` | string | Industry classification |
+| `employeeCount` | number | Number of employees |
+| `employeeRange` | string | Headcount range \(e.g., 1001-5000\) |
+| `founded` | number | Year the company was founded |
+| `headquarters` | json | Headquarters location object |
+| `revenue` | string | Revenue range |
+| `funding` | string | Total funding amount |
+| `description` | string | Company description |
+| `specialties` | array | Company specialties and focus areas |
+| `competitors` | array | Competitor companies |
+| `followerCount` | number | LinkedIn follower count |
+| `twitter_url` | string | Twitter/X profile URL |
+| `facebook_url` | string | Facebook page URL |
+| `b2b_profile_url` | string | LinkedIn company profile URL |
+| `logo_url` | string | Company logo URL |
+| `credits_consumed` | number | Credits charged \(1 when company found\) |
+| `message` | string | Human-readable status message |
+
+### `leadmagic_role_finder`
+
+Find the person holding a specific job role at a company. Charges 2 credits when a matching person is found; free when no result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `job_title` | string | Yes | Job role to search for \(e.g., Head of Sales, CTO\). Supports partial matching. |
+| `company_domain` | string | No | Company website domain \(e.g., stripe.com\). Provide domain or company_name. |
+| `company_name` | string | No | Company name \(fallback if domain unavailable\). Provide domain or company_name. |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `first_name` | string | First name of the person found |
+| `last_name` | string | Last name of the person found |
+| `full_name` | string | Full name of the person found |
+| `profile_url` | string | LinkedIn profile URL |
+| `job_title` | string | Verified job title at the company |
+| `company_name` | string | Company name |
+| `company_website` | string | Company website |
+| `credits_consumed` | number | Credits charged \(2 when person found\) |
+| `message` | string | Human-readable status message |
+
+### `leadmagic_get_credits`
+
+Retrieve the current credit balance for the authenticated LeadMagic account. This endpoint is free and consumes no credits.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits` | number | Current credit balance |
+
+

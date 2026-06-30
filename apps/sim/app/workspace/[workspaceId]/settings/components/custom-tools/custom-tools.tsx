@@ -1,11 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { ChipConfirmModal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipConfirmModal, ChipInput, Search } from '@/components/emcn'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -83,78 +87,73 @@ export function CustomTools() {
   const showEmptyState = !hasTools && !showAddForm && !editingTool
   const showNoResults = searchTerm.trim() && filteredTools.length === 0 && tools.length > 0
 
+  const actions: SettingsAction[] = [
+    {
+      text: 'Add tool',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => setShowAddForm(true),
+      disabled: isLoading,
+    },
+  ]
+
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
-            <Chip
-              leftIcon={Plus}
-              variant='primary'
-              onClick={() => setShowAddForm(true)}
-              disabled={isLoading}
-            >
-              Add Tool
-            </Chip>
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search tools...',
+          disabled: isLoading,
+        }}
+        actions={actions}
+      >
+        {error ? (
+          <div className='flex h-full flex-col items-center justify-center gap-2'>
+            <p className='text-[var(--text-error)] text-sm leading-tight'>
+              {getErrorMessage(error, 'Failed to load tools')}
+            </p>
           </div>
-        </div>
-
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <ChipInput
-              icon={Search}
-              placeholder='Search tools...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={isLoading}
-            />
-
-            {error ? (
-              <div className='flex h-full flex-col items-center justify-center gap-2'>
-                <p className='text-[var(--text-error)] text-sm leading-tight'>
-                  {getErrorMessage(error, 'Failed to load tools')}
-                </p>
+        ) : isLoading ? null : showEmptyState ? (
+          <SettingsEmptyState>Click "Add tool" above to get started</SettingsEmptyState>
+        ) : (
+          <div className='flex flex-col gap-2'>
+            {filteredTools.map((tool) => (
+              <div key={tool.id} className='flex items-center justify-between gap-3'>
+                <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                  <span className='truncate text-[14px] text-[var(--text-body)]'>
+                    {tool.title || 'Unnamed Tool'}
+                  </span>
+                  {tool.schema?.function?.description && (
+                    <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                      {tool.schema.function.description}
+                    </p>
+                  )}
+                </div>
+                <div className='flex flex-shrink-0 items-center gap-1'>
+                  <RowActionsMenu
+                    label='Tool actions'
+                    actions={[
+                      { label: 'Edit', onSelect: () => setEditingTool(tool.id) },
+                      {
+                        label: 'Delete',
+                        destructive: true,
+                        disabled: deletingTools.has(tool.id),
+                        onSelect: () => handleDeleteClick(tool.id),
+                      },
+                    ]}
+                  />
+                </div>
               </div>
-            ) : isLoading ? null : showEmptyState ? (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "Add Tool" above to get started
-              </div>
-            ) : (
-              <div className='flex flex-col gap-2'>
-                {filteredTools.map((tool) => (
-                  <div key={tool.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        {tool.title || 'Unnamed Tool'}
-                      </span>
-                      {tool.schema?.function?.description && (
-                        <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                          {tool.schema.function.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className='flex flex-shrink-0 items-center gap-2'>
-                      <Chip onClick={() => setEditingTool(tool.id)}>Edit</Chip>
-                      <Chip
-                        onClick={() => handleDeleteClick(tool.id)}
-                        disabled={deletingTools.has(tool.id)}
-                      >
-                        {deletingTools.has(tool.id) ? 'Deleting...' : 'Delete'}
-                      </Chip>
-                    </div>
-                  </div>
-                ))}
-                {showNoResults && (
-                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                    No tools found matching "{searchTerm}"
-                  </div>
-                )}
-              </div>
+            ))}
+            {showNoResults && (
+              <SettingsEmptyState variant='inline'>
+                No tools found matching "{searchTerm}"
+              </SettingsEmptyState>
             )}
           </div>
-        </div>
-      </div>
+        )}
+      </SettingsPanel>
 
       <CustomToolModal
         open={showAddForm || !!editingTool}
@@ -186,13 +185,11 @@ export function CustomTools() {
         }}
         srTitle='Delete Custom Tool'
         title='Delete Custom Tool'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.name}</span>?{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: toolToDelete?.name ?? 'this tool', bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{ label: 'Delete', onClick: handleDeleteTool }}
       />
     </>

@@ -88,37 +88,39 @@ jobs:
             ecr_repo_secret: ECR_MIGRATIONS
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
+          - dockerfile: ./docker/pii.Dockerfile
+            ecr_repo_secret: ECR_PII
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.DEV_AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@v1
+        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
 
       - name: Resolve ECR repo name
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
         env:
-          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || '' }}
+          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
       - name: Build and push
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -153,42 +155,45 @@ jobs:
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
+          - dockerfile: ./docker/pii.Dockerfile
+            ghcr_image: ghcr.io/simstudioai/pii
+            ecr_repo_secret: ECR_PII
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GHCR
         if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@v1
+        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
 
       - name: Resolve ECR repo name
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
         env:
-          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || '' }}
+          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
       - name: Generate tags
         id: meta
@@ -206,7 +211,7 @@ jobs:
 
           TAGS="${ECR_IMAGE}"
 
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$GHCR_IMAGE" ]; then
             GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
             GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
             TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
@@ -222,7 +227,7 @@ jobs:
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build and push images
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -251,20 +256,22 @@ jobs:
             image: ghcr.io/simstudioai/migrations
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
+          - dockerfile: ./docker/pii.Dockerfile
+            image: ghcr.io/simstudioai/pii
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@v1
+        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
 
       - name: Generate ARM64 tags
         id: meta
@@ -282,7 +289,7 @@ jobs:
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build and push ARM64 to GHCR
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -306,10 +313,11 @@ jobs:
           - image: ghcr.io/simstudioai/simstudio
           - image: ghcr.io/simstudioai/migrations
           - image: ghcr.io/simstudioai/realtime
+          - image: ghcr.io/simstudioai/pii
 
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -349,10 +357,10 @@ jobs:
     outputs:
       docs_changed: ${{ steps.filter.outputs.docs }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 2  # Need at least 2 commits to detect changes
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         with:
           filters: |
@@ -379,14 +387,14 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version: 1.3.13
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

@@ -7,9 +7,10 @@ import type { EnrichmentConfig } from '@/enrichments/types'
  * Phone Number enrichment. Finds a contact's phone number from a full name plus
  * any available identifiers (company domain, LinkedIn URL) via a waterfall:
  * People Data Labs (name match) → Wiza reveal → Findymail (LinkedIn) → Prospeo
- * mobile. Each provider opportunistically uses whatever identifiers the row
- * provides and self-skips when it has none usable, so adding more inputs widens
- * coverage without reordering. First phone wins; all providers support hosted keys.
+ * mobile → LeadMagic (LinkedIn) → Datagma (LinkedIn). Each provider
+ * opportunistically uses whatever identifiers the row provides and self-skips
+ * when it has none usable, so adding more inputs widens coverage without
+ * reordering. First phone wins; all providers support hosted keys.
  */
 export const phoneNumberEnrichment: EnrichmentConfig = {
   id: 'phone-number',
@@ -30,10 +31,13 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
       buildParams: (inputs) => {
         const name = str(inputs.fullName)
         if (!name) return null
+        // `required` makes PDL 404 (free) when the profile has no phone,
+        // instead of charging a credit for a match we'd discard as a no-match.
         return filterUndefined({
           name,
           company: normalizeDomain(inputs.companyDomain) || undefined,
           min_likelihood: 6,
+          required: 'phone_numbers OR mobile_phone',
         })
       },
       mapOutput: (output) => {
@@ -103,6 +107,36 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
         const person = output.person as Record<string, unknown> | undefined
         const mobile = person?.mobile as Record<string, unknown> | undefined
         const phone = str(mobile?.mobile)
+        return phone ? { phone } : null
+      },
+    }),
+    toolProvider({
+      id: 'leadmagic',
+      label: 'LeadMagic',
+      toolId: 'leadmagic_find_mobile',
+      buildParams: (inputs) => {
+        // LeadMagic's mobile finder keys off a LinkedIn URL.
+        const profileUrl = str(inputs.linkedinUrl)
+        if (!profileUrl) return null
+        return { profile_url: profileUrl }
+      },
+      mapOutput: (output) => {
+        const phone = str(output.mobile_number)
+        return phone ? { phone } : null
+      },
+    }),
+    toolProvider({
+      id: 'datagma',
+      label: 'Datagma',
+      toolId: 'datagma_find_phone',
+      buildParams: (inputs) => {
+        // Datagma's phone finder takes the full LinkedIn URL as `username`.
+        const username = str(inputs.linkedinUrl)
+        if (!username) return null
+        return { username }
+      },
+      mapOutput: (output) => {
+        const phone = str(output.phone)
         return phone ? { phone } : null
       },
     }),

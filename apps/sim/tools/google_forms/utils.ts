@@ -18,12 +18,23 @@ export function getGoogleFormsErrorMessage(data: unknown, fallback: string): str
   return typeof message === 'string' ? message : fallback
 }
 
-export function buildListResponsesUrl(params: { formId: string; pageSize?: number }): string {
-  const { formId, pageSize } = params
+export function buildListResponsesUrl(params: {
+  formId: string
+  pageSize?: number
+  pageToken?: string
+  filter?: string
+}): string {
+  const { formId, pageSize, pageToken, filter } = params
   const url = new URL(`${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/responses`)
   if (pageSize && pageSize > 0) {
     const limited = Math.min(pageSize, 5000)
     url.searchParams.set('pageSize', String(limited))
+  }
+  if (pageToken) {
+    url.searchParams.set('pageToken', pageToken)
+  }
+  if (filter) {
+    url.searchParams.set('filter', filter)
   }
   const finalUrl = url.toString()
   logger.debug('Built Google Forms list responses URL', { finalUrl })

@@ -16,7 +16,6 @@ export type CommandId =
   | 'run-workflow'
   | 'clear-terminal-console'
   | 'focus-toolbar-search'
-  | 'clear-notifications'
   | 'fit-to-view'
 
 /**
@@ -86,11 +85,6 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'focus-toolbar-search': {
     id: 'focus-toolbar-search',
     shortcut: 'Mod+Alt+F',
-    allowInEditable: false,
-  },
-  'clear-notifications': {
-    id: 'clear-notifications',
-    shortcut: 'Mod+E',
     allowInEditable: false,
   },
   'fit-to-view': {

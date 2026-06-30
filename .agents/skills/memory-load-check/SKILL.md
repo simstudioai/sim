@@ -49,9 +49,34 @@ Read these when doing a deeper pass:
   - cap downloads and parsed output separately
   - preserve partial results when a later item exceeds the cap
   - never read untrusted response bodies without a byte cap
+- KB connector file downloads in `apps/sim/connectors/utils.ts`
+  - `CONNECTOR_MAX_FILE_BYTES`: shared per-file cap (aligned with the manual KB upload limit)
+  - `readBodyWithLimit`: stream a download body to a Buffer with a hard byte cap (null on overflow)
+  - `stubOrSkipBySize`: listing-time skip when the reported size exceeds the cap
+  - `markSkipped` / `sizeLimitSkipReason`: surface oversized files as failed (skipped) KB rows
+  - `ConnectorFileTooLargeError`: thrown mid-download when the listing under-reported size
 - Large workflow value payloads
   - prefer durable references/manifests over inlining large arrays or files
   - materialize refs only behind an explicit byte budget
+
+## KB Connector File Size Handling
+
+The connector size pattern in `apps/sim/connectors/utils.ts` (`CONNECTOR_MAX_FILE_BYTES` + `readBodyWithLimit` + `stubOrSkipBySize`/`markSkipped`) exists for one risk: a knowledge-base connector downloading **arbitrary, user-controlled file bytes** that the source does not hard-cap. Apply it by that risk, not by the connector's name.
+
+Use the pattern when the connector downloads file content via a stream/`download_url` where the user controls the size:
+- file-storage connectors: Dropbox, OneDrive, SharePoint, Google Drive, S3, GitHub, GitLab, Azure DevOps
+- any connector that fetches a file via a download URL even if it is not a "storage" service (e.g. the Zoom transcript `.vtt`)
+
+For those, require all three:
+- stream the body with `readBodyWithLimit(resp, CONNECTOR_MAX_FILE_BYTES)` — never raw `response.text()`/`response.arrayBuffer()`
+- skip oversize at listing (`stubOrSkipBySize` with the reported size) and again at fetch time (overflow -> `markSkipped`), since the listing size can be missing or under-reported
+- never drop/truncate silently — oversized files become content-less failed rows carrying `skippedReason`, so they stay visible in the KB UI instead of vanishing from the index
+
+Skip the pattern when the source already bounds the payload:
+- pure API/structured-data connectors (Jira, Linear, Notion, Confluence, Sentry, Slack, Zendesk, Gmail, ...) — paginated JSON/text; apply normal pagination + concurrency bounds instead of a per-file byte cap
+- native-document connectors capped by the platform (Google Docs ~50 MB, Google Sheets via `MAX_ROWS`, Evernote ~25 MB/note) — a 100 MB cap can never fire, and wrapping a `response.json()`/Thrift parse in `readBodyWithLimit` is cargo-culting
+
+Litmus test: "Can a user make this one fetch arbitrarily large, with nothing upstream stopping it?" Yes -> use the pattern. No (platform hard-cap, or already paginated) -> a per-file byte cap adds noise, not safety. Borderline: a user-configured/self-hosted endpoint with no platform cap (e.g. Obsidian) — bound it only if the content is genuinely unbounded.
 
 ## Review Workflow
 
@@ -96,6 +121,7 @@ Read these when doing a deeper pass:
 - fetches all pages from an external API before processing
 - reads an entire file, HTTP response, or stream without a max byte budget
 - checks size only after `Buffer.concat`, `arrayBuffer`, `text`, `JSON.parse`, or parse expansion
+- a KB connector silently drops or truncates an oversized file instead of recording it as a failed (skipped) row
 - chunks only after loading the complete dataset
 - paginates with unbounded/deep `OFFSET` on a mutable or large table
 - creates one queue job per row without batching or a queue-level concurrency key

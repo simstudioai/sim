@@ -20,8 +20,9 @@ const logger = createLogger('ProviderModelsQuery')
 
 export const providerKeys = {
   all: ['provider-models'] as const,
-  models: (provider: string, workspaceId?: string) =>
-    [...providerKeys.all, provider, workspaceId ?? ''] as const,
+  lists: () => [...providerKeys.all, 'list'] as const,
+  list: (provider: string, workspaceId?: string) =>
+    [...providerKeys.lists(), provider, workspaceId ?? ''] as const,
 }
 
 async function fetchProviderModels(
@@ -87,7 +88,7 @@ async function requestProviderModels(
 
 export function useProviderModels(provider: ProviderName, workspaceId?: string) {
   return useQuery({
-    queryKey: providerKeys.models(provider, workspaceId),
+    queryKey: providerKeys.list(provider, workspaceId),
     queryFn: ({ signal }) => fetchProviderModels(provider, signal, workspaceId),
     staleTime: 5 * 60 * 1000,
   })

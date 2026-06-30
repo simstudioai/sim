@@ -2,11 +2,12 @@
 
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
+import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsBeforeUnload } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-before-unload'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   isBillingEnabled,
@@ -102,13 +103,12 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ section }: SettingsPageProps) {
-  const searchParams = useSearchParams()
-  const mcpServerId = searchParams.get('mcpServerId')
   const { data: session, isPending: sessionLoading } = useSession()
   const posthog = usePostHog()
 
+  useSettingsBeforeUnload()
+
   const isAdminRole = session?.user?.role === 'admin'
-  // The Subscription tab was replaced by Billing; redirect legacy links there.
   const normalizedSection: SettingsSection =
     (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
@@ -128,7 +128,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div className='flex h-full flex-col'>
+    <SettingsSectionProvider section={effectiveSection}>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'secrets' && <Secrets />}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
@@ -144,13 +144,13 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}
-      {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
+      {effectiveSection === 'mcp' && <MCP />}
       {effectiveSection === 'custom-tools' && <CustomTools />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
       {effectiveSection === 'admin' && <Admin />}
       {effectiveSection === 'mothership' && <Mothership />}
-    </div>
+    </SettingsSectionProvider>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect, useId, useState } from 'react'
-import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@/components/emcn'
+import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@sim/emcn'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestBody,

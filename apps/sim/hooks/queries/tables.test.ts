@@ -78,18 +78,18 @@ vi.mock('@/app/workspace/providers/socket-provider', () => ({
   useSocket: vi.fn(() => ({ socket: null })),
 }))
 
-vi.mock('@/components/emcn', () => ({
+vi.mock('@sim/emcn', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 import {
-  tableKeys,
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
   useDeleteColumn,
   useRestoreTable,
   useUpdateColumn,
 } from '@/hooks/queries/tables'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 
 const TABLE_ID = 'tbl-1'
 const WORKSPACE_ID = 'ws-1'

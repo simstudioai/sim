@@ -39,7 +39,11 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
-import { getProviderAttachmentMaxBytes, supportsFileAttachments } from '@/providers/attachments'
+import {
+  INLINE_ATTACHMENT_THRESHOLD_BYTES,
+  shouldUseLargeFilePath,
+  supportsFileAttachments,
+} from '@/providers/attachments'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -760,10 +764,12 @@ export class AgentBlockHandler implements BlockHandler {
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         logger,
-        maxBytes: getProviderAttachmentMaxBytes(providerId),
+        maxBytes: INLINE_ATTACHMENT_THRESHOLD_BYTES,
       })
 
-      const missingFile = hydratedFiles.find((file) => !file.base64)
+      const missingFile = hydratedFiles.find(
+        (file) => !file.base64 && !shouldUseLargeFilePath(file, providerId)
+      )
       if (missingFile) {
         throw new Error(
           `File "${missingFile.name}" could not be read for provider "${providerId}". The file may exceed the attachment size limit or may no longer be accessible.`
@@ -966,6 +972,7 @@ export class AgentBlockHandler implements BlockHandler {
       if (providerId === 'vertex' && providerRequest.vertexCredential) {
         finalApiKey = await resolveVertexCredential(
           providerRequest.vertexCredential,
+          ctx.userId,
           'vertex-agent'
         )
       }

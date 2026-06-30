@@ -40,7 +40,6 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 | Shortcut | Action |
 |----------|--------|
 | Mod+D | Clear terminal console |
-| Mod+E | Clear notifications |
 
 ### Mouse Controls
 | Action | Control |

@@ -58,6 +58,8 @@ export const salesforceRunReportTool: ToolConfig<
         throw new Error('Report ID is required. Please provide a valid Salesforce Report ID.')
       }
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
+      // Default to including detail rows (Salesforce's own API default is false);
+      // report runs in a workflow almost always want the underlying rows.
       const includeDetails = params.includeDetails !== 'false'
       return `${instanceUrl}/services/data/v59.0/analytics/reports/${params.reportId}?includeDetails=${includeDetails}`
     },
@@ -80,7 +82,7 @@ export const salesforceRunReportTool: ToolConfig<
         }
       }
       // Return undefined for GET requests (no body)
-      return undefined as any
+      return undefined
     },
   },
 
@@ -107,7 +109,7 @@ export const salesforceRunReportTool: ToolConfig<
         groupingsAcross: data.groupingsAcross ?? null,
         hasDetailRows: data.hasDetailRows ?? null,
         allData: data.allData ?? null,
-        reportName: data.reportMetadata?.name ?? null,
+        reportName: data.reportMetadata?.name ?? data.attributes?.reportName ?? null,
         reportFormat: data.reportMetadata?.reportFormat ?? null,
         success: true,
       },

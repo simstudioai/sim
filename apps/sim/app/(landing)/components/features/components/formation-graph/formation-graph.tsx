@@ -1,5 +1,5 @@
+import { cn } from '@sim/emcn'
 import { AgentIcon, AnthropicIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 
 /**
  * FormationGraph - the Formation beat's callout: several agents running in

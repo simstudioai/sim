@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipCombobox, type ComboboxOption, Loader } from '@/components/emcn'
+import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type {
   ConfigFieldMap,
@@ -38,6 +38,7 @@ export function ConnectorSelectorField({
   const context = useMemo<SelectorContext>(() => {
     const ctx: SelectorContext = {}
     if (credentialId) ctx.oauthCredential = credentialId
+    if (field.mimeType) ctx.mimeType = field.mimeType
 
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
       const depField = configFields.find((f) => f.id === depFieldId)
@@ -49,7 +50,7 @@ export function ConnectorSelectorField({
     }
 
     return ctx
-  }, [credentialId, field.dependsOn, sourceConfig, configFields, canonicalModes])
+  }, [credentialId, field.mimeType, field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true

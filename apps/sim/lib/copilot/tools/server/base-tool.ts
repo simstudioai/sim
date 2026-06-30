@@ -6,6 +6,13 @@ export interface ServerToolContext {
   userPermission?: string
   chatId?: string
   messageId?: string
+  /**
+   * The invoking subagent's channel id (its outer tool_use id). Used to scope
+   * the workspace_file -> edit_content intent handoff to a single file subagent
+   * so two file agents writing concurrently never consume each other's pending
+   * intent. Undefined for main-agent tool calls (which never overlap).
+   */
+  parentToolCallId?: string
   abortSignal?: AbortSignal
   /** Fires only on explicit user stop, never on passive transport disconnect. */
   userStopSignal?: AbortSignal

@@ -37,6 +37,10 @@ vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 10 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getProviderModels: vi.fn().mockReturnValue([]),
   getProviderDefaultModel: vi.fn().mockReturnValue(''),
 }))

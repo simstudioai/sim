@@ -1,9 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { DropboxIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { dropboxConnectorMeta } from '@/connectors/dropbox/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  ConnectorFileTooLargeError,
+  htmlToPlainText,
+  isSkippedDocument,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+  takeIndexableWithinCap,
+} from '@/connectors/utils'
 
 const logger = createLogger('DropboxConnector')
 
@@ -23,7 +34,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.tsv',
 ])
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 
 interface DropboxFileEntry {
   '.tag': 'file' | 'folder' | 'deleted'
@@ -44,16 +55,18 @@ interface DropboxListFolderResponse {
   has_more: boolean
 }
 
-function isSupportedFile(entry: DropboxFileEntry): boolean {
-  if (entry['.tag'] !== 'file') return false
-  if (entry.is_downloadable === false) return false
-  if (entry.size && entry.size > MAX_FILE_SIZE) return false
-
-  const name = entry.name.toLowerCase()
-  const dotIndex = name.lastIndexOf('.')
+function hasSupportedExtension(name: string): boolean {
+  const lower = name.toLowerCase()
+  const dotIndex = lower.lastIndexOf('.')
   if (dotIndex === -1) return false
+  return SUPPORTED_EXTENSIONS.has(lower.slice(dotIndex))
+}
 
-  return SUPPORTED_EXTENSIONS.has(name.slice(dotIndex))
+/** A downloadable file with a supported extension, regardless of size. */
+function isDownloadableFile(entry: DropboxFileEntry): boolean {
+  return (
+    entry['.tag'] === 'file' && entry.is_downloadable !== false && hasSupportedExtension(entry.name)
+  )
 }
 
 async function downloadFileContent(accessToken: string, filePath: string): Promise<string> {
@@ -69,7 +82,15 @@ async function downloadFileContent(accessToken: string, filePath: string): Promi
     throw new Error(`Failed to download file ${filePath}: ${response.status}`)
   }
 
-  const text = await response.text()
+  // Stream with a hard byte cap so a file whose listing metadata under-reported
+  // (or omitted) its size can never be fully buffered into memory. Oversize raises
+  // so getDocument can surface it as a skipped (failed) row rather than dropping it.
+  const buffer = await readBodyWithLimit(response, MAX_FILE_SIZE)
+  if (!buffer) {
+    throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
+  }
+
+  const text = buffer.toString('utf8')
 
   if (filePath.endsWith('.html') || filePath.endsWith('.htm')) {
     return htmlToPlainText(text)
@@ -96,35 +117,7 @@ function fileToStub(entry: DropboxFileEntry): ExternalDocument {
 }
 
 export const dropboxConnector: ConnectorConfig = {
-  id: 'dropbox',
-  name: 'Dropbox',
-  description: 'Sync text files from Dropbox',
-  version: '1.0.0',
-  icon: DropboxIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'dropbox',
-    requiredScopes: ['files.metadata.read', 'files.content.read'],
-  },
-
-  configFields: [
-    {
-      id: 'folderPath',
-      title: 'Folder Path',
-      type: 'short-input',
-      placeholder: 'e.g. /Documents (default: entire Dropbox)',
-      required: false,
-      description: 'Leave empty to sync all supported files',
-    },
-    {
-      id: 'maxFiles',
-      title: 'Max Files',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...dropboxConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -190,23 +183,27 @@ export const dropboxConnector: ConnectorConfig = {
       data = await response.json()
     }
 
-    const supportedFiles = data.entries.filter(isSupportedFile)
+    // Keep oversized files and surface them as skipped (failed) documents instead
+    // of dropping them silently at listing time.
+    const candidateFiles = data.entries.filter(isDownloadableFile)
 
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    let documents = supportedFiles.map(fileToStub)
+    const stubs = candidateFiles.map((entry) =>
+      stubOrSkipBySize(fileToStub(entry), entry.size, MAX_FILE_SIZE)
+    )
 
-    if (maxFiles > 0) {
-      const remaining = maxFiles - previouslyFetched
-      if (documents.length > remaining) {
-        documents = documents.slice(0, remaining)
-      }
-    }
+    const { documents, indexableCount, capReached } = takeIndexableWithinCap(
+      stubs,
+      isSkippedDocument,
+      maxFiles,
+      previouslyFetched
+    )
 
-    const totalFetched = previouslyFetched + documents.length
+    const totalFetched = previouslyFetched + indexableCount
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    const hitLimit = capReached
     if (hitLimit && syncContext) syncContext.listingCapped = true
 
     return {
@@ -238,12 +235,24 @@ export const dropboxConnector: ConnectorConfig = {
 
       const entry = (await response.json()) as DropboxFileEntry
 
-      if (!isSupportedFile(entry)) return null
-
-      const content = await downloadFileContent(accessToken, entry.path_lower)
-      if (!content.trim()) return null
+      if (!isDownloadableFile(entry)) return null
 
       const stub = fileToStub(entry)
+      if (entry.size && entry.size > MAX_FILE_SIZE) {
+        return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+      }
+
+      let content: string
+      try {
+        content = await downloadFileContent(accessToken, entry.path_lower)
+      } catch (error) {
+        if (error instanceof ConnectorFileTooLargeError) {
+          return markSkipped(stub, sizeLimitSkipReason(error.limitBytes))
+        }
+        throw error
+      }
+      if (!content.trim()) return null
+
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
       logger.warn(`Failed to fetch document ${externalId}`, {
@@ -297,12 +306,6 @@ export const dropboxConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'path', displayName: 'File Path', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'fileSize', displayName: 'File Size (bytes)', fieldType: 'number' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

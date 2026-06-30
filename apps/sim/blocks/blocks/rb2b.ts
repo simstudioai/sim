@@ -219,6 +219,7 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
 
 export const RB2BBlockMeta = {
   tags: ['enrichment', 'sales-engagement', 'identity'],
+  url: 'https://rb2b.com',
   templates: [
     {
       icon: RB2BIcon,

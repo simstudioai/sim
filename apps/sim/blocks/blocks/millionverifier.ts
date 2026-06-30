@@ -102,4 +102,5 @@ export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
 
 export const MillionVerifierBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.millionverifier.com',
 } as const satisfies BlockMeta

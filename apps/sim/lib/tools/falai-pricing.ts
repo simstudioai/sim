@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
 
 export const FALAI_HOSTED_KEY_MARKUP_MULTIPLIER = 1.5
 export const FALAI_IMAGE_FALLBACK_PROVIDER_COST_DOLLARS = 0.05
@@ -29,10 +30,6 @@ interface FalAIBillingEvent {
   unit_price: number | null
   percent_discount: number | null
   cost_estimate_nano_usd: number
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function getNumber(value: unknown): number | undefined {
@@ -65,7 +62,7 @@ function getFalAIFallbackProviderCostDollars(endpointId: string): number {
 }
 
 function parseBillingEvent(value: unknown): FalAIBillingEvent | undefined {
-  if (!isRecord(value)) return undefined
+  if (!isRecordLike(value)) return undefined
 
   const requestId = value.request_id
   const endpointId = value.endpoint_id
@@ -116,7 +113,7 @@ async function fetchFalAIBillingEvent(
     })
     return undefined
   })
-  if (!isRecord(data) || !Array.isArray(data.billing_events)) return undefined
+  if (!isRecordLike(data) || !Array.isArray(data.billing_events)) return undefined
 
   return data.billing_events.map(parseBillingEvent).find(Boolean)
 }
@@ -152,7 +149,7 @@ async function estimateFalAICallCost(
   }
 
   const data = (await response.json()) as unknown
-  const totalCost = isRecord(data) ? getNumber(data.total_cost) : undefined
+  const totalCost = isRecordLike(data) ? getNumber(data.total_cost) : undefined
   if (totalCost === undefined) {
     return { error: 'Fal.ai pricing estimate missing total_cost' }
   }

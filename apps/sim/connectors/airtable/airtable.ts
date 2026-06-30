@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { AirtableIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { airtableConnectorMeta } from '@/connectors/airtable/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, parseTagDate } from '@/connectors/utils'
 
@@ -73,80 +73,7 @@ function parseCursor(cursor?: string): string | undefined {
 }
 
 export const airtableConnector: ConnectorConfig = {
-  id: 'airtable',
-  name: 'Airtable',
-  description: 'Sync records from an Airtable table',
-  version: '1.0.0',
-  icon: AirtableIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'airtable',
-    requiredScopes: ['data.records:read', 'schema.bases:read'],
-  },
-
-  configFields: [
-    {
-      id: 'baseSelector',
-      title: 'Base',
-      type: 'selector',
-      selectorKey: 'airtable.bases',
-      canonicalParamId: 'baseId',
-      mode: 'basic',
-      placeholder: 'Select a base',
-      required: true,
-    },
-    {
-      id: 'baseId',
-      title: 'Base ID',
-      type: 'short-input',
-      canonicalParamId: 'baseId',
-      mode: 'advanced',
-      placeholder: 'e.g. appXXXXXXXXXXXXXX',
-      required: true,
-    },
-    {
-      id: 'tableSelector',
-      title: 'Table',
-      type: 'selector',
-      selectorKey: 'airtable.tables',
-      canonicalParamId: 'tableIdOrName',
-      mode: 'basic',
-      dependsOn: ['baseSelector'],
-      placeholder: 'Select a table',
-      required: true,
-    },
-    {
-      id: 'tableIdOrName',
-      title: 'Table Name or ID',
-      type: 'short-input',
-      canonicalParamId: 'tableIdOrName',
-      mode: 'advanced',
-      placeholder: 'e.g. Tasks or tblXXXXXXXXXXXXXX',
-      required: true,
-    },
-    {
-      id: 'viewId',
-      title: 'View',
-      type: 'short-input',
-      placeholder: 'e.g. Grid view or viwXXXXXXXXXXXXXX',
-      required: false,
-    },
-    {
-      id: 'titleField',
-      title: 'Title Field',
-      type: 'short-input',
-      placeholder: 'e.g. Name',
-      required: false,
-    },
-    {
-      id: 'maxRecords',
-      title: 'Max Records',
-      type: 'short-input',
-      placeholder: 'e.g. 1000 (default: unlimited)',
-      required: false,
-    },
-  ],
+  ...airtableConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -312,8 +239,6 @@ export const airtableConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [{ id: 'createdTime', displayName: 'Created Time', fieldType: 'date' }],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

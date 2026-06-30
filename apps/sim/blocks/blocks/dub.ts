@@ -890,6 +890,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
 
 export const DubBlockMeta = {
   tags: ['link-management', 'marketing', 'data-analytics'],
+  url: 'https://dub.co',
   templates: [
     {
       icon: DubIcon,

@@ -1,9 +1,9 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
   downloadFalMedia,
   extractFalMediaUrl,
   getFalApiKey,
   getNumberProp,
-  isRecord,
   runFalQueue,
 } from '@/lib/media/falai'
 import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
@@ -176,7 +176,7 @@ export async function generateFalVideo(params: GenerateFalVideoParams): Promise<
   const url = extractFalMediaUrl(data, ['video', 'output'])
   if (!url) throw new Error('No video URL in Fal.ai response')
 
-  const videoNode = isRecord(data.video) ? data.video : undefined
+  const videoNode = isRecordLike(data.video) ? data.video : undefined
   const { buffer, contentType } = await downloadFalMedia(url)
   const cost = await getFalAICostMetadata({ apiKey, endpointId: endpoint, requestId })
 

@@ -1,330 +1,215 @@
-/**
- * Environment utility functions for consistent environment detection across the application
- */
-import { env, getEnv, isFalsy, isTruthy } from './env'
+import { fetchAppConfigProfile } from '@/lib/core/config/appconfig'
+import { env, isTruthy } from '@/lib/core/config/env'
+import { isAppConfigEnabled } from '@/lib/core/config/env-flags'
 
 /**
- * Is the application running in production mode
+ * Name of the AppConfig configuration profile holding the gated feature flags.
+ * Cross-repo contract: must match the `CfnConfigurationProfile` name created by
+ * the infra stack.
  */
-export const isProd = env.NODE_ENV === 'production'
+const FEATURE_FLAGS_PROFILE = 'feature-flags'
 
 /**
- * Is the application running in development mode
+ * A single flag's gating rule. A flag is ON for a context when ANY clause matches:
+ * the global `enabled` default, the org/user allowlists, or `admins` for platform
+ * admins. An absent clause never matches.
  */
-export const isDev = env.NODE_ENV === 'development'
-
-/**
- * Is the application running in test mode
- */
-export const isTest = env.NODE_ENV === 'test'
-
-/**
- * Is this the hosted version of the application.
- * True for sim.ai and any subdomain of sim.ai (e.g. staging.sim.ai, dev.sim.ai).
- */
-const appUrl = getEnv('NEXT_PUBLIC_APP_URL')
-let appHostname = ''
-try {
-  appHostname = appUrl ? new URL(appUrl).hostname : ''
-} catch {
-  // invalid URL — isHosted stays false
+export interface FeatureFlagRule {
+  enabled?: boolean
+  orgIds?: string[]
+  userIds?: string[]
+  adminEnabled?: boolean
 }
-export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
+
+export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
 
 /**
- * Is billing enforcement enabled
+ * Per-request evaluation context. Pass only the ids you have — a missing id skips
+ * its clause. Admin status is resolved internally from `userId`; `isAdmin` is an
+ * optional fast-path override for callers that already know it (e.g. admin routes).
  */
-export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
-
-/**
- * Order table rows by fractional `order_key` (O(1) insert/delete) instead of the
- * legacy integer `position`. When off, behavior is unchanged. Keys are written
- * regardless of this flag; it only controls which column is authoritative for
- * reads/ordering and whether inserts/deletes reshift positions.
- */
-export const isTablesFractionalOrderingEnabled = isTruthy(env.TABLES_FRACTIONAL_ORDERING)
-
-/**
- * Is email verification enabled
- */
-export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLED)
-
-/**
- * Is authentication disabled (for self-hosted deployments behind private networks)
- * This flag is blocked when isHosted is true.
- */
-export const isAuthDisabled = isTruthy(env.DISABLE_AUTH) && !isHosted
-
-if (isTruthy(env.DISABLE_AUTH)) {
-  import('@sim/logger')
-    .then(({ createLogger }) => {
-      const logger = createLogger('FeatureFlags')
-      if (isHosted) {
-        logger.error(
-          'DISABLE_AUTH is set but ignored on hosted environment. Authentication remains enabled for security.'
-        )
-      } else {
-        logger.warn(
-          'DISABLE_AUTH is enabled. Authentication is bypassed and all requests use an anonymous session. Only use this in trusted private networks.'
-        )
-      }
-    })
-    .catch(() => {
-      // Fallback during config compilation when logger is unavailable
-    })
+export interface FeatureFlagContext {
+  userId?: string | null
+  orgId?: string | null
+  isAdmin?: boolean
 }
 
 /**
- * Is user registration disabled
- */
-export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
-
-/**
- * Is email/password authentication enabled (defaults to true)
- */
-export const isEmailPasswordEnabled = !isFalsy(env.EMAIL_PASSWORD_SIGNUP_ENABLED)
-
-/**
- * Is signup email validation enabled (disposable email blocking via better-auth-harmony)
- */
-export const isSignupEmailValidationEnabled = isTruthy(env.SIGNUP_EMAIL_VALIDATION_ENABLED)
-
-/**
- * Is MX-based signup validation enabled (blocks no-MX domains and denylisted shared spam
- * mail backends). Opt-in to avoid adding a DNS dependency or blocking legitimate signups on
- * self-hosted deployments with non-standard mail setups; enable on abuse-targeted deployments.
- */
-export const isSignupMxValidationEnabled = isTruthy(env.SIGNUP_MX_VALIDATION_ENABLED)
-
-/**
- * Is AWS AppConfig the source of truth for the signup/login gating lists.
- * Hosted-only and requires both AppConfig identifiers (injected by the infra
- * stack). Self-hosted/OSS deployments always use the env-var fallback, so the
- * AppConfig client is never reached off-hosted.
- */
-export const isAppConfigEnabled =
-  isHosted && Boolean(env.APPCONFIG_APPLICATION && env.APPCONFIG_ENVIRONMENT)
-
-/**
- * Is Trigger.dev enabled for async job processing
- */
-export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
-
-/**
- * Is SSO enabled for enterprise authentication
- */
-export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
-
-/**
- * Is credential sets (email polling) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
- */
-export const isCredentialSetsEnabled = isTruthy(env.CREDENTIAL_SETS_ENABLED)
-
-/**
- * Is access control (permission groups) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
- */
-export const isAccessControlEnabled = isTruthy(env.ACCESS_CONTROL_ENABLED)
-
-/**
- * Is organizations enabled
- * True if billing is enabled (orgs come with billing), OR explicitly enabled via env var,
- * OR if access control is enabled (access control requires organizations)
- */
-export const isOrganizationsEnabled =
-  isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
-
-/**
- * Is inbox (Sim Mailer) enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
-
-/**
- * Is whitelabeling enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isWhitelabelingEnabled = isTruthy(env.WHITELABELING_ENABLED)
-
-/**
- * Is audit logs enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isAuditLogsEnabled = isTruthy(env.AUDIT_LOGS_ENABLED)
-
-/**
- * Is data retention enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
-
-/**
- * Is data drains enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
-
-/**
- * Are workflow output columns enabled in user tables.
- * Defaults to false; set NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED=true to show
- * the "Workflow" column type in the new-column dropdown.
- */
-export const isWorkflowColumnsEnabledClient = isTruthy(
-  getEnv('NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED')
-)
-
-/**
- * Enables beta Mothership plan/changelog artifact surfaces.
- */
-export const isMothershipBetaFeaturesEnabled = isTruthy(env.MOTHERSHIP_BETA_FEATURES)
-
-/**
- * Is E2B enabled for remote code execution
- */
-export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
-
-/**
- * Whether the E2B document-generation sandbox is enabled.
+ * Registry of known feature flags. Each maps to the secret consulted ONLY when
+ * AppConfig is not the source of truth (self-hosted/OSS, local dev, or hosted
+ * without APPCONFIG_*). A truthy secret turns the flag on globally.
  *
- * Requires E2B (with an API key) AND a dedicated doc-generation template id.
- * When true, ALL four formats compile in the E2B doc sandbox: pptx/docx via Node
- * (pptxgenjs/docx + react-icons/sharp icons), pdf/xlsx via Python
- * (reportlab/openpyxl). When false, compilation stays on the JavaScript
- * (isolated-vm) path, byte-identical to its prior behavior (and xlsx is
- * unavailable). Drives both the Sim compile backend and the `docCompiler` flag
- * sent to the copilot file subagent so the agent's output and compiler agree.
+ * Gating by org/user/admin is available ONLY through the hosted AppConfig document
+ * — it deliberately cannot be expressed here, so no environment can grant (e.g.)
+ * admin access from a code literal. To add a flag, register its name and the secret
+ * to fall back on.
  */
-export const isE2BDocEnabled =
-  isE2bEnabled && Boolean(env.E2B_API_KEY) && Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
-
 /**
- * Whether Ollama is configured (OLLAMA_URL is set).
- * When true, models that are not in the static cloud model list and have no
- * slash-prefixed provider namespace are assumed to be Ollama models
- * and do not require an API key.
+ * The single definition of a feature flag. Everything about a flag lives in one
+ * place: its name (the registry key), a human-readable `description`, and the
+ * `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on
+ * globally).
+ *
+ * Gating by org/user/admin is deliberately NOT part of a definition — it lives only
+ * in the hosted AppConfig document, so no environment can grant access from a code
+ * literal.
  */
-export const isOllamaConfigured = Boolean(env.OLLAMA_URL)
-
-/**
- * Whether Azure OpenAI / Azure Anthropic credentials are pre-configured at the server level
- * (via AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_ANTHROPIC_ENDPOINT, etc.).
- * When true, the endpoint, API key, and API version fields are hidden in the Agent block UI.
- * Set NEXT_PUBLIC_AZURE_CONFIGURED=true in self-hosted deployments on Azure.
- */
-export const isAzureConfigured = isTruthy(getEnv('NEXT_PUBLIC_AZURE_CONFIGURED'))
-
-/**
- * Whether a Cohere API key is pre-configured server-side for the Knowledge block reranker
- * (`COHERE_API_KEY` or `COHERE_API_KEY_1/2/3`). When true, the Cohere API Key field is hidden
- * in the Knowledge block UI.
- * Set NEXT_PUBLIC_COHERE_CONFIGURED=true in self-hosted deployments that ship a Cohere key.
- */
-export const isCohereConfigured = isTruthy(getEnv('NEXT_PUBLIC_COHERE_CONFIGURED'))
-
-/**
- * Are invitations disabled globally
- * When true, workspace invitations are disabled for all users
- */
-export const isInvitationsDisabled = isTruthy(env.DISABLE_INVITATIONS)
-
-/**
- * Is public API access disabled globally
- * When true, the public API toggle is hidden and public API access is blocked
- */
-export const isPublicApiDisabled = isTruthy(env.DISABLE_PUBLIC_API)
-
-/**
- * Is Google OAuth login disabled
- * When true, the Google OAuth login button is hidden even when credentials are configured
- */
-export const isGoogleAuthDisabled = isTruthy(env.DISABLE_GOOGLE_AUTH)
-
-/**
- * Is GitHub OAuth login disabled
- * When true, the GitHub OAuth login button is hidden even when credentials are configured
- */
-export const isGithubAuthDisabled = isTruthy(env.DISABLE_GITHUB_AUTH)
-
-/**
- * Is Microsoft OAuth login disabled
- * When true, the Microsoft OAuth login button is hidden even when credentials are configured
- */
-export const isMicrosoftAuthDisabled = isTruthy(env.DISABLE_MICROSOFT_AUTH)
-
-/**
- * Is email/password signup disabled
- * When true, new email/password registrations are blocked while email login keeps working
- */
-export const isEmailSignupDisabled = isTruthy(env.DISABLE_EMAIL_SIGNUP)
-
-/**
- * Is React Grab enabled for UI element debugging
- * When true and in development mode, enables React Grab for copying UI element context to clipboard
- */
-export const isReactGrabEnabled = isDev && isTruthy(env.REACT_GRAB_ENABLED)
-
-/**
- * Is React Scan enabled for performance debugging
- * When true and in development mode, enables React Scan for detecting render performance issues
- */
-export const isReactScanEnabled = isDev && isTruthy(env.REACT_SCAN_ENABLED)
-
-/**
- * Returns the parsed allowlist of integration block types from the environment variable.
- * If not set or empty, returns null (meaning all integrations are allowed).
- */
-export function getAllowedIntegrationsFromEnv(): string[] | null {
-  if (!env.ALLOWED_INTEGRATIONS) return null
-  const parsed = env.ALLOWED_INTEGRATIONS.split(',')
-    .map((i) => i.trim().toLowerCase())
-    .filter(Boolean)
-  return parsed.length > 0 ? parsed : null
+interface FeatureFlagDefinition {
+  description: string
+  /** Env/secret key consulted when AppConfig isn't the source of truth. Truthy ⇒ on. */
+  fallback: keyof typeof env
 }
 
-/**
- * Returns the list of blacklisted provider IDs from the environment variable.
- * If not set or empty, returns an empty array (meaning no providers are blacklisted).
- */
-export function getBlacklistedProvidersFromEnv(): string[] {
-  if (!env.BLACKLISTED_PROVIDERS) return []
-  return env.BLACKLISTED_PROVIDERS.split(',')
-    .map((p) => p.trim().toLowerCase())
-    .filter(Boolean)
-}
+/** The single registry of known flags. To add a flag, add one entry here. */
+const FEATURE_FLAGS = {
+  'tables-fractional-ordering': {
+    description: 'Order table rows by fractional order_key instead of legacy integer position',
+    fallback: 'TABLES_FRACTIONAL_ORDERING',
+  },
+  'mothership-beta': {
+    description:
+      'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler. ' +
+      'Note: userId/orgId targeting only works for WorkspaceVfs (resolved in materialize). ' +
+      'getE2BDocFormat, resolveInputFiles, and resolveWorkflowAliasForWorkspace evaluate without ' +
+      'user context — use enabled:true for global rollout rather than per-user targeting.',
+    fallback: 'MOTHERSHIP_BETA_FEATURES',
+  },
+  'table-snapshot-cache': {
+    description:
+      'Mount Sim tables into code sandboxes by reference via a version-keyed CSV snapshot in ' +
+      'object storage (reused across runs until the table mutates) instead of draining the whole ' +
+      'table into web-process heap. resolveInputFiles evaluates without user context — use ' +
+      'enabled:true for global rollout rather than per-user targeting.',
+    fallback: 'TABLE_SNAPSHOT_CACHE',
+  },
+  'pii-redaction': {
+    description:
+      'Redact PII from workflow logs via configurable Data Retention rules (Presidio at the ' +
+      'logger persist choke point) and expose the Data Retention config surfaces. Global on/off ' +
+      'only — evaluated without user/org context so the persist path and config routes always ' +
+      'agree.',
+    fallback: 'PII_REDACTION',
+  },
+  'trigger-eu-region': {
+    description:
+      'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +
+      'only — resolved without user/org context at every task-trigger call site via ' +
+      'resolveTriggerRegion, so the whole deployment switches regions together.',
+    fallback: 'TRIGGER_EU_REGION',
+  },
+  'workspace-forking': {
+    description:
+      'Runtime rollout gate for workspace forking (fork/promote/rollback), layered on top of ' +
+      'the existing FORKING_ENABLED / Enterprise-plan gate at the shared assertForkingEnabled ' +
+      'choke point. Enforced ONLY where AppConfig is the source of truth (Sim Cloud), so ' +
+      'operators can dark-launch forking to specific orgs/users/admins without touching ' +
+      'self-hosted/local behaviour. Fallback mirrors FORKING_ENABLED for off-AppConfig reads.',
+    fallback: 'FORKING_ENABLED',
+  },
+} satisfies Record<string, FeatureFlagDefinition>
 
 /**
- * Normalizes a domain entry from the ALLOWED_MCP_DOMAINS env var.
- * Accepts bare hostnames (e.g., "mcp.company.com") or full URLs (e.g., "https://mcp.company.com").
- * Extracts the hostname in either case.
+ * The closed set of known feature flags. Derived from the registry, so a flag
+ * cannot exist — or be checked — without a definition (and its mandatory fallback).
  */
-function normalizeDomainEntry(entry: string): string {
-  const trimmed = entry.trim().toLowerCase()
-  if (!trimmed) return ''
-  if (trimmed.includes('://')) {
-    try {
-      return new URL(trimmed).hostname
-    } catch {
-      return trimmed
-    }
+export type FeatureFlagName = keyof typeof FEATURE_FLAGS
+
+/** Build the fallback document from each flag's secret. Truthy secret ⇒ enabled. */
+function fallbackFlags(): FeatureFlagsConfig {
+  const flags: FeatureFlagsConfig = {}
+  for (const [name, def] of Object.entries(FEATURE_FLAGS) as Array<
+    [string, FeatureFlagDefinition]
+  >) {
+    flags[name] = { enabled: isTruthy(env[def.fallback]) }
   }
-  return trimmed
+  return flags
+}
+
+function normalizeIds(values: unknown): string[] | undefined {
+  if (!Array.isArray(values)) return undefined
+  const ids = Array.from(new Set(values.map((v) => String(v).trim()).filter(Boolean)))
+  return ids.length > 0 ? ids : undefined
+}
+
+function normalizeRule(value: unknown): FeatureFlagRule | null {
+  if (!value || typeof value !== 'object') return null
+  const obj = value as Record<string, unknown>
+  const rule: FeatureFlagRule = {}
+  if (typeof obj.enabled === 'boolean') rule.enabled = obj.enabled
+  if (typeof obj.adminEnabled === 'boolean') rule.adminEnabled = obj.adminEnabled
+  const orgIds = normalizeIds(obj.orgIds)
+  if (orgIds) rule.orgIds = orgIds
+  const userIds = normalizeIds(obj.userIds)
+  if (userIds) rule.userIds = userIds
+  return rule
+}
+
+/** Coerce an arbitrary AppConfig/JSON value into a config, dropping malformed entries. */
+function parseConfig(json: unknown): FeatureFlagsConfig {
+  const obj = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
+  const flags: FeatureFlagsConfig = {}
+  for (const [name, value] of Object.entries(obj)) {
+    const rule = normalizeRule(value)
+    if (rule) flags[name] = rule
+  }
+  return flags
 }
 
 /**
- * Get allowed MCP server domains from the ALLOWED_MCP_DOMAINS env var.
- * Returns null if not set (all domains allowed), or parsed array of lowercase hostnames.
- * Accepts both bare hostnames and full URLs in the env var value.
+ * Resolve platform-admin status lazily. Dynamically imported so the DB-backed
+ * helper (and `@sim/db`) stay out of this config module's load graph for callers
+ * that never reach an admin-gated flag.
  */
-export function getAllowedMcpDomainsFromEnv(): string[] | null {
-  if (!env.ALLOWED_MCP_DOMAINS) return null
-  const parsed = env.ALLOWED_MCP_DOMAINS.split(',').map(normalizeDomainEntry).filter(Boolean)
-  return parsed.length > 0 ? parsed : null
+async function resolveAdmin(userId: string): Promise<boolean> {
+  const { isPlatformAdmin } = await import('@/lib/permissions/super-user')
+  return isPlatformAdmin(userId)
 }
 
 /**
- * Get cost multiplier based on environment
+ * The admin clause is resolved last and lazily: a global/userId/orgId match
+ * short-circuits before any DB read, a rule without `admins` never queries, and a
+ * missing `userId` resolves to `false` without a query.
  */
-export function getCostMultiplier(): number {
-  return isProd ? (env.COST_MULTIPLIER ?? 1) : 1
+async function evaluate(
+  rule: FeatureFlagRule | undefined,
+  ctx: FeatureFlagContext
+): Promise<boolean> {
+  if (!rule) return false
+  if (rule.enabled) return true
+  if (ctx.userId && rule.userIds?.includes(ctx.userId)) return true
+  if (ctx.orgId && rule.orgIds?.includes(ctx.orgId)) return true
+  if (rule.adminEnabled) {
+    const admin = ctx.isAdmin ?? (ctx.userId ? await resolveAdmin(ctx.userId) : false)
+    if (admin) return true
+  }
+  return false
+}
+
+/**
+ * Resolve the full flag document. Reads from AWS AppConfig on hosted deployments
+ * (cached, ~30s TTL, never blocks after the first fetch), otherwise derives each
+ * flag's on/off state from its registered fallback secret ({@link fallbackFlags}).
+ */
+export async function getFeatureFlags(): Promise<FeatureFlagsConfig> {
+  if (!isAppConfigEnabled) return fallbackFlags()
+
+  const value = await fetchAppConfigProfile(
+    {
+      application: env.APPCONFIG_APPLICATION as string,
+      environment: env.APPCONFIG_ENVIRONMENT as string,
+      profile: FEATURE_FLAGS_PROFILE,
+    },
+    parseConfig
+  )
+
+  return value ?? fallbackFlags()
+}
+
+/** Resolve a single flag for a context. Admin status is resolved internally from `userId`. */
+export async function isFeatureEnabled(
+  flag: FeatureFlagName,
+  ctx: FeatureFlagContext = {}
+): Promise<boolean> {
+  const flags = await getFeatureFlags()
+  return evaluate(flags[flag], ctx)
 }

@@ -1,8 +1,7 @@
 'use client'
-
+import { Avatar, AvatarFallback, Chip, ChipDropdown, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { Avatar, AvatarFallback, Chip, ChipDropdown } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { credentialRoleLockReason, RoleLockTooltip } from '@/components/permissions'
 import { getUserColor } from '@/lib/workspaces/colors'
 import {
   useRemoveWorkspaceCredentialMember,
@@ -32,7 +31,9 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
   const removeMember = useRemoveWorkspaceCredentialMember()
 
   const activeMembers = members.filter((member) => member.status === 'active')
-  const adminMemberCount = activeMembers.filter((member) => member.role === 'admin').length
+  const explicitAdminCount = activeMembers.filter(
+    (member) => member.role === 'admin' && member.roleSource !== 'workspace-admin'
+  ).length
 
   const handleChangeMemberRole = async (userId: string, role: WorkspaceCredentialRole) => {
     const current = activeMembers.find((member) => member.userId === userId)
@@ -57,8 +58,13 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
       {membersLoading ? null : (
         <div className='flex flex-col gap-2'>
           {activeMembers.map((member) => {
-            const roleLocked = member.role === 'admin' && adminMemberCount <= 1
-            const roleDisabled = !isAdmin || roleLocked
+            const lockReason = credentialRoleLockReason(member.roleSource)
+            const roleLocked =
+              member.role === 'admin' &&
+              member.roleSource !== 'workspace-admin' &&
+              explicitAdminCount <= 1
+            const roleDisabled = !isAdmin || roleLocked || lockReason !== null
+            const removeDisabled = roleLocked || lockReason !== null
             return (
               <div
                 key={member.id}
@@ -87,19 +93,21 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
                     </span>
                   </div>
                 </div>
-                <ChipDropdown
-                  options={ROLE_OPTIONS}
-                  value={member.role}
-                  placeholder='Role'
-                  disabled={roleDisabled}
-                  onChange={(role) =>
-                    handleChangeMemberRole(member.userId, role as WorkspaceCredentialRole)
-                  }
-                />
+                <RoleLockTooltip reason={lockReason}>
+                  <ChipDropdown
+                    options={ROLE_OPTIONS}
+                    value={member.role}
+                    placeholder='Role'
+                    disabled={roleDisabled}
+                    onChange={(role) =>
+                      handleChangeMemberRole(member.userId, role as WorkspaceCredentialRole)
+                    }
+                  />
+                </RoleLockTooltip>
                 {isAdmin && (
                   <Chip
                     onClick={() => handleRemoveMember(member.userId)}
-                    disabled={roleLocked}
+                    disabled={removeDisabled}
                     flush
                     className='justify-self-end'
                   >

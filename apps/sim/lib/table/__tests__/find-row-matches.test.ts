@@ -38,7 +38,7 @@ vi.mock('@/lib/table/validation', () => ({
   checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
 }))
 
-import { findRowMatches } from '@/lib/table/service'
+import { findRowMatches } from '@/lib/table/rows/service'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 
 const COLUMNS: ColumnDefinition[] = [

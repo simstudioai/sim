@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -11,11 +12,10 @@ import {
 import { WorkflowOperationSchema } from '@sim/realtime-protocol/schemas'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { ZodError } from 'zod'
 import { persistWorkflowOperation } from '@/database/operations'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { checkRolePermission } from '@/middleware/permissions'
+import { checkWorkflowOperationPermission } from '@/middleware/permissions'
 import type { IRoomManager, UserSession } from '@/rooms'
 
 const logger = createLogger('OperationsHandlers')
@@ -125,11 +125,17 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
         await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 
-        // Check permissions using cached role (no DB query)
-        const permissionCheck = checkRolePermission(userPresence.role, operation)
+        // Re-validate the workspace role against the DB (cached per pod for a short
+        // window) so revoked or downgraded collaborators lose write access live.
+        const permissionCheck = await checkWorkflowOperationPermission(
+          session.userId,
+          workflowId,
+          operation,
+          userPresence.role
+        )
         if (!permissionCheck.allowed) {
           logger.warn(
-            `User ${session.userId} (role: ${userPresence.role}) forbidden from ${operation} on ${target}`
+            `User ${session.userId} (role: ${permissionCheck.role ?? 'none'}) forbidden from ${operation} on ${target}`
           )
           emitOperationError({
             type: 'INSUFFICIENT_PERMISSIONS',

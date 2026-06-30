@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isVersionedType, stripVersionSuffix, truncate } from './string.js'
+import { isVersionedType, normalizeEmail, stripVersionSuffix, truncate } from './string.js'
 
 describe('truncate', () => {
   it('appends the suffix when the string exceeds the slice length', () => {
@@ -53,5 +53,15 @@ describe('isVersionedType', () => {
     expect(isVersionedType('plain')).toBe(false)
     expect(isVersionedType('a_version')).toBe(false)
     expect(isVersionedType('x')).toBe(false)
+  })
+})
+
+describe('normalizeEmail', () => {
+  it('trims surrounding whitespace and lowercases', () => {
+    expect(normalizeEmail('  USER@Example.COM  ')).toBe('user@example.com')
+  })
+
+  it('leaves an already-normalized email unchanged', () => {
+    expect(normalizeEmail('user@example.com')).toBe('user@example.com')
   })
 })

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
@@ -16,6 +17,8 @@ export type V1Endpoint =
   | 'logs-detail'
   | 'workflows'
   | 'workflow-detail'
+  | 'workflow-deploy'
+  | 'workflow-rollback'
   | 'audit-logs'
   | 'tables'
   | 'table-detail'
@@ -198,16 +201,13 @@ export async function validateWorkspaceAccess(
   rateLimit: RateLimitResult,
   userId: string,
   workspaceId: string,
-  level: 'read' | 'write' = 'read'
+  level: PermissionType = 'read'
 ): Promise<NextResponse | null> {
   const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
   if (scopeError) return scopeError
 
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-  if (permission === null) {
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-  }
-  if (level === 'write' && permission === 'read') {
+  if (!permissionSatisfies(permission, level)) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }
   return null

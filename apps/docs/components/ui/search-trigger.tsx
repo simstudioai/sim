@@ -1,6 +1,13 @@
 'use client'
 
+import {
+  chipContentIconClass,
+  chipFilledFillTokens,
+  chipGeometryClass,
+  TRIGGER_BORDER_CLASS,
+} from '@sim/emcn'
 import { Search } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export function SearchTrigger() {
   const openSearchDialog = () => {
@@ -16,10 +23,15 @@ export function SearchTrigger() {
     <button
       type='button'
       data-search-trigger
-      className='flex h-[30px] w-[360px] cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-season text-[var(--text-muted)] text-sm transition-colors hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
+      className={cn(
+        chipGeometryClass,
+        chipFilledFillTokens,
+        TRIGGER_BORDER_CLASS,
+        'flex w-[360px] cursor-pointer font-season text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-active)]'
+      )}
       onClick={openSearchDialog}
     >
-      <Search className='size-[14px] text-[var(--text-icon)]' />
+      <Search className={chipContentIconClass} />
       <span>Search&hellip;</span>
       <kbd className='ml-auto flex items-center'>
         <span className='text-[15px]'>⌘</span>

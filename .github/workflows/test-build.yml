@@ -14,38 +14,38 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.3.13
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: latest
 
       - name: Mount Bun cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@v1
+        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
           key: ${{ github.repository }}-bun-cache
           path: ~/.bun/install/cache
 
       - name: Mount node_modules (Sticky Disk)
-        uses: useblacksmith/stickydisk@v1
+        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
           key: ${{ github.repository }}-node-modules
           path: ./node_modules
 
       - name: Mount Turbo cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@v1
+        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
           key: ${{ github.repository }}-turbo-cache
           path: ./.turbo
 
       - name: Restore Next.js build cache
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ./apps/sim/.next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}
@@ -55,12 +55,19 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Validate feature flags
+      # Surfaces known CVEs in the dependency tree. Non-blocking until the
+      # existing advisory backlog is triaged, then flip to a required gate by
+      # removing continue-on-error.
+      - name: Security audit
+        run: bun audit
+        continue-on-error: true
+
+      - name: Validate env flags
         run: |
-          FILE="apps/sim/lib/core/config/feature-flags.ts"
+          FILE="apps/sim/lib/core/config/env-flags.ts"
           ERRORS=""
 
-          echo "Checking for hardcoded boolean feature flags..."
+          echo "Checking for hardcoded boolean env flags..."
 
           # Use perl for multiline matching to catch both:
           #   export const isHosted = true
@@ -69,17 +76,17 @@ jobs:
           HARDCODED=$(perl -0777 -ne 'while (/export const (is[A-Za-z]+)\s*=\s*\n?\s*(true|false)\b/g) { print "  $1 = $2\n" }' "$FILE")
 
           if [ -n "$HARDCODED" ]; then
-            ERRORS="${ERRORS}\n❌ Feature flags must not be hardcoded to boolean literals!\n\nFound hardcoded flags:\n${HARDCODED}\n\nFeature flags should derive their values from environment variables.\n"
+            ERRORS="${ERRORS}\n❌ Env flags must not be hardcoded to boolean literals!\n\nFound hardcoded flags:\n${HARDCODED}\n\nEnv flags should derive their values from environment variables.\n"
           fi
 
-          echo "Checking feature flag naming conventions..."
+          echo "Checking env flag naming conventions..."
 
           # Check that all export const (except functions) start with 'is'
           # This finds exports like "export const someFlag" that don't start with "is" or "get"
           BAD_NAMES=$(grep -E "^export const [a-z]" "$FILE" | grep -vE "^export const (is|get)" | sed 's/export const \([a-zA-Z]*\).*/  \1/')
 
           if [ -n "$BAD_NAMES" ]; then
-            ERRORS="${ERRORS}\n❌ Feature flags must use 'is' prefix for boolean flags!\n\nFound incorrectly named flags:\n${BAD_NAMES}\n\nExample: 'hostedMode' should be 'isHostedMode'\n"
+            ERRORS="${ERRORS}\n❌ Env flags must use 'is' prefix for boolean flags!\n\nFound incorrectly named flags:\n${BAD_NAMES}\n\nExample: 'hostedMode' should be 'isHostedMode'\n"
           fi
 
           if [ -n "$ERRORS" ]; then
@@ -88,7 +95,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ All feature flags are properly configured"
+          echo "✅ All env flags are properly configured"
 
       - name: Check block registry invariants
         run: |
@@ -112,8 +119,24 @@ jobs:
       - name: Zustand v5 selector audit
         run: bun run check:zustand-v5
 
+      - name: React Query pattern audit
+        run: bun run check:react-query
+
+      - name: Client boundary import audit
+        run: bun run check:client-boundary
+
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
+
+      - name: Migration safety (zero-downtime) audit
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          else
+            BASE_REF="HEAD~1"
+          fi
+          bun run check:migrations "$BASE_REF"
 
       - name: Type-check realtime server
         run: bunx turbo run type-check --filter=@sim/realtime
@@ -154,7 +177,7 @@ jobs:
         run: bunx turbo run build --filter=sim
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           directory: ./apps/sim/coverage
           fail_ci_if_error: false

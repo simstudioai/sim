@@ -1,11 +1,20 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { Button } from '@sim/emcn'
+import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { Button } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
@@ -25,6 +34,7 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import {
   useMarkMothershipChatRead,
@@ -53,13 +63,52 @@ interface HomeProps {
   chatId?: string
   userName?: string
   userId?: string
-  initialResourceId?: string | null
 }
 
-export function Home({ chatId, userName, userId, initialResourceId = null }: HomeProps) {
+export function Home({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
+  /**
+   * URL is the single source of truth for the selected resource. `Home` renders
+   * client-side, so nuqs reads `?resource=` from the URL on mount — the same
+   * value the page previously threaded through `initialResourceId` — and writes
+   * it back with `history: 'replace'`, the previous behavior, minus the banned
+   * `window.history.replaceState` param-mutation effect. The page wraps `Home`
+   * in Suspense for the `useSearchParams` requirement.
+   */
+  const [activeResourceParam, setResourceParam] = useQueryState(resourceParam.key, {
+    ...resourceParam.parser,
+    ...resourceUrlKeys,
+  })
+  /**
+   * Strips any leftover URL fragment on selection change, preserving the old
+   * effect's `url.hash = ''` (the only hash usage on this surface) without a
+   * separate effect-sync mirror. This rewrites the fragment only — it never
+   * mutates a query param via the History API.
+   *
+   * Order matters: the fragment is stripped synchronously BEFORE the nuqs write,
+   * because nuqs re-appends `location.hash` on its (deferred) flush — clearing the
+   * hash first ensures the param write doesn't carry the stale fragment back.
+   */
+  const setActiveResourceUrl = useCallback<Dispatch<SetStateAction<string | null>>>(
+    (action) => {
+      if (typeof window !== 'undefined' && window.location.hash) {
+        const { pathname, search } = window.location
+        window.history.replaceState(window.history.state, '', `${pathname}${search}`)
+      }
+      void setResourceParam(action)
+    },
+    [setResourceParam]
+  )
+  /**
+   * Controlled binding handed to `useChat` so the URL is the sole owner of the
+   * selection with no dual source.
+   */
+  const activeResourceState = useMemo<[string | null, Dispatch<SetStateAction<string | null>>]>(
+    () => [activeResourceParam, setActiveResourceUrl],
+    [activeResourceParam, setActiveResourceUrl]
+  )
   const firstName = userName?.split(' ')[0] ?? ''
   const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
   const { data: workflows = [] } = useWorkflows(workspaceId)
@@ -179,7 +228,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     chatId,
     getMothershipUseChatOptions({
       onResourceEvent: handleResourceEvent,
-      initialActiveResourceId: initialResourceId,
+      activeResourceState,
       onRequestStarted: ({ requestId, userMessageId }) => {
         captureEvent(posthogRef.current, 'task_request_started', {
           workspace_id: workspaceId,
@@ -190,17 +239,6 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
       },
     })
   )
-
-  useEffect(() => {
-    const url = new URL(window.location.href)
-    if (activeResourceId) {
-      url.searchParams.set('resource', activeResourceId)
-    } else {
-      url.searchParams.delete('resource')
-    }
-    url.hash = ''
-    window.history.replaceState(null, '', url.toString())
-  }, [activeResourceId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -233,36 +271,35 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     }
   }, [resources, collapseResource])
 
-  function handleStopGeneration() {
+  const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
       view: 'mothership',
       request_id: getCurrentRequestId(),
     })
     void stopGeneration().catch(() => {})
-  }
+  }, [workspaceId, getCurrentRequestId, stopGeneration])
 
-  function handleSubmit(
-    text: string,
-    fileAttachments?: FileAttachmentForApi[],
-    contexts?: ChatContext[]
-  ) {
-    const trimmed = text.trim()
-    if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+  const handleSubmit = useCallback(
+    (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+      const trimmed = text.trim()
+      if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
-    captureEvent(posthogRef.current, 'task_message_sent', {
-      workspace_id: workspaceId,
-      has_attachments: !!(fileAttachments && fileAttachments.length > 0),
-      has_contexts: !!(contexts && contexts.length > 0),
-      is_new_task: !chatId,
-    })
+      captureEvent(posthogRef.current, 'task_message_sent', {
+        workspace_id: workspaceId,
+        has_attachments: !!(fileAttachments && fileAttachments.length > 0),
+        has_contexts: !!(contexts && contexts.length > 0),
+        is_new_task: !chatId,
+      })
 
-    if (initialViewInputRef.current) {
-      setIsInputEntering(true)
-    }
+      if (initialViewInputRef.current) {
+        setIsInputEntering(true)
+      }
 
-    sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
-  }
+      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
+    },
+    [workspaceId, chatId, sendMessage]
+  )
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -462,6 +499,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           activeResourceId={activeResourceId}
           isCollapsed={isResourceCollapsed}
           previewSession={previewSession}
+          isAgentResponding={isSending}
           genericResourceData={genericResourceData ?? undefined}
           className={skipResourceTransition ? '!transition-none' : undefined}
         />

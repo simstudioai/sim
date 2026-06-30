@@ -1,5 +1,5 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
-import { ChipLink } from '@/components/emcn'
 import { getAllTags } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
 

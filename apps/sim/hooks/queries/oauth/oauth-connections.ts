@@ -21,7 +21,8 @@ const logger = createLogger('OAuthConnectionsQuery')
 export const oauthConnectionsKeys = {
   all: ['oauthConnections'] as const,
   connections: () => [...oauthConnectionsKeys.all, 'connections'] as const,
-  accounts: (provider: string) => [...oauthConnectionsKeys.all, 'accounts', provider] as const,
+  accounts: () => [...oauthConnectionsKeys.all, 'accounts'] as const,
+  account: (provider: string) => [...oauthConnectionsKeys.accounts(), provider] as const,
 }
 
 /** OAuth service with connection status and linked accounts. */
@@ -152,11 +153,11 @@ export function useConnectOAuthService() {
 
       return { success: true }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
-    },
     onError: (error) => {
       logger.error('OAuth connection error:', error)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
     },
   })
 }
@@ -245,7 +246,7 @@ async function fetchConnectedAccounts(
  */
 export function useConnectedAccounts(provider: string, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: oauthConnectionsKeys.accounts(provider),
+    queryKey: oauthConnectionsKeys.account(provider),
     queryFn: ({ signal }) => fetchConnectedAccounts(provider, signal),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,

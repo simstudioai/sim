@@ -1,9 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { ChipTag, Combobox, type ComboboxOption } from '@/components/emcn'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -13,6 +14,7 @@ import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -97,6 +99,7 @@ export const Dropdown = memo(function Dropdown({
   searchable = false,
 }: DropdownProps) {
   const activeSearchTarget = useActiveSearchTarget()
+  const { isToolAllowed } = usePermissionConfig()
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
@@ -213,19 +216,42 @@ export const Dropdown = memo(function Dropdown({
     return opts
   }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
+  /**
+   * Operation IDs whose resolved tool is denied by the caller's permission
+   * group. Only the `operation` selector of a block with a tool selector is
+   * gated. Denied operations are hidden from the picker (still resolvable for
+   * label display); the server is the authoritative gate regardless.
+   */
+  const deniedOperationIds = useMemo(() => {
+    const denied = new Set<string>()
+    if (subBlockId !== 'operation') return denied
+    const selectTool = blockConfig?.tools?.config?.tool
+    if (!selectTool) return denied
+    for (const opt of allOptions) {
+      const optionId = typeof opt === 'string' ? opt : opt.id
+      try {
+        const toolId = selectTool({ operation: optionId })
+        if (toolId && !isToolAllowed(toolId)) denied.add(optionId)
+      } catch {
+        // Unresolvable from the operation alone — leave it visible; the server still enforces.
+      }
+    }
+    return denied
+  }, [subBlockId, blockConfig, allOptions, isToolAllowed])
+
   const comboboxOptions = useMemo((): ComboboxOption[] => {
     return allOptions.map((opt) => {
       if (typeof opt === 'string') {
-        return { label: opt.toLowerCase(), value: opt }
+        return { label: opt.toLowerCase(), value: opt, hidden: deniedOperationIds.has(opt) }
       }
       return {
         label: opt.label.toLowerCase(),
         value: opt.id,
         icon: 'icon' in opt ? opt.icon : undefined,
-        hidden: opt.hidden,
+        hidden: opt.hidden || deniedOperationIds.has(opt.id),
       }
     })
-  }, [allOptions])
+  }, [allOptions, deniedOperationIds])
 
   const optionMap = useMemo(() => {
     return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))
@@ -233,16 +259,18 @@ export const Dropdown = memo(function Dropdown({
 
   const defaultOptionValue = useMemo(() => {
     if (multiSelect) return undefined
+
+    const firstSelectable = comboboxOptions.find((opt) => !opt.hidden)
     if (defaultValue !== undefined) {
+      // Don't seed a denied operation as the default; use the first allowed option.
+      if (deniedOperationIds.has(defaultValue)) {
+        return firstSelectable?.value
+      }
       return defaultValue
     }
 
-    if (comboboxOptions.length > 0) {
-      return comboboxOptions[0].value
-    }
-
-    return undefined
-  }, [defaultValue, comboboxOptions, multiSelect])
+    return firstSelectable?.value
+  }, [defaultValue, comboboxOptions, deniedOperationIds, multiSelect])
 
   useEffect(() => {
     if (multiSelect || defaultOptionValue === undefined) {
@@ -272,7 +300,7 @@ export const Dropdown = memo(function Dropdown({
       const normalizedJson = normalizeVariableReferences(jsonString)
       const parsed = JSON.parse(normalizedJson)
 
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      if (isRecordLike(parsed)) {
         return Object.entries(parsed).map(([key, value]) => {
           const fieldType = inferType(value)
           const fieldValue =

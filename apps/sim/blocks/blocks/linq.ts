@@ -867,6 +867,7 @@ export const LinqBlock: BlockConfig = {
 
 export const LinqBlockMeta = {
   tags: ['messaging', 'automation', 'webhooks'],
+  url: 'https://www.linqapp.com',
   templates: [
     {
       icon: LinqIcon,

@@ -1,15 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { AlertTriangle, Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import {
-  Button,
   ButtonGroup,
   ButtonGroupItem,
   ChipConfirmModal,
   ChipInput,
+  cn,
   Input,
   Label,
   Loader,
@@ -18,10 +15,12 @@ import {
   type TagItem,
   Textarea,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { AlertTriangle, Check } from 'lucide-react'
+import { GeneratedPasswordInput } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { generatePassword } from '@/lib/core/security/encryption'
-import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
@@ -415,20 +414,16 @@ export function ChatDeploy({
         onOpenChange={setShowDeleteConfirmation}
         srTitle='Delete Chat'
         title='Delete Chat'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {existingChat?.title || 'this chat'}
-            </span>
-            ?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will remove the chat at "{getEmailDomain()}/chat/{existingChat?.identifier}" and
-              make it unavailable to all users.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: existingChat?.title || 'this chat', bold: true },
+          '? ',
+          {
+            text: `This will remove the chat at "${getEmailDomain()}/chat/${existingChat?.identifier ?? ''}" and make it unavailable to all users.`,
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,
@@ -615,9 +610,7 @@ function AuthSelector({
   hasExistingPassword = false,
   error,
 }: AuthSelectorProps) {
-  const [showPassword, setShowPassword] = useState(false)
   const [emailError, setEmailError] = useState('')
-  const [copySuccess, setCopySuccess] = useState(false)
   const [invalidEmailItems, setInvalidEmailItems] = useState<TagItem[]>([])
 
   const emailsRef = useRef(emails)
@@ -626,22 +619,6 @@ function AuthSelector({
   useEffect(() => {
     emailsRef.current = emails
   }, [emails])
-
-  useEffect(() => {
-    if (!copySuccess) return
-    const timer = setTimeout(() => setCopySuccess(false), 2000)
-    return () => clearTimeout(timer)
-  }, [copySuccess])
-
-  const handleGeneratePassword = () => {
-    const newPassword = generatePassword(24)
-    onPasswordChange(newPassword)
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopySuccess(true)
-  }
 
   const addEmail = (email: string): boolean => {
     if (!email.trim()) return false
@@ -722,73 +699,12 @@ function AuthSelector({
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Password
           </Label>
-          <ChipInput
-            type={showPassword ? 'text' : 'password'}
-            placeholder={getPasswordPlaceholder(hasExistingPassword)}
+          <GeneratedPasswordInput
             value={password}
-            onChange={(e) => onPasswordChange(e.target.value)}
+            onChange={onPasswordChange}
             disabled={disabled}
+            placeholder={getPasswordPlaceholder(hasExistingPassword)}
             required={!hasExistingPassword}
-            autoComplete='new-password'
-            endAdornment={
-              <div className='flex items-center'>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={handleGeneratePassword}
-                      disabled={disabled}
-                      aria-label='Generate password'
-                      className='!p-1.5'
-                    >
-                      <RefreshCw className='size-3' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    <span>Generate</span>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={() => copyToClipboard(password)}
-                      disabled={!password || disabled}
-                      aria-label='Copy password'
-                      className='!p-1.5'
-                    >
-                      {copySuccess ? (
-                        <Check className='size-3' />
-                      ) : (
-                        <Clipboard className='size-3' />
-                      )}
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    <span>{copySuccess ? 'Copied' : 'Copy'}</span>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={() => setShowPassword(!showPassword)}
-                      disabled={disabled}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className='!p-1.5'
-                    >
-                      {showPassword ? <EyeOff className='size-3' /> : <Eye className='size-3' />}
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    <span>{showPassword ? 'Hide' : 'Show'}</span>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-              </div>
-            }
           />
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {getPasswordHelperText(hasExistingPassword)}

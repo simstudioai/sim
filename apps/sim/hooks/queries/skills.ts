@@ -85,6 +85,8 @@ export function useCreateSkill() {
           return Array.from(byId.values())
         }
       )
+    },
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
     },
   })

@@ -1,5 +1,5 @@
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import type { SubBlockConfig } from '@/blocks/types'
 
 export type CanonicalMode = 'basic' | 'advanced'

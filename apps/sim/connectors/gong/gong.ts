@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { GongIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { gongConnectorMeta } from '@/connectors/gong/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
 
@@ -306,59 +306,7 @@ async function fetchExtensiveCalls(
 }
 
 export const gongConnector: ConnectorConfig = {
-  id: 'gong',
-  name: 'Gong',
-  description: 'Sync call transcripts from Gong revenue intelligence',
-  version: '1.0.0',
-  icon: GongIcon,
-
-  auth: {
-    mode: 'apiKey',
-    label: 'Access Key & Secret',
-    placeholder: 'accessKey:accessKeySecret',
-  },
-
-  supportsIncrementalSync: true,
-
-  configFields: [
-    {
-      id: 'lookback',
-      title: 'Date Range',
-      type: 'dropdown',
-      required: false,
-      options: [
-        { label: 'Last 30 days', id: '30' },
-        { label: 'Last 90 days (recommended)', id: '90' },
-        { label: 'Last 6 months', id: '180' },
-      ],
-      description:
-        'On initial sync only. Controls how far back to look for calls with transcripts.',
-    },
-    {
-      id: 'maxCalls',
-      title: 'Max Calls',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 200 (default: unlimited)',
-    },
-    {
-      id: 'workspaceId',
-      title: 'Workspace ID',
-      type: 'short-input',
-      required: false,
-      placeholder: 'Optional — limit to a single Gong workspace',
-    },
-    {
-      id: 'primaryUserIds',
-      title: 'Host User IDs',
-      type: 'short-input',
-      required: false,
-      mode: 'advanced',
-      placeholder: 'Optional — comma-separated Gong user IDs (call hosts)',
-      description:
-        'Only sync calls hosted by these users. Find IDs in Gong under Company Settings → Users, or via the API.',
-    },
-  ],
+  ...gongConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -553,20 +501,6 @@ export const gongConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'callTitle', displayName: 'Call Title', fieldType: 'text' },
-    { id: 'participants', displayName: 'Participants', fieldType: 'text' },
-    { id: 'duration', displayName: 'Duration (seconds)', fieldType: 'number' },
-    { id: 'callDate', displayName: 'Call Date', fieldType: 'date' },
-    { id: 'scheduledDate', displayName: 'Scheduled Date', fieldType: 'date' },
-    { id: 'direction', displayName: 'Direction', fieldType: 'text' },
-    { id: 'scope', displayName: 'Scope', fieldType: 'text' },
-    { id: 'system', displayName: 'System', fieldType: 'text' },
-    { id: 'language', displayName: 'Language', fieldType: 'text' },
-    { id: 'purpose', displayName: 'Purpose', fieldType: 'text' },
-    { id: 'isPrivate', displayName: 'Private', fieldType: 'boolean' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

@@ -114,6 +114,7 @@ export const PATCH = withRouteHandler(
           actorEmail: userEmail,
           toolName: body.toolName,
           toolDescription: body.toolDescription,
+          parameterDescriptionOverrides: body.parameterDescriptionOverrides,
           parameterSchema: body.parameterSchema,
         })
         if (!result.success || !result.tool) {

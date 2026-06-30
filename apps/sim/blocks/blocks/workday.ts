@@ -463,6 +463,7 @@ Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Stat
 
 export const WorkdayBlockMeta = {
   tags: ['hiring'],
+  url: 'https://www.workday.com',
   templates: [
     {
       icon: WorkdayIcon,

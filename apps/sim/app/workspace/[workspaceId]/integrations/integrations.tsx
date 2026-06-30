@@ -1,8 +1,6 @@
 'use client'
 
-import { type ComponentType, useMemo, useState } from 'react'
-import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { type ComponentType, useCallback, useMemo } from 'react'
 import {
   ArrowRight,
   ChevronDown,
@@ -13,7 +11,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Search,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { debounce, useQueryStates } from 'nuqs'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -25,11 +26,18 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
+import {
+  ALL_CATEGORY,
+  CONNECTED_LABEL,
+  FEATURED_LABEL,
+  integrationsParsers,
+  integrationsUrlKeys,
+} from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 
-const ALL_CATEGORY = 'All'
-const FEATURED_LABEL = 'Featured'
-const CONNECTED_LABEL = 'Connected'
+/** Debounce window for `search` URL writes; the input itself stays instant. */
+const SEARCH_DEBOUNCE_MS = 300 as const
+
 /** Slugs surfaced in the pinned Featured section, in display order. */
 const FEATURED_SLUGS = ['slack', 'gmail', 'jira', 'github', 'google-sheets', 'hubspot'] as const
 
@@ -130,8 +138,25 @@ export function Integrations() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY)
+  const [{ category: selectedCategory, search: urlSearchTerm }, setIntegrationFilters] =
+    useQueryStates(integrationsParsers, integrationsUrlKeys)
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. Filtering below is cheap in-memory over a static list,
+   * so it reads the instant value too.
+   */
+  const setSearchTerm = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      const next = trimmed.length > 0 ? trimmed : null
+      setIntegrationFilters(
+        { search: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+      )
+    },
+    [setIntegrationFilters]
+  )
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
@@ -164,6 +189,13 @@ export function Integrations() {
     })
   }, [oauthCredentials])
 
+  const setSelectedCategory = useCallback(
+    (category: string) => {
+      setIntegrationFilters({ category })
+    },
+    [setIntegrationFilters]
+  )
+
   const categoryOptions = [
     ALL_CATEGORY,
     ...(connectedItems.length > 0 ? [CONNECTED_LABEL] : []),
@@ -179,7 +211,7 @@ export function Integrations() {
     // Connected-only view: integration sections are suppressed entirely.
     if (isConnectedSelected) return []
 
-    const normalizedSearch = searchTerm.trim().toLowerCase()
+    const normalizedSearch = urlSearchTerm.trim().toLowerCase()
     const matchesSearch = (integration: Integration) =>
       !normalizedSearch ||
       integration.name.toLowerCase().includes(normalizedSearch) ||
@@ -215,14 +247,20 @@ export function Integrations() {
       ...featuredSection,
       ...(integrations.length > 0 ? [{ label: selectedCategory, integrations }] : []),
     ]
-  }, [isAllCategorySelected, isConnectedSelected, isFeaturedSelected, searchTerm, selectedCategory])
+  }, [
+    isAllCategorySelected,
+    isConnectedSelected,
+    isFeaturedSelected,
+    urlSearchTerm,
+    selectedCategory,
+  ])
 
   const visibleConnectedItems = useMemo(() => {
     // Featured-only view: Connected is suppressed (mirror behavior of the
     // Featured-only branch above, which renders only the Featured section).
     if (isFeaturedSelected) return []
 
-    const normalizedSearch = searchTerm.trim().toLowerCase()
+    const normalizedSearch = urlSearchTerm.trim().toLowerCase()
     return connectedItems.filter((item) => {
       const matchesCategory =
         isAllCategorySelected || isConnectedSelected || item.integrationType === selectedCategory
@@ -239,12 +277,12 @@ export function Integrations() {
     isAllCategorySelected,
     isConnectedSelected,
     isFeaturedSelected,
-    searchTerm,
+    urlSearchTerm,
     selectedCategory,
   ])
 
   const showNoResults =
-    Boolean(searchTerm.trim() || !isAllCategorySelected) &&
+    Boolean(urlSearchTerm.trim() || !isAllCategorySelected) &&
     filteredCategorySections.length === 0 &&
     visibleConnectedItems.length === 0
 
@@ -259,7 +297,7 @@ export function Integrations() {
               icon={Search}
               className='min-w-0 flex-1'
               placeholder='Search integrations...'
-              value={searchTerm}
+              value={urlSearchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={credentialsLoading}
             />
@@ -322,8 +360,8 @@ export function Integrations() {
 
             {showNoResults && (
               <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                {searchTerm.trim()
-                  ? `No integrations found matching “${searchTerm}”`
+                {urlSearchTerm.trim()
+                  ? `No integrations found matching “${urlSearchTerm}”`
                   : 'No integrations in this category'}
               </div>
             )}

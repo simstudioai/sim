@@ -1,5 +1,5 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
-import { ChipLink } from '@/components/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
 
 const PAGE_URL = `${SITE_URL}/partners`

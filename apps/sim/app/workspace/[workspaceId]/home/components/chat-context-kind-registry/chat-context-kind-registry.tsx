@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import {
+  Calendar,
   Database,
   Folder as FolderIcon,
   Library,
   Table as TableIcon,
   Task,
   Workflow,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
 import { AgentSkillsIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
@@ -78,6 +79,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   filefolder: {
     label: 'File folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
+  },
+  scheduledtask: {
+    label: 'Scheduled task',
+    renderIcon: ({ className }) => <Calendar className={className} />,
   },
   past_chat: {
     label: 'Past chat',

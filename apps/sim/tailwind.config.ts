@@ -13,6 +13,8 @@ export default {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    '../../packages/emcn/src/**/*.{js,ts,jsx,tsx}',
+    '../../packages/workflow-renderer/src/**/*.{js,ts,jsx,tsx}',
     '!./app/node_modules/**',
     '!**/node_modules/**',
   ],

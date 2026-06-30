@@ -1,5 +1,5 @@
+import { X } from '@sim/emcn'
 import { PanelRight, Workflow } from 'lucide-react'
-import { X } from '@/components/emcn'
 
 interface LandingPreviewStageHeaderProps {
   /** The staged resource's display name. */

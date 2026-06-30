@@ -758,6 +758,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const XBlockMeta = {
   tags: ['marketing', 'messaging'],
+  url: 'https://x.com',
   templates: [
     {
       icon: xIcon,

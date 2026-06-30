@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { getActiveWorkflowContext } from '@sim/workflow-authz'
-import { getUserEntityPermissions, type PermissionType } from '@/lib/workspaces/permissions/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
+import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotPermissions')
 
@@ -20,42 +20,15 @@ export async function verifyWorkflowAccess(
   workspaceId?: string
 }> {
   try {
-    const workflowContext = await getActiveWorkflowContext(workflowId)
-    if (!workflowContext) {
-      logger.warn('Attempt to access non-existent workflow', {
-        workflowId,
-        userId,
-      })
-      return { hasAccess: false, userPermission: null }
-    }
-
-    const { workspaceId } = workflowContext
-
-    const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-
-    if (userPermission !== null) {
-      logger.debug('User has workspace permission for workflow', {
-        workflowId,
-        userId,
-        workspaceId,
-        userPermission,
-      })
-      return {
-        hasAccess: true,
-        userPermission,
-        workspaceId,
-      }
-    }
-
-    logger.warn('User has no access to workflow', {
+    const result = await authorizeWorkflowByWorkspacePermission({
       workflowId,
       userId,
-      workspaceId,
+      action: 'read',
     })
     return {
-      hasAccess: false,
-      userPermission: null,
-      workspaceId: workspaceId || undefined,
+      hasAccess: result.allowed,
+      userPermission: result.workspacePermission,
+      workspaceId: result.workflow?.workspaceId ?? undefined,
     }
   } catch (error) {
     logger.error('Error verifying workflow access', { error, workflowId, userId })

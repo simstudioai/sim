@@ -126,6 +126,7 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
 
 export const LinkedInBlockMeta = {
   tags: ['marketing', 'sales-engagement'],
+  url: 'https://www.linkedin.com',
   templates: [
     {
       icon: LinkedInIcon,

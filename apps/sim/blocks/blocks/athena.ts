@@ -470,6 +470,7 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
 
 export const AthenaBlockMeta = {
   tags: ['cloud', 'data-analytics'],
+  url: 'https://aws.amazon.com/athena',
   templates: [
     {
       icon: AthenaIcon,

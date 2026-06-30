@@ -1,29 +1,26 @@
 import { createLogger } from '@sim/logger'
-import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
-import type { MothershipStreamV1ToolUI } from '@/lib/copilot/generated/mothership-stream-v1'
+import { isRecordLike } from '@sim/utils/object'
 import {
   CrawlWebsite,
-  CreateFolder,
-  DeleteFolder,
   DeleteWorkflow,
   DeployApi,
   DeployChat,
   DeployMcp,
   FunctionExecute,
-  GetPageContents,
   Glob,
   Grep,
   ManageCredential,
   ManageCredentialOperation,
   ManageCustomTool,
   ManageCustomToolOperation,
-  ManageJob,
-  ManageJobOperation,
+  ManageFolder,
+  ManageFolderOperation,
   ManageMcpTool,
   ManageMcpToolOperation,
+  ManageScheduledTask,
+  ManageScheduledTaskOperation,
   ManageSkill,
   ManageSkillOperation,
-  MoveFolder,
   MoveWorkflow,
   QueryLogs,
   Redeploy,
@@ -37,6 +34,7 @@ import {
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { ContentBlock, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
@@ -54,11 +52,7 @@ export const DEPLOY_TOOL_NAMES: Set<string> = new Set([
   Redeploy.id,
 ])
 
-export const FOLDER_TOOL_NAMES: Set<string> = new Set([
-  CreateFolder.id,
-  DeleteFolder.id,
-  MoveFolder.id,
-])
+export const FOLDER_TOOL_NAMES: Set<string> = new Set([ManageFolder.id])
 
 export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
   MoveWorkflow.id,
@@ -68,91 +62,48 @@ export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
 
 export type StreamPayload = Record<string, unknown>
 
-export type StreamToolUI = {
-  hidden?: boolean
-  title?: string
-  clientExecutable?: boolean
-}
-
-export type ToolResultPhasePayload = {
-  output?: unknown
-  status?: string
-  error?: unknown
-  success?: boolean
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 export function asPayloadRecord(value: unknown): StreamPayload | undefined {
-  return isRecord(value) ? value : undefined
+  return isRecordLike(value) ? value : undefined
 }
 
-export function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {
-  if (!ui) {
-    return undefined
-  }
-
-  const title =
-    typeof ui.title === 'string'
-      ? ui.title
-      : typeof ui.phaseLabel === 'string'
-        ? ui.phaseLabel
-        : undefined
-
-  return {
-    ...(typeof ui.hidden === 'boolean' ? { hidden: ui.hidden } : {}),
-    ...(title ? { title } : {}),
-    ...(typeof ui.clientExecutable === 'boolean' ? { clientExecutable: ui.clientExecutable } : {}),
-  }
-}
-
+/**
+ * Settles any tool row still `executing` at a turn terminal by propagating the
+ * turn's outcome — the deterministic replacement for the old `interrupted`
+ * invention. A clean `complete` means the turn succeeded, so a straggler is
+ * settled `success` (with explicit tool/span terminals from the backend there
+ * are normally none); a stop settles `cancelled`; an error settles `error`.
+ */
 export function finalizeResidualToolCalls(
   blocks: ContentBlock[],
   turnTerminal: 'complete' | 'cancelled' | 'error'
 ): void {
   const endedAt = Date.now()
+  const propagated =
+    turnTerminal === 'cancelled'
+      ? ToolCallStatus.cancelled
+      : turnTerminal === 'error'
+        ? ToolCallStatus.error
+        : ToolCallStatus.success
   for (const block of blocks) {
+    // Close any still-open subagent lane at the turn terminal so its group
+    // resolves deterministically even when the backend cut off before a
+    // `span end` (abort/disconnect). The projection treats a stamped `endedAt`
+    // as a closed group, so the delegating spinner clears without any
+    // transport-based gating.
+    if (block.type === 'subagent' && block.endedAt === undefined) {
+      block.endedAt = endedAt
+      continue
+    }
     const tc = block.toolCall
     if (!tc || tc.status !== ToolCallStatus.executing) continue
-    if (turnTerminal === 'cancelled') {
-      tc.status = ToolCallStatus.cancelled
+    tc.status = propagated
+    if (propagated === ToolCallStatus.cancelled) {
       tc.displayTitle = 'Stopped by user'
-    } else if (turnTerminal === 'error') {
-      tc.status = ToolCallStatus.error
-    } else {
-      tc.status = ToolCallStatus.interrupted
-      logger.warn('Tool call unresolved at turn completion', {
-        toolCallId: tc.id,
-        toolName: tc.name,
-      })
     }
     if (block.endedAt === undefined) {
       block.endedAt = endedAt
     }
   }
-}
-
-export function isTerminalToolCallStatus(status: ToolCallStatus): boolean {
-  return (
-    status === ToolCallStatus.success ||
-    status === ToolCallStatus.error ||
-    status === ToolCallStatus.cancelled ||
-    status === ToolCallStatus.skipped ||
-    status === ToolCallStatus.rejected ||
-    status === ToolCallStatus.interrupted
-  )
-}
-
-export function resolveLiveToolStatus(
-  payload: Partial<{
-    status: string
-    success: boolean
-    output: unknown
-  }>
-): ToolCallStatus {
-  return resolveStreamToolOutcome(payload) as ToolCallStatus
 }
 
 function resolveLeafWorkflowPathSegment(segments: string[]): string | undefined {
@@ -202,11 +153,6 @@ export function extractResourceFromReadResult(
 
 function stringParam(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function stringArrayParam(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
 }
 
 function resolveWorkflowNameForDisplay(workflowId: unknown): string | undefined {
@@ -262,125 +208,18 @@ function functionExecuteTitle(title: string | undefined): string {
   return title ?? 'Running code'
 }
 
-export function resolveToolDisplayTitle(
-  name: string,
-  args?: Record<string, unknown>
-): string | undefined {
-  if (!args) return undefined
-
-  if (name === FunctionExecute.id) {
-    return functionExecuteTitle(stringParam(args.title))
-  }
-
-  if (name === WorkspaceFile.id) {
-    const target = asPayloadRecord(args.target)
-    return resolveWorkspaceFileDisplayTitle(args.operation, args.title, target?.fileName)
-  }
-
-  if (name === SearchOnline.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Searching online for ${toolTitle}` : 'Searching online'
-  }
-
-  if (name === Grep.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Searching for ${toolTitle}` : 'Searching'
-  }
-
-  if (name === Glob.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Finding ${toolTitle}` : 'Finding files'
-  }
-
-  if (name === ScrapePage.id) {
-    const url = stringParam(args.url)
-    return url ? `Scraping ${url}` : 'Scraping page'
-  }
-
-  if (name === CrawlWebsite.id) {
-    const url = stringParam(args.url)
-    return url ? `Crawling ${url}` : 'Crawling website'
-  }
-
-  if (name === GetPageContents.id) {
-    const urls = stringArrayParam(args.urls)
-    if (urls.length === 1) return `Getting ${urls[0]}`
-    if (urls.length > 1) return `Getting ${urls.length} pages`
-    return 'Getting page contents'
-  }
-
-  if (name === ManageCustomTool.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageCustomToolOperation.add]: 'Creating custom tool',
-        [ManageCustomToolOperation.edit]: 'Updating custom tool',
-        [ManageCustomToolOperation.delete]: 'Deleting custom tool',
-        [ManageCustomToolOperation.list]: 'Listing custom tools',
-      },
-      'Custom tool action'
-    )
-  }
-
-  if (name === ManageMcpTool.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageMcpToolOperation.add]: 'Creating MCP server',
-        [ManageMcpToolOperation.edit]: 'Updating MCP server',
-        [ManageMcpToolOperation.delete]: 'Deleting MCP server',
-        [ManageMcpToolOperation.list]: 'Listing MCP servers',
-      },
-      'MCP server action'
-    )
-  }
-
-  if (name === ManageSkill.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageSkillOperation.add]: 'Creating skill',
-        [ManageSkillOperation.edit]: 'Updating skill',
-        [ManageSkillOperation.delete]: 'Deleting skill',
-        [ManageSkillOperation.list]: 'Listing skills',
-      },
-      'Skill action'
-    )
-  }
-
-  if (name === ManageJob.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageJobOperation.create]: 'Creating job',
-        [ManageJobOperation.get]: 'Getting job',
-        [ManageJobOperation.update]: 'Updating job',
-        [ManageJobOperation.delete]: 'Deleting job',
-        [ManageJobOperation.list]: 'Listing jobs',
-      },
-      'Job action'
-    )
-  }
-
-  if (name === ManageCredential.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageCredentialOperation.rename]: 'Renaming credential',
-        [ManageCredentialOperation.delete]: 'Deleting credential',
-      },
-      'Credential action'
-    )
-  }
-
+export function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
+  // Cases that enrich the title with live workspace/block names from the client
+  // stores. Everything else is resolved by the shared name+args resolver, which
+  // is the single source of truth for tool-call titles.
   if (name === RunWorkflow.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
     return workflowName ? `Running ${workflowName}` : 'Running workflow'
   }
 
   if (name === RunFromBlock.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    const blockName = resolveBlockNameForDisplay(args.startBlockId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
+    const blockName = resolveBlockNameForDisplay(args?.startBlockId)
     if (workflowName && blockName) return `Running ${workflowName} from ${blockName}`
     if (workflowName) return `Running ${workflowName}`
     if (blockName) return `Running from ${blockName}`
@@ -388,8 +227,8 @@ export function resolveToolDisplayTitle(
   }
 
   if (name === RunWorkflowUntilBlock.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    const blockName = resolveBlockNameForDisplay(args.stopAfterBlockId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
+    const blockName = resolveBlockNameForDisplay(args?.stopAfterBlockId)
     if (workflowName && blockName) return `Running ${workflowName} until ${blockName}`
     if (workflowName) return `Running ${workflowName}`
     if (blockName) return `Running until ${blockName}`
@@ -398,11 +237,11 @@ export function resolveToolDisplayTitle(
 
   if (name === QueryLogs.id) {
     const workflowName =
-      resolveWorkflowNameForDisplay(args.workflowId) ?? stringParam(args.workflowName)
-    return workflowName ? `Querying logs for ${workflowName}` : undefined
+      resolveWorkflowNameForDisplay(args?.workflowId) ?? stringParam(args?.workflowName)
+    if (workflowName) return `Querying logs for ${workflowName}`
   }
 
-  return undefined
+  return getToolDisplayTitle(name, args)
 }
 
 function decodeStreamingString(value: string): string {
@@ -499,17 +338,17 @@ export function resolveStreamingToolDisplayTitle(
     )
   }
 
-  if (name === ManageJob.id) {
+  if (name === ManageScheduledTask.id) {
     return resolveOperationDisplayTitle(
       matchStreamingStringArg(streamingArgs, 'operation'),
       {
-        [ManageJobOperation.create]: 'Creating job',
-        [ManageJobOperation.get]: 'Getting job',
-        [ManageJobOperation.update]: 'Updating job',
-        [ManageJobOperation.delete]: 'Deleting job',
-        [ManageJobOperation.list]: 'Listing jobs',
+        [ManageScheduledTaskOperation.create]: 'Creating scheduled task',
+        [ManageScheduledTaskOperation.get]: 'Getting scheduled task',
+        [ManageScheduledTaskOperation.update]: 'Updating scheduled task',
+        [ManageScheduledTaskOperation.delete]: 'Deleting scheduled task',
+        [ManageScheduledTaskOperation.list]: 'Listing scheduled tasks',
       },
-      'Job action'
+      'Scheduled task action'
     )
   }
 
@@ -521,6 +360,19 @@ export function resolveStreamingToolDisplayTitle(
         [ManageCredentialOperation.delete]: 'Deleting credential',
       },
       'Credential action'
+    )
+  }
+
+  if (name === ManageFolder.id) {
+    return resolveOperationDisplayTitle(
+      matchStreamingStringArg(streamingArgs, 'operation'),
+      {
+        [ManageFolderOperation.create]: 'Creating folder',
+        [ManageFolderOperation.rename]: 'Renaming folder',
+        [ManageFolderOperation.move]: 'Moving folder',
+        [ManageFolderOperation.delete]: 'Deleting folder',
+      },
+      'Folder action'
     )
   }
 

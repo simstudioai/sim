@@ -22,12 +22,6 @@ export interface FileMetadataInsertOptions {
   id?: string
 }
 
-interface FileMetadataQueryOptions {
-  context?: StorageContext
-  workspaceId?: string
-  userId?: string
-}
-
 /**
  * Insert file metadata into workspaceFiles table
  * Handles duplicate key errors gracefully by returning existing record
@@ -227,34 +221,6 @@ export async function getFileMetadataById(
     .where(conditions.length > 1 ? and(...conditions) : conditions[0])
     .limit(1)
   return record ?? null
-}
-
-/**
- * Get file metadata by context with optional workspaceId/userId filters
- */
-async function getFileMetadataByContext(
-  context: StorageContext,
-  options?: FileMetadataQueryOptions & { includeDeleted?: boolean }
-): Promise<FileMetadataRecord[]> {
-  const conditions = [eq(workspaceFiles.context, context)]
-
-  if (options?.workspaceId) {
-    conditions.push(eq(workspaceFiles.workspaceId, options.workspaceId))
-  }
-
-  if (options?.userId) {
-    conditions.push(eq(workspaceFiles.userId, options.userId))
-  }
-
-  if (!options?.includeDeleted) {
-    conditions.push(isNull(workspaceFiles.deletedAt))
-  }
-
-  return db
-    .select()
-    .from(workspaceFiles)
-    .where(conditions.length > 1 ? and(...conditions) : conditions[0])
-    .orderBy(workspaceFiles.uploadedAt)
 }
 
 /**

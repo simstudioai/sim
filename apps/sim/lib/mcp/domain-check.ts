@@ -2,7 +2,7 @@ import dns from 'dns/promises'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
-import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
+import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/env-flags'
 import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
@@ -139,12 +139,14 @@ function isLocalhostHostname(hostname: string): boolean {
  * URLs with env var references in the hostname are skipped — they will be
  * validated after resolution at execution time.
  *
- * Returns the resolved IP address when DNS resolution was performed (so the
- * caller can pin subsequent connections to that IP and prevent DNS-rebinding
- * TOCTOU attacks). Returns null in cases where pinning is unnecessary or
+ * Returns the IP address to pin subsequent connections to (the resolved IP for
+ * hostnames, or the literal itself for public IP-literal URLs) so the caller can
+ * prevent DNS-rebinding TOCTOU attacks and stop redirects from escaping to
+ * internal hosts. Pinning matters for IP literals too: without it the transport
+ * uses the default fetch, which follows an attacker-controlled 3xx redirect to a
+ * private/metadata address. Returns null only when pinning is unnecessary or
  * impossible: no URL, allowlist-only mode, env-var hostnames (validated later),
- * IP literals (no DNS to rebind), and localhost on self-hosted (no rebinding
- * risk against a fixed loopback).
+ * and localhost on self-hosted (no rebinding risk against a fixed loopback).
  *
  * @throws McpSsrfError if the URL resolves to a blocked IP address
  */
@@ -174,7 +176,11 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
     if (isPrivateOrReservedIP(cleanHostname)) {
       throw new McpSsrfError('MCP server URL cannot point to a private or reserved IP address')
     }
-    return null
+    // Public IP literal: pin to this exact address so the caller's pinned fetch
+    // (createPinnedFetch) keeps every redirect hop on it. Returning null here
+    // would fall back to the default fetch, which follows a 3xx redirect to a
+    // private/metadata host and escapes SSRF controls.
+    return cleanHostname
   }
 
   let address: string

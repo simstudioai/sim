@@ -15,33 +15,23 @@ const PUBLIC_SERVER_URL = 'https://mcp.attacker.com'
 const PUBLIC_SERVER_IP = '203.0.113.10'
 
 const {
-  MockAgent,
   mockUndiciFetch,
   mockValidateMcpServerSsrf,
   mockDiscoverOAuthServerInfo,
   mockLoadOauthRow,
   mockDecryptSecret,
   mockDbSelect,
-} = vi.hoisted(() => {
-  class MockAgent {
-    close() {
-      return Promise.resolve()
-    }
-  }
-  return {
-    MockAgent,
-    mockUndiciFetch: vi.fn(),
-    mockValidateMcpServerSsrf: vi.fn(),
-    mockDiscoverOAuthServerInfo: vi.fn(),
-    mockLoadOauthRow: vi.fn(),
-    mockDecryptSecret: vi.fn(),
-    mockDbSelect: vi.fn(),
-  }
-})
+} = vi.hoisted(() => ({
+  mockUndiciFetch: vi.fn(),
+  mockValidateMcpServerSsrf: vi.fn(),
+  mockDiscoverOAuthServerInfo: vi.fn(),
+  mockLoadOauthRow: vi.fn(),
+  mockDecryptSecret: vi.fn(),
+  mockDbSelect: vi.fn(),
+}))
 
-vi.mock('undici', () => ({ Agent: MockAgent, fetch: mockUndiciFetch }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedLookup: vi.fn(() => 'pinned-lookup-fn'),
+  createPinnedFetch: vi.fn(() => mockUndiciFetch),
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
@@ -59,7 +49,6 @@ vi.mock('@sim/db', () => ({
   db: { select: mockDbSelect },
 }))
 
-import { __resetPinnedAgentsForTests } from '@/lib/mcp/pinned-fetch'
 import { revokeMcpOauthTokens } from './revoke'
 
 function wireServerRow(row: Record<string, unknown>) {
@@ -74,7 +63,6 @@ function wireServerRow(row: Record<string, unknown>) {
 describe('revokeMcpOauthTokens — SSRF guard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    __resetPinnedAgentsForTests()
 
     mockLoadOauthRow.mockResolvedValue({
       tokens: { access_token: 'access-secret', refresh_token: 'refresh-secret' },

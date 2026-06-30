@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -11,7 +9,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Switch,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
 
 const logger = createLogger('InboxEnableToggle')
@@ -110,19 +110,12 @@ export function InboxEnableToggle() {
         onOpenChange={setIsDisableOpen}
         srTitle='Disable email inbox'
         title='Disable email inbox'
-        description={
-          <>
-            Are you sure you want to disable the inbox
-            {config?.address && (
-              <>
-                {' '}
-                <span className='font-medium text-[var(--text-primary)]'>{config.address}</span>
-              </>
-            )}
-            ? Any emails sent to this address after disabling will not be delivered. This action
-            cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to disable the inbox',
+          config?.address && ' ',
+          config?.address && { text: config.address, bold: true },
+          '? Any emails sent to this address after disabling will not be delivered. This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Disable inbox',
           onClick: handleDisable,

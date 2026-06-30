@@ -47,7 +47,8 @@ export const storageListTool: ToolConfig<SupabaseStorageListParams, SupabaseStor
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Column to sort by: name, created_at, updated_at (default: name)',
+      description:
+        'Column to sort by: name, created_at, updated_at, last_accessed_at (default: name)',
     },
     sortOrder: {
       type: 'string',

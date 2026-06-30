@@ -1,8 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { AlertCircle, ArrowUp } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -12,6 +8,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  cn,
   Input,
   Label,
   Popover,
@@ -20,8 +17,11 @@ import {
   PopoverItem,
   PopoverScrollArea,
   PopoverSection,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { AlertCircle, ArrowUp } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
@@ -1145,13 +1145,15 @@ try {
         {activeSection === 'schema' && (
           <ChipModalFooter
             onCancel={handleClose}
-            secondaryAction={
+            secondaryActions={
               isEditing
-                ? {
-                    label: 'Delete',
-                    onClick: () => setShowDeleteConfirm(true),
-                    variant: 'destructive',
-                  }
+                ? [
+                    {
+                      label: 'Delete',
+                      onClick: () => setShowDeleteConfirm(true),
+                      variant: 'destructive',
+                    },
+                  ]
                 : undefined
             }
             primaryAction={{
@@ -1165,15 +1167,15 @@ try {
         {activeSection === 'code' && (
           <ChipModalFooter
             onCancel={handleClose}
-            secondaryAction={
+            secondaryActions={[
               isEditing
                 ? {
                     label: 'Delete',
                     onClick: () => setShowDeleteConfirm(true),
                     variant: 'destructive',
                   }
-                : { label: 'Back', onClick: () => setActiveSection('schema') }
-            }
+                : { label: 'Back', onClick: () => setActiveSection('schema') },
+            ]}
             primaryAction={{
               label: isEditing ? 'Update Tool' : 'Save Tool',
               onClick: handleSave,
@@ -1188,15 +1190,13 @@ try {
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Custom Tool'
         title='Delete Custom Tool'
-        description={
-          <>
-            <span className='text-[var(--text-error)]'>
-              This will permanently delete the tool and remove it from any workflows that are using
-              it.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          {
+            text: 'This will permanently delete the tool and remove it from any workflows that are using it.',
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,
@@ -1210,7 +1210,7 @@ try {
         onOpenChange={setShowDiscardAlert}
         srTitle='Unsaved Changes'
         title='Unsaved Changes'
-        description='You have unsaved changes. Are you sure you want to discard them?'
+        text='You have unsaved changes. Are you sure you want to discard them?'
         dismissLabel='Keep editing'
         confirm={{
           label: 'Discard Changes',

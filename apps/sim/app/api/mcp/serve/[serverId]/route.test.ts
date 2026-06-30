@@ -14,9 +14,17 @@ import {
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateInternalToken, fetchMock } = vi.hoisted(() => ({
-  mockGenerateInternalToken: vi.fn(),
-  fetchMock: vi.fn(),
+const { mockGenerateInternalToken, fetchMock, mockIsWorkspaceApiExecutionEntitled } = vi.hoisted(
+  () => ({
+    mockGenerateInternalToken: vi.fn(),
+    fetchMock: vi.fn(),
+    mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
+  })
+)
+
+vi.mock('@/lib/billing/core/api-access', () => ({
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
+  isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
 }))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
@@ -83,6 +91,26 @@ describe('MCP Serve Route', () => {
     const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
 
     expect(response.status).toBe(401)
+  })
+
+  it('returns 402 when the workspace billed account is on the free plan', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        name: 'Private Server',
+        workspaceId: 'ws-1',
+        isPublic: false,
+        createdBy: 'owner-1',
+      },
+    ])
+    mockIsWorkspaceApiExecutionEntitled.mockResolvedValueOnce(false)
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    expect(response.status).toBe(402)
   })
 
   it('returns 401 on GET for private server when auth fails', async () => {

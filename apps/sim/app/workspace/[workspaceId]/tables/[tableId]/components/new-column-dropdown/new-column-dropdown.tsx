@@ -1,6 +1,5 @@
 'use client'
 
-import { Sparkles } from 'lucide-react'
 import {
   ChipChevronDown,
   chipContentIconClass,
@@ -12,14 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Plus,
-} from '@/components/emcn'
-import { isWorkflowColumnsEnabledClient } from '@/lib/core/config/feature-flags'
+} from '@sim/emcn'
+import { Sparkles } from 'lucide-react'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
-
-const VISIBLE_COLUMN_TYPE_OPTIONS = isWorkflowColumnsEnabledClient
-  ? COLUMN_TYPE_OPTIONS
-  : COLUMN_TYPE_OPTIONS.filter((o) => o.type !== 'workflow')
 
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
@@ -67,16 +62,14 @@ export function NewColumnDropdown({
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
-        {isWorkflowColumnsEnabledClient && (
-          <>
-            <DropdownMenuItem onSelect={onPickEnrichment}>
-              <Sparkles className='size-[14px] text-[var(--text-icon)]' />
-              Enrichments
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        {VISIBLE_COLUMN_TYPE_OPTIONS.map((option) => {
+        <>
+          <DropdownMenuItem onSelect={onPickEnrichment}>
+            <Sparkles className='size-[14px] text-[var(--text-icon)]' />
+            Enrichments
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+        {COLUMN_TYPE_OPTIONS.map((option) => {
           const Icon = option.icon
           const onSelect =
             option.type === 'workflow'

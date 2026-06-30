@@ -1,5 +1,4 @@
-import { Chip, ChipLink } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { Chip, ChipLink, cn } from '@sim/emcn'
 
 /**
  * Shared label sizing for both CTAs - the single 16px font-size knob (overriding

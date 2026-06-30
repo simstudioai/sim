@@ -1,9 +1,101 @@
 import {
   CALENDAR_API_BASE,
+  type CalendarAttendee,
+  type GoogleCalendarApiEventResponse,
   type GoogleCalendarInviteParams,
   type GoogleCalendarInviteResponse,
 } from '@/tools/google_calendar/types'
+import { normalizeAttendees } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+
+interface InviteResult {
+  data: GoogleCalendarApiEventResponse
+  totalAttendees: number
+  newAttendeesAdded: number
+  shouldReplace: boolean
+}
+
+/**
+ * The Google Calendar update method replaces the entire event resource, so to invite
+ * attendees we read the existing event, merge the attendee list, then PUT it back.
+ */
+async function inviteAttendees(
+  response: Response,
+  params: GoogleCalendarInviteParams | undefined
+): Promise<InviteResult> {
+  const existingEvent: GoogleCalendarApiEventResponse = await response.json()
+
+  if (!existingEvent.start || !existingEvent.end || !existingEvent.summary) {
+    throw new Error('Existing event is missing required fields (start, end, or summary)')
+  }
+
+  const newAttendeeList = normalizeAttendees(params?.attendees).map((attendee) => attendee.email)
+  const existingAttendees: CalendarAttendee[] = existingEvent.attendees ?? []
+  const shouldReplace =
+    params?.replaceExisting === true || String(params?.replaceExisting) === 'true'
+
+  const existingEmails = new Set(
+    existingAttendees.map((attendee) => attendee.email?.toLowerCase() ?? '')
+  )
+  const newAttendeesAdded = shouldReplace
+    ? newAttendeeList.length
+    : newAttendeeList.filter((email) => !existingEmails.has(email.toLowerCase())).length
+
+  let finalAttendees: CalendarAttendee[]
+  if (shouldReplace) {
+    finalAttendees = newAttendeeList.map((email) => ({ email, responseStatus: 'needsAction' }))
+  } else {
+    finalAttendees = [...existingAttendees]
+    for (const email of newAttendeeList) {
+      if (!existingEmails.has(email.toLowerCase())) {
+        finalAttendees.push({ email, responseStatus: 'needsAction' })
+      }
+    }
+  }
+
+  const updatedEvent: Record<string, unknown> = { ...existingEvent, attendees: finalAttendees }
+  const readOnlyFields = [
+    'id',
+    'etag',
+    'kind',
+    'created',
+    'updated',
+    'htmlLink',
+    'iCalUID',
+    'creator',
+    'organizer',
+  ]
+  for (const field of readOnlyFields) {
+    delete updatedEvent[field]
+  }
+
+  const calendarId = params?.calendarId?.trim() || 'primary'
+  const queryParams = new URLSearchParams()
+  queryParams.append('sendUpdates', params?.sendUpdates ?? 'all')
+  const putUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId?.trim() ?? '')}?${queryParams.toString()}`
+
+  const putResponse = await fetch(putUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${params?.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updatedEvent),
+  })
+
+  if (!putResponse.ok) {
+    const errorData = await putResponse.json().catch(() => null)
+    throw new Error(errorData?.error?.message || 'Failed to invite attendees to calendar event')
+  }
+
+  const data: GoogleCalendarApiEventResponse = await putResponse.json()
+  return {
+    data,
+    totalAttendees: data.attendees?.length ?? 0,
+    newAttendeesAdded,
+    shouldReplace,
+  }
+}
 
 export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarInviteResponse> = {
   id: 'google_calendar_invite',
@@ -45,7 +137,7 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'How to send updates to attendees: all, externalOnly, or none',
+      description: 'How to send updates to attendees: all, externalOnly, or none (defaults to all)',
     },
     replaceExisting: {
       type: 'boolean',
@@ -57,8 +149,8 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
 
   request: {
     url: (params: GoogleCalendarInviteParams) => {
-      const calendarId = params.calendarId || 'primary'
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}`
+      const calendarId = params.calendarId?.trim() || 'primary'
+      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId.trim())}`
     },
     method: 'GET',
     headers: (params: GoogleCalendarInviteParams) => ({
@@ -68,163 +160,29 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
   },
 
   transformResponse: async (response: Response, params) => {
-    const existingEvent = await response.json()
+    const { data, totalAttendees, newAttendeesAdded, shouldReplace } = await inviteAttendees(
+      response,
+      params
+    )
 
-    // Validate required fields exist
-    if (!existingEvent.start || !existingEvent.end || !existingEvent.summary) {
-      throw new Error('Existing event is missing required fields (start, end, or summary)')
-    }
-
-    // Process new attendees - handle both string and array formats
-    let newAttendeeList: string[] = []
-
-    if (params?.attendees) {
-      if (Array.isArray(params.attendees)) {
-        // Already an array from block processing
-        newAttendeeList = params.attendees.filter(
-          (email: string) => email && email.trim().length > 0
-        )
-      } else if (
-        typeof (params.attendees as any) === 'string' &&
-        (params.attendees as any).trim().length > 0
-      ) {
-        // Fallback: process comma-separated string if block didn't convert it
-        newAttendeeList = (params.attendees as any)
-          .split(',')
-          .map((email: string) => email.trim())
-          .filter((email: string) => email.length > 0)
-      }
-    }
-
-    // Calculate final attendees list
-    const existingAttendees = existingEvent.attendees || []
-    let finalAttendees: Array<any> = []
-
-    // Handle replaceExisting properly - check for both boolean true and string "true"
-    const shouldReplace =
-      params?.replaceExisting === true || (params?.replaceExisting as any) === 'true'
-
-    if (shouldReplace) {
-      // Replace all attendees with just the new ones
-      finalAttendees = newAttendeeList.map((email: string) => ({
-        email,
-        responseStatus: 'needsAction',
-      }))
-    } else {
-      // Add to existing attendees (preserve all existing ones)
-
-      // Start with ALL existing attendees - preserve them completely
-      finalAttendees = [...existingAttendees]
-
-      // Get set of existing emails for duplicate checking (case-insensitive)
-      const existingEmails = new Set(
-        existingAttendees.map((attendee: any) => attendee.email?.toLowerCase() || '')
-      )
-
-      // Add only new attendees that don't already exist
-      for (const newEmail of newAttendeeList) {
-        const emailLower = newEmail.toLowerCase()
-        if (!existingEmails.has(emailLower)) {
-          finalAttendees.push({
-            email: newEmail,
-            responseStatus: 'needsAction',
-          })
-        }
-      }
-    }
-
-    // Use the complete existing event object and only modify the attendees field
-    // This is crucial because the Google Calendar API update method "does not support patch semantics
-    // and always updates the entire event resource" according to the documentation
-    const updatedEvent = {
-      ...existingEvent, // Start with the complete existing event to preserve all fields
-      attendees: finalAttendees, // Only modify the attendees field
-    }
-
-    // Remove read-only fields that shouldn't be included in updates
-    const readOnlyFields = [
-      'id',
-      'etag',
-      'kind',
-      'created',
-      'updated',
-      'htmlLink',
-      'iCalUID',
-      'sequence',
-      'creator',
-      'organizer',
-    ]
-    readOnlyFields.forEach((field) => {
-      delete updatedEvent[field]
-    })
-
-    // Construct PUT URL with query parameters
-    const calendarId = params?.calendarId || 'primary'
-    const queryParams = new URLSearchParams()
-    if (params?.sendUpdates !== undefined) {
-      queryParams.append('sendUpdates', params.sendUpdates)
-    }
-
-    const queryString = queryParams.toString()
-    const putUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId || '')}${queryString ? `?${queryString}` : ''}`
-
-    // Send PUT request to update the event
-    const putResponse = await fetch(putUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${params?.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updatedEvent),
-    })
-
-    // Handle the PUT response
-    if (!putResponse.ok) {
-      const errorData = await putResponse.json()
-      throw new Error(errorData.error?.message || 'Failed to invite attendees to calendar event')
-    }
-
-    const data = await putResponse.json()
-    const totalAttendees = data.attendees?.length || 0
-
-    // Calculate how many new attendees were actually added
-    let newAttendeesAdded = 0
-
-    if (shouldReplace) {
-      newAttendeesAdded = newAttendeeList.length
-    } else {
-      // Count how many of the new emails weren't already in the existing list
-      const existingEmails = new Set(
-        existingAttendees.map((attendee: any) => attendee.email?.toLowerCase() || '')
-      )
-      newAttendeesAdded = newAttendeeList.filter(
-        (email) => !existingEmails.has(email.toLowerCase())
-      ).length
-    }
-
-    // Improved messaging about email delivery
     let baseMessage: string
     if (shouldReplace) {
       baseMessage = `Successfully updated event "${data.summary}" with ${totalAttendees} attendee${totalAttendees !== 1 ? 's' : ''}`
+    } else if (newAttendeesAdded > 0) {
+      baseMessage = `Successfully added ${newAttendeesAdded} new attendee${newAttendeesAdded !== 1 ? 's' : ''} to event "${data.summary}" (total: ${totalAttendees})`
     } else {
-      if (newAttendeesAdded > 0) {
-        baseMessage = `Successfully added ${newAttendeesAdded} new attendee${newAttendeesAdded !== 1 ? 's' : ''} to event "${data.summary}" (total: ${totalAttendees})`
-      } else {
-        baseMessage = `No new attendees added to event "${data.summary}" - all specified attendees were already invited (total: ${totalAttendees})`
-      }
+      baseMessage = `No new attendees added to event "${data.summary}" - all specified attendees were already invited (total: ${totalAttendees})`
     }
 
     const emailNote =
       params?.sendUpdates !== 'none'
-        ? ` Email invitations are being sent asynchronously - delivery may take a few minutes and depends on recipients' Google Calendar settings.`
-        : ` No email notifications will be sent as requested.`
-
-    const content = baseMessage + emailNote
+        ? ' Email invitations are being sent asynchronously - delivery may take a few minutes and depends on recipients’ Google Calendar settings.'
+        : ' No email notifications will be sent as requested.'
 
     return {
       success: true,
       output: {
-        content,
+        content: baseMessage + emailNote,
         metadata: {
           id: data.id,
           htmlLink: data.htmlLink,
@@ -258,16 +216,16 @@ interface GoogleCalendarInviteV2Response {
   success: boolean
   output: {
     id: string
-    htmlLink?: string
-    status?: string
-    summary?: string
-    description?: string
-    location?: string
-    start?: any
-    end?: any
-    attendees?: any
-    creator?: any
-    organizer?: any
+    htmlLink: string
+    status: string
+    summary: string | null
+    description: string | null
+    location: string | null
+    start: GoogleCalendarApiEventResponse['start']
+    end: GoogleCalendarApiEventResponse['end']
+    attendees: CalendarAttendee[] | null
+    creator: GoogleCalendarApiEventResponse['creator'] | null
+    organizer: GoogleCalendarApiEventResponse['organizer'] | null
   }
 }
 
@@ -282,104 +240,7 @@ export const inviteV2Tool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendar
     params: inviteTool.params,
     request: inviteTool.request,
     transformResponse: async (response: Response, params) => {
-      const existingEvent = await response.json()
-
-      if (!existingEvent.start || !existingEvent.end || !existingEvent.summary) {
-        throw new Error('Existing event is missing required fields (start, end, or summary)')
-      }
-
-      let newAttendeeList: string[] = []
-
-      if (params?.attendees) {
-        if (Array.isArray(params.attendees)) {
-          newAttendeeList = params.attendees.filter(
-            (email: string) => email && email.trim().length > 0
-          )
-        } else if (
-          typeof (params.attendees as any) === 'string' &&
-          (params.attendees as any).trim().length > 0
-        ) {
-          newAttendeeList = (params.attendees as any)
-            .split(',')
-            .map((email: string) => email.trim())
-            .filter((email: string) => email.length > 0)
-        }
-      }
-
-      const existingAttendees = existingEvent.attendees || []
-      let finalAttendees: Array<any> = []
-
-      const shouldReplace =
-        params?.replaceExisting === true || (params?.replaceExisting as any) === 'true'
-
-      if (shouldReplace) {
-        finalAttendees = newAttendeeList.map((email: string) => ({
-          email,
-          responseStatus: 'needsAction',
-        }))
-      } else {
-        finalAttendees = [...existingAttendees]
-
-        const existingEmails = new Set(
-          existingAttendees.map((attendee: any) => attendee.email?.toLowerCase() || '')
-        )
-
-        for (const newEmail of newAttendeeList) {
-          const emailLower = newEmail.toLowerCase()
-          if (!existingEmails.has(emailLower)) {
-            finalAttendees.push({
-              email: newEmail,
-              responseStatus: 'needsAction',
-            })
-          }
-        }
-      }
-
-      const updatedEvent = {
-        ...existingEvent,
-        attendees: finalAttendees,
-      }
-
-      const readOnlyFields = [
-        'id',
-        'etag',
-        'kind',
-        'created',
-        'updated',
-        'htmlLink',
-        'iCalUID',
-        'sequence',
-        'creator',
-        'organizer',
-      ]
-      readOnlyFields.forEach((field) => {
-        delete updatedEvent[field]
-      })
-
-      const calendarId = params?.calendarId || 'primary'
-      const queryParams = new URLSearchParams()
-      if (params?.sendUpdates !== undefined) {
-        queryParams.append('sendUpdates', params.sendUpdates)
-      }
-
-      const queryString = queryParams.toString()
-      const putUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId || '')}${queryString ? `?${queryString}` : ''}`
-
-      const putResponse = await fetch(putUrl, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${params?.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedEvent),
-      })
-
-      if (!putResponse.ok) {
-        const errorData = await putResponse.json()
-        throw new Error(errorData.error?.message || 'Failed to invite attendees to calendar event')
-      }
-
-      const data = await putResponse.json()
+      const { data } = await inviteAttendees(response, params)
 
       return {
         success: true,
@@ -393,8 +254,8 @@ export const inviteV2Tool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendar
           start: data.start,
           end: data.end,
           attendees: data.attendees ?? null,
-          creator: data.creator,
-          organizer: data.organizer,
+          creator: data.creator ?? null,
+          organizer: data.organizer ?? null,
         },
       }
     },
@@ -408,7 +269,7 @@ export const inviteV2Tool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendar
       start: { type: 'json', description: 'Event start' },
       end: { type: 'json', description: 'Event end' },
       attendees: { type: 'json', description: 'Event attendees', optional: true },
-      creator: { type: 'json', description: 'Event creator' },
-      organizer: { type: 'json', description: 'Event organizer' },
+      creator: { type: 'json', description: 'Event creator', optional: true },
+      organizer: { type: 'json', description: 'Event organizer', optional: true },
     },
   }

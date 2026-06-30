@@ -23,6 +23,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  SakanaIcon,
   TogetherIcon,
   VertexIcon,
   VllmIcon,
@@ -81,6 +82,34 @@ export interface ProviderDefinition {
   isReseller?: boolean
   capabilities?: ModelCapabilities
   contextInformationAvailable?: boolean
+  /** Agent-block file attachment limit and large-file delivery for this provider. */
+  fileAttachment?: ProviderFileAttachment
+}
+
+/**
+ * How a provider accepts agent-block attachments larger than the inline base64 threshold:
+ * `files-api` uploads to the provider Files API, `remote-url` passes a signed URL the
+ * provider fetches itself, `inline` means base64-only (no large-file path).
+ */
+export type ProviderFileAttachmentStrategy = 'inline' | 'files-api' | 'remote-url'
+
+export interface ProviderFileAttachment {
+  /** Maximum attachment size the provider accepts, in bytes. */
+  maxBytes: number
+  strategy: ProviderFileAttachmentStrategy
+}
+
+/** Inline base64 attachment cap, also the fallback limit for providers without a large-file path. */
+export const INLINE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+
+const DEFAULT_FILE_ATTACHMENT: ProviderFileAttachment = {
+  maxBytes: INLINE_ATTACHMENT_MAX_BYTES,
+  strategy: 'inline',
+}
+
+/** Provider-level attachment limit + strategy, keyed on the granular provider id. */
+export function getProviderFileAttachment(providerId: string): ProviderFileAttachment {
+  return PROVIDER_DEFINITIONS[providerId]?.fileAttachment ?? DEFAULT_FILE_ATTACHMENT
 }
 
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
@@ -102,6 +131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   together: {
     id: 'together',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Together AI',
     description: 'Fast inference for open-source models via Together AI',
     defaultModel: '',
@@ -118,6 +148,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   baseten: {
     id: 'baseten',
+    fileAttachment: { maxBytes: 25 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Baseten',
     description: 'Fast inference for open-source models via Baseten Model APIs',
     defaultModel: '',
@@ -134,6 +165,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openrouter: {
     id: 'openrouter',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'OpenRouter',
     description: 'Unified access to many models via OpenRouter',
     defaultModel: '',
@@ -164,6 +196,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   vllm: {
     id: 'vllm',
+    fileAttachment: { maxBytes: 25 * 1024 * 1024, strategy: 'remote-url' },
     name: 'vLLM',
     icon: VllmIcon,
     description: 'Self-hosted vLLM with an OpenAI-compatible API',
@@ -191,6 +224,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openai: {
     id: 'openai',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
     name: 'OpenAI',
     description: "OpenAI's models",
     defaultModel: 'gpt-4.1',
@@ -624,6 +658,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   anthropic: {
     id: 'anthropic',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Anthropic',
     description: "Anthropic's Claude models",
     defaultModel: 'claude-sonnet-4-6',
@@ -634,25 +669,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
-      {
-        id: 'claude-fable-5',
-        pricing: {
-          input: 10.0,
-          cachedInput: 1.0,
-          output: 50.0,
-          updatedAt: '2026-06-09',
-        },
-        capabilities: {
-          nativeStructuredOutputs: true,
-          maxOutputTokens: 128000,
-          thinking: {
-            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
-            default: 'high',
-          },
-        },
-        contextWindow: 1000000,
-        releaseDate: '2026-06-09',
-      },
       {
         id: 'claude-opus-4-8',
         pricing: {
@@ -1304,6 +1320,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   google: {
     id: 'google',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
     name: 'Google',
     description: "Google's Gemini models",
     defaultModel: 'gemini-2.5-pro',
@@ -1703,6 +1720,32 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'deepseek-v4-pro',
+        pricing: {
+          input: 0.435,
+          cachedInput: 0.003625,
+          output: 0.87,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {},
+        contextWindow: 1000000,
+        releaseDate: '2026-04-24',
+      },
+      {
+        id: 'deepseek-v4-flash',
+        pricing: {
+          input: 0.14,
+          cachedInput: 0.0028,
+          output: 0.28,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-04-24',
+      },
+      {
         id: 'deepseek-chat',
         pricing: {
           input: 0.14,
@@ -1760,6 +1803,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   xai: {
     id: 'xai',
+    fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'xAI',
     description: "xAI's Grok models",
     defaultModel: 'grok-4.3',
@@ -2032,6 +2076,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   groq: {
     id: 'groq',
+    fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Groq',
     description: "Groq's LLM models with high-performance inference",
     defaultModel: 'groq/llama-3.3-70b-versatile',
@@ -2150,6 +2195,47 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 262144,
         releaseDate: '2025-09-05',
         deprecated: true,
+      },
+    ],
+  },
+  sakana: {
+    id: 'sakana',
+    name: 'Sakana AI',
+    description: "Sakana AI's Fugu multi-agent models via an OpenAI-compatible API",
+    defaultModel: 'fugu',
+    modelPatterns: [/^fugu/],
+    icon: SakanaIcon,
+    color: '#E60000',
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'fugu',
+        pricing: {
+          input: 5,
+          cachedInput: 0.5,
+          output: 30,
+          updatedAt: '2026-06-22',
+        },
+        capabilities: {},
+        contextWindow: 1000000,
+        releaseDate: '2026-06-15',
+        speedOptimized: true,
+      },
+      {
+        id: 'fugu-ultra',
+        pricing: {
+          input: 5,
+          cachedInput: 0.5,
+          output: 30,
+          updatedAt: '2026-06-22',
+        },
+        capabilities: {},
+        contextWindow: 1000000,
+        releaseDate: '2026-06-15',
+        recommended: true,
       },
     ],
   },
@@ -2307,6 +2393,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         releaseDate: '2025-08-12',
       },
       {
+        id: 'mistral-medium-2604',
+        pricing: {
+          input: 1.5,
+          output: 7.5,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1.5 },
+        },
+        contextWindow: 256000,
+        releaseDate: '2026-04-29',
+      },
+      {
         id: 'mistral-medium-2508',
         pricing: {
           input: 0.4,
@@ -2382,7 +2481,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1.5 },
         },
-        contextWindow: 128000,
+        contextWindow: 256000,
         releaseDate: '2025-07-30',
       },
       {
@@ -2395,7 +2494,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1.5 },
         },
-        contextWindow: 128000,
+        contextWindow: 256000,
         releaseDate: '2025-07-30',
       },
       {
@@ -3027,6 +3126,73 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
 
 export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
+}
+
+interface ModelCatalogEntry {
+  providerId: string
+  declIndex: number
+  releaseTime: number
+}
+
+/**
+ * Lowercased model ID → catalog position metadata, built once from the static
+ * provider catalog. Dynamic providers contribute nothing here because their model
+ * lists are populated at runtime (not at module load), and only catalog models are
+ * ever reordered by release date.
+ */
+const MODEL_CATALOG_INDEX: Map<string, ModelCatalogEntry> = new Map(
+  Object.entries(PROVIDER_DEFINITIONS).flatMap(([providerId, provider]) =>
+    provider.models.map((model, declIndex): [string, ModelCatalogEntry] => {
+      const parsed = model.releaseDate ? Date.parse(model.releaseDate) : Number.NaN
+      return [
+        model.id.toLowerCase(),
+        {
+          providerId,
+          declIndex,
+          releaseTime: Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed,
+        },
+      ]
+    })
+  )
+)
+
+/**
+ * Reorders model IDs so that, within each provider, newer models (by release date)
+ * come first — while preserving the caller's existing provider grouping order. The
+ * relative order of providers is taken from the order they first appear in `modelIds`,
+ * so the cross-provider layout the user already sees is never reshuffled.
+ *
+ * Models without a known release date keep their declaration order and sort after
+ * dated models within the same provider. IDs not found in the catalog (e.g.
+ * dynamically-discovered provider models) are left in their original order at the end.
+ */
+export function orderModelIdsByReleaseDate(modelIds: string[]): string[] {
+  const groups = new Map<string, string[]>()
+  const unknown: string[] = []
+
+  for (const id of modelIds) {
+    const meta = MODEL_CATALOG_INDEX.get(id.toLowerCase())
+    if (!meta) {
+      unknown.push(id)
+      continue
+    }
+    const bucket = groups.get(meta.providerId)
+    if (bucket) bucket.push(id)
+    else groups.set(meta.providerId, [id])
+  }
+
+  const ordered: string[] = []
+  for (const bucket of groups.values()) {
+    bucket.sort((a, b) => {
+      const ma = MODEL_CATALOG_INDEX.get(a.toLowerCase())!
+      const mb = MODEL_CATALOG_INDEX.get(b.toLowerCase())!
+      if (ma.releaseTime !== mb.releaseTime) return mb.releaseTime - ma.releaseTime
+      return ma.declIndex - mb.declIndex
+    })
+    ordered.push(...bucket)
+  }
+  ordered.push(...unknown)
+  return ordered
 }
 
 export const DYNAMIC_MODEL_PROVIDERS = [

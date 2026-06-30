@@ -22,12 +22,13 @@ const logger = createLogger('KnowledgeConnectorQueries')
 export type { ConnectorData, ConnectorDetailData, SyncLogData }
 
 export const connectorKeys = {
-  all: (knowledgeBaseId: string) =>
+  all: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'connectors'] as const,
-  list: (knowledgeBaseId?: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'connectors', 'list'] as const,
+  lists: (knowledgeBaseId?: string) => [...connectorKeys.all(knowledgeBaseId), 'list'] as const,
+  list: (knowledgeBaseId?: string) => connectorKeys.lists(knowledgeBaseId),
+  details: (knowledgeBaseId?: string) => [...connectorKeys.all(knowledgeBaseId), 'detail'] as const,
   detail: (knowledgeBaseId?: string, connectorId?: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'connectors', 'detail', connectorId ?? ''] as const,
+    [...connectorKeys.details(knowledgeBaseId), connectorId ?? ''] as const,
 }
 
 async function fetchConnectors(
@@ -221,8 +222,12 @@ export function useTriggerSync() {
 }
 
 export const connectorDocumentKeys = {
-  list: (knowledgeBaseId?: string, connectorId?: string) =>
+  all: (knowledgeBaseId?: string, connectorId?: string) =>
     [...connectorKeys.detail(knowledgeBaseId, connectorId), 'documents'] as const,
+  lists: (knowledgeBaseId?: string, connectorId?: string) =>
+    [...connectorDocumentKeys.all(knowledgeBaseId, connectorId), 'list'] as const,
+  list: (knowledgeBaseId?: string, connectorId?: string) =>
+    connectorDocumentKeys.lists(knowledgeBaseId, connectorId),
 }
 
 async function fetchConnectorDocuments(

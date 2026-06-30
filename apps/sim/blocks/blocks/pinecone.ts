@@ -9,7 +9,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   description: 'Use Pinecone vector database',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.',
+    'Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.',
   docsLink: 'https://docs.sim.ai/integrations/pinecone',
   category: 'tools',
   integrationType: IntegrationType.Databases,
@@ -24,9 +24,15 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       options: [
         { label: 'Generate Embeddings', id: 'generate' },
         { label: 'Upsert Text', id: 'upsert_text' },
+        { label: 'Update Vector', id: 'update_vector' },
+        { label: 'Delete Vectors', id: 'delete_vectors' },
         { label: 'Search With Text', id: 'search_text' },
         { label: 'Search With Vector', id: 'search_vector' },
         { label: 'Fetch Vectors', id: 'fetch' },
+        { label: 'List Vector IDs', id: 'list_vector_ids' },
+        { label: 'Describe Index Stats', id: 'describe_index_stats' },
+        { label: 'List Indexes', id: 'list_indexes' },
+        { label: 'Describe Index', id: 'describe_index' },
       ],
       value: () => 'generate',
     },
@@ -255,6 +261,197 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       ],
       condition: { field: 'operation', value: 'search_vector' },
     },
+    {
+      id: 'indexHost',
+      title: 'Index Host',
+      type: 'short-input',
+      placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
+      condition: { field: 'operation', value: 'update_vector' },
+      required: true,
+    },
+    {
+      id: 'namespace',
+      title: 'Namespace',
+      type: 'short-input',
+      placeholder: 'default',
+      condition: { field: 'operation', value: 'update_vector' },
+    },
+    {
+      id: 'id',
+      title: 'Vector ID',
+      type: 'short-input',
+      placeholder: 'vec-001',
+      condition: { field: 'operation', value: 'update_vector' },
+      required: true,
+    },
+    {
+      id: 'values',
+      title: 'Vector Values',
+      type: 'long-input',
+      placeholder: '[0.1, 0.2, 0.3, ...]',
+      condition: { field: 'operation', value: 'update_vector' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of floating-point numbers representing the new dense vector values. Return ONLY a valid JSON array - no explanations.',
+        placeholder: 'Describe or paste the vector values...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'setMetadata',
+      title: 'Set Metadata',
+      type: 'long-input',
+      placeholder: '{"category": "product", "year": 2024}',
+      condition: { field: 'operation', value: 'update_vector' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate a JSON object of metadata key-value pairs to add or overwrite on a Pinecone vector based on the user's description. Return ONLY valid JSON - no explanations.",
+        placeholder: 'Describe the metadata to set...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'sparseValues',
+      title: 'Sparse Values',
+      type: 'long-input',
+      placeholder: '{"indices": [1, 5], "values": [0.3, 0.7]}',
+      condition: { field: 'operation', value: 'update_vector' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Pinecone sparse vector as a JSON object with "indices" (array of integers) and "values" (array of floats) of equal length. Return ONLY valid JSON - no explanations.',
+        placeholder: 'Describe the sparse vector...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'indexHost',
+      title: 'Index Host',
+      type: 'short-input',
+      placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
+      condition: { field: 'operation', value: 'delete_vectors' },
+      required: true,
+    },
+    {
+      id: 'namespace',
+      title: 'Namespace',
+      type: 'short-input',
+      placeholder: 'default',
+      condition: { field: 'operation', value: 'delete_vectors' },
+    },
+    {
+      id: 'ids',
+      title: 'Vector IDs',
+      type: 'long-input',
+      placeholder: '["vec1", "vec2"]',
+      condition: { field: 'operation', value: 'delete_vectors' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of vector IDs to delete from Pinecone based on the user\'s description. Example: ["vec1", "vec2", "vec3"]. Return ONLY a valid JSON array - no explanations.',
+        placeholder: 'Describe which vector IDs to delete...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'deleteAll',
+      title: 'Delete All In Namespace',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      condition: { field: 'operation', value: 'delete_vectors' },
+      value: () => 'false',
+    },
+    {
+      id: 'filter',
+      title: 'Filter',
+      type: 'long-input',
+      placeholder: '{"category": "product"}',
+      condition: { field: 'operation', value: 'delete_vectors' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Pinecone metadata filter object in JSON format that selects which vectors to delete based on the user\'s description. Use operators like $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, and $and, $or. Example: {"category": {"$eq": "product"}}. Return ONLY valid JSON - no explanations.',
+        placeholder: 'Describe which vectors to delete by metadata...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'indexHost',
+      title: 'Index Host',
+      type: 'short-input',
+      placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
+      condition: { field: 'operation', value: 'list_vector_ids' },
+      required: true,
+    },
+    {
+      id: 'namespace',
+      title: 'Namespace',
+      type: 'short-input',
+      placeholder: 'default',
+      condition: { field: 'operation', value: 'list_vector_ids' },
+      required: true,
+    },
+    {
+      id: 'prefix',
+      title: 'ID Prefix',
+      type: 'short-input',
+      placeholder: 'doc1#',
+      condition: { field: 'operation', value: 'list_vector_ids' },
+      mode: 'advanced',
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '100',
+      condition: { field: 'operation', value: 'list_vector_ids' },
+      mode: 'advanced',
+    },
+    {
+      id: 'paginationToken',
+      title: 'Pagination Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous response',
+      condition: { field: 'operation', value: 'list_vector_ids' },
+      mode: 'advanced',
+    },
+    {
+      id: 'indexHost',
+      title: 'Index Host',
+      type: 'short-input',
+      placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
+      condition: { field: 'operation', value: 'describe_index_stats' },
+      required: true,
+    },
+    {
+      id: 'filter',
+      title: 'Filter',
+      type: 'long-input',
+      placeholder: '{"category": "product"}',
+      condition: { field: 'operation', value: 'describe_index_stats' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Pinecone metadata filter object in JSON format to limit which vectors are counted (pod-based indexes only). Example: {"category": {"$eq": "product"}}. Return ONLY valid JSON - no explanations.',
+        placeholder: 'Describe how to filter the counted vectors...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'indexName',
+      title: 'Index Name',
+      type: 'short-input',
+      placeholder: 'my-index',
+      condition: { field: 'operation', value: 'describe_index' },
+      required: true,
+    },
     // Common fields
     {
       id: 'apiKey',
@@ -270,9 +467,15 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     access: [
       'pinecone_generate_embeddings',
       'pinecone_upsert_text',
+      'pinecone_update_vector',
+      'pinecone_delete_vectors',
       'pinecone_search_text',
       'pinecone_search_vector',
       'pinecone_fetch',
+      'pinecone_list_vector_ids',
+      'pinecone_describe_index_stats',
+      'pinecone_list_indexes',
+      'pinecone_describe_index',
     ],
     config: {
       tool: (params: Record<string, any>) => {
@@ -281,15 +484,37 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
             return 'pinecone_generate_embeddings'
           case 'upsert_text':
             return 'pinecone_upsert_text'
+          case 'update_vector':
+            return 'pinecone_update_vector'
+          case 'delete_vectors':
+            return 'pinecone_delete_vectors'
           case 'search_text':
             return 'pinecone_search_text'
           case 'fetch':
             return 'pinecone_fetch'
           case 'search_vector':
             return 'pinecone_search_vector'
+          case 'list_vector_ids':
+            return 'pinecone_list_vector_ids'
+          case 'describe_index_stats':
+            return 'pinecone_describe_index_stats'
+          case 'list_indexes':
+            return 'pinecone_list_indexes'
+          case 'describe_index':
+            return 'pinecone_describe_index'
           default:
             throw new Error('Invalid operation selected')
         }
+      },
+      params: (params: Record<string, any>) => {
+        const result: Record<string, any> = {}
+        if (params.limit != null && params.limit !== '') {
+          result.limit = Number(params.limit)
+        }
+        if (params.deleteAll != null && params.deleteAll !== '') {
+          result.deleteAll = params.deleteAll === true || params.deleteAll === 'true'
+        }
+        return result
       },
     },
   },
@@ -316,20 +541,48 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     vector: { type: 'json', description: 'Query vector' },
     includeValues: { type: 'boolean', description: 'Include vector values' },
     includeMetadata: { type: 'boolean', description: 'Include metadata' },
+    id: { type: 'string', description: 'Vector identifier to update' },
+    values: { type: 'json', description: 'New dense vector values' },
+    sparseValues: { type: 'json', description: 'New sparse vector values' },
+    setMetadata: { type: 'json', description: 'Metadata to set on the vector' },
+    deleteAll: { type: 'boolean', description: 'Delete all vectors in the namespace' },
+    prefix: { type: 'string', description: 'Vector ID prefix filter' },
+    limit: { type: 'number', description: 'Maximum number of IDs to return' },
+    paginationToken: { type: 'string', description: 'Pagination token for the next page' },
+    indexName: { type: 'string', description: 'Index name' },
   },
 
   outputs: {
     matches: { type: 'json', description: 'Search matches' },
-    statusText: { type: 'string', description: 'Status of the upsert operation' },
+    statusText: { type: 'string', description: 'Status of the operation' },
     data: { type: 'json', description: 'Response data' },
     model: { type: 'string', description: 'Model information' },
     vector_type: { type: 'string', description: 'Vector type' },
+    namespace: { type: 'string', description: 'Namespace the operation targeted' },
     usage: { type: 'json', description: 'Usage statistics' },
+    indexes: {
+      type: 'json',
+      description: 'List of indexes [{name, dimension, metric, host, vectorType, spec, status}]',
+    },
+    index: {
+      type: 'json',
+      description: 'Index configuration {name, dimension, metric, host, vectorType, spec, status}',
+    },
+    namespaces: {
+      type: 'json',
+      description: 'Per-namespace stats keyed by name, each with vectorCount',
+    },
+    dimension: { type: 'number', description: 'Index vector dimensionality' },
+    indexFullness: { type: 'number', description: 'Index fullness (pod-based indexes only)' },
+    totalVectorCount: { type: 'number', description: 'Total vectors across all namespaces' },
+    vectorIds: { type: 'json', description: 'List of vector IDs in the namespace' },
+    pagination: { type: 'json', description: 'Pagination info {next}' },
   },
 }
 
 export const PineconeBlockMeta = {
   tags: ['vector-search', 'knowledge-base'],
+  url: 'https://www.pinecone.io',
   templates: [
     {
       icon: PineconeIcon,

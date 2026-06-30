@@ -536,6 +536,7 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
 
 export const ProspeoBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://prospeo.io',
   templates: [
     {
       icon: ProspeoIcon,

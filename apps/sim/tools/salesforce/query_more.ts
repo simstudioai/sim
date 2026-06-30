@@ -74,17 +74,18 @@ export const salesforceQueryMoreTool: ToolConfig<
     }
 
     const records = data.records || []
+    const done = data.done !== false
 
     return {
       success: true,
       output: {
         records,
         totalSize: data.totalSize || records.length,
-        done: data.done !== false,
+        done,
         nextRecordsUrl: data.nextRecordsUrl ?? null,
         metadata: {
           totalReturned: records.length,
-          hasMore: !data.done,
+          hasMore: !done,
         },
         success: true,
       },

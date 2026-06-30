@@ -2,8 +2,6 @@ import type {
   AgiloftGetChoiceLineIdParams,
   AgiloftGetChoiceLineIdResponse,
 } from '@/tools/agiloft/types'
-import { buildGetChoiceLineIdUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftGetChoiceLineIdTool: ToolConfig<
@@ -62,63 +60,27 @@ export const agiloftGetChoiceLineIdTool: ToolConfig<
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'GET',
-    headers: () => ({}),
+    url: () => '/api/tools/agiloft/get_choice_line_id',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+      fieldName: params.fieldName,
+      value: params.value,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftGetChoiceLineIdResponse>(
-      params,
-      (base) => ({
-        url: buildGetChoiceLineIdUrl(base, params),
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: { choiceLineId: null },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const result = data.result ?? data
-        let choiceLineId: number | null = null
-
-        if (typeof result === 'number') {
-          choiceLineId = result
-        } else if (typeof result === 'string') {
-          const parsed = Number(result)
-          choiceLineId = Number.isFinite(parsed) ? parsed : null
-        } else if (typeof result === 'object' && result !== null) {
-          const obj = result as Record<string, unknown>
-          const idVal = obj.id ?? obj.choiceLineId ?? obj.lineId
-          if (typeof idVal === 'number') {
-            choiceLineId = idVal
-          } else if (typeof idVal === 'string') {
-            const parsed = Number(idVal)
-            choiceLineId = Number.isFinite(parsed) ? parsed : null
-          }
-        }
-
-        if (choiceLineId === null) {
-          return {
-            success: false,
-            output: { choiceLineId: null },
-            error: `No choice line ID found for value "${params.value}" in field "${params.fieldName}"`,
-          }
-        }
-
-        return {
-          success: data.success !== false,
-          output: { choiceLineId },
-        }
-      }
-    )
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: data.success ?? true,
+      output: data.output,
+      ...(data.error ? { error: data.error } : {}),
+    }
   },
 
   outputs: {

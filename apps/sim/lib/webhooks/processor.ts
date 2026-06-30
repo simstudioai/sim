@@ -9,9 +9,15 @@ import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscri
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { isProd } from '@/lib/core/config/feature-flags'
+import { isProd } from '@/lib/core/config/env-flags'
+import {
+  assertContentLengthWithinLimit,
+  isPayloadSizeLimitError,
+  readStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import {
   getPendingWebhookVerification,
   matchesPendingWebhookVerificationProbe,
@@ -33,6 +39,10 @@ export interface WebhookProcessorOptions {
   actorUserId?: string
   executionId?: string
   correlation?: AsyncExecutionCorrelation
+  /** Epoch ms when the webhook HTTP request was first received (for dispatch-latency metrics). */
+  receivedAt?: number
+  /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
+  triggerTimestampMs?: number
 }
 
 export interface WebhookPreprocessingResult {
@@ -71,19 +81,33 @@ async function verifyCredentialSetBilling(credentialSetId: string): Promise<{
   return { valid: true }
 }
 
+const WEBHOOK_BODY_LABEL = 'Webhook request body'
+
 export async function parseWebhookBody(
   request: NextRequest,
   requestId: string
 ): Promise<{ body: unknown; rawBody: string } | NextResponse> {
   let rawBody: string | null = null
   try {
-    const requestClone = request.clone()
-    rawBody = await requestClone.text()
+    assertContentLengthWithinLimit(request.headers, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_BODY_LABEL)
+
+    const buffer = await readStreamToBufferWithLimit(request.clone().body, {
+      maxBytes: WEBHOOK_MAX_BODY_BYTES,
+      label: WEBHOOK_BODY_LABEL,
+    })
+    rawBody = new TextDecoder().decode(buffer)
 
     if (!rawBody || rawBody.length === 0) {
       return { body: {}, rawBody: '' }
     }
   } catch (bodyError) {
+    if (isPayloadSizeLimitError(bodyError)) {
+      logger.warn(`[${requestId}] Rejected oversized webhook body`, {
+        maxBytes: WEBHOOK_MAX_BODY_BYTES,
+        observedBytes: bodyError.observedBytes,
+      })
+      return new NextResponse('Request body too large', { status: 413 })
+    }
     logger.error(`[${requestId}] Failed to read request body`, {
       error: toError(bodyError).message,
     })
@@ -386,6 +410,16 @@ function resolveEnvVars(value: string, envVars: Record<string, string>): string 
   return resolveEnvVarReferences(value, envVars) as string
 }
 
+/** True when any string value in the provider config contains an env-var reference (`{{VAR}}`). */
+function providerConfigReferencesEnvVars(config: Record<string, unknown>): boolean {
+  for (const value of Object.values(config)) {
+    if (typeof value === 'string' && value.includes('{{')) {
+      return true
+    }
+  }
+  return false
+}
+
 function resolveProviderConfigEnvVars(
   config: Record<string, unknown>,
   envVars: Record<string, string>
@@ -412,22 +446,30 @@ export async function verifyProviderAuth(
   rawBody: string,
   requestId: string
 ): Promise<NextResponse | null> {
+  const handler = getProviderHandler(foundWebhook.provider)
+  const rawProviderConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+
+  /**
+   * Only fetch + decrypt the effective env when there is auth to verify AND the
+   * provider config actually references env vars (`{{VAR}}`). This avoids a DB
+   * read and decryption on the synchronous pre-ack path for the common case.
+   */
   let decryptedEnvVars: Record<string, string> = {}
-  try {
-    decryptedEnvVars = await getEffectiveDecryptedEnv(
-      foundWorkflow.userId,
-      foundWorkflow.workspaceId
-    )
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to fetch environment variables`, {
-      error,
-    })
+  if (handler.verifyAuth && providerConfigReferencesEnvVars(rawProviderConfig)) {
+    try {
+      decryptedEnvVars = await getEffectiveDecryptedEnv(
+        foundWorkflow.userId,
+        foundWorkflow.workspaceId
+      )
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to fetch environment variables`, {
+        error,
+      })
+    }
   }
 
-  const rawProviderConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
   const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
 
-  const handler = getProviderHandler(foundWebhook.provider)
   if (handler.verifyAuth) {
     const authResult = await handler.verifyAuth({
       webhook: foundWebhook,
@@ -591,6 +633,10 @@ export async function queueWebhookExecution(
       blockId: foundWebhook.blockId,
       workspaceId: foundWorkflow.workspaceId,
       ...(credentialId ? { credentialId } : {}),
+      ...(options.receivedAt !== undefined ? { webhookReceivedAt: options.receivedAt } : {}),
+      ...(options.triggerTimestampMs !== undefined
+        ? { triggerTimestampMs: options.triggerTimestampMs }
+        : {}),
     }
 
     const isPolling = isPollingWebhookProvider(payload.provider)
@@ -621,10 +667,18 @@ export async function queueWebhookExecution(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
 
+      /**
+       * Inline runs in-process microseconds after the route resolved the actor,
+       * so reuse it to skip a redundant billed-account lookup. Set only on the
+       * in-process payload — the enqueued/persisted copy omits it so any deferred
+       * re-run re-resolves the current billed account.
+       */
+      const inlinePayload = { ...payload, resolvedActorUserId: actorUserId }
+
       void (async () => {
         try {
           await jobQueue.startJob(jobId)
-          const output = await executeWebhookJob(payload)
+          const output = await executeWebhookJob(inlinePayload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
           const errorMessage = toError(error).message

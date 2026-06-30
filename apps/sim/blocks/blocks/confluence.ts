@@ -1,4 +1,4 @@
-import { Search } from '@/components/emcn/icons'
+import { Search } from '@sim/emcn/icons'
 import { ConfluenceIcon, PagerDutyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -1604,6 +1604,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
 export const ConfluenceBlockMeta = {
   tags: ['knowledge-base', 'content-management', 'note-taking'],
+  url: 'https://www.atlassian.com/software/confluence',
   templates: [
     {
       icon: PagerDutyIcon,

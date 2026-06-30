@@ -50,6 +50,48 @@ export function validateCronExpression(
   }
 }
 
+/** Upper bound on how many excluded occurrences the next-run search skips before giving up. */
+const MAX_OCCURRENCE_SKIP = 1000
+
+/**
+ * Computes the next run instant for a recurring schedule, skipping occurrences
+ * the user deleted individually and stopping at the recurrence end boundary.
+ * Returns `null` when the recurrence has no remaining run (past `endsAt`, or
+ * every candidate within the search bound is excluded).
+ *
+ * Excluded occurrences are matched by exact instant, so callers must record the
+ * cron-produced occurrence time (not a rounded value) when excluding.
+ */
+export function computeNextRunAt(params: {
+  cronExpression: string
+  timezone?: string
+  from?: Date
+  excludedDates?: string[] | null
+  endsAt?: Date | null
+}): Date | null {
+  const { cronExpression, timezone, from, excludedDates, endsAt } = params
+  let cron: Cron
+  try {
+    cron = new Cron(cronExpression, timezone ? { timezone } : undefined)
+  } catch {
+    return null
+  }
+
+  const excluded = new Set(
+    (excludedDates ?? []).map((iso) => new Date(iso).getTime()).filter((ms) => !Number.isNaN(ms))
+  )
+
+  let cursor = from ?? new Date()
+  for (let i = 0; i < MAX_OCCURRENCE_SKIP; i++) {
+    const next = cron.nextRun(cursor)
+    if (!next) return null
+    if (endsAt && next.getTime() > endsAt.getTime()) return null
+    if (!excluded.has(next.getTime())) return next
+    cursor = next
+  }
+  return null
+}
+
 interface SubBlockValue {
   value: string
 }
@@ -459,14 +501,20 @@ function getTimezoneAbbreviation(timezone: string): string {
  * Converts a cron expression to a human-readable string format
  * Uses the cronstrue library for accurate parsing of complex cron expressions
  *
+ * Croner spells the last weekday of the month as `<weekday>#L` (e.g. `1#L`) while
+ * cronstrue spells the same thing `<weekday>L`; the expression is normalized to
+ * cronstrue's syntax for display only, so the stored cron keeps croner's syntax
+ * and scheduling stays correct.
+ *
  * @param cronExpression - The cron expression to parse
  * @param timezone - Optional IANA timezone string to include in the description
  * @returns Human-readable description of the schedule
  */
 export const parseCronToHumanReadable = (cronExpression: string, timezone?: string): string => {
   try {
+    const forDisplay = cronExpression.replace(/([0-7])#L\b/g, '$1L')
     const baseDescription = cronstrue
-      .toString(cronExpression, {
+      .toString(forDisplay, {
         use24HourTimeFormat: false,
         verbose: false,
       })

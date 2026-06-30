@@ -1,11 +1,10 @@
-import type { A2AGetTaskParams, A2AGetTaskResponse } from '@/tools/a2a/types'
-import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
+import { A2A_TASK_OUTPUTS, type A2AGetTaskParams, type A2ATaskResponse } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = {
+export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2ATaskResponse> = {
   id: 'a2a_get_task',
   name: 'A2A Get Task',
-  description: 'Query the status of an existing A2A task.',
+  description: 'Retrieve the current state and result of an A2A task.',
   version: '1.0.0',
 
   params: {
@@ -19,47 +18,38 @@ export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Task ID to query',
-    },
-    apiKey: {
-      type: 'string',
-      visibility: 'user-only',
-      description: 'API key for authentication',
+      description: 'The task ID to retrieve',
     },
     historyLength: {
       type: 'number',
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Number of history messages to include',
+      description: 'Maximum number of history messages to include',
+    },
+    apiKey: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'API key for authentication (if required)',
     },
   },
 
   request: {
     url: '/api/tools/a2a/get-task',
     method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: A2AGetTaskParams) => {
-      const body: Record<string, string | number> = {
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => {
+      const body: Record<string, unknown> = {
         agentUrl: params.agentUrl,
         taskId: params.taskId,
       }
+      if (params.historyLength !== undefined) body.historyLength = params.historyLength
       if (params.apiKey) body.apiKey = params.apiKey
-      if (params.historyLength) body.historyLength = params.historyLength
       return body
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-    return data
-  },
+  transformResponse: async (response: Response) => response.json(),
 
-  outputs: {
-    taskId: A2A_OUTPUT_PROPERTIES.taskId,
-    contextId: A2A_OUTPUT_PROPERTIES.contextId,
-    state: A2A_OUTPUT_PROPERTIES.state,
-    artifacts: A2A_OUTPUT_PROPERTIES.artifacts,
-    history: A2A_OUTPUT_PROPERTIES.history,
-  },
+  outputs: A2A_TASK_OUTPUTS,
 }

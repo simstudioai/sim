@@ -8,13 +8,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ArrowUpLeft } from 'lucide-react'
-import { createPortal } from 'react-dom'
 import {
   Chip,
   ChipChevronDown,
+  chipContentIconClass,
   chipGeometryClass,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -28,8 +28,9 @@ import {
   PopoverSection,
   useFloatingTooltip,
   useIsOverflowing,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { ArrowUpLeft } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
@@ -178,17 +179,21 @@ export const ResourceHeader = memo(function ResourceHeader({
               )
             })
           ) : (
-            <span
-              className={cn(
-                chipGeometryClass,
-                'inline-flex min-w-0 max-w-full cursor-default justify-start'
-              )}
-            >
-              {TitleIcon && <TitleIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+            /**
+             * Root titles are short static labels ("Tables", "Files"), so the
+             * span is non-shrinkable and the label never truncates — matching
+             * the `shrink-0` guarantee the breadcrumb root crumb gets from
+             * {@link getBreadcrumbSegmentClassName}. Without this, the
+             * `flex-1` left column collapses during transient initial-load
+             * layout (the JS-driven `--sidebar-width` settling) and the title
+             * CSS-truncates to "T…" while the `shrink-0` actions hold width.
+             */
+            <span className={cn(chipGeometryClass, 'inline-flex shrink-0 cursor-default')}>
+              {TitleIcon && <TitleIcon className={chipContentIconClass} />}
               {titleLabel && (
                 <FloatingOverflowText
                   label={titleLabel}
-                  className='block min-w-0 truncate text-[var(--text-body)] text-sm'
+                  className='block whitespace-nowrap text-[var(--text-body)] text-sm'
                 />
               )}
             </span>
@@ -270,7 +275,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   if (editing?.isEditing) {
     return (
       <span className={cn(chipGeometryClass, 'inline-flex min-w-0 justify-start', className)}>
-        {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+        {Icon && <Icon className={chipContentIconClass} />}
         <InlineRenameInput
           value={editing.value}
           onChange={editing.onChange}
@@ -284,7 +289,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
 
   const content = (
     <>
-      {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+      {Icon && <Icon className={chipContentIconClass} />}
       <BreadcrumbLabel ref={labelRef} isOverflowing={isOverflowing} label={label} />
     </>
   )
@@ -366,6 +371,14 @@ interface BreadcrumbLocationPopoverProps {
   veilBoundaryRef: React.RefObject<HTMLDivElement | null>
 }
 
+/**
+ * Grace period before a hover-out dismisses the path popover. Covers the gap
+ * the pointer crosses between the trigger and the popover content (and brief
+ * jitter at their edges); re-entering either within this window cancels the
+ * close. Standard hover-intent close delay — not tied to any navigation timing.
+ */
+const POPOVER_CLOSE_DELAY_MS = 120
+
 function BreadcrumbLocationPopover({
   icon: Icon,
   breadcrumbs,
@@ -376,22 +389,44 @@ function BreadcrumbLocationPopover({
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rootBreadcrumb = breadcrumbs[0]
 
-  const openPopover = () => {
+  const cancelScheduledClose = () => {
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current)
       closeTimeoutRef.current = null
     }
+  }
+
+  /**
+   * Hover-intent open. Driven only by pointer-/keyboard-enter — never by
+   * pointer movement. This is what makes the popover dismiss cleanly on a
+   * click-to-navigate: a stationary click fires no enter event, so once
+   * {@link navigateAndClose} sets `open` false nothing re-opens it before the
+   * route swaps. (A move-driven open would re-fire under the resting cursor and
+   * flash the popover/veil back in mid-navigation.)
+   */
+  const openPopover = () => {
+    cancelScheduledClose()
     setOpen(true)
   }
 
   const scheduleClose = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current)
-    }
+    cancelScheduledClose()
     closeTimeoutRef.current = setTimeout(() => {
       setOpen(false)
       closeTimeoutRef.current = null
-    }, 120)
+    }, POPOVER_CLOSE_DELAY_MS)
+  }
+
+  /**
+   * Closes the popover up front, then runs the crumb's handler. Closing first
+   * lets the veil fade and the popover play its exit animation instead of
+   * snapping away when navigation unmounts the header.
+   */
+  const navigateAndClose = (onClick?: () => void) => {
+    if (!onClick) return
+    cancelScheduledClose()
+    setOpen(false)
+    onClick()
   }
 
   useEffect(() => {
@@ -408,15 +443,11 @@ function BreadcrumbLocationPopover({
           <button
             type='button'
             aria-label={rootBreadcrumb?.label ?? 'Path'}
-            onClick={rootBreadcrumb?.onClick}
+            onClick={() => navigateAndClose(rootBreadcrumb?.onClick)}
             onFocus={openPopover}
             onBlur={scheduleClose}
             onMouseEnter={openPopover}
             onMouseLeave={scheduleClose}
-            onMouseMove={openPopover}
-            onPointerEnter={openPopover}
-            onPointerLeave={scheduleClose}
-            onPointerMove={openPopover}
             className={cn(
               chipVariants({ flush: true }),
               'max-w-none gap-1.5 px-2 transition-colors',
@@ -424,11 +455,11 @@ function BreadcrumbLocationPopover({
               className
             )}
           >
-            <span className='relative inline-grid size-[14px] shrink-0 place-items-center'>
-              <Icon className='col-start-1 row-start-1 size-[14px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
+            <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>
+              <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
               <ArrowUpLeft
                 strokeWidth={1.55}
-                className='col-start-1 row-start-1 size-[14px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none'
+                className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none'
               />
             </span>
             {rootBreadcrumb?.label && (
@@ -452,10 +483,6 @@ function BreadcrumbLocationPopover({
           )}
           onMouseEnter={openPopover}
           onMouseLeave={scheduleClose}
-          onMouseMove={openPopover}
-          onPointerEnter={openPopover}
-          onPointerLeave={scheduleClose}
-          onPointerMove={openPopover}
         >
           <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
             <span className='inline-flex items-center gap-1'>
@@ -469,7 +496,7 @@ function BreadcrumbLocationPopover({
                 key={`${crumb.label}-${index}`}
                 icon={crumb.icon || (index === 0 ? Icon : undefined)}
                 label={crumb.label}
-                onClick={crumb.onClick}
+                onClick={crumb.onClick ? () => navigateAndClose(crumb.onClick) : undefined}
                 active={index === breadcrumbs.length - 1}
               />
             ))}
@@ -488,6 +515,18 @@ function LocationFocusVeil({
   boundaryRef: React.RefObject<HTMLDivElement | null>
 }) {
   const [bounds, setBounds] = useState({ top: 0, left: 0 })
+  /**
+   * Portal-mount gate. The veil must render `null` on BOTH the server render
+   * and the first client (hydration) render — branching on
+   * `typeof document === 'undefined'` made the two renders diverge, which
+   * failed hydration and forced React to regenerate the whole page tree on
+   * the client (a visible header flash during load).
+   */
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!visible) return
@@ -510,7 +549,7 @@ function LocationFocusVeil({
     }
   }, [boundaryRef, visible])
 
-  if (typeof document === 'undefined') return null
+  if (!mounted) return null
 
   return createPortal(
     <div

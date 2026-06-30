@@ -8,15 +8,38 @@ if (!connectionString) {
   throw new Error('Missing DATABASE_URL environment variable')
 }
 
+/**
+ * Per-role pool profiles. Starting numbers — validate against real per-role
+ * process counts (PgBouncer transaction mode, max_connections=200).
+ */
+export const DB_POOL_PROFILES = {
+  web: { primaryMax: 10, replicaMax: 4, appName: 'sim-app' },
+  // 5, not 3 — one run can need 3+ simultaneous connections (parallel queries +
+  // overlapping logging writes); 3 risks intra-run deadlock.
+  trigger: { primaryMax: 5, replicaMax: 2, appName: 'sim-trigger' },
+  realtime: { primaryMax: 5, replicaMax: 3, appName: 'sim-realtime' },
+} as const
+
+type DbRole = keyof typeof DB_POOL_PROFILES
+
+const roleEnv = process.env.SIM_DB_ROLE?.trim()
+if (roleEnv && !Object.hasOwn(DB_POOL_PROFILES, roleEnv)) {
+  throw new Error(
+    `Invalid SIM_DB_ROLE '${roleEnv}' — expected one of ${Object.keys(DB_POOL_PROFILES).join(', ')} (or unset for web)`
+  )
+}
+const profile = DB_POOL_PROFILES[(roleEnv as DbRole) || 'web']
+
 const poolOptions = {
   prepare: false,
   idle_timeout: 20,
   connect_timeout: 30,
   onnotice: () => {},
+  connection: { application_name: process.env.DB_APP_NAME ?? profile.appName },
 }
 
 const postgresClient = instrumentPoolClient(
-  postgres(connectionString, { ...poolOptions, max: 15 }),
+  postgres(connectionString, { ...poolOptions, max: profile.primaryMax }),
   'db'
 )
 
@@ -31,12 +54,18 @@ export const db = drizzle(postgresClient, { schema })
 const replicaUrl = process.env.DATABASE_REPLICA_URL
 if (replicaUrl && !/^postgres(ql)?:\/\//.test(replicaUrl)) {
   throw new Error(
-    'DATABASE_REPLICA_URL is set but is not a postgres:// DSN — fix or unset it (reads fall back to the primary when unset)'
+    'DATABASE_REPLICA_URL is set but is not a postgres:// DSN — fix the URL or unset the variable'
   )
 }
 
 export const dbReplica: typeof db = replicaUrl
-  ? drizzle(instrumentPoolClient(postgres(replicaUrl, { ...poolOptions, max: 10 }), 'dbReplica'), {
-      schema,
-    })
+  ? drizzle(
+      instrumentPoolClient(
+        postgres(replicaUrl, { ...poolOptions, max: profile.replicaMax }),
+        'dbReplica'
+      ),
+      {
+        schema,
+      }
+    )
   : db

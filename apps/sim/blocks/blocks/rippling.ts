@@ -1475,6 +1475,7 @@ Return ONLY the sort expression - no explanations, no extra text.`,
 
 export const RipplingBlockMeta = {
   tags: ['hiring'],
+  url: 'https://www.rippling.com',
   templates: [
     {
       icon: RipplingIcon,

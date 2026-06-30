@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback } from 'react'
+import { Chip } from '@sim/emcn'
+import { Credit } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip } from '@/components/emcn'
-import { Credit } from '@/components/emcn/icons'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCredits } from '@/lib/billing/credits/conversion'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useMyMemberCredits } from '@/hooks/queries/organization'
 import { usePlanView } from '@/hooks/queries/plan-view'
@@ -33,7 +34,7 @@ function CreditsChipInner() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: memberCredits, isLoading: memberLoading } = useMyMemberCredits(workspaceId)
 
-  const upgradeHref = `/workspace/${workspaceId}/upgrade`
+  const upgradeHref = buildUpgradeHref(workspaceId, 'credits')
 
   /**
    * Warm the route bundle and the exact queries the Upgrade page gates on, so

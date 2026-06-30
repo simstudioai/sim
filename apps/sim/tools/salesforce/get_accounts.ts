@@ -1,12 +1,10 @@
-import { createLogger } from '@sim/logger'
 import type {
   SalesforceGetAccountsParams,
   SalesforceGetAccountsResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('SalesforceGetAccounts')
 
 export const salesforceGetAccountsTool: ToolConfig<
   SalesforceGetAccountsParams,
@@ -63,39 +61,7 @@ export const salesforceGetAccountsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      let instanceUrl = params.instanceUrl
-
-      if (!instanceUrl && params.idToken) {
-        try {
-          const base64Url = params.idToken.split('.')[1]
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-          const jsonPayload = decodeURIComponent(
-            atob(base64)
-              .split('')
-              .map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
-              .join('')
-          )
-          const decoded = JSON.parse(jsonPayload)
-
-          if (decoded.profile) {
-            const match = decoded.profile.match(/^(https:\/\/[^/]+)/)
-            if (match) {
-              instanceUrl = match[1]
-            }
-          } else if (decoded.sub) {
-            const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
-            if (match && match[1] !== 'https://login.salesforce.com') {
-              instanceUrl = match[1]
-            }
-          }
-        } catch (error) {
-          logger.error('Failed to decode Salesforce idToken', { error })
-        }
-      }
-
-      if (!instanceUrl) {
-        throw new Error('Salesforce instance URL is required but not provided')
-      }
+      const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
 
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields =
@@ -126,9 +92,8 @@ export const salesforceGetAccountsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      logger.error('Salesforce API request failed', { data, status: response.status })
       throw new Error(
-        data[0]?.message || data.message || 'Failed to fetch accounts from Salesforce'
+        extractErrorMessage(data, response.status, 'Failed to fetch accounts from Salesforce')
       )
     }
 

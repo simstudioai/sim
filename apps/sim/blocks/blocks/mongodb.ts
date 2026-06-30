@@ -965,6 +965,7 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
 
 export const MongoDBBlockMeta = {
   tags: ['data-warehouse', 'cloud'],
+  url: 'https://www.mongodb.com',
   templates: [
     {
       icon: MongoDBIcon,

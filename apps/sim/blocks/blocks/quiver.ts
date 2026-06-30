@@ -239,6 +239,7 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
 
 export const QuiverBlockMeta = {
   tags: ['image-generation'],
+  url: 'https://quiver.ai',
   templates: [
     {
       icon: QuiverIcon,

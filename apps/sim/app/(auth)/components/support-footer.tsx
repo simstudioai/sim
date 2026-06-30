@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { useBrandConfig } from '@/ee/whitelabeling'
 
 export interface SupportFooterProps {

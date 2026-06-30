@@ -21,7 +21,7 @@ vi.mock('@sim/db', () => databaseMock)
 vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@sim/workflow-authz', () => workflowAuthzMock)
+vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
 vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
@@ -41,6 +41,7 @@ vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
     getState: vi.fn().mockReturnValue({
       getWorkflowExecution: vi.fn().mockReturnValue({
+        status: 'idle',
         isExecuting: false,
         isDebugging: false,
         activeBlockIds: new Set(),
@@ -50,6 +51,7 @@ vi.mock('@/stores/execution/store', () => ({
         lastRunPath: new Map(),
         lastRunEdges: new Map(),
       }),
+      setStatus: vi.fn(),
       setIsExecuting: vi.fn(),
       setIsDebugging: vi.fn(),
       setPendingBlocks: vi.fn(),
@@ -61,6 +63,7 @@ vi.mock('@/stores/execution/store', () => ({
     }),
   },
   useCurrentWorkflowExecution: vi.fn().mockReturnValue({
+    status: 'idle',
     isExecuting: false,
     isDebugging: false,
     activeBlockIds: new Set(),

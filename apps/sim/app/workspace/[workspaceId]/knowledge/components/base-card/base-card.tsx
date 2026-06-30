@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Badge, DocumentAttachment, Tooltip } from '@sim/emcn'
 import { formatAbsoluteDate, formatRelativeTime } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { DeleteKnowledgeBaseModal } from '../delete-knowledge-base-modal/delete-knowledge-base-modal'
 import { EditKnowledgeBaseModal } from '../edit-knowledge-base-modal/edit-knowledge-base-modal'
 import { KnowledgeBaseContextMenu } from '../knowledge-base-context-menu/knowledge-base-context-menu'
@@ -105,7 +105,7 @@ export function BaseCard({
   const connectorEntries = useMemo(
     () =>
       connectorTypes
-        .map((type) => ({ type, config: CONNECTOR_REGISTRY[type] }))
+        .map((type) => ({ type, config: CONNECTOR_META_REGISTRY[type] }))
         .filter((entry) => Boolean(entry.config?.icon)),
     [connectorTypes]
   )

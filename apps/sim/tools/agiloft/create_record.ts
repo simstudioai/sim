@@ -1,6 +1,4 @@
 import type { AgiloftCreateRecordParams, AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildCreateRecordUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftCreateRecordTool: ToolConfig<AgiloftCreateRecordParams, AgiloftRecordResponse> =
@@ -51,54 +49,26 @@ export const agiloftCreateRecordTool: ToolConfig<AgiloftCreateRecordParams, Agil
     },
 
     request: {
-      url: 'https://placeholder.agiloft.com',
+      url: () => '/api/tools/agiloft/create_record',
       method: 'POST',
-      headers: () => ({}),
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (params) => ({
+        instanceUrl: params.instanceUrl,
+        knowledgeBase: params.knowledgeBase,
+        login: params.login,
+        password: params.password,
+        table: params.table,
+        data: params.data,
+      }),
     },
 
-    directExecution: async (params) => {
-      let body: string
-      try {
-        body = JSON.stringify(JSON.parse(params.data))
-      } catch {
-        return {
-          success: false,
-          output: { id: null, fields: {} },
-          error: 'Invalid JSON in data parameter',
-        }
+    transformResponse: async (response: Response) => {
+      const data = await response.json()
+      return {
+        success: data.success ?? true,
+        output: data.output,
+        ...(data.error ? { error: data.error } : {}),
       }
-
-      return executeAgiloftRequest<AgiloftRecordResponse>(
-        params,
-        (base) => ({
-          url: buildCreateRecordUrl(base, params),
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body,
-        }),
-        async (response) => {
-          if (!response.ok) {
-            const errorText = await response.text()
-            return {
-              success: false,
-              output: { id: null, fields: {} },
-              error: `Agiloft error: ${response.status} - ${errorText}`,
-            }
-          }
-
-          const data = (await response.json()) as Record<string, unknown>
-          const result = (data.result ?? data) as Record<string, unknown>
-          const id = result.id ?? result.ID ?? data.id ?? data.ID ?? null
-
-          return {
-            success: data.success !== false,
-            output: {
-              id: id != null ? String(id) : null,
-              fields: result ?? {},
-            },
-          }
-        }
-      )
     },
 
     outputs: {

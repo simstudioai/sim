@@ -8,8 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ThinkingLoader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import {
   type HomeMode,
   StageHome,
@@ -40,6 +39,7 @@ import {
   TYPE_MS_PER_ATOM,
   WORKFLOW_FOCUS_SCALE,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
+import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
 
 /**
  * Animated hero visual - the only client island in the hero, decorative and

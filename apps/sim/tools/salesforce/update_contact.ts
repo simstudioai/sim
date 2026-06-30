@@ -4,7 +4,7 @@ import type {
   SalesforceUpdateContactResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceContacts')
@@ -108,7 +108,8 @@ export const salesforceUpdateContactTool: ToolConfig<
   request: {
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${params.contactId}`
+      const contactId = requireId(params.contactId, 'Contact ID')
+      return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${contactId}`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -122,7 +123,7 @@ export const salesforceUpdateContactTool: ToolConfig<
       if (params.firstName) body.FirstName = params.firstName
       if (params.email) body.Email = params.email
       if (params.phone) body.Phone = params.phone
-      if (params.accountId) body.AccountId = params.accountId
+      if (params.accountId) body.AccountId = params.accountId.trim()
       if (params.title) body.Title = params.title
       if (params.department) body.Department = params.department
       if (params.mailingStreet) body.MailingStreet = params.mailingStreet
@@ -140,13 +141,15 @@ export const salesforceUpdateContactTool: ToolConfig<
     if (!response.ok) {
       const data = await response.json()
       logger.error('Salesforce API request failed', { data, status: response.status })
-      throw new Error(data[0]?.message || data.message || 'Failed to update contact in Salesforce')
+      throw new Error(
+        extractErrorMessage(data, response.status, 'Failed to update contact in Salesforce')
+      )
     }
 
     return {
       success: true,
       output: {
-        id: params?.contactId || '',
+        id: params?.contactId?.trim() || '',
         updated: true,
       },
     }

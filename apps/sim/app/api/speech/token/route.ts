@@ -10,7 +10,7 @@ import { getSession } from '@/lib/auth'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
-import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { getClientIp } from '@/lib/core/utils/request'
@@ -71,7 +71,10 @@ async function validateChatAuth(
 
     const cookieName = `chat_auth_${chatId}`
     const authCookie = request.cookies.get(cookieName)
-    if (authCookie && validateAuthToken(authCookie.value, chatId, chatData.password)) {
+    if (
+      authCookie &&
+      validateAuthToken(authCookie.value, chatId, chatData.authType, chatData.password)
+    ) {
       return { valid: true, ownerId: chatData.userId, workspaceId: chatData.workspaceId }
     }
 

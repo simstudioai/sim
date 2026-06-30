@@ -37,7 +37,9 @@ export const GET = withRouteHandler(
       const metadataToCheck = job.metadata
 
       if (metadataToCheck?.workflowId) {
-        const { authorizeWorkflowByWorkspacePermission } = await import('@sim/workflow-authz')
+        const { authorizeWorkflowByWorkspacePermission } = await import(
+          '@sim/platform-authz/workflow'
+        )
         const accessCheck = await authorizeWorkflowByWorkspacePermission({
           userId: authenticatedUserId,
           workflowId: metadataToCheck.workflowId as string,

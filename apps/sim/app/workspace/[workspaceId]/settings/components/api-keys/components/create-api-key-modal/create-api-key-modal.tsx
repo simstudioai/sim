@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -13,7 +11,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   SecretReveal,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')

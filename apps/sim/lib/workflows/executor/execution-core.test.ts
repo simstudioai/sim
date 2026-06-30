@@ -72,26 +72,22 @@ vi.mock('@/lib/workflows/triggers/triggers', () => ({
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/executor', () => ({
-  Executor: vi.fn().mockImplementation(
-    class {
-      constructor(args: unknown) {
-        executorConstructorMock(args)
-        // biome-ignore lint/correctness/noConstructorReturn: vitest 4 constructs mocks via Reflect.construct; returning the instance overrides `new Executor(...)`
-        return {
-          execute: executorExecuteMock,
-          executeFromBlock: executorExecuteMock,
-        }
+  Executor: class {
+    constructor(args: unknown) {
+      executorConstructorMock(args)
+      // biome-ignore lint/correctness/noConstructorReturn: returning the instance overrides `new Executor(...)` so consumers get the mocked methods
+      return {
+        execute: executorExecuteMock,
+        executeFromBlock: executorExecuteMock,
       }
     }
-  ),
+  },
 }))
 
 vi.mock('@/serializer', () => ({
-  Serializer: vi.fn().mockImplementation(
-    class {
-      serializeWorkflow = serializeWorkflowMock
-    }
-  ),
+  Serializer: class {
+    serializeWorkflow = serializeWorkflowMock
+  },
 }))
 
 import {
@@ -190,6 +186,96 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     onBlockStartPersistenceMock.mockResolvedValue(undefined)
     updateWorkflowRunCountsMock.mockResolvedValue(undefined)
     clearExecutionCancellationMock.mockResolvedValue(undefined)
+  })
+
+  it('loads workflow state and env vars concurrently, then starts logging before constructing the executor', async () => {
+    const callOrder: string[] = []
+
+    let releaseWorkflowLoad: (() => void) | undefined
+    let releaseEnvLoad: (() => void) | undefined
+    const workflowLoadGate = new Promise<void>((resolve) => {
+      releaseWorkflowLoad = resolve
+    })
+    const envLoadGate = new Promise<void>((resolve) => {
+      releaseEnvLoad = resolve
+    })
+
+    loadWorkflowFromNormalizedTablesMock.mockImplementation(async () => {
+      callOrder.push('load-workflow:start')
+      await workflowLoadGate
+      callOrder.push('load-workflow:end')
+      return {
+        blocks: {
+          'start-block': {
+            id: 'start-block',
+            type: 'start_trigger',
+            subBlocks: {},
+            name: 'Start',
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      }
+    })
+
+    getPersonalAndWorkspaceEnvMock.mockImplementation(async () => {
+      callOrder.push('load-env:start')
+      await envLoadGate
+      callOrder.push('load-env:end')
+      return {
+        personalEncrypted: {},
+        workspaceEncrypted: {},
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      }
+    })
+
+    safeStartMock.mockImplementation(async () => {
+      callOrder.push('safeStart')
+      return true
+    })
+
+    executorConstructorMock.mockImplementation(() => {
+      callOrder.push('executor-construct')
+    })
+
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    const executionPromise = executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    await Promise.resolve()
+
+    expect(callOrder).toContain('load-workflow:start')
+    expect(callOrder).toContain('load-env:start')
+    expect(callOrder).not.toContain('safeStart')
+    expect(callOrder).not.toContain('executor-construct')
+
+    releaseWorkflowLoad?.()
+    releaseEnvLoad?.()
+
+    await executionPromise
+
+    expect(callOrder).toEqual([
+      'load-workflow:start',
+      'load-env:start',
+      'load-workflow:end',
+      'load-env:end',
+      'safeStart',
+      'executor-construct',
+    ])
+    expect(safeStartMock).toHaveBeenCalledTimes(1)
+    expect(executorConstructorMock).toHaveBeenCalledTimes(1)
   })
 
   it('routes onBlockStart through logging session persistence path', async () => {

@@ -1,10 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowUpDown, Badge, Library, ListFilter, Search } from '@/components/emcn'
-import type { BadgeProps } from '@/components/emcn/components/badge/badge'
-import { Download, Workflow } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+import type { BadgeProps } from '@sim/emcn'
+import { ArrowUpDown, Badge, cn, Library, ListFilter, Search } from '@sim/emcn'
+import { Download, Workflow } from '@sim/emcn/icons'
 
 interface LogRow {
   id: string

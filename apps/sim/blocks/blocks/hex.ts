@@ -448,6 +448,7 @@ Example:
 
 export const HexBlockMeta = {
   tags: ['data-analytics'],
+  url: 'https://hex.tech',
   templates: [
     {
       icon: HexIcon,

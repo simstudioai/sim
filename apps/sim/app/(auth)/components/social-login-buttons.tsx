@@ -1,12 +1,11 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { Chip, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Chip } from '@/components/emcn'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 const logger = createLogger('SocialLoginButtons')

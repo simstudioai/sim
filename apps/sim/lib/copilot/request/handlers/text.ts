@@ -24,27 +24,26 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       if (!parentToolCallId) return
       const spanIdentity = getScopedSpanIdentity(event)
       if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {
-        if (
-          context.currentSubagentThinkingBlock &&
-          context.currentSubagentThinkingBlock.parentToolCallId !== parentToolCallId
-        ) {
-          flushSubagentThinkingBlock(context)
-        }
-        if (!context.currentSubagentThinkingBlock) {
-          context.currentSubagentThinkingBlock = {
+        // Per-lane thinking: each concurrent subagent accumulates into its own
+        // block keyed by parentToolCallId, so interleaved chunks from a sibling
+        // subagent never flush or corrupt this lane's reasoning.
+        let block = context.subagentThinkingBlocks.get(parentToolCallId)
+        if (!block) {
+          block = {
             type: 'subagent_thinking',
             content: '',
             parentToolCallId,
             ...spanIdentity,
             timestamp: Date.now(),
           }
+          context.subagentThinkingBlocks.set(parentToolCallId, block)
         }
-        context.currentSubagentThinkingBlock.content = `${context.currentSubagentThinkingBlock.content || ''}${chunk}`
+        block.content = `${block.content || ''}${chunk}`
         return
       }
-      if (context.currentSubagentThinkingBlock) {
-        flushSubagentThinkingBlock(context)
-      }
+      // Real text for this lane: close this lane's thinking block first so the
+      // persisted order is [thinking, text] within the lane.
+      flushSubagentThinkingBlock(context, parentToolCallId)
       if (context.isInThinkingBlock) {
         flushThinkingBlock(context)
       }

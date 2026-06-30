@@ -1,25 +1,55 @@
-import { db } from '@sim/db'
-import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { parse as csvParse } from 'csv-parse/sync'
-import { eq } from 'drizzle-orm'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotTableOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
+import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import type { RowData } from '@/lib/table'
-import { nKeysBetween } from '@/lib/table/order-key'
-import { buildOrderedRowValues, getTableById } from '@/lib/table/service'
+import type { RowData, TableDefinition } from '@/lib/table'
+import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { replaceTableRows } from '@/lib/table/rows/service'
+import { getTableById } from '@/lib/table/service'
 
 const logger = createLogger('CopilotToolResultTables')
 
 const MAX_OUTPUT_TABLE_ROWS = 10_000
-const BATCH_CHUNK_SIZE = 500
+
+/**
+ * Replaces a table's rows with wire rows keyed by column name. Translates the
+ * keys to stable column ids (unknown keys are dropped, matching every other
+ * name-translating boundary) and delegates to `replaceTableRows`, which owns
+ * locking, validation, plan row limits, batching, and rowCount maintenance.
+ */
+async function replaceTableRowsFromWire(
+  table: TableDefinition,
+  rows: Array<Record<string, unknown>>,
+  context: ExecutionContext
+): Promise<{ error?: string }> {
+  const idByName = buildIdByName(table.schema)
+  const idKeyedRows = rows.map((row) => rowDataNameToId(row as RowData, idByName))
+  const emptyIndex = idKeyedRows.findIndex((row) => Object.keys(row).length === 0)
+  if (emptyIndex !== -1) {
+    return {
+      error: `Row ${emptyIndex + 1} has no keys matching columns on table "${table.name}" (columns: ${table.schema.columns.map((c) => c.name).join(', ')})`,
+    }
+  }
+  await replaceTableRows(
+    {
+      tableId: table.id,
+      rows: idKeyedRows,
+      workspaceId: table.workspaceId,
+      userId: context.userId,
+    },
+    table,
+    generateId().slice(0, 8)
+  )
+  return {}
+}
 
 export async function maybeWriteOutputToTable(
   toolName: string,
@@ -34,6 +64,9 @@ export async function maybeWriteOutputToTable(
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
 
+  const denied = denyOutputWriteWithoutWritePermission(context)
+  if (denied) return denied
+
   return withCopilotSpan(
     TraceSpan.CopilotToolsWriteOutputTable,
     {
@@ -44,7 +77,7 @@ export async function maybeWriteOutputToTable(
     async (span) => {
       try {
         const table = await getTableById(outputTable)
-        if (!table) {
+        if (!table || table.workspaceId !== context.workspaceId) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.TableNotFound)
           return {
             success: false,
@@ -97,33 +130,11 @@ export async function maybeWriteOutputToTable(
         if (context.abortSignal?.aborted) {
           throw new Error('Request aborted before tool mutation could be applied')
         }
-        await db.transaction(async (tx) => {
-          if (context.abortSignal?.aborted) {
-            throw new Error('Request aborted before tool mutation could be applied')
-          }
-          await tx.delete(userTableRows).where(eq(userTableRows.tableId, outputTable))
-
-          const now = new Date()
-          // Replace-all: table was just cleared — mint a fresh contiguous key run.
-          const orderKeys = nKeysBetween(null, null, rows.length)
-          for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) {
-            if (context.abortSignal?.aborted) {
-              throw new Error('Request aborted before tool mutation could be applied')
-            }
-            const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
-            const values = buildOrderedRowValues({
-              tableId: outputTable,
-              workspaceId: context.workspaceId!,
-              rows: chunk as RowData[],
-              startPosition: i,
-              orderKeys: orderKeys.slice(i, i + BATCH_CHUNK_SIZE),
-              now,
-              createdBy: context.userId,
-              makeId: () => `row_${generateId().replace(/-/g, '')}`,
-            })
-            await tx.insert(userTableRows).values(values)
-          }
-        })
+        const replaceResult = await replaceTableRowsFromWire(table, rows, context)
+        if (replaceResult.error) {
+          span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
+          return { success: false, error: replaceResult.error }
+        }
 
         logger.info('Tool output written to table', {
           toolName,
@@ -171,6 +182,9 @@ export async function maybeWriteReadCsvToTable(
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
 
+  const denied = denyOutputWriteWithoutWritePermission(context)
+  if (denied) return denied
+
   return withCopilotSpan(
     TraceSpan.CopilotToolsWriteCsvToTable,
     {
@@ -181,7 +195,7 @@ export async function maybeWriteReadCsvToTable(
     async (span) => {
       try {
         const table = await getTableById(outputTable)
-        if (!table) {
+        if (!table || table.workspaceId !== context.workspaceId) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.TableNotFound)
           return { success: false, error: `Table "${outputTable}" not found` }
         }
@@ -243,33 +257,11 @@ export async function maybeWriteReadCsvToTable(
         if (context.abortSignal?.aborted) {
           throw new Error('Request aborted before tool mutation could be applied')
         }
-        await db.transaction(async (tx) => {
-          if (context.abortSignal?.aborted) {
-            throw new Error('Request aborted before tool mutation could be applied')
-          }
-          await tx.delete(userTableRows).where(eq(userTableRows.tableId, outputTable))
-
-          const now = new Date()
-          // Replace-all: table was just cleared — mint a fresh contiguous key run.
-          const orderKeys = nKeysBetween(null, null, rows.length)
-          for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) {
-            if (context.abortSignal?.aborted) {
-              throw new Error('Request aborted before tool mutation could be applied')
-            }
-            const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
-            const values = buildOrderedRowValues({
-              tableId: outputTable,
-              workspaceId: context.workspaceId!,
-              rows: chunk as RowData[],
-              startPosition: i,
-              orderKeys: orderKeys.slice(i, i + BATCH_CHUNK_SIZE),
-              now,
-              createdBy: context.userId,
-              makeId: () => `row_${generateId().replace(/-/g, '')}`,
-            })
-            await tx.insert(userTableRows).values(values)
-          }
-        })
+        const replaceResult = await replaceTableRowsFromWire(table, rows, context)
+        if (replaceResult.error) {
+          span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
+          return { success: false, error: replaceResult.error }
+        }
 
         logger.info('Read output written to table', {
           toolName,

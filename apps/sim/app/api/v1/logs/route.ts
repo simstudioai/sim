@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListLogsContract } from '@/lib/api/contracts/v1/logs'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -13,8 +13,8 @@ import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
   checkRateLimit,
-  checkWorkspaceScope,
   createRateLimitResponse,
+  validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1LogsAPI')
@@ -68,8 +68,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const params = parsed.data.query
 
-    const scopeError = await checkWorkspaceScope(rateLimit, params.workspaceId)
-    if (scopeError) return scopeError
+    const accessError = await validateWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
+    if (accessError) return accessError
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
       userId,
@@ -121,14 +121,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
       .from(workflowExecutionLogs)
       .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-      .innerJoin(
-        permissions,
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflowExecutionLogs.workspaceId),
-          eq(permissions.userId, userId)
-        )
-      )
 
     const logs = await baseQuery
       .where(conditions)

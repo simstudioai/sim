@@ -1,9 +1,8 @@
 'use client'
 
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
+import { chipBorderShadowRing, cn } from '@sim/emcn'
 import dynamic from 'next/dynamic'
-import { chipBorderShadowRing } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { DemoForm, type DemoLead } from '@/app/(landing)/demo/components/demo-form'
 
 const importScheduler = () => import('@/app/(landing)/demo/components/demo-scheduler')

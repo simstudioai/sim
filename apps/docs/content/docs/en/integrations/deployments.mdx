@@ -1,0 +1,123 @@
+---
+title: Deployments
+description: Manage workflow deployments
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="deployments"
+  color="#0C0C0C"
+/>
+
+## Usage Instructions
+
+Deploy, undeploy, and roll back workflows in the current workspace. Promote a previous deployment version to live, list every version, or fetch the deployed workflow state for a specific version.
+
+
+
+## Actions
+
+### `deployments_deploy`
+
+Deploy a workflow’s current draft state, creating a new deployment version and making it live for API execution. Requires admin permission on the workflow’s workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | ID of the workflow to deploy |
+| `name` | string | No | Optional label for the new deployment version |
+| `description` | string | No | Optional summary of what changed in this version |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflowId` | string | ID of the deployed workflow |
+| `isDeployed` | boolean | Whether the workflow is now deployed |
+| `deployedAt` | string | ISO 8601 timestamp of the deployment \(null if unavailable\) |
+| `version` | number | The deployment version that is now active |
+| `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule sync still in progress\) |
+
+### `deployments_undeploy`
+
+Take a deployed workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Requires admin permission on the workflow’s workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | ID of the workflow to undeploy |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflowId` | string | ID of the undeployed workflow |
+| `isDeployed` | boolean | Whether the workflow is still deployed \(false\) |
+| `deployedAt` | string | Always null after an undeploy |
+| `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule cleanup still in progress\) |
+
+### `deployments_promote`
+
+Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Also works on an undeployed workflow: it re-deploys the workflow live at that version. Requires admin permission on the workflow’s workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | ID of the workflow |
+| `version` | number | Yes | The deployment version number to promote to live |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflowId` | string | ID of the workflow |
+| `isDeployed` | boolean | Whether the workflow is now deployed |
+| `deployedAt` | string | ISO 8601 timestamp of the active deployment \(null if unavailable\) |
+| `version` | number | The deployment version that is now live |
+| `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule sync still in progress\) |
+
+### `deployments_list_versions`
+
+List every deployment version of a workflow, newest first, including which version is currently live.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | ID of the workflow |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflowId` | string | ID of the workflow |
+| `versions` | array | Deployment versions, newest first \(id, version, name, description, isActive, createdAt, createdBy, deployedByName\) |
+
+### `deployments_get_version`
+
+Fetch a single deployment version of a workflow, including its metadata and the full workflow state snapshot that was deployed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | ID of the workflow |
+| `version` | number | Yes | The deployment version number to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflowId` | string | ID of the workflow |
+| `version` | number | The deployment version number |
+| `name` | string | Version label |
+| `description` | string | Version description |
+| `isActive` | boolean | Whether this version is currently live |
+| `createdAt` | string | When this version was deployed \(ISO 8601\) |
+| `deployedState` | json | The full workflow state snapshot \(blocks, edges, loops, parallels, variables\) |
+
+

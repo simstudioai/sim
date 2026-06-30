@@ -1,3 +1,4 @@
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import {
   AUTO_LAYOUT_EXCLUDED_TYPES,
   CONTAINER_BLOCK_TYPES,
@@ -9,7 +10,6 @@ import {
   ROOT_PADDING_Y,
 } from '@/lib/workflows/autolayout/constants'
 import type { BlockMetrics, BoundingBox, Edge, GraphNode } from '@/lib/workflows/autolayout/types'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {

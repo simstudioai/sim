@@ -5,7 +5,8 @@ import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
@@ -398,6 +399,40 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
       callback(null, resolvedIP, family)
     }
   }
+}
+
+/**
+ * Builds a standard `fetch`-compatible function that pins every outbound
+ * connection to `resolvedIP`, preventing DNS-rebinding (TOCTOU) between URL
+ * validation and connection. The original hostname is preserved for TLS SNI and
+ * the `Host` header so it still matches the certificate. This is the single
+ * source of truth for pinned outbound fetches — both the LLM providers and the
+ * MCP transport consume it.
+ *
+ * Pass the returned function as the `fetch` option to the OpenAI/Anthropic SDKs
+ * (or call it directly) after validating the URL with {@link validateUrlWithDNS}
+ * and capturing `resolvedIP`. Because the pinned lookup always returns
+ * `resolvedIP` regardless of hostname, any redirect the server returns also
+ * connects to the validated IP — an attacker cannot rebind a redirect target to
+ * an internal address.
+ *
+ * The `Agent` is captured for the lifetime of the returned function, so repeated
+ * calls (e.g. a provider tool loop) reuse its keep-alive connections.
+ */
+export function createPinnedFetch(resolvedIP: string): typeof fetch {
+  const dispatcher = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
+
+  const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)
+    const undiciInput = input as unknown as Parameters<typeof undiciFetch>[0]
+    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
+    const undiciInit: UndiciRequestInit = { ...(init as unknown as UndiciRequestInit), dispatcher }
+    const response = await undiciFetch(undiciInput, undiciInit)
+    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime
+    return response as unknown as Response
+  }
+
+  return pinned
 }
 
 /**

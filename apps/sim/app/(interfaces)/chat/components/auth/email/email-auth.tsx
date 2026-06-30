@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'

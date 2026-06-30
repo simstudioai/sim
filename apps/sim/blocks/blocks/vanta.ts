@@ -1131,6 +1131,7 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
 
 export const VantaBlockMeta = {
   tags: ['monitoring', 'automation', 'document-processing'],
+  url: 'https://www.vanta.com',
   templates: [
     {
       icon: VantaIcon,

@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
-import { permissions, workflowMcpServer, workspace } from '@sim/db/schema'
+import { workflowMcpServer, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('McpDiscoverAPI')
 
@@ -34,24 +35,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const userWorkspacePermissions = await db
-      .select({ entityId: permissions.entityId })
-      .from(permissions)
-      .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-      .where(
-        and(
-          eq(permissions.userId, userId),
-          eq(permissions.entityType, 'workspace'),
-          isNull(workspace.archivedAt)
-        )
-      )
+    const accessibleRows = await listAccessibleWorkspaceRowsForUser(userId)
+    const accessibleWorkspaceIds = accessibleRows.map((row) => row.workspace.id)
 
     const workspaceIds =
       auth.apiKeyType === 'workspace' && auth.workspaceId
-        ? userWorkspacePermissions
-            .map((w) => w.entityId)
-            .filter((workspaceId) => workspaceId === auth.workspaceId)
-        : userWorkspacePermissions.map((w) => w.entityId)
+        ? accessibleWorkspaceIds.filter((workspaceId) => workspaceId === auth.workspaceId)
+        : accessibleWorkspaceIds
 
     if (workspaceIds.length === 0) {
       return NextResponse.json({ success: true, servers: [] })

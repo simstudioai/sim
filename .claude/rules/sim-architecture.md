@@ -29,7 +29,7 @@ apps/
 └── realtime/            # Bun Socket.IO server (collaborative canvas)
 
 packages/                # @sim/* — audit, auth, db, logger, realtime-protocol,
-                         # security, tsconfig, utils, workflow-authz,
+                         # security, tsconfig, utils, platform-authz,
                          # workflow-persistence, workflow-types
 ```
 
@@ -37,6 +37,10 @@ packages/                # @sim/* — audit, auth, db, logger, realtime-protocol
 
 - `apps/* → packages/*` only. Packages never import from `apps/*`.
 - `apps/realtime` avoids Next.js, React, the block/tool registry, provider SDKs, and the executor; never add `@/lib/webhooks/providers/*`, `@/executor/*`, `@/blocks/*`, or `@/tools/*` imports to any package it consumes. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
+
+## The `'use client'` server boundary
+
+Every export of a `'use client'` module becomes a *client reference* on the server — server-evaluated code (RSC pages/layouts, `prefetch.ts`, route handlers, block definitions, triggers) can only *render* it as a component or pass it as a prop, never *call* it (doing so throws at runtime, e.g. `tableKeys.list is not a function`; `next build` does not catch it). Keep server-importable query primitives (key factories, fetchers, mappers, constants) in non-`'use client'` modules — see `.claude/rules/sim-queries.md`. Enforced by `scripts/check-client-boundary-imports.ts`.
 
 ## Feature Organization
 

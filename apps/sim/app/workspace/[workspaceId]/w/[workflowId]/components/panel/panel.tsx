@@ -1,13 +1,6 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus, Square } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
-import { useShallow } from 'zustand/react/shallow'
 import {
   BubbleChatClose,
   BubbleChatPreview,
@@ -29,8 +22,15 @@ import {
   PopoverTrigger,
   Trash,
   toast,
-} from '@/components/emcn'
-import { Download, Lock, Unlock } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Lock, Unlock } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
+import { History, Plus, Square } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
+import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -757,7 +757,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
                 >
-                  Copilot
+                  Chat
                 </Button>
               )}
               <Button
@@ -932,19 +932,16 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         onOpenChange={setIsDeleteModalOpen}
         srTitle='Delete Workflow'
         title='Delete Workflow'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {currentWorkflow?.name ?? 'this workflow'}
-            </span>
-            ?{' '}
-            <span className='text-[var(--text-error)]'>
-              All associated blocks, executions, and configuration will be removed.
-            </span>{' '}
-            You can restore it from Recently Deleted in Settings.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: currentWorkflow?.name ?? 'this workflow', bold: true },
+          '? ',
+          {
+            text: 'All associated blocks, executions, and configuration will be removed.',
+            error: true,
+          },
+          ' You can restore it from Recently Deleted in Settings.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDeleteWorkflow,

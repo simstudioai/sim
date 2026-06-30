@@ -1,6 +1,4 @@
 import type { AgiloftReadRecordParams, AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildReadRecordUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftReadRecordTool: ToolConfig<AgiloftReadRecordParams, AgiloftRecordResponse> = {
@@ -55,42 +53,27 @@ export const agiloftReadRecordTool: ToolConfig<AgiloftReadRecordParams, AgiloftR
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'GET',
-    headers: () => ({}),
+    url: () => '/api/tools/agiloft/read_record',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+      recordId: params.recordId,
+      fields: params.fields,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftRecordResponse>(
-      params,
-      (base) => ({
-        url: buildReadRecordUrl(base, params),
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-        const id = result.id ?? result.ID ?? data.id ?? data.ID ?? null
-
-        return {
-          success: data.success !== false,
-          output: {
-            id: id != null ? String(id) : null,
-            fields: result ?? {},
-          },
-        }
-      }
-    )
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: data.success ?? true,
+      output: data.output,
+      ...(data.error ? { error: data.error } : {}),
+    }
   },
 
   outputs: {

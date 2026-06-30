@@ -594,6 +594,7 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
 
 export const MicrosoftDataverseBlockMeta = {
   tags: ['microsoft-365', 'data-warehouse', 'cloud'],
+  url: 'https://www.microsoft.com/power-platform/dataverse',
   templates: [
     {
       icon: MicrosoftDataverseIcon,

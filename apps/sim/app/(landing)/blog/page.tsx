@@ -1,7 +1,7 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ChipLink } from '@/components/emcn'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { buildCollectionPageJsonLd } from '@/lib/blog/seo'
 import { SITE_URL } from '@/lib/core/utils/urls'

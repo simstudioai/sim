@@ -111,7 +111,7 @@ export function useUpsertMothershipByok() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
       }),
-    onSuccess: (_data, params) =>
+    onSettled: (_data, _error, params) =>
       queryClient.invalidateQueries({ queryKey: mothershipKeys.byok(params.workspaceId) }),
   })
 }
@@ -128,7 +128,7 @@ export function useDeleteMothershipByok() {
         }).toString()}`,
         { method: 'DELETE' }
       ),
-    onSuccess: (_data, params) =>
+    onSettled: (_data, _error, params) =>
       queryClient.invalidateQueries({ queryKey: mothershipKeys.byok(params.workspaceId) }),
   })
 }

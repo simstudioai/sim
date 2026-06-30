@@ -12,7 +12,15 @@ export {
 } from './formatting.js'
 export { noop, sleep } from './helpers.js'
 export { generateId, generateShortId, isValidUuid } from './id.js'
-export { filterUndefined, omit } from './object.js'
+export type { EmbedInfo } from './media-embed.js'
+export { getEmbedInfo } from './media-embed.js'
+export {
+  filterUndefined,
+  isPlainRecord,
+  isRecordLike,
+  omit,
+  sortObjectKeysDeep,
+} from './object.js'
 export {
   generateRandomBytes,
   generateRandomHex,
@@ -24,4 +32,4 @@ export {
 } from './random.js'
 export type { BackoffOptions } from './retry.js'
 export { backoffWithJitter, parseRetryAfter } from './retry.js'
-export { truncate } from './string.js'
+export { normalizeEmail, truncate } from './string.js'

@@ -1,4 +1,4 @@
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import {
   createIsoLineProps,
   ISO_FILL_HIGH,

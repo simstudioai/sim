@@ -11,7 +11,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   description: 'Read, create, and update Airtable',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.',
+    'Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.',
   docsLink: 'https://docs.sim.ai/integrations/airtable',
   category: 'tools',
   integrationType: IntegrationType.Databases,
@@ -31,6 +31,8 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
         { label: 'Create Records', id: 'create' },
         { label: 'Update Record', id: 'update' },
         { label: 'Update Multiple Records', id: 'updateMultiple' },
+        { label: 'Upsert Records', id: 'upsert' },
+        { label: 'Delete Records', id: 'delete' },
       ],
       value: () => 'list',
     },
@@ -162,7 +164,7 @@ Return ONLY the formula - no explanations, no quotes around the entire formula.`
       title: 'Records (JSON Array)',
       type: 'code',
       placeholder: 'For Create: `[{ "fields": { ... } }]`\n',
-      condition: { field: 'operation', value: ['create', 'updateMultiple'] },
+      condition: { field: 'operation', value: ['create', 'updateMultiple', 'upsert'] },
       required: true,
       wandConfig: {
         enabled: true,
@@ -237,6 +239,58 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         generationType: 'json-object',
       },
     },
+    {
+      id: 'fieldsToMergeOn',
+      title: 'Fields to Merge On (JSON Array)',
+      type: 'code',
+      placeholder: 'Field names to match existing records on, e.g., `["Name"]`',
+      condition: { field: 'operation', value: 'upsert' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Airtable fieldsToMergeOn JSON array based on the user's description.
+This is a list of field names (max 3) used to match existing records during an upsert.
+A record is updated when all of these fields match an existing record, otherwise it is created.
+
+Format:
+["Field Name", "Another Field"]
+
+Examples:
+- "match on email" -> ["Email"]
+- "match on name and company" -> ["Name", "Company"]
+
+Return ONLY the valid JSON array of field name strings - no explanations, no markdown.`,
+        placeholder: 'Describe which fields uniquely identify a record...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'typecast',
+      title: 'Typecast',
+      type: 'switch',
+      condition: { field: 'operation', value: 'upsert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'recordIds',
+      title: 'Record IDs (JSON Array)',
+      type: 'code',
+      placeholder: 'IDs of records to delete, e.g., `["recXXXXXXXXXXXXXX"]`',
+      condition: { field: 'operation', value: 'delete' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Airtable record IDs JSON array based on the user's description.
+Each record ID starts with "rec".
+
+Format:
+["recXXXXXXXXXXXXXX", "recYYYYYYYYYYYYYY"]
+
+Return ONLY the valid JSON array of record ID strings - no explanations, no markdown.`,
+        placeholder: 'Describe which records to delete...',
+        generationType: 'json-object',
+      },
+    },
     ...getTrigger('airtable_webhook').subBlocks,
   ],
   tools: {
@@ -248,6 +302,8 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       'airtable_create_records',
       'airtable_update_record',
       'airtable_update_multiple_records',
+      'airtable_upsert_records',
+      'airtable_delete_records',
       'airtable_get_base_schema',
     ],
     config: {
@@ -267,6 +323,10 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
             return 'airtable_update_record'
           case 'updateMultiple':
             return 'airtable_update_multiple_records'
+          case 'upsert':
+            return 'airtable_upsert_records'
+          case 'delete':
+            return 'airtable_delete_records'
           case 'getSchema':
             return 'airtable_get_base_schema'
           default:
@@ -274,17 +334,31 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         }
       },
       params: (params) => {
-        const { oauthCredential, records, fields, ...rest } = params
+        const { oauthCredential, records, fields, fieldsToMergeOn, recordIds, typecast, ...rest } =
+          params
         let parsedRecords: any | undefined
         let parsedFields: any | undefined
+        let parsedFieldsToMergeOn: any | undefined
+        let parsedRecordIds: any | undefined
 
         // Parse JSON inputs safely
         try {
-          if (records && (params.operation === 'create' || params.operation === 'updateMultiple')) {
+          if (
+            records &&
+            (params.operation === 'create' ||
+              params.operation === 'updateMultiple' ||
+              params.operation === 'upsert')
+          ) {
             parsedRecords = JSON.parse(records)
           }
           if (fields && params.operation === 'update') {
             parsedFields = JSON.parse(fields)
+          }
+          if (fieldsToMergeOn && params.operation === 'upsert') {
+            parsedFieldsToMergeOn = JSON.parse(fieldsToMergeOn)
+          }
+          if (recordIds && params.operation === 'delete') {
+            parsedRecordIds = JSON.parse(recordIds)
           }
         } catch (error: any) {
           throw new Error(`Invalid JSON input for ${params.operation} operation: ${error.message}`)
@@ -300,6 +374,15 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
           case 'create':
           case 'updateMultiple':
             return { ...baseParams, records: parsedRecords }
+          case 'upsert':
+            return {
+              ...baseParams,
+              records: parsedRecords,
+              fieldsToMergeOn: parsedFieldsToMergeOn,
+              ...(typecast != null ? { typecast: typecast === true || typecast === 'true' } : {}),
+            }
+          case 'delete':
+            return { ...baseParams, recordIds: parsedRecordIds }
           case 'update':
             return { ...baseParams, fields: parsedFields }
           default:
@@ -317,8 +400,11 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     recordId: { type: 'string', description: 'Record identifier' }, // Required for get/update
     maxRecords: { type: 'number', description: 'Maximum records to return' }, // Optional for list
     filterFormula: { type: 'string', description: 'Filter formula expression' }, // Optional for list
-    records: { type: 'json', description: 'Record data array' }, // Required for create/updateMultiple
+    records: { type: 'json', description: 'Record data array' }, // Required for create/updateMultiple/upsert
     fields: { type: 'json', description: 'Field data object' }, // Required for update single
+    fieldsToMergeOn: { type: 'json', description: 'Field names to match records on' }, // Required for upsert
+    typecast: { type: 'boolean', description: 'Auto-convert string values to field types' }, // Optional for upsert
+    recordIds: { type: 'json', description: 'Record IDs to delete' }, // Required for delete
   },
   // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
@@ -326,6 +412,8 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     tables: { type: 'json', description: 'Table schemas with fields and views' },
     records: { type: 'json', description: 'Retrieved record data' },
     record: { type: 'json', description: 'Single record data' },
+    createdRecords: { type: 'json', description: 'IDs of records created during upsert' },
+    updatedRecords: { type: 'json', description: 'IDs of records updated during upsert' },
     metadata: { type: 'json', description: 'Operation metadata' },
     // Trigger outputs
     event_type: { type: 'string', description: 'Type of Airtable event' },
@@ -348,6 +436,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
 
 export const AirtableBlockMeta = {
   tags: ['spreadsheet', 'automation'],
+  url: 'https://www.airtable.com',
   templates: [
     {
       icon: AirtableIcon,

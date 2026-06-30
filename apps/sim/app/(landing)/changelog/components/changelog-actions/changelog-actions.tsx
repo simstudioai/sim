@@ -1,7 +1,7 @@
 'use client'
 
+import { ChipLink } from '@sim/emcn'
 import { BookOpen, Github, Rss } from 'lucide-react'
-import { ChipLink } from '@/components/emcn'
 
 /**
  * Changelog hero actions - the GitHub / Documentation / RSS pill links shown

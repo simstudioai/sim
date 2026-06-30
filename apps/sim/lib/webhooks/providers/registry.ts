@@ -7,32 +7,40 @@ import { azureDevOpsHandler } from '@/lib/webhooks/providers/azure-devops'
 import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
+import { clerkHandler } from '@/lib/webhooks/providers/clerk'
 import { confluenceHandler } from '@/lib/webhooks/providers/confluence'
 import { emailBisonHandler } from '@/lib/webhooks/providers/emailbison'
 import { fathomHandler } from '@/lib/webhooks/providers/fathom'
 import { firefliesHandler } from '@/lib/webhooks/providers/fireflies'
 import { genericHandler } from '@/lib/webhooks/providers/generic'
 import { githubHandler } from '@/lib/webhooks/providers/github'
+import { gitlabHandler } from '@/lib/webhooks/providers/gitlab'
 import { gmailHandler } from '@/lib/webhooks/providers/gmail'
 import { gongHandler } from '@/lib/webhooks/providers/gong'
 import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
 import { greenhouseHandler } from '@/lib/webhooks/providers/greenhouse'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
+import { incidentioHandler } from '@/lib/webhooks/providers/incidentio'
 import { instantlyHandler } from '@/lib/webhooks/providers/instantly'
 import { intercomHandler } from '@/lib/webhooks/providers/intercom'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
 import { jsmHandler } from '@/lib/webhooks/providers/jsm'
 import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
+import { loopsHandler } from '@/lib/webhooks/providers/loops'
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 import { mondayHandler } from '@/lib/webhooks/providers/monday'
 import { notionHandler } from '@/lib/webhooks/providers/notion'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
+import { pagerdutyHandler } from '@/lib/webhooks/providers/pagerduty'
 import { resendHandler } from '@/lib/webhooks/providers/resend'
+import { revenueCatHandler } from '@/lib/webhooks/providers/revenuecat'
+import { rootlyHandler } from '@/lib/webhooks/providers/rootly'
 import { rssHandler } from '@/lib/webhooks/providers/rss'
 import { salesforceHandler } from '@/lib/webhooks/providers/salesforce'
 import { sendblueHandler } from '@/lib/webhooks/providers/sendblue'
+import { sentryHandler } from '@/lib/webhooks/providers/sentry'
 import { servicenowHandler } from '@/lib/webhooks/providers/servicenow'
 import { slackHandler } from '@/lib/webhooks/providers/slack'
 import { stripeHandler } from '@/lib/webhooks/providers/stripe'
@@ -46,6 +54,7 @@ import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 import { vercelHandler } from '@/lib/webhooks/providers/vercel'
 import { webflowHandler } from '@/lib/webhooks/providers/webflow'
 import { whatsappHandler } from '@/lib/webhooks/providers/whatsapp'
+import { zendeskHandler } from '@/lib/webhooks/providers/zendesk'
 import { zoomHandler } from '@/lib/webhooks/providers/zoom'
 
 const logger = createLogger('WebhookProviderRegistry')
@@ -58,29 +67,37 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   calendly: calendlyHandler,
   calcom: calcomHandler,
   circleback: circlebackHandler,
+  clerk: clerkHandler,
   confluence: confluenceHandler,
   emailbison: emailBisonHandler,
   fireflies: firefliesHandler,
   generic: genericHandler,
   gmail: gmailHandler,
   github: githubHandler,
+  gitlab: gitlabHandler,
   gong: gongHandler,
   google_forms: googleFormsHandler,
   fathom: fathomHandler,
   grain: grainHandler,
   greenhouse: greenhouseHandler,
   imap: imapHandler,
+  incidentio: incidentioHandler,
   intercom: intercomHandler,
   instantly: instantlyHandler,
   jira: jiraHandler,
   jsm: jsmHandler,
   lemlist: lemlistHandler,
   linear: linearHandler,
+  loops: loopsHandler,
   monday: mondayHandler,
   resend: resendHandler,
+  revenuecat: revenueCatHandler,
+  rootly: rootlyHandler,
+  sentry: sentryHandler,
   'microsoft-teams': microsoftTeamsHandler,
   notion: notionHandler,
   outlook: outlookHandler,
+  pagerduty: pagerdutyHandler,
   rss: rssHandler,
   salesforce: salesforceHandler,
   sendblue: sendblueHandler,
@@ -95,6 +112,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   vercel: vercelHandler,
   webflow: webflowHandler,
   whatsapp: whatsappHandler,
+  zendesk: zendeskHandler,
   zoom: zoomHandler,
 }
 

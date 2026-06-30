@@ -369,7 +369,7 @@ describe('MothershipBlockHandler', () => {
 
     await expect(
       handler.execute(context, block, { prompt: 'Hello from workflow' })
-    ).rejects.toThrow('Mothership execution failed: Mothership execution aborted')
+    ).rejects.toThrow('Sim execution failed: Mothership execution aborted')
   })
 
   it('streams mothership assistant chunks and preserves final metadata', async () => {
@@ -444,7 +444,7 @@ describe('MothershipBlockHandler', () => {
     })) as StreamingExecution
 
     await expect(readStreamText(result.stream)).rejects.toThrow(
-      'Mothership execution failed: Mothership execution aborted'
+      'Sim execution failed: Mothership execution aborted'
     )
   })
 

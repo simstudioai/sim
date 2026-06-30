@@ -280,6 +280,7 @@ export const CursorV2Block: BlockConfig<CursorResponse> = {
 
 export const CursorBlockMeta = {
   tags: ['agentic', 'automation'],
+  url: 'https://cursor.com',
   templates: [
     {
       icon: CursorIcon,

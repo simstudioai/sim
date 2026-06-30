@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 
@@ -8,6 +9,36 @@ export interface WorkflowInputField {
   name: string
   type: string
   description?: string
+}
+
+/**
+ * Stateful input-format field as stored in sub-block values: the editor's
+ * per-row shape, including the editor-only `id` and `collapsed` fields. Stricter
+ * than the wire-level {@link InputFormatField} (required `name`/`type`/`value`).
+ */
+interface InputFormatFieldState {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
+  value: string
+  description?: string
+  collapsed: boolean
+}
+
+/**
+ * Creates a new empty input-format field with a fresh id.
+ *
+ * Single source of truth for the default field shape used when seeding
+ * input-format / response-format sub-blocks and when adding rows in the editor.
+ */
+export function createDefaultInputFormatField(): InputFormatFieldState {
+  return {
+    id: generateId(),
+    name: '',
+    type: 'string',
+    value: '',
+    collapsed: false,
+  }
 }
 
 /**

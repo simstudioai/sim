@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import {
   adminV1DeployWorkflowContract,
   adminV1UndeployWorkflowContract,

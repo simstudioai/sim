@@ -1,14 +1,15 @@
 'use client'
 
+import { Chip } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import {
   InboxEnableToggle,
   InboxSettingsTab,
   InboxTaskList,
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
@@ -59,25 +60,21 @@ export function Inbox() {
   }
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-6 pb-6'>
-          <InboxEnableToggle />
+    <SettingsPanel>
+      <InboxEnableToggle />
 
-          {config?.enabled && (
-            <>
-              <InboxSettingsTab />
+      {config?.enabled && (
+        <>
+          <InboxSettingsTab />
 
-              <SettingsSection label='Inbox'>
-                <p className='mb-3 text-[12px] text-[var(--text-muted)]'>
-                  Email tasks received by this workspace.
-                </p>
-                <InboxTaskList />
-              </SettingsSection>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+          <SettingsSection label='Inbox'>
+            <p className='mb-3 text-[12px] text-[var(--text-muted)]'>
+              Email tasks received by this workspace.
+            </p>
+            <InboxTaskList />
+          </SettingsSection>
+        </>
+      )}
+    </SettingsPanel>
   )
 }

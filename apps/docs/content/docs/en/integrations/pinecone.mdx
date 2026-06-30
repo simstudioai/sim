@@ -29,7 +29,7 @@ In Sim, the Pinecone integration enables your agents to leverage vector search c
 
 ## Usage Instructions
 
-Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.
+Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.
 
 
 
@@ -37,7 +37,7 @@ Integrate Pinecone into the workflow. Can generate embeddings, upsert text, sear
 
 ### `pinecone_generate_embeddings`
 
-Generate embeddings from text using Pinecone
+Generate embeddings from text using Pinecone's hosted models
 
 #### Input
 
@@ -74,6 +74,49 @@ Insert or update text records in a Pinecone index
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `statusText` | string | Status of the upsert operation |
+
+### `pinecone_update_vector`
+
+Update the values, sparse values, or metadata of a vector in a Pinecone namespace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `id` | string | Yes | Unique ID of the vector to update |
+| `namespace` | string | No | Namespace containing the vector \(e.g., "documents", "embeddings"\) |
+| `values` | array | No | New dense vector values to overwrite the existing values |
+| `sparseValues` | object | No | New sparse vector values with indices and values arrays |
+| `setMetadata` | object | No | Metadata key-value pairs to add or overwrite on the vector |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusText` | string | Status of the update operation |
+
+### `pinecone_delete_vectors`
+
+Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `namespace` | string | No | Namespace to delete vectors from \(e.g., "documents", "embeddings"\) |
+| `ids` | array | No | Vector IDs to delete \(1-1000 items\). Mutually exclusive with deleteAll and filter |
+| `deleteAll` | boolean | No | Delete all vectors in the namespace. Mutually exclusive with ids and filter |
+| `filter` | object | No | Metadata filter selecting vectors to delete \(e.g., \{"category": \{"$eq": "product"\}\}\). Mutually exclusive with ids and deleteAll |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusText` | string | Status of the delete operation |
 
 ### `pinecone_search_text`
 
@@ -156,5 +199,103 @@ Fetch vectors by ID from a Pinecone index
 |   ↳ `vector_type` | string | Vector type \(dense/sparse\) |
 | `usage` | object | Usage statistics including total read units |
 |   ↳ `total_tokens` | number | Read units consumed |
+
+### `pinecone_list_vector_ids`
+
+List vector IDs in a Pinecone namespace by prefix (serverless indexes only)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `namespace` | string | Yes | Namespace to list vector IDs from \(e.g., "documents", "embeddings"\) |
+| `prefix` | string | No | Filter vector IDs by a common prefix \(e.g., "doc1#"\) |
+| `limit` | number | No | Maximum number of IDs to return per page \(default 100\) |
+| `paginationToken` | string | No | Pagination token from a previous response to fetch the next page |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vectorIds` | array | Vector IDs in the namespace |
+| `pagination` | object | Pagination info with a next token when more results exist |
+|   ↳ `next` | string | Token to fetch the next page |
+| `namespace` | string | Namespace the IDs were listed from |
+| `usage` | object | Usage statistics including read units |
+|   ↳ `total_tokens` | number | Read units consumed |
+
+### `pinecone_describe_index_stats`
+
+Get statistics about a Pinecone index, including per-namespace vector counts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `filter` | object | No | Metadata filter to limit which vectors are counted \(pod-based indexes only, e.g., \{"category": \{"$eq": "product"\}\}\) |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `namespaces` | json | Map of namespace name to its summary including vectorCount |
+| `dimension` | number | Dimensionality of the indexed vectors |
+| `indexFullness` | number | Fullness of the index \(pod-based indexes only\) |
+| `totalVectorCount` | number | Total number of vectors across all namespaces |
+
+### `pinecone_list_indexes`
+
+List all Pinecone indexes in the project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `indexes` | array | List of indexes with name, dimension, metric, host, spec, and status |
+|   ↳ `name` | string | Index name |
+|   ↳ `dimension` | number | Vector dimensionality |
+|   ↳ `metric` | string | Distance metric \(cosine, euclidean, dotproduct\) |
+|   ↳ `host` | string | Index host URL for data-plane operations |
+|   ↳ `vectorType` | string | Vector type \(dense or sparse\) |
+|   ↳ `deletionProtection` | string | Deletion protection \(enabled or disabled\) |
+|   ↳ `tags` | object | Custom user tags on the index |
+|   ↳ `spec` | object | Index spec \(serverless or pod configuration\) |
+|   ↳ `status` | object | Index status with ready and state |
+
+### `pinecone_describe_index`
+
+Get the configuration and status of a Pinecone index by name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `indexName` | string | Yes | Name of the index to describe |
+| `apiKey` | string | Yes | Pinecone API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `index` | object | Index configuration and status |
+|   ↳ `name` | string | Index name |
+|   ↳ `dimension` | number | Vector dimensionality |
+|   ↳ `metric` | string | Distance metric \(cosine, euclidean, dotproduct\) |
+|   ↳ `host` | string | Index host URL for data-plane operations |
+|   ↳ `vectorType` | string | Vector type \(dense or sparse\) |
+|   ↳ `deletionProtection` | string | Deletion protection \(enabled or disabled\) |
+|   ↳ `tags` | object | Custom user tags on the index |
+|   ↳ `spec` | object | Index spec \(serverless or pod configuration\) |
+|   ↳ `status` | object | Index status with ready and state |
 
 

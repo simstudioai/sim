@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { ChipInput, Search } from '@sim/emcn'
 import Link from 'next/link'
-import { ChipInput, Search } from '@/components/emcn'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {

@@ -8,7 +8,8 @@ import { validateSupabaseProjectId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -147,10 +148,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
       if (denied) return denied
-      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+      let buffer: Buffer
+      let resolvedContentType: string
+      try {
+        const resolved = await downloadServableFileFromStorage(userFile, requestId, logger)
+        buffer = resolved.buffer
+        resolvedContentType = resolved.contentType
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        logger.error(`[${requestId}] Failed to download file for Supabase upload:`, error)
+        return NextResponse.json(
+          { success: false, error: getErrorMessage(error, 'Internal server error') },
+          { status: 500 }
+        )
+      }
 
       uploadBody = buffer
-      uploadContentType = validatedData.contentType || userFile.type || 'application/octet-stream'
+      uploadContentType =
+        validatedData.contentType ||
+        resolvedContentType ||
+        userFile.type ||
+        'application/octet-stream'
     }
 
     let fullPath = validatedData.fileName
@@ -172,6 +191,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       apikey: validatedData.apiKey,
       Authorization: `Bearer ${validatedData.apiKey}`,
       'Content-Type': uploadContentType,
+    }
+
+    if (validatedData.cacheControl) {
+      const cacheControl = validatedData.cacheControl.trim()
+      headers['cache-control'] = /^\d+$/.test(cacheControl)
+        ? `max-age=${cacheControl}`
+        : cacheControl
     }
 
     if (validatedData.upsert) {

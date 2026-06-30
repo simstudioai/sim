@@ -1,4 +1,5 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
+import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
 import { isEqual } from 'es-toolkit'
 import {
   AlertTriangle,
@@ -9,8 +10,6 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
-import { cn } from '@/lib/core/utils/cn'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
   CheckboxList,
@@ -929,6 +928,7 @@ function SubBlockComponent({
       case 'file-selector':
       case 'sheet-selector':
       case 'project-selector':
+      case 'column-selector':
         return (
           <SelectorInput
             blockId={blockId}

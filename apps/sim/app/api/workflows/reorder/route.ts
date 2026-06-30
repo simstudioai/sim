@@ -8,7 +8,7 @@ import {
   FolderLockedError,
   FolderNotFoundError,
   WorkflowLockedError,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
 import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { reorderWorkflowsContract } from '@/lib/api/contracts/workflows'

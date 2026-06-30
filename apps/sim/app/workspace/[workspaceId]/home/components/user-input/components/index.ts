@@ -25,6 +25,13 @@ export { DropOverlay } from './drop-overlay'
 export { MicButton } from './mic-button'
 export type { AvailableResourceGroup } from './plus-menu-dropdown'
 export { PlusMenuDropdown } from './plus-menu-dropdown'
+export type {
+  PromptEditorInstance,
+  PromptEditorKeyPolicy,
+  PromptEditorProps,
+  UsePromptEditorProps,
+} from './prompt-editor'
+export { PromptEditor, usePromptEditor } from './prompt-editor'
 export { SendButton } from './send-button'
 export type { SkillsMenuHandle } from './skills-menu-dropdown/skills-menu-dropdown'
 export { SkillsMenuDropdown } from './skills-menu-dropdown/skills-menu-dropdown'

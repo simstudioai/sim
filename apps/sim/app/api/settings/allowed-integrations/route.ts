@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const GET = withRouteHandler(async () => {

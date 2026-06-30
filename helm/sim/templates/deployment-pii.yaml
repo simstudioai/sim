@@ -1,0 +1,89 @@
+{{- if .Values.pii.enabled }}
+---
+# Deployment for the Presidio PII redaction sidecar (analyzer + anonymizer combined)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sim.fullname" . }}-pii
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.pii.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.pii.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "sim.pii.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "sim.pii.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- include "sim.podSecurityContext" .Values.pii | nindent 6 }}
+      {{- include "sim.nodeSelector" .Values.pii | nindent 6 }}
+      {{- include "sim.tolerations" .Values | nindent 6 }}
+      {{- include "sim.affinity" .Values | nindent 6 }}
+      {{- include "sim.topologySpreadConstraints" .Values.pii | nindent 6 }}
+      containers:
+        - name: pii
+          image: {{ include "sim.image" (dict "imageRoot" .Values.pii.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.pii.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.pii.service.targetPort }}
+              protocol: TCP
+          {{- if or .Values.pii.env .Values.extraEnvVars }}
+          env:
+            {{- range $key, $value := .Values.pii.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.pii.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.pii.startupProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.pii.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.pii.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.pii.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.pii.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- include "sim.resources" .Values.pii | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.pii | nindent 10 }}
+          {{- if or .Values.extraVolumeMounts .Values.pii.extraVolumeMounts }}
+          volumeMounts:
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.pii.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.extraVolumes .Values.pii.extraVolumes }}
+      volumes:
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.pii.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+{{- end }}

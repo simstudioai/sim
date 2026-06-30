@@ -8,10 +8,10 @@ import type { GoogleDocsResponse } from '@/tools/google_docs/types'
 export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   type: 'google_docs',
   name: 'Google Docs',
-  description: 'Read, write, and create documents',
+  description: 'Read, write, create, and edit documents',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Google Docs into the workflow. Can read, write, and create documents.',
+    'Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.',
   docsLink: 'https://docs.sim.ai/integrations/google_docs',
   category: 'tools',
   integrationType: IntegrationType.Documents,
@@ -27,6 +27,18 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
         { label: 'Read Document', id: 'read' },
         { label: 'Write to Document', id: 'write' },
         { label: 'Create Document', id: 'create' },
+        { label: 'Insert Text', id: 'insert_text' },
+        { label: 'Find & Replace Text', id: 'replace_text' },
+        { label: 'Insert Table', id: 'insert_table' },
+        { label: 'Insert Image', id: 'insert_image' },
+        { label: 'Insert Page Break', id: 'insert_page_break' },
+        { label: 'Apply Text Style', id: 'update_text_style' },
+        { label: 'Apply Paragraph Style', id: 'update_paragraph_style' },
+        { label: 'Create Bullets', id: 'create_paragraph_bullets' },
+        { label: 'Delete Bullets', id: 'delete_paragraph_bullets' },
+        { label: 'Delete Content Range', id: 'delete_content_range' },
+        { label: 'Create Named Range', id: 'create_named_range' },
+        { label: 'Delete Named Range', id: 'delete_named_range' },
       ],
       value: () => 'read',
     },
@@ -65,7 +77,25 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Select a document',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: ['read', 'write'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'read',
+          'write',
+          'insert_text',
+          'replace_text',
+          'insert_table',
+          'insert_image',
+          'insert_page_break',
+          'update_text_style',
+          'update_paragraph_style',
+          'create_paragraph_bullets',
+          'delete_paragraph_bullets',
+          'delete_content_range',
+          'create_named_range',
+          'delete_named_range',
+        ],
+      },
     },
     // Manual document ID input (advanced mode)
     {
@@ -76,7 +106,25 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Enter document ID',
       dependsOn: ['credential'],
       mode: 'advanced',
-      condition: { field: 'operation', value: ['read', 'write'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'read',
+          'write',
+          'insert_text',
+          'replace_text',
+          'insert_table',
+          'insert_image',
+          'insert_page_break',
+          'update_text_style',
+          'update_paragraph_style',
+          'create_paragraph_bullets',
+          'delete_paragraph_bullets',
+          'delete_content_range',
+          'create_named_range',
+          'delete_named_range',
+        ],
+      },
     },
     // Create-specific Fields
     {
@@ -163,9 +211,253 @@ Return ONLY the document content - no explanations, no extra text.`,
       description:
         'Convert headings, bold/italic, lists, tables, links, code, and blockquotes into formatted Google Docs content. When off, content is inserted as plain text.',
     },
+    // Insert Text fields
+    {
+      id: 'text',
+      title: 'Text',
+      type: 'long-input',
+      placeholder: 'Enter text to insert',
+      condition: { field: 'operation', value: 'insert_text' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate text to insert into a Google Doc based on the user's request.
+The text should be well-structured and appropriate for the document.
+
+Return ONLY the text to insert - no explanations, no extra text.`,
+        placeholder: 'Describe the text you want to insert...',
+      },
+    },
+    // Find & Replace fields
+    {
+      id: 'searchText',
+      title: 'Find',
+      type: 'short-input',
+      placeholder: 'Text to find',
+      condition: { field: 'operation', value: 'replace_text' },
+      required: true,
+    },
+    {
+      id: 'replaceText',
+      title: 'Replace With',
+      type: 'short-input',
+      placeholder: 'Replacement text (leave empty to delete matches)',
+      condition: { field: 'operation', value: 'replace_text' },
+    },
+    {
+      id: 'matchCase',
+      title: 'Match Case',
+      type: 'switch',
+      condition: { field: 'operation', value: 'replace_text' },
+      description: 'When on, only case-sensitive matches are replaced.',
+    },
+    // Insert Table fields
+    {
+      id: 'rows',
+      title: 'Rows',
+      type: 'short-input',
+      placeholder: 'e.g., 3',
+      condition: { field: 'operation', value: 'insert_table' },
+      required: true,
+    },
+    {
+      id: 'columns',
+      title: 'Columns',
+      type: 'short-input',
+      placeholder: 'e.g., 2',
+      condition: { field: 'operation', value: 'insert_table' },
+      required: true,
+    },
+    // Insert Image fields
+    {
+      id: 'imageUrl',
+      title: 'Image URL',
+      type: 'short-input',
+      placeholder: 'Public URL of the image to insert',
+      condition: { field: 'operation', value: 'insert_image' },
+      required: true,
+    },
+    {
+      id: 'width',
+      title: 'Width (PT)',
+      type: 'short-input',
+      placeholder: 'Optional width in points',
+      condition: { field: 'operation', value: 'insert_image' },
+      mode: 'advanced',
+    },
+    {
+      id: 'height',
+      title: 'Height (PT)',
+      type: 'short-input',
+      placeholder: 'Optional height in points',
+      condition: { field: 'operation', value: 'insert_image' },
+      mode: 'advanced',
+    },
+    // Range fields shared by style/bullet/range/named-range operations
+    {
+      id: 'startIndex',
+      title: 'Start Index',
+      type: 'short-input',
+      placeholder: 'Start character index (inclusive)',
+      condition: {
+        field: 'operation',
+        value: [
+          'update_text_style',
+          'update_paragraph_style',
+          'create_paragraph_bullets',
+          'delete_paragraph_bullets',
+          'delete_content_range',
+          'create_named_range',
+        ],
+      },
+      required: true,
+    },
+    {
+      id: 'endIndex',
+      title: 'End Index',
+      type: 'short-input',
+      placeholder: 'End character index (exclusive)',
+      condition: {
+        field: 'operation',
+        value: [
+          'update_text_style',
+          'update_paragraph_style',
+          'create_paragraph_bullets',
+          'delete_paragraph_bullets',
+          'delete_content_range',
+          'create_named_range',
+        ],
+      },
+      required: true,
+    },
+    {
+      id: 'bold',
+      title: 'Bold',
+      type: 'switch',
+      condition: { field: 'operation', value: 'update_text_style' },
+    },
+    {
+      id: 'italic',
+      title: 'Italic',
+      type: 'switch',
+      condition: { field: 'operation', value: 'update_text_style' },
+    },
+    {
+      id: 'underline',
+      title: 'Underline',
+      type: 'switch',
+      condition: { field: 'operation', value: 'update_text_style' },
+    },
+    {
+      id: 'fontSize',
+      title: 'Font Size (PT)',
+      type: 'short-input',
+      placeholder: 'Optional font size in points',
+      condition: { field: 'operation', value: 'update_text_style' },
+      mode: 'advanced',
+    },
+    // Apply Paragraph Style fields
+    {
+      id: 'namedStyleType',
+      title: 'Paragraph Style',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (unchanged)', id: '' },
+        { label: 'Normal Text', id: 'NORMAL_TEXT' },
+        { label: 'Title', id: 'TITLE' },
+        { label: 'Subtitle', id: 'SUBTITLE' },
+        { label: 'Heading 1', id: 'HEADING_1' },
+        { label: 'Heading 2', id: 'HEADING_2' },
+        { label: 'Heading 3', id: 'HEADING_3' },
+        { label: 'Heading 4', id: 'HEADING_4' },
+        { label: 'Heading 5', id: 'HEADING_5' },
+        { label: 'Heading 6', id: 'HEADING_6' },
+      ],
+      condition: { field: 'operation', value: 'update_paragraph_style' },
+    },
+    {
+      id: 'alignment',
+      title: 'Alignment',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (unchanged)', id: '' },
+        { label: 'Left', id: 'LEFT' },
+        { label: 'Center', id: 'CENTER' },
+        { label: 'Right', id: 'RIGHT' },
+        { label: 'Justify', id: 'JUSTIFY' },
+      ],
+      condition: { field: 'operation', value: 'update_paragraph_style' },
+    },
+    // Create Bullets fields
+    {
+      id: 'bulletPreset',
+      title: 'Bullet Style',
+      type: 'dropdown',
+      options: [
+        { label: 'Disc / Circle / Square', id: 'BULLET_DISC_CIRCLE_SQUARE' },
+        { label: 'Checkbox', id: 'BULLET_CHECKBOX' },
+        { label: 'Arrow / Diamond / Disc', id: 'BULLET_ARROW_DIAMOND_DISC' },
+        { label: 'Star / Circle / Square', id: 'BULLET_STAR_CIRCLE_SQUARE' },
+        { label: 'Numbered: Decimal / Alpha / Roman', id: 'NUMBERED_DECIMAL_ALPHA_ROMAN' },
+        { label: 'Numbered: Decimal Nested', id: 'NUMBERED_DECIMAL_NESTED' },
+      ],
+      condition: { field: 'operation', value: 'create_paragraph_bullets' },
+    },
+    // Create Named Range fields
+    {
+      id: 'name',
+      title: 'Range Name',
+      type: 'short-input',
+      placeholder: 'Name for the range (1-256 characters)',
+      condition: { field: 'operation', value: 'create_named_range' },
+      required: true,
+    },
+    // Delete Named Range fields
+    {
+      id: 'namedRangeId',
+      title: 'Named Range ID',
+      type: 'short-input',
+      placeholder: 'ID of the named range to delete',
+      condition: { field: 'operation', value: 'delete_named_range' },
+    },
+    {
+      id: 'namedRangeName',
+      title: 'Named Range Name',
+      type: 'short-input',
+      placeholder: 'Name of the named range(s) to delete',
+      condition: { field: 'operation', value: 'delete_named_range' },
+    },
+    // Shared insertion index (advanced) for the insert operations
+    {
+      id: 'index',
+      title: 'Insertion Index',
+      type: 'short-input',
+      placeholder: 'Character index (leave empty to append at end)',
+      condition: {
+        field: 'operation',
+        value: ['insert_text', 'insert_table', 'insert_image', 'insert_page_break'],
+      },
+      mode: 'advanced',
+    },
   ],
   tools: {
-    access: ['google_docs_read', 'google_docs_write', 'google_docs_create'],
+    access: [
+      'google_docs_read',
+      'google_docs_write',
+      'google_docs_create',
+      'google_docs_insert_text',
+      'google_docs_replace_text',
+      'google_docs_insert_table',
+      'google_docs_insert_image',
+      'google_docs_insert_page_break',
+      'google_docs_update_text_style',
+      'google_docs_update_paragraph_style',
+      'google_docs_create_paragraph_bullets',
+      'google_docs_delete_paragraph_bullets',
+      'google_docs_delete_content_range',
+      'google_docs_create_named_range',
+      'google_docs_delete_named_range',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -175,6 +467,30 @@ Return ONLY the document content - no explanations, no extra text.`,
             return 'google_docs_write'
           case 'create':
             return 'google_docs_create'
+          case 'insert_text':
+            return 'google_docs_insert_text'
+          case 'replace_text':
+            return 'google_docs_replace_text'
+          case 'insert_table':
+            return 'google_docs_insert_table'
+          case 'insert_image':
+            return 'google_docs_insert_image'
+          case 'insert_page_break':
+            return 'google_docs_insert_page_break'
+          case 'update_text_style':
+            return 'google_docs_update_text_style'
+          case 'update_paragraph_style':
+            return 'google_docs_update_paragraph_style'
+          case 'create_paragraph_bullets':
+            return 'google_docs_create_paragraph_bullets'
+          case 'delete_paragraph_bullets':
+            return 'google_docs_delete_paragraph_bullets'
+          case 'delete_content_range':
+            return 'google_docs_delete_content_range'
+          case 'create_named_range':
+            return 'google_docs_create_named_range'
+          case 'delete_named_range':
+            return 'google_docs_delete_named_range'
           default:
             throw new Error(`Invalid Google Docs operation: ${params.operation}`)
         }
@@ -185,8 +501,34 @@ Return ONLY the document content - no explanations, no extra text.`,
         const effectiveDocumentId = documentId ? String(documentId).trim() : ''
         const effectiveFolderId = folderId ? String(folderId).trim() : ''
 
+        const toNumber = (value: unknown): number | undefined => {
+          if (value === undefined || value === null || value === '') return undefined
+          const parsed = Number(value)
+          return Number.isFinite(parsed) ? parsed : undefined
+        }
+
+        const numericFields = [
+          'index',
+          'rows',
+          'columns',
+          'width',
+          'height',
+          'startIndex',
+          'endIndex',
+          'fontSize',
+        ] as const
+
+        const coerced: Record<string, unknown> = {}
+        for (const field of numericFields) {
+          const value = (rest as Record<string, unknown>)[field]
+          const num = toNumber(value)
+          if (num !== undefined) coerced[field] = num
+          else delete (rest as Record<string, unknown>)[field]
+        }
+
         return {
           ...rest,
+          ...coerced,
           documentId: effectiveDocumentId || undefined,
           folderId: effectiveFolderId || undefined,
           oauthCredential,
@@ -205,16 +547,45 @@ Return ONLY the document content - no explanations, no extra text.`,
       type: 'boolean',
       description: 'Interpret content as Markdown when creating a document',
     },
+    text: { type: 'string', description: 'Text to insert' },
+    index: { type: 'number', description: 'Insertion character index' },
+    searchText: { type: 'string', description: 'Text to find' },
+    replaceText: { type: 'string', description: 'Replacement text' },
+    matchCase: { type: 'boolean', description: 'Case-sensitive find & replace' },
+    rows: { type: 'number', description: 'Number of table rows' },
+    columns: { type: 'number', description: 'Number of table columns' },
+    imageUrl: { type: 'string', description: 'Public URL of image to insert' },
+    width: { type: 'number', description: 'Image width in points' },
+    height: { type: 'number', description: 'Image height in points' },
+    startIndex: { type: 'number', description: 'Start character index of style range' },
+    endIndex: { type: 'number', description: 'End character index of style range' },
+    bold: { type: 'boolean', description: 'Apply bold styling' },
+    italic: { type: 'boolean', description: 'Apply italic styling' },
+    underline: { type: 'boolean', description: 'Apply underline styling' },
+    fontSize: { type: 'number', description: 'Font size in points' },
+    namedStyleType: { type: 'string', description: 'Named paragraph style to apply' },
+    alignment: { type: 'string', description: 'Paragraph alignment to apply' },
+    bulletPreset: { type: 'string', description: 'Bullet glyph preset to apply' },
+    name: { type: 'string', description: 'Name for a created named range' },
+    namedRangeId: { type: 'string', description: 'ID of a named range to delete' },
+    namedRangeName: { type: 'string', description: 'Name of named range(s) to delete' },
   },
   outputs: {
     content: { type: 'string', description: 'Document content' },
     metadata: { type: 'json', description: 'Document metadata' },
     updatedContent: { type: 'boolean', description: 'Content update status' },
+    occurrencesChanged: {
+      type: 'number',
+      description: 'Number of occurrences replaced during find & replace',
+    },
+    objectId: { type: 'string', description: 'ID of an inserted inline image object' },
+    namedRangeId: { type: 'string', description: 'ID of a created named range' },
   },
 }
 
 export const GoogleDocsBlockMeta = {
   tags: ['google-workspace', 'document-processing', 'content-management'],
+  url: 'https://www.google.com/docs/about',
   templates: [
     {
       icon: GoogleDocsIcon,

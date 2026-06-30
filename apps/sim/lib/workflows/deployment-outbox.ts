@@ -207,9 +207,10 @@ const syncActiveSideEffects = async (rawPayload: unknown): Promise<void> => {
     return
   }
 
-  await enqueueWorkflowInactiveDeploymentCleanup(db, {
+  await syncInactiveDeploymentCleanup({
     workflowId: payload.workflowId,
     activeDeploymentVersionId: payload.deploymentVersionId,
+    workflow: workflowData,
     userId: payload.userId,
     requestId,
   })
@@ -276,6 +277,40 @@ const cleanupUndeployedSideEffects = async (rawPayload: unknown): Promise<void> 
   })
 
   await removeMcpToolsIfStillUndeployed(payload.workflowId, requestId)
+}
+
+/**
+ * Run inactive-version cleanup synchronously as part of the active-version sync, right
+ * after the active version's webhooks/schedules are registered.
+ *
+ * {@link cleanupInactiveDeploymentVersions} re-checks that each version is still inactive
+ * before tearing anything down, so it can never touch the now-active version. Running it
+ * inline — rather than only enqueueing it — closes the window where a lost
+ * `CLEANUP_INACTIVE` outbox event leaves superseded webhooks behind as live-but-never-polled
+ * `is_active` orphans. The deferred event is kept as a fallback so cleanup still retries if
+ * the inline pass throws, without failing the already-succeeded registration.
+ */
+async function syncInactiveDeploymentCleanup(params: {
+  workflowId: string
+  activeDeploymentVersionId: string
+  workflow: Record<string, unknown>
+  userId: string
+  requestId: string
+}): Promise<void> {
+  try {
+    await cleanupInactiveDeploymentVersions(params)
+  } catch (cleanupError) {
+    logger.warn(
+      `[${params.requestId}] Inline inactive-deployment cleanup failed; deferring to outbox retry`,
+      cleanupError
+    )
+    await enqueueWorkflowInactiveDeploymentCleanup(db, {
+      workflowId: params.workflowId,
+      activeDeploymentVersionId: params.activeDeploymentVersionId,
+      userId: params.userId,
+      requestId: params.requestId,
+    })
+  }
 }
 
 async function cleanupInactiveDeploymentVersions(params: {
@@ -615,7 +650,7 @@ async function pruneWorkflowGroupOutputsIfStillActive(params: {
 
     if (!versionRow) return
 
-    const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/service')
+    const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/workflow-groups/service')
     await pruneStaleWorkflowGroupOutputs({
       workflowId: params.workflowId,
       workspaceId: params.workspaceId,

@@ -67,15 +67,19 @@ export const salesforceRefreshDashboardTool: ToolConfig<
       throw new Error(errorMessage)
     }
 
+    const meta = data.dashboardMetadata ?? {}
+    const attrs = meta.attributes ?? {}
+
     return {
       success: true,
       output: {
         dashboard: data,
-        dashboardId: params?.dashboardId || '',
-        components: data.componentData || [],
-        status: data.status ?? null,
-        dashboardName: data.name ?? null,
-        refreshDate: data.refreshDate ?? null,
+        dashboardId: attrs.dashboardId ?? params?.dashboardId ?? '',
+        components: data.componentData ?? data.componentStatus ?? [],
+        status: data.dashboardStatus ?? data.status ?? null,
+        statusUrl: data.statusUrl ?? attrs.statusUrl ?? null,
+        dashboardName: attrs.dashboardName ?? null,
+        dashboardMetadata: data.dashboardMetadata ?? null,
         success: true,
       },
     }

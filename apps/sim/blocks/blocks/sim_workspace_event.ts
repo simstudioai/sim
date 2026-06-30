@@ -8,9 +8,9 @@ export const SimWorkspaceEventBlock: BlockConfig = {
   // can scrape the type for icon-map keys; a test asserts it stays equal to
   // the constant.
   type: 'sim_workspace_event',
-  name: 'Sim',
+  name: 'Sim Workspace Events',
   description:
-    'Run this workflow when workspace events occur: execution errors or successes, deployments, and alert conditions like latency or cost spikes.',
+    'Run this workflow when workspace events occur: run errors or successes, deployments, and alert conditions like latency or cost spikes.',
   category: 'triggers',
   icon: SimTriggerIcon,
   bgColor: '#33C482',
@@ -19,7 +19,7 @@ export const SimWorkspaceEventBlock: BlockConfig = {
   bestPractices: `
   - Events are scoped to this workspace. Pick an event type, then optionally narrow to specific workflows (empty selection watches all).
   - This workflow must be deployed for the trigger to fire, and it never receives events about itself.
-  - Executions started by this trigger never emit workspace events, so side-effect workflows cannot chain or loop.
+  - Runs started by this trigger never emit workspace events, so side-effect workflows cannot chain or loop.
   - Alert conditions (latency spike, cost threshold, consecutive failures, ...) fire at most once per cooldown window; plain events fire on every occurrence.
   - Compose any blocks downstream (Slack, email, webhooks, custom logic) to act on the event payload.
   `,

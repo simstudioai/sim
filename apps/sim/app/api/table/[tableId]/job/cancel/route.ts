@@ -6,7 +6,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { appendTableEvent } from '@/lib/table/events'
-import { getTableJob, markJobCanceled } from '@/lib/table/service'
+import { getTableJob, markJobCanceled } from '@/lib/table/jobs/service'
 import type { TableJobType } from '@/lib/table/types'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import {
   CONTAINER_PADDING_X,
   CONTAINER_PADDING_Y,
@@ -7,7 +8,6 @@ import {
 import { layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge, LayoutOptions } from '@/lib/workflows/autolayout/types'
 import { filterLayoutEligibleBlockIds, getBlocksByParent } from '@/lib/workflows/autolayout/utils'
-import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('AutoLayout:Containers')

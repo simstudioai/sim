@@ -7,9 +7,15 @@
 
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { getColumnId } from './column-keys'
-import { NAME_PATTERN } from './constants'
-import type { ColumnDefinition, ConditionOperators, Filter, JsonValue, Sort } from './types'
+import { getColumnId } from '@/lib/table/column-keys'
+import { NAME_PATTERN } from '@/lib/table/constants'
+import type {
+  ColumnDefinition,
+  ConditionOperators,
+  Filter,
+  JsonValue,
+  Sort,
+} from '@/lib/table/types'
 
 /**
  * Error thrown when caller-supplied filter or sort input is malformed.

@@ -1,8 +1,9 @@
 'use client'
 
 import type { ElementType, ReactNode } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
+import { cn } from '@sim/emcn'
 import {
+  Calendar,
   Connections,
   Database,
   File as FileIcon,
@@ -12,9 +13,9 @@ import {
   Task,
   TerminalWindow,
   Workflow,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
+import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { cn } from '@/lib/core/utils/cn'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -23,9 +24,10 @@ import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
-import { tableKeys } from '@/hooks/queries/tables'
+import { scheduleKeys } from '@/hooks/queries/schedules'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
@@ -183,6 +185,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
   },
+  scheduledtask: {
+    type: 'scheduledtask',
+    label: 'Scheduled Tasks',
+    icon: Calendar,
+    renderTabIcon: (_resource, className) => (
+      <Calendar className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Calendar} />,
+  },
   log: {
     type: 'log',
     label: 'Logs',
@@ -241,9 +252,12 @@ const RESOURCE_INVALIDATORS: Record<
   task: (qc, wId) => {
     qc.invalidateQueries({ queryKey: mothershipChatKeys.list(wId) })
   },
-  log: (qc, _wId, id) => {
+  scheduledtask: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: scheduleKeys.list(wId) })
+  },
+  log: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: logKeys.details() })
-    qc.invalidateQueries({ queryKey: logKeys.detail(id) })
+    qc.invalidateQueries({ queryKey: logKeys.detail(wId, id) })
   },
   /**
    * Integrations are sourced from the static integration catalog

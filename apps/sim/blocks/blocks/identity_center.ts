@@ -438,6 +438,7 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
 
 export const IdentityCenterBlockMeta = {
   tags: ['cloud', 'identity'],
+  url: 'https://aws.amazon.com/iam/identity-center',
   templates: [
     {
       icon: IdentityCenterIcon,

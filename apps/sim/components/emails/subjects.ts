@@ -1,3 +1,4 @@
+import { UPGRADE_REASON_COPY, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 /** Email subject type for all supported email templates */
@@ -10,6 +11,7 @@ export type EmailSubjectType =
   | 'existing-account'
   | 'invitation'
   | 'batch-invitation'
+  | 'workspace-added'
   | 'polling-group-invitation'
   | 'help-confirmation'
   | 'enterprise-subscription'
@@ -48,6 +50,8 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `You've been invited to join a team on ${brandName}`
     case 'batch-invitation':
       return `You've been invited to join a team and workspaces on ${brandName}`
+    case 'workspace-added':
+      return `You've been added to a workspace on ${brandName}`
     case 'polling-group-invitation':
       return `You've been invited to join an email polling group on ${brandName}`
     case 'help-confirmation':
@@ -75,4 +79,16 @@ export function getEmailSubject(type: EmailSubjectType): string {
     default:
       return brandName
   }
+}
+
+/**
+ * Subject line for a per-category usage-limit email. Reuses the shared
+ * {@link UPGRADE_REASON_COPY} so the subject matches the email body and the
+ * upgrade-page header the user lands on.
+ */
+export function getLimitEmailSubject(reason: UpgradeReason, kind: 'warning' | 'reached'): string {
+  const brandName = getBrandConfig().name
+  const copy = UPGRADE_REASON_COPY[reason]
+  const subject = kind === 'reached' ? copy.reachedSubject : copy.warningSubject
+  return `${subject} on ${brandName}`
 }

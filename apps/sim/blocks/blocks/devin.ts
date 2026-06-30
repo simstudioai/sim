@@ -319,6 +319,7 @@ RULES:
 
 export const DevinBlockMeta = {
   tags: ['agentic', 'automation'],
+  url: 'https://devin.ai',
   templates: [
     {
       icon: DevinIcon,

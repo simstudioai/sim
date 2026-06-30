@@ -1,12 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { RefreshCw } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-
-const logger = createLogger('ResumePage')
-
 import {
   Badge,
   Button,
@@ -21,7 +15,10 @@ import {
   TableRow,
   Textarea,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { useQueryClient } from '@tanstack/react-query'
+import { RefreshCw } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import {
   Select,
   SelectContent,
@@ -29,17 +26,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { requestJson } from '@/lib/api/client/request'
-import { resumeWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
-import type { ResumeStatus } from '@/executor/types'
-
-interface ResumeLinks {
-  apiUrl: string
-  uiUrl: string
-  contextId: string
-  executionId: string
-  workflowId: string
-}
+import { Navbar } from '@/app/(landing)/components/navbar/navbar'
+import { useBrandConfig } from '@/ee/whitelabeling'
+import {
+  type PauseContextDetail,
+  type PausedExecutionDetail,
+  type PausePointWithQueue,
+  resumeKeys,
+  usePauseContextDetail,
+  useResumeContext,
+  useResumeExecutionDetail,
+} from '@/hooks/queries/resume-execution'
 
 interface NormalizedInputField {
   id: string
@@ -59,62 +56,6 @@ interface ResponseStructureRow {
   name: string
   type: string
   value: any
-}
-
-interface ResumeQueueEntrySummary {
-  id: string
-  contextId: string
-  status: string
-  queuedAt: string | null
-  claimedAt: string | null
-  completedAt: string | null
-  failureReason: string | null
-  newExecutionId: string
-  resumeInput: any
-}
-
-interface PausePointWithQueue {
-  contextId: string
-  triggerBlockId?: string
-  blockId?: string
-  response: any
-  registeredAt: string
-  resumeStatus: ResumeStatus
-  snapshotReady: boolean
-  resumeLinks?: ResumeLinks
-  queuePosition?: number | null
-  latestResumeEntry?: ResumeQueueEntrySummary | null
-  parallelScope?: any
-  loopScope?: any
-  pauseKind?: 'human' | 'time'
-  resumeAt?: string
-}
-
-interface PausedExecutionSummary {
-  id: string
-  workflowId: string
-  executionId: string
-  status: string
-  totalPauseCount: number
-  resumedCount: number
-  pausedAt: string | null
-  updatedAt: string | null
-  expiresAt: string | null
-  metadata: Record<string, any> | null
-  triggerIds: string[]
-  pausePoints: PausePointWithQueue[]
-}
-
-interface PauseContextDetail {
-  execution: PausedExecutionSummary
-  pausePoint: PausePointWithQueue
-  queue: ResumeQueueEntrySummary[]
-  activeResumeEntry?: ResumeQueueEntrySummary | null
-}
-
-interface PausedExecutionDetail extends PausedExecutionSummary {
-  executionSnapshot: any
-  queue: ResumeQueueEntrySummary[]
 }
 
 interface ResumeExecutionPageProps {
@@ -202,10 +143,14 @@ export default function ResumeExecutionPage({
 }: ResumeExecutionPageProps) {
   const { workflowId, executionId } = params
   const router = useRouter()
+  const brandConfig = useBrandConfig()
+  const queryClient = useQueryClient()
 
-  const [executionDetail, setExecutionDetail] = useState<PausedExecutionDetail | null>(
-    initialExecutionDetail
-  )
+  const {
+    data: executionDetail,
+    isFetching: refreshingExecution,
+    refetch: refetchExecutionDetail,
+  } = useResumeExecutionDetail(workflowId, executionId, initialExecutionDetail ?? undefined)
   const pausePoints = executionDetail?.pausePoints ?? []
 
   const defaultContextId = useMemo(() => {
@@ -219,7 +164,11 @@ export default function ResumeExecutionPage({
   const [selectedContextId, setSelectedContextId] = useState<string | null>(
     defaultContextId ?? null
   )
-  const [selectedDetail, setSelectedDetail] = useState<PauseContextDetail | null>(null)
+  const { data: selectedDetail, isLoading: loadingDetail } = usePauseContextDetail(
+    workflowId,
+    executionId,
+    selectedContextId ?? undefined
+  )
   const [selectedStatus, setSelectedStatus] =
     useState<PausePointWithQueue['resumeStatus']>('paused')
   const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
@@ -230,11 +179,11 @@ export default function ResumeExecutionPage({
   >({})
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-  const [loadingDetail, setLoadingDetail] = useState(false)
   const [loadingAction, setLoadingAction] = useState(false)
-  const [refreshingExecution, setRefreshingExecution] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+
+  const resumeMutation = useResumeContext()
 
   const normalizeInputFormatFields = useCallback((raw: any): NormalizedInputField[] => {
     if (!Array.isArray(raw)) return []
@@ -510,295 +459,189 @@ export default function ResumeExecutionPage({
       .filter((row): row is ResponseStructureRow => row !== null)
   }, [selectedDetail])
 
-  useEffect(() => {
-    if (!selectedContextId) {
-      setSelectedDetail(null)
-      return
-    }
-    const controller = new AbortController()
-    const loadDetail = async () => {
-      setLoadingDetail(true)
-      try {
-        // boundary-raw-fetch: GET /api/resume/[workflowId]/[executionId]/[contextId] has no contract (server route only models POST resume submission)
-        const response = await fetch(
-          `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
-          {
-            method: 'GET',
-            credentials: 'include',
-            cache: 'no-store',
-            signal: controller.signal,
-          }
-        )
-        if (!response.ok) {
-          setSelectedDetail(null)
-          return
-        }
-        const data: PauseContextDetail = await response.json()
-        setSelectedDetail(data)
-        setSelectedStatus(data.pausePoint.resumeStatus)
-        setQueuePosition(data.pausePoint.queuePosition)
-        const responseData = data.pausePoint.response?.data ?? {}
-        const operation = responseData.operation || 'human'
-        const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
-        const submission =
-          responseData &&
-          typeof responseData.submission === 'object' &&
-          !Array.isArray(responseData.submission)
-            ? (responseData.submission as Record<string, any>)
-            : undefined
-        if (operation === 'human' && fetchedInputFields.length > 0) {
-          const baseValues = buildInitialFormValues(fetchedInputFields, submission)
-          let mergedValues = baseValues
-          setFormValuesByContext((prev) => {
-            const existingValues = prev[data.pausePoint.contextId]
-            if (existingValues) mergedValues = { ...baseValues, ...existingValues }
-            return { ...prev, [data.pausePoint.contextId]: mergedValues }
-          })
-          setFormValues(mergedValues)
-          setFormErrors({})
-          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
-            delete resumeInputsRef.current[data.pausePoint.contextId]
-          }
-          setResumeInput('')
-        } else {
-          const initialValue =
-            typeof responseData === 'string'
-              ? responseData
-              : JSON.stringify(responseData ?? {}, null, 2)
-          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
-            setResumeInput(resumeInputsRef.current[data.pausePoint.contextId])
-          } else {
-            setResumeInput(initialValue)
-            resumeInputsRef.current = {
-              ...resumeInputsRef.current,
-              [data.pausePoint.contextId]: initialValue,
-            }
-          }
-          setFormValues({})
-          setFormErrors({})
-        }
-      } catch (err) {
-        if ((err as any)?.name !== 'AbortError') {
-          logger.error('Failed to load pause context detail', err)
-        }
-      } finally {
-        setLoadingDetail(false)
-      }
-    }
-    loadDetail()
-    return () => controller.abort()
-  }, [
-    workflowId,
-    executionId,
-    selectedContextId,
-    normalizeInputFormatFields,
-    buildInitialFormValues,
-  ])
-
-  const refreshExecutionDetail = useCallback(async () => {
-    setRefreshingExecution(true)
-    try {
-      const raw = await requestJson(resumeWorkflowExecutionContract, {
-        params: { workflowId, executionId },
-      })
-      // double-cast-allowed: contract pause-point shape is z.record(z.string(), z.unknown()) but the page works against the more specific local PausedExecutionDetail / PausePointWithQueue interfaces
-      const data = raw as unknown as PausedExecutionDetail
-      setExecutionDetail(data)
-      if (!selectedContextId) {
-        const first =
-          data.pausePoints?.find((point: PausePointWithQueue) => point.resumeStatus === 'paused')
-            ?.contextId ?? null
-        setSelectedContextId(first)
-      }
-    } catch (err) {
-      logger.error('Failed to refresh execution detail', err)
-    } finally {
-      setRefreshingExecution(false)
-    }
-  }, [workflowId, executionId, selectedContextId])
-
-  const refreshSelectedDetail = useCallback(
-    async (contextId: string, showLoader = true) => {
-      try {
-        if (showLoader) setLoadingDetail(true)
-        // boundary-raw-fetch: GET /api/resume/[workflowId]/[executionId]/[contextId] has no contract (server route only models POST resume submission)
-        const response = await fetch(`/api/resume/${workflowId}/${executionId}/${contextId}`, {
-          method: 'GET',
-          credentials: 'include',
-          cache: 'no-store',
+  const seedFormFromDetail = useCallback(
+    (detail: PauseContextDetail) => {
+      const responseData = detail.pausePoint.response?.data ?? {}
+      const operation = responseData.operation || 'human'
+      const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
+      const submission =
+        responseData &&
+        typeof responseData.submission === 'object' &&
+        !Array.isArray(responseData.submission)
+          ? (responseData.submission as Record<string, any>)
+          : undefined
+      if (operation === 'human' && fetchedInputFields.length > 0) {
+        const baseValues = buildInitialFormValues(fetchedInputFields, submission)
+        let mergedValues = baseValues
+        setFormValuesByContext((prev) => {
+          const existingValues = prev[detail.pausePoint.contextId]
+          if (existingValues) mergedValues = { ...baseValues, ...existingValues }
+          return { ...prev, [detail.pausePoint.contextId]: mergedValues }
         })
-        if (!response.ok) return
-        const data: PauseContextDetail = await response.json()
-        setSelectedDetail(data)
-        setSelectedStatus(data.pausePoint.resumeStatus)
-        setQueuePosition(data.pausePoint.queuePosition)
-        const responseData = data.pausePoint.response?.data ?? {}
-        const operation = responseData.operation || 'human'
-        const fetchedInputFields = normalizeInputFormatFields(responseData.inputFormat)
-        const submission =
-          responseData &&
-          typeof responseData.submission === 'object' &&
-          !Array.isArray(responseData.submission)
-            ? (responseData.submission as Record<string, any>)
-            : undefined
-        if (operation === 'human' && fetchedInputFields.length > 0) {
-          const baseValues = buildInitialFormValues(fetchedInputFields, submission)
-          let mergedValues = baseValues
-          setFormValuesByContext((prev) => {
-            const existingValues = prev[data.pausePoint.contextId]
-            if (existingValues) mergedValues = { ...baseValues, ...existingValues }
-            return { ...prev, [data.pausePoint.contextId]: mergedValues }
-          })
-          setFormValues(mergedValues)
-          setFormErrors({})
-          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
-            delete resumeInputsRef.current[data.pausePoint.contextId]
-          }
-          setResumeInput('')
-        } else {
-          const initialValue =
-            typeof responseData === 'string'
-              ? responseData
-              : JSON.stringify(responseData ?? {}, null, 2)
-          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
-            setResumeInput(resumeInputsRef.current[data.pausePoint.contextId])
-          } else {
-            setResumeInput(initialValue)
-            resumeInputsRef.current = {
-              ...resumeInputsRef.current,
-              [data.pausePoint.contextId]: initialValue,
-            }
-          }
-          setFormValues({})
-          setFormErrors({})
+        setFormValues(mergedValues)
+        setFormErrors({})
+        if (resumeInputsRef.current[detail.pausePoint.contextId] !== undefined) {
+          delete resumeInputsRef.current[detail.pausePoint.contextId]
         }
-      } catch (err) {
-        logger.error('Failed to refresh pause context detail', err)
-      } finally {
-        if (showLoader) setLoadingDetail(false)
+        setResumeInput('')
+      } else {
+        const initialValue =
+          typeof responseData === 'string'
+            ? responseData
+            : JSON.stringify(responseData ?? {}, null, 2)
+        if (resumeInputsRef.current[detail.pausePoint.contextId] !== undefined) {
+          setResumeInput(resumeInputsRef.current[detail.pausePoint.contextId])
+        } else {
+          setResumeInput(initialValue)
+          resumeInputsRef.current = {
+            ...resumeInputsRef.current,
+            [detail.pausePoint.contextId]: initialValue,
+          }
+        }
+        setFormValues({})
+        setFormErrors({})
       }
     },
-    [workflowId, executionId, normalizeInputFormatFields, buildInitialFormValues]
+    [normalizeInputFormatFields, buildInitialFormValues]
   )
 
-  const handleResume = useCallback(async () => {
-    if (!selectedContextId || !selectedDetail) return
-    setLoadingAction(true)
-    setError(null)
-    setMessage(null)
-    let resumePayload: any
-    if (isHumanMode && hasInputFormat) {
-      const errors: Record<string, string> = {}
-      const submission: Record<string, any> = {}
-      for (const field of inputFormatFields) {
-        const rawValue = formValues[field.name] ?? ''
-        const hasValue =
-          field.type === 'boolean'
-            ? rawValue === 'true' || rawValue === 'false'
-            : rawValue.trim().length > 0 && rawValue !== '__unset__'
-        if (!hasValue || rawValue === '__unset__') {
-          if (field.required) errors[field.name] = 'This field is required.'
-          continue
+  useEffect(() => {
+    if (!selectedDetail) return
+    setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
+    setQueuePosition(selectedDetail.pausePoint.queuePosition)
+    seedFormFromDetail(selectedDetail)
+  }, [selectedDetail, seedFormFromDetail])
+
+  const handleRefreshExecution = useCallback(async () => {
+    const { data } = await refetchExecutionDetail()
+    if (!selectedContextId) {
+      const firstPaused =
+        data?.pausePoints.find((point) => point.resumeStatus === 'paused')?.contextId ?? null
+      setSelectedContextId(firstPaused)
+    }
+  }, [refetchExecutionDetail, selectedContextId])
+
+  const handleResume = useCallback(
+    async () => {
+      if (!selectedContextId || !selectedDetail) return
+      setLoadingAction(true)
+      setError(null)
+      setMessage(null)
+      let resumePayload: any
+      if (isHumanMode && hasInputFormat) {
+        const errors: Record<string, string> = {}
+        const submission: Record<string, any> = {}
+        for (const field of inputFormatFields) {
+          const rawValue = formValues[field.name] ?? ''
+          const hasValue =
+            field.type === 'boolean'
+              ? rawValue === 'true' || rawValue === 'false'
+              : rawValue.trim().length > 0 && rawValue !== '__unset__'
+          if (!hasValue || rawValue === '__unset__') {
+            if (field.required) errors[field.name] = 'This field is required.'
+            continue
+          }
+          const { value, error: parseError } = parseFormValue(field, rawValue)
+          if (parseError) {
+            errors[field.name] = parseError
+            continue
+          }
+          if (value !== undefined) submission[field.name] = value
         }
-        const { value, error: parseError } = parseFormValue(field, rawValue)
-        if (parseError) {
-          errors[field.name] = parseError
-          continue
-        }
-        if (value !== undefined) submission[field.name] = value
-      }
-      if (Object.keys(errors).length > 0) {
-        setFormErrors(errors)
-        setLoadingAction(false)
-        return
-      }
-      setFormErrors({})
-      resumePayload = { submission }
-    } else {
-      let parsedInput: any
-      if (resumeInput && resumeInput.trim().length > 0) {
-        try {
-          parsedInput = JSON.parse(resumeInput)
-        } catch {
-          setError('Resume input must be valid JSON.')
+        if (Object.keys(errors).length > 0) {
+          setFormErrors(errors)
           setLoadingAction(false)
           return
         }
+        setFormErrors({})
+        resumePayload = { submission }
+      } else {
+        let parsedInput: any
+        if (resumeInput && resumeInput.trim().length > 0) {
+          try {
+            parsedInput = JSON.parse(resumeInput)
+          } catch {
+            setError('Resume input must be valid JSON.')
+            setLoadingAction(false)
+            return
+          }
+        }
+        resumePayload = parsedInput
       }
-      resumePayload = parsedInput
-    }
-    try {
-      // boundary-raw-fetch: resume-context POST contract has no body schema (route uses tolerant raw JSON parse for resume input forwarded to PauseResumeManager)
-      const response = await fetch(
-        `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(resumePayload ? { input: resumePayload } : {}),
+      try {
+        const { ok, payload } = await resumeMutation.mutateAsync({
+          workflowId,
+          executionId,
+          contextId: selectedContextId,
+          input: resumePayload,
+        })
+        if (!ok) {
+          setError(payload.error || 'Failed to resume execution.')
+          setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
+          return
         }
-      )
-      const payload = await response.json()
-      if (!response.ok) {
-        setError(payload.error || 'Failed to resume execution.')
-        setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
-        return
+        const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
+        const nextQueuePosition = payload.queuePosition ?? null
+        const fallbackContextId =
+          executionDetail?.pausePoints.find(
+            (point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused'
+          )?.contextId ?? null
+        queryClient.setQueryData<PausedExecutionDetail>(
+          resumeKeys.execution(workflowId, executionId),
+          (prev) => {
+            if (!prev) return prev
+            return {
+              ...prev,
+              pausePoints: prev.pausePoints.map((point) =>
+                point.contextId === selectedContextId
+                  ? { ...point, resumeStatus: nextStatus, queuePosition: nextQueuePosition }
+                  : point
+              ),
+            }
+          }
+        )
+        queryClient.setQueryData<PauseContextDetail | null>(
+          resumeKeys.context(workflowId, executionId, selectedContextId),
+          (prev) => {
+            if (!prev || prev.pausePoint.contextId !== selectedContextId) return prev
+            return {
+              ...prev,
+              pausePoint: {
+                ...prev.pausePoint,
+                resumeStatus: nextStatus,
+                queuePosition: nextQueuePosition,
+              },
+            }
+          }
+        )
+        setSelectedStatus(nextStatus)
+        setQueuePosition(nextQueuePosition)
+        setSelectedContextId((prev) => (prev !== selectedContextId ? prev : fallbackContextId))
+        setMessage(
+          payload.status === 'queued' ? 'Resume request queued.' : 'Resume started successfully.'
+        )
+      } catch (err: any) {
+        setError(err.message || 'Unexpected error while resuming execution.')
+      } finally {
+        setLoadingAction(false)
       }
-      const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
-      const nextQueuePosition = payload.queuePosition ?? null
-      const fallbackContextId =
-        executionDetail?.pausePoints.find(
-          (point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused'
-        )?.contextId ?? null
-      setExecutionDetail((prev) => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          pausePoints: prev.pausePoints.map((point) =>
-            point.contextId === selectedContextId
-              ? { ...point, resumeStatus: nextStatus, queuePosition: nextQueuePosition }
-              : point
-          ),
-        }
-      })
-      setSelectedDetail((prev) => {
-        if (!prev || prev.pausePoint.contextId !== selectedContextId) return prev
-        return {
-          ...prev,
-          pausePoint: {
-            ...prev.pausePoint,
-            resumeStatus: nextStatus,
-            queuePosition: nextQueuePosition,
-          },
-        }
-      })
-      setSelectedStatus(nextStatus)
-      setQueuePosition(nextQueuePosition)
-      setSelectedContextId((prev) => (prev !== selectedContextId ? prev : fallbackContextId))
-      setMessage(
-        payload.status === 'queued' ? 'Resume request queued.' : 'Resume started successfully.'
-      )
-      await Promise.all([refreshExecutionDetail(), refreshSelectedDetail(selectedContextId, false)])
-    } catch (err: any) {
-      setError(err.message || 'Unexpected error while resuming execution.')
-    } finally {
-      setLoadingAction(false)
-    }
-  }, [
-    workflowId,
-    executionId,
-    selectedContextId,
-    isHumanMode,
-    hasInputFormat,
-    inputFormatFields,
-    formValues,
-    parseFormValue,
-    resumeInput,
-    selectedDetail,
-    executionDetail,
-    refreshExecutionDetail,
-    refreshSelectedDetail,
-  ])
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      workflowId,
+      executionId,
+      selectedContextId,
+      isHumanMode,
+      hasInputFormat,
+      inputFormatFields,
+      formValues,
+      parseFormValue,
+      resumeInput,
+      selectedDetail,
+      executionDetail,
+      queryClient,
+    ]
+  )
 
   const isFormComplete = useMemo(() => {
     if (!isHumanMode || !hasInputFormat) return true
@@ -833,13 +676,16 @@ export default function ResumeExecutionPage({
   if (!executionDetail) {
     return (
       <Tooltip.Provider>
-        <div className='flex flex-1 flex-col'>
+        <div className='font-season' style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+          <header>
+            <Navbar />
+          </header>
           <div
             style={{
               display: 'flex',
-              flex: 1,
               alignItems: 'center',
               justifyContent: 'center',
+              minHeight: 'calc(100vh - 80px)',
               padding: '24px',
             }}
           >
@@ -869,7 +715,10 @@ export default function ResumeExecutionPage({
 
   return (
     <Tooltip.Provider>
-      <div className='flex flex-1 flex-col'>
+      <div className='font-season' style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+        <header>
+          <Navbar />
+        </header>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }}>
           {/* Header */}
           <div
@@ -893,7 +742,7 @@ export default function ResumeExecutionPage({
                 <Button
                   variant='outline'
                   size='sm'
-                  onClick={refreshExecutionDetail}
+                  onClick={handleRefreshExecution}
                   disabled={refreshingExecution}
                   className='gap-1.5 px-2.5'
                   aria-label='Refresh execution details'
@@ -1281,6 +1130,23 @@ export default function ResumeExecutionPage({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            maxWidth: '1200px',
+            margin: '24px auto 0',
+            padding: '0 24px 24px',
+            textAlign: 'center',
+            fontSize: '13px',
+            color: 'var(--text-muted)',
+          }}
+        >
+          Need help?{' '}
+          <a href={`mailto:${brandConfig.supportEmail}`} style={{ color: 'var(--text-secondary)' }}>
+            Contact support
+          </a>
         </div>
       </div>
     </Tooltip.Provider>

@@ -143,12 +143,12 @@ If anything matches, run the affected provider tests and update assertions as ne
 
 ### New API behavior is NOT data-driven
 
-The Consumption Matrix (Step 2) tells you which capability *flags* are honored by existing provider code. But if the new model needs **net-new** request handling that the provider doesn't implement yet — a new beta header (e.g. Anthropic's `anthropic-beta` structured-outputs header in `anthropic/index.ts`), a new thinking/reasoning encoding, a Responses-API quirk — you must edit `apps/sim/providers/<provider>/core.ts` / `index.ts`. Setting a flag whose behavior isn't implemented is a silent no-op.
+The Consumption Matrix (Step 2) tells you which capability *flags* are honored by existing provider code. But if the new model needs **net-new** request handling that the provider doesn't implement yet — a new beta header (e.g. Anthropic's `anthropic-beta` structured-outputs header in `anthropic/index.ts`), a new thinking/reasoning encoding, a Responses-API quirk — you must edit `apps/sim/providers/<provider>/core.ts` / `index.ts`. Setting a flag whose behavior isn't implemented is a silent no-op. When you do edit provider code, reuse the shared helpers rather than hand-rolling: streaming responses are assembled via `createStreamingExecution` (`@/providers/streaming-execution`) and tool schemas via `adaptOpenAIChatToolSchema` / `adaptAnthropicToolSchema` (`@/providers/tool-schema-adapter`).
 
 ### Wrong family entirely?
 
 - **Embedding or rerank model** → it does NOT go in the `models[]` array. Use `EMBEDDING_MODEL_PRICING` / `RERANK_MODEL_PRICING` in `models.ts` instead.
-- **Brand-new provider** (not just a new model under an existing one) → much larger surface: add the id to `ProviderId` in `providers/types.ts`, a registry entry in `providers/registry.ts`, a provider implementation under `providers/<id>/`, an icon in `components/icons.tsx`, and the `PROVIDER_DEFINITIONS` block. That is beyond this skill — tell the user.
+- **Brand-new provider** (not just a new model under an existing one) → much larger surface: add the id to `ProviderId` in `providers/types.ts`, a registry entry in `providers/registry.ts`, a provider implementation under `providers/<id>/` (assemble streaming responses with `createStreamingExecution` and wrap tool schemas with the `@/providers/tool-schema-adapter` helpers), an icon in `components/icons.tsx`, and the `PROVIDER_DEFINITIONS` block. That is beyond this skill — tell the user.
 
 ## Step 5: Write, lint
 

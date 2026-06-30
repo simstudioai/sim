@@ -2,6 +2,7 @@ import { LoopsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { LoopsResponse } from '@/tools/loops/types'
+import { getTrigger } from '@/triggers'
 
 export const LoopsBlock: BlockConfig<LoopsResponse> = {
   type: 'loops',
@@ -391,7 +392,28 @@ Return ONLY the JSON object - no explanations, no extra text.`,
       password: true,
       required: true,
     },
+    ...getTrigger('loops_email_delivered').subBlocks,
+    ...getTrigger('loops_email_opened').subBlocks,
+    ...getTrigger('loops_email_clicked').subBlocks,
+    ...getTrigger('loops_email_hard_bounced').subBlocks,
+    ...getTrigger('loops_email_soft_bounced').subBlocks,
+    ...getTrigger('loops_campaign_email_sent').subBlocks,
+    ...getTrigger('loops_loop_email_sent').subBlocks,
+    ...getTrigger('loops_transactional_email_sent').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'loops_email_delivered',
+      'loops_email_opened',
+      'loops_email_clicked',
+      'loops_email_hard_bounced',
+      'loops_email_soft_bounced',
+      'loops_campaign_email_sent',
+      'loops_loop_email_sent',
+      'loops_transactional_email_sent',
+    ],
+  },
   tools: {
     access: [
       'loops_create_contact',
@@ -538,6 +560,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
 
 export const LoopsBlockMeta = {
   tags: ['email-marketing', 'marketing', 'automation'],
+  url: 'https://loops.so',
   templates: [
     {
       icon: LoopsIcon,

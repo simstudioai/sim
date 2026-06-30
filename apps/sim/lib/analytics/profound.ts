@@ -7,7 +7,7 @@
  */
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { getClientIp } from '@/lib/core/utils/request'
 import { getBaseDomain } from '@/lib/core/utils/urls'
 

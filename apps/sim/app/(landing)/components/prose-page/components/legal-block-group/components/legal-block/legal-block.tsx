@@ -1,4 +1,4 @@
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { PROSE_SPACING, PROSE_TYPE } from '@/app/(landing)/components/prose-page/constants'
 import type { LegalBlock } from '@/app/(landing)/components/prose-page/types'
 

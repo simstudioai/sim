@@ -1,5 +1,5 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
-import { ChipLink } from '@/components/emcn'
 
 export const metadata: Metadata = {
   title: 'Page Not Found',

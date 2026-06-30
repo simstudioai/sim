@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Chip,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -14,8 +15,7 @@ import {
   POPOVER_ANIMATION_CLASSES,
   Search,
   X,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 const SEARCH_ICON = (
@@ -83,11 +83,12 @@ interface ResourceOptionsProps {
   filter?: FilterConfig
   filterTags?: FilterTag[]
   /**
-   * Supplementary right-aligned slot (pushed opposite the left-aligned
-   * filter/sort via `justify-between`) for lightweight status content — e.g.
-   * the knowledge list's connector badges or the table editor's run/stop
-   * control in embedded mode. Keep it to badges/status widgets; primary
-   * actions belong in the header's `actions`, not here.
+   * Lightweight control rendered immediately to the LEFT of the filter/sort
+   * cluster, forming one group with it — e.g. the knowledge view's
+   * connected-source badge or the table editor's embedded run/stop control. With
+   * a search the group is pushed right (opposite the search); without one it
+   * stays left-aligned (the embedded table editor). Keep it to badges/status
+   * widgets; primary actions belong in the header's `actions`.
    */
   aside?: ReactNode
 }
@@ -115,64 +116,68 @@ export const ResourceOptions = memo(function ResourceOptions({
 
   return (
     <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
-      <div className='flex items-center justify-between'>
+      <div className='flex items-center'>
         {search && <SearchSection search={search} />}
-        <div className='flex items-center'>
-          {filterTags?.map((tag) => (
-            <Chip key={tag.label} rightIcon={X} onClick={tag.onRemove}>
-              {tag.label}
-            </Chip>
-          ))}
-          {isToggleFilter && filter.mode === 'toggle' ? (
-            <Chip active={filter.active} leftIcon={ListFilter} onClick={filter.onToggle}>
-              Filter
-            </Chip>
-          ) : popoverFilter ? (
-            <PopoverPrimitive.Root
-              open={openMenu === 'filter'}
-              onOpenChange={(open) =>
-                setOpenMenu((current) => (open ? 'filter' : current === 'filter' ? null : current))
-              }
-            >
-              <PopoverPrimitive.Anchor asChild>
-                <div className='flex items-center'>
-                  <PopoverPrimitive.Trigger asChild>
-                    <Chip active={popoverFilter.active} leftIcon={ListFilter}>
-                      Filter
-                    </Chip>
-                  </PopoverPrimitive.Trigger>
-                  {sort && (
-                    <SortDropdown
-                      config={sort}
-                      open={openMenu === 'sort'}
-                      onOpenChange={(open) =>
-                        setOpenMenu((current) =>
-                          open ? 'sort' : current === 'sort' ? null : current
-                        )
-                      }
-                    />
-                  )}
-                </div>
-              </PopoverPrimitive.Anchor>
-              <PopoverPrimitive.Portal>
-                <PopoverPrimitive.Content
-                  align='end'
-                  alignOffset={RESOURCE_MENU_EDGE_OFFSET}
-                  collisionPadding={6}
-                  sideOffset={6}
-                  className={cn(
-                    POPOVER_ANIMATION_CLASSES,
-                    'z-50 w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-sm'
-                  )}
-                >
-                  {popoverFilter.content}
-                </PopoverPrimitive.Content>
-              </PopoverPrimitive.Portal>
-            </PopoverPrimitive.Root>
-          ) : null}
-          {sort && (isToggleFilter || !popoverFilter) && <SortDropdown config={sort} />}
+        <div className={cn('flex shrink-0 items-center gap-1.5', search && 'ml-auto')}>
+          {aside}
+          <div className='flex items-center'>
+            {filterTags?.map((tag) => (
+              <Chip key={tag.label} rightIcon={X} onClick={tag.onRemove}>
+                {tag.label}
+              </Chip>
+            ))}
+            {isToggleFilter && filter.mode === 'toggle' ? (
+              <Chip active={filter.active} leftIcon={ListFilter} onClick={filter.onToggle}>
+                Filter
+              </Chip>
+            ) : popoverFilter ? (
+              <PopoverPrimitive.Root
+                open={openMenu === 'filter'}
+                onOpenChange={(open) =>
+                  setOpenMenu((current) =>
+                    open ? 'filter' : current === 'filter' ? null : current
+                  )
+                }
+              >
+                <PopoverPrimitive.Anchor asChild>
+                  <div className='flex items-center'>
+                    <PopoverPrimitive.Trigger asChild>
+                      <Chip active={popoverFilter.active} leftIcon={ListFilter}>
+                        Filter
+                      </Chip>
+                    </PopoverPrimitive.Trigger>
+                    {sort && (
+                      <SortDropdown
+                        config={sort}
+                        open={openMenu === 'sort'}
+                        onOpenChange={(open) =>
+                          setOpenMenu((current) =>
+                            open ? 'sort' : current === 'sort' ? null : current
+                          )
+                        }
+                      />
+                    )}
+                  </div>
+                </PopoverPrimitive.Anchor>
+                <PopoverPrimitive.Portal>
+                  <PopoverPrimitive.Content
+                    align='end'
+                    alignOffset={RESOURCE_MENU_EDGE_OFFSET}
+                    collisionPadding={6}
+                    sideOffset={6}
+                    className={cn(
+                      POPOVER_ANIMATION_CLASSES,
+                      'z-50 w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                    )}
+                  >
+                    {popoverFilter.content}
+                  </PopoverPrimitive.Content>
+                </PopoverPrimitive.Portal>
+              </PopoverPrimitive.Root>
+            ) : null}
+            {sort && (isToggleFilter || !popoverFilter) && <SortDropdown config={sort} />}
+          </div>
         </div>
-        {aside && <div className='flex shrink-0 items-center gap-1.5'>{aside}</div>}
       </div>
     </div>
   )

@@ -4,57 +4,31 @@
 import { describe, expect, it } from 'vitest'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
-  resolveStreamingEditorContent,
   syncTextEditorContentState,
   type TextEditorContentState,
   textEditorContentReducer,
 } from './text-editor-state'
 
 function ready(content: string, savedContent = content): TextEditorContentState {
-  return { phase: 'ready', content, savedContent, lastStreamedContent: null }
+  return { phase: 'ready', content, savedContent, lastStreamedContent: null, hasBaseline: true }
 }
 
 function streaming(
   content: string,
   lastStreamedContent: string,
-  savedContent = ''
+  savedContent = '',
+  hasBaseline = true
 ): TextEditorContentState {
-  return { phase: 'streaming', content, savedContent, lastStreamedContent }
+  return { phase: 'streaming', content, savedContent, lastStreamedContent, hasBaseline }
 }
 
-function reconciling(content: string, savedContent = ''): TextEditorContentState {
-  return { phase: 'reconciling', content, savedContent, lastStreamedContent: null }
+function reconciling(
+  content: string,
+  savedContent = '',
+  hasBaseline = true
+): TextEditorContentState {
+  return { phase: 'reconciling', content, savedContent, lastStreamedContent: null, hasBaseline }
 }
-
-describe('resolveStreamingEditorContent', () => {
-  it('returns streamingContent when mode is replace', () => {
-    expect(resolveStreamingEditorContent('existing', 'new chunk', 'replace')).toBe('new chunk')
-  })
-
-  it('returns streamingContent when fetchedContent is undefined', () => {
-    expect(resolveStreamingEditorContent(undefined, 'chunk', 'append')).toBe('chunk')
-  })
-
-  it('returns fetchedContent when it already ends with streamingContent', () => {
-    expect(resolveStreamingEditorContent('base\nchunk', 'chunk', 'append')).toBe('base\nchunk')
-  })
-
-  it('returns fetchedContent when it ends with newline + streamingContent', () => {
-    expect(resolveStreamingEditorContent('base\nchunk', 'chunk', 'append')).toBe('base\nchunk')
-  })
-
-  it('appends with newline separator when fetched does not end with chunk', () => {
-    expect(resolveStreamingEditorContent('base', 'new stuff', 'append')).toBe('base\nnew stuff')
-  })
-
-  it('handles empty streamingContent in append mode', () => {
-    expect(resolveStreamingEditorContent('base', '', 'append')).toBe('base')
-  })
-
-  it('handles empty fetchedContent in append mode (prepends newline separator)', () => {
-    expect(resolveStreamingEditorContent('', 'chunk', 'append')).toBe('\nchunk')
-  })
-})
 
 describe("reducer 'edit' action", () => {
   it('updates content when phase is ready and content differs', () => {
@@ -114,6 +88,14 @@ describe("reducer 'save-success' action", () => {
     expect(next.lastStreamedContent).toBeNull()
     expect(next.phase).toBe('ready')
   })
+
+  it('does not revert a keystroke typed while the save was in flight', () => {
+    const state = ready('ABC', 'old')
+    const next = textEditorContentReducer(state, { type: 'save-success', content: 'AB' })
+    expect(next.content).toBe('ABC')
+    expect(next.savedContent).toBe('AB')
+    expect(next.content === next.savedContent).toBe(false)
+  })
 })
 
 describe('syncTextEditorContentState — initialization', () => {
@@ -122,7 +104,6 @@ describe('syncTextEditorContentState — initialization', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'loaded',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('loaded')
@@ -134,7 +115,6 @@ describe('syncTextEditorContentState — initialization', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next).toBe(INITIAL_TEXT_EDITOR_CONTENT_STATE)
   })
@@ -147,7 +127,6 @@ describe('syncTextEditorContentState — static fetch updates', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v1',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next).toBe(state)
   })
@@ -158,7 +137,6 @@ describe('syncTextEditorContentState — static fetch updates', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v2',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.content).toBe('v2')
     expect(next.savedContent).toBe('v2')
@@ -171,12 +149,12 @@ describe('syncTextEditorContentState — static fetch updates', () => {
       content: 'user edit',
       savedContent: 'v1',
       lastStreamedContent: null,
+      hasBaseline: true,
     }
     const next = syncTextEditorContentState(state, {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v2',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     // Local edits take precedence — content should remain 'user edit'
     expect(next.content).toBe('user edit')
@@ -191,31 +169,18 @@ describe('syncTextEditorContentState — streaming', () => {
       canReconcileToFetchedContent: false,
       fetchedContent: 'existing',
       streamingContent: 'streamed chunk',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('streaming')
     expect(next.content).toBe('streamed chunk')
     expect(next.lastStreamedContent).toBe('streamed chunk')
   })
 
-  it('appends streaming content to fetched in append mode', () => {
-    const next = syncTextEditorContentState(INITIAL_TEXT_EDITOR_CONTENT_STATE, {
-      canReconcileToFetchedContent: false,
-      fetchedContent: 'base',
-      streamingContent: 'addition',
-      streamingMode: 'append',
-    })
-    expect(next.phase).toBe('streaming')
-    expect(next.content).toBe('base\naddition')
-  })
-
   it('returns same reference when streaming state is already current', () => {
-    const state = streaming('base\naddition', 'base\naddition', 'base')
+    const state = streaming('addition', 'addition', 'base')
     const next = syncTextEditorContentState(state, {
       canReconcileToFetchedContent: false,
       fetchedContent: 'base',
       streamingContent: 'addition',
-      streamingMode: 'append',
     })
     expect(next).toBe(state)
   })
@@ -226,7 +191,6 @@ describe('syncTextEditorContentState — streaming', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'base\nchunk',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('base\nchunk')
@@ -240,7 +204,6 @@ describe('syncTextEditorContentState — streaming', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('reconciling')
   })
@@ -251,7 +214,6 @@ describe('syncTextEditorContentState — streaming', () => {
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('streamed')
@@ -265,7 +227,6 @@ describe('syncTextEditorContentState — reconciling', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: '',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('reconciling')
   })
@@ -276,7 +237,6 @@ describe('syncTextEditorContentState — reconciling', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next).toBe(state)
   })
@@ -287,12 +247,12 @@ describe('syncTextEditorContentState — reconciling', () => {
       content: 'streamed',
       savedContent: 'v1',
       lastStreamedContent: null,
+      hasBaseline: true,
     }
     const next = syncTextEditorContentState(state, {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v2',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('v2')
@@ -304,7 +264,6 @@ describe('syncTextEditorContentState — reconciling', () => {
       canReconcileToFetchedContent: false,
       fetchedContent: 'v99',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('streamed')
@@ -319,7 +278,6 @@ describe('syncTextEditorContentState — streaming finalize shortcuts', () => {
       canReconcileToFetchedContent: false,
       fetchedContent: 'v2',
       streamingContent: 'v2',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('v2')
@@ -331,7 +289,6 @@ describe('syncTextEditorContentState — streaming finalize shortcuts', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v2',
       streamingContent: 'chunk',
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('v2')
@@ -349,7 +306,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: 'short',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('streaming')
     expect(next.content).toBe('short')
@@ -366,7 +322,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '#',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('streaming')
     expect(next.content).toBe('#')
@@ -378,7 +333,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('streaming')
     expect(next.content).toBe('')
@@ -391,7 +345,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '# New',
-      streamingMode: 'replace',
     })
     expect(chunk1.phase).toBe('streaming')
     expect(chunk1.content).toBe('# New')
@@ -400,7 +353,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '# New Section\n\nSome text',
-      streamingMode: 'replace',
     })
     expect(chunk2.phase).toBe('streaming')
     expect(chunk2.content).toBe('# New Section\n\nSome text')
@@ -409,7 +361,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '# New Section\n\nSome text that is now longer than the original',
-      streamingMode: 'replace',
     })
     expect(chunk3.phase).toBe('streaming')
     expect(chunk3.content).toBe('# New Section\n\nSome text that is now longer than the original')
@@ -425,11 +376,131 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('# Complete Document\n\nAll done.')
     expect(next.savedContent).toBe('# Complete Document\n\nAll done.')
     expect(next.lastStreamedContent).toBeNull()
+  })
+})
+
+/**
+ * The chat resource view (mothership) streams agent output into an existing, initially-empty file
+ * (the agent's `create_file` writes an empty buffer, then `edit_content` persists the real content
+ * server-side). The editor must never autosave during this handoff — a save would race the agent's
+ * server write and could clobber it with empty/stale content. The engine guarantees this by staying
+ * stream-locked (phase `streaming`/`reconciling`, where autosave is disabled) from the first chunk
+ * until fetched content reconciles to the agent's saved write — at which point `content` and
+ * `savedContent` both equal that write, so the now-enabled autosave sees a clean doc and never fires.
+ */
+describe('syncTextEditorContentState — mothership streamed-file lifecycle (replace mode)', () => {
+  const isStreamLocked = (s: TextEditorContentState) =>
+    s.phase === 'streaming' || s.phase === 'reconciling'
+
+  it('stays locked through streaming + reconcile, then finalizes to the agent write with no empty save', () => {
+    const opts = (fetchedContent: string | undefined, streamingContent: string | undefined) => ({
+      canReconcileToFetchedContent: true,
+      fetchedContent,
+      streamingContent,
+    })
+
+    // 1. Empty file (create_file wrote an empty buffer); first streamed chunk arrives.
+    let state = syncTextEditorContentState(
+      INITIAL_TEXT_EDITOR_CONTENT_STATE,
+      opts('', '# Story\n\nOnce')
+    )
+    expect(state.phase).toBe('streaming')
+    expect(isStreamLocked(state)).toBe(true)
+
+    // 2. More chunks stream in (replace mode → content tracks the latest snapshot).
+    state = syncTextEditorContentState(state, opts('', '# Story\n\nOnce upon a time'))
+    expect(state.content).toBe('# Story\n\nOnce upon a time')
+    expect(isStreamLocked(state)).toBe(true)
+
+    // 3. Stream completes (streamingContent cleared) but the agent's server write hasn't been
+    //    refetched yet — must hold in reconciling (still locked, autosave still disabled).
+    state = syncTextEditorContentState(state, opts('', undefined))
+    expect(state.phase).toBe('reconciling')
+    expect(isStreamLocked(state)).toBe(true)
+    expect(state.savedContent).toBe('')
+
+    // 4. The agent's `edit_content` write lands in the refetched content → finalize to ready with
+    //    content === savedContent === the agent write. Never an empty savedContent.
+    const agentWrite = '# Story\n\nOnce upon a time, the end.'
+    state = syncTextEditorContentState(state, opts(agentWrite, undefined))
+    expect(state.phase).toBe('ready')
+    expect(isStreamLocked(state)).toBe(false)
+    expect(state.content).toBe(agentWrite)
+    expect(state.savedContent).toBe(agentWrite)
+    expect(state.lastStreamedContent).toBeNull()
+
+    // 5. Now-enabled autosave compares content vs savedContent: equal → it never fires a save.
+    expect(state.content).toBe(state.savedContent)
+  })
+})
+
+/**
+ * When the user opens an existing, non-empty file's tab while the agent is already mid-stream on it,
+ * streaming begins from `uninitialized` before the content fetch resolves — so `savedContent` is the
+ * placeholder `''`. The first fetched value to arrive is the file's PRE-EDIT content, not the agent's
+ * write; it must be adopted as the baseline, never finalized to (which would flash stale content and,
+ * if the agent had stopped, let the user edit over the agent's write).
+ */
+describe('syncTextEditorContentState — stream begins before fetch on an existing file', () => {
+  it('adopts the first fetched content as the baseline instead of finalizing to it mid-stream', () => {
+    const preEdit = '# Original\n\nold content'
+    const agentWrite = '# Original\n\nold content, plus a new section.'
+
+    // 1. Editor mounts mid-stream: chunk arrives before the fetch resolves.
+    let state = syncTextEditorContentState(INITIAL_TEXT_EDITOR_CONTENT_STATE, {
+      canReconcileToFetchedContent: true,
+      fetchedContent: undefined,
+      streamingContent: '# Original\n\nold',
+    })
+    expect(state.phase).toBe('streaming')
+    expect(state.savedContent).toBe('')
+    expect(state.hasBaseline).toBe(false)
+
+    // 2. The fetch resolves to the file's pre-edit content WHILE streaming. Adopt it as the baseline;
+    //    do NOT finalize (the agent hasn't persisted its write yet).
+    state = syncTextEditorContentState(state, {
+      canReconcileToFetchedContent: true,
+      fetchedContent: preEdit,
+      streamingContent: '# Original\n\nold content, plus',
+    })
+    expect(state.phase).toBe('streaming')
+    expect(state.content).toBe('# Original\n\nold content, plus')
+    expect(state.savedContent).toBe(preEdit)
+    expect(state.hasBaseline).toBe(true)
+
+    // 3. Stream ends; the refetch is still the pre-edit content → hold in reconciling, never finalize
+    //    to stale (savedContent === fetched, so it has not "advanced").
+    state = syncTextEditorContentState(state, {
+      canReconcileToFetchedContent: true,
+      fetchedContent: preEdit,
+      streamingContent: undefined,
+    })
+    expect(state.phase).toBe('reconciling')
+
+    // 4. The agent's write lands (advanced past the adopted baseline) → finalize to it.
+    state = syncTextEditorContentState(state, {
+      canReconcileToFetchedContent: true,
+      fetchedContent: agentWrite,
+      streamingContent: undefined,
+    })
+    expect(state.phase).toBe('ready')
+    expect(state.content).toBe(agentWrite)
+    expect(state.savedContent).toBe(agentWrite)
+  })
+
+  it('still finalizes mid-stream once a real baseline is established (no regression)', () => {
+    // With hasBaseline=true, an advancing fetch finalizes immediately — the established-baseline path.
+    const next = syncTextEditorContentState(streaming('v1 chunk', 'v1 chunk', 'v1'), {
+      canReconcileToFetchedContent: true,
+      fetchedContent: 'v2',
+      streamingContent: 'chunk',
+    })
+    expect(next.phase).toBe('ready')
+    expect(next.content).toBe('v2')
   })
 })

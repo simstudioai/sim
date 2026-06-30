@@ -24,12 +24,21 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
   or: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'or' })),
+  inArray: vi.fn((field: unknown, values: unknown) => ({ field, values, type: 'inArray' })),
   isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
   desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
   sql: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+
+vi.mock('@/lib/workspaces/utils', () => ({
+  listAccessibleWorkspaceRowsForUser: vi
+    .fn()
+    .mockResolvedValue([
+      { workspace: { id: 'workspace-123', createdAt: new Date() }, permissionType: 'admin' },
+    ]),
+}))
 
 import { GET } from '@/app/api/copilot/chats/route'
 

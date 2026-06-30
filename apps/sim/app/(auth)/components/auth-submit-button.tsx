@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Chip, Loader } from '@/components/emcn'
+import { Chip, Loader } from '@sim/emcn'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 interface AuthSubmitButtonProps {

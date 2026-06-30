@@ -259,6 +259,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
 
 export const WebflowBlockMeta = {
   tags: ['content-management', 'seo'],
+  url: 'https://webflow.com',
   templates: [
     {
       icon: WebflowIcon,

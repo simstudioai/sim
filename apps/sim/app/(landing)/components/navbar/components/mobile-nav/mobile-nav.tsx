@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ChipLink, cn } from '@sim/emcn'
 import { Menu, X } from 'lucide-react'
 import Link from 'next/link'
-import { ChipLink } from '@/components/emcn'
 import { GithubOutlineIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import { NAV_MENUS } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
 import {
   NAVBAR_GLASS_SURFACE,

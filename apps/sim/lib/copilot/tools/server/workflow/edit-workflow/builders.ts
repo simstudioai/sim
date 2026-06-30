@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
+import { sortObjectKeysDeep } from '@sim/utils/object'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import {
@@ -384,25 +385,9 @@ export function normalizeResponseFormat(value: any): string {
 
     // If it's an object, stringify it with consistent formatting
     if (obj && typeof obj === 'object') {
-      // Sort keys recursively for consistent comparison
-      const sortKeys = (item: any): any => {
-        if (Array.isArray(item)) {
-          return item.map(sortKeys)
-        }
-        if (item !== null && typeof item === 'object') {
-          return Object.keys(item)
-            .sort()
-            .reduce((result: any, key: string) => {
-              result[key] = sortKeys(item[key])
-              return result
-            }, {})
-        }
-        return item
-      }
-
       // Return pretty-printed with 2-space indentation for UI readability
       // The sanitizer will normalize it to minified format for comparison
-      return JSON.stringify(sortKeys(obj), null, 2)
+      return JSON.stringify(sortObjectKeysDeep(obj), null, 2)
     }
 
     return String(value)

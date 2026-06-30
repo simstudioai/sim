@@ -34,9 +34,9 @@ describe('sim workspace event trigger registration', () => {
     })
   })
 
-  it('is named Sim', () => {
-    expect(SimWorkspaceEventBlock.name).toBe('Sim')
-    expect(simWorkspaceEventTrigger.name).toBe('Sim')
+  it('is named Sim Workspace Events', () => {
+    expect(SimWorkspaceEventBlock.name).toBe('Sim Workspace Events')
+    expect(simWorkspaceEventTrigger.name).toBe('Sim Workspace Events')
   })
 })
 
@@ -244,6 +244,12 @@ describe('sim workspace event outputs', () => {
   it('workflow_deployed exposes the base fields plus the version', () => {
     expect(visibleOutputsFor('workflow_deployed')).toEqual(
       ['event', 'timestamp', 'version', 'workflowId', 'workflowName'].sort()
+    )
+  })
+
+  it('workflow_undeployed exposes only the base fields', () => {
+    expect(visibleOutputsFor('workflow_undeployed')).toEqual(
+      ['event', 'timestamp', 'workflowId', 'workflowName'].sort()
     )
   })
 

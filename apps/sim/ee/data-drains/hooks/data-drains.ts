@@ -85,9 +85,8 @@ export function useCreateDataDrain() {
       logger.info('Created data drain', { drainId: drain.id, organizationId })
       return drain
     },
-    onSuccess: (_drain, variables) => {
-      queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) })
-    },
+    onSettled: (_drain, _error, variables) =>
+      queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) }),
   })
 }
 
@@ -108,9 +107,8 @@ export function useUpdateDataDrain() {
       logger.info('Updated data drain', { drainId, organizationId })
       return drain
     },
-    onSuccess: (_drain, variables) => {
-      queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) })
-    },
+    onSettled: (_drain, _error, variables) =>
+      queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) }),
   })
 }
 
@@ -128,9 +126,11 @@ export function useDeleteDataDrain() {
       })
       logger.info('Deleted data drain', { drainId, organizationId })
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) })
+    onSettled: (_data, _error, variables) => {
       queryClient.removeQueries({ queryKey: dataDrainKeys.runs(variables.drainId) })
+      return queryClient.invalidateQueries({
+        queryKey: dataDrainKeys.list(variables.organizationId),
+      })
     },
   })
 }
@@ -150,10 +150,11 @@ export function useRunDataDrainNow() {
       logger.info('Enqueued data drain run', { drainId, jobId: data.jobId })
       return data
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: dataDrainKeys.runs(variables.drainId) })
-      queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) })
-    },
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: dataDrainKeys.runs(variables.drainId) }),
+        queryClient.invalidateQueries({ queryKey: dataDrainKeys.list(variables.organizationId) }),
+      ]),
   })
 }
 

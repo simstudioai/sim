@@ -184,6 +184,7 @@ export const GranolaBlock: BlockConfig = {
 
 export const GranolaBlockMeta = {
   tags: ['meeting', 'note-taking'],
+  url: 'https://granola.ai',
   templates: [
     {
       icon: GranolaIcon,

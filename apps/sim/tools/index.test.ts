@@ -51,7 +51,7 @@ const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPi
 const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 
 // Mock feature flags
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isHosted() {
     return mockIsHosted.value
   },

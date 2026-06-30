@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown, Expandable, ExpandableContent, PillsRing } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ChevronDown, cn, Expandable, ExpandableContent, PillsRing } from '@sim/emcn'
 import type { ToolCallData } from '../../../../types'
-import { getAgentIcon } from '../../utils'
+import { getAgentIcon, isToolDone } from '../../utils'
 import { ToolCallItem } from './tool-call-item'
 
 /**
@@ -32,18 +31,24 @@ interface AgentGroupProps {
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
-  defaultExpanded?: boolean
+  /** This group is the latest section in its parent sequence (drives collapse). */
+  isCurrentSection?: boolean
+  /** The subagent lane is still open (no subagent_end yet) — i.e. actively running. */
+  isLaneOpen?: boolean
 }
 
-function isToolDone(status: ToolCallData['status']): boolean {
-  return (
-    status === 'success' ||
-    status === 'error' ||
-    status === 'cancelled' ||
-    status === 'skipped' ||
-    status === 'rejected' ||
-    status === 'interrupted'
-  )
+export function isAgentGroupResolved(items: AgentGroupItem[]): boolean {
+  let hasWork = false
+  for (const item of items) {
+    if (item.type === 'tool') {
+      hasWork = true
+      if (!isToolDone(item.data.status)) return false
+    } else if (item.type === 'agent_group') {
+      hasWork = true
+      if (item.group.isDelegating || !isAgentGroupResolved(item.group.items)) return false
+    }
+  }
+  return hasWork
 }
 
 export function AgentGroup({
@@ -52,24 +57,29 @@ export function AgentGroup({
   items,
   isDelegating = false,
   isStreaming = false,
-  defaultExpanded = false,
+  isCurrentSection = false,
+  isLaneOpen = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
-  const toolItems = items.filter(
-    (item): item is Extract<AgentGroupItem, { type: 'tool' }> => item.type === 'tool'
-  )
-  const allDone = toolItems.length > 0 && toolItems.every((t) => isToolDone(t.data.status))
-  // Only a live turn can be delegating. Once the turn is terminal (complete,
-  // errored, or stopped) no subagent should spin — even one aborted before its
-  // first tool call, where `allDone` is false because there are no tools yet.
-  const showDelegatingSpinner = isStreaming && isDelegating && !allDone
+  const resolved = isAgentGroupResolved(items)
+  // Pure projection of the run's own state: a subagent header spins while it is
+  // delegating with no resolved work yet. A terminal turn closes the lane (its
+  // subagent block is stamped ended), which clears `isDelegating`, so no
+  // transport gating is needed to stop an aborted-before-first-tool spinner.
+  const showDelegatingSpinner = isDelegating && !resolved
 
-  // Expand only while the turn is live and the group is still open or working.
-  // Once the turn ends (isStreaming false) — or a subagent closes mid-turn — the
-  // group auto-collapses, so finished subagent blocks never stay expanded. A
-  // manual toggle pins the choice for the rest of the message.
-  const autoExpanded = isStreaming && (defaultExpanded || !allDone)
+  // Expand while the turn is live and any of: the lane is open (the subagent is
+  // actively running), this is the current/latest section, or there is unresolved
+  // work. A finished group stays open until the NEXT section starts (it is no
+  // longer the latest), instead of collapsing the instant its own work resolves.
+  // Keying "still running" off the lane-open signal (not `resolved` alone) avoids
+  // a collapse/reopen flicker on parallel siblings: a subagent's tools all
+  // momentarily read "done" in the gap between its last search and its `respond`
+  // ("Gathering thoughts") tool, transiently flipping `resolved` true; the open
+  // lane bridges that gap so the row never collapses mid-run. The turn ending
+  // (isStreaming false) collapses everything; a manual toggle pins the choice.
+  const autoExpanded = isStreaming && (isCurrentSection || isLaneOpen || !resolved)
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
   const expanded = manualExpanded ?? autoExpanded
 
@@ -134,7 +144,8 @@ export function AgentGroup({
                           items={item.group.items}
                           isDelegating={item.group.isDelegating}
                           isStreaming={isStreaming}
-                          defaultExpanded={item.group.isOpen}
+                          isCurrentSection={idx === items.length - 1}
+                          isLaneOpen={item.group.isOpen}
                         />
                       </div>
                     )

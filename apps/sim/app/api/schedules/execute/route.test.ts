@@ -61,7 +61,7 @@ vi.mock('@/background/schedule-execution', () => ({
   }),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => mockFeatureFlags)
+vi.mock('@/lib/core/config/env-flags', () => mockFeatureFlags)
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({

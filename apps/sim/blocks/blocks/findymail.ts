@@ -435,6 +435,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
 
 export const FindymailBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.findymail.com',
   templates: [
     {
       icon: FindymailIcon,

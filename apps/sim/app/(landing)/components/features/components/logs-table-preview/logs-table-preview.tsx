@@ -1,5 +1,5 @@
-import { ArrowUpDown, Badge, Library, ListFilter, Workflow } from '@/components/emcn'
-import type { BadgeProps } from '@/components/emcn/components/badge/badge'
+import type { BadgeProps } from '@sim/emcn'
+import { ArrowUpDown, Badge, Library, ListFilter, Workflow } from '@sim/emcn'
 
 /**
  * LogsTablePreview - a static recreation of the Sim Logs page, used as the

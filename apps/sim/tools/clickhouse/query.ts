@@ -5,7 +5,7 @@ export const queryTool: ToolConfig<ClickHouseQueryParams, ClickHouseQueryRespons
   id: 'clickhouse_query',
   name: 'ClickHouse Query',
   description: 'Execute a SELECT query on a ClickHouse database',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

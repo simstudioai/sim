@@ -7,6 +7,7 @@ import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getAllowedIntegrationsContract } from '@/lib/api/contracts/common'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -22,6 +23,7 @@ export interface PermissionConfigResult {
   isBlockAllowed: (blockType: string) => boolean
   isProviderAllowed: (providerId: string) => boolean
   isModelAllowed: (model: string) => boolean
+  isToolAllowed: (toolId: string) => boolean
   isInvitationsDisabled: boolean
   isPublicApiDisabled: boolean
 }
@@ -30,9 +32,14 @@ interface AllowedIntegrationsResponse {
   allowedIntegrations: string[] | null
 }
 
+const allowedIntegrationsKeys = {
+  all: ['allowedIntegrations'] as const,
+  env: () => [...allowedIntegrationsKeys.all, 'env'] as const,
+}
+
 function useAllowedIntegrationsFromEnv() {
   return useQuery<AllowedIntegrationsResponse>({
-    queryKey: ['allowedIntegrations', 'env'],
+    queryKey: allowedIntegrationsKeys.env(),
     queryFn: async ({ signal }) => {
       try {
         return await requestJson(getAllowedIntegrationsContract, { signal })
@@ -86,7 +93,7 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
-      if (blockType === 'start_trigger') return true
+      if (isBlockTypeAccessControlExempt(blockType)) return true
       if (mergedAllowedIntegrations === null) return true
       return mergedAllowedIntegrations.includes(blockType.toLowerCase())
     }
@@ -107,12 +114,19 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [config.deniedModels])
 
+  const isToolAllowed = useMemo(() => {
+    return (toolId: string) => {
+      if (config.deniedTools.length === 0) return true
+      return !config.deniedTools.includes(toolId)
+    }
+  }, [config.deniedTools])
+
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {
       if (mergedAllowedIntegrations === null) return blocks
       return blocks.filter(
         (block) =>
-          block.type === 'start_trigger' ||
+          isBlockTypeAccessControlExempt(block.type) ||
           mergedAllowedIntegrations.includes(block.type.toLowerCase())
       )
     }
@@ -150,6 +164,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isBlockAllowed,
       isProviderAllowed,
       isModelAllowed,
+      isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
     }),
@@ -162,6 +177,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isBlockAllowed,
       isProviderAllowed,
       isModelAllowed,
+      isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
     ]

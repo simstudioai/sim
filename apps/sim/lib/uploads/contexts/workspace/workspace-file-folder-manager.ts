@@ -9,6 +9,13 @@ import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
 
+/**
+ * Bounds the workspace-file-folder advisory-lock wait so a stuck holder fails
+ * fast (SQLSTATE 55P03) rather than hanging, even if the deployment lacks a
+ * server-side `lock_timeout`. Transaction-scoped via `set_config(..., true)`.
+ */
+const WORKSPACE_FILE_FOLDER_LOCK_TIMEOUT_MS = 5_000
+
 export type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 
 export class WorkspaceFileFolderConflictError extends Error {
@@ -109,6 +116,9 @@ async function acquireWorkspaceFileFolderMutationLock(
   tx: WorkspaceFileFolderLockTx,
   workspaceId: string
 ) {
+  await tx.execute(
+    sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_FILE_FOLDER_LOCK_TIMEOUT_MS}ms`}, true)`
+  )
   await tx.execute(
     sql`SELECT pg_advisory_xact_lock(hashtextextended(${`workspace_file_folders:${workspaceId}`}, 0))`
   )

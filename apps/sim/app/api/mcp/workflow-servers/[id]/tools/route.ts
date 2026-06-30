@@ -64,6 +64,7 @@ export const GET = withRouteHandler(
             toolName: workflowMcpTool.toolName,
             toolDescription: workflowMcpTool.toolDescription,
             parameterSchema: workflowMcpTool.parameterSchema,
+            parameterDescriptionOverrides: workflowMcpTool.parameterDescriptionOverrides,
             createdAt: workflowMcpTool.createdAt,
             updatedAt: workflowMcpTool.updatedAt,
             workflowName: workflow.name,
@@ -122,6 +123,7 @@ export const POST = withRouteHandler(
           workflowId: body.workflowId,
           toolName: body.toolName,
           toolDescription: body.toolDescription,
+          parameterDescriptionOverrides: body.parameterDescriptionOverrides,
           parameterSchema: body.parameterSchema,
         })
         if (!result.success || !result.tool) {

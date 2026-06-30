@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 
 interface StreamSnapshotLike {
   events: StreamBatchEvent[]
@@ -32,12 +34,8 @@ export function getLiveAssistantMessageId(streamId: string): string {
   return `live-assistant:${streamId}`
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 function asPayloadRecord(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined
+  return isRecordLike(value) ? value : undefined
 }
 
 function isTerminalStreamStatus(status: string | null | undefined): boolean {
@@ -61,15 +59,6 @@ function buildInlineErrorTag(payload: MothershipStreamV1ErrorPayload): string {
     ...(code ? { code } : {}),
     ...(provider ? { provider } : {}),
   })}</mothership-error>`
-}
-
-function resolveToolDisplayTitle(ui: unknown): string | undefined {
-  if (!isRecord(ui)) return undefined
-  return typeof ui.title === 'string'
-    ? ui.title
-    : typeof ui.phaseLabel === 'string'
-      ? ui.phaseLabel
-      : undefined
 }
 
 function appendTextBlock(
@@ -122,6 +111,9 @@ function buildLiveAssistantMessage(params: {
   let requestId: string | undefined
   let lastTimestamp: string | undefined
 
+  // Scope-only resolution (mirrors the live browser stream loop): with
+  // concurrent subagents the legacy activeSubagent fallback / name-match scan
+  // would mis-attribute interleaved replayed events to the wrong lane.
   const resolveScopedSubagent = (
     agentId: string | undefined,
     parentToolCallId: string | undefined,
@@ -136,7 +128,7 @@ function buildLiveAssistantMessage(params: {
       const scoped = subagentByParentToolCallId.get(parentToolCallId)
       if (scoped) return scoped
     }
-    return activeSubagent
+    return undefined
   }
 
   const resolveParentForSubagentBlock = (
@@ -144,12 +136,7 @@ function buildLiveAssistantMessage(params: {
     scopedParent: string | undefined
   ): string | undefined => {
     if (!subagent) return undefined
-    if (scopedParent) return scopedParent
-    if (activeSubagent === subagent) return activeSubagentParentToolCallId
-    for (const [parent, name] of subagentByParentToolCallId) {
-      if (name === subagent) return parent
-    }
-    return undefined
+    return scopedParent
   }
 
   const ensureToolBlock = (input: {
@@ -282,7 +269,6 @@ function buildLiveAssistantMessage(params: {
       case MothershipStreamV1EventType.tool: {
         const payload = parsed.payload
         const toolCallId = payload.toolCallId
-        const displayTitle = resolveToolDisplayTitle('ui' in payload ? payload.ui : undefined)
 
         if ('previewPhase' in payload) {
           continue
@@ -317,8 +303,11 @@ function buildLiveAssistantMessage(params: {
           calledBy: scopedSubagent,
           ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
           ...spanIdentity,
-          displayTitle,
-          params: isRecord(payload.arguments) ? payload.arguments : undefined,
+          displayTitle: getToolDisplayTitle(
+            payload.toolName,
+            isRecordLike(payload.arguments) ? payload.arguments : undefined
+          ),
+          params: isRecordLike(payload.arguments) ? payload.arguments : undefined,
           state: typeof payload.status === 'string' ? payload.status : 'executing',
         })
         continue
@@ -367,11 +356,10 @@ function buildLiveAssistantMessage(params: {
           if (parentToolCallId) {
             subagentByParentToolCallId.delete(parentToolCallId)
           }
-          if (
-            !parentToolCallId ||
-            parentToolCallId === activeSubagentParentToolCallId ||
-            name === activeSubagent
-          ) {
+          // Clear the legacy pointer only for THIS lane (by parent tool call id)
+          // or an unscoped end — never by agent name, which would tear down a
+          // concurrent same-name sibling that is still open.
+          if (!parentToolCallId || parentToolCallId === activeSubagentParentToolCallId) {
             activeSubagent = undefined
             activeSubagentParentToolCallId = undefined
           }

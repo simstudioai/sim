@@ -1,18 +1,18 @@
 'use client'
 
+import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn'
 import { ArrowLeftRight, Info } from 'lucide-react'
-import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@/components/emcn'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
+import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { SelectorKey } from '@/hooks/selectors/types'
 
 export interface ConnectorConfigFieldsProps {
   /** Registry definition whose `configFields` drive the rendered rows. */
-  connectorConfig: ConnectorConfig
+  connectorConfig: ConnectorMeta
   /** Current values keyed by field ID. */
   sourceConfig: ConfigFieldMap
   /** OAuth credential backing selector fields, when available. */

@@ -62,7 +62,7 @@ Create and manage custom data tables. Store, query, and manipulate structured da
 
 ### `table_insert_row`
 
-Insert a new row into a table. IMPORTANT: You must use the 
+Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
 #### Input
 
@@ -80,6 +80,8 @@ Insert a new row into a table. IMPORTANT: You must use the
 | `message` | string | Status message |
 
 ### `table_batch_insert_rows`
+
+Insert multiple rows into a table at once (up to $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE\} rows)
 
 #### Input
 
@@ -99,7 +101,7 @@ Insert a new row into a table. IMPORTANT: You must use the
 
 ### `table_upsert_row`
 
-Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the 
+Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
 #### Input
 
@@ -107,6 +109,7 @@ Insert or update a row based on unique column constraints. If a row with matchin
 | --------- | ---- | -------- | ----------- |
 | `tableId` | string | Yes | Table ID |
 | `data` | object | Yes | Row data to insert or update |
+| `conflictTarget` | string | No | Unique column to match on. Required only when the table has more than one unique column. |
 
 #### Output
 
@@ -119,7 +122,7 @@ Insert or update a row based on unique column constraints. If a row with matchin
 
 ### `table_update_row`
 
-Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the 
+Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the fields to update.
 
 #### Input
 
@@ -259,7 +262,10 @@ Get the schema configuration of a table
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether schema was retrieved |
 | `name` | string | Table name |
-| `columns` | array | Column definitions |
+| `columns` | array | Column definitions \(each includes its stable id\) |
+| `columnCount` | number | Number of columns |
+| `rowCount` | number | Number of rows in the table |
+| `maxRows` | number | Max rows per table for the workspace's plan |
 | `message` | string | Status message |
 
 {/* MANUAL-CONTENT-START:notes */}

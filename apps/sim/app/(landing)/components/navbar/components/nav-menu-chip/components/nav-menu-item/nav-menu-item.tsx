@@ -1,5 +1,5 @@
+import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
-import { ArrowRight } from '@/components/emcn/icons'
 import type { NavMenuItemData } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
 
 /**

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import {
@@ -27,7 +28,7 @@ import {
   isHosted,
   isInboxEnabled,
   isSsoEnabled,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('SubscriptionCore')
@@ -50,6 +51,21 @@ export function getBillingInterval(
   metadata: SubscriptionMetadata | null | undefined
 ): 'month' | 'year' {
   return metadata?.billingInterval === 'year' ? 'year' : 'month'
+}
+
+/**
+ * Resolves a subscription's effective billing interval. Prefers the Stripe-synced
+ * `billingInterval` column — the only source populated on enterprise/manual
+ * subscriptions, which skip the checkout flow that writes the metadata value — and
+ * falls back to `metadata.billingInterval` (the column is often null on
+ * checkout-created subs), defaulting to monthly. Where both are set they agree.
+ */
+export function resolveBillingInterval(
+  sub: { billingInterval?: string | null; metadata?: unknown } | null | undefined
+): 'month' | 'year' {
+  const column = sub?.billingInterval
+  if (column === 'year' || column === 'month') return column
+  return getBillingInterval((sub?.metadata ?? null) as SubscriptionMetadata | null)
 }
 
 /**
@@ -183,7 +199,7 @@ export async function getOrganizationIdForSubscriptionReference(
     .where(eq(member.userId, referenceId))
     .limit(1)
 
-  if (memberRecord && (memberRecord.role === 'owner' || memberRecord.role === 'admin')) {
+  if (memberRecord && isOrgAdminRole(memberRecord.role)) {
     return memberRecord.organizationId
   }
 

@@ -61,7 +61,7 @@ export const googleAdsListCampaignsTool: ToolConfig<
   request: {
     url: (params) => {
       const customerId = validateNumericId(params.customerId, 'customerId')
-      return `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:search`
+      return `https://googleads.googleapis.com/v24/customers/${customerId}/googleAds:search`
     },
     method: 'POST',
     headers: (params) => {

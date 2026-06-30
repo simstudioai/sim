@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ChipLink } from '@/components/emcn'
+import { ChipLink } from '@sim/emcn'
 
 interface IntegrationTabsHeaderProps {
   active: 'integrations' | 'skills'

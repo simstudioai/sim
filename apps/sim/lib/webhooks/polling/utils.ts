@@ -148,8 +148,13 @@ export async function runWithConcurrency(
 }
 
 /**
- * Read-merge-write pattern for updating provider-specific config fields.
+ * Atomically merge provider-specific config fields into `webhook.provider_config`.
  * Each provider passes its specific state updates (historyId, lastSeenGuids, etc.).
+ *
+ * The column is `json` (not `jsonb`), which has no merge operators, so the existing
+ * value is cast to `jsonb` for the `||`/`-` merge and the result cast back to `json`
+ * for storage. Casting is required — a bare `jsonb` expression cannot be assigned to
+ * the `json` column.
  */
 export async function updateWebhookProviderConfig(
   webhookId: string,
@@ -157,16 +162,20 @@ export async function updateWebhookProviderConfig(
   logger: Logger
 ): Promise<void> {
   try {
-    const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
-    const existingConfig = (result[0]?.providerConfig as Record<string, unknown>) || {}
+    const defined: Record<string, unknown> = {}
+    const removedKeys: string[] = []
+    for (const [key, value] of Object.entries(configUpdates)) {
+      if (value === undefined) removedKeys.push(key)
+      else defined[key] = value
+    }
+
+    const merged = sql`COALESCE(${webhook.providerConfig}::jsonb, '{}'::jsonb) || ${JSON.stringify(defined)}::jsonb`
+    const nextConfig = removedKeys.length > 0 ? sql`(${merged}) - ${removedKeys}::text[]` : merged
 
     await db
       .update(webhook)
       .set({
-        providerConfig: {
-          ...existingConfig,
-          ...configUpdates,
-        } as Record<string, unknown>,
+        providerConfig: sql`(${nextConfig})::json`,
         updatedAt: new Date(),
       })
       .where(eq(webhook.id, webhookId))

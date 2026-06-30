@@ -1,9 +1,7 @@
 'use client'
-
+import { Chip, cn } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
-import { Chip } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { cn } from '@/lib/core/utils/cn'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 interface SSOLoginButtonProps {

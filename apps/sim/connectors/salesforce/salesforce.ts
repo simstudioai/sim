@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { SalesforceIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { salesforceConnectorMeta } from '@/connectors/salesforce/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
@@ -266,35 +266,7 @@ function recordToDocument(
 }
 
 export const salesforceConnector: ConnectorConfig = {
-  id: 'salesforce',
-  name: 'Salesforce',
-  description: 'Sync records from Salesforce',
-  version: '1.0.0',
-  icon: SalesforceIcon,
-
-  auth: { mode: 'oauth', provider: 'salesforce', requiredScopes: ['api', 'refresh_token'] },
-
-  configFields: [
-    {
-      id: 'objectType',
-      title: 'Object Type',
-      type: 'dropdown',
-      required: true,
-      options: [
-        { label: 'Knowledge Articles', id: 'KnowledgeArticleVersion' },
-        { label: 'Cases', id: 'Case' },
-        { label: 'Accounts', id: 'Account' },
-        { label: 'Opportunities', id: 'Opportunity' },
-      ],
-    },
-    {
-      id: 'maxRecords',
-      title: 'Max Records',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...salesforceConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -483,13 +455,6 @@ export const salesforceConnector: ConnectorConfig = {
       return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
-
-  tagDefinitions: [
-    { id: 'objectType', displayName: 'Object Type', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'recordNumber', displayName: 'Record Number', fieldType: 'text' },
-    { id: 'status', displayName: 'Status', fieldType: 'text' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

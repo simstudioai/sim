@@ -59,6 +59,15 @@ import {
   circlebackWebhookTrigger,
 } from '@/triggers/circleback'
 import {
+  clerkOrganizationCreatedTrigger,
+  clerkOrganizationMembershipCreatedTrigger,
+  clerkSessionCreatedTrigger,
+  clerkUserCreatedTrigger,
+  clerkUserDeletedTrigger,
+  clerkUserUpdatedTrigger,
+  clerkWebhookTrigger,
+} from '@/triggers/clerk'
+import {
   confluenceAttachmentCreatedTrigger,
   confluenceAttachmentRemovedTrigger,
   confluenceAttachmentUpdatedTrigger,
@@ -119,6 +128,14 @@ import {
   githubWebhookTrigger,
   githubWorkflowRunTrigger,
 } from '@/triggers/github'
+import {
+  gitlabCommentTrigger,
+  gitlabIssueTrigger,
+  gitlabMergeRequestTrigger,
+  gitlabPipelineTrigger,
+  gitlabPushTrigger,
+  gitlabWebhookTrigger,
+} from '@/triggers/gitlab'
 import { gmailPollingTrigger } from '@/triggers/gmail'
 import { gongCallCompletedTrigger, gongWebhookTrigger } from '@/triggers/gong'
 import { googleCalendarPollingTrigger } from '@/triggers/google-calendar'
@@ -147,6 +164,12 @@ import {
 } from '@/triggers/greenhouse'
 import { hubspotPollingTrigger } from '@/triggers/hubspot'
 import { imapPollingTrigger } from '@/triggers/imap'
+import {
+  incidentioAlertCreatedTrigger,
+  incidentioIncidentCreatedTrigger,
+  incidentioIncidentStatusUpdatedTrigger,
+  incidentioIncidentUpdatedTrigger,
+} from '@/triggers/incidentio'
 import {
   instantlyAccountErrorTrigger,
   instantlyAutoReplyReceivedTrigger,
@@ -245,6 +268,16 @@ import {
   linearWebhookV2Trigger,
 } from '@/triggers/linear'
 import {
+  loopsCampaignEmailSentTrigger,
+  loopsEmailClickedTrigger,
+  loopsEmailDeliveredTrigger,
+  loopsEmailHardBouncedTrigger,
+  loopsEmailOpenedTrigger,
+  loopsEmailSoftBouncedTrigger,
+  loopsLoopEmailSentTrigger,
+  loopsTransactionalEmailSentTrigger,
+} from '@/triggers/loops'
+import {
   microsoftTeamsChatSubscriptionTrigger,
   microsoftTeamsWebhookTrigger,
 } from '@/triggers/microsoftteams'
@@ -272,6 +305,14 @@ import {
 } from '@/triggers/notion'
 import { outlookPollingTrigger } from '@/triggers/outlook'
 import {
+  pagerdutyIncidentAcknowledgedTrigger,
+  pagerdutyIncidentEscalatedTrigger,
+  pagerdutyIncidentReassignedTrigger,
+  pagerdutyIncidentResolvedTrigger,
+  pagerdutyIncidentTriggeredTrigger,
+  pagerdutyWebhookTrigger,
+} from '@/triggers/pagerduty'
+import {
   resendEmailBouncedTrigger,
   resendEmailClickedTrigger,
   resendEmailComplainedTrigger,
@@ -281,6 +322,20 @@ import {
   resendEmailSentTrigger,
   resendWebhookTrigger,
 } from '@/triggers/resend'
+import {
+  revenueCatCancellationTrigger,
+  revenueCatExpirationTrigger,
+  revenueCatInitialPurchaseTrigger,
+  revenueCatNonRenewingPurchaseTrigger,
+  revenueCatProductChangeTrigger,
+  revenueCatRenewalTrigger,
+} from '@/triggers/revenuecat'
+import {
+  rootlyAlertCreatedTrigger,
+  rootlyIncidentCreatedTrigger,
+  rootlyIncidentResolvedTrigger,
+  rootlyIncidentUpdatedTrigger,
+} from '@/triggers/rootly'
 import { rssPollingTrigger } from '@/triggers/rss'
 import {
   salesforceCaseStatusChangedTrigger,
@@ -295,6 +350,13 @@ import {
   sendblueMessageStatusUpdatedTrigger,
 } from '@/triggers/sendblue'
 import {
+  sentryErrorCreatedTrigger,
+  sentryIssueAlertTrigger,
+  sentryIssueCreatedTrigger,
+  sentryIssueResolvedTrigger,
+  sentryMetricAlertTrigger,
+} from '@/triggers/sentry'
+import {
   servicenowChangeRequestCreatedTrigger,
   servicenowChangeRequestUpdatedTrigger,
   servicenowIncidentCreatedTrigger,
@@ -306,6 +368,7 @@ import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { tableNewRowTrigger } from '@/triggers/table'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
+import { twilioSmsReceivedTrigger, twilioSmsStatusTrigger } from '@/triggers/twilio'
 import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice'
 import { typeformWebhookTrigger } from '@/triggers/typeform'
 import type { TriggerRegistry } from '@/triggers/types'
@@ -326,6 +389,13 @@ import {
   webflowFormSubmissionTrigger,
 } from '@/triggers/webflow'
 import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
+import {
+  zendeskTicketCommentAddedTrigger,
+  zendeskTicketCreatedTrigger,
+  zendeskTicketPriorityChangedTrigger,
+  zendeskTicketStatusChangedTrigger,
+  zendeskWebhookTrigger,
+} from '@/triggers/zendesk'
 import {
   zoomMeetingEndedTrigger,
   zoomMeetingStartedTrigger,
@@ -443,6 +513,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   github_push: githubPushTrigger,
   github_release_published: githubReleasePublishedTrigger,
   github_workflow_run: githubWorkflowRunTrigger,
+  gitlab_push: gitlabPushTrigger,
+  gitlab_merge_request: gitlabMergeRequestTrigger,
+  gitlab_issue: gitlabIssueTrigger,
+  gitlab_pipeline: gitlabPipelineTrigger,
+  gitlab_comment: gitlabCommentTrigger,
+  gitlab_webhook: gitlabWebhookTrigger,
   fireflies_transcription_complete: firefliesTranscriptionCompleteTrigger,
   fathom_new_meeting: fathomNewMeetingTrigger,
   fathom_webhook: fathomWebhookTrigger,
@@ -543,6 +619,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   notion_comment_created: notionCommentCreatedTrigger,
   notion_webhook: notionWebhookTrigger,
   outlook_poller: outlookPollingTrigger,
+  pagerduty_incident_triggered: pagerdutyIncidentTriggeredTrigger,
+  pagerduty_incident_acknowledged: pagerdutyIncidentAcknowledgedTrigger,
+  pagerduty_incident_resolved: pagerdutyIncidentResolvedTrigger,
+  pagerduty_incident_escalated: pagerdutyIncidentEscalatedTrigger,
+  pagerduty_incident_reassigned: pagerdutyIncidentReassignedTrigger,
+  pagerduty_webhook: pagerdutyWebhookTrigger,
   resend_email_sent: resendEmailSentTrigger,
   resend_email_delivered: resendEmailDeliveredTrigger,
   resend_email_bounced: resendEmailBouncedTrigger,
@@ -614,9 +696,50 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   instantly_lead_no_show: instantlyLeadNoShowTrigger,
   instantly_supersearch_enrichment_completed: instantlySupersearchEnrichmentCompletedTrigger,
   zoom_meeting_started: zoomMeetingStartedTrigger,
+  zendesk_ticket_created: zendeskTicketCreatedTrigger,
+  zendesk_ticket_status_changed: zendeskTicketStatusChangedTrigger,
+  zendesk_ticket_comment_added: zendeskTicketCommentAddedTrigger,
+  zendesk_ticket_priority_changed: zendeskTicketPriorityChangedTrigger,
+  zendesk_webhook: zendeskWebhookTrigger,
   zoom_meeting_ended: zoomMeetingEndedTrigger,
   zoom_participant_joined: zoomParticipantJoinedTrigger,
   zoom_participant_left: zoomParticipantLeftTrigger,
   zoom_recording_completed: zoomRecordingCompletedTrigger,
   zoom_webhook: zoomWebhookTrigger,
+  clerk_user_created: clerkUserCreatedTrigger,
+  clerk_user_updated: clerkUserUpdatedTrigger,
+  clerk_user_deleted: clerkUserDeletedTrigger,
+  clerk_session_created: clerkSessionCreatedTrigger,
+  clerk_organization_created: clerkOrganizationCreatedTrigger,
+  clerk_organization_membership_created: clerkOrganizationMembershipCreatedTrigger,
+  clerk_webhook: clerkWebhookTrigger,
+  incidentio_incident_created: incidentioIncidentCreatedTrigger,
+  incidentio_incident_updated: incidentioIncidentUpdatedTrigger,
+  incidentio_incident_status_updated: incidentioIncidentStatusUpdatedTrigger,
+  incidentio_alert_created: incidentioAlertCreatedTrigger,
+  rootly_incident_created: rootlyIncidentCreatedTrigger,
+  rootly_incident_updated: rootlyIncidentUpdatedTrigger,
+  rootly_incident_resolved: rootlyIncidentResolvedTrigger,
+  rootly_alert_created: rootlyAlertCreatedTrigger,
+  revenuecat_initial_purchase: revenueCatInitialPurchaseTrigger,
+  revenuecat_renewal: revenueCatRenewalTrigger,
+  revenuecat_cancellation: revenueCatCancellationTrigger,
+  revenuecat_expiration: revenueCatExpirationTrigger,
+  revenuecat_non_renewing_purchase: revenueCatNonRenewingPurchaseTrigger,
+  revenuecat_product_change: revenueCatProductChangeTrigger,
+  loops_email_delivered: loopsEmailDeliveredTrigger,
+  loops_email_opened: loopsEmailOpenedTrigger,
+  loops_email_clicked: loopsEmailClickedTrigger,
+  loops_email_hard_bounced: loopsEmailHardBouncedTrigger,
+  loops_email_soft_bounced: loopsEmailSoftBouncedTrigger,
+  loops_campaign_email_sent: loopsCampaignEmailSentTrigger,
+  loops_loop_email_sent: loopsLoopEmailSentTrigger,
+  loops_transactional_email_sent: loopsTransactionalEmailSentTrigger,
+  sentry_issue_created: sentryIssueCreatedTrigger,
+  sentry_issue_resolved: sentryIssueResolvedTrigger,
+  sentry_error_created: sentryErrorCreatedTrigger,
+  sentry_issue_alert: sentryIssueAlertTrigger,
+  sentry_metric_alert: sentryMetricAlertTrigger,
+  twilio_sms_received: twilioSmsReceivedTrigger,
+  twilio_sms_status: twilioSmsStatusTrigger,
 }

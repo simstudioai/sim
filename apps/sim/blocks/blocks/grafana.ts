@@ -13,44 +13,43 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/grafana',
   category: 'tools',
   integrationType: IntegrationType.Observability,
-  bgColor: '#FFFFFF',
+  bgColor: '#F46800',
   icon: GrafanaIcon,
   subBlocks: [
-    // Operation dropdown
     {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Dashboards
         { label: 'List Dashboards', id: 'grafana_list_dashboards' },
         { label: 'Get Dashboard', id: 'grafana_get_dashboard' },
         { label: 'Create Dashboard', id: 'grafana_create_dashboard' },
         { label: 'Update Dashboard', id: 'grafana_update_dashboard' },
         { label: 'Delete Dashboard', id: 'grafana_delete_dashboard' },
-        // Alerts
         { label: 'List Alert Rules', id: 'grafana_list_alert_rules' },
         { label: 'Get Alert Rule', id: 'grafana_get_alert_rule' },
         { label: 'Create Alert Rule', id: 'grafana_create_alert_rule' },
         { label: 'Update Alert Rule', id: 'grafana_update_alert_rule' },
         { label: 'Delete Alert Rule', id: 'grafana_delete_alert_rule' },
         { label: 'List Contact Points', id: 'grafana_list_contact_points' },
-        // Annotations
+        { label: 'Create Contact Point', id: 'grafana_create_contact_point' },
         { label: 'Create Annotation', id: 'grafana_create_annotation' },
         { label: 'List Annotations', id: 'grafana_list_annotations' },
         { label: 'Update Annotation', id: 'grafana_update_annotation' },
         { label: 'Delete Annotation', id: 'grafana_delete_annotation' },
-        // Data Sources
         { label: 'List Data Sources', id: 'grafana_list_data_sources' },
         { label: 'Get Data Source', id: 'grafana_get_data_source' },
-        // Folders
+        { label: 'Check Data Source Health', id: 'grafana_check_data_source_health' },
         { label: 'List Folders', id: 'grafana_list_folders' },
         { label: 'Create Folder', id: 'grafana_create_folder' },
+        { label: 'Get Folder', id: 'grafana_get_folder' },
+        { label: 'Update Folder', id: 'grafana_update_folder' },
+        { label: 'Delete Folder', id: 'grafana_delete_folder' },
+        { label: 'Get Health', id: 'grafana_get_health' },
       ],
       value: () => 'grafana_list_dashboards',
     },
 
-    // Base Configuration (common to all operations)
     {
       id: 'baseUrl',
       title: 'Grafana URL',
@@ -73,7 +72,6 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
       placeholder: 'Optional - for multi-org instances',
     },
 
-    // Data Source operations
     {
       id: 'dataSourceId',
       title: 'Data Source ID',
@@ -85,8 +83,18 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         value: 'grafana_get_data_source',
       },
     },
+    {
+      id: 'dataSourceUid',
+      title: 'Data Source UID',
+      type: 'short-input',
+      placeholder: 'Enter data source UID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'grafana_check_data_source_health',
+      },
+    },
 
-    // Dashboard operations
     {
       id: 'dashboardUid',
       title: 'Dashboard UID',
@@ -152,8 +160,25 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
         value: ['grafana_list_dashboards', 'grafana_list_folders'],
       },
     },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Maximum results to return',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_list_dashboards', 'grafana_list_folders', 'grafana_list_annotations'],
+      },
+    },
+    {
+      id: 'starred',
+      title: 'Only Starred',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_dashboards' },
+    },
 
-    // Create/Update Dashboard
     {
       id: 'title',
       title: 'Dashboard Title',
@@ -268,7 +293,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       },
     },
 
-    // Alert Rule operations
     {
       id: 'alertRuleUid',
       title: 'Alert Rule UID',
@@ -285,6 +309,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       title: 'Alert Title',
       type: 'short-input',
       placeholder: 'Enter alert rule name',
+      required: { field: 'operation', value: 'grafana_create_alert_rule' },
       condition: {
         field: 'operation',
         value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
@@ -311,6 +336,7 @@ Return ONLY the alert title - no explanations, no quotes, no extra text.`,
       title: 'Rule Group',
       type: 'short-input',
       placeholder: 'Enter rule group name',
+      required: { field: 'operation', value: 'grafana_create_alert_rule' },
       condition: {
         field: 'operation',
         value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
@@ -331,6 +357,7 @@ Return ONLY the alert title - no explanations, no quotes, no extra text.`,
       title: 'Query Data (JSON)',
       type: 'long-input',
       placeholder: 'JSON array of query/expression data objects',
+      required: { field: 'operation', value: 'grafana_create_alert_rule' },
       condition: {
         field: 'operation',
         value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
@@ -509,11 +536,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+        value: [
+          'grafana_create_alert_rule',
+          'grafana_update_alert_rule',
+          'grafana_create_contact_point',
+        ],
       },
     },
 
-    // Annotation operations
     {
       id: 'text',
       title: 'Annotation Text',
@@ -588,6 +618,19 @@ Return ONLY the annotation text - no explanations, no quotes, no extra text.`,
       title: 'User ID',
       type: 'short-input',
       placeholder: 'Filter by creator user ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_annotations' },
+    },
+    {
+      id: 'annotationType',
+      title: 'Type',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Alert', id: 'alert' },
+        { label: 'Annotation', id: 'annotation' },
+      ],
+      value: () => '',
       mode: 'advanced',
       condition: { field: 'operation', value: 'grafana_list_annotations' },
     },
@@ -689,7 +732,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Folder operations
     {
       id: 'folderTitle',
       title: 'Folder Title',
@@ -738,12 +780,93 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'grafana_list_folders' },
     },
     {
+      id: 'manageFolderUid',
+      title: 'Folder UID',
+      type: 'short-input',
+      placeholder: 'Enter folder UID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['grafana_get_folder', 'grafana_update_folder', 'grafana_delete_folder'],
+      },
+    },
+    {
+      id: 'updateFolderTitle',
+      title: 'New Folder Title',
+      type: 'short-input',
+      placeholder: 'Enter new folder title',
+      required: { field: 'operation', value: 'grafana_update_folder' },
+      condition: { field: 'operation', value: 'grafana_update_folder' },
+    },
+    {
+      id: 'forceDeleteRules',
+      title: 'Force Delete Alert Rules',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_delete_folder' },
+    },
+
+    {
       id: 'contactPointName',
       title: 'Contact Point Name',
       type: 'short-input',
       placeholder: 'Filter by exact name',
       mode: 'advanced',
       condition: { field: 'operation', value: 'grafana_list_contact_points' },
+    },
+    {
+      id: 'contactPointNameNew',
+      title: 'Contact Point Name',
+      type: 'short-input',
+      placeholder: 'Enter contact point name',
+      required: true,
+      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+    },
+    {
+      id: 'contactPointType',
+      title: 'Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Slack', id: 'slack' },
+        { label: 'Email', id: 'email' },
+        { label: 'PagerDuty', id: 'pagerduty' },
+        { label: 'Webhook', id: 'webhook' },
+        { label: 'Microsoft Teams', id: 'teams' },
+        { label: 'Opsgenie', id: 'opsgenie' },
+        { label: 'Discord', id: 'discord' },
+      ],
+      value: () => 'slack',
+      required: true,
+      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+    },
+    {
+      id: 'contactPointSettings',
+      title: 'Settings (JSON)',
+      type: 'long-input',
+      placeholder: 'JSON object of receiver settings (e.g., {"url":"https://hooks.slack.com/..."})',
+      required: true,
+      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Grafana contact point settings JSON object based on the user's description and receiver type.
+
+Examples by type:
+- slack -> {"recipient":"#alerts","url":"https://hooks.slack.com/services/XXX"}
+- email -> {"addresses":"oncall@example.com;sre@example.com"}
+- pagerduty -> {"integrationKey":"YOUR_INTEGRATION_KEY","severity":"critical"}
+- webhook -> {"url":"https://example.com/hook","httpMethod":"POST"}
+
+Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the notification target...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'disableResolveMessage',
+      title: 'Disable Resolve Message',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_create_contact_point' },
     },
   ],
   tools: {
@@ -759,39 +882,96 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       'grafana_update_alert_rule',
       'grafana_delete_alert_rule',
       'grafana_list_contact_points',
+      'grafana_create_contact_point',
       'grafana_create_annotation',
       'grafana_list_annotations',
       'grafana_update_annotation',
       'grafana_delete_annotation',
       'grafana_list_data_sources',
       'grafana_get_data_source',
+      'grafana_check_data_source_health',
       'grafana_list_folders',
       'grafana_create_folder',
+      'grafana_get_folder',
+      'grafana_update_folder',
+      'grafana_delete_folder',
+      'grafana_get_health',
     ],
     config: {
       tool: (params) => params.operation,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.alertTitle) result.title = params.alertTitle
-        if (params.folderTitle) result.title = params.folderTitle
-        if (params.folderUidNew) result.uid = params.folderUidNew
-        if (params.alertRuleUidNew) result.uid = params.alertRuleUidNew
-        if (params.parentUidNew) result.parentUid = params.parentUidNew
-        if (params.parentUidList) result.parentUid = params.parentUidList
-        if (params.contactPointName) result.name = params.contactPointName
-        if (params.annotationTags) result.tags = params.annotationTags
-        if (params.annotationDashboardUid) result.dashboardUid = params.annotationDashboardUid
-        if (params.panelId) result.panelId = Number(params.panelId)
-        if (params.annotationId) result.annotationId = Number(params.annotationId)
-        if (params.alertId) result.alertId = Number(params.alertId)
-        if (params.userId) result.userId = Number(params.userId)
-        if (params.time) result.time = Number(params.time)
-        if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
-        if (params.from) result.from = Number(params.from)
-        if (params.to) result.to = Number(params.to)
-        if (params.page) result.page = Number(params.page)
-        if (params.missingSeriesEvalsToResolve) {
-          result.missingSeriesEvalsToResolve = Number(params.missingSeriesEvalsToResolve)
+        switch (params.operation) {
+          case 'grafana_list_dashboards':
+            if (params.page) result.page = Number(params.page)
+            if (params.limit) result.limit = Number(params.limit)
+            break
+          case 'grafana_create_alert_rule':
+            if (params.alertTitle) result.title = params.alertTitle
+            if (params.alertRuleUidNew) result.uid = params.alertRuleUidNew
+            if (params.missingSeriesEvalsToResolve) {
+              result.missingSeriesEvalsToResolve = Number(params.missingSeriesEvalsToResolve)
+            }
+            break
+          case 'grafana_update_alert_rule':
+            if (params.alertTitle) result.title = params.alertTitle
+            if (params.missingSeriesEvalsToResolve) {
+              result.missingSeriesEvalsToResolve = Number(params.missingSeriesEvalsToResolve)
+            }
+            break
+          case 'grafana_list_contact_points':
+            if (params.contactPointName) result.name = params.contactPointName
+            break
+          case 'grafana_create_contact_point':
+            if (params.contactPointNameNew) result.name = params.contactPointNameNew
+            if (params.contactPointType) result.type = params.contactPointType
+            if (params.contactPointSettings) result.settings = params.contactPointSettings
+            break
+          case 'grafana_create_annotation':
+            if (params.annotationTags) result.tags = params.annotationTags
+            if (params.annotationDashboardUid) result.dashboardUid = params.annotationDashboardUid
+            if (params.panelId) result.panelId = Number(params.panelId)
+            if (params.time) result.time = Number(params.time)
+            if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
+            break
+          case 'grafana_update_annotation':
+            if (params.annotationTags) result.tags = params.annotationTags
+            if (params.annotationId) result.annotationId = Number(params.annotationId)
+            if (params.time) result.time = Number(params.time)
+            if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
+            break
+          case 'grafana_delete_annotation':
+            if (params.annotationId) result.annotationId = Number(params.annotationId)
+            break
+          case 'grafana_list_annotations':
+            if (params.annotationTags) result.tags = params.annotationTags
+            if (params.annotationDashboardUid) result.dashboardUid = params.annotationDashboardUid
+            if (params.annotationType) result.type = params.annotationType
+            if (params.panelId) result.panelId = Number(params.panelId)
+            if (params.alertId) result.alertId = Number(params.alertId)
+            if (params.userId) result.userId = Number(params.userId)
+            if (params.from) result.from = Number(params.from)
+            if (params.to) result.to = Number(params.to)
+            if (params.limit) result.limit = Number(params.limit)
+            break
+          case 'grafana_list_folders':
+            if (params.parentUidList) result.parentUid = params.parentUidList
+            if (params.page) result.page = Number(params.page)
+            if (params.limit) result.limit = Number(params.limit)
+            break
+          case 'grafana_create_folder':
+            if (params.folderTitle) result.title = params.folderTitle
+            if (params.folderUidNew) result.uid = params.folderUidNew
+            if (params.parentUidNew) result.parentUid = params.parentUidNew
+            break
+          case 'grafana_get_folder':
+          case 'grafana_delete_folder':
+            if (params.manageFolderUid) result.folderUid = params.manageFolderUid
+            break
+          case 'grafana_update_folder':
+            if (params.manageFolderUid) result.folderUid = params.manageFolderUid
+            if (params.updateFolderTitle) result.title = params.updateFolderTitle
+            break
         }
         return result
       },
@@ -802,7 +982,6 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     baseUrl: { type: 'string', description: 'Grafana instance URL' },
     apiKey: { type: 'string', description: 'Service Account Token' },
     organizationId: { type: 'string', description: 'Organization ID (optional)' },
-    // Dashboard inputs
     dashboardUid: { type: 'string', description: 'Dashboard UID' },
     title: { type: 'string', description: 'Dashboard or folder title' },
     folderUid: { type: 'string', description: 'Folder UID' },
@@ -817,7 +996,8 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     },
     dashboardUIDs: { type: 'string', description: 'Filter by dashboard UIDs (comma-separated)' },
     page: { type: 'number', description: 'Page number for pagination' },
-    // Alert inputs
+    limit: { type: 'number', description: 'Maximum number of results to return' },
+    starred: { type: 'boolean', description: 'Only return starred dashboards' },
     alertRuleUid: { type: 'string', description: 'Alert rule UID' },
     alertRuleUidNew: { type: 'string', description: 'Custom UID for newly created alert rule' },
     alertTitle: { type: 'string', description: 'Alert rule title' },
@@ -848,7 +1028,6 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     annotations: { type: 'string', description: 'JSON of alert annotations' },
     labels: { type: 'string', description: 'JSON of alert labels' },
     overwrite: { type: 'boolean', description: 'Overwrite existing dashboard on version conflict' },
-    // Annotation inputs
     text: { type: 'string', description: 'Annotation text' },
     annotationId: { type: 'number', description: 'Annotation ID' },
     annotationTags: { type: 'string', description: 'Annotation tags (comma-separated)' },
@@ -860,30 +1039,52 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     to: { type: 'number', description: 'Filter to time' },
     alertId: { type: 'number', description: 'Filter annotations by alert ID' },
     userId: { type: 'number', description: 'Filter annotations by creator user ID' },
-    // Folder inputs
+    annotationType: {
+      type: 'string',
+      description: 'Filter annotations by type (alert or annotation)',
+    },
     folderTitle: { type: 'string', description: 'Folder title for newly created folder' },
     folderUidNew: { type: 'string', description: 'Custom UID for newly created folder' },
     parentUidList: { type: 'string', description: 'Parent folder UID to list children of' },
     parentUidNew: { type: 'string', description: 'Parent folder UID for newly created folder' },
-    // Contact point inputs
+    manageFolderUid: { type: 'string', description: 'UID of the folder to get, update, or delete' },
+    updateFolderTitle: { type: 'string', description: 'New title for the folder being updated' },
+    forceDeleteRules: {
+      type: 'boolean',
+      description: 'Delete alert rules stored in the folder when deleting it',
+    },
     contactPointName: { type: 'string', description: 'Filter contact points by name' },
-    // Data source inputs
+    contactPointNameNew: { type: 'string', description: 'Name for the new contact point' },
+    contactPointType: {
+      type: 'string',
+      description: 'Receiver type for the new contact point (e.g., slack, email)',
+    },
+    contactPointSettings: {
+      type: 'string',
+      description: 'JSON of receiver-specific settings for the new contact point',
+    },
+    disableResolveMessage: {
+      type: 'boolean',
+      description: 'Do not send a notification when the alert resolves',
+    },
     dataSourceId: { type: 'string', description: 'Data source ID or UID' },
+    dataSourceUid: { type: 'string', description: 'Data source UID for health checks' },
   },
   outputs: {
-    // Health outputs
     version: { type: 'string', description: 'Grafana version' },
     database: { type: 'string', description: 'Database health status' },
-    status: { type: 'string', description: 'Health status' },
-    // Dashboard outputs
+    commit: { type: 'string', description: 'Git commit hash of the Grafana build' },
+    status: { type: 'string', description: 'Health status (e.g., data source health)' },
     dashboard: { type: 'json', description: 'Dashboard JSON' },
     meta: { type: 'json', description: 'Dashboard metadata' },
     dashboards: { type: 'json', description: 'List of dashboards' },
     uid: { type: 'string', description: 'Created/updated UID' },
     url: { type: 'string', description: 'Dashboard URL' },
-    // Alert outputs
     rules: { type: 'json', description: 'Alert rules list' },
     contactPoints: { type: 'json', description: 'Contact points list' },
+    name: { type: 'string', description: 'Name of the created contact point' },
+    type: { type: 'string', description: 'Type of the created contact point' },
+    settings: { type: 'json', description: 'Contact point receiver settings' },
     condition: { type: 'string', description: 'Alert condition refId' },
     for: { type: 'string', description: 'Duration the condition must hold before firing' },
     keepFiringFor: {
@@ -904,20 +1105,17 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     notification_settings: { type: 'json', description: 'Per-rule notification settings' },
     record: { type: 'json', description: 'Recording rule configuration' },
     updated: { type: 'string', description: 'Last update timestamp' },
-    // Annotation outputs
     annotations: { type: 'json', description: 'Annotations list' },
     id: { type: 'number', description: 'Annotation ID' },
-    // Data source outputs
     dataSources: { type: 'json', description: 'Data sources list' },
-    // Folder outputs
     folders: { type: 'json', description: 'Folders list' },
-    // Common
     message: { type: 'string', description: 'Status message' },
   },
 }
 
 export const GrafanaBlockMeta = {
   tags: ['monitoring', 'data-analytics'],
+  url: 'https://grafana.com',
   templates: [
     {
       icon: GrafanaIcon,
@@ -1006,7 +1204,7 @@ export const GrafanaBlockMeta = {
       name: 'audit-dashboards',
       description: 'List Grafana dashboards and folders and report data sources each depends on.',
       content:
-        '# Audit Dashboards\n\nInventory dashboards and the data sources they rely on.\n\n## Steps\n1. List folders and dashboards to build the full inventory.\n2. Get details for each dashboard of interest to read its panels and referenced data sources.\n3. List data sources and cross-reference to flag dashboards pointing at missing or deprecated sources.\n\n## Output\nReturn an inventory grouped by folder, each dashboard with its UID and the data sources it uses, plus a flagged list of dashboards with broken or unknown data source references.',
+        '# Audit Dashboards\n\nInventory dashboards and the data sources they rely on.\n\n## Steps\n1. List folders and dashboards to build the full inventory.\n2. Get details for each dashboard of interest to read its panels and referenced data sources.\n3. List data sources, then check the health of each one to flag dashboards pointing at unreachable or deprecated sources.\n\n## Output\nReturn an inventory grouped by folder, each dashboard with its UID and the data sources it uses, plus a flagged list of dashboards whose data sources failed their health check.',
     },
     {
       name: 'provision-monitoring-folder',
@@ -1014,6 +1212,13 @@ export const GrafanaBlockMeta = {
         'Create a Grafana folder and seed it with a starter dashboard for a new service or team.',
       content:
         '# Provision Monitoring Folder\n\nSet up an organized monitoring home for a new service or team.\n\n## Steps\n1. Create a folder with a descriptive title for the service or team.\n2. List data sources and pick the one the new dashboard should query.\n3. Create a dashboard inside the folder with starter panels for the key metrics.\n4. Get the dashboard back to confirm it was created in the right folder.\n\n## Output\nReturn the folder UID and the new dashboard UID and link. Note the data source the dashboard was wired to.',
+    },
+    {
+      name: 'provision-alerting',
+      description:
+        'Stand up a Grafana alert rule and the contact point it notifies for a new service.',
+      content:
+        '# Provision Alerting\n\nWire up end-to-end alerting for a service: a notification target plus the rule that fires to it.\n\n## Steps\n1. List existing contact points to avoid duplicating one.\n2. Create a contact point for the destination (Slack, email, or PagerDuty) with its settings.\n3. Create an alert rule in the target folder with the query data, condition, and for-duration.\n4. Get the alert rule back to confirm it was created and is not paused.\n\n## Output\nReturn the new contact point UID and alert rule UID, with the data source and threshold the rule evaluates.',
     },
   ],
 } as const satisfies BlockMeta

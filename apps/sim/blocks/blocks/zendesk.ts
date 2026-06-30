@@ -1,11 +1,13 @@
 import { ZendeskIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const ZendeskBlock: BlockConfig = {
   type: 'zendesk',
   name: 'Zendesk',
   description: 'Manage support tickets, users, and organizations in Zendesk',
+  triggerAllowed: true,
   longDescription:
     'Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.',
   docsLink: 'https://docs.sim.ai/integrations/zendesk',
@@ -529,6 +531,11 @@ Return ONLY the search query - no explanations.`,
       },
       mode: 'advanced',
     },
+    ...getTrigger('zendesk_ticket_created').subBlocks,
+    ...getTrigger('zendesk_ticket_status_changed').subBlocks,
+    ...getTrigger('zendesk_ticket_comment_added').subBlocks,
+    ...getTrigger('zendesk_ticket_priority_changed').subBlocks,
+    ...getTrigger('zendesk_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -695,10 +702,22 @@ Return ONLY the search query - no explanations.`,
     // Metadata (shared across all operations)
     metadata: { type: 'json', description: 'Operation metadata including operation type' },
   },
+
+  triggers: {
+    enabled: true,
+    available: [
+      'zendesk_ticket_created',
+      'zendesk_ticket_status_changed',
+      'zendesk_ticket_comment_added',
+      'zendesk_ticket_priority_changed',
+      'zendesk_webhook',
+    ],
+  },
 }
 
 export const ZendeskBlockMeta = {
   tags: ['customer-support', 'ticketing'],
+  url: 'https://www.zendesk.com',
   templates: [
     {
       icon: ZendeskIcon,

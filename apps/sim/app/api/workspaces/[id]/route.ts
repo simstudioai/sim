@@ -14,7 +14,10 @@ const logger = createLogger('WorkspaceByIdAPI')
 import { db } from '@sim/db'
 import { permissions, workspace } from '@sim/db/schema'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  getEffectiveWorkspacePermission,
+  getUserEntityPermissions,
+} from '@/lib/workspaces/permissions/utils'
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -140,28 +143,11 @@ export const PATCH = withRouteHandler(
 
         const candidateId = billedAccountUserId
 
-        const isOwner = candidateId === existingWorkspace.ownerId
-
-        let hasAdminAccess = isOwner
-
-        if (!hasAdminAccess) {
-          const adminPermission = await db
-            .select({ id: permissions.id })
-            .from(permissions)
-            .where(
-              and(
-                eq(permissions.entityType, 'workspace'),
-                eq(permissions.entityId, workspaceId),
-                eq(permissions.userId, candidateId),
-                eq(permissions.permissionType, 'admin')
-              )
-            )
-            .limit(1)
-
-          hasAdminAccess = adminPermission.length > 0
-        }
-
-        if (!hasAdminAccess) {
+        const candidatePermission = await getEffectiveWorkspacePermission(
+          candidateId,
+          existingWorkspace
+        )
+        if (candidatePermission !== 'admin') {
           return NextResponse.json(
             { error: 'Billed account must be a workspace admin' },
             { status: 400 }

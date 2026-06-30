@@ -4,26 +4,26 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { appendTableEvent } from '@/lib/table/events'
 import {
-  batchUpdateRows,
-  getTableById,
   markJobFailed,
   markJobReady,
   markTableJobRunning,
   updateJobProgress,
-} from '@/lib/table/service'
+} from '@/lib/table/jobs/service'
+import { pluckByPath } from '@/lib/table/pluck'
+import { batchUpdateRows } from '@/lib/table/rows/service'
+import { getTableById } from '@/lib/table/service'
 import type {
   RowData,
   TableBackfillJobPayload,
   TableDefinition,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import { pluckByPath } from './pluck'
 
 const logger = createLogger('TableBackfillRunner')
 
@@ -319,18 +319,20 @@ export async function maybeBackfillGroupOutputs(opts: {
   }
   if (isTriggerDevEnabled) {
     try {
-      const [{ tableBackfillTask }, { tasks }] = await Promise.all([
+      const [{ tableBackfillTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-backfill'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableBackfillTask>('table-backfill', payload, {
         tags: [`tableId:${table.id}`, `jobId:${jobId}`],
+        region: await resolveTriggerRegion(),
       })
     } catch (error) {
       // Release the claim so a ghost `running` job doesn't block imports/deletes.
       // Swallowed (warn only): a failed backfill never fails the schema change —
       // the data stays backfillable.
-      const { releaseJobClaim } = await import('./service')
+      const { releaseJobClaim } = await import('@/lib/table/jobs/service')
       await releaseJobClaim(table.id, jobId).catch(() => {})
       logger.warn(
         `[${requestId}] Backfill dispatch failed for table ${table.id} group ${groupId}; skipping`,

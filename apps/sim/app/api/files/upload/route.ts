@@ -19,6 +19,7 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
+import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
@@ -155,9 +156,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         logger.info(`Uploading knowledge-base file: ${originalName}`)
 
-        const timestamp = Date.now()
-        const safeFileName = sanitizeFileName(originalName)
-        const storageKey = `kb/${timestamp}-${safeFileName}`
+        const storageKey = generateKnowledgeBaseFileKey(originalName)
 
         const metadata: Record<string, string> = {
           originalName: originalName,
@@ -251,7 +250,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // Handle mothership context (chat-scoped uploads to workspace S3)
       if (context === 'mothership') {
         if (!workspaceId) {
-          throw new InvalidRequestError('Mothership context requires workspaceId parameter')
+          throw new InvalidRequestError('Chat context requires workspaceId parameter')
         }
 
         logger.info(`Uploading mothership file: ${originalName}`)

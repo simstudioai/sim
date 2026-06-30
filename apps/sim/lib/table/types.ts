@@ -2,7 +2,7 @@
  * Type definitions for user-defined tables.
  */
 
-import type { COLUMN_TYPES } from './constants'
+import type { COLUMN_TYPES } from '@/lib/table/constants'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -135,6 +135,59 @@ export interface WorkflowGroup {
 }
 
 /**
+ * State of one provider in an enrichment cascade run. `matched`/`no_match`/
+ * `error` actually called the tool; `skipped` had insufficient inputs; `not_run`
+ * was never reached because an earlier provider matched.
+ */
+export type EnrichmentProviderStatus = 'matched' | 'no_match' | 'skipped' | 'error' | 'not_run'
+
+/**
+ * Outcome of one provider attempt in an enrichment cascade, for the enrichment
+ * details panel. The full configured cascade is recorded: `skipped` providers
+ * had insufficient inputs, `not_run` providers sit after the match.
+ */
+export interface EnrichmentProviderOutcome {
+  /** Provider id, e.g. `'hunter'`. */
+  id: string
+  /** Human label, e.g. `'Hunter'`. */
+  label: string
+  /** Tool id the provider runs, e.g. `'hunter_find_email'` — resolves the block
+   *  icon for the details panel. */
+  toolId: string
+  status: EnrichmentProviderStatus
+  /** Hosted-key cost (USD) this provider incurred; `0` for skip / no_match / error / BYOK. */
+  cost: number
+  /** Wall-clock ms this provider's tool call took; `0` for skipped. */
+  durationMs: number
+  /** Error message when `status === 'error'`, else `null`. */
+  error: string | null
+}
+
+/**
+ * Per-(row, group) cascade breakdown for an enrichment run, surfaced in the
+ * enrichment details panel. Persisted on the `tableRowExecutions` sidecar but
+ * deliberately kept out of the hot grid read path (fetched on demand) — it can
+ * carry a dozen provider outcomes per cell.
+ */
+export interface EnrichmentRunDetail {
+  /** ISO timestamp when the cascade started. */
+  startedAt: string
+  /** ISO timestamp when the cascade finished. */
+  completedAt: string
+  /** Wall-clock ms across the whole cascade. */
+  durationMs: number
+  /** Sum of per-provider hosted-key cost (USD). */
+  totalCost: number
+  /** Provider id that produced the match, or `null` on no match. */
+  matchedProvider: string | null
+  /** True when the run was cancelled (stop / signal abort) — drives a
+   *  "Cancelled" result rather than inferring no-match/not-run from the cascade. */
+  aborted: boolean
+  /** Every configured provider, in cascade order (including `not_run` ones). */
+  providers: EnrichmentProviderOutcome[]
+}
+
+/**
  * Per-row execution state for one workflow group, persisted as a row in the
  * `tableRowExecutions` sidecar keyed by `(rowId, groupId)`. Holds run
  * metadata only — picked output values land in `row.data` directly.
@@ -163,6 +216,13 @@ export interface RowExecutionMetadata {
    *  re-runs whose `cancelledAt > dispatch.requestedAt` — a user cancel
    *  mid-dispatch must not be overridden by `isManualRun`. */
   cancelledAt?: string
+  /**
+   * Enrichment cascade breakdown for `enrichment`-type groups, written on the
+   * terminal cell write. Persisted on `tableRowExecutions` but NOT hydrated by
+   * `loadExecutionsByRow` (kept off the hot grid read) — read it on demand via
+   * `loadEnrichmentDetail` for the details panel.
+   */
+  enrichmentDetails?: EnrichmentRunDetail | null
 }
 
 /** Map of `WorkflowGroup.id` → execution state. Stored on every row. */
@@ -199,7 +259,7 @@ export type TableJobStatus = 'running' | 'ready' | 'failed' | 'canceled'
  * mutate row data and share the single-running-job gate; `export` is read-only and bypasses it
  * (the partial-unique index excludes it), so an export can run alongside any other job.
  */
-export type TableJobType = 'import' | 'delete' | 'export' | 'backfill'
+export type TableJobType = 'import' | 'delete' | 'export' | 'backfill' | 'update'
 
 /**
  * Persisted scope of a running delete job (`table_jobs.payload`). Defines the doomed row set —
@@ -213,8 +273,34 @@ export interface TableDeleteJobPayload {
   /** ISO timestamp; rows created after it are spared. */
   cutoff: string
   /** Doomed-row estimate captured at kickoff — display-only: list/detail counts subtract the
-   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. */
+   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. Set only for an
+   *  unbounded delete (the masked "delete everything matching" path); omitted when `maxRows` is set. */
   doomedCount?: number
+  /**
+   * Stop after deleting this many rows (an explicit caller-supplied limit above the inline cap).
+   * Omitted = delete every match. When set, reads are NOT masked: the delete is eventually
+   * consistent (rows disappear as they're deleted) like a bounded update, because the filter-based
+   * mask would over-hide the rows beyond the cap that this job never deletes.
+   */
+  maxRows?: number
+}
+
+/**
+ * Persisted scope of a running bulk-update job (`table_jobs.payload`): the same `data` patch is
+ * merged into every row matching `filter` with `created_at <= cutoff` (so mid-job inserts are
+ * spared, matching the delete job's snapshot semantics). `affectedCount` is the kickoff estimate,
+ * display-only. Unlike delete, reads are not masked — updated rows still exist, so a background
+ * update is eventually consistent (readers may see a mix of patched/unpatched rows mid-job).
+ */
+export interface TableUpdateJobPayload {
+  filter: Filter
+  /** Column-id-keyed partial patch applied to every matched row (JSONB merge). */
+  data: RowData
+  /** ISO timestamp; rows created after it are not patched. */
+  cutoff: string
+  affectedCount?: number
+  /** Stop after updating this many rows (an explicit caller-supplied limit). Omitted = every match. */
+  maxRows?: number
 }
 
 /**
@@ -407,7 +493,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
-  /** Optional max rows override based on billing plan. Defaults to TABLE_LIMITS.MAX_ROWS_PER_TABLE. */
+  /** Optional stored row cap. Vestigial under plan-based enforcement (the column is no longer
+   *  consulted on insert), but retained so callers that still set it type-check. */
   maxRows?: number
   /** Optional max tables override based on billing plan. Defaults to TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE. */
   maxTables?: number

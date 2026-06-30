@@ -5,6 +5,21 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 
+vi.mock('@/lib/credentials/access', () => ({
+  getCredentialActorContext: vi.fn().mockResolvedValue({
+    credential: {
+      id: 'test-vertex-credential-id',
+      type: 'oauth',
+      workspaceId: 'test-workspace',
+      accountId: 'test-vertex-credential-id',
+    },
+    member: { role: 'admin', status: 'active' },
+    hasWorkspaceAccess: true,
+    canWriteWorkspace: true,
+    isAdmin: true,
+  }),
+}))
+
 import { BlockType } from '@/executor/constants'
 import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
 import type { ExecutionContext } from '@/executor/types'
@@ -39,6 +54,7 @@ describe('EvaluatorBlockHandler', () => {
 
     mockContext = {
       workflowId: 'test-workflow-id',
+      userId: 'test-user',
       blockStates: new Map(),
       blockLogs: [],
       metadata: { duration: 0 },

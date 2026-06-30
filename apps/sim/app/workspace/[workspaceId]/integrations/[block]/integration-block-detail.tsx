@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { useRouter } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import {
   blockTypeToIconMap,
   type Integration,
@@ -14,13 +14,11 @@ import {
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
+import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import {
-  CONNECT_MODE,
-  CONNECT_QUERY_PARAM,
-} from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {
   getSuggestedSkillsForBlock,
@@ -47,8 +45,7 @@ interface IntegrationBlockDetailProps {
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
   useOAuthReturnRouter()
   const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const [connectMode, setConnectMode] = useQueryState(connectParam.key, connectParam.parser)
   const Icon = blockTypeToIconMap[integration.type]
   const matchingTemplates = getTemplatesForBlock(integration.type)
   const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
@@ -75,25 +72,24 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
   useEffect(() => {
     if (hasHandledConnectQueryRef.current) return
-    const connect = searchParams.get(CONNECT_QUERY_PARAM)
-    if (!connect) return
+    if (!connectMode) return
 
     let handled = false
-    if (connect === CONNECT_MODE.oauth && oauthService) {
+    if (connectMode === CONNECT_MODE.oauth && oauthService) {
       setOAuthOpen(true)
       handled = true
-    } else if (connect === CONNECT_MODE.serviceAccount && oauthService?.serviceAccountProviderId) {
+    } else if (
+      connectMode === CONNECT_MODE.serviceAccount &&
+      oauthService?.serviceAccountProviderId
+    ) {
       setServiceAccountOpen(true)
       handled = true
     }
     if (!handled) return
 
     hasHandledConnectQueryRef.current = true
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete(CONNECT_QUERY_PARAM)
-    const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [searchParams, oauthService, pathname, router])
+    void setConnectMode(null, { history: 'replace', scroll: false })
+  }, [connectMode, oauthService, setConnectMode])
 
   const connectOptions = oauthService
     ? [

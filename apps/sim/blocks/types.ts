@@ -158,6 +158,12 @@ export interface SuggestedSkill {
 /** Presentation/catalog data for a block. Never read by the executor. */
 export interface BlockMeta {
   tags: readonly IntegrationTag[]
+  /**
+   * Canonical homepage of the external service this block integrates with
+   * (e.g. `https://exa.ai`). Distinct from `BlockConfig.docsLink`, which points
+   * at Sim's own integration docs. Links back to the tool from its catalog page.
+   */
+  url?: string
   templates?: readonly BlockTemplate[]
   /** Popular, ready-to-add skills for this integration, shown on its detail page. */
   skills?: readonly SuggestedSkill[]
@@ -410,6 +416,13 @@ export interface SubBlockConfig {
     blockId: string,
     optionId: string
   ) => Promise<{ label: string; id: string } | null>
+  /**
+   * tool-input only: tool categories the consuming block cannot execute. They
+   * stay visible in the picker but are greyed out with a tooltip rather than
+   * hidden. Block/integration tools always run via `executeTool`, so only the
+   * non-registry categories (`mcp`, `custom-tool`) can be marked unsupported.
+   */
+  unsupportedToolTypes?: ('mcp' | 'custom-tool')[]
 }
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {

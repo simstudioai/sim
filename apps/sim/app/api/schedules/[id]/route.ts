@@ -6,16 +6,20 @@ import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
   WorkflowLockedError,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateScheduleContract } from '@/lib/api/contracts/schedules'
+import { getScheduleByIdContract, updateScheduleContract } from '@/lib/api/contracts/schedules'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteJob, performUpdateJob } from '@/lib/workflows/schedules/orchestration'
+import {
+  performDeleteJob,
+  performExcludeOccurrence,
+  performUpdateJob,
+} from '@/lib/workflows/schedules/orchestration'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -23,16 +27,7 @@ const logger = createLogger('ScheduleAPI')
 
 export const dynamic = 'force-dynamic'
 
-type ScheduleRow = {
-  id: string
-  workflowId: string | null
-  status: string
-  cronExpression: string | null
-  timezone: string | null
-  sourceType: string | null
-  sourceWorkspaceId: string | null
-  jobTitle: string | null
-}
+type ScheduleRow = typeof workflowSchedule.$inferSelect
 
 async function fetchAndAuthorize(
   requestId: string,
@@ -41,16 +36,7 @@ async function fetchAndAuthorize(
   action: 'read' | 'write'
 ): Promise<{ schedule: ScheduleRow; workspaceId: string | null } | NextResponse> {
   const [schedule] = await db
-    .select({
-      id: workflowSchedule.id,
-      workflowId: workflowSchedule.workflowId,
-      status: workflowSchedule.status,
-      cronExpression: workflowSchedule.cronExpression,
-      timezone: workflowSchedule.timezone,
-      sourceType: workflowSchedule.sourceType,
-      sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
-      jobTitle: workflowSchedule.jobTitle,
-    })
+    .select()
     .from(workflowSchedule)
     .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
     .limit(1)
@@ -98,6 +84,37 @@ async function fetchAndAuthorize(
 
   return { schedule, workspaceId: authorization.workflow.workspaceId ?? null }
 }
+
+export const GET = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const parsed = await parseRequest(getScheduleByIdContract, request, context, {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'Invalid request' }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id: scheduleId } = parsed.data.params
+
+      // fetchAndAuthorize already loads the full row (and 404s if missing), so
+      // return it directly — no second query.
+      const authResult = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'read')
+      if (authResult instanceof NextResponse) return authResult
+
+      return NextResponse.json({ schedule: authResult.schedule })
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to get schedule`, { error })
+      return NextResponse.json({ error: 'Failed to get schedule' }, { status: 500 })
+    }
+  }
+)
 
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -185,6 +202,9 @@ export const PUT = withRouteHandler(
           lifecycle: validatedBody.lifecycle,
           maxRuns: validatedBody.maxRuns,
           cronExpression: validatedBody.cronExpression,
+          time: validatedBody.time,
+          endsAt: validatedBody.endsAt,
+          contexts: validatedBody.contexts,
           request,
         })
         if (!updateResult.success) {
@@ -197,6 +217,45 @@ export const PUT = withRouteHandler(
         logger.info(`[${requestId}] Updated job schedule: ${scheduleId}`)
 
         return NextResponse.json({ message: 'Schedule updated successfully' })
+      }
+
+      if (action === 'exclude_occurrence') {
+        if (schedule.sourceType !== 'job') {
+          return NextResponse.json(
+            { error: 'Only standalone job schedules have occurrences' },
+            { status: 400 }
+          )
+        }
+        if (!workspaceId) {
+          return NextResponse.json({ error: 'Job has no workspace' }, { status: 400 })
+        }
+
+        const excludeResult = await performExcludeOccurrence({
+          jobId: scheduleId,
+          workspaceId,
+          userId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          occurrence: validatedBody.occurrence,
+          request,
+        })
+        if (!excludeResult.success) {
+          return NextResponse.json(
+            { error: excludeResult.error || 'Failed to delete occurrence' },
+            {
+              status:
+                excludeResult.errorCode === 'not_found'
+                  ? 404
+                  : excludeResult.errorCode === 'validation'
+                    ? 400
+                    : 500,
+            }
+          )
+        }
+
+        logger.info(`[${requestId}] Excluded occurrence on job schedule: ${scheduleId}`)
+
+        return NextResponse.json({ message: 'Occurrence deleted successfully' })
       }
 
       // reactivate

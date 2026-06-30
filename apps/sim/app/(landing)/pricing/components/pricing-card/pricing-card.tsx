@@ -1,6 +1,5 @@
-import { Check, ChipLink, ChipTag } from '@/components/emcn'
+import { Check, ChipLink, ChipTag, cn } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import type { CellValue } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
 
 /** Maps a cell-icon identifier to its brand icon component. */

@@ -1,23 +1,24 @@
 ---
-title: Sim
+title: Sim Workspace Events
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { FAQ } from '@/components/ui/faq'
 
-The Sim trigger runs a workflow when events happen in your workspace: another workflow's run fails or succeeds, a workflow is deployed, or an alert condition like a latency spike or cost threshold is met. Use it to build side-effect workflows — alerting, escalation, auto-remediation — composed from any blocks (Slack, email, webhooks, custom logic).
+The Sim Workspace Events trigger runs a workflow when events happen in your workspace: another workflow's run fails or succeeds, a workflow is deployed, or an alert condition like a latency spike or cost threshold is met. Use it to build side-effect workflows — alerting, escalation, auto-remediation — composed from any blocks (Slack, email, webhooks, custom logic).
 
 ## Events
 
-Pick one event per Sim trigger block:
+Pick one event per Sim Workspace Events trigger block:
 
 **Plain events** — fire on every occurrence:
 
 <ul className="list-disc space-y-1 pl-6">
-  <li><strong>Execution Error</strong>: a watched workflow's run failed</li>
-  <li><strong>Execution Success</strong>: a watched workflow's run completed successfully</li>
+  <li><strong>Run Error</strong>: a watched workflow's run failed</li>
+  <li><strong>Run Success</strong>: a watched workflow's run completed successfully</li>
   <li><strong>Workflow Deployed</strong>: a watched workflow was deployed (including redeploys and version rollbacks)</li>
+  <li><strong>Workflow Undeployed</strong>: a watched workflow was taken offline</li>
 </ul>
 
 **Alert conditions** — evaluated as runs complete (failure-based conditions evaluate on failed runs), with a cooldown so they fire at most once per cooldown window:
@@ -40,7 +41,7 @@ By default the trigger watches every workflow in the workspace. Select specific 
 
 All events include `event`, `timestamp`, `workflowId`, and `workflowName` (the source workflow). Additional fields depend on the event type:
 
-<Tabs items={['Execution Events', 'Alert Conditions', 'Workflow Deployed']}>
+<Tabs items={['Run Events', 'Alert Conditions', 'Workflow Deployed']}>
   <Tab>
     <ul className="list-disc space-y-1 pl-6">
       <li><strong>runId</strong>: the run that completed</li>
@@ -60,14 +61,15 @@ All events include `event`, `timestamp`, `workflowId`, and `workflowName` (the s
     <ul className="list-disc space-y-1 pl-6">
       <li><strong>version</strong>: the deployment version number that was activated</li>
     </ul>
+    <p>Workflow Undeployed carries only the base fields.</p>
   </Tab>
 </Tabs>
 
 ## Behavior
 
 <ul className="list-disc space-y-1 pl-6">
-  <li>The workflow containing the Sim trigger must be <strong>deployed</strong> for events to fire.</li>
-  <li>Runs started by a Sim trigger never emit workspace events, so side-effect workflows cannot chain or loop.</li>
+  <li>The workflow containing the Sim Workspace Events trigger must be <strong>deployed</strong> for events to fire.</li>
+  <li>Runs started by a Sim Workspace Events trigger never emit workspace events, so side-effect workflows cannot chain or loop.</li>
   <li>Alert conditions fire at most once per cooldown window (one hour, or the inactivity window for No Activity).</li>
   <li>Event delivery is fire-and-forget: side-effect runs are billed like any other run and are subject to workspace rate limits.</li>
 </ul>
@@ -78,8 +80,8 @@ All events include `event`, `timestamp`, `workflowId`, and `workflowName` (the s
 </Callout>
 
 <FAQ items={[
-  { question: "Why isn't my Sim trigger firing?", answer: "The workflow containing the trigger must be deployed — events only fire for deployed workflows. Also note the trigger never fires for the workflow it lives in, and runs started by another Sim trigger don't emit events." },
-  { question: "Can a Sim-triggered workflow trigger other Sim triggers?", answer: "No. Runs started by a Sim trigger never emit workspace events. This prevents chains and infinite loops — an alert workflow that fails can't re-trigger itself." },
+  { question: "Why isn't my Sim Workspace Events trigger firing?", answer: "The workflow containing the trigger must be deployed — events only fire for deployed workflows. Also note the trigger never fires for the workflow it lives in, and runs started by another Sim Workspace Events trigger don't emit events." },
+  { question: "Can a workflow started by a Sim Workspace Events trigger fire other Sim Workspace Events triggers?", answer: "No. Runs started by a Sim Workspace Events trigger never emit workspace events. This prevents chains and infinite loops — an alert workflow that fails can't re-trigger itself." },
   { question: "How often do alert conditions fire?", answer: "At most once per cooldown window per trigger block. Most conditions use a one-hour cooldown; No Activity uses the configured inactivity window, evaluated per watched workflow." },
   { question: "What unit is cost in?", answer: "Credits, both for the Cost Threshold configuration and the cost field in event payloads." },
 ]} />

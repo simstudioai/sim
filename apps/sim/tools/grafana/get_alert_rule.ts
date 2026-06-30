@@ -42,7 +42,7 @@ export const getAlertRuleTool: ToolConfig<GrafanaGetAlertRuleParams, GrafanaGetA
 
     request: {
       url: (params) =>
-        `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
+        `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`,
       method: 'GET',
       headers: (params) => {
         const headers: Record<string, string> = {

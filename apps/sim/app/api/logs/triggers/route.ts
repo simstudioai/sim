@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, workflowExecutionLogs } from '@sim/db/schema'
+import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -8,6 +8,7 @@ import { searchParamsToObject, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TriggersAPI')
 
@@ -40,19 +41,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const params = validation.data
 
+    const access = await checkWorkspaceAccess(params.workspaceId, userId)
+    if (!access.hasAccess) {
+      return NextResponse.json({ triggers: [], count: 0 })
+    }
+
     const triggers = await db
       .selectDistinct({
         trigger: workflowExecutionLogs.trigger,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(
-        permissions,
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflowExecutionLogs.workspaceId),
-          eq(permissions.userId, userId)
-        )
-      )
       .where(
         and(
           eq(workflowExecutionLogs.workspaceId, params.workspaceId),

@@ -1,19 +1,12 @@
 'use client'
 
 import { type ComponentType, type CSSProperties, useMemo, useState } from 'react'
+import { ArrowRight, ChevronDown, chipVariants, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { Shuffle, Table } from '@sim/emcn/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import {
-  ArrowRight,
-  ChevronDown,
-  chipVariants,
-  Expandable,
-  ExpandableContent,
-} from '@/components/emcn'
-import { Shuffle, Table } from '@/components/emcn/icons'
 import { GmailIcon, SlackIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import {
   getAllBlockMeta,
   INTEGRATIONS,

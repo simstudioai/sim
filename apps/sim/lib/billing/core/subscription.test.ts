@@ -30,7 +30,7 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
   USABLE_SUBSCRIPTION_STATUSES: ['active', 'trialing'],
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isAccessControlEnabled: false,
   isBillingEnabled: true,
   isCredentialSetsEnabled: false,

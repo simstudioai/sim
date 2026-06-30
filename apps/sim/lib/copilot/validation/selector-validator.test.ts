@@ -4,12 +4,21 @@
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockCheckWorkspaceAccess } = vi.hoisted(() => ({
+  mockCheckWorkspaceAccess: vi.fn(),
+}))
+
 vi.mock('@sim/db', () => dbChainMock)
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+}))
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
   eq: vi.fn((...args: unknown[]) => ({ type: 'eq', args })),
   inArray: vi.fn((...args: unknown[]) => ({ type: 'inArray', args })),
+  isNotNull: vi.fn((field: unknown) => ({ type: 'isNotNull', field })),
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
   or: vi.fn((...args: unknown[]) => ({ type: 'or', args })),
 }))
@@ -20,6 +29,7 @@ describe('validateSelectorIds', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockCheckWorkspaceAccess.mockResolvedValue({ canAdmin: false })
   })
 
   it('accepts shared workspace credential ids and legacy account ids for oauth-input', async () => {
@@ -57,5 +67,18 @@ describe('validateSelectorIds', () => {
     expect(result.invalid).toEqual(['missing-cred'])
     expect(result.warning).toContain('Accessible workspace credentials:')
     expect(result.warning).toContain('Shared Gmail [cred-2]')
+  })
+
+  it('lets a derived workspace admin reference shared credentials without membership', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValueOnce({ canAdmin: true })
+    dbChainMockFns.where.mockResolvedValueOnce([{ credentialId: 'shared-cred', accountId: null }])
+
+    const result = await validateSelectorIds('oauth-input', ['shared-cred'], {
+      userId: 'admin-user',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(result).toEqual({ valid: ['shared-cred'], invalid: [] })
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
   })
 })

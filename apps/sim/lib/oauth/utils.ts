@@ -204,6 +204,12 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Add and remove participants from customer requests',
   'read:request.approval:jira-service-management': 'View approvals on customer requests',
   'write:request.approval:jira-service-management': 'Approve or decline customer requests',
+  'read:cmdb-object:jira': 'View Assets objects and run AQL searches',
+  'write:cmdb-object:jira': 'Create and update Assets objects',
+  'delete:cmdb-object:jira': 'Delete Assets objects',
+  'read:cmdb-schema:jira': 'View Assets object schemas',
+  'read:cmdb-type:jira': 'View Assets object types',
+  'read:cmdb-attribute:jira': 'View Assets object type attributes',
 
   // Microsoft scopes
   'User.Read': 'Read Microsoft user',
@@ -271,8 +277,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Slack scopes
   'channels:read': 'View public channels',
   'channels:history': 'Read channel messages',
+  'channels:manage': 'Create, archive, and rename public channels',
   'groups:read': 'View private channels',
   'groups:history': 'Read private messages',
+  'groups:write': 'Create, archive, and manage private channels',
   'chat:write': 'Send messages',
   'chat:write.public': 'Post to public channels',
   'assistant:write': 'Set assistant thread status, title, and suggested prompts',
@@ -286,6 +294,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'canvases:read': 'Read canvas sections',
   'canvases:write': 'Create, edit, and delete canvas documents',
   'reactions:write': 'Add emoji reactions to messages',
+  'reactions:read': 'View emoji reactions on messages',
 
   // Webflow scopes
   'sites:read': 'View Webflow sites',
@@ -314,6 +323,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'crm.objects.appointments.write': 'Create and update HubSpot appointments',
   'crm.objects.carts.read': 'Read HubSpot shopping carts',
   'crm.objects.carts.write': 'Create and update HubSpot shopping carts',
+  'sales-email-read': 'Read the content of HubSpot email engagements',
   'crm.import': 'Import data into HubSpot',
   'crm.lists.read': 'Read HubSpot lists',
   'crm.lists.write': 'Create and update HubSpot lists',

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -10,10 +11,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-  Tooltip,
-} from '@/components/emcn'
-import { Plus, Workflow } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Workflow } from '@sim/emcn/icons'
 import {
   buildFileFolderTree,
   buildWorkflowFolderTree,
@@ -57,19 +56,12 @@ export const PlusMenuDropdown = React.memo(
     const [search, setSearch] = useState('')
     const [anchorPos, setAnchorPos] = useState<{ left: number; top: number } | null>(null)
     const [activeIndex, setActiveIndex] = useState(0)
-    const buttonRef = useRef<HTMLButtonElement>(null)
     const searchRef = useRef<HTMLInputElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
 
     const doOpen = useCallback(
-      (anchor?: { left: number; top: number }, options?: { mention?: boolean }) => {
-        if (anchor) {
-          setAnchorPos(anchor)
-        } else {
-          const rect = buttonRef.current?.getBoundingClientRect()
-          if (!rect) return
-          setAnchorPos({ left: rect.left, top: rect.top })
-        }
+      (anchor: { left: number; top: number }, options?: { mention?: boolean }) => {
+        setAnchorPos(anchor)
         setIsMention(!!options?.mention)
         setOpen(true)
         setSearch('')
@@ -252,162 +244,146 @@ export const PlusMenuDropdown = React.memo(
     }
 
     return (
-      <>
-        <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-          <DropdownMenuTrigger asChild>
-            <div
-              style={{
-                position: 'fixed',
-                left: anchorPos?.left ?? 0,
-                top: anchorPos?.top ?? 0,
-                width: 0,
-                height: 0,
-                pointerEvents: 'none',
+      <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <div
+            style={{
+              position: 'fixed',
+              left: anchorPos?.left ?? 0,
+              top: anchorPos?.top ?? 0,
+              width: 0,
+              height: 0,
+              pointerEvents: 'none',
+            }}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          ref={contentRef}
+          align='start'
+          side='top'
+          sideOffset={8}
+          avoidCollisions
+          collisionPadding={8}
+          className={cn(
+            'flex flex-col overflow-hidden',
+            // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
+            // to its content via the emcn DropdownMenuContent default max-w.
+            // Mention mode renders resource names directly, so widen for breathing room.
+            isMention && 'max-w-[min(300px,calc(100vw-32px))]'
+          )}
+          onCloseAutoFocus={handleCloseAutoFocus}
+          onOpenAutoFocus={handleOpenAutoFocus}
+          onKeyDown={handleContentKeyDown}
+        >
+          {!isMention && (
+            <DropdownMenuSearchInput
+              ref={searchRef}
+              placeholder='Search resources...'
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setActiveIndex(0)
               }}
+              onKeyDown={handleSearchKeyDown}
             />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            ref={contentRef}
-            align='start'
-            side='top'
-            sideOffset={8}
-            avoidCollisions
-            collisionPadding={8}
-            className={cn(
-              'flex flex-col overflow-hidden',
-              // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
-              // to its content via the emcn DropdownMenuContent default max-w.
-              // Mention mode renders resource names directly, so widen for breathing room.
-              isMention && 'max-w-[min(300px,calc(100vw-32px))]'
-            )}
-            onCloseAutoFocus={handleCloseAutoFocus}
-            onOpenAutoFocus={handleOpenAutoFocus}
-            onKeyDown={handleContentKeyDown}
-          >
-            {!isMention && (
-              <DropdownMenuSearchInput
-                ref={searchRef}
-                placeholder='Search resources...'
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value)
-                  setActiveIndex(0)
-                }}
-                onKeyDown={handleSearchKeyDown}
-              />
-            )}
-            <div className='min-h-0 flex-1 overflow-y-auto overscroll-none'>
-              {/* Always-mounted; swapping this subtree with filtered results makes Radix's
+          )}
+          <div className='min-h-0 flex-1 overflow-y-auto overscroll-none'>
+            {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
-              <div hidden={filteredItems !== null}>
-                {workflowTree.length > 0 && (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <Workflow className='size-[14px]' />
-                      <span>Workflows</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
-                      <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                )}
-                {fileFolderTree.length > 0 && (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      {(() => {
-                        const Icon = getResourceConfig('file').icon
-                        return <Icon className='size-[14px]' />
-                      })()}
-                      <span>Files</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
-                      <FileFolderTreeItems nodes={fileFolderTree} onSelect={handleSelect} />
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                )}
-                {visibleResources
-                  .filter(
-                    ({ type }) =>
-                      type !== 'workflow' &&
-                      type !== 'folder' &&
-                      type !== 'file' &&
-                      type !== 'filefolder'
+            <div hidden={filteredItems !== null}>
+              {workflowTree.length > 0 && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Workflow className='size-[14px]' />
+                    <span>Workflows</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
+                    <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              {fileFolderTree.length > 0 && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    {(() => {
+                      const Icon = getResourceConfig('file').icon
+                      return <Icon className='size-[14px]' />
+                    })()}
+                    <span>Files</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
+                    <FileFolderTreeItems nodes={fileFolderTree} onSelect={handleSelect} />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              {visibleResources
+                .filter(
+                  ({ type }) =>
+                    type !== 'workflow' &&
+                    type !== 'folder' &&
+                    type !== 'file' &&
+                    type !== 'filefolder'
+                )
+                .map(({ type, items }) => {
+                  if (items.length === 0) return null
+                  const config = getResourceConfig(type)
+                  const Icon = config.icon
+                  return (
+                    <DropdownMenuSub key={type}>
+                      <DropdownMenuSubTrigger>
+                        <Icon className='size-[14px]' />
+                        <span>{config.label}</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
+                        {items.map((item) => (
+                          <DropdownMenuItem
+                            key={item.id}
+                            onClick={() => {
+                              handleSelect({ type, id: item.id, title: item.name })
+                            }}
+                          >
+                            {config.renderDropdownItem({ item })}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                   )
-                  .map(({ type, items }) => {
-                    if (items.length === 0) return null
-                    const config = getResourceConfig(type)
-                    const Icon = config.icon
-                    return (
-                      <DropdownMenuSub key={type}>
-                        <DropdownMenuSubTrigger>
-                          <Icon className='h-[14px] w-[14px]' />
-                          <span>{config.label}</span>
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
-                          {items.map((item) => (
-                            <DropdownMenuItem
-                              key={item.id}
-                              onClick={() => {
-                                handleSelect({ type, id: item.id, title: item.name })
-                              }}
-                            >
-                              {config.renderDropdownItem({ item })}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                    )
-                  })}
-              </div>
-              {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
-                  menu Collection, or FocusScope restores focus to the content root. */}
-              {filteredItems !== null &&
-                (filteredItems.length > 0 ? (
-                  filteredItems.map(({ type, item }, index) => {
-                    const config = getResourceConfig(type)
-                    const isActive = index === activeIndex
-                    return (
-                      <button
-                        key={`${type}:${item.id}`}
-                        type='button'
-                        role='menuitem'
-                        data-filtered-idx={index}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        onClick={() => {
-                          handleSelect({ type, id: item.id, title: item.name })
-                        }}
-                        className={cn(
-                          'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
-                          isActive && 'bg-[var(--surface-active)]'
-                        )}
-                      >
-                        {config.renderDropdownItem({ item })}
-                      </button>
-                    )
-                  })
-                ) : (
-                  <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
-                    No results
-                  </div>
-                ))}
+                })}
             </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <button
-              ref={buttonRef}
-              type='button'
-              onClick={() => doOpen()}
-              aria-label='Add resources'
-              className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-[var(--surface-hover)]'
-            >
-              <Plus className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-            </button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Add resources</Tooltip.Content>
-        </Tooltip.Root>
-      </>
+            {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
+                  menu Collection, or FocusScope restores focus to the content root. */}
+            {filteredItems !== null &&
+              (filteredItems.length > 0 ? (
+                filteredItems.map(({ type, item }, index) => {
+                  const config = getResourceConfig(type)
+                  const isActive = index === activeIndex
+                  return (
+                    <button
+                      key={`${type}:${item.id}`}
+                      type='button'
+                      role='menuitem'
+                      data-filtered-idx={index}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => {
+                        handleSelect({ type, id: item.id, title: item.name })
+                      }}
+                      className={cn(
+                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+                        isActive && 'bg-[var(--surface-active)]'
+                      )}
+                    >
+                      {config.renderDropdownItem({ item })}
+                    </button>
+                  )
+                })
+              ) : (
+                <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
+                  No results
+                </div>
+              ))}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
     )
   })
 )

@@ -4,7 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
@@ -936,10 +936,13 @@ export async function executeTool(
             ? 'mcp'
             : undefined
 
-    if (toolKind && scope.userId && scope.workspaceId) {
+    // Runs for ALL tools (not just kinded ones) so the per-tool `deniedTools`
+    // denylist is enforced alongside the existing mcp/custom/skill gates.
+    if (scope.userId && scope.workspaceId) {
       await assertPermissionsAllowed({
         userId: scope.userId,
         workspaceId: scope.workspaceId,
+        toolId: normalizedToolId,
         toolKind,
         ctx: executionContext,
       })
@@ -1578,6 +1581,9 @@ async function executeToolRequest(
     }
 
     const headers = new Headers(requestParams.headers)
+    if (!headers.has('User-Agent')) {
+      headers.set('User-Agent', 'Sim')
+    }
     await addInternalAuthIfNeeded(
       headers,
       isInternalRoute,

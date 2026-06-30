@@ -588,6 +588,7 @@ export const AppConfigBlock: BlockConfig<
 
 export const AppConfigBlockMeta = {
   tags: ['cloud', 'feature-flags', 'automation'],
+  url: 'https://aws.amazon.com/systems-manager/features/appconfig',
   templates: [
     {
       icon: AppConfigIcon,

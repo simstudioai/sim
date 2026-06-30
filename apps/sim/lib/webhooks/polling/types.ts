@@ -1,5 +1,6 @@
 import type { webhook, workflow } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 
 /** Summary returned after polling all webhooks for a provider. */
 export interface PollSummary {
@@ -19,14 +20,10 @@ export interface PollWebhookContext {
 export type WebhookRecord = typeof webhook.$inferSelect
 export type WorkflowRecord = typeof workflow.$inferSelect
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export function getProviderConfigRecord(
   providerConfig: WebhookRecord['providerConfig']
 ): Record<string, unknown> {
-  return isRecord(providerConfig) ? providerConfig : {}
+  return isRecordLike(providerConfig) ? providerConfig : {}
 }
 
 export function getProviderConfig<T extends object>(

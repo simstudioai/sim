@@ -1,14 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Button, cn, Input, Label, Loader } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button, Input, Label, Loader } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { env, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
-import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 

@@ -258,7 +258,10 @@ export function useUpdateUsageLimit() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
+      ])
     },
   })
 }
@@ -278,18 +281,23 @@ export function useUpgradeSubscription() {
     mutationFn: async ({ plan }: UpgradeSubscriptionParams) => {
       return { plan }
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
-
-      if (variables.orgId) {
-        queryClient.invalidateQueries({
-          queryKey: organizationKeys.billing(variables.orgId),
-        })
-        queryClient.invalidateQueries({
-          queryKey: organizationKeys.subscription(variables.orgId),
-        })
-      }
+    onSettled: (_data, _error, variables) => {
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.invoicesAll() }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() }),
+        ...(variables.orgId
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: organizationKeys.billing(variables.orgId),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: organizationKeys.subscription(variables.orgId),
+              }),
+            ]
+          : []),
+      ])
     },
   })
 }
@@ -312,13 +320,21 @@ export function usePurchaseCredits() {
         body: { amount, requestId },
       })
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
-      if (variables.orgId) {
-        queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
-        queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
-      }
+    onSettled: (_data, _error, variables) => {
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
+        ...(variables.orgId
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: organizationKeys.billing(variables.orgId),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: organizationKeys.subscription(variables.orgId),
+              }),
+            ]
+          : []),
+      ])
     },
   })
 }

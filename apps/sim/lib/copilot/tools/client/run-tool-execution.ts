@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncCompletionData,
@@ -43,10 +44,6 @@ class CompletionReportError extends Error {
     super(message)
     this.name = 'CompletionReportError'
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function resolveWorkflowInput(params: Record<string, unknown>): unknown {
@@ -604,7 +601,7 @@ async function reportCompletion(
       const res = await send(body)
       if (res.ok) return
 
-      if (isRecord(data) && bodySize > LARGE_PAYLOAD_THRESHOLD) {
+      if (isRecordLike(data) && bodySize > LARGE_PAYLOAD_THRESHOLD) {
         const { logs: _logs, ...dataWithoutLogs } = data
         logger.warn('[RunTool] reportCompletion failed with large payload, retrying without logs', {
           toolCallId,

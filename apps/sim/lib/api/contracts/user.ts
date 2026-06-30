@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 
 export const userProfileSchema = z.object({
@@ -64,6 +64,19 @@ export const userSettingsEmailPreferencesSchema = z.object({
 export const mothershipEnvironmentSchema = z.enum(['default', 'dev', 'staging', 'prod'])
 export type MothershipEnvironment = z.infer<typeof mothershipEnvironmentSchema>
 
+/** An IANA timezone identifier (e.g. `America/New_York`), validated against the runtime's zone database. */
+export const ianaTimezoneSchema = z.string().refine(
+  (tz) => {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: tz })
+      return true
+    } catch {
+      return false
+    }
+  },
+  { message: 'Must be a valid IANA timezone (e.g. America/New_York)' }
+)
+
 export const userSettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']).default('system'),
   autoConnect: z.boolean().default(true),
@@ -76,6 +89,8 @@ export const userSettingsSchema = z.object({
   errorNotificationsEnabled: z.boolean().default(true),
   snapToGridSize: z.number().min(0).max(50).default(0),
   showActionBar: z.boolean().default(true),
+  /** IANA timezone for scheduling; `null` means the client falls back to the browser-detected zone. */
+  timezone: z.string().nullable().default(null),
   lastActiveWorkspaceId: z.string().nullable().optional(),
 })
 
@@ -93,6 +108,8 @@ export const updateUserSettingsBodySchema = z.object({
   errorNotificationsEnabled: z.boolean().optional(),
   snapToGridSize: z.number().min(0).max(50).optional(),
   showActionBar: z.boolean().optional(),
+  /** IANA timezone; explicit `null` resets to the browser-detected zone. */
+  timezone: ianaTimezoneSchema.nullable().optional(),
   /** Mirrors `userSettingsSchema.lastActiveWorkspaceId` so explicit `null` is accepted to clear the active workspace. */
   lastActiveWorkspaceId: z.string().nullable().optional(),
 })
@@ -241,6 +258,11 @@ export const unsubscribePostContract = defineRouteContract({
     schema: unsubscribeActionResponseSchema,
   },
 })
+
+export type UnsubscribeData = ContractJsonResponse<typeof unsubscribeGetContract>
+export type UnsubscribeActionResponse = ContractJsonResponse<typeof unsubscribePostContract>
+export type UnsubscribeBody = z.input<typeof unsubscribeBodySchema>
+export type UnsubscribeType = NonNullable<UnsubscribeBody['type']>
 
 export const usageLogsQuerySchema = z.object({
   source: z.enum(['workflow', 'wand', 'copilot']).optional(),

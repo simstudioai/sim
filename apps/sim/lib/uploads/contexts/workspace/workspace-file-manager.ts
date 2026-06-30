@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
+import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   checkStorageQuota,
   decrementStorageUsage,
@@ -72,6 +73,8 @@ export interface WorkspaceFileRecord {
   updatedAt: Date
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
+  /** Public share state, attached at the API boundary. `null` when never shared. */
+  share?: ShareRecord | null
 }
 
 interface ListWorkspaceFilesOptions {
@@ -264,7 +267,7 @@ export async function uploadWorkspaceFile(
       )
 
       try {
-        await incrementStorageUsage(userId, fileBuffer.length)
+        await incrementStorageUsage(userId, fileBuffer.length, workspaceId)
       } catch (storageError) {
         logger.error(`Failed to update storage tracking:`, storageError)
       }
@@ -428,7 +431,7 @@ export async function registerUploadedWorkspaceFile(params: {
     }
 
     try {
-      await incrementStorageUsage(userId, verifiedSize)
+      await incrementStorageUsage(userId, verifiedSize, workspaceId)
     } catch (storageError) {
       logger.error('Failed to update storage tracking:', storageError)
     }
@@ -932,9 +935,9 @@ export async function updateWorkspaceFileContent(
     if (sizeDiff !== 0) {
       try {
         if (sizeDiff > 0) {
-          await incrementStorageUsage(userId, sizeDiff)
+          await incrementStorageUsage(userId, sizeDiff, workspaceId)
         } else {
-          await decrementStorageUsage(userId, Math.abs(sizeDiff))
+          await decrementStorageUsage(userId, Math.abs(sizeDiff), workspaceId)
         }
       } catch (storageError) {
         logger.error(`Failed to update storage tracking:`, storageError)

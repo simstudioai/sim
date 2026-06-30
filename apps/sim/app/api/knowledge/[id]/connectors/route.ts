@@ -18,7 +18,7 @@ import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getCredential } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 
 const logger = createLogger('KnowledgeConnectorsAPI')
 

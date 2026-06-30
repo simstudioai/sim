@@ -1,5 +1,5 @@
+import { Send } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { Send } from '@/components/emcn/icons'
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -33,6 +33,14 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         { label: 'Create Database', id: 'notion_create_database' },
         { label: 'Add Database Row', id: 'notion_add_database_row' },
         { label: 'Append Content', id: 'notion_write' },
+        { label: 'Append Block Children', id: 'notion_append_blocks' },
+        { label: 'Retrieve Block Children', id: 'notion_retrieve_block_children' },
+        { label: 'Update Block', id: 'notion_update_block' },
+        { label: 'Delete Block', id: 'notion_delete_block' },
+        { label: 'Create Comment', id: 'notion_create_comment' },
+        { label: 'List Comments', id: 'notion_list_comments' },
+        { label: 'List Users', id: 'notion_list_users' },
+        { label: 'Retrieve User', id: 'notion_retrieve_user' },
         { label: 'Query Database', id: 'notion_query_database' },
         { label: 'Search Workspace', id: 'notion_search' },
       ],
@@ -227,7 +235,16 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: 'Number of results (default: 100, max: 100)',
-      condition: { field: 'operation', value: 'notion_query_database' },
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_query_database',
+          'notion_retrieve_block_children',
+          'notion_list_comments',
+          'notion_list_users',
+        ],
+      },
     },
     // Search Fields
     {
@@ -301,6 +318,124 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         generationType: 'json-object',
       },
     },
+    {
+      id: 'blockId',
+      title: 'Page or Block ID',
+      type: 'short-input',
+      placeholder: 'Enter Notion page or block ID',
+      dependsOn: ['credential'],
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_append_blocks',
+          'notion_retrieve_block_children',
+          'notion_update_block',
+          'notion_delete_block',
+          'notion_list_comments',
+        ],
+      },
+      required: true,
+    },
+    {
+      id: 'children',
+      title: 'Block Children',
+      type: 'code',
+      placeholder: 'Enter an array of Notion block objects as JSON',
+      condition: { field: 'operation', value: 'notion_append_blocks' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an array of Notion block objects in JSON format based on the user\'s description. Each block has "object": "block", a "type", and a type-specific field. Examples: paragraph {"object":"block","type":"paragraph","paragraph":{"rich_text":[{"type":"text","text":{"content":"Hello"}}]}}, heading_2 {"object":"block","type":"heading_2","heading_2":{"rich_text":[{"type":"text","text":{"content":"Section"}}]}}, bulleted_list_item, numbered_list_item, to_do {"object":"block","type":"to_do","to_do":{"rich_text":[{"type":"text","text":{"content":"Task"}}],"checked":false}}. Return ONLY a valid JSON array - no explanations.',
+        placeholder: 'Describe the content blocks to append...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'after',
+      title: 'Append After Block ID',
+      type: 'short-input',
+      placeholder: 'UUID of the block to append after (optional)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'notion_append_blocks' },
+    },
+    {
+      id: 'block',
+      title: 'Block Update',
+      type: 'code',
+      placeholder: 'Enter the block-type fields to update as JSON',
+      condition: { field: 'operation', value: 'notion_update_block' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Notion block-type update object in JSON format based on the user\'s description. The object contains the block type as a key with its updatable fields. Examples: paragraph {"paragraph":{"rich_text":[{"type":"text","text":{"content":"Updated text"}}]}}, to_do {"to_do":{"rich_text":[{"type":"text","text":{"content":"Task"}}],"checked":true}}, heading_1 {"heading_1":{"rich_text":[{"type":"text","text":{"content":"New heading"}}]}}. Return ONLY valid JSON - no explanations.',
+        placeholder: 'Describe how to update the block...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'archived',
+      title: 'Archive Block',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'No (restore)', id: 'false' },
+        { label: 'Yes (archive)', id: 'true' },
+      ],
+      value: () => 'unchanged',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'notion_update_block' },
+    },
+    {
+      id: 'commentParentId',
+      title: 'Page ID',
+      type: 'short-input',
+      placeholder: 'UUID of the page to comment on',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'notion_create_comment' },
+    },
+    {
+      id: 'discussionId',
+      title: 'Discussion ID',
+      type: 'short-input',
+      placeholder: 'UUID of an existing discussion thread (optional)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'notion_create_comment' },
+    },
+    {
+      id: 'commentContent',
+      title: 'Comment',
+      type: 'long-input',
+      placeholder: 'Enter the comment text',
+      condition: { field: 'operation', value: 'notion_create_comment' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          "Generate a concise, professional comment to post on a Notion page based on the user's description. Return ONLY the comment text - no explanations, no quotes.",
+        placeholder: 'Describe what the comment should say...',
+      },
+    },
+    {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'UUID of the Notion user to retrieve',
+      condition: { field: 'operation', value: 'notion_retrieve_user' },
+      required: true,
+    },
+    {
+      id: 'startCursor',
+      title: 'Start Cursor',
+      type: 'short-input',
+      placeholder: 'Pagination cursor from a previous response (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['notion_retrieve_block_children', 'notion_list_comments', 'notion_list_users'],
+      },
+    },
   ],
   tools: {
     access: [
@@ -311,6 +446,16 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       'notion_query_database',
       'notion_search',
       'notion_create_database',
+      'notion_add_database_row',
+      'notion_update_page',
+      'notion_append_blocks',
+      'notion_retrieve_block_children',
+      'notion_update_block',
+      'notion_delete_block',
+      'notion_create_comment',
+      'notion_list_comments',
+      'notion_list_users',
+      'notion_retrieve_user',
     ],
     config: {
       tool: (params) => {
@@ -323,18 +468,51 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
             return 'notion_write'
           case 'notion_create_page':
             return 'notion_create_page'
+          case 'notion_update_page':
+            return 'notion_update_page'
           case 'notion_query_database':
             return 'notion_query_database'
           case 'notion_search':
             return 'notion_search'
           case 'notion_create_database':
             return 'notion_create_database'
+          case 'notion_add_database_row':
+            return 'notion_add_database_row'
+          case 'notion_append_blocks':
+            return 'notion_append_blocks'
+          case 'notion_retrieve_block_children':
+            return 'notion_retrieve_block_children'
+          case 'notion_update_block':
+            return 'notion_update_block'
+          case 'notion_delete_block':
+            return 'notion_delete_block'
+          case 'notion_create_comment':
+            return 'notion_create_comment'
+          case 'notion_list_comments':
+            return 'notion_list_comments'
+          case 'notion_list_users':
+            return 'notion_list_users'
+          case 'notion_retrieve_user':
+            return 'notion_retrieve_user'
           default:
             return 'notion_read'
         }
       },
       params: (params) => {
-        const { oauthCredential, operation, properties, filter, sorts, ...rest } = params
+        const {
+          oauthCredential,
+          operation,
+          properties,
+          filter,
+          sorts,
+          children,
+          block,
+          archived,
+          pageSize,
+          commentParentId,
+          commentContent,
+          ...rest
+        } = params
 
         // Parse properties from JSON string for create/add operations
         let parsedProperties
@@ -375,12 +553,69 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
           }
         }
 
+        // Parse block children array for append operations
+        let parsedChildren
+        if (operation === 'notion_append_blocks' && children) {
+          if (typeof children === 'string') {
+            try {
+              parsedChildren = JSON.parse(children)
+            } catch (error) {
+              throw new Error(`Invalid JSON for children: ${toError(error).message}`)
+            }
+          } else {
+            parsedChildren = children
+          }
+        }
+
+        // Parse block-type payload for update block operations
+        let parsedBlock
+        if (operation === 'notion_update_block' && block) {
+          if (typeof block === 'string') {
+            try {
+              parsedBlock = JSON.parse(block)
+            } catch (error) {
+              throw new Error(`Invalid JSON for block: ${toError(error).message}`)
+            }
+          } else {
+            parsedBlock = block
+          }
+        }
+
+        // Coerce archived flag — agent calls deliver "true"/"false" strings
+        let coercedArchived
+        if (
+          operation === 'notion_update_block' &&
+          archived !== undefined &&
+          archived !== '' &&
+          archived !== 'unchanged'
+        ) {
+          coercedArchived = archived === true || archived === 'true'
+        }
+
+        let coercedPageSize: number | undefined
+        if (pageSize !== undefined && pageSize !== null && pageSize !== '') {
+          const parsedPageSize = Number(pageSize)
+          if (Number.isFinite(parsedPageSize)) {
+            coercedPageSize = Math.min(Math.max(Math.trunc(parsedPageSize), 1), 100)
+          }
+        }
+
         return {
           ...rest,
           oauthCredential,
           ...(parsedProperties ? { properties: parsedProperties } : {}),
           ...(parsedFilter ? { filter: JSON.stringify(parsedFilter) } : {}),
           ...(parsedSorts ? { sorts: JSON.stringify(parsedSorts) } : {}),
+          ...(parsedChildren ? { children: parsedChildren } : {}),
+          ...(parsedBlock ? { block: parsedBlock } : {}),
+          ...(coercedArchived !== undefined ? { archived: coercedArchived } : {}),
+          ...(coercedPageSize !== undefined ? { pageSize: coercedPageSize } : {}),
+          ...(operation === 'notion_create_comment' && commentParentId
+            ? { pageId: commentParentId }
+            : {}),
+          ...(operation === 'notion_create_comment' && commentContent
+            ? { content: commentContent }
+            : {}),
         }
       },
     },
@@ -401,6 +636,19 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     // Search inputs
     query: { type: 'string', description: 'Search query' },
     filterType: { type: 'string', description: 'Filter type' },
+    // Block content inputs
+    blockId: { type: 'string', description: 'Page or block identifier' },
+    children: { type: 'json', description: 'Array of block objects to append' },
+    after: { type: 'string', description: 'Block ID to append after' },
+    block: { type: 'json', description: 'Block-type fields to update' },
+    archived: { type: 'boolean', description: 'Whether to archive the block' },
+    startCursor: { type: 'string', description: 'Pagination cursor' },
+    // Comment inputs
+    commentParentId: { type: 'string', description: 'Page identifier to comment on' },
+    discussionId: { type: 'string', description: 'Discussion thread identifier' },
+    commentContent: { type: 'string', description: 'Comment text' },
+    // User inputs
+    userId: { type: 'string', description: 'User identifier' },
   },
   outputs: {
     // Common outputs across all Notion operations
@@ -472,6 +720,14 @@ export const NotionV2Block: BlockConfig<any> = {
       'notion_search_v2',
       'notion_create_database_v2',
       'notion_add_database_row_v2',
+      'notion_append_blocks_v2',
+      'notion_retrieve_block_children_v2',
+      'notion_update_block_v2',
+      'notion_delete_block_v2',
+      'notion_create_comment_v2',
+      'notion_list_comments_v2',
+      'notion_list_users_v2',
+      'notion_retrieve_user_v2',
     ],
     config: {
       tool: createVersionedToolSelector({
@@ -487,8 +743,8 @@ export const NotionV2Block: BlockConfig<any> = {
     // Read page outputs
     content: {
       type: 'string',
-      description: 'Page content in markdown format',
-      condition: { field: 'operation', value: 'notion_read' },
+      description: 'Page content in markdown format, or comment text for create comment',
+      condition: { field: 'operation', value: ['notion_read', 'notion_create_comment'] },
     },
     title: {
       type: 'string',
@@ -500,7 +756,7 @@ export const NotionV2Block: BlockConfig<any> = {
     },
     id: {
       type: 'string',
-      description: 'Page or database ID',
+      description: 'Page, database, block, comment, or user ID',
       condition: {
         field: 'operation',
         value: [
@@ -509,6 +765,10 @@ export const NotionV2Block: BlockConfig<any> = {
           'notion_add_database_row',
           'notion_read_database',
           'notion_update_page',
+          'notion_update_block',
+          'notion_delete_block',
+          'notion_create_comment',
+          'notion_retrieve_user',
         ],
       },
     },
@@ -520,21 +780,51 @@ export const NotionV2Block: BlockConfig<any> = {
       type: 'string',
       description: 'Last edit timestamp',
     },
-    // Database query/search outputs
+    // List/query/search outputs
     results: {
       type: 'array',
-      description: 'Array of results from query or search',
-      condition: { field: 'operation', value: ['notion_query_database', 'notion_search'] },
+      description: 'Array of results (pages, blocks, comments, or users)',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_query_database',
+          'notion_search',
+          'notion_append_blocks',
+          'notion_retrieve_block_children',
+          'notion_list_comments',
+          'notion_list_users',
+        ],
+      },
     },
     has_more: {
       type: 'boolean',
       description: 'Whether more results are available',
-      condition: { field: 'operation', value: ['notion_query_database', 'notion_search'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_query_database',
+          'notion_search',
+          'notion_append_blocks',
+          'notion_retrieve_block_children',
+          'notion_list_comments',
+          'notion_list_users',
+        ],
+      },
     },
     next_cursor: {
       type: 'string',
       description: 'Cursor for pagination',
-      condition: { field: 'operation', value: ['notion_query_database', 'notion_search'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_query_database',
+          'notion_search',
+          'notion_append_blocks',
+          'notion_retrieve_block_children',
+          'notion_list_comments',
+          'notion_list_users',
+        ],
+      },
     },
     total_results: {
       type: 'number',
@@ -553,11 +843,50 @@ export const NotionV2Block: BlockConfig<any> = {
       description: 'Whether content was successfully appended',
       condition: { field: 'operation', value: 'notion_write' },
     },
+    // Block update/delete outputs
+    type: {
+      type: 'string',
+      description: 'Block type',
+      condition: { field: 'operation', value: 'notion_update_block' },
+    },
+    block: {
+      type: 'json',
+      description: 'The full updated Notion block object',
+      condition: { field: 'operation', value: 'notion_update_block' },
+    },
+    archived: {
+      type: 'boolean',
+      description: 'Whether the block was archived',
+      condition: { field: 'operation', value: ['notion_update_block', 'notion_delete_block'] },
+    },
+    // Comment outputs
+    discussion_id: {
+      type: 'string',
+      description: 'Discussion thread ID',
+      condition: { field: 'operation', value: 'notion_create_comment' },
+    },
+    // User outputs
+    name: {
+      type: 'string',
+      description: 'User display name',
+      condition: { field: 'operation', value: 'notion_retrieve_user' },
+    },
+    avatar_url: {
+      type: 'string',
+      description: 'User avatar image URL',
+      condition: { field: 'operation', value: 'notion_retrieve_user' },
+    },
+    email: {
+      type: 'string',
+      description: 'User email address (person users only)',
+      condition: { field: 'operation', value: 'notion_retrieve_user' },
+    },
   },
 }
 
 export const NotionBlockMeta = {
   tags: ['note-taking', 'knowledge-base', 'content-management'],
+  url: 'https://www.notion.com',
   templates: [
     {
       icon: Send,
@@ -661,4 +990,5 @@ export const NotionBlockMeta = {
 
 export const NotionV2BlockMeta = {
   tags: ['note-taking', 'knowledge-base', 'content-management'],
+  url: 'https://www.notion.com',
 } as const satisfies BlockMeta

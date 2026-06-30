@@ -9,7 +9,7 @@ export const listDatabasesTool: ToolConfig<ClickHouseListDatabasesParams, ClickH
     id: 'clickhouse_list_databases',
     name: 'ClickHouse List Databases',
     description: 'List all databases on a ClickHouse server',
-    version: '1.0',
+    version: '1.0.0',
 
     params: {
       host: {

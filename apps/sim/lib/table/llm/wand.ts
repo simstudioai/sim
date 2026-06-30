@@ -6,7 +6,7 @@ import { db } from '@sim/db'
 import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import type { TableSchema } from '../types'
+import type { TableSchema } from '@/lib/table/types'
 
 const logger = createLogger('TableWandEnricher')
 

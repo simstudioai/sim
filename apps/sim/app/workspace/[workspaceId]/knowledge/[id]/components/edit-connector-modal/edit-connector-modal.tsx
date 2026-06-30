@@ -1,8 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { ExternalLink, RotateCcw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -16,7 +14,9 @@ import {
   ChipModalTabs,
   Skeleton,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { ExternalLink, RotateCcw } from 'lucide-react'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
@@ -27,8 +27,8 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
-import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 import {
   useConnectorDocuments,
@@ -126,7 +126,7 @@ export function EditConnectorModal({
   knowledgeBaseId,
   connector,
 }: EditConnectorModalProps) {
-  const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType] ?? null
+  const connectorConfig = CONNECTOR_META_REGISTRY[connector.connectorType] ?? null
 
   const [activeTab, setActiveTab] = useState('settings')
   const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
@@ -327,7 +327,7 @@ export function EditConnectorModal({
 }
 
 interface SettingsTabProps {
-  connectorConfig: ConnectorConfig | null
+  connectorConfig: ConnectorMeta | null
   sourceConfig: ConfigFieldMap
   credentialId: string | null
   canonicalGroups: Map<string, ConnectorConfigField[]>

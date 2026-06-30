@@ -572,6 +572,7 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
 
 export const BrexBlockMeta = {
   tags: ['payments'],
+  url: 'https://www.brex.com',
   templates: [
     {
       icon: BrexIcon,

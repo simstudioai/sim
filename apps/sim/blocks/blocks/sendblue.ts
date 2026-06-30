@@ -281,6 +281,7 @@ export const SendblueBlock: BlockConfig = {
 
 export const SendblueBlockMeta = {
   tags: ['messaging', 'automation', 'webhooks'],
+  url: 'https://sendblue.com',
   templates: [
     {
       icon: SendblueIcon,

@@ -288,6 +288,7 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
 
 export const GoogleBigQueryBlockMeta = {
   tags: ['data-warehouse', 'google-workspace', 'data-analytics'],
+  url: 'https://cloud.google.com/bigquery',
   templates: [
     {
       icon: GoogleBigQueryIcon,

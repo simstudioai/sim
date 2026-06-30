@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
+import { Columns3, Rows3, Table as TableIcon } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
-import type { ComboboxOption } from '@/components/emcn'
-import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@/components/emcn'
-import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
+import { debounce, useQueryStates } from 'nuqs'
 import type { TableDefinition } from '@/lib/table'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import type {
@@ -25,6 +26,14 @@ import {
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
+import {
+  DEFAULT_TABLE_SORT_COLUMN,
+  DEFAULT_TABLE_SORT_DIRECTION,
+  TABLE_SORT_COLUMNS,
+  type TableSortColumn,
+  tablesParsers,
+  tablesUrlKeys,
+} from '@/app/workspace/[workspaceId]/tables/search-params'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   cancelTableJob,
@@ -43,6 +52,9 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('Tables')
+
+/** Debounce window for `search` URL writes; the input itself stays instant. */
+const SEARCH_DEBOUNCE_MS = 300 as const
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
@@ -67,7 +79,7 @@ export function Tables() {
 
   const userPermissions = useUserPermissionsContext()
 
-  const { data: tables = [], isLoading, error } = useTablesList(workspaceId)
+  const { data: tables = [], error } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
 
   if (error) {
@@ -86,14 +98,57 @@ export function Tables() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const debouncedSearchTerm = useDebounce(searchTerm, 300)
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
-  const [rowCountFilter, setRowCountFilter] = useState<string[]>([])
-  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
+
+  const [
+    {
+      search: urlSearchTerm,
+      sort: sortColumn,
+      dir: sortDirection,
+      rows: rowCountFilter,
+      owner: ownerFilter,
+    },
+    setTableFilters,
+  ] = useQueryStates(tablesParsers, tablesUrlKeys)
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The in-memory filter below still reads a debounced value
+   * so it doesn't recompute on every keystroke.
+   */
+  const setSearchTerm = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      const next = trimmed.length > 0 ? trimmed : null
+      setTableFilters(
+        { search: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+      )
+    },
+    [setTableFilters]
+  )
+  const debouncedSearchTerm = useDebounce(urlSearchTerm, 300)
+
+  /**
+   * The resolved sort is exposed to the sort menu only when it differs from the
+   * default, mirroring the prior `null`-means-default semantics.
+   */
+  const activeSort = useMemo(
+    () =>
+      sortColumn === DEFAULT_TABLE_SORT_COLUMN && sortDirection === DEFAULT_TABLE_SORT_DIRECTION
+        ? null
+        : { column: sortColumn, direction: sortDirection },
+    [sortColumn, sortDirection]
+  )
+
+  const setRowCountFilter = useCallback(
+    (next: string[]) => setTableFilters({ rows: next }),
+    [setTableFilters]
+  )
+  const setOwnerFilter = useCallback(
+    (next: string[]) => setTableFilters({ owner: next }),
+    [setTableFilters]
+  )
+
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const uploading = uploadProgress.total > 0
   const csvInputRef = useRef<HTMLInputElement>(null)
@@ -203,12 +258,12 @@ export function Tables() {
 
   const searchConfig: SearchConfig = useMemo(
     () => ({
-      value: searchTerm,
+      value: urlSearchTerm,
       onChange: setSearchTerm,
       onClearAll: () => setSearchTerm(''),
       placeholder: 'Search tables...',
     }),
-    [searchTerm]
+    [urlSearchTerm, setSearchTerm]
   )
 
   const sortConfig: SortConfig = useMemo(
@@ -222,10 +277,19 @@ export function Tables() {
         { id: 'updated', label: 'Last Updated' },
       ],
       active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      onSort: (column, direction) => {
+        const sort = (TABLE_SORT_COLUMNS as readonly string[]).includes(column)
+          ? (column as TableSortColumn)
+          : DEFAULT_TABLE_SORT_COLUMN
+        setTableFilters({ sort, dir: direction })
+      },
+      onClear: () =>
+        setTableFilters({
+          sort: DEFAULT_TABLE_SORT_COLUMN,
+          dir: DEFAULT_TABLE_SORT_DIRECTION,
+        }),
     }),
-    [activeSort]
+    [activeSort, setTableFilters]
   )
 
   const rowCountDisplayLabel = useMemo(() => {
@@ -583,7 +647,6 @@ export function Tables() {
           rows={rows}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
-          isLoading={isLoading}
         />
       </Resource>
 
@@ -653,16 +716,13 @@ export function Tables() {
         }}
         srTitle='Delete Table'
         title='Delete Table'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
-            <span className='text-[var(--text-error)]'>
-              All {activeTable?.rowCount} rows will be removed.
-            </span>{' '}
-            You can restore it from Recently Deleted in Settings.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: activeTable?.name ?? 'this table', bold: true },
+          '? ',
+          { text: `All ${activeTable?.rowCount ?? 0} rows will be removed.`, error: true },
+          ' You can restore it from Recently Deleted in Settings.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,

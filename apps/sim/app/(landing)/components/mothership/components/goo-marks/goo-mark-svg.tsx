@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { GooDefs } from '@/app/(landing)/components/mothership/components/goo-marks/goo-defs'
 import {
   GOO_FUSION,

@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { WorkflowBlock } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
   BLOCK_WIDTH,

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipChevronDown, chipContentLabelClass, chipGeometryClass } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ChipChevronDown, chipContentLabelClass, chipGeometryClass, cn } from '@sim/emcn'
 import { NavMenuItem } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-item'
 import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
 

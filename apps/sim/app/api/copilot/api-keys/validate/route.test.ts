@@ -42,7 +42,7 @@ vi.mock('@/lib/copilot/request/otel', () => ({
   ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn() }),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isHosted() {
     return mockFlags.isHosted
   },

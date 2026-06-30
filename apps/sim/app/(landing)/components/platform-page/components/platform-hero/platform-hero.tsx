@@ -1,4 +1,4 @@
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { HeroCta } from '@/app/(landing)/components/hero-cta'
 import { PlatformVisualFrame } from '@/app/(landing)/components/platform-page/components/platform-visual-frame'
 import { PLATFORM_SPACING } from '@/app/(landing)/components/platform-page/constants'

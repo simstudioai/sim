@@ -1,15 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { ZendeskIcon } from '@/components/icons'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { DEFAULT_MAX_TICKETS, zendeskConnectorMeta } from '@/connectors/zendesk/meta'
 
 const logger = createLogger('ZendeskConnector')
 
 const ARTICLES_PER_PAGE = 30
 const TICKETS_PER_PAGE = 100
-const DEFAULT_MAX_TICKETS = 500
 const SEARCH_API_RESULT_CAP = 1000
 
 const VALID_TICKET_STATUSES = new Set(['new', 'open', 'pending', 'hold', 'solved', 'closed'])
@@ -52,10 +52,31 @@ interface ZendeskComment {
 }
 
 /**
- * Builds the base URL for a Zendesk subdomain.
+ * Strict Zendesk subdomain label: a single DNS label of lowercase letters,
+ * digits, and hyphens (not leading/trailing). Rejects anything that could
+ * smuggle a scheme, host, path, port, or fragment into the base URL.
  */
-function buildBaseUrl(subdomain: string): string {
-  return `https://${subdomain}.zendesk.com`
+const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+
+/**
+ * Validates and normalizes a Zendesk subdomain.
+ *
+ * @throws {Error} when the subdomain is missing or not a valid DNS label.
+ */
+function normalizeSubdomain(subdomain: string): string {
+  const normalized = subdomain.trim().toLowerCase()
+  if (!SUBDOMAIN_PATTERN.test(normalized)) {
+    throw new Error('Invalid Zendesk subdomain')
+  }
+  return normalized
+}
+
+/**
+ * Builds the base URL for a Zendesk subdomain. The subdomain is validated to a
+ * strict DNS label so it cannot be used to forge requests to arbitrary hosts.
+ */
+export function buildBaseUrl(subdomain: string): string {
+  return `https://${normalizeSubdomain(subdomain)}.zendesk.com`
 }
 
 /**
@@ -66,11 +87,11 @@ async function zendeskApiGet(
   url: string,
   accessToken: string,
   sourceConfig: Record<string, unknown>,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+  retryOptions?: Parameters<typeof secureFetchWithRetry>[2]
 ): Promise<Record<string, unknown>> {
   const email = sourceConfig.email as string
 
-  const response = await fetchWithRetry(
+  const response = await secureFetchWithRetry(
     url,
     {
       method: 'GET',
@@ -312,80 +333,7 @@ function ticketToDocument(
 }
 
 export const zendeskConnector: ConnectorConfig = {
-  id: 'zendesk',
-  name: 'Zendesk',
-  description: 'Sync Help Center articles and support tickets from Zendesk',
-  version: '1.0.0',
-  icon: ZendeskIcon,
-
-  auth: {
-    mode: 'apiKey',
-    label: 'API Token',
-    placeholder: 'Enter your Zendesk API token',
-  },
-
-  configFields: [
-    {
-      id: 'subdomain',
-      title: 'Subdomain',
-      type: 'short-input',
-      placeholder: 'yourcompany (from yourcompany.zendesk.com)',
-      required: true,
-      description: 'Your Zendesk subdomain',
-    },
-    {
-      id: 'email',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'agent@yourcompany.com',
-      required: true,
-      description: 'Email address of the Zendesk user for API authentication',
-    },
-    {
-      id: 'contentType',
-      title: 'Content Type',
-      type: 'dropdown',
-      required: true,
-      description: 'What content to sync from Zendesk',
-      options: [
-        { label: 'Articles & Tickets', id: 'both' },
-        { label: 'Help Center Articles Only', id: 'articles' },
-        { label: 'Support Tickets Only', id: 'tickets' },
-      ],
-    },
-    {
-      id: 'ticketStatus',
-      title: 'Ticket Status Filter',
-      type: 'dropdown',
-      required: false,
-      description: 'Filter tickets by status (applies only when syncing tickets)',
-      options: [
-        { label: 'All Statuses', id: 'all' },
-        { label: 'New', id: 'new' },
-        { label: 'Open', id: 'open' },
-        { label: 'Pending', id: 'pending' },
-        { label: 'On Hold', id: 'hold' },
-        { label: 'Solved', id: 'solved' },
-        { label: 'Closed', id: 'closed' },
-      ],
-    },
-    {
-      id: 'locale',
-      title: 'Article Locale',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. en-us (default: all locales)',
-      description: 'Locale for Help Center articles',
-    },
-    {
-      id: 'maxTickets',
-      title: 'Max Tickets',
-      type: 'short-input',
-      required: false,
-      placeholder: `e.g. 200 (default: ${DEFAULT_MAX_TICKETS})`,
-      description: 'Maximum number of tickets to sync',
-    },
-  ],
+  ...zendeskConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -518,16 +466,6 @@ export const zendeskConnector: ConnectorConfig = {
       return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
-
-  tagDefinitions: [
-    { id: 'contentType', displayName: 'Content Type', fieldType: 'text' },
-    { id: 'status', displayName: 'Status', fieldType: 'text' },
-    { id: 'priority', displayName: 'Priority', fieldType: 'text' },
-    { id: 'labels', displayName: 'Labels', fieldType: 'text' },
-    { id: 'tags', displayName: 'Tags', fieldType: 'text' },
-    { id: 'updatedAt', displayName: 'Last Updated', fieldType: 'date' },
-    { id: 'commentCount', displayName: 'Comment Count', fieldType: 'number' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

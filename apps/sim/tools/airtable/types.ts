@@ -161,6 +161,46 @@ export interface AirtableUpdateMultipleResponse extends ToolResponse {
   }
 }
 
+// Delete Records Types
+export interface AirtableDeleteParams extends AirtableBaseParams {
+  recordIds: string[]
+}
+
+interface AirtableDeletedRecord {
+  id: string
+  deleted: boolean
+}
+
+export interface AirtableDeleteResponse extends ToolResponse {
+  output: {
+    records: AirtableDeletedRecord[]
+    metadata: {
+      recordCount: number
+      deletedRecordIds: string[]
+    }
+  }
+}
+
+// Upsert Records Types
+export interface AirtableUpsertParams extends AirtableBaseParams {
+  records: Array<{ fields: Record<string, any> }>
+  fieldsToMergeOn: string[]
+  typecast?: boolean
+}
+
+export interface AirtableUpsertResponse extends ToolResponse {
+  output: {
+    records: AirtableRecord[]
+    createdRecords: string[]
+    updatedRecords: string[]
+    metadata: {
+      recordCount: number
+      createdCount: number
+      updatedCount: number
+    }
+  }
+}
+
 export type AirtableResponse =
   | AirtableListBasesResponse
   | AirtableListTablesResponse
@@ -169,6 +209,8 @@ export type AirtableResponse =
   | AirtableCreateResponse
   | AirtableUpdateResponse
   | AirtableUpdateMultipleResponse
+  | AirtableDeleteResponse
+  | AirtableUpsertResponse
   | AirtableListBasesResponse
   | AirtableGetBaseSchemaResponse
 

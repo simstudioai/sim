@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Badge, Button, Checkbox, ChipConfirmModal, cn, Loader, Tooltip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
@@ -15,15 +16,13 @@ import {
   Trash,
   XCircle,
 } from 'lucide-react'
-import { Badge, Button, Checkbox, ChipConfirmModal, Loader, Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { getBlock } from '@/blocks'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
   useConnectorDetail,
@@ -202,7 +201,7 @@ export function ConnectorsSection({
           No connected sources yet. Connect an external source to automatically sync documents.
         </p>
       ) : (
-        <div className='-mx-2 mt-2 flex flex-col gap-0.5'>
+        <div className='mt-2 flex flex-col gap-0.5'>
           {connectors.map((connector) => (
             <ConnectorCard
               key={connector.id}
@@ -238,7 +237,7 @@ export function ConnectorsSection({
         }}
         srTitle='Remove Connector'
         title='Remove Connector'
-        description='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        text='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
         confirm={{
           label: 'Remove',
           onClick: handleDeleteConnector,
@@ -294,7 +293,7 @@ function ConnectorCard({
   const [expanded, setExpanded] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
-  const connectorDef = CONNECTOR_REGISTRY[connector.connectorType]
+  const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
   const Icon = connectorDef?.icon
   const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
   const statusConfig =

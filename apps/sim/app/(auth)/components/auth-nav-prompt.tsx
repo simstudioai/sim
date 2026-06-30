@@ -1,4 +1,4 @@
-import { ChipLink } from '@/components/emcn'
+import { ChipLink } from '@sim/emcn'
 
 interface AuthNavPromptProps {
   /** Muted lead text before the link (e.g. "Don't have an account?"). */

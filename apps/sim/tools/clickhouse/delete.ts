@@ -5,7 +5,7 @@ export const deleteTool: ToolConfig<ClickHouseDeleteParams, ClickHouseDeleteResp
   id: 'clickhouse_delete',
   name: 'ClickHouse Delete',
   description: 'Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

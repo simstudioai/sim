@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { cn } from '@sim/emcn'
 import Link from 'next/link'
-import { cn } from '@/lib/core/utils/cn'
 
 const AUTH_TEXT_LINK_CLASS =
   'text-[var(--text-secondary)] underline-offset-4 transition-colors hover:text-[var(--text-primary)] hover:underline disabled:cursor-not-allowed disabled:opacity-50'

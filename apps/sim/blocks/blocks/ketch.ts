@@ -236,6 +236,7 @@ export const KetchBlock: BlockConfig<KetchResponse> = {
 
 export const KetchBlockMeta = {
   tags: ['identity'],
+  url: 'https://www.ketch.com',
   templates: [
     {
       icon: KetchIcon,

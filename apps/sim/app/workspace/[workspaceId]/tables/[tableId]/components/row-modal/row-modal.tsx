@@ -1,21 +1,21 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import {
   Checkbox,
   ChipConfirmModal,
+  ChipDatePicker,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  DatePicker,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import { cleanCellValue, formatValueForInput } from '../../utils'
@@ -128,16 +128,14 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         onOpenChange={handleClose}
         srTitle={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
         title={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
-        description={
-          <>
-            Are you sure you want to delete {isSingleRow ? 'this row' : `these ${deleteCount} rows`}
-            ?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          `Are you sure you want to delete ${isSingleRow ? 'this row' : `these ${deleteCount} rows`}? `,
+          {
+            text: `This will permanently remove all data in ${isSingleRow ? 'this row' : 'these rows'}.`,
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,
@@ -240,11 +238,11 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   if (column.type === 'date') {
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
-        <DatePicker
-          mode='single'
+        <ChipDatePicker
           value={formatValueForInput(value, column.type) || undefined}
-          onChange={(dateStr) => onChange(dateStr)}
+          onChange={onChange}
           placeholder='Select date'
+          fullWidth
         />
       </ChipModalField>
     )

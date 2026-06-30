@@ -1,16 +1,50 @@
 import path from 'node:path'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
-import { isDev } from './lib/core/config/feature-flags'
+import { isDev } from './lib/core/config/env-flags'
 import {
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
 
+/**
+ * Dev-only escape hatch: when `SIM_DEV_MINIMAL_REGISTRY=1` (`bun run dev:minimal`),
+ * swap the heavy block and tool registries for tiny curated variants via a
+ * Turbopack/webpack resolve alias. The shared workspace layout drags the
+ * ~247-tool registry (~2,074 modules) into every route via providers/utils →
+ * tools/params, and the editor/executor pull all ~268 block configs; aliasing
+ * both to minimal variants stops Turbopack from compiling those graphs, cutting
+ * dev compile-time RAM (e.g. /logs ~16GB → ~5GB, 4.9min → ~15s). Only the
+ * curated core blocks/tools work in this mode. Never enabled in production.
+ */
+const useMinimalRegistry = isDev && process.env.SIM_DEV_MINIMAL_REGISTRY === '1'
+const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
+  ? {
+      '@/tools/registry': './tools/registry.minimal.ts',
+      '@/blocks/registry-maps': './blocks/registry-maps.minimal.ts',
+    }
+  : {}
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
+  turbopack: {
+    resolveAlias: minimalRegistryAlias,
+  },
+  webpack: (config) => {
+    if (useMinimalRegistry) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@/tools/registry$': path.resolve(import.meta.dirname, 'tools/registry.minimal.ts'),
+        '@/blocks/registry-maps$': path.resolve(
+          import.meta.dirname,
+          'blocks/registry-maps.minimal.ts'
+        ),
+      }
+    }
+    return config
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
@@ -85,6 +119,7 @@ const nextConfig: NextConfig = {
     'isolated-vm',
     '@e2b/code-interpreter',
     'e2b',
+    '@earendil-works/pi-coding-agent',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
@@ -94,21 +129,8 @@ const nextConfig: NextConfig = {
       './lib/execution/sandbox/bundles/*.cjs',
     ],
   },
-  turbopack: {
-    root: path.join(__dirname, '../..'),
-    resolveAlias: {
-      // `dns/promises` has no browser shim. Server-only connector fetch logic
-      // (which imports `input-validation.server`) is statically reachable from
-      // the client bundle via the connector registry, but never runs there.
-      // Stub it for the browser only; the server keeps the real module so SSRF
-      // validation is unaffected.
-      'dns/promises': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-      dns: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-    },
-  },
   experimental: {
-    optimizeCss: !isDev,
-    turbopackFileSystemCacheForDev: false,
+    optimizeCss: true,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',
@@ -149,7 +171,8 @@ const nextConfig: NextConfig = {
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
-    'better-auth-harmony',
+    '@sim/emcn',
+    '@sim/workflow-renderer',
   ],
   async headers() {
     return [
@@ -183,8 +206,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker to prevent 'refused to connect' issue, and /demo (Cal.com booking embed needs a credentialed cross-origin iframe)
-        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',
+        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker to prevent 'refused to connect' issue
+        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive).*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -197,8 +220,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For main app routes, Google Drive Picker, Vercel resources, and the /demo Cal.com embed - use permissive policies
-        source: '/(w/.*|workspace/.*|api/tools/drive|_next/.*|_vercel/.*|demo)',
+        // For main app routes, Google Drive Picker, and Vercel resources - use permissive policies
+        source: '/(w/.*|workspace/.*|api/tools/drive|_next/.*|_vercel/.*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -326,6 +349,15 @@ const nextConfig: NextConfig = {
     redirects.push({
       source: '/workspace/:workspaceId/task/:chatId',
       destination: '/workspace/:workspaceId/chat/:chatId',
+      permanent: true,
+    })
+
+    // Legacy integration slug: the incident.io block's display name was fixed
+    // from `incidentio` to `incident.io`, which moved its catalog slug.
+    // Preserve the previously indexed landing URL.
+    redirects.push({
+      source: '/integrations/incidentio',
+      destination: '/integrations/incident-io',
       permanent: true,
     })
 

@@ -1,6 +1,6 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { ChipLink } from '@/components/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/components'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'

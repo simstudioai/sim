@@ -1,6 +1,6 @@
 import type { CSSProperties, RefObject } from 'react'
+import { cn } from '@sim/emcn'
 import { Upload, X } from 'lucide-react'
-import { cn } from '@/lib/core/utils/cn'
 import {
   GRAPH_EDGES,
   GRAPH_NODES,

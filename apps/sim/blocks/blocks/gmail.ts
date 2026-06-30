@@ -1,4 +1,4 @@
-import { Card } from '@/components/emcn/icons'
+import { Card } from '@sim/emcn/icons'
 import { GmailIcon, LemlistIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -645,6 +645,7 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
 
 export const GmailBlockMeta = {
   tags: ['google-workspace', 'messaging'],
+  url: 'https://www.google.com/gmail/about',
   templates: [
     {
       icon: GmailIcon,
@@ -759,4 +760,5 @@ export const GmailBlockMeta = {
 
 export const GmailV2BlockMeta = {
   tags: ['google-workspace', 'messaging'],
+  url: 'https://www.google.com/gmail/about',
 } as const satisfies BlockMeta

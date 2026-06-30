@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
   createTableBodySchema,
@@ -19,10 +20,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { Filter, Sort } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const domainObjectSchema = <T>() => z.custom<T>(isRecord)
+const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
 const optionalJsonObjectQuerySchema = <T>(label: string) =>
   z
@@ -34,7 +32,7 @@ const optionalJsonObjectQuerySchema = <T>(label: string) =>
 
       try {
         const parsed: unknown = JSON.parse(value)
-        if (isRecord(parsed)) return parsed as T
+        if (isRecordLike(parsed)) return parsed as T
       } catch {
         ctx.addIssue({ code: 'custom', message: `Invalid ${label} JSON` })
         return z.NEVER

@@ -42,8 +42,8 @@ import {
 import { client } from '@/lib/auth/auth-client'
 import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
-import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('OrganizationQueries')
@@ -174,10 +174,18 @@ export function useOrganizations() {
 }
 
 /**
- * Fetch a specific organization by ID
+ * Fetch a specific organization by ID.
+ *
+ * `getFullOrganization` defaults to the active organization when no
+ * `organizationId` is supplied; passing `orgId` through scopes the result to the
+ * requested org so it is cached under the correct `organizationKeys.detail(orgId)`
+ * (no cross-org cache collision). The active-org caller passes the active org's
+ * id, so its behavior is unchanged.
  */
-async function fetchOrganization(_signal?: AbortSignal) {
-  const response = await client.organization.getFullOrganization()
+async function fetchOrganization(orgId: string, _signal?: AbortSignal) {
+  const response = await client.organization.getFullOrganization({
+    query: { organizationId: orgId },
+  })
   return response.data
 }
 
@@ -187,7 +195,7 @@ async function fetchOrganization(_signal?: AbortSignal) {
 export function useOrganization(orgId: string) {
   return useQuery({
     queryKey: organizationKeys.detail(orgId),
-    queryFn: ({ signal }) => fetchOrganization(signal),
+    queryFn: ({ signal }) => fetchOrganization(orgId, signal),
     enabled: !!orgId,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -414,7 +422,14 @@ export function useInviteMember() {
 
   return useMutation({
     mutationFn: async ({ emails, workspaceInvitations, orgId }: InviteMemberParams) => {
-      const result = await requestJson(inviteOrganizationMembersContract, {
+      /**
+       * Partial batches return HTTP 207 with `success: false` and a `data`
+       * payload (some invited/added, some failed). `requestJson` only throws on
+       * >= 400 (e.g. the total-failure 502 / validation 400 paths), so partials
+       * resolve here and the caller reports successes + per-email failures from
+       * `data` instead of surfacing a single generic error.
+       */
+      return requestJson(inviteOrganizationMembersContract, {
         params: { id: orgId },
         query: { batch: true },
         body: {
@@ -422,12 +437,6 @@ export function useInviteMember() {
           workspaceInvitations,
         },
       })
-
-      if (result.success === false) {
-        throw new Error(result.error || result.message || 'Failed to invite teammate')
-      }
-
-      return result
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
@@ -435,6 +444,15 @@ export function useInviteMember() {
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      // Existing members may have been added directly to selected workspaces.
+      for (const grant of variables.workspaceInvitations ?? []) {
+        queryClient.invalidateQueries({
+          queryKey: workspaceKeys.permissions(grant.workspaceId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: workspaceKeys.members(grant.workspaceId),
+        })
+      }
     },
   })
 }

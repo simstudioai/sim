@@ -57,7 +57,7 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
   isOrgScopedSubscription: mockIsOrgScopedSubscription,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: true,
 }))
 

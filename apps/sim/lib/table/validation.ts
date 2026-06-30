@@ -6,10 +6,16 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { getColumnId } from './column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
-import { withSeqscanOff } from './planner'
-import type { ColumnDefinition, JsonValue, RowData, TableSchema, ValidationResult } from './types'
+import { getColumnId } from '@/lib/table/column-keys'
+import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { withSeqscanOff } from '@/lib/table/planner'
+import type {
+  ColumnDefinition,
+  JsonValue,
+  RowData,
+  TableSchema,
+  ValidationResult,
+} from '@/lib/table/types'
 
 export type { ColumnDefinition, TableSchema, ValidationResult }
 

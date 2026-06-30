@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { headers } from 'next/headers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 

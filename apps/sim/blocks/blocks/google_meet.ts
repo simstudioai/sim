@@ -184,6 +184,7 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
 
 export const GoogleMeetBlockMeta = {
   tags: ['meeting', 'google-workspace', 'scheduling'],
+  url: 'https://workspace.google.com/products/meet',
   templates: [
     {
       icon: GoogleMeetIcon,

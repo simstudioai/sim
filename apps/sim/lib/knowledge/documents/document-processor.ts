@@ -22,6 +22,7 @@ import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { StorageService } from '@/lib/uploads'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
 const logger = createLogger('DocumentProcessor')
@@ -295,7 +296,7 @@ async function parseDocument(
   if (isPDF && (hasAzureMistralOCR || hasMistralOCR)) {
     if (hasAzureMistralOCR) {
       logger.info(`Using Azure Mistral OCR: ${filename}`)
-      return parseWithAzureMistralOCR(fileUrl, filename, mimeType)
+      return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)
     }
 
     if (hasMistralOCR) {
@@ -305,7 +306,7 @@ async function parseDocument(
   }
 
   logger.info(`Using file parser: ${filename}`)
-  return parseWithFileParser(fileUrl, filename, mimeType)
+  return parseWithFileParser(fileUrl, filename, mimeType, userId)
 }
 
 async function handleFileForOCR(
@@ -321,7 +322,7 @@ async function handleFileForOCR(
     if (mimeType === 'application/pdf') {
       logger.info(`handleFileForOCR: Downloading external PDF to check page count`)
       try {
-        const buffer = await downloadFileWithTimeout(fileUrl)
+        const buffer = await downloadFileWithTimeout(fileUrl, userId)
         logger.info(`handleFileForOCR: Downloaded external PDF: ${buffer.length} bytes`)
         return { httpsUrl: fileUrl, buffer }
       } catch (error) {
@@ -340,7 +341,7 @@ async function handleFileForOCR(
 
   logger.info(`Uploading "${filename}" to cloud storage for OCR`)
 
-  const buffer = await downloadFileWithTimeout(fileUrl)
+  const buffer = await downloadFileWithTimeout(fileUrl, userId)
 
   logger.info(`Downloaded ${filename}: ${buffer.length} bytes`)
 
@@ -380,11 +381,21 @@ async function handleFileForOCR(
   }
 }
 
-async function downloadFileWithTimeout(fileUrl: string): Promise<Buffer> {
-  return downloadFileFromUrl(fileUrl, TIMEOUTS.FILE_DOWNLOAD)
+/**
+ * Downloads an ingestion source file, enforcing the {@link MAX_FILE_SIZE} document
+ * limit. `maxBytes` aborts the streaming read once the cap is exceeded (and rejects
+ * up front on an oversized `Content-Length`), so an attacker-controlled `fileUrl`
+ * pointing at an unbounded body cannot exhaust the processing worker's memory.
+ */
+async function downloadFileWithTimeout(fileUrl: string, userId?: string): Promise<Buffer> {
+  return downloadFileFromUrl(fileUrl, {
+    timeoutMs: TIMEOUTS.FILE_DOWNLOAD,
+    maxBytes: MAX_FILE_SIZE,
+    userId,
+  })
 }
 
-async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
+async function downloadFileForBase64(fileUrl: string, userId?: string): Promise<Buffer> {
   if (/^data:/i.test(fileUrl)) {
     const [, base64Data] = fileUrl.split(',')
     if (!base64Data) {
@@ -393,7 +404,7 @@ async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
     return Buffer.from(base64Data, 'base64')
   }
   if (/^https?:\/\//i.test(fileUrl)) {
-    return downloadFileWithTimeout(fileUrl)
+    return downloadFileWithTimeout(fileUrl, userId)
   }
   throw new Error('Unsupported fileUrl scheme: only data: URIs and http(s):// URLs are allowed')
 }
@@ -468,7 +479,12 @@ async function makeOCRRequest(
   }
 }
 
-async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeType: string) {
+async function parseWithAzureMistralOCR(
+  fileUrl: string,
+  filename: string,
+  mimeType: string,
+  userId?: string
+) {
   validateOCRConfig(
     env.OCR_AZURE_API_KEY,
     env.OCR_AZURE_ENDPOINT,
@@ -476,7 +492,7 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
     'Azure Mistral OCR'
   )
 
-  const fileBuffer = await downloadFileForBase64(fileUrl)
+  const fileBuffer = await downloadFileForBase64(fileUrl, userId)
 
   if (mimeType === 'application/pdf') {
     const pageCount = await getPdfPageCount(fileBuffer)
@@ -485,7 +501,7 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
         `PDF has ${pageCount} pages, exceeds Azure OCR limit of ${MISTRAL_MAX_PAGES}. ` +
           `Falling back to file parser.`
       )
-      return parseWithFileParser(fileUrl, filename, mimeType)
+      return parseWithFileParser(fileUrl, filename, mimeType, userId)
     }
     logger.info(`Azure Mistral OCR: PDF page count for ${filename}: ${pageCount}`)
   }
@@ -529,7 +545,7 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
     })
 
     logger.info(`Falling back to file parser: ${filename}`)
-    return parseWithFileParser(fileUrl, filename, mimeType)
+    return parseWithFileParser(fileUrl, filename, mimeType, userId)
   }
 }
 
@@ -589,7 +605,7 @@ async function parseWithMistralOCR(
     })
 
     logger.info(`Falling back to file parser: ${filename}`)
-    return parseWithFileParser(fileUrl, filename, mimeType)
+    return parseWithFileParser(fileUrl, filename, mimeType, userId)
   }
 }
 
@@ -773,7 +789,12 @@ async function processMistralOCRInBatches(
   }
 }
 
-async function parseWithFileParser(fileUrl: string, filename: string, mimeType: string) {
+async function parseWithFileParser(
+  fileUrl: string,
+  filename: string,
+  mimeType: string,
+  userId?: string
+) {
   try {
     let content: string
     let metadata: FileParseMetadata = {}
@@ -781,7 +802,7 @@ async function parseWithFileParser(fileUrl: string, filename: string, mimeType: 
     if (/^data:/i.test(fileUrl)) {
       content = await parseDataURI(fileUrl, filename, mimeType)
     } else if (/^https?:\/\//i.test(fileUrl)) {
-      const result = await parseHttpFile(fileUrl, filename, mimeType)
+      const result = await parseHttpFile(fileUrl, filename, mimeType, userId)
       content = result.content
       metadata = result.metadata || {}
     } else {
@@ -820,9 +841,10 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
 async function parseHttpFile(
   fileUrl: string,
   filename: string,
-  mimeType?: string
+  mimeType?: string,
+  userId?: string
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
-  const buffer = await downloadFileWithTimeout(fileUrl)
+  const buffer = await downloadFileWithTimeout(fileUrl, userId)
 
   const extension = resolveParserExtension(filename, mimeType)
   const result = await parseBuffer(buffer, extension)

@@ -72,8 +72,18 @@ export const hubspotCreateCompanyTool: ToolConfig<
         properties,
       }
 
-      if (params.associations && params.associations.length > 0) {
-        body.associations = params.associations
+      let associations = params.associations
+      if (typeof associations === 'string') {
+        try {
+          associations = JSON.parse(associations)
+        } catch (e) {
+          throw new Error(
+            'Invalid JSON format for associations. Please provide a valid JSON array.'
+          )
+        }
+      }
+      if (Array.isArray(associations) && associations.length > 0) {
+        body.associations = associations
       }
 
       return body

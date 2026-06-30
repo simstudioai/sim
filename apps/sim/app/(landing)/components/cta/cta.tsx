@@ -1,4 +1,4 @@
-import { ChipLink } from '@/components/emcn'
+import { ChipLink } from '@sim/emcn'
 
 /**
  * Landing pre-footer CTA - the page's final conversion band. A tall, centered

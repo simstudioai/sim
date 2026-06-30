@@ -1,19 +1,26 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { GitLabIcon } from '@/components/icons'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  computeContentHash,
+  joinTagArray,
+  markSkipped,
+  parseTagDate,
+  sizeLimitSkipReason,
+} from '@/connectors/utils'
+import { normalizeGitLabHost, UnsafeGitLabHostError } from '@/tools/gitlab/utils'
 
 const logger = createLogger('GitLabConnector')
 
-const DEFAULT_HOST = 'gitlab.com'
 const PAGE_SIZE = 100
 /** Max repository file size to index. Larger blobs are skipped. */
-const MAX_FILE_SIZE = 10 * 1024 * 1024
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 /** Bytes sniffed for NUL when detecting binary files (matches git's heuristic). */
 const BINARY_SNIFF_BYTES = 8000
 
@@ -168,16 +175,16 @@ interface GitLabProject {
 }
 
 /**
- * Normalizes the host config value: trims whitespace, strips any protocol
- * prefix and trailing slashes, and falls back to gitlab.com when empty.
+ * Normalizes the host config value via the shared GitLab host normalizer:
+ * trims, strips any protocol prefix and trailing slashes, rejects structurally
+ * unsafe hosts (userinfo, whitespace, embedded path), and falls back to
+ * gitlab.com when empty. Shared with the GitLab tools and webhook provider so
+ * every surface resolves and validates hosts identically.
+ *
+ * @throws {UnsafeGitLabHostError} when a non-empty host is structurally unsafe.
  */
 function normalizeHost(rawHost: unknown): string {
-  const host = typeof rawHost === 'string' ? rawHost.trim() : ''
-  if (!host) return DEFAULT_HOST
-  return host
-    .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '')
-    .trim()
+  return normalizeGitLabHost(rawHost)
 }
 
 /**
@@ -324,9 +331,25 @@ function fileToDocument(
   const blobSha = file.blob_id?.trim()
   if (!blobSha) return null
 
+  const title = path.split('/').pop() || path
+  const skippedForSize = (size: number): ExternalDocument => {
+    logger.info('Skipping oversized GitLab file', { path, size })
+    return markSkipped(
+      {
+        externalId: `${FILE_PREFIX}${path}`,
+        title,
+        content: '',
+        mimeType: 'text/plain',
+        sourceUrl: buildFileSourceUrl(apiBase, encodedProject, host, projectPath, ref, path),
+        contentHash: buildFileContentHash(encodedProject, path, blobSha),
+        metadata: { contentType: 'file', title, path, size },
+      },
+      sizeLimitSkipReason(MAX_FILE_SIZE)
+    )
+  }
+
   if (typeof file.size === 'number' && file.size > MAX_FILE_SIZE) {
-    logger.info('Skipping oversized GitLab file', { path, size: file.size })
-    return null
+    return skippedForSize(file.size)
   }
 
   const raw = typeof file.content === 'string' ? file.content : ''
@@ -336,12 +359,10 @@ function fileToDocument(
     return null
   }
   if (buffer.byteLength > MAX_FILE_SIZE) {
-    logger.info('Skipping oversized GitLab file', { path, size: buffer.byteLength })
-    return null
+    return skippedForSize(buffer.byteLength)
   }
 
   const content = buffer.toString('utf8')
-  const title = path.split('/').pop() || path
   const body = composeBody(title, content)
   if (!body.trim()) return null
 
@@ -570,128 +591,7 @@ function applyMaxItemsCap(
 }
 
 export const gitlabConnector: ConnectorConfig = {
-  id: 'gitlab',
-  name: 'GitLab',
-  description:
-    'Sync repository files, wiki pages, and issues from a GitLab project into your knowledge base',
-  version: '1.0.0',
-  icon: GitLabIcon,
-
-  auth: {
-    mode: 'apiKey',
-    label: 'Personal Access Token',
-    placeholder: 'Enter your GitLab PAT',
-  },
-
-  /**
-   * Incremental sync applies to issues only (via the `updated_after` filter
-   * derived from lastSyncAt). Wikis and repository files lack a change timestamp
-   * on listing, so they are always re-listed in full and reconciled by content
-   * hash (wiki: content digest, file: git blob SHA) — unchanged docs are skipped.
-   */
-  supportsIncrementalSync: true,
-
-  configFields: [
-    {
-      id: 'host',
-      title: 'Host',
-      type: 'short-input',
-      placeholder: 'gitlab.com',
-      required: false,
-      description: 'Self-managed GitLab host. Leave blank for gitlab.com.',
-    },
-    {
-      id: 'project',
-      title: 'Project',
-      type: 'short-input',
-      placeholder: 'group/project or numeric ID',
-      required: true,
-      description: 'Project path (e.g. my-group/my-repo) or numeric project ID.',
-    },
-    {
-      id: 'contentTypes',
-      title: 'Content',
-      type: 'dropdown',
-      required: false,
-      options: [
-        { label: 'Code, Wiki & Issues', id: 'all' },
-        { label: 'Code (repository files) only', id: 'repo' },
-        { label: 'Wiki only', id: 'wiki' },
-        { label: 'Issues only', id: 'issues' },
-        { label: 'Wiki & Issues', id: 'both' },
-      ],
-      description: 'Which content to index. "Code" syncs repository files (READMEs, docs, source).',
-    },
-    {
-      id: 'ref',
-      title: 'Branch',
-      type: 'short-input',
-      required: false,
-      mode: 'advanced',
-      placeholder: 'Default branch',
-      description: 'Branch or tag to sync repository files from. Applies only when syncing Code.',
-    },
-    {
-      id: 'pathPrefix',
-      title: 'Path Filter',
-      type: 'short-input',
-      required: false,
-      mode: 'advanced',
-      placeholder: 'e.g. docs/',
-      description:
-        'Only sync repository files under this path prefix. Applies only when syncing Code.',
-    },
-    {
-      id: 'fileExtensions',
-      title: 'File Extensions',
-      type: 'short-input',
-      required: false,
-      mode: 'advanced',
-      placeholder: 'e.g. .md, .txt, .mdx',
-      description:
-        'Only sync repository files with these extensions (comma-separated). Leave blank for all text files. Applies only when syncing Code.',
-    },
-    {
-      id: 'issueState',
-      title: 'Issue State',
-      type: 'dropdown',
-      required: false,
-      mode: 'advanced',
-      options: [
-        { label: 'All', id: 'all' },
-        { label: 'Open only', id: 'opened' },
-        { label: 'Closed only', id: 'closed' },
-      ],
-      description: 'Which issues to sync by state. Applies only when syncing issues.',
-    },
-    {
-      id: 'issueLabels',
-      title: 'Issue Labels',
-      type: 'short-input',
-      required: false,
-      mode: 'advanced',
-      placeholder: 'e.g. bug,docs (comma-separated)',
-      description:
-        'Only sync issues with all of these labels (comma-separated). Applies only when syncing issues.',
-    },
-    {
-      id: 'issueMilestone',
-      title: 'Issue Milestone',
-      type: 'short-input',
-      required: false,
-      mode: 'advanced',
-      placeholder: 'e.g. v1.0 (milestone title)',
-      description:
-        'Only sync issues assigned to this milestone (exact title). Applies only when syncing issues.',
-    },
-    {
-      id: 'maxItems',
-      title: 'Max Items',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...gitlabConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -1041,7 +941,18 @@ export const gitlabConnector: ConnectorConfig = {
       return { valid: false, error: 'Max items must be a positive number' }
     }
 
-    const host = normalizeHost(sourceConfig.host)
+    let host: string
+    try {
+      host = normalizeHost(sourceConfig.host)
+    } catch (error) {
+      if (error instanceof UnsafeGitLabHostError) {
+        return {
+          valid: false,
+          error: 'Host must be a valid GitLab domain (e.g. gitlab.example.com)',
+        }
+      }
+      throw error
+    }
     const apiBase = buildApiBase(host)
     const encodedProject = encodeProjectId(project)
     const choice = getContentTypeChoice(sourceConfig)
@@ -1104,19 +1015,6 @@ export const gitlabConnector: ConnectorConfig = {
       return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
     }
   },
-
-  tagDefinitions: [
-    { id: 'contentType', displayName: 'Content Type', fieldType: 'text' },
-    { id: 'title', displayName: 'Title', fieldType: 'text' },
-    { id: 'state', displayName: 'State', fieldType: 'text' },
-    { id: 'author', displayName: 'Author', fieldType: 'text' },
-    { id: 'labels', displayName: 'Labels', fieldType: 'text' },
-    { id: 'milestone', displayName: 'Milestone', fieldType: 'text' },
-    { id: 'path', displayName: 'File Path', fieldType: 'text' },
-    { id: 'size', displayName: 'File Size (bytes)', fieldType: 'number' },
-    { id: 'createdAt', displayName: 'Created At', fieldType: 'date' },
-    { id: 'updatedAt', displayName: 'Updated At', fieldType: 'date' },
-  ],
 
   /**
    * Maps document metadata to tag slots. `contentType` and `title` apply to every

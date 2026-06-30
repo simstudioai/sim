@@ -5,7 +5,7 @@ export const tableStatsTool: ToolConfig<ClickHouseTableStatsParams, ClickHouseRo
   id: 'clickhouse_table_stats',
   name: 'ClickHouse Table Stats',
   description: 'Get row counts and on-disk size for tables in the connected database',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

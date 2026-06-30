@@ -1390,6 +1390,7 @@ Return ONLY the message content - no meta-commentary.`,
 
 export const RedditBlockMeta = {
   tags: ['content-management', 'web-scraping'],
+  url: 'https://www.reddit.com',
   templates: [
     {
       icon: RedditIcon,

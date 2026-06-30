@@ -20,6 +20,8 @@ export const env = createEnv({
     // Core Database & Authentication
     DATABASE_URL:                          z.string().url(),                       // Primary database connection string
     DATABASE_REPLICA_URL:                  z.string().url().optional(),            // Read-replica connection string; opt-in reads fall back to the primary when unset
+    DB_APP_NAME:                           z.string().optional(),                  // Postgres application_name for query attribution (sim-app/sim-trigger/sim-realtime)
+    SIM_DB_ROLE:                           z.enum(['web', 'trigger', 'realtime']).optional(), // Per-process pool profile selector (read directly by @sim/db)
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
@@ -33,7 +35,6 @@ export const env = createEnv({
     BLOCKED_EMAIL_MX_HOSTS:                z.string().optional(),                  // Comma-separated MX-host substrings blocked from signing up; matched against the domain's resolved MX backend to catch throwaway domains that share a mail backend. No defaults — operators supply their own list. Only used when SIGNUP_MX_VALIDATION_ENABLED is set.
     TRUSTED_ORIGINS:                       z.string().optional(),                  // Comma-separated additional origins to trust for auth (e.g., "https://app.example.com,https://www.example.com"). Merged into Better Auth trustedOrigins.
     TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
-    SIGNUP_EMAIL_VALIDATION_ENABLED:       z.boolean().optional(),                 // Enable disposable email blocking via better-auth-harmony (55K+ domains)
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
@@ -71,15 +72,19 @@ export const env = createEnv({
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
+    FREE_API_DEPLOYMENT_GATE_ENABLED:      z.boolean().optional(),                 // Block free-plan accounts from programmatic execution (API/MCP/generic webhooks/chat embeds). Requires BILLING_ENABLED. Off by default for dark rollout
     TABLES_FRACTIONAL_ORDERING:            z.boolean().optional(),                 // Order table rows by fractional order_key (O(1) insert/delete) instead of integer position
+    TABLE_SNAPSHOT_CACHE:                  z.boolean().optional(),                 // Mount tables into sandboxes by reference via a version-keyed CSV snapshot in object storage instead of draining the whole table into web-process heap
+    PII_REDACTION:                         z.boolean().optional(),                 // Redact PII from workflow logs via configurable Data Retention rules (Presidio at the logger persist choke point) and expose the Data Retention config UI
+    TRIGGER_EU_REGION:                     z.boolean().optional(),                 // Route Trigger.dev runs to eu-central-1 instead of the default us-east-1 (fallback for the trigger-eu-region flag when AppConfig is not the source of truth)
 
     // Table feature limits (per plan). Apply when billing is disabled (free tier defaults) or for billed plans.
-    FREE_TABLES_LIMIT:                     z.number().optional(),                  // Max user tables per workspace on free tier (default: 3)
-    FREE_TABLE_ROWS_LIMIT:                 z.number().optional(),                  // Max rows per table on free tier (default: 1000)
-    PRO_TABLES_LIMIT:                      z.number().optional(),                  // Max user tables per workspace on pro tier (default: 25)
-    PRO_TABLE_ROWS_LIMIT:                  z.number().optional(),                  // Max rows per table on pro tier (default: 5000)
-    TEAM_TABLES_LIMIT:                     z.number().optional(),                  // Max user tables per workspace on team tier (default: 100)
-    TEAM_TABLE_ROWS_LIMIT:                 z.number().optional(),                  // Max rows per table on team tier (default: 10000)
+    FREE_TABLES_LIMIT:                     z.number().optional(),                  // Max user tables per workspace on free tier (default: 5)
+    FREE_TABLE_ROWS_LIMIT:                 z.number().optional(),                  // Max rows per table on free tier (default: 50000)
+    PRO_TABLES_LIMIT:                      z.number().optional(),                  // Max user tables per workspace on pro tier (default: 100)
+    PRO_TABLE_ROWS_LIMIT:                  z.number().optional(),                  // Max rows per table on pro tier (default: 100000)
+    TEAM_TABLES_LIMIT:                     z.number().optional(),                  // Max user tables per workspace on team tier (default: 1000)
+    TEAM_TABLE_ROWS_LIMIT:                 z.number().optional(),                  // Max rows per table on team tier (default: 500000)
     ENTERPRISE_TABLES_LIMIT:               z.number().optional(),                  // Max user tables per workspace on enterprise tier (default: 10000)
     ENTERPRISE_TABLE_ROWS_LIMIT:           z.number().optional(),                  // Max rows per table on enterprise tier (default: 1000000)
 
@@ -202,7 +207,10 @@ export const env = createEnv({
     TRIGGER_DEV_ENABLED:                   z.boolean().optional(),                 // Toggle to enable/disable Trigger.dev for async jobs
     CRON_SECRET:                           z.string().optional(),                  // Secret for authenticating cron job requests
     JOB_RETENTION_DAYS:                    z.string().optional().default('1'),     // Days to retain job logs/data
-    SCHEDULE_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('50'),
+    SCHEDULE_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('30'),
+    WORKFLOW_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('75'),
+    WEBHOOK_EXECUTION_CONCURRENCY_LIMIT:   z.string().optional().default('75'),
+    RESUME_EXECUTION_CONCURRENCY_LIMIT:    z.string().optional().default('50'),
     SCHEDULE_ENQUEUE_BUDGET_MULTIPLIER:    z.string().optional().default('2'),
     SCHEDULE_JITTER_MAX_MS:                z.string().optional().default('30000'),
     SCHEDULE_INFRA_RETRY_BASE_MS:          z.string().optional().default('60000'),
@@ -247,6 +255,7 @@ export const env = createEnv({
     ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod
     API_MAX_JSON_BODY_BYTES:               z.string().optional().default('52428800'),// Default max JSON request body size for contract routes (50 MB)
     CHAT_MAX_REQUEST_BYTES:                z.string().optional().default('230686720'),// Max request body size for the public deployed-chat endpoint (220 MB; covers 15 base64 file attachments)
+    WEBHOOK_MAX_REQUEST_BYTES:             z.string().optional().default('10485760'),// Max request body size for public webhook receiver endpoints (10 MB; provider payloads rarely exceed a few MB)
 
     // Rate Limiting Configuration
     RATE_LIMIT_WINDOW_MS:                  z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
@@ -308,6 +317,7 @@ export const env = createEnv({
     PORT:                                  z.number().optional(),                  // Main application port
     INTERNAL_API_BASE_URL:                 z.string().optional(),                  // Optional internal base URL for server-side self-calls; must include protocol if set (e.g., http://sim-app.namespace.svc.cluster.local:3000)
     ALLOWED_ORIGINS:                       z.string().optional(),                  // CORS allowed origins
+    PII_URL:                               z.string().optional(),                  // Presidio PII sidecar base URL serving /analyze + /anonymize (default http://localhost:5001)
 
     // OAuth Integration Credentials - All optional, enables third-party integrations
     GOOGLE_CLIENT_ID:                      z.string().optional(),                  // Google OAuth client ID for Google services
@@ -316,7 +326,7 @@ export const env = createEnv({
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
     DISABLE_GOOGLE_AUTH:                   z.boolean().optional(),                 // Disable Google OAuth login even when credentials are configured
     DISABLE_GITHUB_AUTH:                   z.boolean().optional(),                 // Disable GitHub OAuth login even when credentials are configured
-    DISABLE_MICROSOFT_AUTH:                z.boolean().optional(),                 // Disable Microsoft OAuth login even when credentials are configured
+    DISABLE_MICROSOFT_AUTH:               z.boolean().optional(),                 // Disable Microsoft OAuth login even when credentials are configured
     DISABLE_EMAIL_SIGNUP:                  z.boolean().optional(),                 // Block new email/password registrations while keeping email login working
 
     X_CLIENT_ID:                           z.string().optional(),                  // X (Twitter) OAuth client ID
@@ -387,6 +397,7 @@ export const env = createEnv({
     E2B_API_KEY:                           z.string().optional(),                  // E2B API key for sandbox creation
     MOTHERSHIP_E2B_TEMPLATE_ID:             z.string().optional(),                  // Custom E2B template with pre-installed CLI tools for shell execution
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID:         z.string().optional(),                  // Dedicated E2B template with python-pptx/docx/openpyxl/reportlab for document generation; when set (and E2B enabled), docs compile via Python instead of the JS isolated-vm path
+    E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Pi Coding Agent cloud mode)
 
     // Credential Sets (Email Polling) - for self-hosted deployments
     CREDENTIAL_SETS_ENABLED:               z.boolean().optional(),                 // Enable credential sets on self-hosted (bypasses plan requirements)
@@ -399,6 +410,7 @@ export const env = createEnv({
     AUDIT_LOGS_ENABLED:                    z.boolean().optional(),                 // Enable audit logs on self-hosted (bypasses hosted requirements)
     DATA_RETENTION_ENABLED:               z.boolean().optional(),                 // Enable data retention settings on self-hosted (bypasses hosted requirements)
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
+    FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
@@ -498,6 +510,7 @@ export const env = createEnv({
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_DRAINS_ENABLED:      z.boolean().optional(),                   // Enable data drains on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_FORKING_ENABLED:          z.boolean().optional(),                   // Enable workspace forking on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: z.boolean().optional(),                   // Show the "Workflow" column type in user tables (defaults to false)
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
@@ -537,6 +550,7 @@ export const env = createEnv({
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
     NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: process.env.NEXT_PUBLIC_DATA_DRAINS_ENABLED,
+    NEXT_PUBLIC_FORKING_ENABLED: process.env.NEXT_PUBLIC_FORKING_ENABLED,
     NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: process.env.NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED,
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,

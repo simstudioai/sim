@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from '@/components/emcn'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions, TableDefinition } from '@/lib/table'
 import { isExecInFlight } from '@/lib/table/deps'
@@ -13,8 +13,8 @@ import {
   downloadExportResult,
   snapshotAndMutateRows,
   type TableRunState,
-  tableKeys,
 } from '@/hooks/queries/tables'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 
 const logger = createLogger('useTableEventStream')
 

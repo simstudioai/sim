@@ -12,8 +12,8 @@ You are an expert at adding knowledge base connectors to Sim. A connector syncs 
 When the user asks you to create a connector:
 1. Use Context7 or WebFetch to read the service's API documentation
 2. Determine the auth mode: **OAuth** (if Sim already has an OAuth provider for the service) or **API key** (if the service uses API key / Bearer token auth)
-3. Create the connector directory and config
-4. Register it in the connector registry
+3. Create the connector directory: a client-safe `meta.ts` (declarative metadata) plus the runtime module that spreads it
+4. Register it in BOTH the server registry and the client-safe meta registry
 
 ## Hard Rule: No Guessed Response Or Document Schemas
 
@@ -32,12 +32,18 @@ If the source schema is unknown, do one of these instead:
 
 ## Directory Structure
 
+Each connector is split into a client-safe metadata file and a server-only runtime file. This mirrors the `XBlockMeta` / `BLOCK_META_REGISTRY` split in `apps/sim/blocks` — client components (the knowledge UI) only need the metadata (icon, name, auth, config fields), so the runtime functions (which pull server-only helpers like `input-validation.server` → `undici` → `node:net`) must stay out of the client bundle.
+
 Create files in `apps/sim/connectors/{service}/`:
 ```
 connectors/{service}/
-├── index.ts          # Barrel export
-└── {service}.ts      # ConnectorConfig definition
+├── index.ts          # Barrel export (re-exports the runtime connector)
+├── meta.ts           # ConnectorMeta — client-safe declarative metadata
+└── {service}.ts      # ConnectorConfig — spreads the meta + adds runtime functions
 ```
+
+- `meta.ts` exports `{service}ConnectorMeta: ConnectorMeta`. It imports ONLY the icon from `@/components/icons`, `import type { ConnectorMeta } from '@/connectors/types'`, and any pure-data constants. It must NEVER import server/runtime code.
+- `{service}.ts` exports `{service}Connector: ConnectorConfig`. It imports the meta via `import { {service}ConnectorMeta } from '@/connectors/{service}/meta'`, spreads it as the first property, and holds the runtime functions (which may import server-only helpers like `@/lib/knowledge/documents/utils`).
 
 ## Authentication
 
@@ -55,19 +61,17 @@ For services with existing OAuth providers in `apps/sim/lib/oauth/types.ts`. The
 ### API key mode
 For services that use API key / Bearer token auth. The modal shows a password input with the configured `label` and `placeholder`. The API key is encrypted at rest using AES-256-GCM and stored in a dedicated `encryptedApiKey` column on the connector record. The sync engine decrypts it automatically — connectors receive the raw access token in `listDocuments`, `getDocument`, and `validateConfig`.
 
-## ConnectorConfig Structure
+## Connector Structure (meta.ts + runtime)
 
-### OAuth connector example
+The declarative metadata lives in `meta.ts` (`ConnectorMeta`). The runtime functions live in `{service}.ts` (`ConnectorConfig`), which spreads the meta as its first property.
+
+### `meta.ts` — client-safe metadata
 
 ```typescript
-import { createLogger } from '@sim/logger'
 import { {Service}Icon } from '@/components/icons'
-import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
-import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
+import type { ConnectorMeta } from '@/connectors/types'
 
-const logger = createLogger('{Service}Connector')
-
-export const {service}Connector: ConnectorConfig = {
+export const {service}ConnectorMeta: ConnectorMeta = {
   id: '{service}',
   name: '{Service}',
   description: 'Sync documents from {Service} into your knowledge base',
@@ -84,6 +88,26 @@ export const {service}Connector: ConnectorConfig = {
     // Rendered dynamically by the add-connector modal UI
     // Supports 'short-input' and 'dropdown' types
   ],
+
+  // Optional: tag definitions are metadata too — declare them here
+  // tagDefinitions: [ ... ],
+}
+```
+
+Keep `meta.ts` free of any server/runtime import. Only the icon, the `ConnectorMeta` type, and pure-data constants belong here.
+
+### `{service}.ts` — runtime (OAuth example)
+
+```typescript
+import { createLogger } from '@sim/logger'
+import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+import { {service}ConnectorMeta } from '@/connectors/{service}/meta'
+import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
+
+const logger = createLogger('{Service}Connector')
+
+export const {service}Connector: ConnectorConfig = {
+  ...{service}ConnectorMeta,
 
   listDocuments: async (accessToken, sourceConfig, cursor) => {
     // Return metadata stubs with contentDeferred: true (if per-doc content fetch needed)
@@ -111,8 +135,11 @@ Only map fields in `listDocuments`, `getDocument`, `validateConfig`, and `mapTag
 
 ### API key connector example
 
+The split is identical — `auth` lives in `meta.ts`, runtime functions in `{service}.ts`.
+
 ```typescript
-export const {service}Connector: ConnectorConfig = {
+// meta.ts
+export const {service}ConnectorMeta: ConnectorMeta = {
   id: '{service}',
   name: '{Service}',
   description: 'Sync documents from {Service} into your knowledge base',
@@ -126,6 +153,11 @@ export const {service}Connector: ConnectorConfig = {
   },
 
   configFields: [ /* ... */ ],
+}
+
+// {service}.ts
+export const {service}Connector: ConnectorConfig = {
+  ...{service}ConnectorMeta,
   listDocuments: async (accessToken, sourceConfig, cursor) => { /* ... */ },
   getDocument: async (accessToken, sourceConfig, externalId) => { /* ... */ },
   validateConfig: async (accessToken, sourceConfig) => { /* ... */ },
@@ -499,7 +531,9 @@ If the service already has an icon in `apps/sim/components/icons.tsx` (from a to
 
 ## Registering
 
-Add one line to `apps/sim/connectors/registry.ts`:
+Register in BOTH registries, keeping the same alphabetical-by-id ordering in each.
+
+1. **Server registry** — `apps/sim/connectors/registry.server.ts` (server-only full registry; holds full connectors with runtime functions, imported by the sync engine and knowledge API routes):
 
 ```typescript
 import { {service}Connector } from '@/connectors/{service}'
@@ -509,6 +543,19 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   {service}: {service}Connector,
 }
 ```
+
+2. **Client-safe meta registry** — `apps/sim/connectors/registry.ts` (imports each connector's `meta.ts` only, so client components can use it without pulling server-only code; the metadata counterpart to `BLOCK_META_REGISTRY`):
+
+```typescript
+import { {service}ConnectorMeta } from '@/connectors/{service}/meta'
+
+export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
+  // ... existing connector metas ...
+  {service}: {service}ConnectorMeta,
+}
+```
+
+`registry.ts` exports `CONNECTOR_META_REGISTRY: ConnectorMetaRegistry` plus the helpers `getConnectorMeta(id)` and `getAllConnectorMeta()`, importing each `@/connectors/{service}/meta` directly — never the runtime module. `registry.server.ts` exports `CONNECTOR_REGISTRY: ConnectorRegistry`.
 
 ## Reference Implementations
 
@@ -520,7 +567,8 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
 
 ## Checklist
 
-- [ ] Created `connectors/{service}/{service}.ts` with full ConnectorConfig
+- [ ] Created `connectors/{service}/meta.ts` with `{service}ConnectorMeta: ConnectorMeta` (icon, name, auth, configFields, tagDefinitions) — no server/runtime imports
+- [ ] Created `connectors/{service}/{service}.ts` with `{service}Connector: ConnectorConfig` spreading the meta + runtime functions
 - [ ] Created `connectors/{service}/index.ts` barrel export
 - [ ] **Auth configured correctly:**
   - OAuth: `auth.provider` matches an existing `OAuthService` in `lib/oauth/types.ts`
@@ -542,4 +590,5 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
 - [ ] All external API calls use `fetchWithRetry` (not raw `fetch`)
 - [ ] All optional config fields validated in `validateConfig`
 - [ ] Icon exists in `components/icons.tsx` (or asked user to provide SVG)
-- [ ] Registered in `connectors/registry.ts`
+- [ ] Registered the full connector in `connectors/registry.server.ts`
+- [ ] Registered the meta in `connectors/registry.ts` (same alphabetical-by-id ordering as registry.server.ts)

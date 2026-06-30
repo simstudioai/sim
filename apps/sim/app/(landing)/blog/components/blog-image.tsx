@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { cn } from '@sim/emcn'
 import NextImage from 'next/image'
-import { cn } from '@/lib/core/utils/cn'
 import { Lightbox } from '@/app/(landing)/blog/components/lightbox'
 
 interface BlogImageProps {

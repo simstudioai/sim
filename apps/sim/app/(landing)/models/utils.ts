@@ -127,6 +127,8 @@ export interface CatalogProvider {
   color?: string
   isReseller: boolean
   contextInformationAvailable: boolean
+  /** Max agent-block file attachment size in bytes when the provider exceeds the default. */
+  maxFileAttachmentBytes: number | null
   providerCapabilityTags: string[]
   modelCount: number
   models: CatalogModel[]
@@ -148,6 +150,18 @@ export function formatTokenCount(value?: number | null): string {
   }
 
   return value.toLocaleString('en-US')
+}
+
+export function formatFileSize(bytes?: number | null): string {
+  if (bytes == null) {
+    return 'Unknown'
+  }
+
+  const gb = bytes / (1024 * 1024 * 1024)
+  if (gb >= 1) {
+    return `${trimTrailingZeros(gb.toFixed(1))}GB`
+  }
+  return `${Math.round(bytes / (1024 * 1024))}MB`
 }
 
 export function formatPrice(price?: number | null): string {
@@ -507,6 +521,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     color: provider.color,
     isReseller: provider.isReseller ?? false,
     contextInformationAvailable: provider.contextInformationAvailable !== false,
+    maxFileAttachmentBytes: provider.fileAttachment?.maxBytes ?? null,
     providerCapabilityTags,
     modelCount: models.length,
     models,

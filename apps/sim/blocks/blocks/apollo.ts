@@ -1,5 +1,5 @@
+import { Users } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Users } from '@/components/emcn/icons'
 import { ApolloIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -1375,6 +1375,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
 
 export const ApolloBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.apollo.io',
   templates: [
     {
       icon: Users,

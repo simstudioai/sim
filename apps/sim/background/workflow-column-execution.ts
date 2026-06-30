@@ -51,7 +51,8 @@ export async function executeWorkflowGroupCellJob(
   signal?: AbortSignal
 ) {
   const { tableId, rowId, workspaceId } = payload
-  const { getTableById, getRowById } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
 
   let currentPayload = payload
@@ -105,7 +106,8 @@ export async function runRowCascadeLoop(
   signal?: AbortSignal
 ): Promise<'blocked' | undefined> {
   const { tableId, rowId, workspaceId } = payload
-  const { getTableById, getRowById } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
 
   let currentGroupId = payload.groupId
@@ -175,7 +177,7 @@ async function runWorkflowAndWriteTerminal(
   const requestId = `wfgrp-${executionId}`
 
   return runWithRequestContext({ requestId }, async () => {
-    const { getRowById } = await import('@/lib/table/service')
+    const { getRowById } = await import('@/lib/table/rows/service')
     const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
     const { loadWorkflowFromNormalizedTables, loadDeployedWorkflowState } = await import(
       '@/lib/workflows/persistence/utils'
@@ -206,7 +208,7 @@ async function runWorkflowAndWriteTerminal(
     // workflow path rather than erroring.
     if (group.type === 'enrichment' && group.enrichmentId) {
       const { getEnrichment } = await import('@/enrichments/registry')
-      const { runEnrichment } = await import('@/enrichments/run')
+      const { runEnrichment, skippedEnrichmentDetail } = await import('@/enrichments/run')
       const enrichment = getEnrichment(group.enrichmentId)
       // `tableRowExecutions.workflowId` is an opaque id for status; use the
       // enrichment id for enrichment cells.
@@ -258,7 +260,7 @@ async function runWorkflowAndWriteTerminal(
         logger.warn(
           `Usage limit reached — halting enrichment (table=${tableId} row=${rowId} group=${groupId})`
         )
-        const { updateRow } = await import('@/lib/table/service')
+        const { updateRow } = await import('@/lib/table/rows/service')
         await updateRow(
           { tableId, rowId, data: {}, workspaceId, executionsPatch: { [groupId]: null } },
           table,
@@ -318,6 +320,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: null,
+            enrichmentDetails: skippedEnrichmentDetail(enrichment),
           },
           clearPatch
         )
@@ -332,10 +335,11 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: 'Cancelled',
+            enrichmentDetails: skippedEnrichmentDetail(enrichment, { aborted: true }),
           })
           return 'error'
         }
-        const { result, cost, error } = await runEnrichment(enrichment, enrichInputs, {
+        const { result, cost, error, detail } = await runEnrichment(enrichment, enrichInputs, {
           tableId,
           rowId,
           workspaceId,
@@ -350,6 +354,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: 'Cancelled',
+            enrichmentDetails: detail,
           })
           return 'error'
         }
@@ -363,6 +368,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error,
+            enrichmentDetails: detail,
           })
           return 'error'
         }
@@ -408,7 +414,14 @@ async function runWorkflowAndWriteTerminal(
             value === undefined || value === null ? '' : (value as RowData[string])
         }
         await writeState(
-          { status: 'completed', executionId, jobId: null, workflowId: statusId, error: null },
+          {
+            status: 'completed',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: null,
+            enrichmentDetails: detail,
+          },
           dataPatch
         )
         return 'completed'
@@ -525,7 +538,7 @@ async function runWorkflowAndWriteTerminal(
           // cell's exec so it reverts to un-run (no error/cancelled badge —
           // matching "don't mark"; re-runnable after upgrade). Each blocked
           // cell clears its own.
-          const { updateRow } = await import('@/lib/table/service')
+          const { updateRow } = await import('@/lib/table/rows/service')
           await updateRow(
             { tableId, rowId, data: {}, workspaceId, executionsPatch: { [groupId]: null } },
             table,

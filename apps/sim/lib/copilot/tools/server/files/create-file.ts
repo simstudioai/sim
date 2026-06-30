@@ -56,7 +56,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
       return {
         success: false,
         message:
-          'create_file does not initialize plan aliases. Use touch_plan for new workspace or workflow plans; changelog.md is created automatically per workflow.',
+          'create_file does not initialize plan aliases; changelog.md is created automatically per workflow.',
       }
     }
     const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)

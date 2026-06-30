@@ -1,25 +1,25 @@
 'use client'
 
 import { type ComponentType, useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
 import {
   Chip,
   ChipConfirmModal,
+  ChipCopyInput,
   ChipInput,
   ChipLink,
   ChipTextarea,
   Send,
   toast,
-} from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter } from 'next/navigation'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { INTEGRATIONS, resolveOAuthServiceForIntegration } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
   AddPeopleModal,
-  CopyableValueField,
   CredentialDetailHeading,
   CredentialDetailLayout,
   CredentialMembersSection,
@@ -259,11 +259,7 @@ export function ConnectedCredentialDetail({
         />
 
         <DetailSection title='Credential ID'>
-          <CopyableValueField
-            id='credential-id'
-            value={credential.id}
-            copyLabel='Copy credential ID'
-          />
+          <ChipCopyInput id='credential-id' value={credential.id} copyLabel='Copy credential ID' />
         </DetailSection>
 
         <DetailSection title='Display Name'>
@@ -299,13 +295,11 @@ export function ConnectedCredentialDetail({
         onOpenChange={setShowDeleteConfirmDialog}
         srTitle='Disconnect Integration'
         title='Disconnect Integration'
-        description={
-          <>
-            Are you sure you want to disconnect{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{credential.displayName}</span>
-            ? This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to disconnect ',
+          { text: credential.displayName, bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Disconnect',
           onClick: handleConfirmDelete,

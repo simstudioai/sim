@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
-import { isProd } from '@/lib/core/config/feature-flags'
+import { isProd } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 

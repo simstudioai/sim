@@ -47,24 +47,31 @@ function mapUser(u: {
 async function fetchAdminUsers(
   offset: number,
   limit: number,
-  searchQuery: string
+  searchQuery: string,
+  signal?: AbortSignal
 ): Promise<AdminUserListData> {
   if (isValidUuid(searchQuery.trim())) {
-    const { data, error } = await client.admin.getUser({ query: { id: searchQuery.trim() } })
+    const { data, error } = await client.admin.getUser(
+      { query: { id: searchQuery.trim() } },
+      { signal }
+    )
     if (error) throw new Error(error.message ?? 'Failed to fetch user')
     if (!data) return { users: [], total: 0 }
     return { users: [mapUser(data)], total: 1 }
   }
 
-  const { data, error } = await client.admin.listUsers({
-    query: {
-      limit,
-      offset,
-      searchField: 'email',
-      searchValue: searchQuery,
-      searchOperator: 'contains',
+  const { data, error } = await client.admin.listUsers(
+    {
+      query: {
+        limit,
+        offset,
+        searchField: 'email',
+        searchValue: searchQuery,
+        searchOperator: 'contains',
+      },
     },
-  })
+    { signal }
+  )
   if (error) throw new Error(error.message ?? 'Failed to fetch users')
   return {
     users: (data?.users ?? []).map(mapUser),
@@ -75,7 +82,7 @@ async function fetchAdminUsers(
 export function useAdminUsers(offset: number, limit: number, searchQuery: string) {
   return useQuery({
     queryKey: adminUserKeys.list(offset, limit, searchQuery),
-    queryFn: () => fetchAdminUsers(offset, limit, searchQuery),
+    queryFn: ({ signal }) => fetchAdminUsers(offset, limit, searchQuery, signal),
     enabled: searchQuery.length > 0,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -89,9 +96,7 @@ export function useSetUserRole() {
       const result = await client.admin.setRole({ userId, role })
       return result
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() })
-    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),
     onError: (err) => {
       logger.error('Failed to set user role', err)
     },
@@ -108,9 +113,7 @@ export function useBanUser() {
       })
       return result
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() })
-    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),
     onError: (err) => {
       logger.error('Failed to ban user', err)
     },
@@ -124,9 +127,7 @@ export function useUnbanUser() {
       const result = await client.admin.unbanUser({ userId })
       return result
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() })
-    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),
     onError: (err) => {
       logger.error('Failed to unban user', err)
     },

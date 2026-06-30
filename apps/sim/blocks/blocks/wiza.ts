@@ -628,6 +628,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
 
 export const WizaBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://wiza.co',
   templates: [
     {
       icon: WizaIcon,

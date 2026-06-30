@@ -1,4 +1,4 @@
-import { ChipConfirmModal } from '@/components/emcn'
+import { ChipConfirmModal } from '@sim/emcn'
 
 interface RemoveMemberDialogProps {
   open: boolean
@@ -41,26 +41,20 @@ export function RemoveMemberDialog({
       }}
       srTitle={title}
       title={title}
-      description={
-        <>
-          {isSelfRemoval ? (
-            'Are you sure you want to leave this organization? You will lose access to all team resources.'
-          ) : isExternalRemoval ? (
-            <>
-              Are you sure you want to remove{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{memberName}</span> from all
-              organization workspaces? Their workspace access and workspace credential access will
-              be revoked.
-            </>
-          ) : (
-            <>
-              Are you sure you want to remove{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{memberName}</span> from the
-              team?
-            </>
-          )}{' '}
-          This action cannot be undone.
-        </>
+      text={
+        isSelfRemoval
+          ? 'Are you sure you want to leave this organization? You will lose access to all team resources. This action cannot be undone.'
+          : isExternalRemoval
+            ? [
+                'Are you sure you want to remove ',
+                { text: memberName, bold: true },
+                ' from all organization workspaces? Their workspace access and workspace credential access will be revoked. This action cannot be undone.',
+              ]
+            : [
+                'Are you sure you want to remove ',
+                { text: memberName, bold: true },
+                ' from the team? This action cannot be undone.',
+              ]
       }
       confirm={{
         label: isSelfRemoval ? 'Leave Organization' : 'Remove',

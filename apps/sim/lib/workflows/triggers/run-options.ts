@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { generateToolInputSchema, generateToolZodSchema } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
@@ -53,10 +54,6 @@ export interface TriggerRunOption {
 export interface TriggerInputValidationResult {
   ok: boolean
   error?: string
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function readSubBlockValue(block: TriggerBlockLike, key: string): unknown {
@@ -328,7 +325,7 @@ export function validateTriggerInput(
       return { ok: true }
 
     case 'chat': {
-      if (!isPlainObject(input) || typeof input.input !== 'string' || input.input.trim() === '') {
+      if (!isRecordLike(input) || typeof input.input !== 'string' || input.input.trim() === '') {
         return {
           ok: false,
           error: `Chat trigger "${option.blockName}" requires workflow_input shaped like { "input": "<message>" }.`,
@@ -338,7 +335,7 @@ export function validateTriggerInput(
     }
 
     case 'event_payload': {
-      if (!isPlainObject(input) || Object.keys(input).length === 0) {
+      if (!isRecordLike(input) || Object.keys(input).length === 0) {
         return {
           ok: false,
           error:
@@ -354,7 +351,7 @@ export function validateTriggerInput(
       if (!baseShape) {
         // Trigger declares no input fields — accept an object (including {}).
         if (input === undefined || input === null) return { ok: true }
-        if (!isPlainObject(input)) {
+        if (!isRecordLike(input)) {
           return {
             ok: false,
             error: `Trigger "${option.blockName}" expects a JSON object for workflow_input.`,

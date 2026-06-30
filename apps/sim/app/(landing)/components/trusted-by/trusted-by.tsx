@@ -1,4 +1,4 @@
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { Logos } from '@/app/(landing)/components/logos'
 
 interface TrustedByProps {

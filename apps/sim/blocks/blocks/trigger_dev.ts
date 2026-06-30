@@ -1131,6 +1131,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
 
 export const TriggerDevBlockMeta = {
   tags: ['automation', 'ci-cd', 'monitoring'],
+  url: 'https://trigger.dev',
   templates: [
     {
       icon: TriggerDevIcon,

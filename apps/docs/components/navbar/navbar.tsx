@@ -1,8 +1,8 @@
 'use client'
 
+import { ChipLink } from '@sim/emcn'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChipLink } from '@/components/ui/chip'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
 import { SimLogoFull } from '@/components/ui/sim-logo'
@@ -13,7 +13,13 @@ const NAV_TABS = [
   {
     label: 'Documentation',
     href: '/introduction',
-    match: (p: string) => !p.includes('/api-reference'),
+    match: (p: string) => !p.includes('/api-reference') && !p.includes('/academy'),
+    external: false,
+  },
+  {
+    label: 'Academy',
+    href: '/academy',
+    match: (p: string) => p.includes('/academy'),
     external: false,
   },
   {
@@ -46,10 +52,10 @@ export function Navbar() {
             <SearchTrigger />
           </div>
 
-          <div className='flex items-center gap-1'>
+          <div className='flex items-center gap-2'>
             <LanguageDropdown />
             <ThemeToggle />
-            <ChipLink href='https://sim.ai' variant='brand' className='ml-1'>
+            <ChipLink href='https://sim.ai' variant='primary'>
               Get started
             </ChipLink>
           </div>

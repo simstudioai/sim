@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
@@ -9,7 +8,6 @@ import {
   getDynamicHandleSubblockType,
   isDynamicHandleSubblock,
 } from '@/lib/workflows/dynamic-handle-topology'
-import type { SubBlockConfig } from '@/blocks/types'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
@@ -36,72 +34,6 @@ import {
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('WorkflowStore')
-
-/**
- * Creates a deep clone of an initial sub-block value to avoid shared references.
- *
- * @param value - The value to clone.
- * @returns A cloned value suitable for initializing sub-block state.
- */
-function cloneInitialSubblockValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => cloneInitialSubblockValue(item))
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
-      (acc, [key, entry]) => {
-        acc[key] = cloneInitialSubblockValue(entry)
-        return acc
-      },
-      {}
-    )
-  }
-
-  return value ?? null
-}
-
-/**
- * Resolves the initial value for a sub-block based on its configuration.
- *
- * @param config - The sub-block configuration.
- * @returns The resolved initial value or null when no defaults are defined.
- */
-function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
-  if (typeof config.value === 'function') {
-    try {
-      const resolved = config.value({})
-      return cloneInitialSubblockValue(resolved)
-    } catch (error) {
-      logger.warn('Failed to resolve dynamic sub-block default value', {
-        subBlockId: config.id,
-        error: toError(error).message,
-      })
-    }
-  }
-
-  if (config.defaultValue !== undefined) {
-    return cloneInitialSubblockValue(config.defaultValue)
-  }
-
-  if (config.type === 'input-format') {
-    return [
-      {
-        id: generateId(),
-        name: '',
-        type: 'string',
-        value: '',
-        collapsed: false,
-      },
-    ]
-  }
-
-  if (config.type === 'table') {
-    return []
-  }
-
-  return null
-}
 
 const initialState = {
   currentWorkflowId: null,

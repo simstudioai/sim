@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { WorkflowBlockContent } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
   ANSWER_TEXT,

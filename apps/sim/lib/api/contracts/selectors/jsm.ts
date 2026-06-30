@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
   credentialWorkflowDomainBodySchema,
@@ -159,10 +160,9 @@ export const jsmAttachFormBodySchema = jsmIssueFormsBodySchema.extend({
 })
 
 export const jsmSaveFormAnswersBodySchema = jsmIssueFormBodySchema.extend({
-  answers: z.custom<Record<string, unknown>>(
-    (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
-    { message: 'Answers object is required' }
-  ),
+  answers: z.custom<Record<string, unknown>>(isRecordLike, {
+    message: 'Answers object is required',
+  }),
 })
 
 export const jsmProjectFormTemplatesBodySchema = jsmBaseBodySchema.extend({
@@ -183,6 +183,80 @@ export const jsmCopyFormsBodySchema = jsmBaseBodySchema.extend({
     .string({ error: 'Target issue ID or key is required' })
     .min(1, 'Target issue ID or key is required'),
   formIds: z.array(z.string(), { error: 'formIds must be an array of form UUIDs' }).optional(),
+})
+
+const jsmAssetsBaseBodySchema = jsmBaseBodySchema.extend({
+  workspaceId: z.string().optional(),
+})
+
+const jsmAssetsPaginationField = z.union([z.string(), z.number()]).optional()
+
+export const jsmListObjectSchemasBodySchema = jsmAssetsBaseBodySchema.extend({
+  startAt: jsmAssetsPaginationField,
+  maxResults: jsmAssetsPaginationField,
+  includeCounts: z.union([z.string(), z.boolean()]).optional(),
+})
+
+export const jsmObjectSchemaBodySchema = jsmAssetsBaseBodySchema.extend({
+  schemaId: z.string({ error: 'Schema ID is required' }).min(1, 'Schema ID is required'),
+})
+
+export const jsmObjectTypesBodySchema = jsmAssetsBaseBodySchema.extend({
+  schemaId: z.string({ error: 'Schema ID is required' }).min(1, 'Schema ID is required'),
+  excludeAbstract: z.union([z.string(), z.boolean()]).optional(),
+})
+
+export const jsmObjectTypeAttributesBodySchema = jsmAssetsBaseBodySchema.extend({
+  objectTypeId: z
+    .string({ error: 'Object type ID is required' })
+    .min(1, 'Object type ID is required'),
+  onlyValueEditable: z.union([z.string(), z.boolean()]).optional(),
+  query: z.string().optional(),
+})
+
+export const jsmSearchObjectsAqlBodySchema = jsmAssetsBaseBodySchema.extend({
+  qlQuery: z.string({ error: 'AQL query is required' }).min(1, 'AQL query is required'),
+  page: jsmAssetsPaginationField,
+  resultsPerPage: jsmAssetsPaginationField,
+  includeAttributes: z.union([z.string(), z.boolean()]).optional(),
+  objectTypeId: z.string().optional(),
+  objectSchemaId: z.string().optional(),
+})
+
+export const jsmGetObjectBodySchema = jsmAssetsBaseBodySchema.extend({
+  objectId: z.string({ error: 'Object ID is required' }).min(1, 'Object ID is required'),
+})
+
+const jsmAssetAttributeInputSchema = z.object({
+  objectTypeAttributeId: z
+    .string({ error: 'objectTypeAttributeId is required' })
+    .min(1, 'objectTypeAttributeId is required'),
+  objectAttributeValues: z
+    .array(z.object({ value: z.unknown() }), {
+      error: 'objectAttributeValues must be an array of { value } entries',
+    })
+    .min(1, 'Each attribute needs at least one value'),
+})
+
+export const jsmCreateObjectBodySchema = jsmAssetsBaseBodySchema.extend({
+  objectTypeId: z
+    .string({ error: 'Object type ID is required' })
+    .min(1, 'Object type ID is required'),
+  attributes: z
+    .array(jsmAssetAttributeInputSchema, { error: 'attributes is required' })
+    .min(1, 'At least one attribute is required'),
+})
+
+export const jsmUpdateObjectBodySchema = jsmAssetsBaseBodySchema.extend({
+  objectId: z.string({ error: 'Object ID is required' }).min(1, 'Object ID is required'),
+  objectTypeId: z.string().optional(),
+  attributes: z
+    .array(jsmAssetAttributeInputSchema, { error: 'attributes is required' })
+    .min(1, 'At least one attribute is required'),
+})
+
+export const jsmDeleteObjectBodySchema = jsmAssetsBaseBodySchema.extend({
+  objectId: z.string({ error: 'Object ID is required' }).min(1, 'Object ID is required'),
 })
 
 export const defineJsmToolContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
@@ -312,6 +386,43 @@ export const jsmProjectFormStructureContract = defineJsmToolContract(
 export const jsmCopyFormsContract = defineJsmToolContract(
   '/api/tools/jsm/forms/copy',
   jsmCopyFormsBodySchema
+)
+
+export const jsmListObjectSchemasContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/schemas',
+  jsmListObjectSchemasBodySchema
+)
+export const jsmGetObjectSchemaContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/schema',
+  jsmObjectSchemaBodySchema
+)
+export const jsmListObjectTypesContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/object-types',
+  jsmObjectTypesBodySchema
+)
+export const jsmObjectTypeAttributesContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/attributes',
+  jsmObjectTypeAttributesBodySchema
+)
+export const jsmSearchObjectsAqlContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/search',
+  jsmSearchObjectsAqlBodySchema
+)
+export const jsmGetObjectContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/object/get',
+  jsmGetObjectBodySchema
+)
+export const jsmCreateObjectContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/object/create',
+  jsmCreateObjectBodySchema
+)
+export const jsmUpdateObjectContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/object/update',
+  jsmUpdateObjectBodySchema
+)
+export const jsmDeleteObjectContract = defineJsmToolContract(
+  '/api/tools/jsm/assets/object/delete',
+  jsmDeleteObjectBodySchema
 )
 
 export type JsmServiceDesksBody = ContractBody<typeof jsmServiceDesksContract>

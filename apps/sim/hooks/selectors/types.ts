@@ -56,6 +56,7 @@ export type SelectorKey =
   | 'monday.boards'
   | 'monday.groups'
   | 'sim.workflows'
+  | 'table.columns'
 
 export interface SelectorOption {
   id: string
@@ -91,6 +92,7 @@ export interface SelectorContext {
   awsRegion?: string
   logGroupName?: string
   mcpServerId?: string
+  tableId?: string
 }
 
 export interface SelectorQueryArgs {

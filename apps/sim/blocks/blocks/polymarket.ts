@@ -908,6 +908,7 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
 
 export const PolymarketBlockMeta = {
   tags: ['prediction-markets', 'data-analytics'],
+  url: 'https://polymarket.com',
   templates: [
     {
       icon: PolymarketIcon,

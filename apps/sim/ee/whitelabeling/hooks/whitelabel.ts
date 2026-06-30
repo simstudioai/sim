@@ -23,7 +23,8 @@ export type WhitelabelSettingsPayload = {
  */
 export const whitelabelKeys = {
   all: ['whitelabel'] as const,
-  settings: (orgId: string) => [...whitelabelKeys.all, 'settings', orgId] as const,
+  settingsList: () => [...whitelabelKeys.all, 'settings'] as const,
+  settings: (orgId: string) => [...whitelabelKeys.settingsList(), orgId] as const,
 }
 
 async function fetchWhitelabelSettings(

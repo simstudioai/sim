@@ -31,6 +31,7 @@ export function useSelectorSetup(
   const params = useParams()
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const workflowId = (params?.workflowId as string) || activeWorkflowId || ''
+  const workspaceId = (params?.workspaceId as string) || ''
 
   const { data: envVariables = {} } = usePersonalEnvironment()
 
@@ -63,6 +64,7 @@ export function useSelectorSetup(
   const selectorContext = useMemo<SelectorContext>(() => {
     const context: SelectorContext = {
       workflowId,
+      workspaceId: workspaceId || undefined,
       mimeType: subBlock.mimeType,
     }
 
@@ -87,6 +89,7 @@ export function useSelectorSetup(
     resolvedDependencyValues,
     canonicalIndex,
     workflowId,
+    workspaceId,
     subBlock.mimeType,
     impersonateUserEmail,
   ])

@@ -547,6 +547,12 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'write:request.participant:jira-service-management',
           'read:request.approval:jira-service-management',
           'write:request.approval:jira-service-management',
+          'read:cmdb-object:jira',
+          'write:cmdb-object:jira',
+          'delete:cmdb-object:jira',
+          'read:cmdb-schema:jira',
+          'read:cmdb-type:jira',
+          'read:cmdb-attribute:jira',
         ],
       },
     },
@@ -705,7 +711,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
-          'assistant:write',
+          // TODO: Add 'assistant:write' once Slack app review is approved
           'im:write',
           'im:read',
           'users:read',
@@ -917,6 +923,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'crm.objects.appointments.read',
           'crm.objects.appointments.write',
           'crm.objects.carts.read',
+          'sales-email-read',
           'crm.lists.read',
           'crm.lists.write',
           'tickets',
@@ -1496,6 +1503,15 @@ function extractErrorCode(value: unknown): string | undefined {
   return undefined
 }
 
+/**
+ * Hard deadline on the token-endpoint exchange. This function does not coalesce
+ * on its own; its sole production caller (`performCoalescedRefresh` in the OAuth
+ * utils) shares one in-flight refresh across concurrent callers for a credential.
+ * Without this bound a hung endpoint would wedge every joiner on that key until
+ * the undici socket defaults (~5 min) gave up.
+ */
+const TOKEN_REFRESH_TIMEOUT_MS = 15_000
+
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
@@ -1511,6 +1527,7 @@ export async function refreshOAuthToken(
       method: 'POST',
       headers,
       body: useJsonBody ? JSON.stringify(bodyParams) : new URLSearchParams(bodyParams).toString(),
+      signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
 
     if (!response.ok) {

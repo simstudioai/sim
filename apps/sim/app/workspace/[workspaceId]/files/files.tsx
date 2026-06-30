@@ -1,10 +1,6 @@
 'use client'
 
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   ChipCombobox,
@@ -21,9 +17,15 @@ import {
   Trash,
   toast,
   Upload,
-} from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Send } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
+import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -65,11 +67,15 @@ import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/componen
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   FileViewer,
+  isCsvStreamOnly,
+  isMarkdownFile,
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
+import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
+import { filesParsers, filesUrlKeys } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
@@ -168,9 +174,8 @@ export function Files() {
 
   const params = useParams()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const isNewFile = searchParams.get('new') === '1'
-  const currentFolderId = searchParams.get('folderId')
+  const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
+    useQueryStates(filesParsers, filesUrlKeys)
   const workspaceId = params?.workspaceId as string
 
   const posthog = usePostHog()
@@ -190,10 +195,10 @@ export function Files() {
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
-  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS, isLoading: foldersLoading } =
-    useWorkspaceFileFolders(workspaceId)
+  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
+  const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
   const createFolder = useCreateWorkspaceFileFolder()
@@ -295,6 +300,20 @@ export function Files() {
   )
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
+
+  const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
+  const shareModal = shareFile ? (
+    <ShareModal
+      open
+      onOpenChange={(open) =>
+        !open && setFilesParams({ shareFileId: null }, { history: 'replace' })
+      }
+      workspaceId={workspaceId}
+      fileId={shareFile.id}
+      fileName={shareFile.name}
+      initialShare={shareFile.share ?? null}
+    />
+  ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const currentFolder = currentFolderId ? (folderById.get(currentFolderId) ?? null) : null
@@ -437,14 +456,6 @@ export function Files() {
         owner: ownerCell(folder.userId, members),
         updated: timeCell(folder.updatedAt),
       },
-      sortValues: {
-        name: folder.name,
-        size: folderSizeMap.get(folder.id) ?? -1,
-        type: 'Folder',
-        created: new Date(folder.createdAt).getTime(),
-        updated: new Date(folder.updatedAt).getTime(),
-        owner: members?.find((m) => m.userId === folder.userId)?.name ?? '',
-      },
     }))
 
     const fileRows = filteredFiles.map((file) => {
@@ -466,14 +477,6 @@ export function Files() {
           created: timeCell(file.uploadedAt),
           owner: ownerCell(file.uploadedBy, members),
           updated: timeCell(file.updatedAt),
-        },
-        sortValues: {
-          name: file.name,
-          size: file.size,
-          type: formatFileType(file.type, file.name),
-          created: new Date(file.uploadedAt).getTime(),
-          updated: new Date(file.updatedAt).getTime(),
-          owner: members?.find((m) => m.userId === file.uploadedBy)?.name ?? '',
         },
       }
       return row
@@ -698,6 +701,12 @@ export function Files() {
             })
           } catch (err) {
             logger.error('Error uploading file:', err)
+            const message = getErrorMessage(err)
+            if (/storage limit/i.test(message)) {
+              notifyLimit('storage', message)
+            } else {
+              toast.error(`Failed to upload "${allowedFiles[i].name}"`)
+            }
           }
         }
       } catch (err) {
@@ -707,7 +716,7 @@ export function Files() {
         setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
       }
     },
-    [workspaceId, canEdit, currentFolderId]
+    [workspaceId, canEdit, currentFolderId, notifyLimit]
   )
 
   const rowDragDropConfig = useMemo<RowDragDropConfig>(
@@ -717,7 +726,7 @@ export function Files() {
       isAnyDragActive: draggedRowIds.size > 0,
       isRowDraggable: (rowId) => canEdit && listRename.editingId !== rowId,
       isRowDropTarget: (rowId) => canEdit && parseRowId(rowId).kind === 'folder',
-      onDragStart: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+      onDragStart: (e: DragEvent<HTMLDivElement>, rowId) => {
         if (!canEdit || listRename.editingId === rowId) {
           e.preventDefault()
           return
@@ -760,7 +769,7 @@ export function Files() {
         e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
         dragGhostRef.current = ghost
       },
-      onDragOver: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+      onDragOver: (e: DragEvent<HTMLDivElement>, rowId) => {
         const sourceRowIds = draggedRowIdsRef.current
         const isExternalFileDrag = hasExternalFiles(e.dataTransfer)
         if (!isExternalFileDrag && isInvalidDropTarget(rowId, sourceRowIds)) return
@@ -770,12 +779,12 @@ export function Files() {
         e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
         setActiveDropTargetId(rowId)
       },
-      onDragLeave: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+      onDragLeave: (e: DragEvent<HTMLDivElement>, rowId) => {
         const relatedTarget = e.relatedTarget
         if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
         setActiveDropTargetId((current) => (current === rowId ? null : current))
       },
-      onDrop: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+      onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
         e.preventDefault()
         e.stopPropagation()
         dragCounterRef.current = 0
@@ -994,6 +1003,11 @@ export function Files() {
     }
   }, [])
 
+  const handleShareSelected = useCallback(() => {
+    const file = selectedFileRef.current
+    if (file) setFilesParams({ shareFileId: file.id }, { history: 'replace' })
+  }, [setFilesParams])
+
   const handleBulkDelete = useCallback(() => {
     if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
     setDeleteTarget({
@@ -1071,6 +1085,7 @@ export function Files() {
           ...(canEdit
             ? [
                 { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
+                { label: 'Share', icon: Send, onClick: handleShareSelected },
                 { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
               ]
             : []),
@@ -1087,6 +1102,7 @@ export function Files() {
     headerRename.editValue,
     handleStartHeaderRename,
     handleDownloadSelected,
+    handleShareSelected,
     handleDeleteSelected,
   ])
 
@@ -1198,7 +1214,7 @@ export function Files() {
     const item = contextMenuItemRef.current
     if (!item) return
     if (item.kind === 'folder') {
-      router.push(`/workspace/${workspaceId}/files?folderId=${item.folder.id}`)
+      void setFilesParams({ folderId: item.folder.id, new: null })
       closeContextMenu()
       return
     }
@@ -1208,7 +1224,7 @@ export function Files() {
         : `/workspace/${workspaceId}/files/${item.file.id}`
     )
     closeContextMenu()
-  }, [closeContextMenu, router, workspaceId])
+  }, [closeContextMenu, router, workspaceId, setFilesParams])
 
   const handleContextMenuDownload = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1235,6 +1251,12 @@ export function Files() {
       listRename.startRename(folderRowId(item.folder.id), item.folder.name)
     closeContextMenu()
   }, [listRename.startRename, closeContextMenu])
+
+  const handleContextMenuShare = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (item?.kind === 'file') setFilesParams({ shareFileId: item.file.id }, { history: 'replace' })
+    closeContextMenu()
+  }, [closeContextMenu, setFilesParams])
 
   const handleContextMenuDelete = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1406,9 +1428,16 @@ export function Files() {
 
   const fileActions = useMemo<ResourceAction[]>(() => {
     if (!selectedFile) return []
-    const canEditText = isTextEditable(selectedFile)
-    const canPreview = isPreviewable(selectedFile)
-    const hasSplitView = canEditText && canPreview
+    // A large CSV renders as a read-only streamed preview (no editor), so it gets neither the
+    // Save action nor the edit/split/preview toggle — just like a non-editable file.
+    const streamOnly = isCsvStreamOnly(selectedFile)
+    const canEditText = isTextEditable(selectedFile) && !streamOnly
+    const canPreview = isPreviewable(selectedFile) && !streamOnly
+    // Markdown renders in the single-surface inline editor, which has no raw/split/preview
+    // modes — so it keeps Save but drops the mode toggle.
+    const isInlineMarkdown = isMarkdownFile(selectedFile)
+    const hasSplitView = canEditText && canPreview && !isInlineMarkdown
+    const showPreviewToggle = canPreview && !isInlineMarkdown
 
     const saveLabel =
       saveStatus === 'saving'
@@ -1445,7 +1474,7 @@ export function Files() {
               onSelect: handleCyclePreviewMode,
             },
           ]
-        : canPreview
+        : showPreviewToggle
           ? [
               {
                 text: previewMode === 'preview' ? 'Edit' : 'Preview',
@@ -1461,6 +1490,11 @@ export function Files() {
       },
       ...(canEdit
         ? [
+            {
+              text: 'Share',
+              icon: Send,
+              onSelect: handleShareSelected,
+            },
             {
               text: 'Delete',
               icon: Trash,
@@ -1479,6 +1513,7 @@ export function Files() {
     handleTogglePreview,
     handleSave,
     handleDownloadSelected,
+    handleShareSelected,
     handleDeleteSelected,
   ])
 
@@ -1492,7 +1527,7 @@ export function Files() {
       if (listRenameRef.current.editingId !== rowId && !headerRenameRef.current.editingId) {
         const parsed = parseRowId(rowId)
         if (parsed.kind === 'folder') {
-          router.push(`/workspace/${workspaceId}/files?folderId=${parsed.id}`)
+          void setFilesParams({ folderId: parsed.id, new: null })
           return
         }
         router.push(
@@ -1502,7 +1537,7 @@ export function Files() {
         )
       }
     },
-    [router, workspaceId, currentFolderId]
+    [router, workspaceId, currentFolderId, setFilesParams]
   )
 
   const handleUploadClick = useCallback(() => {
@@ -1561,8 +1596,8 @@ export function Files() {
   )
 
   const handleNavigateToFiles = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/files`)
-  }, [router, workspaceId])
+    void setFilesParams({ folderId: null, new: null })
+  }, [setFilesParams])
 
   const loadingBreadcrumbs = useMemo(
     (): BreadcrumbItem[] => [
@@ -1592,7 +1627,7 @@ export function Files() {
         label: folder.name,
         onClick: isCurrentFolder
           ? undefined
-          : () => router.push(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
+          : () => void setFilesParams({ folderId: folder.id, new: null }),
         editing:
           isCurrentFolder && breadcrumbRenameRef.current.editingId === folder.id
             ? {
@@ -1622,8 +1657,7 @@ export function Files() {
     currentFolderId,
     folders,
     handleNavigateToFiles,
-    router,
-    workspaceId,
+    setFilesParams,
     canEdit,
     userPermissions.isLoading,
     breadcrumbRename.editingId,
@@ -1686,12 +1720,6 @@ export function Files() {
 
   const hasActiveFilters =
     typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
-
-  const emptyMessage = debouncedSearchTerm
-    ? `No files match "${debouncedSearchTerm}"`
-    : hasActiveFilters
-      ? 'No files match the active filters'
-      : undefined
 
   const filterContent = useMemo(() => {
     const typeDisplayLabel =
@@ -1844,19 +1872,19 @@ export function Files() {
 
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
-      <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+      <Resource>
         <Resource.Header icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
-        <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
+        <div className='flex flex-1 items-center justify-center bg-[var(--bg)]'>
           <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
-      </div>
+      </Resource>
     )
   }
 
   if (selectedFile) {
     return (
       <>
-        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+        <Resource>
           <Resource.Header
             icon={FilesIcon}
             breadcrumbs={fileDetailBreadcrumbs}
@@ -1879,11 +1907,11 @@ export function Files() {
             onOpenChange={setShowUnsavedChangesAlert}
             srTitle='Unsaved Changes'
             title='Unsaved Changes'
-            description='You have unsaved changes. Are you sure you want to discard them?'
+            text='You have unsaved changes. Are you sure you want to discard them?'
             dismissLabel='Keep editing'
             confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
           />
-        </div>
+        </Resource>
 
         <DeleteConfirmModal
           open={showDeleteConfirm}
@@ -1894,6 +1922,8 @@ export function Files() {
           onDelete={handleDelete}
           isPending={deleteFile.isPending || bulkArchiveItems.isPending}
         />
+
+        {shareModal}
       </>
     )
   }
@@ -1922,13 +1952,10 @@ export function Files() {
         <Resource.Table
           columns={COLUMNS}
           rows={rows}
-          sort={sortConfig}
           selectable={selectableConfig}
           rowDragDrop={rowDragDropConfig}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
-          isLoading={isLoading || foldersLoading}
-          emptyMessage={emptyMessage}
           overlay={
             <>
               <FilesActionBar
@@ -1978,6 +2005,11 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
+        onShare={
+          canEdit && contextMenuItemRef.current?.kind === 'file'
+            ? handleContextMenuShare
+            : undefined
+        }
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}
@@ -1992,6 +2024,8 @@ export function Files() {
         onDelete={handleDelete}
         isPending={deleteFile.isPending || bulkArchiveItems.isPending}
       />
+
+      {shareModal}
 
       <input
         ref={fileInputRef}

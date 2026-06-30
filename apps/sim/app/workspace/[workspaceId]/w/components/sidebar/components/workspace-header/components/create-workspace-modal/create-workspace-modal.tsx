@@ -8,7 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+} from '@sim/emcn'
 
 interface CreateWorkspaceModalProps {
   open: boolean

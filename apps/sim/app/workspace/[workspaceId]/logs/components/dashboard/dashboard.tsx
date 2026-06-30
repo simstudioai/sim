@@ -1,17 +1,16 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { Loader } from '@sim/emcn'
 import { useParams } from 'next/navigation'
-import { useShallow } from 'zustand/react/shallow'
-import { Loader } from '@/components/emcn'
 import {
   DashboardSegmentsContext,
   type SegmentSelectionMode,
 } from '@/app/workspace/[workspaceId]/logs/components/dashboard/dashboard-segments-context'
+import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useFilterStore } from '@/stores/logs/filters/store'
 import { LineChart, WorkflowsList } from './components'
 
 interface WorkflowExecution {
@@ -39,6 +38,12 @@ interface DashboardProps {
   stats?: DashboardStatsResponse
   isLoading: boolean
   error?: Error | null
+  /**
+   * Debounced search term. Comes pre-debounced from the parent (same value the
+   * dashboard stats query uses) so the in-memory workflow list filtering and the
+   * stats query stay in sync while typing.
+   */
+  searchQuery: string
 }
 
 /**
@@ -61,19 +66,12 @@ function toWorkflowExecution(wf: WorkflowStats): WorkflowExecution {
   }
 }
 
-function DashboardInner({ stats, isLoading, error }: DashboardProps) {
+function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps) {
   const [selectedSegments, setSelectedSegments] = useState<Record<string, number[]>>({})
   const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
   const lastAnchorIndicesRef = useRef<Record<string, number>>({})
 
-  const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useFilterStore(
-    useShallow((s) => ({
-      workflowIds: s.workflowIds,
-      searchQuery: s.searchQuery,
-      toggleWorkflowId: s.toggleWorkflowId,
-      timeRange: s.timeRange,
-    }))
-  )
+  const { workflowIds, toggleWorkflowId, timeRange } = useLogFilters()
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: allWorkflowList = [], isPending: isWorkflowsPending } = useWorkflows(workspaceId)

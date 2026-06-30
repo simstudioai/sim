@@ -158,10 +158,10 @@ function setupFileApiMocks(
 
   storageServiceMockFns.mockHasCloudStorage.mockReturnValue(cloudEnabled)
   storageServiceMockFns.mockGeneratePresignedUploadUrl.mockImplementation(
-    async (opts: { fileName: string; context: string }) => {
+    async (opts: { fileName: string; context: string; customKey?: string }) => {
       const timestamp = Date.now()
       const safeFileName = opts.fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-      const key = `${opts.context}/${timestamp}-ik3a6w4-${safeFileName}`
+      const key = opts.customKey ?? `${opts.context}/${timestamp}-ik3a6w4-${safeFileName}`
       return {
         url: 'https://example.com/presigned-url',
         key,
@@ -369,7 +369,7 @@ describe('/api/files/presigned', () => {
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.fileInfo.key).toMatch(/^knowledge-base\/.*knowledge-doc\.pdf$/)
+      expect(data.fileInfo.key).toMatch(/^kb\/.*knowledge-doc\.pdf$/)
       expect(data.directUploadSupported).toBe(true)
     })
 

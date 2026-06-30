@@ -1,6 +1,17 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Button,
+  Code,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Tooltip,
+} from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import clsx from 'clsx'
 import {
   ArrowDown,
@@ -16,17 +27,6 @@ import {
   X,
 } from 'lucide-react'
 import Link from 'next/link'
-import {
-  Button,
-  Code,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
-  Tooltip,
-} from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
 import {
   OutputContextMenu,
   StructuredOutput,
@@ -395,7 +395,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Button
                     variant='ghost'
                     onClick={handleTrainingClick}
-                    aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
+                    aria-label={isTraining ? 'Stop training' : 'Train Sim'}
                     className={clsx(
                       '!p-1.5 -m-1.5',
                       isTraining && 'text-orange-600 dark:text-orange-400'
@@ -409,7 +409,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
+                  <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}

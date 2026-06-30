@@ -45,6 +45,34 @@ export const guardrailsValidateContract = defineRouteContract({
   },
 })
 
+const guardrailsMaskBatchBodySchema = z.object({
+  texts: z.array(z.string()).max(100_000),
+  entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(200),
+  language: z.string().min(1).max(20).optional(),
+})
+
+const guardrailsMaskBatchResponseSchema = z.object({
+  masked: z.array(z.string()),
+})
+
+/**
+ * Internal batch PII masking. Called server-to-server (internal JWT) from the
+ * log-redaction persist path so Presidio always runs in the app container,
+ * including for async executions that persist inside the trigger.dev runtime.
+ */
+export const guardrailsMaskBatchContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/guardrails/mask-batch',
+  body: guardrailsMaskBatchBodySchema,
+  response: {
+    mode: 'json',
+    schema: guardrailsMaskBatchResponseSchema,
+  },
+})
+
+export type GuardrailsMaskBatchBody = z.input<typeof guardrailsMaskBatchBodySchema>
+export type GuardrailsMaskBatchResult = z.output<typeof guardrailsMaskBatchResponseSchema>
+
 const chatMessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
   content: z.string(),
@@ -162,11 +190,20 @@ export const functionExecuteContract = defineRouteContract({
     isCustomTool: z.boolean().optional().default(false),
     _sandboxFiles: z
       .array(
-        z.object({
-          path: z.string(),
-          content: z.string(),
-          encoding: z.literal('base64').optional(),
-        })
+        z.union([
+          z.object({
+            type: z.literal('content').optional(),
+            path: z.string(),
+            content: z.string(),
+            encoding: z.literal('base64').optional(),
+          }),
+          // Mounted by reference: the sandbox fetches `url` itself (no bytes through the web tier).
+          z.object({
+            type: z.literal('url'),
+            path: z.string(),
+            url: z.string(),
+          }),
+        ])
       )
       .optional(),
   }),

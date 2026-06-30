@@ -239,6 +239,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
 
 export const LatexBlockMeta = {
   tags: ['document-processing'],
+  url: 'https://www.latex-project.org',
   templates: [
     {
       icon: LatexIcon,

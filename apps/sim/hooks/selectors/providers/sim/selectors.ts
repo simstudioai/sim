@@ -1,4 +1,6 @@
+import { getColumnId } from '@/lib/table/column-keys'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getTableDetailQueryOptions } from '@/hooks/queries/tables'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getFolderPath } from '@/hooks/queries/utils/folder-tree'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
@@ -85,4 +87,33 @@ export const simSelectors = {
       }
     },
   },
-} satisfies Record<Extract<SelectorKey, 'sim.workflows'>, SelectorDefinition>
+  'table.columns': {
+    key: 'table.columns',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context, search }: SelectorQueryArgs) => [
+      ...selectorKeys.all,
+      'table.columns',
+      context.workspaceId ?? 'none',
+      context.tableId ?? 'none',
+      search ?? '',
+    ],
+    enabled: ({ context }) => Boolean(context.workspaceId && context.tableId),
+    fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
+      if (!context.workspaceId || !context.tableId) return []
+      const table = await getQueryClient().ensureQueryData(
+        getTableDetailQueryOptions(context.workspaceId, context.tableId)
+      )
+      return (table.schema?.columns ?? [])
+        .filter((col) => col.unique)
+        .map((col) => ({ id: getColumnId(col), label: col.name }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
+      if (!detailId || !context.workspaceId || !context.tableId) return null
+      const table = await getQueryClient().ensureQueryData(
+        getTableDetailQueryOptions(context.workspaceId, context.tableId)
+      )
+      const col = (table.schema?.columns ?? []).find((c) => getColumnId(c) === detailId)
+      return col ? { id: getColumnId(col), label: col.name } : null
+    },
+  },
+} satisfies Record<Extract<SelectorKey, 'sim.workflows' | 'table.columns'>, SelectorDefinition>

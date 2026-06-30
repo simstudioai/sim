@@ -283,6 +283,7 @@ Return ONLY the timestamp - no explanations, no extra text.`,
 
 export const GoogleTasksBlockMeta = {
   tags: ['google-workspace', 'project-management', 'scheduling'],
+  url: 'https://workspace.google.com/products/tasks',
   templates: [
     {
       icon: GoogleTasksIcon,

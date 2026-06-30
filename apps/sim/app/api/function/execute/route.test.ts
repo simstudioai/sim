@@ -5,7 +5,7 @@
  */
 import {
   createMockRequest,
-  featureFlagsMock,
+  envFlagsMock,
   hybridAuthMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
@@ -94,7 +94,7 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
@@ -105,7 +105,7 @@ import { POST } from '@/app/api/function/execute/route'
 describe('Function Execute API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    featureFlagsMock.isE2bEnabled = false
+    envFlagsMock.isE2bEnabled = false
 
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
@@ -341,7 +341,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('exports multiple declared sandbox output files', async () => {
-      featureFlagsMock.isE2bEnabled = true
+      envFlagsMock.isE2bEnabled = true
       mockExecuteInE2B.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
@@ -409,7 +409,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('prevalidates all sandbox output destinations before writing any files', async () => {
-      featureFlagsMock.isE2bEnabled = true
+      envFlagsMock.isE2bEnabled = true
       mockExecuteInE2B.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
@@ -453,7 +453,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('rejects duplicate sandbox output destinations before writing files', async () => {
-      featureFlagsMock.isE2bEnabled = true
+      envFlagsMock.isE2bEnabled = true
       mockExecuteInE2B.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
@@ -498,7 +498,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('returns a targeted error when a declared sandbox output is missing', async () => {
-      featureFlagsMock.isE2bEnabled = true
+      envFlagsMock.isE2bEnabled = true
       mockExecuteInE2B.mockResolvedValueOnce({
         result: 'done',
         stdout: 'ok',
@@ -571,7 +571,7 @@ describe('Function Execute API Route', () => {
     })
 
     it('rejects large refs in runtimes without ref-native helpers', async () => {
-      featureFlagsMock.isE2bEnabled = true
+      envFlagsMock.isE2bEnabled = true
       const req = createMockRequest('POST', {
         code: 'echo "$__blockRef_0"',
         language: 'shell',

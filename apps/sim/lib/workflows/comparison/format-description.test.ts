@@ -36,7 +36,7 @@ vi.mock('@/lib/workflows/subblocks/context', () => ({
   buildSelectorContextFromBlock: vi.fn(() => ({})),
 }))
 
-vi.mock('@/hooks/queries/credential-sets', () => ({
+vi.mock('@/hooks/queries/utils/fetch-credential-set', () => ({
   fetchCredentialSetById: vi.fn(),
 }))
 

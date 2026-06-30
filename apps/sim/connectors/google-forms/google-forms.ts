@@ -1,9 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { GoogleFormsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { googleFormsConnectorMeta, MAX_RESPONSES_PER_FORM } from '@/connectors/google-forms/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseTagDate } from '@/connectors/utils'
+import {
+  buildDriveParentsClause,
+  joinTagArray,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('GoogleFormsConnector')
 
@@ -11,12 +16,6 @@ const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3'
 const FORMS_API_BASE = 'https://forms.googleapis.com/v1'
 const FORM_MIME_TYPE = 'application/vnd.google-apps.form'
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
-
-/**
- * Hard cap on the number of responses appended to a single form document.
- * Keeps individual documents within a reasonable size for embedding/indexing.
- */
-const MAX_RESPONSES_PER_FORM = 500
 
 /**
  * Drive API page size when listing forms. The Drive API caps pageSize at 100.
@@ -454,73 +453,19 @@ function renderFormDocument(form: FormStructure, responses: FormResponse[]): str
 }
 
 /**
- * Builds the Drive `q` query that selects form files, optionally scoped to a
- * folder. Single quotes and backslashes in the folder ID are escaped to prevent
- * query injection.
+ * Builds the Drive `q` query that selects form files, optionally scoped to one
+ * or more folders. Single quotes and backslashes in folder IDs are escaped to
+ * prevent query injection.
  */
-function buildDriveQuery(folderId?: string): string {
+function buildDriveQuery(folderIds: string[]): string {
   const parts = ['trashed = false', `mimeType = '${FORM_MIME_TYPE}'`]
-  if (folderId?.trim()) {
-    const escaped = folderId.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-    parts.push(`'${escaped}' in parents`)
-  }
+  const parentsClause = buildDriveParentsClause(folderIds)
+  if (parentsClause) parts.push(parentsClause)
   return parts.join(' and ')
 }
 
 export const googleFormsConnector: ConnectorConfig = {
-  id: 'google_forms',
-  name: 'Google Forms',
-  description: 'Sync Google Forms questions and responses into your knowledge base',
-  version: '1.0.0',
-  icon: GoogleFormsIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'google-forms',
-    requiredScopes: [
-      'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/forms.body',
-      'https://www.googleapis.com/auth/forms.responses.readonly',
-    ],
-  },
-
-  configFields: [
-    {
-      id: 'folderId',
-      title: 'Folder ID',
-      type: 'short-input',
-      placeholder: 'e.g. 1aBcDeFgHiJkLmNoPqRsTuVwXyZ (optional)',
-      required: false,
-      description: 'Only sync forms inside this Drive folder. Leave blank to sync all forms.',
-    },
-    {
-      id: 'contentScope',
-      title: 'Content',
-      type: 'dropdown',
-      required: false,
-      options: [
-        { label: 'Questions & responses', id: 'both' },
-        { label: 'Questions only', id: 'structure' },
-      ],
-      description: 'Whether to index submitted responses alongside each form’s questions.',
-    },
-    {
-      id: 'maxForms',
-      title: 'Max Forms',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 100 (default: unlimited)',
-    },
-    {
-      id: 'maxResponsesPerForm',
-      title: 'Max Responses Per Form',
-      type: 'short-input',
-      required: false,
-      mode: 'advanced',
-      placeholder: `e.g. 100 (default: ${MAX_RESPONSES_PER_FORM})`,
-      description: 'Cap on responses indexed per form. Applies only when indexing responses.',
-    },
-  ],
+  ...googleFormsConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -537,9 +482,9 @@ export const googleFormsConnector: ConnectorConfig = {
       return { documents: [], hasMore: false }
     }
 
-    const folderId = sourceConfig.folderId as string | undefined
+    const folderIds = parseMultiValue(sourceConfig.folderId)
     const queryParams = new URLSearchParams({
-      q: buildDriveQuery(folderId),
+      q: buildDriveQuery(folderIds),
       pageSize: String(DRIVE_PAGE_SIZE),
       orderBy: 'modifiedTime desc',
       fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
@@ -551,7 +496,7 @@ export const googleFormsConnector: ConnectorConfig = {
     const url = `${DRIVE_API_BASE}/files?${queryParams.toString()}`
 
     logger.info('Listing Google Forms', {
-      folderId: folderId?.trim() || 'all',
+      folderId: folderIds.length > 0 ? folderIds.join(',') : 'all',
       contentScope,
       cursor: cursor ?? 'initial',
     })
@@ -725,7 +670,7 @@ export const googleFormsConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const folderId = sourceConfig.folderId as string | undefined
+    const folderIds = parseMultiValue(sourceConfig.folderId)
     const maxForms = sourceConfig.maxForms as string | undefined
     const maxResponsesPerForm = sourceConfig.maxResponsesPerForm as string | undefined
 
@@ -741,30 +686,38 @@ export const googleFormsConnector: ConnectorConfig = {
     }
 
     try {
-      if (folderId?.trim()) {
-        const url = `${DRIVE_API_BASE}/files/${encodeURIComponent(folderId.trim())}?fields=id,name,mimeType&supportsAllDrives=true`
-        const response = await fetchWithRetry(
-          url,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
+      if (folderIds.length > 0) {
+        for (const folderId of folderIds) {
+          const url = `${DRIVE_API_BASE}/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`
+          const response = await fetchWithRetry(
+            url,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/json',
+              },
             },
-          },
-          VALIDATE_RETRY_OPTIONS
-        )
+            VALIDATE_RETRY_OPTIONS
+          )
 
-        if (!response.ok) {
-          if (response.status === 404) {
-            return { valid: false, error: 'Folder not found. Check the folder ID and permissions.' }
+          if (!response.ok) {
+            if (response.status === 404) {
+              return {
+                valid: false,
+                error: `Folder "${folderId}" not found. Check the folder ID and permissions.`,
+              }
+            }
+            return {
+              valid: false,
+              error: `Failed to access folder "${folderId}": ${response.status}`,
+            }
           }
-          return { valid: false, error: `Failed to access folder: ${response.status}` }
-        }
 
-        const folder = await response.json()
-        if (folder.mimeType !== FOLDER_MIME_TYPE) {
-          return { valid: false, error: 'The provided ID is not a folder' }
+          const folder = await response.json()
+          if (folder.mimeType !== FOLDER_MIME_TYPE) {
+            return { valid: false, error: `"${folderId}" is not a folder` }
+          }
         }
       } else {
         const url = `${DRIVE_API_BASE}/files?pageSize=1&q=${encodeURIComponent(`mimeType = '${FORM_MIME_TYPE}'`)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`
@@ -790,13 +743,6 @@ export const googleFormsConnector: ConnectorConfig = {
       return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
     }
   },
-
-  tagDefinitions: [
-    { id: 'formTitle', displayName: 'Form Title', fieldType: 'text' },
-    { id: 'owners', displayName: 'Owner', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'lastResponse', displayName: 'Last Response', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

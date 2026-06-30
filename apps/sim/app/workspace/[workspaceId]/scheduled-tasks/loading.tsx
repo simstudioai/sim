@@ -1,31 +1,18 @@
 'use client'
 
-import { Plus } from '@/components/emcn'
-import { Calendar } from '@/components/emcn/icons'
+import { Calendar, Plus } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
 
-const COLUMNS = [
-  { id: 'task', header: 'Task' },
-  { id: 'schedule', header: 'Schedule' },
-  { id: 'nextRun', header: 'Next Run' },
-  { id: 'lastRun', header: 'Last Run' },
-]
-
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New scheduled task', icon: Plus, variant: 'primary' }]
 
+/**
+ * Route-segment fallback: the page renders a calendar, not a table, so this
+ * paints only the header chrome (no table columns / search / sort / filter).
+ * The empty calendar then mounts and its tasks load in.
+ */
 export default function ScheduledTasksLoading() {
-  return (
-    <ResourceChromeFallback
-      icon={Calendar}
-      title='Scheduled Tasks'
-      columns={COLUMNS}
-      actions={ACTIONS}
-      searchPlaceholder='Search scheduled tasks...'
-      hasSort
-      hasFilter
-    />
-  )
+  return <ResourceChromeFallback icon={Calendar} title='Scheduled Tasks' actions={ACTIONS} />
 }

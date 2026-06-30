@@ -5,7 +5,7 @@
  * with table-specific information so LLMs can construct proper queries.
  */
 
-import type { TableSummary } from '../types'
+import type { TableSummary } from '@/lib/table/types'
 
 /**
  * Operations that use filters and need filter-specific enrichment.

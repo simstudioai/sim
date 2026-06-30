@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { processEmailData, shouldSkipForUnsubscribe } from '@/lib/messaging/email/prepare'
 import { activeProviders } from '@/lib/messaging/email/providers'
 import type {
@@ -36,22 +37,54 @@ const MOCK_EMAIL_RESULT: SendEmailResult = {
   data: { id: 'mock-email-id' },
 }
 
+const SKIPPED_BANNED_RESULT: SendEmailResult = {
+  success: true,
+  message: 'Email skipped (recipient on access-control ban list)',
+  data: { id: 'skipped-banned' },
+}
+
 export function hasEmailService(): boolean {
   return activeProviders.length > 0
 }
 
+/**
+ * Drop recipients that are on the AppConfig access-control ban list. Returns the
+ * original options when nothing is banned, options narrowed to the allowed
+ * recipients when some are, or `null` when every recipient is banned. Config is
+ * cached (~30s TTL) with an env fallback, so a missing/unreachable AppConfig
+ * fails open rather than blocking all mail.
+ */
+async function applyBanList(options: EmailOptions): Promise<EmailOptions | null> {
+  const recipients = Array.isArray(options.to) ? options.to : [options.to]
+  const config = await getAccessControlConfig()
+  const allowed = recipients.filter((email) => !isEmailBlockedByAccessControl(email, config))
+  if (allowed.length === 0) return null
+  if (allowed.length === recipients.length) return options
+  return { ...options, to: allowed.length === 1 ? allowed[0] : allowed }
+}
+
 export async function sendEmail(options: EmailOptions): Promise<SendEmailResult> {
   try {
-    if (await shouldSkipForUnsubscribe(options)) {
-      logger.info('Email not sent (user unsubscribed):', {
+    const allowed = await applyBanList(options)
+    if (!allowed) {
+      logger.info('Email not sent (recipient on access-control ban list):', {
         to: options.to,
         subject: options.subject,
         emailType: options.emailType,
       })
+      return SKIPPED_BANNED_RESULT
+    }
+
+    if (await shouldSkipForUnsubscribe(allowed)) {
+      logger.info('Email not sent (user unsubscribed):', {
+        to: allowed.to,
+        subject: allowed.subject,
+        emailType: allowed.emailType,
+      })
       return SKIPPED_UNSUBSCRIBED_RESULT
     }
 
-    const data = processEmailData(options)
+    const data = processEmailData(allowed)
 
     if (activeProviders.length === 0) {
       logger.info('Email not sent (no email service configured):', {
@@ -96,10 +129,14 @@ async function prepareBatch(emails: EmailOptions[]): Promise<PreparedBatchEntry[
   return Promise.all(
     emails.map(async (email, index): Promise<PreparedBatchEntry> => {
       try {
-        if (await shouldSkipForUnsubscribe(email)) {
+        const allowed = await applyBanList(email)
+        if (!allowed) {
+          return { index, data: null, skippedResult: SKIPPED_BANNED_RESULT }
+        }
+        if (await shouldSkipForUnsubscribe(allowed)) {
           return { index, data: null, skippedResult: SKIPPED_UNSUBSCRIBED_RESULT }
         }
-        return { index, data: processEmailData(email), skippedResult: null }
+        return { index, data: processEmailData(allowed), skippedResult: null }
       } catch (error) {
         return {
           index,

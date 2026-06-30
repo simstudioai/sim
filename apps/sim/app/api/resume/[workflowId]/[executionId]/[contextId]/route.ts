@@ -2,7 +2,10 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { resumeWorkflowExecutionContextContract } from '@/lib/api/contracts/workflows'
+import {
+  getPauseContextDetailContract,
+  resumeWorkflowExecutionContextContract,
+} from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { AuthType } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
@@ -310,7 +313,7 @@ export const GET = withRouteHandler(
       params: Promise<{ workflowId: string; executionId: string; contextId: string }>
     }
   ) => {
-    const parsed = await parseRequest(resumeWorkflowExecutionContextContract, request, context)
+    const parsed = await parseRequest(getPauseContextDetailContract, request, context)
     if (!parsed.success) return parsed.response
     const { workflowId, executionId, contextId } = parsed.data.params
 

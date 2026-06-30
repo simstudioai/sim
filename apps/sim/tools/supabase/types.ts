@@ -84,30 +84,38 @@ export const STORAGE_BUCKET_OUTPUT: OutputProperty = {
 }
 
 /**
- * Output definition for storage upload response
+ * Output definition for storage upload response.
+ * The Supabase Storage REST API returns `{ Id, Key }` (Key required); Sim's
+ * upload route augments this with `path`, `bucket`, and `publicUrl`.
  * @see https://supabase.com/docs/reference/javascript/storage-from-upload
  */
 export const STORAGE_UPLOAD_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Unique identifier for the uploaded file' },
+  Id: { type: 'string', description: 'Unique identifier for the uploaded file', optional: true },
+  Key: { type: 'string', description: 'Full object key including bucket name' },
   path: { type: 'string', description: 'Path to the uploaded file within the bucket' },
-  fullPath: { type: 'string', description: 'Full path including bucket name' },
+  bucket: { type: 'string', description: 'Name of the bucket the file was uploaded to' },
+  publicUrl: { type: 'string', description: 'Public URL for the uploaded file' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output definition for storage move/copy response
+ * Output definition for storage move response.
+ * The move endpoint returns `{ message, Id, Key }`.
  * @see https://supabase.com/docs/reference/javascript/storage-from-move
  */
 export const STORAGE_MOVE_OUTPUT_PROPERTIES = {
   message: { type: 'string', description: 'Operation status message' },
+  Id: { type: 'string', description: 'Identifier of the destination object', optional: true },
+  Key: { type: 'string', description: 'Full object key of the destination', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output definition for storage copy response
- * Returns: { path: string }
- * @see https://github.com/supabase/storage-js/blob/main/src/packages/StorageFileApi.ts
+ * Output definition for storage copy response.
+ * The copy endpoint returns `{ Id, Key }` (Key required; Id deprecated).
+ * @see https://github.com/supabase/storage/blob/master/src/http/routes/object/copyObject.ts
  */
 export const STORAGE_COPY_OUTPUT_PROPERTIES = {
-  path: { type: 'string', description: 'Path to the copied file' },
+  Key: { type: 'string', description: 'Full object key of the copied file' },
+  Id: { type: 'string', description: 'Identifier of the copied object', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -358,6 +366,7 @@ export interface SupabaseUpsertParams {
   table: string
   schema?: string
   data: any
+  onConflict?: string
 }
 
 export interface SupabaseVectorSearchParams {
@@ -393,7 +402,6 @@ export interface SupabaseVectorSearchResponse extends SupabaseBaseResponse {}
 
 export interface SupabaseResponse extends SupabaseBaseResponse {}
 
-// RPC types
 export interface SupabaseRpcParams {
   apiKey: string
   projectId: string
@@ -403,7 +411,6 @@ export interface SupabaseRpcParams {
 
 export interface SupabaseRpcResponse extends SupabaseBaseResponse {}
 
-// Text Search types
 export interface SupabaseTextSearchParams {
   apiKey: string
   projectId: string
@@ -419,7 +426,6 @@ export interface SupabaseTextSearchParams {
 
 export interface SupabaseTextSearchResponse extends SupabaseBaseResponse {}
 
-// Count types
 export interface SupabaseCountParams {
   apiKey: string
   projectId: string
@@ -437,7 +443,17 @@ export interface SupabaseCountResponse extends ToolResponse {
   error?: string
 }
 
-// Storage Upload types
+export interface SupabaseInvokeFunctionParams {
+  apiKey: string
+  projectId: string
+  functionName: string
+  method?: string
+  body?: any
+  headers?: Record<string, string>
+}
+
+export interface SupabaseInvokeFunctionResponse extends SupabaseBaseResponse {}
+
 export interface SupabaseStorageUploadParams {
   apiKey: string
   projectId: string
@@ -446,12 +462,12 @@ export interface SupabaseStorageUploadParams {
   path?: string
   fileData: UserFile | string
   contentType?: string
+  cacheControl?: string
   upsert?: boolean
 }
 
 export interface SupabaseStorageUploadResponse extends SupabaseBaseResponse {}
 
-// Storage Download types
 export interface SupabaseStorageDownloadParams {
   apiKey: string
   projectId: string
@@ -472,7 +488,6 @@ export interface SupabaseStorageDownloadResponse extends ToolResponse {
   error?: string
 }
 
-// Storage List types
 export interface SupabaseStorageListParams {
   apiKey: string
   projectId: string
@@ -487,7 +502,6 @@ export interface SupabaseStorageListParams {
 
 export interface SupabaseStorageListResponse extends SupabaseBaseResponse {}
 
-// Storage Delete types
 export interface SupabaseStorageDeleteParams {
   apiKey: string
   projectId: string
@@ -497,7 +511,6 @@ export interface SupabaseStorageDeleteParams {
 
 export interface SupabaseStorageDeleteResponse extends SupabaseBaseResponse {}
 
-// Storage Move types
 export interface SupabaseStorageMoveParams {
   apiKey: string
   projectId: string
@@ -508,7 +521,6 @@ export interface SupabaseStorageMoveParams {
 
 export interface SupabaseStorageMoveResponse extends SupabaseBaseResponse {}
 
-// Storage Copy types
 export interface SupabaseStorageCopyParams {
   apiKey: string
   projectId: string
@@ -519,7 +531,6 @@ export interface SupabaseStorageCopyParams {
 
 export interface SupabaseStorageCopyResponse extends SupabaseBaseResponse {}
 
-// Storage Create Bucket types
 export interface SupabaseStorageCreateBucketParams {
   apiKey: string
   projectId: string
@@ -531,7 +542,6 @@ export interface SupabaseStorageCreateBucketParams {
 
 export interface SupabaseStorageCreateBucketResponse extends SupabaseBaseResponse {}
 
-// Storage List Buckets types
 export interface SupabaseStorageListBucketsParams {
   apiKey: string
   projectId: string
@@ -539,7 +549,6 @@ export interface SupabaseStorageListBucketsParams {
 
 export interface SupabaseStorageListBucketsResponse extends SupabaseBaseResponse {}
 
-// Storage Delete Bucket types
 export interface SupabaseStorageDeleteBucketParams {
   apiKey: string
   projectId: string
@@ -548,9 +557,7 @@ export interface SupabaseStorageDeleteBucketParams {
 
 export interface SupabaseStorageDeleteBucketResponse extends SupabaseBaseResponse {}
 
-// Storage Get Public URL types
 export interface SupabaseStorageGetPublicUrlParams {
-  apiKey: string
   projectId: string
   bucket: string
   path: string
@@ -565,7 +572,6 @@ export interface SupabaseStorageGetPublicUrlResponse extends ToolResponse {
   error?: string
 }
 
-// Storage Create Signed URL types
 export interface SupabaseStorageCreateSignedUrlParams {
   apiKey: string
   projectId: string

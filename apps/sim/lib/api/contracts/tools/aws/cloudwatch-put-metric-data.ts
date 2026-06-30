@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import type {
   ContractBody,
@@ -60,7 +61,7 @@ const PutMetricDataSchema = z.object({
         if (!val) return true
         try {
           const parsed = JSON.parse(val)
-          return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+          return isRecordLike(parsed)
         } catch {
           return false
         }

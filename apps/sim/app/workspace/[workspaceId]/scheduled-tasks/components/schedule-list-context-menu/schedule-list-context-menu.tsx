@@ -1,12 +1,7 @@
 'use client'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 
 interface ScheduleListContextMenuProps {
   isOpen: boolean
@@ -44,6 +39,7 @@ export function ScheduleListContextMenu({
         side='bottom'
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onContextMenu={(e) => e.preventDefault()}
       >
         {onCreateSchedule && (
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateSchedule}>

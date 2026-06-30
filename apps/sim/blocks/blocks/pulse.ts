@@ -211,6 +211,7 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
 
 export const PulseBlockMeta = {
   tags: ['document-processing', 'ocr'],
+  url: 'https://www.runpulse.com',
   templates: [
     {
       icon: PulseIcon,

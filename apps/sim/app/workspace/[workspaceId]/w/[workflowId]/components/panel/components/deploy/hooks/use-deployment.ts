@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { toast } from '@/components/emcn'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

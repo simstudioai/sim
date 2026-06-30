@@ -1,13 +1,11 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { ArrowLeft, ChevronRight, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
+  cn,
   Loader,
   Popover,
   PopoverContent,
@@ -15,9 +13,11 @@ import {
   PopoverTrigger,
   Switch,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { ArrowLeft, ChevronRight, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,
   getIssueBadgeVariant,
@@ -454,6 +454,27 @@ function IconComponent({
   return <Icon className={className} />
 }
 
+const UNSUPPORTED_CUSTOM_TOOL_MESSAGE = 'Custom tools are not supported by this block yet'
+const UNSUPPORTED_MCP_TOOL_MESSAGE = 'MCP tools are not supported by this block yet'
+
+/**
+ * Trailing "Unavailable" affordance for a tool category the consuming block
+ * cannot execute. Rendered as the combobox item's suffix so the greyed-out row
+ * still surfaces a tooltip explaining why on hover.
+ */
+function UnsupportedToolBadge({ message }: { message: string }) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span className='text-[var(--text-tertiary)] text-xs'>Unavailable</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content>
+        <span className='text-sm'>{message}</span>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
 export const ToolInput = memo(function ToolInput({
   blockId,
   subBlockId,
@@ -494,6 +515,16 @@ export const ToolInput = memo(function ToolInput({
     typeof value[0]?.type === 'string'
       ? (value as StoredTool[])
       : []
+
+  // Tool categories the consuming block can't run (declared on its tool-input
+  // subBlock): shown in the picker but greyed out with a tooltip instead of added.
+  const blockType = useWorkflowStore(useCallback((state) => state.blocks[blockId]?.type, [blockId]))
+  const unsupportedToolTypes = useMemo<readonly ('mcp' | 'custom-tool')[]>(() => {
+    const block = getAllBlocks().find((b) => b.type === blockType)
+    return block?.subBlocks.find((sb) => sb.id === subBlockId)?.unsupportedToolTypes ?? []
+  }, [blockType, subBlockId])
+  const mcpUnsupported = unsupportedToolTypes.includes('mcp')
+  const customUnsupported = unsupportedToolTypes.includes('custom-tool')
 
   // Look up credential type for reactive condition filtering (e.g. service account detection).
   // Uses canonical resolution so the active field (basic vs advanced) is respected.
@@ -1346,7 +1377,12 @@ export const ToolInput = memo(function ToolInput({
     const groups: ComboboxOptionGroup[] = []
 
     // MCP Server drill-down: when navigated into a server, show only its tools
-    if (mcpServerDrilldown && !permissionConfig.disableMcpTools && mcpToolsByServer.size > 0) {
+    if (
+      mcpServerDrilldown &&
+      !permissionConfig.disableMcpTools &&
+      !mcpUnsupported &&
+      mcpToolsByServer.size > 0
+    ) {
       const tools = mcpToolsByServer.get(mcpServerDrilldown)
       if (tools && tools.length > 0) {
         const server = mcpServers.find((s) => s.id === mcpServerDrilldown)
@@ -1458,7 +1494,10 @@ export const ToolInput = memo(function ToolInput({
           setCustomToolModalOpen(true)
           setOpen(false)
         },
-        disabled: isPreview,
+        disabled: isPreview || customUnsupported,
+        suffixElement: customUnsupported ? (
+          <UnsupportedToolBadge message={UNSUPPORTED_CUSTOM_TOOL_MESSAGE} />
+        ) : undefined,
       })
     }
     if (!permissionConfig.disableMcpTools) {
@@ -1470,14 +1509,17 @@ export const ToolInput = memo(function ToolInput({
           setOpen(false)
           setMcpModalOpen(true)
         },
-        disabled: isPreview,
+        disabled: isPreview || mcpUnsupported,
+        suffixElement: mcpUnsupported ? (
+          <UnsupportedToolBadge message={UNSUPPORTED_MCP_TOOL_MESSAGE} />
+        ) : undefined,
       })
     }
     if (actionItems.length > 0) {
       groups.push({ items: actionItems })
     }
 
-    if (!permissionConfig.disableCustomTools && customTools.length > 0) {
+    if (!permissionConfig.disableCustomTools && !customUnsupported && customTools.length > 0) {
       groups.push({
         section: 'Custom Tools',
         items: customTools.map((customTool) => {
@@ -1507,7 +1549,7 @@ export const ToolInput = memo(function ToolInput({
     }
 
     // MCP Servers — root folder view
-    if (!permissionConfig.disableMcpTools && mcpToolsByServer.size > 0) {
+    if (!permissionConfig.disableMcpTools && !mcpUnsupported && mcpToolsByServer.size > 0) {
       const serverItems: ComboboxOption[] = []
 
       for (const [serverId, tools] of mcpToolsByServer) {
@@ -1620,6 +1662,8 @@ export const ToolInput = memo(function ToolInput({
     handleSelectTool,
     permissionConfig.disableCustomTools,
     permissionConfig.disableMcpTools,
+    mcpUnsupported,
+    customUnsupported,
     availableWorkflows,
     isToolAlreadySelected,
   ])
@@ -2067,6 +2111,7 @@ export const ToolInput = memo(function ToolInput({
                             toolIndex={toolIndex}
                             subBlock={sbWithTitle}
                             effectiveParamId={effectiveParamId}
+                            toolType={tool.type}
                             toolParams={tool.params}
                             onParamChange={handleParamChange}
                             disabled={disabled}

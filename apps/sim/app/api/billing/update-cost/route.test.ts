@@ -40,7 +40,7 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: mockCheckAndBillOverageThreshold,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: true,
 }))
 

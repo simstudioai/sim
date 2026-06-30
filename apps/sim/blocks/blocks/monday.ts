@@ -4,12 +4,17 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type {
   MondayArchiveItemResponse,
+  MondayChangeColumnValueResponse,
+  MondayCreateBoardResponse,
+  MondayCreateColumnResponse,
   MondayCreateGroupResponse,
   MondayCreateItemResponse,
   MondayCreateSubitemResponse,
   MondayCreateUpdateResponse,
   MondayDeleteItemResponse,
+  MondayDuplicateItemResponse,
   MondayGetBoardResponse,
+  MondayGetGroupsResponse,
   MondayGetItemResponse,
   MondayGetItemsResponse,
   MondayListBoardsResponse,
@@ -33,6 +38,11 @@ type MondayResponse =
   | MondaySearchItemsResponse
   | MondayCreateSubitemResponse
   | MondayMoveItemToGroupResponse
+  | MondayChangeColumnValueResponse
+  | MondayCreateBoardResponse
+  | MondayCreateColumnResponse
+  | MondayGetGroupsResponse
+  | MondayDuplicateItemResponse
 
 const BOARD_OPS = [
   'get_board',
@@ -41,6 +51,10 @@ const BOARD_OPS = [
   'create_item',
   'update_item',
   'create_group',
+  'get_groups',
+  'create_column',
+  'change_column_value',
+  'duplicate_item',
 ]
 
 const ITEM_ID_OPS = [
@@ -50,6 +64,8 @@ const ITEM_ID_OPS = [
   'archive_item',
   'create_update',
   'move_item_to_group',
+  'change_column_value',
+  'duplicate_item',
 ]
 
 export const MondayBlock: BlockConfig<MondayResponse> = {
@@ -77,12 +93,17 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
         { label: 'Search Items', id: 'search_items' },
         { label: 'Create Item', id: 'create_item' },
         { label: 'Update Item', id: 'update_item' },
+        { label: 'Change Column Value', id: 'change_column_value' },
+        { label: 'Duplicate Item', id: 'duplicate_item' },
         { label: 'Delete Item', id: 'delete_item' },
         { label: 'Archive Item', id: 'archive_item' },
         { label: 'Move Item to Group', id: 'move_item_to_group' },
         { label: 'Create Subitem', id: 'create_subitem' },
         { label: 'Create Update', id: 'create_update' },
         { label: 'Create Group', id: 'create_group' },
+        { label: 'Get Groups', id: 'get_groups' },
+        { label: 'Create Board', id: 'create_board' },
+        { label: 'Create Column', id: 'create_column' },
       ],
       value: () => 'list_boards',
     },
@@ -244,6 +265,142 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
       condition: { field: 'operation', value: 'create_group' },
     },
     {
+      id: 'columnId',
+      title: 'Column ID',
+      type: 'short-input',
+      placeholder: 'Enter column ID (e.g., status)',
+      condition: { field: 'operation', value: 'change_column_value' },
+      required: { field: 'operation', value: 'change_column_value' },
+    },
+    {
+      id: 'columnValue',
+      title: 'Column Value',
+      type: 'long-input',
+      placeholder: '{"label":"Done"}',
+      condition: { field: 'operation', value: 'change_column_value' },
+      required: { field: 'operation', value: 'change_column_value' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON value for a single Monday.com column. The shape depends on the column type (e.g., {"label":"Done"} for status, {"date":"2024-01-01"} for date). Return ONLY the JSON value - no explanations, no extra text.',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'createLabelsIfMissing',
+      title: 'Create Labels If Missing',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'change_column_value' },
+    },
+    {
+      id: 'withUpdates',
+      title: 'Include Updates',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'duplicate_item' },
+    },
+    {
+      id: 'boardName',
+      title: 'Board Name',
+      type: 'short-input',
+      placeholder: 'Enter board name',
+      condition: { field: 'operation', value: 'create_board' },
+      required: { field: 'operation', value: 'create_board' },
+    },
+    {
+      id: 'boardKind',
+      title: 'Board Kind',
+      type: 'dropdown',
+      options: [
+        { label: 'Public', id: 'public' },
+        { label: 'Private', id: 'private' },
+        { label: 'Shareable', id: 'share' },
+      ],
+      value: () => 'public',
+      condition: { field: 'operation', value: 'create_board' },
+      required: { field: 'operation', value: 'create_board' },
+    },
+    {
+      id: 'boardDescription',
+      title: 'Board Description',
+      type: 'long-input',
+      placeholder: 'Enter board description',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_board' },
+    },
+    {
+      id: 'workspaceId',
+      title: 'Workspace ID',
+      type: 'short-input',
+      placeholder: 'Enter workspace ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_board' },
+    },
+    {
+      id: 'folderId',
+      title: 'Folder ID',
+      type: 'short-input',
+      placeholder: 'Enter folder ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_board' },
+    },
+    {
+      id: 'columnTitle',
+      title: 'Column Title',
+      type: 'short-input',
+      placeholder: 'Enter column title',
+      condition: { field: 'operation', value: 'create_column' },
+      required: { field: 'operation', value: 'create_column' },
+    },
+    {
+      id: 'columnType',
+      title: 'Column Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Status', id: 'status' },
+        { label: 'Text', id: 'text' },
+        { label: 'Long Text', id: 'long_text' },
+        { label: 'Numbers', id: 'numbers' },
+        { label: 'Date', id: 'date' },
+        { label: 'People', id: 'people' },
+        { label: 'Dropdown', id: 'dropdown' },
+        { label: 'Checkbox', id: 'checkbox' },
+        { label: 'Email', id: 'email' },
+        { label: 'Phone', id: 'phone' },
+        { label: 'Link', id: 'link' },
+        { label: 'Timeline', id: 'timeline' },
+        { label: 'Tags', id: 'tags' },
+        { label: 'Rating', id: 'rating' },
+        { label: 'Country', id: 'country' },
+      ],
+      value: () => 'text',
+      condition: { field: 'operation', value: 'create_column' },
+      required: { field: 'operation', value: 'create_column' },
+    },
+    {
+      id: 'columnDescription',
+      title: 'Column Description',
+      type: 'long-input',
+      placeholder: 'Enter column description',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_column' },
+    },
+    {
+      id: 'columnDefaults',
+      title: 'Column Defaults',
+      type: 'long-input',
+      placeholder: '{"labels":{"0":"To Do","1":"Done"}}',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_column' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON object of default settings for a Monday.com column (e.g., status labels). Return ONLY the JSON object string - no explanations, no extra text.',
+        generationType: 'json-object',
+      },
+    },
+    {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
@@ -289,12 +446,17 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
       'monday_search_items',
       'monday_create_item',
       'monday_update_item',
+      'monday_change_column_value',
+      'monday_duplicate_item',
       'monday_delete_item',
       'monday_archive_item',
       'monday_move_item_to_group',
       'monday_create_subitem',
       'monday_create_update',
       'monday_create_group',
+      'monday_get_groups',
+      'monday_create_board',
+      'monday_create_column',
     ],
     config: {
       tool: (params) => {
@@ -348,6 +510,42 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
               itemId: params.itemId,
               columnValues: params.columnValues,
             }
+          case 'change_column_value':
+            return {
+              ...baseParams,
+              boardId: params.boardId,
+              itemId: params.itemId,
+              columnId: params.columnId,
+              value: params.columnValue,
+              createLabelsIfMissing: Boolean(params.createLabelsIfMissing),
+            }
+          case 'duplicate_item':
+            return {
+              ...baseParams,
+              boardId: params.boardId,
+              itemId: params.itemId,
+              withUpdates: Boolean(params.withUpdates),
+            }
+          case 'create_board':
+            return {
+              ...baseParams,
+              boardName: params.boardName,
+              boardKind: params.boardKind || 'public',
+              description: params.boardDescription || undefined,
+              workspaceId: params.workspaceId || undefined,
+              folderId: params.folderId || undefined,
+            }
+          case 'create_column':
+            return {
+              ...baseParams,
+              boardId: params.boardId,
+              columnTitle: params.columnTitle,
+              columnType: params.columnType || 'text',
+              columnDescription: params.columnDescription || undefined,
+              columnDefaults: params.columnDefaults || undefined,
+            }
+          case 'get_groups':
+            return { ...baseParams, boardId: params.boardId }
           case 'delete_item':
             return { ...baseParams, itemId: params.itemId }
           case 'archive_item':
@@ -394,6 +592,22 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
     groupId: { type: 'string', description: 'Group ID' },
     searchColumns: { type: 'string', description: 'JSON array of column filters for search' },
     columnValues: { type: 'string', description: 'JSON string of column values' },
+    columnId: { type: 'string', description: 'Single column ID to change' },
+    columnValue: { type: 'string', description: 'JSON value for a single column' },
+    createLabelsIfMissing: {
+      type: 'boolean',
+      description: 'Create status/dropdown labels that do not yet exist',
+    },
+    withUpdates: { type: 'boolean', description: 'Include item updates when duplicating' },
+    boardName: { type: 'string', description: 'Board name for creation' },
+    boardKind: { type: 'string', description: 'Board kind (public, private, share)' },
+    boardDescription: { type: 'string', description: 'Board description' },
+    workspaceId: { type: 'string', description: 'Workspace ID for board creation' },
+    folderId: { type: 'string', description: 'Folder ID for board creation' },
+    columnTitle: { type: 'string', description: 'Column title for creation' },
+    columnType: { type: 'string', description: 'Column type for creation' },
+    columnDescription: { type: 'string', description: 'Column description' },
+    columnDefaults: { type: 'string', description: 'JSON defaults for the new column' },
     updateBody: { type: 'string', description: 'Update text content' },
     groupName: { type: 'string', description: 'Group name' },
     groupColor: { type: 'string', description: 'Group color hex code' },
@@ -412,17 +626,22 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
       type: 'json',
       description:
         'Board details (id, name, description, state, boardKind, itemsCount, url, updatedAt)',
-      condition: { field: 'operation', value: 'get_board' },
+      condition: { field: 'operation', value: ['get_board', 'create_board'] },
     },
     groups: {
       type: 'json',
       description: 'Board groups (id, title, color, archived, deleted, position)',
-      condition: { field: 'operation', value: 'get_board' },
+      condition: { field: 'operation', value: ['get_board', 'get_groups'] },
     },
     columns: {
       type: 'json',
       description: 'Board columns (id, title, type)',
       condition: { field: 'operation', value: 'get_board' },
+    },
+    column: {
+      type: 'json',
+      description: 'Created column (id, title, type)',
+      condition: { field: 'operation', value: 'create_column' },
     },
     items: {
       type: 'json',
@@ -436,7 +655,15 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
         'Item details (id, name, state, boardId, groupId, groupTitle, columnValues, createdAt, updatedAt, url)',
       condition: {
         field: 'operation',
-        value: ['get_item', 'create_item', 'update_item', 'create_subitem', 'move_item_to_group'],
+        value: [
+          'get_item',
+          'create_item',
+          'update_item',
+          'create_subitem',
+          'move_item_to_group',
+          'change_column_value',
+          'duplicate_item',
+        ],
       },
     },
     id: {
@@ -457,7 +684,10 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
     count: {
       type: 'number',
       description: 'Number of returned results',
-      condition: { field: 'operation', value: ['list_boards', 'get_items', 'search_items'] },
+      condition: {
+        field: 'operation',
+        value: ['list_boards', 'get_items', 'search_items', 'get_groups'],
+      },
     },
     cursor: {
       type: 'string',
@@ -483,6 +713,7 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
 
 export const MondayBlockMeta = {
   tags: ['project-management', 'ticketing'],
+  url: 'https://monday.com',
   templates: [
     {
       icon: MondayIcon,

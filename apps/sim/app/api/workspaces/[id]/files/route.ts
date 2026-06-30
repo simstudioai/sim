@@ -11,6 +11,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { getSharesForResources } from '@/lib/public-shares/share-manager'
 import {
   FileConflictError,
   listWorkspaceFiles,
@@ -68,11 +69,20 @@ export const GET = withRouteHandler(
 
       const files = await listWorkspaceFiles(workspaceId, { scope })
 
+      const shares = await getSharesForResources(
+        'file',
+        files.map((file) => file.id)
+      )
+      const filesWithShares = files.map((file) => ({
+        ...file,
+        share: shares.get(file.id) ?? null,
+      }))
+
       logger.info(`[${requestId}] Listed ${files.length} files for workspace ${workspaceId}`)
 
       return NextResponse.json({
         success: true,
-        files,
+        files: filesWithShares,
       })
     } catch (error) {
       logger.error(`[${requestId}] Error listing workspace files:`, error)

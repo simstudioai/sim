@@ -2,8 +2,6 @@ import type {
   AgiloftAttachmentInfoParams,
   AgiloftAttachmentInfoResponse,
 } from '@/tools/agiloft/types'
-import { buildAttachmentInfoUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftAttachmentInfoTool: ToolConfig<
@@ -61,57 +59,27 @@ export const agiloftAttachmentInfoTool: ToolConfig<
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'GET',
-    headers: () => ({}),
+    url: () => '/api/tools/agiloft/attachment_info',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+      recordId: params.recordId,
+      fieldName: params.fieldName,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftAttachmentInfoResponse>(
-      params,
-      (base) => ({
-        url: buildAttachmentInfoUrl(base, params),
-        method: 'GET',
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: { attachments: [], totalCount: 0 },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-
-        const attachments: Array<{ position: number; name: string; size: number }> = []
-
-        if (Array.isArray(result)) {
-          for (let i = 0; i < result.length; i++) {
-            const item = result[i] as Record<string, unknown>
-            attachments.push({
-              position: (item.filePosition as number) ?? (item.position as number) ?? i,
-              name:
-                (item.fileName as string) ??
-                (item.name as string) ??
-                (item.filename as string) ??
-                '',
-              size: (item.size as number) ?? (item.fileSize as number) ?? 0,
-            })
-          }
-        }
-
-        return {
-          success: data.success !== false,
-          output: {
-            attachments,
-            totalCount: attachments.length,
-          },
-        }
-      }
-    )
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: data.success ?? true,
+      output: data.output,
+      ...(data.error ? { error: data.error } : {}),
+    }
   },
 
   outputs: {

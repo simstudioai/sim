@@ -1368,6 +1368,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
 
 export const SpotifyBlockMeta = {
   tags: ['content-management', 'automation'],
+  url: 'https://www.spotify.com',
   templates: [
     {
       icon: SpotifyIcon,

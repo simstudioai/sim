@@ -44,8 +44,12 @@ Read data from a specific sheet in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet \(found in the URL: docs.google.com/spreadsheets/d/\{SPREADSHEET_ID\}/edit\). |
-| `range` | string | No | The A1 notation range to read \(e.g. "Sheet1!A1:D10", "A1:B5"\). Defaults to first sheet A1:Z1000 if not specified. |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
+| `sheetName` | string | Yes | The name of the sheet/tab to read from |
+| `cellRange` | string | No | The cell range to read \(e.g. "A1:D10"\). Defaults to "A1:Z1000" if not specified. |
+| `filterColumn` | string | No | Column name \(from the header row\) to filter on. Filtering is applied to the rows returned by the read range \(the default is A1:Z1000\), not the entire sheet. If not provided, no filtering is applied. |
+| `filterValue` | string | No | Value to match against the filter column. |
+| `filterMatchType` | string | No | How to match the filter value. Text: "contains", "not_contains", "exact", "not_equals", "starts_with", "ends_with". Numeric/ordering: "gt", "gte", "lt", "lte" \(numeric when both values are numbers, otherwise lexicographic\). Defaults to "contains". |
 
 #### Output
 
@@ -66,8 +70,9 @@ Write data to a specific sheet in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
-| `range` | string | No | The A1 notation range to write to \(e.g. "Sheet1!A1:D10", "A1:B5"\) |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
+| `sheetName` | string | Yes | The name of the sheet/tab to write to |
+| `cellRange` | string | No | The cell range to write to \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
 | `values` | array | Yes | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to write |
 | `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
@@ -92,8 +97,9 @@ Update data in a specific sheet in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet to update |
-| `range` | string | No | The A1 notation range to update \(e.g. "Sheet1!A1:D10", "A1:B5"\) |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
+| `sheetName` | string | Yes | The name of the sheet/tab to update |
+| `cellRange` | string | No | The cell range to update \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
 | `values` | array | Yes | The data to update as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to update |
 | `includeValuesInResponse` | boolean | No | Whether to include the updated values in the response |
@@ -118,8 +124,8 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet to append to |
-| `range` | string | No | The A1 notation range to append after \(e.g. "Sheet1", "Sheet1!A:D"\) |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
+| `sheetName` | string | Yes | The name of the sheet/tab to append to |
 | `values` | array | Yes | The data to append as a 2D array \(e.g. \[\["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to append |
 | `insertDataOption` | string | No | How to insert the data \(OVERWRITE or INSERT_ROWS\) |
@@ -313,6 +319,68 @@ Copy a sheet from one spreadsheet to another
 | `sheetType` | string | The type of the sheet \(GRID, CHART, etc.\) |
 | `destinationSpreadsheetId` | string | The ID of the destination spreadsheet |
 | `destinationSpreadsheetUrl` | string | URL to the destination spreadsheet |
+
+### `google_sheets_delete_rows`
+
+Delete rows from a sheet in a Google Sheets spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
+| `sheetId` | number | Yes | The numeric ID of the sheet/tab \(not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
+| `startIndex` | number | Yes | The start row index \(0-based, inclusive\) of the rows to delete |
+| `endIndex` | number | Yes | The end row index \(0-based, exclusive\) of the rows to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| `sheetId` | number | The numeric ID of the sheet |
+| `deletedRowRange` | string | Description of the deleted row range |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `google_sheets_delete_sheet`
+
+Delete a sheet/tab from a Google Sheets spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
+| `sheetId` | number | Yes | The numeric ID of the sheet/tab to delete \(not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | Google Sheets spreadsheet ID |
+| `deletedSheetId` | number | The numeric ID of the deleted sheet |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+### `google_sheets_delete_spreadsheet`
+
+Permanently delete a Google Sheets spreadsheet using the Google Drive API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the Google Sheets spreadsheet to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | The ID of the deleted spreadsheet |
+| `deleted` | boolean | Whether the spreadsheet was successfully deleted |
 
 
 

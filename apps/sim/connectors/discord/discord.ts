@@ -1,14 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { DiscordIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { DEFAULT_MAX_MESSAGES, discordConnectorMeta } from '@/connectors/discord/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('DiscordConnector')
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
-const DEFAULT_MAX_MESSAGES = 1000
 const MESSAGES_PER_PAGE = 100
 
 interface DiscordMessage {
@@ -135,35 +134,7 @@ function formatMessages(messages: DiscordMessage[]): string {
 }
 
 export const discordConnector: ConnectorConfig = {
-  id: 'discord',
-  name: 'Discord',
-  description: 'Sync channel messages from Discord',
-  version: '1.0.0',
-  icon: DiscordIcon,
-
-  auth: {
-    mode: 'apiKey',
-    label: 'Bot Token',
-    placeholder: 'Enter your Discord bot token',
-  },
-
-  configFields: [
-    {
-      id: 'channelId',
-      title: 'Channel ID',
-      type: 'short-input',
-      placeholder: 'e.g. 123456789012345678',
-      required: true,
-      description: 'The Discord channel ID to sync messages from',
-    },
-    {
-      id: 'maxMessages',
-      title: 'Max Messages',
-      type: 'short-input',
-      required: false,
-      placeholder: `e.g. 500 (default: ${DEFAULT_MAX_MESSAGES})`,
-    },
-  ],
+  ...discordConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -309,12 +280,6 @@ export const discordConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'channelName', displayName: 'Channel Name', fieldType: 'text' },
-    { id: 'messageCount', displayName: 'Message Count', fieldType: 'number' },
-    { id: 'lastActivity', displayName: 'Last Activity', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

@@ -1,5 +1,5 @@
 import { env, getEnv } from '../config/env'
-import { isDev, isHosted, isReactGrabEnabled } from '../config/feature-flags'
+import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
 
 /**
  * Content Security Policy (CSP) configuration builder

@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { isEqual } from 'es-toolkit'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
-import { useShallow } from 'zustand/react/shallow'
-import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
+  cn,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -13,8 +10,11 @@ import {
   PopoverScrollArea,
   PopoverSection,
   usePopoverContext,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { isEqual } from 'es-toolkit'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,

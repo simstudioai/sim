@@ -14,7 +14,7 @@ import {
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
-import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enrichTableSchema } from '@/lib/table/llm/wand'

@@ -1,10 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { featureFlagsMock } from '@sim/testing'
+import { envFlagsMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 

@@ -152,6 +152,50 @@ export async function parseJsonBody(
   }
 }
 
+/**
+ * Reads an entirely optional JSON body with the standard byte cap. An absent
+ * or empty body resolves to `{ success: true, data: undefined }`; malformed
+ * JSON and oversized payloads return the standard 400/413 error responses.
+ * Use for endpoints whose body may be omitted altogether (e.g. optional
+ * metadata on a deploy call) — `parseJsonBody` rejects empty bodies.
+ */
+export async function parseOptionalJsonBody(
+  request: Request,
+  maxBytes: number = DEFAULT_MAX_JSON_BODY_BYTES
+): Promise<
+  { success: true; data: unknown } | { success: false; response: NextResponse<{ error: string }> }
+> {
+  try {
+    assertContentLengthWithinLimit(request.headers, maxBytes, REQUEST_BODY_LABEL)
+
+    const stream = request.body
+    const text = stream
+      ? new TextDecoder().decode(
+          await readStreamToBufferWithLimit(stream, { maxBytes, label: REQUEST_BODY_LABEL })
+        )
+      : await request.text()
+
+    if (!text.trim()) {
+      return { success: true, data: undefined }
+    }
+    return { success: true, data: JSON.parse(text) }
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      return {
+        success: false,
+        response: NextResponse.json(
+          { error: `Request body exceeds the maximum allowed size of ${maxBytes} bytes` },
+          { status: 413 }
+        ),
+      }
+    }
+    return {
+      success: false,
+      response: NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 }),
+    }
+  }
+}
+
 export function searchParamsToObject(
   searchParams: URLSearchParams
 ): Record<string, string | string[]> {

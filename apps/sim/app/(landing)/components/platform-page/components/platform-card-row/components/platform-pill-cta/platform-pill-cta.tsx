@@ -1,7 +1,7 @@
 'use client'
 
+import { ChipLink } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
-import { ChipLink } from '@/components/emcn'
 import type { PlatformPillCta as PlatformPillCtaConfig } from '@/app/(landing)/components/platform-page/types'
 
 /**

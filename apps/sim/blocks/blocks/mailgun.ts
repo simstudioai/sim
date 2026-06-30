@@ -415,6 +415,7 @@ Return ONLY the JSON object - no explanations or markdown.`,
 
 export const MailgunBlockMeta = {
   tags: ['messaging', 'email-marketing'],
+  url: 'https://www.mailgun.com',
   templates: [
     {
       icon: MailgunIcon,

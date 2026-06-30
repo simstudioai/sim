@@ -34,6 +34,8 @@ export const GoogleMapsBlock: BlockConfig = {
         { label: 'Validate Address', id: 'validate_address' },
         { label: 'Geolocate (WiFi/Cell)', id: 'geolocate' },
         { label: 'Air Quality', id: 'air_quality' },
+        { label: 'Pollen Forecast', id: 'pollen' },
+        { label: 'Solar Potential', id: 'solar' },
       ],
       value: () => 'geocode',
     },
@@ -354,23 +356,53 @@ export const GoogleMapsBlock: BlockConfig = {
       title: 'Latitude',
       type: 'short-input',
       placeholder: '37.4224764',
-      condition: { field: 'operation', value: 'air_quality' },
-      required: { field: 'operation', value: 'air_quality' },
+      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar'] },
+      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar'] },
     },
     {
       id: 'aqLongitude',
       title: 'Longitude',
       type: 'short-input',
       placeholder: '-122.0842499',
-      condition: { field: 'operation', value: 'air_quality' },
-      required: { field: 'operation', value: 'air_quality' },
+      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar'] },
+      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar'] },
     },
     {
       id: 'languageCode',
       title: 'Language Code',
       type: 'short-input',
       placeholder: 'Language code (e.g., en, es)',
-      condition: { field: 'operation', value: 'air_quality' },
+      condition: { field: 'operation', value: ['air_quality', 'pollen'] },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'days',
+      title: 'Forecast Days',
+      type: 'short-input',
+      placeholder: 'Number of days (1-5, defaults to 1)',
+      condition: { field: 'operation', value: 'pollen' },
+      mode: 'advanced',
+    },
+    {
+      id: 'plantsDescription',
+      title: 'Include Plant Descriptions',
+      type: 'switch',
+      condition: { field: 'operation', value: 'pollen' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'requiredQuality',
+      title: 'Minimum Imagery Quality',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'High', id: 'HIGH' },
+        { label: 'Medium', id: 'MEDIUM' },
+        { label: 'Base', id: 'BASE' },
+      ],
+      condition: { field: 'operation', value: 'solar' },
       mode: 'advanced',
     },
 
@@ -401,8 +433,10 @@ export const GoogleMapsBlock: BlockConfig = {
       'google_maps_geolocate',
       'google_maps_place_details',
       'google_maps_places_search',
+      'google_maps_pollen',
       'google_maps_reverse_geocode',
       'google_maps_snap_to_roads',
+      'google_maps_solar',
       'google_maps_speed_limits',
       'google_maps_timezone',
       'google_maps_validate_address',
@@ -503,6 +537,18 @@ export const GoogleMapsBlock: BlockConfig = {
           considerIp = params.considerIp === 'true' || params.considerIp === true
         }
 
+        let days: number | undefined
+        if (params.days) {
+          const parsedDays = Number.parseInt(params.days, 10)
+          days = Number.isNaN(parsedDays) ? undefined : parsedDays
+        }
+
+        let plantsDescription: boolean | undefined
+        if (params.plantsDescription !== undefined) {
+          plantsDescription =
+            params.plantsDescription === 'true' || params.plantsDescription === true
+        }
+
         return {
           ...rest,
           address,
@@ -519,6 +565,9 @@ export const GoogleMapsBlock: BlockConfig = {
           interpolate,
           enableUspsCass,
           considerIp,
+          days,
+          plantsDescription,
+          requiredQuality: params.requiredQuality || undefined,
           type: params.placeType || undefined,
           avoid: params.avoid || undefined,
           radioType: params.radioType || undefined,
@@ -561,9 +610,12 @@ export const GoogleMapsBlock: BlockConfig = {
     carrier: { type: 'string', description: 'Carrier name' },
     wifiAccessPoints: { type: 'string', description: 'WiFi access points JSON' },
     cellTowers: { type: 'string', description: 'Cell towers JSON' },
-    aqLatitude: { type: 'string', description: 'Latitude for air quality' },
-    aqLongitude: { type: 'string', description: 'Longitude for air quality' },
-    languageCode: { type: 'string', description: 'Language code for air quality' },
+    aqLatitude: { type: 'string', description: 'Latitude for air quality, pollen, or solar' },
+    aqLongitude: { type: 'string', description: 'Longitude for air quality, pollen, or solar' },
+    languageCode: { type: 'string', description: 'Language code for air quality or pollen' },
+    days: { type: 'string', description: 'Number of pollen forecast days (1-5)' },
+    plantsDescription: { type: 'boolean', description: 'Include detailed plant descriptions' },
+    requiredQuality: { type: 'string', description: 'Minimum solar imagery quality' },
   },
 
   outputs: {
@@ -636,11 +688,27 @@ export const GoogleMapsBlock: BlockConfig = {
     indexes: { type: 'json', description: 'Air quality indexes' },
     pollutants: { type: 'json', description: 'Pollutant concentrations' },
     healthRecommendations: { type: 'json', description: 'Health recommendations' },
+
+    dailyInfo: { type: 'json', description: 'Daily pollen forecast (grass, tree, weed, plants)' },
+
+    center: { type: 'json', description: 'Center coordinate of the solar building' },
+    imageryDate: { type: 'json', description: 'Date the solar imagery was captured' },
+    imageryQuality: { type: 'string', description: 'Quality of the solar imagery used' },
+    postalCode: { type: 'string', description: 'Postal code of the solar building' },
+    administrativeArea: {
+      type: 'string',
+      description: 'Administrative area of the solar building',
+    },
+    solarPotential: {
+      type: 'json',
+      description: 'Solar potential, panel specs, and configurations',
+    },
   },
 }
 
 export const GoogleMapsBlockMeta = {
   tags: ['google-workspace', 'enrichment'],
+  url: 'https://mapsplatform.google.com',
   templates: [
     {
       icon: GoogleMapsIcon,

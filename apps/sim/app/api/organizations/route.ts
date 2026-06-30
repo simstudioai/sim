@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -113,7 +114,7 @@ export const POST = withRouteHandler(async (request: Request) => {
       .limit(1)
 
     const existingAdminMembership =
-      existingOrgMembership.length > 0 && ['owner', 'admin'].includes(existingOrgMembership[0].role)
+      existingOrgMembership.length > 0 && isOrgAdminRole(existingOrgMembership[0].role)
         ? existingOrgMembership[0]
         : null
 

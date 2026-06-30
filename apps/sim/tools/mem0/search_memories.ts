@@ -1,11 +1,12 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { Mem0Response, Mem0SearchMemoriesParams } from '@/tools/mem0/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
-import { isRecord, type JsonRecord } from '@/tools/mem0/utils'
+import type { JsonRecord } from '@/tools/mem0/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const getSearchResults = (data: unknown): JsonRecord[] => {
-  if (!isRecord(data) || !Array.isArray(data.results)) return []
-  return data.results.filter(isRecord)
+  if (!isRecordLike(data) || !Array.isArray(data.results)) return []
+  return data.results.filter(isRecordLike)
 }
 
 const getString = (value: unknown): string | undefined =>
@@ -85,7 +86,7 @@ export const mem0SearchMemoriesTool: ToolConfig<Mem0SearchMemoriesParams, Mem0Re
       app_id: getString(result.app_id),
       run_id: getString(result.run_id),
       hash: getString(result.hash),
-      metadata: isRecord(result.metadata) ? result.metadata : undefined,
+      metadata: isRecordLike(result.metadata) ? result.metadata : undefined,
       categories: getStringArray(result.categories),
       created_at: getString(result.created_at),
       updated_at: getString(result.updated_at),
