@@ -33,17 +33,44 @@ export const sendblueSendTypingIndicatorTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Your Sendblue line number to send from, in E.164 format.',
     },
+    state: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        '"start" (default) shows the indicator; "stop" ends an active indicator before max_duration_ms expires.',
+    },
+    max_duration_ms: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'How long (ms) the indicator stays visible before auto-stopping. Defaults to 60000. Must be between 1 and 300000.',
+    },
   },
 
   request: {
     url: `${SENDBLUE_API_BASE_URL}/api/send-typing-indicator`,
     method: 'POST',
     headers: (params) => sendblueHeaders(params),
-    body: (params) =>
-      filterUndefined({
+    body: (params) => {
+      if (params.state !== undefined && params.state !== 'start' && params.state !== 'stop') {
+        throw new Error('"state" must be either "start" or "stop".')
+      }
+      let maxDurationMs: number | undefined
+      if (params.max_duration_ms !== undefined) {
+        maxDurationMs = Number(params.max_duration_ms)
+        if (!Number.isInteger(maxDurationMs) || maxDurationMs < 1 || maxDurationMs > 300000) {
+          throw new Error('"max_duration_ms" must be an integer between 1 and 300000.')
+        }
+      }
+      return filterUndefined({
         number: params.number,
         from_number: params.from_number,
-      }),
+        state: params.state,
+        max_duration_ms: maxDurationMs,
+      })
+    },
   },
 
   transformResponse: async (response) => {
