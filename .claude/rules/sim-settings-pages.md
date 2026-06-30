@@ -55,14 +55,16 @@ return (
 ## `SettingsPanel` props
 
 - `actions?: SettingsAction[]` — right-aligned header chips, **data only**:
-  `{ text, icon?, variant?: 'primary'|'destructive', active?, onSelect, disabled? }`.
+  `{ text, icon?, variant?: 'primary'|'destructive', active?, onSelect, disabled?, tooltip? }`.
   The shell renders each as a `Chip` — never pass JSX, a `<div>`, or `className`
   (the locked contract: it's structurally impossible to vibe-code a padding
   change). Multiple/conditional actions are a plain array
   (`[...(canManage ? [{…}] : []), …]`). Labels are **sentence case** (`Add override`,
-  not `Add Override`). Save/Discard pairs come from the `saveDiscardActions()`
-  helper (spread it into `actions`). A widget that genuinely cannot be a chip
-  (tooltip-wrapped chip, custom dropdown) goes in the `aside` escape hatch.
+  not `Add Override`). A disabled action that needs to explain itself sets
+  `tooltip` (the shell renders the hover tooltip, disabled chip included) — never
+  hand-roll a tooltip-wrapped chip in `aside`. Save/Discard pairs come from the
+  `saveDiscardActions()` helper (spread it into `actions`). Only a widget that
+  genuinely cannot be a chip (e.g. one needing hover-prefetch) goes in `aside`.
 - `back?: SettingsBackAction` (`{ text, icon?, onSelect }`) — left-aligned back
   chip for a **detail sub-view** (e.g. a selected MCP server, a permission group,
   a retention policy). Detail sub-views render through `SettingsPanel` like list
