@@ -40,7 +40,7 @@ export const insertImageTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertI
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The 1-based character index at which to insert the image. When omitted, the image is appended to the end of the document.',
+        'The zero-based character index at which to insert the image. When omitted, the image is appended to the end of the document.',
     },
     width: {
       type: 'number',

@@ -139,6 +139,7 @@ export const slackListScheduledMessagesTool: ToolConfig<
     nextCursor: {
       type: 'string',
       description: 'Cursor for the next page (null when there are no more pages)',
+      optional: true,
     },
   },
 }

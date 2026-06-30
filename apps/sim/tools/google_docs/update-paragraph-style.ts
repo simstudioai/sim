@@ -21,7 +21,19 @@ const NAMED_STYLE_TYPES = new Set([
   'HEADING_6',
 ])
 
-const ALIGNMENTS = new Set(['LEFT', 'CENTER', 'RIGHT', 'JUSTIFY'])
+/**
+ * Maps user-facing alignment names to the Google Docs API `ParagraphStyle.alignment`
+ * enum (the API rejects LEFT/RIGHT/JUSTIFY — the valid values are START/CENTER/END/JUSTIFIED).
+ */
+const ALIGNMENT_MAP: Record<string, string> = {
+  LEFT: 'START',
+  START: 'START',
+  CENTER: 'CENTER',
+  RIGHT: 'END',
+  END: 'END',
+  JUSTIFY: 'JUSTIFIED',
+  JUSTIFIED: 'JUSTIFIED',
+}
 
 export const updateParagraphStyleTool: ToolConfig<
   GoogleDocsToolParams,
@@ -53,7 +65,7 @@ export const updateParagraphStyleTool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The 1-based start character index of the range to style (inclusive)',
+      description: 'The zero-based start character index of the range to style (inclusive)',
     },
     endIndex: {
       type: 'number',
@@ -108,8 +120,8 @@ export const updateParagraphStyleTool: ToolConfig<
       }
 
       if (params.alignment != null && String(params.alignment).trim() !== '') {
-        const alignment = String(params.alignment).trim().toUpperCase()
-        if (!ALIGNMENTS.has(alignment)) {
+        const alignment = ALIGNMENT_MAP[String(params.alignment).trim().toUpperCase()]
+        if (!alignment) {
           throw new Error('alignment must be one of: LEFT, CENTER, RIGHT, JUSTIFY')
         }
         paragraphStyle.alignment = alignment

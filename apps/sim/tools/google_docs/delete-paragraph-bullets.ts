@@ -40,7 +40,7 @@ export const deleteParagraphBulletsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'The 1-based start character index of the range to clear bullets from (inclusive)',
+        'The zero-based start character index of the range to clear bullets from (inclusive)',
     },
     endIndex: {
       type: 'number',

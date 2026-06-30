@@ -23,6 +23,8 @@ function transformProject(project: any) {
 
 function buildSearchUrl(cloudId: string, params: JiraListProjectsParams): string {
   const queryParams = new URLSearchParams()
+  // `lead` is not returned by default on project/search — expand it so the lead outputs populate.
+  queryParams.append('expand', 'lead')
   if (params.query) queryParams.append('query', params.query)
   if (params.startAt !== undefined) queryParams.append('startAt', String(params.startAt))
   if (params.maxResults !== undefined) queryParams.append('maxResults', String(params.maxResults))

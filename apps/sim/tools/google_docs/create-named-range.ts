@@ -45,7 +45,7 @@ export const createNamedRangeTool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The 1-based start character index of the range (inclusive)',
+      description: 'The zero-based start character index of the range (inclusive)',
     },
     endIndex: {
       type: 'number',

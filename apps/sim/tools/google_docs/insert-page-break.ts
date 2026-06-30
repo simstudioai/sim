@@ -40,7 +40,7 @@ export const insertPageBreakTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The 1-based character index at which to insert the page break. When omitted, the page break is appended to the end of the document.',
+        'The zero-based character index at which to insert the page break. When omitted, the page break is appended to the end of the document.',
     },
   },
   request: {

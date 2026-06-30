@@ -362,6 +362,7 @@ Return ONLY the text to insert - no explanations, no extra text.`,
       title: 'Paragraph Style',
       type: 'dropdown',
       options: [
+        { label: 'Default (unchanged)', id: '' },
         { label: 'Normal Text', id: 'NORMAL_TEXT' },
         { label: 'Title', id: 'TITLE' },
         { label: 'Subtitle', id: 'SUBTITLE' },

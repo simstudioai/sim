@@ -38,7 +38,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       subtaskData.due_on = due_on
     }
 
-    const url = `https://app.asana.com/api/1.0/tasks/${taskGid}/subtasks`
+    const url = `https://app.asana.com/api/1.0/tasks/${taskGid}/subtasks?opt_fields=name,notes,completed,created_at,permalink_url`
 
     const response = await fetch(url, {
       method: 'POST',

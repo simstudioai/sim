@@ -32,15 +32,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       projectData.notes = notes
     }
 
-    const response = await fetch('https://app.asana.com/api/1.0/projects', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ data: projectData }),
-    })
+    const response = await fetch(
+      'https://app.asana.com/api/1.0/projects?opt_fields=name,notes,archived,color,created_at,modified_at,permalink_url',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: projectData }),
+      }
+    )
 
     if (!response.ok) {
       const errorText = await response.text()

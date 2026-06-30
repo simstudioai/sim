@@ -39,7 +39,7 @@ export const updateTextStyleTool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The 1-based start character index of the range to style (inclusive)',
+      description: 'The zero-based start character index of the range to style (inclusive)',
     },
     endIndex: {
       type: 'number',

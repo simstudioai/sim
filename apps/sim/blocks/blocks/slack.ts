@@ -1686,6 +1686,9 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
 
         if (isDM && dmSupportedOperations.includes(operation)) {
           baseParams.userId = effectiveUserId
+        } else if (isDM && operation === 'schedule_message' && effectiveUserId) {
+          // chat.scheduleMessage opens a DM when the channel is set to a user ID
+          baseParams.channel = effectiveUserId
         } else if (effectiveChannel) {
           baseParams.channel = effectiveChannel
         }

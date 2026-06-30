@@ -357,6 +357,28 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['add_followers'],
       },
     },
+    {
+      id: 'projects',
+      title: 'Projects',
+      type: 'short-input',
+      placeholder: 'Comma-separated project GIDs to filter by',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['search_tasks'],
+      },
+    },
+    {
+      id: 'completed',
+      title: 'Completion',
+      type: 'checkbox-list',
+      options: [{ label: 'Completed', id: 'completed' }],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['update_task', 'search_tasks'],
+      },
+    },
   ],
   tools: {
     access: [
