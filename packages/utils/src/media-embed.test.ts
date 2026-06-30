@@ -37,6 +37,20 @@ describe('getEmbedInfo', () => {
     expect(getEmbedInfo('not a url')).toBeNull()
   })
 
+  it('only embeds when the parsed host belongs to the provider', () => {
+    // A provider domain in the path or as a subdomain prefix of an attacker host
+    // must not be treated as that provider.
+    expect(getEmbedInfo('https://evil.com/youtube.com/watch?v=dQw4w9WgXcQ')).toBeNull()
+    expect(getEmbedInfo('https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ')).toBeNull()
+    expect(getEmbedInfo('https://evil.com/open.spotify.com/track/abc123')).toBeNull()
+    expect(getEmbedInfo('https://vimeo.com.evil.com/123456')).toBeNull()
+    // Legitimate subdomains of a provider still embed.
+    expect(getEmbedInfo('https://m.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual({
+      url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+      type: 'iframe',
+    })
+  })
+
   describe('Dropbox', () => {
     it('rewrites a Dropbox video share link to a direct streamable URL', () => {
       expect(getEmbedInfo('https://www.dropbox.com/s/abc/clip.mp4?dl=0')).toEqual({
