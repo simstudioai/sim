@@ -9,6 +9,7 @@ export const ssoProvidersQuerySchema = z.object({
 export const authProviderStatusResponseSchema = z.object({
   githubAvailable: z.boolean(),
   googleAvailable: z.boolean(),
+  microsoftAvailable: z.boolean(),
   registrationDisabled: z.boolean(),
 })
 

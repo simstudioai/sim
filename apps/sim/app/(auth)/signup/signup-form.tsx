@@ -81,10 +81,18 @@ const validateEmailField = (emailValue: string): string[] => {
 interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
+  microsoftAvailable: boolean
   isProduction: boolean
+  emailSignupEnabled: boolean
 }
 
-function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: SignupFormProps) {
+function SignupFormContent({
+  githubAvailable,
+  googleAvailable,
+  microsoftAvailable,
+  isProduction,
+  emailSignupEnabled,
+}: SignupFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
@@ -352,8 +360,9 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
   }
 
   const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
-  const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
-  const hasSocial = githubAvailable || googleAvailable
+  const emailEnabled =
+    !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && emailSignupEnabled
+  const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
   const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
   const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
   const showDivider = (emailEnabled || hasOnlySSO) && showBottomSection
@@ -450,10 +459,11 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
         <SocialLoginButtons
           githubAvailable={githubAvailable}
           googleAvailable={googleAvailable}
+          microsoftAvailable={microsoftAvailable}
           callbackURL={redirectUrl || '/workspace'}
           isProduction={isProduction}
         >
-          {ssoEnabled && (
+          {ssoEnabled && !hasOnlySSO && (
             <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
           )}
         </SocialLoginButtons>
@@ -473,14 +483,18 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
 export default function SignupPage({
   githubAvailable,
   googleAvailable,
+  microsoftAvailable,
   isProduction,
+  emailSignupEnabled,
 }: SignupFormProps) {
   return (
     <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}
+        microsoftAvailable={microsoftAvailable}
         isProduction={isProduction}
+        emailSignupEnabled={emailSignupEnabled}
       />
     </Suspense>
   )

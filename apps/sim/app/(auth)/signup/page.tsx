@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { isRegistrationDisabled } from '@/lib/core/config/feature-flags'
+import { isEmailSignupDisabled, isRegistrationDisabled } from '@/lib/core/config/feature-flags'
 import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
 import SignupForm from '@/app/(auth)/signup/signup-form'
 
@@ -14,13 +14,16 @@ export default async function SignupPage() {
     return <div>Registration is disabled, please contact your admin.</div>
   }
 
-  const { githubAvailable, googleAvailable, isProduction } = await getOAuthProviderStatus()
+  const { githubAvailable, googleAvailable, microsoftAvailable, isProduction } =
+    await getOAuthProviderStatus()
 
   return (
     <SignupForm
       githubAvailable={githubAvailable}
       googleAvailable={googleAvailable}
+      microsoftAvailable={microsoftAvailable}
       isProduction={isProduction}
+      emailSignupEnabled={!isEmailSignupDisabled}
     />
   )
 }

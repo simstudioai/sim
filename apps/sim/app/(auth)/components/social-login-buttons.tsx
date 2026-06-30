@@ -4,7 +4,7 @@ import { type ReactNode, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Chip } from '@/components/emcn'
-import { GithubIcon, GoogleIcon } from '@/components/icons'
+import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
@@ -14,6 +14,7 @@ const logger = createLogger('SocialLoginButtons')
 interface SocialLoginButtonsProps {
   githubAvailable: boolean
   googleAvailable: boolean
+  microsoftAvailable: boolean
   callbackURL?: string
   isProduction: boolean
   children?: ReactNode
@@ -22,12 +23,14 @@ interface SocialLoginButtonsProps {
 export function SocialLoginButtons({
   githubAvailable,
   googleAvailable,
+  microsoftAvailable,
   callbackURL = '/workspace',
   isProduction,
   children,
 }: SocialLoginButtonsProps) {
   const [isGithubLoading, setIsGithubLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false)
 
   async function signInWithGithub() {
     if (!githubAvailable) return
@@ -52,6 +55,19 @@ export function SocialLoginButtons({
       logger.error('Google sign-in failed', { error: getErrorMessage(err) })
     } finally {
       setIsGoogleLoading(false)
+    }
+  }
+
+  async function signInWithMicrosoft() {
+    if (!microsoftAvailable) return
+
+    setIsMicrosoftLoading(true)
+    try {
+      await client.signIn.social({ provider: 'microsoft', callbackURL })
+    } catch (err) {
+      logger.error('Microsoft sign-in failed', { error: getErrorMessage(err) })
+    } finally {
+      setIsMicrosoftLoading(false)
     }
   }
 
@@ -81,7 +97,20 @@ export function SocialLoginButtons({
     </Chip>
   )
 
-  const hasAnyOAuthProvider = githubAvailable || googleAvailable
+  const microsoftButton = (
+    <Chip
+      fullWidth
+      flush
+      leftIcon={MicrosoftIcon}
+      className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+      disabled={!microsoftAvailable || isMicrosoftLoading}
+      onClick={signInWithMicrosoft}
+    >
+      {isMicrosoftLoading ? 'Connecting…' : 'Microsoft'}
+    </Chip>
+  )
+
+  const hasAnyOAuthProvider = githubAvailable || googleAvailable || microsoftAvailable
 
   if (!hasAnyOAuthProvider && !children) {
     return null
@@ -90,6 +119,7 @@ export function SocialLoginButtons({
   return (
     <div className='grid gap-3'>
       {googleAvailable && googleButton}
+      {microsoftAvailable && microsoftButton}
       {githubAvailable && githubButton}
       {children}
     </div>

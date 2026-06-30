@@ -247,6 +247,18 @@ export const isGoogleAuthDisabled = isTruthy(env.DISABLE_GOOGLE_AUTH)
 export const isGithubAuthDisabled = isTruthy(env.DISABLE_GITHUB_AUTH)
 
 /**
+ * Is Microsoft OAuth login disabled
+ * When true, the Microsoft OAuth login button is hidden even when credentials are configured
+ */
+export const isMicrosoftAuthDisabled = isTruthy(env.DISABLE_MICROSOFT_AUTH)
+
+/**
+ * Is email/password signup disabled
+ * When true, new email/password registrations are blocked while email login keeps working
+ */
+export const isEmailSignupDisabled = isTruthy(env.DISABLE_EMAIL_SIGNUP)
+
+/**
  * Is React Grab enabled for UI element debugging
  * When true and in development mode, enables React Grab for copying UI element context to clipboard
  */

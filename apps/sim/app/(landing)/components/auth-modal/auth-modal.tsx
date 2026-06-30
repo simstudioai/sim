@@ -14,7 +14,7 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@/components/emcn'
-import { GithubIcon, GoogleIcon } from '@/components/icons'
+import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'
 import { client } from '@/lib/auth/auth-client'
@@ -40,6 +40,7 @@ let fetchPromise: Promise<AuthProviderStatusResponse> | null = null
 const FALLBACK_STATUS: ProviderStatus = {
   githubAvailable: false,
   googleAvailable: false,
+  microsoftAvailable: false,
   registrationDisabled: false,
 }
 
@@ -49,9 +50,10 @@ const SOCIAL_BTN =
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
   fetchPromise = requestJson(getAuthProvidersContract, {})
-    .then(({ githubAvailable, googleAvailable, registrationDisabled }) => ({
+    .then(({ githubAvailable, googleAvailable, microsoftAvailable, registrationDisabled }) => ({
       githubAvailable,
       googleAvailable,
+      microsoftAvailable,
       registrationDisabled,
     }))
     .catch(() => {
@@ -66,14 +68,17 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<AuthView>(defaultView)
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
-  const [socialLoading, setSocialLoading] = useState<'github' | 'google' | null>(null)
+  const [socialLoading, setSocialLoading] = useState<'github' | 'google' | 'microsoft' | null>(null)
   const brand = useMemo(() => getBrandConfig(), [])
 
   useEffect(() => {
     fetchProviderStatus().then(setProviderStatus)
   }, [])
 
-  const hasSocial = providerStatus?.githubAvailable || providerStatus?.googleAvailable
+  const hasSocial =
+    providerStatus?.githubAvailable ||
+    providerStatus?.googleAvailable ||
+    providerStatus?.microsoftAvailable
   const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
   const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
   const hasModalContent = hasSocial || ssoEnabled
@@ -104,7 +109,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     }
   }
 
-  async function handleSocialLogin(provider: 'github' | 'google') {
+  async function handleSocialLogin(provider: 'github' | 'google' | 'microsoft') {
     setSocialLoading(provider)
     try {
       await client.signIn.social({ provider, callbackURL: '/workspace' })
@@ -178,6 +183,19 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     <GoogleIcon className='absolute left-4 size-[18px] shrink-0' />
                     <span>
                       {socialLoading === 'google' ? 'Connecting...' : 'Continue with Google'}
+                    </span>
+                  </button>
+                )}
+                {providerStatus.microsoftAvailable && (
+                  <button
+                    type='button'
+                    onClick={() => handleSocialLogin('microsoft')}
+                    disabled={!!socialLoading}
+                    className={SOCIAL_BTN}
+                  >
+                    <MicrosoftIcon className='absolute left-4 size-[18px] shrink-0' />
+                    <span>
+                      {socialLoading === 'microsoft' ? 'Connecting...' : 'Continue with Microsoft'}
                     </span>
                   </button>
                 )}
