@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -17,9 +17,19 @@ import {
   languages,
 } from '@sim/emcn'
 import { Trash } from '@sim/emcn/icons'
+import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
-import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
+import {
+  createDefaultInputFormatField,
+  type InputFormatFile,
+  isFileFieldType,
+  parseInputFormatFiles,
+} from '@/lib/workflows/input-format'
+import {
+  FileUpload,
+  type UploadedFile,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -80,6 +90,66 @@ const validateFieldName = (name: string): string => name.replace(/[\x00-\x1F"\\]
 
 const jsonHighlight = (code: string): string => highlight(code, languages.json, 'json')
 
+/**
+ * Maps stored run-ready file objects to the {@link FileUpload} value shape
+ * (which keys off `path`).
+ */
+const filesToControlValue = (files: InputFormatFile[]): UploadedFile[] =>
+  files.map((file) => ({
+    name: file.name,
+    path: file.url,
+    key: file.key,
+    size: file.size,
+    type: file.type,
+  }))
+
+/**
+ * Maps a {@link FileUpload} value back to stored run-ready file objects,
+ * preserving the stable `id` of files that were already present.
+ */
+const controlValueToFiles = (
+  value: UploadedFile | UploadedFile[] | null,
+  previous: InputFormatFile[]
+): InputFormatFile[] => {
+  const uploaded = Array.isArray(value) ? value : value ? [value] : []
+  return uploaded.map((file) => {
+    const existing = previous.find(
+      (prev) => (file.key && prev.key === file.key) || prev.url === file.path
+    )
+    return {
+      id: existing?.id ?? generateId(),
+      name: file.name,
+      url: file.path,
+      key: file.key,
+      size: file.size,
+      type: file.type,
+    }
+  })
+}
+
+/**
+ * Serializes run-ready file objects into a field value string (empty when none).
+ */
+const serializeInputFormatFiles = (files: InputFormatFile[]): string =>
+  files.length > 0 ? JSON.stringify(files, null, 2) : ''
+
+/**
+ * Default editor mode for a file field: the uploader, unless the stored value is
+ * legacy free-form content (raw text or a non-file array) that only the JSON
+ * editor can represent without data loss.
+ */
+const defaultFileFieldMode = (value: string | undefined): 'upload' | 'json' => {
+  if (!value || !value.trim()) return 'upload'
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return 'json'
+    if (parsed.length === 0) return 'upload'
+    return parseInputFormatFiles(value).length > 0 ? 'upload' : 'json'
+  } catch {
+    return 'json'
+  }
+}
+
 export function FieldFormat({
   blockId,
   subBlockId,
@@ -101,6 +171,7 @@ export function FieldFormat({
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const [fileFieldModes, setFileFieldModes] = useState<Record<string, 'upload' | 'json'>>({})
 
   const inputController = useSubBlockInput({
     blockId,
@@ -480,12 +551,14 @@ export function FieldFormat({
       )
     }
 
-    if (field.type === 'file[]') {
+    if (isFileFieldType(field.type)) {
+      const mode = fileFieldModes[field.id] ?? defaultFileFieldMode(field.value)
+      const currentFiles = parseInputFormatFiles(field.value)
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
 
-      const renderLineNumbers = () => {
-        return Array.from({ length: lineCount }, (_, i) => (
+      const renderLineNumbers = () =>
+        Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
             className='font-medium font-mono text-[var(--text-muted)] text-xs'
@@ -494,26 +567,60 @@ export function FieldFormat({
             {i + 1}
           </div>
         ))
-      }
 
       return (
-        <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
-          <Code.Content paddingLeft={`${gutterWidth}px`}>
-            <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
-              {
-                '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
+        <div className='flex flex-col gap-1.5'>
+          <div className='flex justify-end'>
+            <Button
+              type='button'
+              variant='ghost'
+              onClick={() =>
+                setFileFieldModes((prev) => ({
+                  ...prev,
+                  [field.id]: mode === 'upload' ? 'json' : 'upload',
+                }))
               }
-            </Code.Placeholder>
-            <Editor
-              value={fieldValue}
-              onValueChange={getEditorValueChangeHandler(field.id)}
-              highlight={jsonHighlight}
               disabled={isReadOnly}
-              {...getCodeEditorProps({ disabled: isReadOnly })}
+              className='h-auto p-0 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-body)]'
+            >
+              {mode === 'upload' ? 'Enter JSON manually' : 'Use file uploader'}
+            </Button>
+          </div>
+          {mode === 'upload' ? (
+            <FileUpload
+              blockId={blockId}
+              subBlockId={subBlockId}
+              multiple
+              disabled={isReadOnly}
+              value={filesToControlValue(currentFiles)}
+              onValueChange={(next) =>
+                updateField(
+                  field.id,
+                  'value',
+                  serializeInputFormatFiles(controlValueToFiles(next, currentFiles))
+                )
+              }
             />
-          </Code.Content>
-        </Code.Container>
+          ) : (
+            <Code.Container className='min-h-[120px]'>
+              <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+              <Code.Content paddingLeft={`${gutterWidth}px`}>
+                <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
+                  {
+                    '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
+                  }
+                </Code.Placeholder>
+                <Editor
+                  value={fieldValue}
+                  onValueChange={getEditorValueChangeHandler(field.id)}
+                  highlight={jsonHighlight}
+                  disabled={isReadOnly}
+                  {...getCodeEditorProps({ disabled: isReadOnly })}
+                />
+              </Code.Content>
+            </Code.Container>
+          )}
+        </div>
       )
     }
 

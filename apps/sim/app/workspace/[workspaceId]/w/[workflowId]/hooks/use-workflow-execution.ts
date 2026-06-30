@@ -14,6 +14,11 @@ import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
 import {
+  type InputFormatFile,
+  isFileFieldType,
+  parseInputFormatFiles,
+} from '@/lib/workflows/input-format'
+import {
   extractTriggerMockPayload,
   selectBestTrigger,
   triggerNeedsMockPayload,
@@ -948,19 +953,43 @@ export function useWorkflowExecution() {
       selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
-    // Helper to extract test values from inputFormat subblock
+    /**
+     * Extracts test values from the inputFormat subblock. File fields are
+     * excluded here — they flow through the dedicated `files` channel (see
+     * extractFilesFromInputFormat) rather than as named structured inputs.
+     */
     const extractTestValuesFromInputFormat = (inputFormatValue: any): Record<string, any> => {
       const testInput: Record<string, any> = {}
 
       if (Array.isArray(inputFormatValue)) {
         inputFormatValue.forEach((field: any) => {
-          if (field && typeof field === 'object' && field.name && field.value !== undefined) {
+          if (
+            field &&
+            typeof field === 'object' &&
+            field.name &&
+            field.value !== undefined &&
+            !isFileFieldType(field.type)
+          ) {
             testInput[field.name] = coerceValue(field.type, field.value)
           }
         })
       }
 
       return testInput
+    }
+
+    /**
+     * Collects editor-attached files from file-typed inputFormat fields. These
+     * are already uploaded to workspace storage, so they pass straight to the
+     * executor's file channel (normalizeStartFile) without a re-upload.
+     */
+    const extractFilesFromInputFormat = (inputFormatValue: any): InputFormatFile[] => {
+      if (!Array.isArray(inputFormatValue)) return []
+      return inputFormatValue.flatMap((field: any) =>
+        field && typeof field === 'object' && isFileFieldType(field.type)
+          ? parseInputFormatFiles(field.value)
+          : []
+      )
     }
 
     // Determine start block and workflow input based on execution type
@@ -1054,6 +1083,10 @@ export function useWorkflowExecution() {
       ) {
         const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
         const testInput = extractTestValuesFromInputFormat(inputFormatValue)
+        const inputFiles = extractFilesFromInputFormat(inputFormatValue)
+        if (inputFiles.length > 0) {
+          testInput.files = inputFiles
+        }
         if (Object.keys(testInput).length > 0) {
           finalWorkflowInput = testInput
         }

@@ -42,6 +42,65 @@ export function createDefaultInputFormatField(): InputFormatFieldState {
 }
 
 /**
+ * Field type strings that denote a file input. The editor writes the canonical
+ * `file[]`, but workflows authored via copilot or the API persist variants
+ * (`files`, `file`, `image`); treat them all as file fields so the uploader and
+ * runtime behave consistently.
+ */
+const FILE_FIELD_TYPES = new Set(['file[]', 'files', 'file', 'image'])
+
+/**
+ * Whether an input-format field type denotes a file input.
+ */
+export function isFileFieldType(type: string | null | undefined): boolean {
+  return typeof type === 'string' && FILE_FIELD_TYPES.has(type.trim().toLowerCase())
+}
+
+/**
+ * Run-ready file object stored as a file field's value. Mirrors the executor's
+ * `UserFile` requirements (`normalizeStartFile`): an internal `url`/`key` plus a
+ * stable `id`, so editor-attached files flow into a run unchanged.
+ */
+export interface InputFormatFile {
+  id: string
+  name: string
+  url: string
+  key?: string
+  size: number
+  type: string
+}
+
+/**
+ * Tolerantly parses a file field's stored value (a JSON string, or an already
+ * materialized array) into run-ready file objects. Returns an empty array for
+ * legacy free-form values (base64 placeholders, raw text) that don't describe
+ * uploaded files, so callers degrade gracefully instead of throwing.
+ */
+export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
+  let raw: unknown = value
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    try {
+      raw = JSON.parse(trimmed)
+    } catch {
+      return []
+    }
+  }
+
+  if (!Array.isArray(raw)) return []
+
+  return raw.filter(
+    (file): file is InputFormatFile =>
+      file !== null &&
+      typeof file === 'object' &&
+      typeof (file as InputFormatFile).name === 'string' &&
+      typeof (file as InputFormatFile).url === 'string' &&
+      typeof (file as InputFormatFile).id === 'string'
+  )
+}
+
+/**
  * Extracts input fields from workflow blocks.
  * Finds the trigger block (start_trigger, input_trigger, or starter) and extracts its inputFormat.
  *
