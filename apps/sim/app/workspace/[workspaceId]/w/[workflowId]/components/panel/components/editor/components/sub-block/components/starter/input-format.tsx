@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -19,8 +19,19 @@ import {
 import { Trash } from '@sim/emcn/icons'
 import { Plus } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
-import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
+import {
+  createDefaultInputFormatField,
+  isFileFieldType,
+  parseInputFormatFiles,
+} from '@/lib/workflows/input-format'
+import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  controlValueToFiles,
+  defaultFileFieldMode,
+  filesToControlValue,
+  serializeInputFormatFiles,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/starter/input-format-files'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -101,6 +112,7 @@ export function FieldFormat({
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const [fileFieldModes, setFileFieldModes] = useState<Record<string, 'upload' | 'json'>>({})
 
   const inputController = useSubBlockInput({
     blockId,
@@ -480,12 +492,60 @@ export function FieldFormat({
       )
     }
 
-    if (field.type === 'file[]') {
+    if (isFileFieldType(field.type)) {
+      // The uploader is only offered when it can represent the stored value
+      // losslessly (empty or all run-ready). For mixed/legacy values it would
+      // drop the entries it can't show on save, so we force JSON mode and hide
+      // the toggle until the value is cleared or made fully run-ready.
+      const canUseUploader = defaultFileFieldMode(field.value) === 'upload'
+      const mode = canUseUploader ? (fileFieldModes[field.id] ?? 'upload') : 'json'
+
+      const modeToggle = canUseUploader ? (
+        <div className='flex justify-end'>
+          <Button
+            type='button'
+            variant='ghost'
+            onClick={() =>
+              setFileFieldModes((prev) => ({
+                ...prev,
+                [field.id]: mode === 'upload' ? 'json' : 'upload',
+              }))
+            }
+            disabled={isReadOnly}
+            className='h-auto p-0 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-body)]'
+          >
+            {mode === 'upload' ? 'Enter JSON manually' : 'Use file uploader'}
+          </Button>
+        </div>
+      ) : null
+
+      if (mode === 'upload') {
+        const currentFiles = parseInputFormatFiles(field.value)
+        return (
+          <div className='flex flex-col gap-1.5'>
+            {modeToggle}
+            <FileUpload
+              blockId={blockId}
+              subBlockId={subBlockId}
+              multiple
+              disabled={isReadOnly}
+              value={filesToControlValue(currentFiles)}
+              onValueChange={(next) =>
+                updateField(
+                  field.id,
+                  'value',
+                  serializeInputFormatFiles(controlValueToFiles(next, currentFiles))
+                )
+              }
+            />
+          </div>
+        )
+      }
+
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
-
-      const renderLineNumbers = () => {
-        return Array.from({ length: lineCount }, (_, i) => (
+      const renderLineNumbers = () =>
+        Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
             className='font-medium font-mono text-[var(--text-muted)] text-xs'
@@ -494,26 +554,28 @@ export function FieldFormat({
             {i + 1}
           </div>
         ))
-      }
 
       return (
-        <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
-          <Code.Content paddingLeft={`${gutterWidth}px`}>
-            <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
-              {
-                '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
-              }
-            </Code.Placeholder>
-            <Editor
-              value={fieldValue}
-              onValueChange={getEditorValueChangeHandler(field.id)}
-              highlight={jsonHighlight}
-              disabled={isReadOnly}
-              {...getCodeEditorProps({ disabled: isReadOnly })}
-            />
-          </Code.Content>
-        </Code.Container>
+        <div className='flex flex-col gap-1.5'>
+          {modeToggle}
+          <Code.Container className='min-h-[120px]'>
+            <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+            <Code.Content paddingLeft={`${gutterWidth}px`}>
+              <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
+                {
+                  '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
+                }
+              </Code.Placeholder>
+              <Editor
+                value={fieldValue}
+                onValueChange={getEditorValueChangeHandler(field.id)}
+                highlight={jsonHighlight}
+                disabled={isReadOnly}
+                {...getCodeEditorProps({ disabled: isReadOnly })}
+              />
+            </Code.Content>
+          </Code.Container>
+        </div>
       )
     }
 
