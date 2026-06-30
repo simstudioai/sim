@@ -4,7 +4,7 @@ import { BookOpen, Github, Rss } from 'lucide-react'
 import { ChipLink } from '@/components/emcn'
 
 /**
- * Changelog hero actions — the GitHub / Documentation / RSS pill links shown
+ * Changelog hero actions - the GitHub / Documentation / RSS pill links shown
  * beneath the changelog headline. A small client leaf because `ChipLink` is a
  * Client Component and its `leftIcon` is a component reference that cannot cross
  * the server→client boundary as a prop (same pattern as the platform pill CTA).

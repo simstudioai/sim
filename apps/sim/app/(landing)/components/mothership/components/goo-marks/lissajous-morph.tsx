@@ -12,9 +12,9 @@ import {
 import { gradientForTone } from '@/app/(landing)/components/mothership/components/iso-marks/use-goo-mark'
 
 /**
- * Sim circle goo-mark: LISSAJOUS MORPH (Ingest context).
- * A Lissajous figure that morphs its frequency ratio on hover — 3:2 at rest
- * eases to 5:4, with a phase shift — so the curve reweaves itself. Self-contained
+ * Sim circle goo-mark: LISSAJOUS MORPH (Context).
+ * A Lissajous figure that morphs its frequency ratio on hover - 3:2 at rest
+ * eases to 5:4, with a phase shift - so the curve reweaves itself. Self-contained
  * (its own gradient + goo defs) so it can carry its tuned stroke and constants
  * independently of the static Build Lissajous.
  */

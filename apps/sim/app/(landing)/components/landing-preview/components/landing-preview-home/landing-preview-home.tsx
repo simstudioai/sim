@@ -24,7 +24,7 @@ const SUGGESTED_ACTIONS = [
 const AUTO_PROMPT = 'Analyze our customer leads and identify the top prospects'
 
 const MOCK_RESPONSE =
-  'I analyzed your **Customer Leads** table and found **3 top prospects** with the highest lead scores:\n\n1. **Carol Davis** (StartupCo) — Score: 94\n2. **Frank Lee** (Ventures) — Score: 88\n3. **Alice Johnson** (Acme Corp) — Score: 87\n\nAll three are qualified leads. Want me to draft outreach emails?'
+  'I analyzed your **Customer Leads** table and found **3 top prospects** with the highest lead scores:\n\n1. **Carol Davis** (StartupCo), Score: 94\n2. **Frank Lee** (Ventures), Score: 88\n3. **Alice Johnson** (Acme Corp), Score: 87\n\nAll three are qualified leads. Want me to draft outreach emails?'
 
 const HOME_TYPE_MS = 40
 const HOME_TYPE_START_MS = 600
@@ -65,7 +65,7 @@ type ChatPhase = 'input' | 'sent' | 'tool-call' | 'responding' | 'done'
  *
  * When `autoType` is true, automatically types a prompt, sends it,
  * shows a mothership agent group with tool calls, types a response,
- * and opens a resource panel — matching the real workspace chat UI.
+ * and opens a resource panel - matching the real workspace chat UI.
  */
 export const LandingPreviewHome = memo(function LandingPreviewHome({
   autoType = false,
@@ -165,10 +165,10 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
         <div className='flex h-full flex-col'>
           <LandingPreviewChatTitleBar chatName='New chat' />
           <div className='flex min-h-0 flex-1 overflow-hidden'>
-            {/* Chat area — matches mothership-view layout */}
+            {/* Chat area - matches mothership-view layout */}
             <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8'>
               <div className='mx-auto max-w-[42rem] space-y-6'>
-                {/* User message — rounded bubble, right-aligned */}
+                {/* User message - rounded bubble, right-aligned */}
                 <m.div
                   className='flex flex-col items-end gap-[6px] pt-3'
                   initial={{ opacity: 0, y: 12 }}
@@ -182,7 +182,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                   </div>
                 </m.div>
 
-                {/* Assistant — no bubble, full-width prose */}
+                {/* Assistant - no bubble, full-width prose */}
                 <AnimatePresence>
                   {showToolCall && (
                     <m.div
@@ -191,7 +191,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, ease: EASE_OUT }}
                     >
-                      {/* Agent group header — icon + label + chevron */}
+                      {/* Agent group header - icon + label + chevron */}
                       <button
                         type='button'
                         onClick={() => setToolsExpanded((p) => !p)}
@@ -209,7 +209,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         />
                       </button>
 
-                      {/* Tool call items — collapsible */}
+                      {/* Tool call items - collapsible */}
                       <div
                         className='grid transition-[grid-template-rows] duration-200 ease-out'
                         style={{
@@ -228,7 +228,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         </div>
                       </div>
 
-                      {/* Response prose — full width, no card */}
+                      {/* Response prose - full width, no card */}
                       {isResponding && (
                         <m.div
                           initial={{ opacity: 0 }}
@@ -248,7 +248,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
               </div>
             </div>
 
-            {/* Resource panel — slides in from right */}
+            {/* Resource panel - slides in from right */}
             <AnimatePresence>
               {showResourcePanel && (
                 <m.div
@@ -273,7 +273,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
         <LandingPreviewChatTitleBar chatName='New chat' />
         <div className='flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-[8vh]'>
           <m.h1
-            className='mb-7 max-w-[36rem] text-balance font-season text-[30px] text-[var(--text-primary)]'
+            className='mb-7 max-w-[36rem] text-balance text-[30px] text-[var(--text-primary)]'
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: EASE_OUT }}
@@ -297,7 +297,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
               shadow
             />
 
-            {/* Suggested actions — mirrors the workspace home, greyscale icons. */}
+            {/* Suggested actions - mirrors the workspace home, greyscale icons. */}
             <div className='mt-7'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>

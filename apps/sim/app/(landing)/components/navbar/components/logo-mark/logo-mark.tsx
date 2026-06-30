@@ -10,7 +10,7 @@ interface LogoMarkProps {
 }
 
 /**
- * Loader ink that matches the wordmark — keeps the loader's default radial gloss
+ * Loader ink that matches the wordmark - keeps the loader's default radial gloss
  * (center darker, edge lifted ~24% toward white, the same relative step as the
  * stock `#2c2c2c → #5f5f5f`) but recentres it on `var(--text-body)`, the
  * navbar's text color, so each blob's center matches the static "sim" mark it
@@ -25,7 +25,7 @@ const LOADER_INK = {
 /**
  * Navbar logo with a hover easter egg: the static "sim" wordmark dissolves into
  * the cycling thinking loader, inked to match the wordmark's solid
- * `--text-body` fill — so the mark appears to come alive in the same
+ * `--text-body` fill - so the mark appears to come alive in the same
  * material. The wordmark stays server-rendered (passed as children) and
  * crawlable; only this hover shell is client. The loader mounts on hover (no
  * idle timers) and sits behind the wordmark, revealed as the wordmark fades.
@@ -40,7 +40,7 @@ export function LogoMark({ children }: LogoMarkProps) {
       // `transition-transform` utility (its var-based transform composition)
       // prevents the scale from applying on this element, so the transition is
       // declared directly. This is the sanctioned dynamic, state-driven-value
-      // exception — do not move it back to a `transition-transform`/`scale-*`
+      // exception - do not move it back to a `transition-transform`/`scale-*`
       // class.
       style={{
         transition: 'transform 150ms cubic-bezier(0.23, 1, 0.32, 1)',

@@ -1,10 +1,10 @@
-import { LandingShell, SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
+import { SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
 
 /**
- * HR solution page — a reference consumer of {@link SolutionsPage}.
+ * HR solution page - a reference consumer of {@link SolutionsPage}.
  *
  * The whole page is one typed {@link SolutionsPageConfig} rendered inside the
- * shared {@link LandingShell}. Visual slots are `null`, so each renders the
+ * shared route-group layout. Visual slots are `null`, so each renders the
  * layout's reserved placeholder panel; a real page swaps in its own client
  * island without touching the layout.
  */
@@ -12,11 +12,11 @@ const HR_CONFIG: SolutionsPageConfig = {
   module: 'HR',
   path: '/solutions/hr',
   hero: {
-    heading: 'Sim for HR — automate the people work.',
+    heading: 'Automate onboarding, employee questions, and approvals with Sim agents.',
     description:
-      'HR teams use Sim, the open-source AI workspace, to automate onboarding, answers, and approvals — so the team spends time on people, not paperwork.',
+      'HR teams build AI agents in Sim, the open-source AI workspace, wired into your HRIS and 1,000+ integrations, so the team spends time on people, not paperwork.',
     summary:
-      'Sim is the open-source AI workspace where HR teams build, deploy, and manage AI agents that automate onboarding, employee questions, and approvals — connecting your HRIS and 1,000+ integrations so the team focuses on people, not paperwork.',
+      'Sim is the open-source AI workspace where HR teams build, deploy, and manage AI agents that automate onboarding, employee questions, and approvals, connecting your HRIS and 1,000+ integrations so the team focuses on people, not paperwork.',
     visual: null,
   },
   rows: [
@@ -74,9 +74,5 @@ const HR_CONFIG: SolutionsPageConfig = {
 }
 
 export default function HrSolution() {
-  return (
-    <LandingShell>
-      <SolutionsPage config={HR_CONFIG} />
-    </LandingShell>
-  )
+  return <SolutionsPage config={HR_CONFIG} />
 }

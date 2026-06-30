@@ -4,14 +4,14 @@ import { PLATFORM_SPACING } from '@/app/(landing)/components/platform-page/const
 import type { PlatformCardConfig } from '@/app/(landing)/components/platform-page/types'
 
 /**
- * A single platform card — an `<article>` with an `<h3>` title, a body-color
+ * A single platform card - an `<article>` with an `<h3>` title, a body-color
  * description, and a reserved visual panel beneath. Text sits directly on the
  * canvas (matching the hero and every other landing section); only the visual
  * carries the `--surface-2` panel chrome, so the product mock reads as the one
  * elevated surface and never blends into a competing card fill.
  *
  * The card owns the gap between its text and visual (`cardTextToVisual`) and the
- * title→description stack (`cardTextStack`) — both from named spacing constants.
+ * title→description stack (`cardTextStack`) - both from named spacing constants.
  * The text block grows (`flex-1`) so the visual pins to the bottom of the
  * grid-stretched cell: every card's visual aligns on one baseline regardless of
  * description length. The visual lands in a fixed-height {@link PlatformVisualFrame}

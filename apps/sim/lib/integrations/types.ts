@@ -4,7 +4,7 @@
  * serialized projection of `BlockConfig` consumed by landing + workspace UIs.
  */
 
-import type { IntegrationLandingContent } from '@/app/(home)/integrations/data/types'
+import type { IntegrationLandingContent } from '@/app/(landing)/integrations/data/types'
 import type { BlockConfig, IntegrationTag } from '@/blocks/types'
 
 /** Normalized authentication mode surfaced in the catalog. */

@@ -1,10 +1,15 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { InputOTP, InputOTPGroup, InputOTPSlot, Loader } from '@/components/emcn'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import {
+  AuthFormMessage,
+  AuthHeader,
+  AuthNavPrompt,
+  AuthSubmitButton,
+  AuthTextLink,
+} from '@/app/(auth)/components'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
 
 interface VerifyContentProps {
@@ -12,6 +17,8 @@ interface VerifyContentProps {
   isProduction: boolean
   isEmailVerificationEnabled: boolean
 }
+
+const OTP_SLOTS = [0, 1, 2, 3, 4, 5] as const
 
 function VerificationForm({
   hasEmailService,
@@ -48,8 +55,6 @@ function VerificationForm({
     }
   }, [countdown, isResendDisabled])
 
-  const router = useRouter()
-
   const handleResend = () => {
     resendCode()
     setIsResendDisabled(true)
@@ -57,13 +62,11 @@ function VerificationForm({
   }
 
   return (
-    <>
-      <div className='space-y-1 text-center'>
-        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-          {isVerified ? 'Email Verified!' : 'Verify Your Email'}
-        </h1>
-        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-          {isVerified
+    <div className='space-y-6'>
+      <AuthHeader
+        title={isVerified ? 'Email Verified' : 'Verify your email'}
+        description={
+          isVerified
             ? 'Your email has been verified. Redirecting to dashboard...'
             : !isEmailVerificationEnabled
               ? 'Email verification is disabled. Redirecting to dashboard...'
@@ -71,100 +74,78 @@ function VerificationForm({
                 ? `A verification code has been sent to ${email || 'your email'}`
                 : !isProduction
                   ? 'Development mode: Check your console logs for the verification code'
-                  : 'Error: Email verification is enabled but no email service is configured'}
-        </p>
-      </div>
+                  : 'Error: Email verification is enabled but no email service is configured'
+        }
+      />
 
       {!isVerified && isEmailVerificationEnabled && (
-        <div className='mt-8 space-y-8'>
-          <div className='space-y-6'>
-            <p className='text-center text-[var(--landing-text-muted)] text-sm'>
+        <div className='space-y-6'>
+          <div className='space-y-5'>
+            <p className='text-center text-[var(--text-muted)] text-sm'>
               Enter the 6-digit code to verify your account.
               {hasEmailService ? " If you don't see it in your inbox, check your spam folder." : ''}
             </p>
 
             <div className='flex justify-center'>
-              <InputOTP
-                maxLength={6}
-                value={otp}
-                onChange={handleOtpChange}
-                disabled={isLoading}
-                className={cn('gap-2', isInvalidOtp && 'otp-error')}
-              >
+              <InputOTP maxLength={6} value={otp} onChange={handleOtpChange} disabled={isLoading}>
                 <InputOTPGroup>
-                  <InputOTPSlot index={0} className={cn(isInvalidOtp && 'border-red-500')} />
-                  <InputOTPSlot index={1} className={cn(isInvalidOtp && 'border-red-500')} />
-                  <InputOTPSlot index={2} className={cn(isInvalidOtp && 'border-red-500')} />
-                  <InputOTPSlot index={3} className={cn(isInvalidOtp && 'border-red-500')} />
-                  <InputOTPSlot index={4} className={cn(isInvalidOtp && 'border-red-500')} />
-                  <InputOTPSlot index={5} className={cn(isInvalidOtp && 'border-red-500')} />
+                  {OTP_SLOTS.map((index) => (
+                    <InputOTPSlot
+                      key={index}
+                      index={index}
+                      className={cn(isInvalidOtp && 'border-[var(--text-error)]')}
+                    />
+                  ))}
                 </InputOTPGroup>
               </InputOTP>
             </div>
 
-            {/* Error message */}
             {errorMessage && (
-              <div className='mt-1 space-y-1 text-center text-red-400 text-xs'>
+              <AuthFormMessage type='error' align='center'>
                 <p>{errorMessage}</p>
-              </div>
+              </AuthFormMessage>
             )}
           </div>
 
-          <button
+          <AuthSubmitButton
+            type='button'
             onClick={verifyCode}
-            disabled={!isOtpComplete || isLoading}
-            className={AUTH_SUBMIT_BTN}
+            loading={isLoading}
+            loadingLabel='Verifying…'
+            disabled={!isOtpComplete}
           >
-            {isLoading ? (
-              <span className='flex items-center gap-2'>
-                <Loader className='size-4' animate />
-                Verifying…
-              </span>
-            ) : (
-              'Verify Email'
-            )}
-          </button>
+            Verify Email
+          </AuthSubmitButton>
 
           {hasEmailService && (
-            <div className='text-center'>
-              <p className='text-[var(--landing-text-muted)] text-sm'>
-                Didn't receive a code?{' '}
-                {countdown > 0 ? (
-                  <span>
-                    Resend in{' '}
-                    <span className='font-medium text-[var(--landing-text)]'>{countdown}s</span>
-                  </span>
-                ) : (
-                  <button
-                    className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
-                    onClick={handleResend}
-                    disabled={isLoading || isResendDisabled}
-                  >
-                    Resend
-                  </button>
-                )}
-              </p>
-            </div>
+            <p className='text-center text-[var(--text-muted)] text-sm'>
+              Didn't receive a code?{' '}
+              {countdown > 0 ? (
+                <span>
+                  Resend in <span className='text-[var(--text-primary)]'>{countdown}s</span>
+                </span>
+              ) : (
+                <AuthTextLink onClick={handleResend} disabled={isLoading || isResendDisabled}>
+                  Resend
+                </AuthTextLink>
+              )}
+            </p>
           )}
 
-          <div className='text-center font-light text-sm'>
-            <button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  sessionStorage.removeItem('verificationEmail')
-                  sessionStorage.removeItem('inviteRedirectUrl')
-                  sessionStorage.removeItem('isInviteFlow')
-                }
-                router.push('/signup')
-              }}
-              className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
-            >
-              Back to signup
-            </button>
-          </div>
+          <AuthNavPrompt
+            href='/signup'
+            linkLabel='Back to signup'
+            onNavigate={() => {
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('verificationEmail')
+                sessionStorage.removeItem('inviteRedirectUrl')
+                sessionStorage.removeItem('isInviteFlow')
+              }
+            }}
+          />
         </div>
       )}
-    </>
+    </div>
   )
 }
 

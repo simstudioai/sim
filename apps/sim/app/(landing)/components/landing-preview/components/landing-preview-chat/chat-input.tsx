@@ -21,7 +21,7 @@ const ICON_BUTTON =
   'flex size-[28px] flex-shrink-0 items-center justify-center rounded-full transition-colors hover-hover:bg-[var(--surface-1)]'
 
 /**
- * The canonical Mothership chat input — a faithful copy of the workspace
+ * The canonical Mothership chat input - a faithful copy of the workspace
  * `UserInput`: a white, `rounded-[17px]` field with the text area on top and a
  * control row beneath (attach + skills on the left, mic + send on the right).
  * The send button carries the real `SEND_BUTTON` fills (`#383838` active,

@@ -7,7 +7,7 @@ import type { LegalBlock } from '@/app/(landing)/components/prose-page/types'
  * `kind` discriminant selects the element (paragraph / subheading `<h3>` /
  * bulleted list / callout box); all sizing and color come from `PROSE_TYPE`, so
  * Terms and Privacy share one visual treatment for every block type. Content
- * only — no layout knob. Server Component.
+ * only - no layout knob. Server Component.
  */
 
 interface LegalBlockViewProps {

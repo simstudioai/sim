@@ -5,9 +5,9 @@ import ItSolution from '@/app/(landing)/solutions/it/it'
 export const revalidate = 3600
 
 const PAGE_URL = `${SITE_URL}/solutions/it`
-const TITLE = 'Sim for IT — AI Agents for IT Operations'
+const TITLE = 'AI Agents for Ticket Triage & Access | Sim'
 const DESCRIPTION =
-  'IT teams use Sim, the open-source AI workspace, to build, deploy, and manage AI agents that automate ticket triage, access provisioning, and infrastructure monitoring.'
+  'IT teams use Sim, the open-source AI workspace, to build and deploy AI agents that automate ticket triage, access provisioning, and monitoring.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
         url: '/logo/426-240/reverse/small.png',
         width: 2130,
         height: 1200,
-        alt: 'Sim for IT — AI Agents for IT Operations',
+        alt: 'AI Agents for Ticket Triage & Access | Sim',
         type: 'image/png',
       },
     ],
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     creator: '@simdotai',
     title: TITLE,
     description: DESCRIPTION,
-    images: { url: '/logo/426-240/reverse/small.png', alt: 'Sim for IT' },
+    images: { url: '/logo/426-240/reverse/small.png', alt: 'Sim' },
   },
   alternates: {
     canonical: PAGE_URL,

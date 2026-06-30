@@ -3,7 +3,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { PROSE_SPACING } from '@/app/(landing)/components/prose-page/constants'
 
 /**
- * The prose page frame — owns the `<main id='main-content'>` landmark, the one
+ * The prose page frame - owns the `<main id='main-content'>` landmark, the one
  * horizontal gutter (matching the navbar and footer so content aligns with the
  * wordmark), the outer content cap, the navbar-clearing top padding, and the
  * vertical rhythm of the full-width left-aligned content column.
@@ -14,7 +14,7 @@ import { PROSE_SPACING } from '@/app/(landing)/components/prose-page/constants'
  */
 
 interface ProseShellProps {
-  /** The content column — a {@link ProseHero} followed by sections. */
+  /** The content column - a {@link ProseHero} followed by sections. */
   children: ReactNode
 }
 

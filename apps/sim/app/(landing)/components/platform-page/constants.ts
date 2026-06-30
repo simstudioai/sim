@@ -1,12 +1,12 @@
 /**
- * Platform-layout spacing — the single source of truth for every gutter, gap,
+ * Platform-layout spacing - the single source of truth for every gutter, gap,
  * inset, and reserved dimension used across the platform-page components.
  *
  * The padding fortress lives here. No platform component accepts a `className`,
  * `style`, or any layout-override prop, and none hard-codes a spacing value
- * inline. Every measurement a reviewer might want to audit — the horizontal
+ * inline. Every measurement a reviewer might want to audit - the horizontal
  * gutter, the inter-section rhythm, the card-grid gaps, the card stack, and the
- * fixed visual-slot dimensions — is named in this one file. To change spacing
+ * fixed visual-slot dimensions - is named in this one file. To change spacing
  * you edit a constant here; a consumer page literally cannot reach it.
  *
  * All values are Tailwind class fragments (not raw numbers) so they compose
@@ -15,19 +15,21 @@
 export const PLATFORM_SPACING = {
   /**
    * The one horizontal gutter, owned solely by `PlatformPage`. Matches the
-   * navbar and landing hero (`px-16`) so platform content starts on the
-   * wordmark's vertical line. Sections and cards never set their own gutter.
+   * navbar and landing hero exactly (`px-12 max-lg:px-8 max-sm:px-5`) so platform
+   * content starts on the wordmark's vertical line at every breakpoint. Sections
+   * and cards never set their own gutter.
    */
-  gutter: 'px-16',
+  gutter: 'px-12 max-lg:px-8 max-sm:px-5',
   /**
-   * Inter-section vertical rhythm — the gap of the `<main>` flex column that
+   * Inter-section vertical rhythm - the gap of the `<main>` flex column that
    * `PlatformPage` owns. Sections carry no vertical margin/padding of their own,
    * so this is the only knob for the space between the hero, logos, and every
-   * card row.
+   * card row. Tightens on smaller screens in lockstep with the landing `<main>`
+   * (`gap-[120px] max-lg:gap-[88px] max-sm:gap-16`).
    */
-  sectionRhythm: 'gap-[120px]',
-  /** Hero text top padding, matching the landing hero's `pt-[112px]`. */
-  heroTopPadding: 'pt-[112px]',
+  sectionRhythm: 'gap-[120px] max-lg:gap-[88px] max-sm:gap-16',
+  /** Hero text top padding, matching the landing hero (`pt-[112px] max-sm:pt-12`). */
+  heroTopPadding: 'pt-[112px] max-sm:pt-12',
   /** Vertical stack gap inside the hero header column (headline → description → CTA). */
   heroStack: 'gap-[22px]',
   /** Gap between the hero header column and the full-width hero visual beneath it. */
@@ -51,8 +53,8 @@ export const PLATFORM_SPACING = {
  * fills `h-full w-full` inside; it owns nothing about the frame.
  */
 export const PLATFORM_VISUAL = {
-  /** Full-width hero visual aspect ratio — reserves height before paint. */
+  /** Full-width hero visual aspect ratio - reserves height before paint. */
   heroAspect: 'aspect-[16/9]',
-  /** Fixed height of a card's visual panel — uniform across every card. */
+  /** Fixed height of a card's visual panel - uniform across every card. */
   cardHeight: 'h-[240px]',
 } as const

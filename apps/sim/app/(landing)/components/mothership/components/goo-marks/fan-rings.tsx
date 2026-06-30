@@ -10,7 +10,7 @@ import {
 /**
  * Sim circle goo-mark: FAN RINGS.
  * 5 same-size circles (radius 30), centers stepped horizontally by 9,
- * symmetric about center — fuses into a vesica weave through the middle.
+ * symmetric about center - fuses into a vesica weave through the middle.
  */
 export interface FanRingsProps {
   size?: number

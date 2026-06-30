@@ -1,22 +1,22 @@
-import { LandingShell, SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
+import { SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
 
 /**
- * IT solution page — a reference consumer of {@link SolutionsPage}.
+ * IT solution page - a reference consumer of {@link SolutionsPage}.
  *
  * The whole page is one typed {@link SolutionsPageConfig} rendered inside the
- * shared {@link LandingShell}. Visual slots are `null`, so each renders the
- * layout's reserved placeholder panel; a real page swaps in its own client
+ * shared route-group layout's chrome. Visual slots are `null`, so each renders
+ * the layout's reserved placeholder panel; a real page swaps in its own client
  * island without touching the layout.
  */
 const IT_CONFIG: SolutionsPageConfig = {
   module: 'IT',
   path: '/solutions/it',
   hero: {
-    heading: 'Sim for IT — AI agents that run your operations.',
+    heading: 'Automate ticket triage, access, and monitoring with Sim agents.',
     description:
-      'IT teams use Sim, the open-source AI workspace, to automate tickets, access, and monitoring — with the governance and security IT needs.',
+      'IT teams build AI agents in Sim, the open-source AI workspace, with the governance, access controls, and audit trails IT needs, across 1,000+ integrations and every major LLM.',
     summary:
-      'Sim is the open-source AI workspace where IT teams build, deploy, and manage AI agents that automate ticket triage, access provisioning, and infrastructure monitoring — connecting 1,000+ integrations and every major LLM under IT-grade governance.',
+      'Sim is the open-source AI workspace where IT teams build, deploy, and manage AI agents that automate ticket triage, access provisioning, and infrastructure monitoring, connecting 1,000+ integrations and every major LLM under IT-grade governance.',
     visual: null,
   },
   rows: [
@@ -75,9 +75,5 @@ const IT_CONFIG: SolutionsPageConfig = {
 }
 
 export default function ItSolution() {
-  return (
-    <LandingShell>
-      <SolutionsPage config={IT_CONFIG} />
-    </LandingShell>
-  )
+  return <SolutionsPage config={IT_CONFIG} />
 }

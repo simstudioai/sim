@@ -15,7 +15,7 @@ import {
 /**
  * Sim iso goo-mark: CUBE GRID.
  * Nine small iso cubes tiled in a 3×3 screen grid. Rest: the nine sit spread
- * apart. Hover (gather): they pull in toward the center into a snug grid — still
+ * apart. Hover (gather): they pull in toward the center into a snug grid - still
  * clearly nine separate cubes, never merged into a blob. No spin; the motion is
  * pure convergence.
  */

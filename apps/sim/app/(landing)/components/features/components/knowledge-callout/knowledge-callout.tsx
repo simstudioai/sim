@@ -2,7 +2,7 @@ import { Database, File } from '@/components/emcn'
 import { CalloutFrame } from '@/app/(landing)/components/features/components/feature-stage/feature-stage'
 
 /**
- * The Ingest-context beat's callout — a static recreation of a Sim knowledge
+ * The Ingest-context beat's callout - a static recreation of a Sim knowledge
  * base: uploaded docs and synced sources, chunked and embedded so agents can
  * read them semantically. The chunk counts stand in for the vector index; the
  * lower rows dissolve through the frame's foot fade. Decorative.
@@ -16,7 +16,7 @@ const SOURCES: Source[] = [
   { name: 'Product docs', meta: '128 chunks' },
   { name: 'Sales playbook.pdf', meta: '64 chunks' },
   { name: 'Support macros', meta: '212 chunks' },
-  { name: 'Engineering — Notion', meta: 'Synced' },
+  { name: 'Engineering · Notion', meta: 'Synced' },
   { name: 'Pricing & plans', meta: '18 chunks' },
   { name: 'Onboarding guide', meta: '47 chunks' },
 ]

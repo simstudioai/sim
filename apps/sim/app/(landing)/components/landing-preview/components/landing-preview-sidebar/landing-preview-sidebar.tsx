@@ -87,7 +87,7 @@ function NavItem({
 /**
  * Lightweight sidebar replicating the real workspace sidebar layout and sizing.
  * Starts from the workspace header (no logo/collapse row).
- * Only workflow items are interactive — everything else is pointer-events-none.
+ * Only workflow items are interactive - everything else is pointer-events-none.
  */
 export function LandingPreviewSidebar({
   workflows,

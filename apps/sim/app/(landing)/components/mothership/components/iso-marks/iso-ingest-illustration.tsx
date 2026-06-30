@@ -21,7 +21,7 @@ const STROKE_PAINT = ISO_STROKE
 const LINE_PROPS = createIsoLineProps('iso-ingest-line', STROKE_PAINT)
 
 /**
- * Inline supplied illustration for the Ingest context area — a central store
+ * Inline supplied illustration for the Context area - a central store
  * cube whose three faces cycle fills like data loading in, flanked by a back
  * slab and two outline "context source" glyphs. Hovering spreads the sources
  * away from the core and redraws every contour from zero.

@@ -25,7 +25,10 @@ const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/integrati
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
 const INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/lib/integrations')
-const LANDING_INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/app/(home)/integrations/data')
+const LANDING_INTEGRATIONS_DATA_PATH = path.join(
+  rootDir,
+  'apps/sim/app/(landing)/integrations/data'
+)
 const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
 // Integration triggers are merged into the same per-service page as the service's
 // actions (one block per integration: actions + an optional Trigger).

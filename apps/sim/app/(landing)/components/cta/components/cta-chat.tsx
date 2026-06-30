@@ -6,7 +6,7 @@ import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/hoo
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 
 /**
- * Pre-footer CTA chat input — the page's final conversion surface. A real,
+ * Pre-footer CTA chat input - the page's final conversion surface. A real,
  * interactive copy of the Mothership chat input: the visitor types their first
  * prompt, and {@link useLandingSubmit} stashes it in browser storage and routes
  * to `/signup` so the message survives the auth hop and lands them in Sim. The

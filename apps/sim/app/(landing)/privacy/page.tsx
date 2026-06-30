@@ -5,9 +5,9 @@ import Privacy from '@/app/(landing)/privacy/privacy'
 export const revalidate = 3600
 
 const PAGE_URL = `${SITE_URL}/privacy`
-const TITLE = 'Privacy Policy — Sim, the AI Workspace'
+const TITLE = 'Privacy Policy | Sim, the AI Workspace'
 const DESCRIPTION =
-  'How Sim, the open-source AI workspace, collects, uses, and protects your data — including data obtained from Google APIs — and the controls you have over it.'
+  'How Sim, the open-source AI workspace, collects, uses, and protects your data, including data obtained from Google APIs, and the controls you have over it.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
         url: '/logo/426-240/reverse/small.png',
         width: 2130,
         height: 1200,
-        alt: 'Privacy Policy — Sim, the AI Workspace',
+        alt: 'Privacy Policy | Sim, the AI Workspace',
         type: 'image/png',
       },
     ],
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: {
       url: '/logo/426-240/reverse/small.png',
-      alt: 'Privacy Policy — Sim, the AI Workspace',
+      alt: 'Privacy Policy | Sim, the AI Workspace',
     },
   },
   alternates: {

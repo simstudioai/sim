@@ -25,12 +25,15 @@ const VISITOR_TIER: PlanTier = 'free'
 /** Every CTA on the public pricing page funnels logged-out visitors to sign-up. */
 const SIGNUP_HREF = '/signup'
 
+/** This section's rows render on the public cards without their group header. */
+const HEADERLESS_SECTION_TITLE = 'Credits & pricing'
+
 /**
  * Props for {@link PricingPlans}.
  */
 export interface PricingPlansProps {
   /**
-   * Server-rendered heading slot — the page `<h1>` and its sr-only GEO summary.
+   * Server-rendered heading slot - the page `<h1>` and its sr-only GEO summary.
    * Passed as a slot so the crawlable copy stays in the server payload.
    */
   heading: ReactNode
@@ -42,14 +45,15 @@ export interface PricingPlansProps {
  */
 function sectionsForColumn(col: number): PricingCardSection[] {
   return COMPARISON_SECTIONS.map((section) => ({
-    title: section.title,
+    key: section.title,
+    title: section.title === HEADERLESS_SECTION_TITLE ? undefined : section.title,
     rows: section.rows.map((row) => ({ label: row.label, value: row.values[col] as CellValue })),
   }))
 }
 
 /**
  * The single interactive island of the public pricing page. It owns the lone
- * piece of state — `isAnnual`, defaulting to monthly — which the billing-period
+ * piece of state - `isAnnual`, defaulting to monthly - which the billing-period
  * toggle (centered under the heading) and the Pro/Max card prices read from one
  * source.
  *

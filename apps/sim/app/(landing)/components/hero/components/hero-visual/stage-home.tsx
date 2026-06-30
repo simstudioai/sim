@@ -28,17 +28,17 @@ import {
  * target through the camera zoom + pan); this stage only lays out the card and
  * exposes the send button and reply slot as the loader's ref targets.
  *
- * - `compose` — greeting + prompt input (the typewriter).
- * - `morphing` — the instant after send: the disc morphs into the loader while
+ * - `compose` - greeting + prompt input (the typewriter).
+ * - `morphing` - the instant after send: the disc morphs into the loader while
  *   the typed prompt fades. The card holds its compose height (the input stays in
- *   flow, just fading) so it never reshapes mid-morph — the disc just becomes the
+ *   flow, just fading) so it never reshapes mid-morph - the disc just becomes the
  *   loader in place.
- * - `sending` — the morph is done; the prompt is now a user bubble that animates
+ * - `sending` - the morph is done; the prompt is now a user bubble that animates
  *   in above the loader, growing the card, while the camera holds zoomed in.
- * - `thinking` — conversation layout (user bubble + an empty reply slot whose
+ * - `thinking` - conversation layout (user bubble + an empty reply slot whose
  *   height the loader will occupy), shown as the loader slides/docks there.
- * - `answering` — the typed reply fills the reply slot.
- * - `block` — the card morphs into the first workflow block (the chat shell
+ * - `answering` - the typed reply fills the reply slot.
+ * - `block` - the card morphs into the first workflow block (the chat shell
  *   resizes and its content becomes the block's), handing off to the workflow.
  */
 export type HomeMode = 'compose' | 'morphing' | 'sending' | 'thinking' | 'answering' | 'block'
@@ -50,7 +50,7 @@ const GH_CONTENT_HEIGHT = 77
 /** The chat card's width (compose/conversation). */
 const CHAT_CARD_WIDTH = 460
 /**
- * Natural height of the compose card on first paint — `py-2` (16) + the input
+ * Natural height of the compose card on first paint - `py-2` (16) + the input
  * row (32) + `gap-2` (8) + the action row (28). Seeds the card so it renders at
  * its true height immediately and never transitions/resizes on load; the
  * observer keeps it exact thereafter. Must track the content's padding/spacing.
@@ -71,18 +71,18 @@ interface StageHomeProps {
   typedCount: number
   /** Characters of the Mothership's reply revealed so far (answering mode). */
   answerTypedCount: number
-  /** The prompt text region — the root cursor targets this for its "click in". */
+  /** The prompt text region - the root cursor targets this for its "click in". */
   inputRef: RefObject<HTMLDivElement | null>
-  /** The send button — the root cursor + travelling loader target this to "send". */
+  /** The send button - the root cursor + travelling loader target this to "send". */
   sendRef: RefObject<HTMLDivElement | null>
-  /** The dock — an invisible spot at the LEFT of the send-button row that the
+  /** The dock - an invisible spot at the LEFT of the send-button row that the
    * loader slides to (same row, so the slide is purely horizontal and the card
    * never has to resize for it). */
   dockRef: RefObject<HTMLDivElement | null>
   /**
    * The white card element. The parent measures it and, during the send beat
    * (`sending`), drives its height per-frame via the `--hero-card-h` CSS variable
-   * — in lockstep with the camera pan — so the grow-to-fit-the-bubble can't shake
+   * - in lockstep with the camera pan - so the grow-to-fit-the-bubble can't shake
    * the card the way a CSS height transition fighting the rAF loop would.
    */
   cardRef: RefObject<HTMLDivElement | null>
@@ -93,11 +93,11 @@ interface StageHomeProps {
    * reserved, so revealing it never shifts the layout.
    */
   showGreeting?: boolean
-  /** Press the send button (scale it down) — driven by the click beat. */
+  /** Press the send button (scale it down) - driven by the click beat. */
   pressed?: boolean
 }
 
-/** Staggered enter for a chat bubble — translateY + opacity + blur, interruptible. */
+/** Staggered enter for a chat bubble - translateY + opacity + blur, interruptible. */
 const ENTER_BASE = 'transition-[opacity,transform,filter] ease-[cubic-bezier(0.2,0,0,1)]'
 const enterState = (shown: boolean) =>
   shown ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-1.5 opacity-0 blur-[3px]'
@@ -131,13 +131,13 @@ function PromptAtoms({ atoms }: { atoms: PromptAtom[] }) {
 }
 
 /**
- * The Mothership home stage — a single white card that morphs adaptively.
+ * The Mothership home stage - a single white card that morphs adaptively.
  *
  * Both content layers (the compose input and the conversation) are absolutely
  * stacked and TOP-anchored; the card measures whichever is active and animates
  * its own height to hug it (`transition-[height]`). This makes the card flexible
- * — it grows from the input to the reply, and from the thinking loader to the
- * typed answer — with no dead space and no fixed min-height. Top-anchoring keeps
+ * - it grows from the input to the reply, and from the thinking loader to the
+ * typed answer - with no dead space and no fixed min-height. Top-anchoring keeps
  * the user bubble pinned, so the loader's label crossfade never shoves it; the
  * card `overflow-hidden`s any transient. Cursor is owned by the parent; this
  * stage only exposes the input and send button as ref targets. Decorative.
@@ -167,7 +167,7 @@ export function StageHome({
   // per-frame (via `--hero-card-h`) in lockstep with the camera, so the grow can't
   // shake. Every other beat lets the card own + CSS-transition its own height.
   const growControlled = mode === 'sending'
-  // Hold the card height steady — no CSS height-transition — through both the
+  // Hold the card height steady - no CSS height-transition - through both the
   // parent-driven grow (`sending`) AND the loader slide + camera track
   // (`thinking`). The slide pans the camera by measuring the dock's live
   // position each frame and assumes the card holds its size; transitioning
@@ -186,14 +186,14 @@ export function StageHome({
     if (el && el.offsetWidth > 120) setCardHeight(el.offsetHeight)
   }, [])
   // Synchronous, pre-paint, on every beat that reshapes the content (prompt typing
-  // out, input→bubble swap, reply filling in) — so the card grows in lockstep with
+  // out, input→bubble swap, reply filling in) - so the card grows in lockstep with
   // no lag. In block mode the card takes a fixed height (`isBlock` branch on the
   // style), so the measured value is simply ignored there.
   useLayoutEffect(() => {
     measure()
   }, [measure, mode, typedCount, answerTypedCount])
   // Robust backstop: also re-fit on first-paint layout, font load, or any other
-  // reflow the beat-driven pass can't see — so the send button is never clipped.
+  // reflow the beat-driven pass can't see - so the send button is never clipped.
   useLayoutEffect(() => {
     const el = contentRef.current
     if (!el) return
@@ -213,7 +213,7 @@ export function StageHome({
   return (
     <div className='flex h-full w-full flex-col items-center justify-center px-10'>
       <div className='flex w-full max-w-[460px] flex-col gap-5'>
-        {/* Greeting — visible while composing, then fades. Its SPACE is held
+        {/* Greeting - visible while composing, then fades. Its SPACE is held
             through the sending/thinking scene so collapsing it never re-centres
             the column and shifts the card the camera is locked onto; it only
             truly collapses once the reply takes over (answering) or the card
@@ -229,25 +229,25 @@ export function StageHome({
           )}
         >
           {showGreeting ? (
-            <p className='font-season text-[30px] text-[var(--text-primary)] leading-[40px] [animation:hero-stage-fade_1200ms_cubic-bezier(0.23,1,0.32,1)_both]'>
+            <p className='text-[30px] text-[var(--text-primary)] leading-[40px] [animation:hero-stage-fade_1200ms_cubic-bezier(0.23,1,0.32,1)_both]'>
               {HOME_GREETING}
             </p>
           ) : null}
         </div>
 
-        {/* White card — the SAME shell throughout: it hugs the active chat content,
+        {/* White card - the SAME shell throughout: it hugs the active chat content,
             then resizes and rounds down to become the first workflow block (the
             chat → workflow morph happens on this one continuous element). */}
         <div
           ref={cardRef}
           className={cn(
             // The chat input's aesthetic (rounded-2xl, border, soft shadow) is
-            // kept THROUGHOUT — including once morphed into the workflow block —
+            // kept THROUGHOUT - including once morphed into the workflow block -
             // so it stays the same white card, just resized.
             'relative mx-auto overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm',
             // While the height is held (the parent-driven send-bubble grow, and the
             // loader slide where the card keeps its size), do NOT CSS-transition
-            // height — a transition would fight the per-frame camera/dock tracking
+            // height - a transition would fight the per-frame camera/dock tracking
             // and read as jitter. Every other beat eases width/height/transform with
             // the shared curve.
             holdCardHeight
@@ -268,12 +268,12 @@ export function StageHome({
                 : cardHeight,
           }}
         >
-          {/* Chat content — ONE column: the user message (the typewriter input,
+          {/* Chat content - ONE column: the user message (the typewriter input,
               then the sent bubble) over an action row (the send button + the
               loader's dock, then the reply). The column stays anchored to the
               BOTTOM through the send-bubble grow AND the loader slide (the whole
               `holdCardHeight` window): during the grow the card expands UPWARD to
-              reveal the bubble, and through the slide the bottom edge never moves —
+              reveal the bubble, and through the slide the bottom edge never moves -
               so the dock/send button the camera tracks can't shift as the height
               source switches. Re-anchoring there would nudge them a sub-pixel and
               the slide's camera would chase it (a visible jitter). Every other beat
@@ -351,14 +351,14 @@ export function StageHome({
                   // settled orb takes its place (it stays laid out as the loader's
                   // measure + slide-from target).
                   isCompose ? 'opacity-100' : 'opacity-0',
-                  // Subtle interaction: lighten on hover, dip in size on press —
+                  // Subtle interaction: lighten on hover, dip in size on press -
                   // both for a real cursor and for the animation's click beat.
                   isCompose && 'hover:bg-[#484848] active:scale-90',
                   pressed && 'scale-90'
                 )}
               >
                 {/* Up-arrow that draws itself on (shaft then head) via
-                    stroke-dashoffset — `pathLength={1}` normalizes the dash so
+                    stroke-dashoffset - `pathLength={1}` normalizes the dash so
                     one offset value covers the whole glyph. Retracts as send is
                     hit so the disc is clean when the loader takes it over. */}
                 <svg viewBox='0 0 24 24' fill='none' className='size-4' aria-hidden='true'>

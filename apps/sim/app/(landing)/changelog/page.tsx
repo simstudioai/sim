@@ -5,9 +5,9 @@ import Changelog from '@/app/(landing)/changelog/changelog'
 export const revalidate = 3600
 
 const PAGE_URL = `${SITE_URL}/changelog`
-const TITLE = 'Changelog — Sim, the AI Workspace'
+const TITLE = 'Changelog | Sim, the AI Workspace'
 const DESCRIPTION =
-  'Every new feature, improvement, and fix in Sim, the open-source AI workspace — release notes straight from GitHub.'
+  'Every new feature, improvement, and fix in Sim, the open-source AI workspace, with release notes straight from GitHub.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
         url: '/logo/426-240/reverse/small.png',
         width: 2130,
         height: 1200,
-        alt: 'Changelog — Sim, the AI Workspace',
+        alt: 'Changelog | Sim, the AI Workspace',
         type: 'image/png',
       },
     ],
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: {
       url: '/logo/426-240/reverse/small.png',
-      alt: 'Changelog — Sim, the AI Workspace',
+      alt: 'Changelog | Sim, the AI Workspace',
     },
   },
   alternates: {

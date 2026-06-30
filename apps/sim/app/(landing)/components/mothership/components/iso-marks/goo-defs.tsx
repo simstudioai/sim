@@ -8,7 +8,7 @@ interface GooDefsProps {
   gradId: string
   gooId: string
   gooFusion?: number
-  /** Gradient stops + radial position — default to the locked brand recipe. */
+  /** Gradient stops + radial position - default to the locked brand recipe. */
   from?: string
   to?: string
   cx?: number

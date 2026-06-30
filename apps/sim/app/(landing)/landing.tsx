@@ -1,27 +1,27 @@
-import { Cta, Features, Hero, LandingShell, Mothership } from '@/app/(landing)/components'
+import { Cta, Features, Hero, HomeStructuredData, Mothership } from '@/app/(landing)/components'
 
 /**
- * Landing page root — owns the section order and the `<main>` content region.
+ * Landing page root - owns the section order and the `<main>` content region.
  *
- * The shared {@link LandingShell} wraps this in the `light` + brand token layer,
- * the scroll port, the skip link, the navbar (with build/revalidate-time GitHub
- * stars), the footer, and the bottom reveal — the same chrome every platform and
- * solutions page wears, so the landing family can never drift.
+ * The shared chrome (`light` + brand token layer, scroll port, skip link, navbar
+ * with build/revalidate-time GitHub stars, footer, and site-wide JSON-LD) is
+ * owned by the route-group layout via `LandingShell`, so the landing family can
+ * never drift and the navbar persists across navigation. This page emits only
+ * its `<main>` and the home-specific structured data.
  *
  * `<main>` is a `flex flex-col` whose `gap` is the single source of truth for
- * inter-section rhythm — sections carry no vertical margin/padding of their own,
+ * inter-section rhythm - sections carry no vertical margin/padding of their own,
  * so one knob keeps every section break uniform across the page. Each section
  * component owns its own landmark (`<section id aria-labelledby>`).
  */
 export default function Landing() {
   return (
-    <LandingShell>
-      <main id='main-content' className='flex flex-col gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'>
-        <Hero />
-        <Mothership />
-        <Features />
-        <Cta />
-      </main>
-    </LandingShell>
+    <main id='main-content' className='flex flex-col gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'>
+      <HomeStructuredData />
+      <Hero />
+      <Mothership />
+      <Features />
+      <Cta />
+    </main>
   )
 }

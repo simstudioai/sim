@@ -84,7 +84,7 @@ export function LandingPreviewResource({
 
   return (
     <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-      {/* Header — fixed 44px to align with the chat title bar across the split. */}
+      {/* Header - fixed 44px to align with the chat title bar across the split. */}
       <div className='flex h-[44px] flex-shrink-0 items-center border-[var(--border)] border-b px-6'>
         <div className='flex w-full items-center justify-between'>
           <div className='flex items-center gap-3'>
@@ -193,7 +193,7 @@ export function LandingPreviewResource({
                               {cell.icon}
                             </span>
                           )}
-                          <span className='truncate'>{cell?.label ?? '—'}</span>
+                          <span className='truncate'>{cell?.label ?? '–'}</span>
                         </span>
                       )}
                     </td>

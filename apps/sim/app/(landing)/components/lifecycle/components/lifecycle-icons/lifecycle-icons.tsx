@@ -1,18 +1,18 @@
 import type { SVGProps } from 'react'
 
 /**
- * Isometric line-art icons for the lifecycle axes — Build, Deploy, Monitor.
+ * Isometric line-art icons for the lifecycle axes - Build, Deploy, Monitor.
  *
  * Each icon is built from one primitive: an {@link IsoBox} described in screen
  * space (a top rhombus of half-width `w` extruded down by height `h`). Because a
  * box is centered on `cx` by construction, symmetric arrangements are trivial,
  * and every visible face is filled with `var(--bg)` so a nearer box cleanly
- * occludes the edges of one behind it — the wireframe technique that keeps the
+ * occludes the edges of one behind it - the wireframe technique that keeps the
  * forms readable without shading. Draw boxes far → near.
  *
  * All three share the 132×120 viewBox and inherit color from `currentColor`, so
  * the section sets one tone (`--text-muted`) and the strokes follow. Purely
- * decorative — the parent marks each `aria-hidden`.
+ * decorative - the parent marks each `aria-hidden`.
  */
 
 const VIEW = { w: 132, h: 120 } as const
@@ -81,7 +81,7 @@ function IconFrame({ children, ...props }: IconProps) {
   )
 }
 
-/** Build — a block descending onto a stack of layers, as if assembling an agent. */
+/** Build - a block descending onto a stack of layers, as if assembling an agent. */
 export function BuildIcon(props: IconProps) {
   return (
     <IconFrame {...props}>
@@ -94,7 +94,7 @@ export function BuildIcon(props: IconProps) {
   )
 }
 
-/** Deploy — instances shipping out: a tall unit flanked by two smaller cubes. */
+/** Deploy - instances shipping out: a tall unit flanked by two smaller cubes. */
 export function DeployIcon(props: IconProps) {
   return (
     <IconFrame {...props}>
@@ -108,7 +108,7 @@ export function DeployIcon(props: IconProps) {
   )
 }
 
-/** Monitor — a run of metric bars receding into the distance, like a live chart. */
+/** Monitor - a run of metric bars receding into the distance, like a live chart. */
 export function MonitorIcon(props: IconProps) {
   const bars = [
     { x: 44, ground: 86, h: 18 },

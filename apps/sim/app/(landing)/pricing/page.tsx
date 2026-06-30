@@ -5,9 +5,9 @@ import Pricing from '@/app/(landing)/pricing/pricing'
 export const revalidate = 3600
 
 const PAGE_URL = `${SITE_URL}/pricing`
-const TITLE = 'Pricing — Sim, the AI Workspace'
+const TITLE = 'Pricing | Sim, the AI Workspace'
 const DESCRIPTION =
-  'Pricing for Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Compare the Free, Pro, Max, and Enterprise plans — each connecting 1,000+ integrations and every major LLM. Start free and upgrade as your team scales.'
+  'Pricing for Sim, the open-source AI workspace for building, deploying, and managing AI agents. Compare the Free, Pro, Max, and Enterprise plans. Start free.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
         url: '/logo/426-240/reverse/small.png',
         width: 2130,
         height: 1200,
-        alt: 'Pricing — Sim, the AI Workspace',
+        alt: 'Pricing | Sim, the AI Workspace',
         type: 'image/png',
       },
     ],
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: {
       url: '/logo/426-240/reverse/small.png',
-      alt: 'Pricing — Sim, the AI Workspace',
+      alt: 'Pricing | Sim, the AI Workspace',
     },
   },
   alternates: {

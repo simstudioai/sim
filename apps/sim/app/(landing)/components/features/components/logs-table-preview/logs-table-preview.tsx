@@ -2,13 +2,13 @@ import { ArrowUpDown, Badge, Library, ListFilter, Workflow } from '@/components/
 import type { BadgeProps } from '@/components/emcn/components/badge/badge'
 
 /**
- * LogsTablePreview — a static recreation of the Sim Logs page, used as the
+ * LogsTablePreview - a static recreation of the Sim Logs page, used as the
  * graphic inside the Logs card's {@link PlatformCorner} white block. It shows a
  * fragment of the real Logs view: the header (`Logs` title + Filter/Sort), then
- * the run table — workflow name, status, trigger, cost, and duration — with the
+ * the run table - workflow name, status, trigger, cost, and duration - with the
  * platform's `Badge` chrome (dotted status pills, trigger pills).
  *
- * Purely presentational (no search/sort state) — it's a corner of the product
+ * Purely presentational (no search/sort state) - it's a corner of the product
  * framed as a screenshot, so the panel's right columns and lower rows dissolve
  * through the {@link PlatformCorner} corner fade.
  */

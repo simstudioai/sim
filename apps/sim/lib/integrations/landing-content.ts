@@ -6,7 +6,7 @@
  * augmentation. Has no app imports so the build script can import it safely.
  */
 
-import type { IntegrationLandingContent } from '@/app/(home)/integrations/data/types'
+import type { IntegrationLandingContent } from '@/app/(landing)/integrations/data/types'
 
 export const INTEGRATION_LANDING_CONTENT: Record<string, IntegrationLandingContent> = {
   slack: {

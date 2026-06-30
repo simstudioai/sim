@@ -9,7 +9,7 @@ import type { ChangelogEntry, GitHubRelease } from '@/app/(landing)/changelog/ty
 import { mapReleases, releasesEndpoint } from '@/app/(landing)/changelog/utils'
 
 /**
- * The changelog timeline — the single client leaf of the changelog page. Renders
+ * The changelog timeline - the single client leaf of the changelog page. Renders
  * each GitHub release as a `<section>` (an `<h2>` version tag + contributor
  * avatars + cleaned markdown via {@link Streamdown}) and paginates further pages
  * from the GitHub Releases API on demand. Re-authored from the prior dark

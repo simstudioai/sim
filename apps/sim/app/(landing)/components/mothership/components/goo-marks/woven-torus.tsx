@@ -11,7 +11,7 @@ import {
 
 /**
  * Sim circle goo-mark: WOVEN TORUS.
- * 3 offset rings (radius 22) whose centers sit on a small circle 120° apart —
+ * 3 offset rings (radius 22) whose centers sit on a small circle 120° apart -
  * reads as orbit / motion.
  */
 export interface WovenTorusProps {

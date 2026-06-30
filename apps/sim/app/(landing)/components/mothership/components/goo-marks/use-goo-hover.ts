@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 
 /**
- * Sim abstract generative icon system — the circle / harmonograph "goo" family.
+ * Sim abstract generative icon system - the circle / harmonograph "goo" family.
  * Built from parametric curves and overlapping circles, normalized to a fixed
  * REACH, fused by the goo filter.
  *

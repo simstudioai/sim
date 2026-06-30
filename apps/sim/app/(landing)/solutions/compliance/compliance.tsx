@@ -1,10 +1,10 @@
-import { LandingShell, SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
+import { SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
 
 /**
- * Compliance solution page — a reference consumer of {@link SolutionsPage}.
+ * Compliance solution page - a reference consumer of {@link SolutionsPage}.
  *
  * The whole page is one typed {@link SolutionsPageConfig} rendered inside the
- * shared {@link LandingShell}. Visual slots are `null`, so each renders the
+ * shared route-group layout's chrome. Visual slots are `null`, so each renders the
  * layout's reserved placeholder panel; a real page swaps in its own client
  * island without touching the layout.
  */
@@ -12,11 +12,11 @@ const COMPLIANCE_CONFIG: SolutionsPageConfig = {
   module: 'Compliance',
   path: '/solutions/compliance',
   hero: {
-    heading: 'Sim for Compliance — agents that keep you audit-ready.',
+    heading: 'Automate evidence, control checks, and audit reports with Sim agents.',
     description:
-      'Compliance teams use Sim, the open-source AI workspace, to automate evidence, control checks, and reporting — continuously, not just at audit time.',
+      'Compliance teams build AI agents in Sim, the open-source AI workspace, that monitor controls and assemble a clean, defensible record, keeping the organization continuously audit-ready instead of scrambling once a year.',
     summary:
-      'Sim is the open-source AI workspace where compliance teams build, deploy, and manage AI agents that automate evidence collection, control monitoring, and reporting — keeping the organization continuously audit-ready across 1,000+ integrations.',
+      'Sim is the open-source AI workspace where compliance teams build, deploy, and manage AI agents that automate evidence collection, control monitoring, and reporting, keeping the organization continuously audit-ready across 1,000+ integrations.',
     visual: null,
   },
   rows: [
@@ -73,9 +73,5 @@ const COMPLIANCE_CONFIG: SolutionsPageConfig = {
 }
 
 export default function ComplianceSolution() {
-  return (
-    <LandingShell>
-      <SolutionsPage config={COMPLIANCE_CONFIG} />
-    </LandingShell>
-  )
+  return <SolutionsPage config={COMPLIANCE_CONFIG} />
 }

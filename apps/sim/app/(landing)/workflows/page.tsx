@@ -5,9 +5,9 @@ import Workflows from '@/app/(landing)/workflows/workflows'
 export const revalidate = 3600
 
 const PAGE_URL = `${SITE_URL}/workflows`
-const TITLE = 'Workflows — The Visual Builder in Sim, the AI Workspace'
+const TITLE = 'Workflows | The Visual Builder in Sim, the AI Workspace'
 const DESCRIPTION =
-  'Workflows is the visual builder in Sim, the open-source AI workspace. Connect blocks, every major LLM, and 1,000+ integrations into agent logic — then deploy and run agents that automate real work.'
+  'Workflows is the visual builder in Sim, the open-source AI workspace. Connect blocks, every major LLM, and 1,000+ integrations into agent logic.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
         url: '/logo/426-240/reverse/small.png',
         width: 2130,
         height: 1200,
-        alt: 'Workflows — The Visual Builder in Sim, the AI Workspace',
+        alt: 'Workflows | The Visual Builder in Sim, the AI Workspace',
         type: 'image/png',
       },
     ],
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: {
       url: '/logo/426-240/reverse/small.png',
-      alt: 'Workflows — The Visual Builder in Sim, the AI Workspace',
+      alt: 'Workflows | The Visual Builder in Sim, the AI Workspace',
     },
   },
   alternates: {

@@ -7,10 +7,10 @@ import { PLATFORM_SPACING } from '@/app/(landing)/components/platform-page/const
 import type { PlatformCardRowConfig } from '@/app/(landing)/components/platform-page/types'
 
 /**
- * A card row — the core repeating unit of a platform page. A header block (an
+ * A card row - the core repeating unit of a platform page. A header block (an
  * `<h2>` title, a body-color subtitle, and a single pill CTA) sits above a grid
- * of cards. The grid column count is derived from `cards.length` — 3 cards render
- * `grid-cols-3`, 4 render `grid-cols-4` — so the page never specifies layout.
+ * of cards. The grid column count is derived from `cards.length` - 3 cards render
+ * `grid-cols-3`, 4 render `grid-cols-4` - so the page never specifies layout.
  *
  * Rendered as a labelled `<section>` for a clean, crawlable landmark; each card
  * is an `<article>` with an `<h3>`, keeping the strict H2 → H3 hierarchy. Every
@@ -41,7 +41,7 @@ export function PlatformCardRow({ row }: PlatformCardRowProps) {
       <div className={cn('flex flex-col items-start', PLATFORM_SPACING.cardRowHeaderStack)}>
         <h2
           id={headingId}
-          className='max-w-[760px] text-balance text-[32px] text-[var(--text-primary)] leading-[1.3]'
+          className='max-w-[760px] text-balance text-[32px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[24px]'
         >
           {row.title}
         </h2>
@@ -51,7 +51,14 @@ export function PlatformCardRow({ row }: PlatformCardRowProps) {
         <PlatformPillCta cta={row.cta} />
       </div>
 
-      <div className={cn('grid', gridCols, PLATFORM_SPACING.cardGridGap)}>
+      <div
+        className={cn(
+          'grid',
+          gridCols,
+          'max-sm:grid-cols-1 max-md:grid-cols-2',
+          PLATFORM_SPACING.cardGridGap
+        )}
+      >
         {row.cards.map((card, index) => (
           <PlatformCard
             key={`${row.id}-${index}`}

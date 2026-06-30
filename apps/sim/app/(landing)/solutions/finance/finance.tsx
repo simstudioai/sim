@@ -1,22 +1,22 @@
-import { LandingShell, SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
+import { SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
 
 /**
- * Finance solution page — a reference consumer of {@link SolutionsPage}.
+ * Finance solution page - a reference consumer of {@link SolutionsPage}.
  *
- * The whole page is one typed {@link SolutionsPageConfig} rendered inside the
- * shared {@link LandingShell}. Visual slots are `null`, so each renders the
- * layout's reserved placeholder panel; a real page swaps in its own client
- * island without touching the layout.
+ * The whole page is one typed {@link SolutionsPageConfig}; the shared
+ * route-group layout provides the chrome. Visual slots are `null`, so each
+ * renders the layout's reserved placeholder panel; a real page swaps in its own
+ * client island without touching the layout.
  */
 const FINANCE_CONFIG: SolutionsPageConfig = {
   module: 'Finance',
   path: '/solutions/finance',
   hero: {
-    heading: 'Sim for Finance — automate the numbers.',
+    heading: 'Automate invoice processing, reconciliation, and close with Sim agents.',
     description:
-      'Finance teams use Sim, the open-source AI workspace, to automate reconciliation, invoices, and reporting — with approvals and audit trails built in.',
+      'Finance teams build AI agents in Sim, the open-source AI workspace, with human approvals, anomaly detection, and full audit trails, across 1,000+ integrations and every major LLM.',
     summary:
-      'Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents that automate reconciliation, invoice processing, and reporting — with human approvals, anomaly detection, and full audit trails across 1,000+ integrations.',
+      'Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents that automate reconciliation, invoice processing, and reporting, with human approvals, anomaly detection, and full audit trails across 1,000+ integrations.',
     visual: null,
   },
   rows: [
@@ -73,9 +73,5 @@ const FINANCE_CONFIG: SolutionsPageConfig = {
 }
 
 export default function FinanceSolution() {
-  return (
-    <LandingShell>
-      <SolutionsPage config={FINANCE_CONFIG} />
-    </LandingShell>
-  )
+  return <SolutionsPage config={FINANCE_CONFIG} />
 }

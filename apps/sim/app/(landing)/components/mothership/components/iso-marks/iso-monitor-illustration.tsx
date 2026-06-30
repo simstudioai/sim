@@ -17,7 +17,7 @@ const STROKE_PAINT = ISO_STROKE
 const LINE_PROPS = createIsoLineProps('iso-monitor-line', STROKE_PAINT)
 
 /**
- * Inline supplied illustration for the Monitor area — an isometric housing whose
+ * Inline supplied illustration for the Monitor area - an isometric housing whose
  * lid and two side panels drift apart on a slow loop to reveal the stacked inner
  * plates (the "look inside every run" read). Hovering redraws every contour from
  * zero.

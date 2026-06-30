@@ -105,7 +105,6 @@ interface PreviewBlockData {
   hideSourceHandle?: boolean
   index?: number
   animate?: boolean
-  isHighlighted?: boolean
 }
 
 /**
@@ -138,7 +137,6 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
     hideSourceHandle,
     index = 0,
     animate = false,
-    isHighlighted = false,
   } = data
   const Icon = BLOCK_ICONS[blockType]
   const delay = animate ? index * BLOCK_STAGGER : 0
@@ -230,7 +228,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                 )
               })}
 
-              {/* Tool chips — inline with label */}
+              {/* Tool chips - inline with label */}
               {tools && tools.length > 0 && (
                 <div className='flex items-center gap-2'>
                   <span className='flex-shrink-0 font-normal text-[14px] text-[var(--text-muted)]'>
@@ -272,10 +270,6 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
               isConnectableStart={false}
               isConnectableEnd={false}
             />
-          )}
-
-          {isHighlighted && (
-            <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--text-primary)]' />
           )}
         </div>
       </m.div>

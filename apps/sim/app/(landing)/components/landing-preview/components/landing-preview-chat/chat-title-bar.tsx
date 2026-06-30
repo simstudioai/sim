@@ -8,7 +8,7 @@ interface LandingPreviewChatTitleBarProps {
 }
 
 /**
- * The chat pane's title bar — a faithful copy of the workspace `ChatTitleBar`:
+ * The chat pane's title bar - a faithful copy of the workspace `ChatTitleBar`:
  * the sidebar toggle, the chat-switcher split pill (chat icon + name | chevron),
  * and an optional close control. Shared by the docked chat pane and the home
  * empty state so the two read identically.

@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import type { SidebarView } from '@/app/(landing)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
 
 /**
- * Client mount for the {@link LandingPreview} — the heavy, animated workspace
+ * Client mount for the {@link LandingPreview} - the heavy, animated workspace
  * island (framer-motion + reactflow). Isolated here so the sections that show it
  * stay Server Components: only this leaf is `'use client'`.
  *

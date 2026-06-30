@@ -56,9 +56,8 @@ const viewTransition = {
 } as const
 
 interface DemoStep {
-  type: 'workflow' | 'tables' | 'home' | 'logs'
+  type: 'workflow' | 'home' | 'logs'
   workflowId?: string
-  tableId?: string
   duration: number
 }
 
@@ -113,7 +112,7 @@ interface LandingPreviewProps {
  * User interaction permanently stops the auto-cycle.
  *
  * Pass `autoplay={false}` to render a fully static snapshot (no cycling, no
- * animation) — for use as a background behind a feature callout.
+ * animation) - for use as a background behind a feature callout.
  */
 export function LandingPreview({
   autoplay = true,
@@ -124,7 +123,6 @@ export function LandingPreview({
   const [activeWorkflowId, setActiveWorkflowId] = useState(workflowId)
   const animationKeyRef = useRef(0)
   const [animationKey, setAnimationKey] = useState(0)
-  const [autoTableId, setAutoTableId] = useState<string | null>(null)
   const [autoTypeHome, setAutoTypeHome] = useState(false)
   const [isDesktop, setIsDesktop] = useState(true)
 
@@ -141,7 +139,6 @@ export function LandingPreview({
   }, [])
 
   const applyDemoStep = useCallback((step: DemoStep) => {
-    setAutoTableId(null)
     setAutoTypeHome(false)
 
     if (step.type === 'workflow' && step.workflowId) {
@@ -149,9 +146,6 @@ export function LandingPreview({
       setActiveView('workflow')
       animationKeyRef.current += 1
       setAnimationKey(animationKeyRef.current)
-    } else if (step.type === 'tables') {
-      setActiveView('tables')
-      setAutoTableId(step.tableId ?? null)
     } else if (step.type === 'home') {
       setActiveView('home')
       setAutoTypeHome(true)
@@ -191,7 +185,6 @@ export function LandingPreview({
   const handleSelectWorkflow = useCallback(
     (id: string) => {
       stopAutoCycle()
-      setAutoTableId(null)
       setAutoTypeHome(false)
       setActiveWorkflowId(id)
       setActiveView('workflow')
@@ -203,7 +196,6 @@ export function LandingPreview({
 
   const handleSelectHome = useCallback(() => {
     stopAutoCycle()
-    setAutoTableId(null)
     setAutoTypeHome(false)
     setActiveView('home')
   }, [stopAutoCycle])
@@ -211,7 +203,6 @@ export function LandingPreview({
   const handleSelectNav = useCallback(
     (id: SidebarView) => {
       stopAutoCycle()
-      setAutoTableId(null)
       setAutoTypeHome(false)
       setActiveView(id)
     },
@@ -249,7 +240,7 @@ export function LandingPreview({
         <div className='flex min-w-0 flex-1 flex-col py-2 pr-2 pl-2 lg:pl-0'>
           <div className='flex flex-1 overflow-hidden rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-2)]'>
             {isHomeView ? (
-              /* Home: the chat IS the whole view — its empty "What should we get
+              /* Home: the chat IS the whole view - its empty "What should we get
                  done?" state, with no resource staged. */
               <div className='relative flex min-w-0 flex-1 flex-col overflow-hidden'>
                 {animated ? (
@@ -269,7 +260,7 @@ export function LandingPreview({
             ) : (
               /* Chat everywhere: the persistent Mothership chat pane on the left,
                  a single staged resource on the right. The chat pane stays
-                 mounted as the staged resource crossfades — the chat is the
+                 mounted as the staged resource crossfades - the chat is the
                  constant the work hangs off of. */
               <>
                 <m.div className='hidden lg:flex' variants={sidebarVariants}>
@@ -299,7 +290,7 @@ export function LandingPreview({
                             className='flex h-full w-full flex-col'
                             {...viewTransition}
                           >
-                            <LandingPreviewTables autoOpenTableId={autoTableId} />
+                            <LandingPreviewTables />
                           </m.div>
                         )}
                         {activeView === 'files' && (
@@ -336,7 +327,7 @@ export function LandingPreview({
                         )}
                       </AnimatePresence>
                     ) : activeView === 'tables' ? (
-                      <LandingPreviewTables autoOpenTableId={autoTableId} />
+                      <LandingPreviewTables />
                     ) : activeView === 'files' ? (
                       <LandingPreviewFiles />
                     ) : activeView === 'knowledge' ? (

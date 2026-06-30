@@ -82,7 +82,7 @@ const getColumnFaces = (cx: number, topY: number, height: number): ColumnFaces =
 }
 
 /**
- * Inline supplied illustration for the Build area — a column "skyline" rising
+ * Inline supplied illustration for the Build area - a column "skyline" rising
  * off an isometric floor grid. The two grid axes drift along their own diagonal
  * on a slow loop (the live-construction read); hovering redraws every contour
  * from zero. Pure CSS, so this stays a server component.

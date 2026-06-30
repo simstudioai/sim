@@ -5,9 +5,9 @@ import Terms from '@/app/(landing)/terms/terms'
 export const revalidate = 3600
 
 const PAGE_URL = `${SITE_URL}/terms`
-const TITLE = 'Terms of Service — Sim, the AI Workspace'
+const TITLE = 'Terms of Service | Sim, the AI Workspace'
 const DESCRIPTION =
-  'The terms and conditions for using Sim, the open-source AI workspace — subscription plans, data ownership, acceptable use, and your rights.'
+  'The terms and conditions for using Sim, the open-source AI workspace: subscription plans, data ownership, acceptable use, and your rights.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
         url: '/logo/426-240/reverse/small.png',
         width: 2130,
         height: 1200,
-        alt: 'Terms of Service — Sim, the AI Workspace',
+        alt: 'Terms of Service | Sim, the AI Workspace',
         type: 'image/png',
       },
     ],
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: {
       url: '/logo/426-240/reverse/small.png',
-      alt: 'Terms of Service — Sim, the AI Workspace',
+      alt: 'Terms of Service | Sim, the AI Workspace',
     },
   },
   alternates: {

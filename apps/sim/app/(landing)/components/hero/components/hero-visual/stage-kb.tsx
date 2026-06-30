@@ -14,7 +14,7 @@ export type KbStage = 'empty' | 'files' | 'embeddings'
 
 interface KnowledgeBasePanelProps {
   stage: KbStage
-  /** The Create button — the root cursor targets this to "create". */
+  /** The Create button - the root cursor targets this to "create". */
   createRef: RefObject<HTMLSpanElement | null>
   /**
    * `modal` renders the standalone centered modal (its own chrome + entrance);
@@ -25,7 +25,7 @@ interface KnowledgeBasePanelProps {
 }
 
 /**
- * The knowledge-base create UI — a faithful, decorative replica of the real
+ * The knowledge-base create UI - a faithful, decorative replica of the real
  * `ChipModal` create flow. First an empty dropzone ("Drop files here"); then
  * files drop in from above as if dragged from Finder; then the document area
  * becomes an embedding map that builds itself node by node while the footer

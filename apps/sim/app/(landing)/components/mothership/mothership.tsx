@@ -7,15 +7,15 @@ import {
 } from '@/app/(landing)/components/mothership/components/iso-marks'
 
 /**
- * Landing Sim section — the high-level "how Sim works" overview that sets up the
+ * Landing Sim section - the high-level "how Sim works" overview that sets up the
  * {@link Features} deep-dive. A two-line heading frames Sim as one workspace for
  * the whole platform; below, four columns call out its main areas (Integrate ·
- * Ingest context · Build · Monitor), each paired with an abstract circle "goo"
+ * Context · Build · Monitor), each paired with an abstract circle "goo"
  * mark and a one-line definition. These are the same four areas Features then
- * shows in real product UI — framed here in fewer words, from the "what it is"
+ * shows in real product UI, framed here in fewer words, from the "what it is"
  * angle, so the overview and the deep-dive don't repeat each other.
  *
- * The marks are the only client islands in this section — interactive brand
+ * The marks are the only client islands in this section: interactive brand
  * glyphs (subtle hover breathe/rotate); the section itself stays server-rendered.
  *
  * Inter-section spacing is owned by the `<main>` flex `gap` in `landing.tsx`;
@@ -43,25 +43,25 @@ const AREAS: Area[] = [
     word: 'Integrate',
     Mark: IsoIntegrateIllustration,
     size: 180,
-    definition: 'One catalog of 1,000+ connectors your agents reach out and act through.',
+    definition: 'One catalog of 1,000+ integrations your agents act through.',
   },
   {
-    word: 'Ingest context',
+    word: 'Context',
     Mark: IsoIngestIllustration,
     size: 170,
-    definition: 'Your data, stored semantically — the memory agents reason over.',
+    definition: 'Your data, stored semantically as the memory your agents reason over.',
   },
   {
     word: 'Build',
     Mark: IsoBuildIllustration,
-    size: 174,
-    definition: 'Compose agent logic on a canvas, or just describe it to Sim.',
+    size: 176,
+    definition: 'Compose agent logic in the visual builder, or just describe it to Sim.',
   },
   {
     word: 'Monitor',
     Mark: IsoMonitorIllustration,
-    size: 176,
-    definition: 'See inside every run — traces, logs, and real cost, live.',
+    size: 174,
+    definition: 'See inside every run with live traces, logs, and real cost.',
   },
 ]
 

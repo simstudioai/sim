@@ -22,13 +22,13 @@ const THINKING_AT = 480
 const ASSISTANT_AT = 1280
 
 /**
- * The Mothership chat pane — the persistent left column of the "chat everywhere"
+ * The Mothership chat pane - the persistent left column of the "chat everywhere"
  * layout. Its title bar carries the chat-switcher breadcrumb (a chat-bubble
  * chip + the active chat's name + chevron) exactly like the real workspace, so
  * the chat reads as the constant that every staged resource hangs off of.
  *
  * On each `animationKey` change it replays a short scripted exchange: the user's
- * request slides in, Sim "thinks" (the cycle loader), then the reply slides in —
+ * request slides in, Sim "thinks" (the cycle loader), then the reply slides in -
  * mirroring the workflow building itself on the staged panel to the right. The
  * reveal is plain state + CSS transition (no layout animation) so it composes
  * under the preview's root `LazyMotion` without pulling in `domMax`.
@@ -72,7 +72,7 @@ export function LandingPreviewChat({ chat, chatName, animationKey }: LandingPrev
     <div className='flex h-full w-[400px] flex-shrink-0 flex-col bg-[var(--surface-2)]'>
       <LandingPreviewChatTitleBar chatName={chatName} showClose />
 
-      {/* Conversation — bottom-anchored so it rests just above the input. */}
+      {/* Conversation - bottom-anchored so it rests just above the input. */}
       <div className='flex min-h-0 flex-1 flex-col justify-end gap-3 overflow-hidden px-3.5 pt-4 pb-1'>
         {chat && (
           <>
@@ -102,7 +102,7 @@ export function LandingPreviewChat({ chat, chatName, animationKey }: LandingPrev
         )}
       </div>
 
-      {/* Input — live: routes a typed prompt to /signup. */}
+      {/* Input - live: routes a typed prompt to /signup. */}
       <div className='flex-shrink-0 px-3 pt-2 pb-3'>
         <LandingPreviewChatInput
           value={value}

@@ -6,7 +6,7 @@ import {
 } from '@/app/(landing)/components/lifecycle/components/lifecycle-icons'
 
 /**
- * Landing lifecycle — the three axes along which teams use Sim: build, deploy,
+ * Landing lifecycle - the three axes along which teams use Sim: build, deploy,
  * monitor. A split-statement `<h2>` (headline color + body color, matching the
  * features header) tops a three-column grid; each column pairs an isometric
  * line-art icon with an `<h3>` axis title and a one-line description.
@@ -32,13 +32,13 @@ const AXES: Axis[] = [
   {
     title: 'Build',
     description:
-      'Build agents visually, in natural language, or with code — wiring up any model and 1,000+ integrations.',
+      'Build agents visually, in natural language, or with code, wiring up any model and 1,000+ integrations.',
     Icon: BuildIcon,
   },
   {
     title: 'Deploy',
     description:
-      'Ship agents to production as APIs, Slack bots, or scheduled jobs — live in a click.',
+      'Ship agents to production as APIs, Slack bots, or scheduled jobs, live in a click.',
     Icon: DeployIcon,
   },
   {
@@ -58,7 +58,7 @@ export function Lifecycle() {
       <h2 id='lifecycle-heading' className='max-w-[1200px] text-balance text-[32px] leading-[1.3]'>
         <span className='text-[var(--text-primary)]'>From idea to production.</span>{' '}
         <span className='text-[var(--text-body)]'>
-          Build agents, deploy them, and monitor every run — all in one workspace.
+          Build agents, deploy them, and monitor every run, all in one workspace.
         </span>
       </h2>
 

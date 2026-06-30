@@ -1,0 +1,68 @@
+'use client'
+
+import { useEffect } from 'react'
+import Cal, { getCalApi } from '@calcom/embed-react'
+import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
+
+/** The Cal.com event the demo books - set `NEXT_PUBLIC_CAL_LINK` to override. */
+const CAL_NAMESPACE = 'demo'
+const CAL_LINK = process.env.NEXT_PUBLIC_CAL_LINK ?? 'team/sim/demo'
+
+/**
+ * Sim's brand color, matching the `--brand-agent` token. The embed renders in a
+ * cross-origin iframe, so it can't read our CSS vars - it needs the literal hex.
+ */
+const CAL_BRAND_COLOR = '#6f3dfa'
+
+interface DemoSchedulerProps {
+  /** The captured lead used to prefill the Cal.com booking. */
+  lead: DemoLead
+}
+
+/**
+ * Step 2 of the booking card - the Cal.com scheduler, prefilled from the form's
+ * {@link DemoLead}. Rendered inside the card chrome owned by {@link DemoBooking}
+ * and lazy-loaded, so the embed script never touches the initial landing bundle.
+ *
+ * The embed is pinned to the page's light theme and Sim's brand color, and the
+ * captured name/email/notes prefill the booking so the visitor never retypes. It
+ * fills the panel (`flex-1`), which the parent sizes to the form's height, so the
+ * card stays the same height across the form→calendar transition.
+ */
+export function DemoScheduler({ lead }: DemoSchedulerProps) {
+  useEffect(() => {
+    getCalApi({ namespace: CAL_NAMESPACE }).then((cal) => {
+      cal('ui', {
+        theme: 'light',
+        hideEventTypeDetails: true,
+        layout: 'month_view',
+        styles: { branding: { brandColor: CAL_BRAND_COLOR } },
+      })
+    })
+  }, [])
+
+  return (
+    <div className='flex h-full min-w-0 flex-col p-6 max-sm:p-5'>
+      <h2 className='text-[var(--text-primary)] text-xl leading-[1.2]'>
+        Pick a time{lead.name ? `, ${lead.name}` : ''}
+      </h2>
+      <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
+        Choose a slot that works for your team and we'll send a calendar invite.
+      </p>
+      <div className='mt-5 min-h-0 flex-1'>
+        <Cal
+          namespace={CAL_NAMESPACE}
+          calLink={CAL_LINK}
+          style={{ width: '100%', height: '100%', overflow: 'auto' }}
+          config={{
+            name: lead.name,
+            email: lead.email,
+            notes: lead.notes,
+            layout: 'month_view',
+            useSlotsViewOnSmallScreen: 'true',
+          }}
+        />
+      </div>
+    </div>
+  )
+}

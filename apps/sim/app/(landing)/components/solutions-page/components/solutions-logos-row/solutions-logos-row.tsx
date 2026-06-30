@@ -1,7 +1,7 @@
 import { Logos } from '@/app/(landing)/components/logos'
 
 /**
- * Solutions logos row — the same customer wordmarks as the landing hero, in a
+ * Solutions logos row - the same customer wordmarks as the landing hero, in a
  * single horizontally-centered row at the shared `gap-x-24` rhythm (owned by the
  * shared {@link Logos} component, `row` layout). Takes no props and exposes no
  * spacing: its horizontal gutter comes from `SolutionsPage` and its inter-section

@@ -134,14 +134,14 @@ export default function SSOForm() {
       <div className='space-y-1 text-center'>
         <h1
           className={
-            'text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'
+            'text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'
           }
         >
           Sign in with SSO
         </h1>
         <p
           className={
-            'font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'
+            'text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'
           }
         >
           Enter your work email to continue
@@ -167,11 +167,11 @@ export default function SSOForm() {
               className={cn(
                 showEmailValidationError &&
                   emailErrors.length > 0 &&
-                  'border-red-500 focus:border-red-500'
+                  'border-[var(--text-error)] focus:border-[var(--text-error)]'
               )}
             />
             {showEmailValidationError && emailErrors.length > 0 && (
-              <div className='mt-1 space-y-1 text-red-400 text-xs'>
+              <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
                 {emailErrors.map((error) => (
                   <p key={error}>{error}</p>
                 ))}
@@ -197,12 +197,10 @@ export default function SSOForm() {
         <>
           <div className='relative my-6 font-light'>
             <div className='absolute inset-0 flex items-center'>
-              <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
+              <div className='w-full border-[var(--border)] border-t' />
             </div>
             <div className='relative flex justify-center text-sm'>
-              <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
-                Or
-              </span>
+              <span className='bg-[var(--bg)] px-4 font-normal text-[var(--text-muted)]'>Or</span>
             </div>
           </div>
 
@@ -224,20 +222,20 @@ export default function SSOForm() {
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
+            className='font-medium text-[var(--text-primary)] underline-offset-4 transition hover:underline'
           >
             Sign up
           </Link>
         </div>
       )}
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-sm leading-relaxed sm:px-8 md:px-[44px]'>
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-normal text-[var(--text-muted)] text-sm leading-relaxed sm:px-8 md:px-[44px]'>
         By signing in, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
+          className='text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -246,7 +244,7 @@ export default function SSOForm() {
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
+          className='text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
         >
           Privacy Policy
         </Link>

@@ -183,8 +183,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker to prevent 'refused to connect' issue
-        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive).*)',
+        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker to prevent 'refused to connect' issue, and /demo (Cal.com booking embed needs a credentialed cross-origin iframe)
+        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -197,8 +197,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For main app routes, Google Drive Picker, and Vercel resources - use permissive policies
-        source: '/(w/.*|workspace/.*|api/tools/drive|_next/.*|_vercel/.*)',
+        // For main app routes, Google Drive Picker, Vercel resources, and the /demo Cal.com embed - use permissive policies
+        source: '/(w/.*|workspace/.*|api/tools/drive|_next/.*|_vercel/.*|demo)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',

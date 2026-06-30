@@ -7,21 +7,21 @@ import {
 import type { LegalPageConfig } from '@/app/(landing)/components/prose-page/types'
 
 /**
- * The reusable legal-page content stack — the single component both Terms and
+ * The reusable legal-page content stack - the single component both Terms and
  * Privacy consume. A legal route renders the shared {@link LandingShell} and
  * drops in one `<ProsePage config={…} />`, so the two documents share one hero,
  * one full-width left-aligned column, one rhythm, and one set of block
- * treatments — they cannot drift from each other.
+ * treatments - they cannot drift from each other.
  *
  * Order is fixed: hero (the page's only `<h1>`, carrying the title, the
  * "Last updated" meta, and the lead) → an optional intro block group under the
  * `<h1>` → the configured legal sections in array order. The heading outline is
  * strict H1 → H2 (per section) → H3 (per subheading block), never skipped.
- * Server Component — the whole page is static.
+ * Server Component - the whole page is static.
  */
 
 interface ProsePageProps {
-  /** The complete legal-page content — hero copy, intro, and ordered sections. */
+  /** The complete legal-page content - hero copy, intro, and ordered sections. */
   config: LegalPageConfig
 }
 

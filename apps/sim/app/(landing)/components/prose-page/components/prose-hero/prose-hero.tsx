@@ -3,13 +3,13 @@ import { cn } from '@/lib/core/utils/cn'
 import { PROSE_SPACING, PROSE_TYPE } from '@/app/(landing)/components/prose-page/constants'
 
 /**
- * The shared prose hero — the only `<h1>` on a prose page. Renders the title,
+ * The shared prose hero - the only `<h1>` on a prose page. Renders the title,
  * an optional meta line (e.g. "Last updated: …"), an optional lead paragraph,
  * and an optional actions slot (e.g. the changelog's GitHub / Docs / RSS chips).
  *
  * Reused by Terms, Privacy, and the Changelog so the headline rhythm is
  * identical across all three. Spacing comes from `PROSE_SPACING.heroStack`; the
- * navbar-clearing top padding is owned by {@link ProseShell}. Server Component —
+ * navbar-clearing top padding is owned by {@link ProseShell}. Server Component -
  * any interactive `actions` are passed as an already-rendered client island.
  */
 

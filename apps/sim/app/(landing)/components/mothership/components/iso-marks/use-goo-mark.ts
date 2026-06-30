@@ -23,7 +23,7 @@ export interface UseGooMarkOptions<T extends MarkState> {
 }
 
 export interface UseGooMarkResult<T extends MarkState> {
-  /** The current tweened values — read this in render. */
+  /** The current tweened values - read this in render. */
   current: T
   /** Bind these to the element that should react to hover. */
   bind: {

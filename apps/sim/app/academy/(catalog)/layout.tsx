@@ -1,16 +1,10 @@
 import type React from 'react'
-import { getNavBlogPosts } from '@/lib/blog/registry'
-import Footer from '@/app/(home)/components/footer/footer'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import { LogoShell } from '@/app/(landing)/components'
 
-export default async function AcademyCatalogLayout({ children }: { children: React.ReactNode }) {
-  const blogPosts = await getNavBlogPosts()
-
-  return (
-    <>
-      <Navbar blogPosts={blogPosts} />
-      {children}
-      <Footer hideCTA />
-    </>
-  )
+/**
+ * Academy catalog chrome — the shared light, logo-only {@link LogoShell} around
+ * every academy catalog page. No marketing menus; full-width content.
+ */
+export default function AcademyCatalogLayout({ children }: { children: React.ReactNode }) {
+  return <LogoShell>{children}</LogoShell>
 }

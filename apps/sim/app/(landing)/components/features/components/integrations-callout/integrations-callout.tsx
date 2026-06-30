@@ -15,7 +15,7 @@ import {
 import { CalloutFrame } from '@/app/(landing)/components/features/components/feature-stage/feature-stage'
 
 /**
- * The Integrate beat's callout — a static recreation of Sim's integration
+ * The Integrate beat's callout - a static recreation of Sim's integration
  * picker: a search over the 1,000+ connectors, each with its real brand mark
  * and category, the way you'd wire a tool into an agent. The lower rows dissolve
  * through the frame's foot fade, implying the rest of the catalog. Decorative.

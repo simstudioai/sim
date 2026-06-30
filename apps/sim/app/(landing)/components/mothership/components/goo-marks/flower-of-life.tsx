@@ -10,7 +10,7 @@ import {
 
 /**
  * Sim circle goo-mark: FLOWER OF LIFE.
- * 7 circles — 1 center + 6 on a hexagon at radius 20 — each radius 20,
+ * 7 circles - 1 center + 6 on a hexagon at radius 20 - each radius 20,
  * scaled so the outer circle edges land on REACH.
  */
 export interface FlowerOfLifeProps {

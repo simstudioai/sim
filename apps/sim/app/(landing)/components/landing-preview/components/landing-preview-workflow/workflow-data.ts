@@ -28,7 +28,7 @@ export interface PreviewBlock {
 
 /**
  * A scripted Mothership conversation shown in the chat pane beside a staged
- * resource — the request a builder typed and Sim's reply. Anchors the
+ * resource - the request a builder typed and Sim's reply. Anchors the
  * "chat everywhere" narrative: the chat drives whatever is staged on the right.
  */
 export interface PreviewChat {
@@ -52,7 +52,7 @@ export interface PreviewWorkflow {
 }
 
 /**
- * IT Service Management workflow — Slack Trigger -> Agent (KB tool) -> Jira
+ * IT Service Management workflow - Slack Trigger -> Agent (KB tool) -> Jira
  */
 const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
   id: 'wf-it-service',
@@ -107,12 +107,12 @@ const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
   chat: {
     user: 'Set up an IT support agent that answers Slack questions from our docs and files Jira tickets.',
     assistant:
-      'Built IT Service Management — it watches #it-support, answers from your knowledge base, and opens Jira issues for anything it can’t resolve.',
+      'Built IT Service Management. It watches #it-support, answers from your knowledge base, and opens Jira issues for anything it can’t resolve.',
   },
 }
 
 /**
- * Self-healing CRM workflow — Schedule -> Agent
+ * Self-healing CRM workflow - Schedule -> Agent
  */
 const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
   id: 'wf-self-healing-crm',
@@ -156,12 +156,12 @@ const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
   chat: {
     user: 'Build an agent that audits our CRM every morning and fixes bad records.',
     assistant:
-      'Done — Self-healing CRM runs daily at 9 AM, audits HubSpot and Salesforce, and fixes duplicates, missing fields, and stale entries.',
+      'Done. Self-healing CRM runs daily at 9 AM, audits HubSpot and Salesforce, and fixes duplicates, missing fields, and stale entries.',
   },
 }
 
 /**
- * Customer Support Agent workflow — Gmail Trigger -> Agent (KB + Notion tools) -> Slack
+ * Customer Support Agent workflow - Gmail Trigger -> Agent (KB + Notion tools) -> Slack
  */
 const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
   id: 'wf-customer-support',
@@ -219,12 +219,12 @@ const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
   chat: {
     user: 'Make a support agent that replies to customer emails using our help docs.',
     assistant:
-      'Here it is — Customer Support Agent triages new support email, drafts replies from your Knowledge Base and Notion, and posts to #support.',
+      'Here it is. Customer Support Agent triages new support email, drafts replies from your Knowledge Base and Notion, and posts to #support.',
   },
 }
 
 /**
- * Empty "New Agent" workflow — a single note prompting the user to start building
+ * Empty "New Agent" workflow - a single note prompting the user to start building
  */
 const NEW_AGENT_WORKFLOW: PreviewWorkflow = {
   id: 'wf-new-agent',
@@ -256,7 +256,7 @@ export const PREVIEW_WORKFLOWS: PreviewWorkflow[] = [
 /** Stagger delay between each block appearing (seconds). */
 export const BLOCK_STAGGER = 0.12
 
-/** Shared cubic-bezier easing — fast deceleration, gentle settle. */
+/** Shared cubic-bezier easing - fast deceleration, gentle settle. */
 export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 /** Shared edge style applied to all preview workflow connections */
@@ -270,8 +270,7 @@ const EDGE_STYLE = { stroke: '#c9c9c9', strokeWidth: 1.5 } as const
  */
 export function toReactFlowElements(
   workflow: PreviewWorkflow,
-  animate = false,
-  highlightedBlockId?: string | null
+  animate = false
 ): {
   nodes: Node[]
   edges: Edge[]
@@ -293,7 +292,6 @@ export function toReactFlowElements(
       hideSourceHandle: block.hideSourceHandle,
       index,
       animate,
-      isHighlighted: highlightedBlockId === block.id,
     },
     draggable: true,
     selectable: false,
@@ -383,25 +381,24 @@ export const RESOURCE_CHATS: Record<string, PreviewChat> = {
   logs: {
     user: 'How are my agents doing today?',
     assistant:
-      '7 runs today across your agents, 2 errors — Lead Enrichment and Content Moderator. Want me to dig into those?',
+      '7 runs today across your agents, 2 errors: Lead Enrichment and Content Moderator. Want me to dig into those?',
   },
   tables: {
     user: 'Show me my data tables.',
     assistant:
-      'Here are your tables — Customer Leads, Product Catalog, and three more. Ask me to query or update any of them.',
+      'Here are your tables: Customer Leads, Product Catalog, and three more. Ask me to query or update any of them.',
   },
   files: {
     user: 'What files do we have in the workspace?',
-    assistant: 'Pulling up your files — I can summarize, extract, or feed any of them to an agent.',
+    assistant: 'Pulling up your files. I can summarize, extract, or feed any of them to an agent.',
   },
   knowledge: {
     user: 'What’s in our knowledge base?',
-    assistant:
-      'Here are your knowledge bases — your agents read from these to ground every answer.',
+    assistant: 'Here are your knowledge bases. Your agents read from these to ground every answer.',
   },
   'scheduled-tasks': {
     user: 'What’s scheduled to run?',
-    assistant: 'These are your scheduled tasks — I can pause, edit, or add a new one for you.',
+    assistant: 'These are your scheduled tasks. I can pause, edit, or add a new one for you.',
   },
 }
 

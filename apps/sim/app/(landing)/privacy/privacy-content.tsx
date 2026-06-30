@@ -1,7 +1,7 @@
 import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/prose-page'
 
 /**
- * Privacy Policy content — the verbatim legal text, expressed as the typed
+ * Privacy Policy content - the verbatim legal text, expressed as the typed
  * {@link LegalPageConfig} that {@link ProsePage} renders. The text is ported
  * unchanged from the prior Privacy document; only the layout, definition-list
  * emphasis, and inline-link chrome are re-authored onto the landing primitives.
@@ -9,12 +9,12 @@ import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/pros
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description:
-    'How Sim, the open-source AI workspace, collects, uses, and protects your data — including data obtained from Google APIs — and the controls you have over it.',
+    'How Sim, the open-source AI workspace, collects, uses, and protects your data, including data obtained from Google APIs, and the controls you have over it.',
   lastUpdated: 'October 11, 2025',
   intro: [
     {
       kind: 'paragraph',
-      content: `This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data — including data obtained from Google APIs (including Google Workspace APIs) — and your rights and controls regarding that data.`,
+      content: `This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data.`,
     },
     {
       kind: 'paragraph',
@@ -256,7 +256,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `Your information, including Personal Information, may be transferred to — and maintained on — computers located outside of your state, province, country or other governmental jurisdiction where the data protection laws may differ than those from your jurisdiction.`,
+          content: `Your information, including Personal Information, may be transferred to, and maintained on, computers located outside of your state, province, country or other governmental jurisdiction where the data protection laws may differ than those from your jurisdiction.`,
         },
         {
           kind: 'paragraph',
@@ -376,7 +376,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
     },
     {
       id: 'google-workspace-apis',
-      heading: '10. Use of Google / Workspace APIs & Data — Limited Use',
+      heading: '10. Use of Google / Workspace APIs & Data: Limited Use',
       blocks: [
         { kind: 'subheading', text: 'Affirmative Statement & Compliance' },
         {

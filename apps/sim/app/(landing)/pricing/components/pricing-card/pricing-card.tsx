@@ -6,7 +6,7 @@ import type { CellValue } from '@/app/workspace/[workspaceId]/upgrade/components
 /** Maps a cell-icon identifier to its brand icon component. */
 const CELL_ICONS = { slack: SlackIcon } as const
 
-/** Resolved CTA for a pricing card — label, chip variant, and destination href. */
+/** Resolved CTA for a pricing card - label, chip variant, and destination href. */
 export interface PricingCardCta {
   label: string
   variant: 'primary' | 'border-shadow'
@@ -15,9 +15,11 @@ export interface PricingCardCta {
 
 /** A labelled group of feature rows for one plan, transposed from the comparison data. */
 export interface PricingCardSection {
-  /** Section header, e.g. `"Rate limits (runs/min)"`. */
-  title: string
-  /** Feature rows — this plan's value for each comparison row in the section. */
+  /** Stable key for the section, used for React reconciliation. */
+  key: string
+  /** Section header, e.g. `"Rate limits (runs/min)"`. Omit to render the rows without a header. */
+  title?: string
+  /** Feature rows - this plan's value for each comparison row in the section. */
   rows: { label: string; value: CellValue }[]
 }
 
@@ -33,7 +35,7 @@ export interface PricingCardProps {
   priceSubtext?: string
   /** Optional discount pill next to the price, e.g. `"15% off"`. */
   discountLabel?: string
-  /** Resolved CTA — label, variant, and destination href. */
+  /** Resolved CTA - label, variant, and destination href. */
   cta: PricingCardCta
   /** Full feature breakdown for this plan, grouped by section. */
   sections: PricingCardSection[]
@@ -50,7 +52,7 @@ function FeatureValue({ value }: { value: CellValue }) {
     return <Check className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
   }
   if (value === false) {
-    return <span className='select-none text-[var(--text-muted)]'>—</span>
+    return <span className='select-none text-[var(--text-muted)]'>–</span>
   }
   if (typeof value === 'object') {
     const Icon = CELL_ICONS[value.icon]
@@ -64,7 +66,7 @@ function FeatureValue({ value }: { value: CellValue }) {
 }
 
 /**
- * Public pricing card — one plan rendered as a self-contained spec sheet: the
+ * Public pricing card - one plan rendered as a self-contained spec sheet: the
  * header (name, price, CTA, segment) above the full comparison breakdown, grouped
  * by section with a hairline rule under each section header.
  *
@@ -114,9 +116,13 @@ export function PricingCard({
 
       <div className='flex flex-col gap-5'>
         {sections.map((section) => (
-          <div key={section.title} className='flex flex-col'>
-            <span className='text-[var(--text-primary)] text-small'>{section.title}</span>
-            <div className='mt-2 mb-2.5 h-px bg-[var(--border)]' />
+          <div key={section.key} className='flex flex-col'>
+            {section.title && (
+              <>
+                <span className='text-[var(--text-primary)] text-small'>{section.title}</span>
+                <div className='mt-2 mb-2.5 h-px bg-[var(--border)]' />
+              </>
+            )}
             <div className='flex flex-col gap-2.5'>
               {section.rows.map((row) => (
                 <div key={row.label} className='flex items-center justify-between gap-3'>

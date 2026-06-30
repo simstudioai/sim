@@ -3,7 +3,7 @@ import { AgentIcon, AnthropicIcon, GithubIcon, JiraIcon } from '@/components/ico
 import { CsvIcon, DocxIcon, MarkdownIcon, PdfIcon } from '@/components/icons/document-icons'
 
 /**
- * Shared data + geometry for the hero visual — the single source of truth the
+ * Shared data + geometry for the hero visual - the single source of truth the
  * presentational stages render against. No JSX, no client code; pure data so it
  * can be imported by both server- and client-side modules.
  *
@@ -28,7 +28,7 @@ export interface BlockDef {
   id: string
   name: string
   icon: IconComponent
-  /** Icon-tile fill — a brand-faithful color or a platform token (`var(--…)`). */
+  /** Icon-tile fill - a brand-faithful color or a platform token (`var(--…)`). */
   bgColor: string
   /** White icon tiles (e.g. Jira) need a hairline so the mark stays visible. */
   tileBorder?: boolean
@@ -157,7 +157,7 @@ export const EDGES: EdgeDef[] = (
  * Unified hero scene geometry. The chat card is block 1 (GitHub), centered at
  * the panel center; the rest of the workflow is placed relative to it, all at
  * FOCUS scale (design × {@link WORKFLOW_FOCUS_SCALE}). The whole scene is then
- * scaled/translated to the OVERVIEW to reveal the full workflow — so the SAME
+ * scaled/translated to the OVERVIEW to reveal the full workflow - so the SAME
  * card element is continuously block 1 through the pull-out.
  *
  * Scene origin is the GitHub block's CENTER (which sits at the panel center).
@@ -177,8 +177,8 @@ export interface SceneBlock {
 }
 
 /**
- * Block 1 (GitHub) in scene space. It's the morphed chat card — rendered
- * content-only and clipped by the card's `overflow-hidden` — so its edge-handle
+ * Block 1 (GitHub) in scene space. It's the morphed chat card - rendered
+ * content-only and clipped by the card's `overflow-hidden` - so its edge-handle
  * nub is drawn separately at this position, matching where a satellite block
  * (and its handle) would sit.
  */
@@ -212,7 +212,7 @@ export const SCENE_EDGES: EdgeDef[] = (
 /**
  * Pull-out transform from FOCUS (block 1 centered, full size) to OVERVIEW (whole
  * workflow centered, fit to panel). `SCALE` brings the FOCUS-scale scene down to
- * the design overview (1.84 × 0.37 ≈ 0.68); the translate recenters the group —
+ * the design overview (1.84 × 0.37 ≈ 0.68); the translate recenters the group -
  * it matches the design overview's GitHub offset, so the framing is identical to
  * the prior camera overview. Transform-origin is the panel center (block 1's
  * center), so FOCUS is the identity transform (no measurement needed).
@@ -234,7 +234,7 @@ export const SCENE_JIRA_FOCUS_TRANSLATE = { x: -645, y: 0 } as const
 /**
  * The typed prompt, encoded as ordered atoms the typewriter reveals one at a
  * time. A `char` atom is a single character; a `mention` atom pops in
- * atomically as an inline icon-chip — exactly how the real input renders an
+ * atomically as an inline icon-chip - exactly how the real input renders an
  * `@GitHub` / `@Jira` mention.
  */
 export type PromptAtom =
@@ -262,10 +262,10 @@ export const TYPE_MS_PER_ATOM = 45
 
 /**
  * The Mothership's reply, typed out after it "thinks" (the cycle loader). Keeps
- * the world voice — it dispatches an agent — and previews the workflow it's
+ * the world voice - it dispatches an agent - and previews the workflow it's
  * about to build, so the chat answer morphs naturally into the canvas below.
  */
-export const ANSWER_TEXT = 'On it — dispatching an agent to review every PR and open a Jira issue.'
+export const ANSWER_TEXT = 'On it, dispatching an agent to review every PR and open a Jira issue.'
 
 /** Reveal cadence for the answer typewriter (faster than a human; the AI types). */
 export const ANSWER_MS_PER_CHAR = 18
@@ -310,7 +310,7 @@ export interface GraphNode {
 }
 
 /**
- * A single connected knowledge-graph laid out organically across the viewBox —
+ * A single connected knowledge-graph laid out organically across the viewBox -
  * three hubs with satellites, bridged into one mesh. Hand-placed (deterministic,
  * SSR-stable) for a balanced, deliberate look rather than random scatter.
  */
@@ -333,7 +333,7 @@ export const GRAPH_NODES: GraphNode[] = [
   { x: 250, y: 96 },
 ]
 
-/** Edges between {@link GRAPH_NODES} (index pairs) — one connected component. */
+/** Edges between {@link GRAPH_NODES} (index pairs) - one connected component. */
 export const GRAPH_EDGES: Array<[number, number]> = [
   [0, 2],
   [0, 13],

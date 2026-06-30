@@ -12,7 +12,11 @@ import { LandingPreviewMount } from '@/app/(landing)/components/landing-preview/
  * the callout), its far-right edge, and its bottom-right corner into the page so
  * only the relevant surface stays crisp.
  *
- * Heading is an `<h3>` — the section owns the single `<h2>`, each beat is an item
+ * At and below `lg` (where {@link Features} reflows into a compact 2x2 grid, then
+ * a single column on phones) the floating callout is hidden and the edge masks
+ * are dropped, so each cell shows the full un-masked preview beneath its copy.
+ *
+ * Heading is an `<h3>` - the section owns the single `<h2>`, each beat is an item
  * beneath it.
  */
 const BACKDROP_MASK =
@@ -45,7 +49,7 @@ export function FeatureStage({
     <div>
       <div className='max-w-[560px]'>
         <span className='text-[var(--text-muted)] text-sm'>{eyebrow}</span>
-        <h3 className='mt-2 text-balance text-[28px] text-[var(--text-primary)] leading-[1.2] max-sm:text-[22px]'>
+        <h3 className='mt-2 text-balance text-[28px] text-[var(--text-primary)] leading-[1.2] max-sm:text-[22px] max-lg:text-[24px]'>
           {title}
         </h3>
         <p className='mt-2 text-pretty text-[var(--text-body)] text-lg leading-[1.5] max-sm:text-md'>
@@ -58,14 +62,15 @@ export function FeatureStage({
           className={cn(
             'relative overflow-hidden rounded-xl border border-[var(--border-1)]',
             BACKDROP_MASK,
-            // On phones the floating callout is hidden, so drop the edge masks
-            // (which were carved out behind/around it) and show the full preview.
-            'max-md:![mask-image:none] max-md:![-webkit-mask-image:none]'
+            // At and below `lg` the beats reflow into a 2x2 grid (then a single
+            // column on phones) where the floating callout is hidden, so drop the
+            // edge masks (carved out behind/around it) and show the full preview.
+            'max-lg:![mask-image:none] max-lg:![-webkit-mask-image:none]'
           )}
         >
           <LandingPreviewMount autoplay={false} view={view} workflowId={workflowId} />
         </div>
-        <div className='-top-6 absolute left-10 z-10 max-md:hidden'>{callout}</div>
+        <div className='-top-6 absolute left-10 z-10 max-lg:hidden'>{callout}</div>
       </div>
     </div>
   )

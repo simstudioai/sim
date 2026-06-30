@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { CodeBlock } from '@/lib/blog/code'
-import { BlogImage } from '@/app/(home)/blog/components/blog-image'
+import { BlogImage } from '@/app/(landing)/blog/components/blog-image'
 
 export const mdxComponents: MDXRemoteProps['components'] = {
   img: (props: any) => (

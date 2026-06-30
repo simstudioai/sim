@@ -7,12 +7,12 @@ interface LandingPreviewStageHeaderProps {
 }
 
 /**
- * The staged-resource header — a faithful copy of the workspace `PanelHeader`
+ * The staged-resource header - a faithful copy of the workspace `PanelHeader`
  * (44px, `px-4`, `gap-1.5`) that sits above the workflow canvas in the "chat
  * everywhere" layout. There is no tab strip and no Deploy/Run: a workflow's
  * panel actions are `null` in the real header, so it carries only the staged
- * resource's identity — the lucide `Workflow` mark (`size-[14px]`, `--text-icon`)
- * and its name in chip geometry — plus the panel's close + collapse controls on
+ * resource's identity - the lucide `Workflow` mark (`size-[14px]`, `--text-icon`)
+ * and its name in chip geometry - plus the panel's close + collapse controls on
  * the right. Aligns to the chat pane's title bar so the two read as one header
  * row across the split.
  */

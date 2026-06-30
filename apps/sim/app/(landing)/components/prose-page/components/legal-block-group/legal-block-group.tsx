@@ -6,8 +6,8 @@ import type { LegalBlock } from '@/app/(landing)/components/prose-page/types'
 /**
  * Renders an ordered run of {@link LegalBlock}s as a vertically-stacked group at
  * the shared block rhythm (`PROSE_SPACING.blockStack`). This is the single source
- * of the block-group markup — consumed both by the page intro ({@link ProsePage})
- * and by every {@link LegalSectionView} — so the intro and the sections can never
+ * of the block-group markup - consumed both by the page intro ({@link ProsePage})
+ * and by every {@link LegalSectionView} - so the intro and the sections can never
  * drift in spacing. Server Component.
  */
 

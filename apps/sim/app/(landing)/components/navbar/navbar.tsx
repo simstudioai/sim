@@ -4,6 +4,7 @@ import {
   GitHubChip,
   LogoMark,
   MobileNav,
+  NAV_MENUS,
   NavbarShell,
   NavMenuChip,
   SimWordmark,
@@ -13,24 +14,24 @@ import {
  * Landing navbar.
  *
  * Sticky `<header><nav>` landmark with `SiteNavigationElement` schema.org
- * markup. Server Component — the dropdown triggers, GitHub chip, and the
+ * markup. Server Component - the dropdown triggers, GitHub chip, and the
  * {@link NavbarShell} (which frosts the bar to glass on scroll) are isolated
  * client leaves, so the wordmark and links stay zero-hydration, crawlable HTML.
  *
  * Every item is a bare emcn chip. Both clusters use `gap-1`, which with
  * the chips' own `mx-0.5` margins yields 8px between pills; the nav's
- * `gap-3.5` (14px) plus the first chip's 2px margin puts exactly 16px —
- * twice the inter-chip gap — between the wordmark and the Platform chip.
+ * `gap-3.5` (14px) plus the first chip's 2px margin puts exactly 16px -
+ * twice the inter-chip gap - between the wordmark and the first menu chip.
  * Horizontal padding (`px-12`, 48px) matches every section's edge gutter,
  * and the bar content is capped and centered at the shared
  * `max-w-[1446px]` (1350px content + the two 48px gutters) so the wordmark
- * aligns with the contained section content on wide screens — the frosted
+ * aligns with the contained section content on wide screens - the frosted
  * `<header>` shell stays full-bleed. Slightly taller vertical padding. Text
  * weight is the platform default (400).
  *
  * Layout (left → right): Sim wordmark (18px glyph centered in a
- * chip-height slot, chip-text color) → Platform / Resources / Solutions
- * (hover dropdowns, TBD) → Pricing → GitHub stars. Right side: Log in
+ * chip-height slot, chip-text color) → the {@link NAV_MENUS} mega-menus
+ * (pure-CSS hover/focus dropdowns) → Pricing → GitHub stars. Right side: Log in
  * (default chip), Contact sales (outline chip), Sign up (filled chip).
  */
 
@@ -58,9 +59,9 @@ export function Navbar({ stars }: NavbarProps) {
         </Link>
 
         <div className='hidden items-center gap-1 lg:flex'>
-          <NavMenuChip label='Platform' />
-          <NavMenuChip label='Resources' />
-          <NavMenuChip label='Solutions' />
+          {NAV_MENUS.map((menu) => (
+            <NavMenuChip key={menu.label} menu={menu} />
+          ))}
           <ChipLink href='/pricing' itemProp='url'>
             Pricing
           </ChipLink>
@@ -69,7 +70,7 @@ export function Navbar({ stars }: NavbarProps) {
 
         <div className='ml-auto hidden items-center gap-1 lg:flex'>
           <ChipLink href='/login'>Log in</ChipLink>
-          <ChipLink href='/contact' className='border border-[var(--border-1)]'>
+          <ChipLink href='/demo' className='border border-[var(--border-1)]'>
             Contact sales
           </ChipLink>
           <ChipLink variant='primary' href='/signup'>

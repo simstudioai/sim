@@ -106,7 +106,7 @@ Within a family, newest first (matches existing convention: GPT-5.5 above GPT-5.
 
 ## Step 4: Repo-side touchpoints beyond the entry
 
-Adding the `models.ts` entry is most of the job because nearly every consumer is **data-driven** and picks the model up automatically: the ~40 query helpers in `models.ts` / `providers/utils.ts`, the public `/models` catalog (`app/(home)/models/utils.ts` iterates `PROVIDER_DEFINITIONS`), the agent-block model dropdown, and copilot's `isKnownModelId` / `suggestModelIdsForUnknownModel` validation. The touchpoints below are the exceptions — they are **not** data-driven, so check each one.
+Adding the `models.ts` entry is most of the job because nearly every consumer is **data-driven** and picks the model up automatically: the ~40 query helpers in `models.ts` / `providers/utils.ts`, the public `/models` catalog (`app/(landing)/models/utils.ts` iterates `PROVIDER_DEFINITIONS`), the agent-block model dropdown, and copilot's `isKnownModelId` / `suggestModelIdsForUnknownModel` validation. The touchpoints below are the exceptions — they are **not** data-driven, so check each one.
 
 ### Hosted = auto-billed, by provider
 

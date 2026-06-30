@@ -3,15 +3,15 @@ import { SITE_URL } from '@/lib/core/utils/urls'
 import { COMPARISON_SECTIONS } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
 
 /**
- * JSON-LD for the public pricing page — a `WebPage` (about a `WebApplication`),
+ * JSON-LD for the public pricing page - a `WebPage` (about a `WebApplication`),
  * a `BreadcrumbList`, and the `WebApplication` (Sim) carrying one `Offer` per
  * plan tier. Rendered server-side before any visible content so crawlers and AI
  * answer engines read the structured pricing first. Mirrors the platform/
  * solutions structured-data shape so the landing family stays consistent.
  *
  * Everything is derived from the same shared sources that drive the visible cards
- * — Pro/Max monthly prices from {@link CREDIT_TIERS} and the `featureList` from
- * the shared `COMPARISON_SECTIONS` — so the structured data can never drift from
+ * - Pro/Max monthly prices from {@link CREDIT_TIERS} and the `featureList` from
+ * the shared `COMPARISON_SECTIONS` - so the structured data can never drift from
  * the page. Free is `$0`; Enterprise is custom and intentionally ships no price.
  *
  * Server Component; no client cost.
@@ -32,7 +32,7 @@ export function PricingStructuredData() {
         '@type': 'WebPage',
         '@id': `${PAGE_URL}#webpage`,
         url: PAGE_URL,
-        name: 'Pricing — Sim, the AI Workspace',
+        name: 'Pricing | Sim, the AI Workspace',
         description:
           'Pricing for Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Compare the Free, Pro, Max, and Enterprise plans.',
         isPartOf: { '@id': `${SITE_URL}#website` },
@@ -53,7 +53,7 @@ export function PricingStructuredData() {
         '@id': `${PAGE_URL}#application`,
         name: 'Sim',
         description:
-          'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents — connecting 1,000+ integrations and every major LLM.',
+          'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting 1,000+ integrations and every major LLM.',
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web',
         url: SITE_URL,

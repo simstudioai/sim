@@ -1,10 +1,10 @@
 import { ChipLink } from '@/components/emcn'
 
 /**
- * Landing pre-footer CTA — the page's final conversion band. A tall, centered
- * stack modeled on Linear's closing CTA: a large headline over two pill
- * actions — a primary "Get started" routing to sign-up and an outline
- * "Contact sales" routing to the contact form.
+ * Landing pre-footer CTA - the page's final conversion band. A tall, centered
+ * closing band with a large headline over two pill actions - a primary
+ * "Get started" routing to sign-up and an outline "Contact sales" routing to
+ * the demo-booking page.
  *
  * The band carries no vertical padding of its own: its spacious closing moment
  * comes from the uniform inter-section `gap` (owned by the `<main>` flex in
@@ -27,11 +27,11 @@ export function Cta() {
       >
         Build your first agent today.
       </h2>
-      <div className='flex items-center gap-3'>
+      <div className='flex items-center gap-1'>
         <ChipLink variant='primary' href='/signup'>
           Get started
         </ChipLink>
-        <ChipLink href='/contact' className='border border-[var(--border-1)]'>
+        <ChipLink href='/demo' className='border border-[var(--border-1)]'>
           Contact sales
         </ChipLink>
       </div>

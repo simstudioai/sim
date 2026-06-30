@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PROSE_TYPE } from '@/app/(landing)/components/prose-page/constants'
 
 /**
- * The one inline link used inside legal prose — a single source of truth for
+ * The one inline link used inside legal prose - a single source of truth for
  * link chrome (`PROSE_TYPE.link`) so every mailto/internal/external link in the
  * configs reads identically. Configs pass only `href` + children; never a
  * className.
@@ -15,7 +15,7 @@ import { PROSE_TYPE } from '@/app/(landing)/components/prose-page/constants'
  */
 
 interface ProseLinkProps {
-  /** Destination — `http(s)://`, `mailto:`, or an internal path. */
+  /** Destination - `http(s)://`, `mailto:`, or an internal path. */
   href: string
   children: ReactNode
 }

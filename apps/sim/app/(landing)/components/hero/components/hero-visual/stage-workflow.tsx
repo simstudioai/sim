@@ -18,9 +18,9 @@ interface StageWorkflowProps {
   stage: WorkflowCameraStage
 }
 
-/** First (GitHub) block center in design space — the camera's focus target. */
+/** First (GitHub) block center in design space - the camera's focus target. */
 const FOCUS_CENTER = { x: BLOCK_WIDTH / 2, y: 38 }
-/** Whole-canvas center — the overview camera target. */
+/** Whole-canvas center - the overview camera target. */
 const CANVAS_CENTER = { x: CANVAS.width / 2, y: CANVAS.height / 2 }
 /** Zoomed-in scale while held on the first block (≈ the morphed chat card size). */
 const FOCUS_SCALE = WORKFLOW_FOCUS_SCALE
@@ -28,7 +28,7 @@ const FOCUS_SCALE = WORKFLOW_FOCUS_SCALE
 const OVERVIEW_SCALE = 0.68
 
 /**
- * The workflow stage of the hero visual — a design-space canvas with a moving
+ * The workflow stage of the hero visual - a design-space canvas with a moving
  * "camera". It opens **focused** on the first block (the chat card has just
  * morphed into it), holds while that block's content lands and the first edge
  * draws, then the camera **pans + zooms out together** to reveal the whole
@@ -38,7 +38,7 @@ const OVERVIEW_SCALE = 0.68
  * point lands at the panel center: `translate(vpW/2 - cx·s, vpH/2 - cy·s)
  * scale(s)` (origin top-left). The panel size is measured; until it is known,
  * and on first mount, the transition is suppressed so the opening focus frame
- * doesn't animate in from a fallback. Purely decorative — `aria-hidden`.
+ * doesn't animate in from a fallback. Purely decorative - `aria-hidden`.
  */
 export function StageWorkflow({ stage }: StageWorkflowProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -115,7 +115,7 @@ export function StageWorkflow({ stage }: StageWorkflowProps) {
           ))}
         </svg>
         {BLOCKS.map((block) => (
-          // The first block is already on screen — the chat card morphed into it,
+          // The first block is already on screen - the chat card morphed into it,
           // and the focused camera lands it pixel-matched here; the rest sit in
           // design space and are revealed by the camera pull-out.
           <div

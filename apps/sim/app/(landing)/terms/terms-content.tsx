@@ -1,7 +1,7 @@
 import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/prose-page'
 
 /**
- * Terms of Service content — the verbatim legal text, expressed as the typed
+ * Terms of Service content - the verbatim legal text, expressed as the typed
  * {@link LegalPageConfig} that {@link ProsePage} renders. The text is ported
  * unchanged from the prior Terms document; only the layout and inline-link
  * chrome are re-authored onto the landing primitives.
@@ -9,7 +9,7 @@ import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/pros
 export const TERMS_CONFIG: LegalPageConfig = {
   title: 'Terms of Service',
   description:
-    'The terms and conditions for using Sim, the open-source AI workspace — subscription plans, data ownership, and acceptable use.',
+    'The terms and conditions for using Sim, the open-source AI workspace: subscription plans, data ownership, and acceptable use.',
   lastUpdated: 'October 11, 2025',
   intro: [
     {

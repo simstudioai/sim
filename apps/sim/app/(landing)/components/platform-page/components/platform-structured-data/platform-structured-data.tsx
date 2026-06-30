@@ -2,7 +2,7 @@ import { SITE_URL } from '@/lib/core/utils/urls'
 import type { PlatformPageConfig } from '@/app/(landing)/components/platform-page/types'
 
 /**
- * JSON-LD for a platform page — a `WebPage` (about a `WebApplication`) plus a
+ * JSON-LD for a platform page - a `WebPage` (about a `WebApplication`) plus a
  * `BreadcrumbList`, rendered server-side before any visible content so crawlers
  * and AI answer engines read the structured data first.
  *
@@ -12,7 +12,7 @@ import type { PlatformPageConfig } from '@/app/(landing)/components/platform-pag
  * rendered, the page name/description come from the hero, and the breadcrumb
  * from the module + path. The page author maintains zero schema by hand.
  *
- * Server Component; no client cost. Internal to the platform layout — emitted by
+ * Server Component; no client cost. Internal to the platform layout - emitted by
  * `PlatformPage`, never rendered by a consumer directly.
  */
 

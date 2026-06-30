@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
+import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
 /**
- * Landing footer — the site link directory. Re-authored from the prior landing
+ * Landing footer - the site link directory. Re-authored from the prior landing
  * footer's structure and link content, but on the platform's light tokens and
  * with no cross-import from `(home)`. Fully responsive like the rest of the page
- * — desktop is the baseline, scaled down via `max-*` overrides (7→3→2 columns).
+ * - desktop is the baseline, scaled down via `max-*` overrides (7→3→2 columns).
  * The closing CTA lives in its own {@link Cta} section above; this is purely the
  * `<footer>` landmark.
  *
@@ -39,10 +40,18 @@ const PRODUCT_LINKS: FooterItem[] = [
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
-  { label: 'Models', href: '/models' },
   { label: 'Partners', href: '/partners' },
   { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true },
   { label: 'Changelog', href: '/changelog' },
+]
+
+/** Top model providers, sourced from the catalog so labels/hrefs never drift. */
+const MODEL_LINKS: FooterItem[] = [
+  { label: 'All Models', href: '/models' },
+  ...MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 8).map((provider) => ({
+    label: provider.name,
+    href: provider.href,
+  })),
 ]
 
 const BLOCK_LINKS: FooterItem[] = [
@@ -65,7 +74,7 @@ const INTEGRATION_LINKS: FooterItem[] = [
   { label: 'Gmail', href: 'https://docs.sim.ai/integrations/gmail', external: true },
   { label: 'Notion', href: 'https://docs.sim.ai/integrations/notion', external: true },
   { label: 'Salesforce', href: 'https://docs.sim.ai/integrations/salesforce', external: true },
-  { label: 'Jira', href: 'https://docs.sim.ai/integrations/jira', external: true },
+  { label: 'Jira', href: '/integrations/jira' },
   { label: 'Linear', href: 'https://docs.sim.ai/integrations/linear', external: true },
   { label: 'Supabase', href: 'https://docs.sim.ai/integrations/supabase', external: true },
   { label: 'Stripe', href: 'https://docs.sim.ai/integrations/stripe', external: true },
@@ -129,7 +138,7 @@ export function Footer() {
           aria-label='Footer navigation'
           itemScope
           itemType='https://schema.org/SiteNavigationElement'
-          className='grid grid-cols-7 gap-x-8 gap-y-10 max-sm:grid-cols-2 max-sm:gap-y-8 max-lg:grid-cols-3'
+          className='grid grid-cols-8 gap-x-8 gap-y-10 max-sm:grid-cols-2 max-sm:gap-y-8 max-lg:grid-cols-3'
         >
           <Link
             href='/'
@@ -143,6 +152,7 @@ export function Footer() {
           <FooterColumn title='Resources' items={RESOURCES_LINKS} />
           <FooterColumn title='Blocks' items={BLOCK_LINKS} />
           <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
+          <FooterColumn title='Models' items={MODEL_LINKS} />
           <FooterColumn title='Socials' items={SOCIAL_LINKS} />
           <FooterColumn title='Legal' items={LEGAL_LINKS} />
         </nav>

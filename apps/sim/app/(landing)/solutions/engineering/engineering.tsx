@@ -1,10 +1,10 @@
-import { LandingShell, SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
+import { SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
 
 /**
- * Engineering solution page — a reference consumer of {@link SolutionsPage}.
+ * Engineering solution page - a reference consumer of {@link SolutionsPage}.
  *
  * The whole page is one typed {@link SolutionsPageConfig} rendered inside the
- * shared {@link LandingShell}. Visual slots are `null`, so each renders the
+ * shared route-group layout's chrome. Visual slots are `null`, so each renders the
  * layout's reserved placeholder panel; a real page swaps in its own client
  * island without touching the layout.
  */
@@ -12,11 +12,11 @@ const ENGINEERING_CONFIG: SolutionsPageConfig = {
   module: 'Engineering',
   path: '/solutions/engineering',
   hero: {
-    heading: 'Sim for Engineering — ship AI agents into your stack.',
+    heading: 'Automate code review, on-call, and docs with Sim agents.',
     description:
-      'Engineering teams use Sim, the open-source AI workspace, to automate code review, on-call, and docs — visually, conversationally, or with code.',
+      'Engineering teams build AI agents in Sim, the open-source AI workspace, wired into GitHub, CI/CD, and 1,000+ integrations, visually, conversationally, or with code.',
     summary:
-      'Sim is the open-source AI workspace where engineering teams build, deploy, and manage AI agents across the software lifecycle — automating code review, on-call triage, and documentation, wired into GitHub, CI/CD, and 1,000+ integrations.',
+      'Sim is the open-source AI workspace where engineering teams build, deploy, and manage AI agents across the software lifecycle, automating code review, on-call triage, and documentation, wired into GitHub, CI/CD, and 1,000+ integrations.',
     visual: null,
   },
   rows: [
@@ -74,9 +74,5 @@ const ENGINEERING_CONFIG: SolutionsPageConfig = {
 }
 
 export default function EngineeringSolution() {
-  return (
-    <LandingShell>
-      <SolutionsPage config={ENGINEERING_CONFIG} />
-    </LandingShell>
-  )
+  return <SolutionsPage config={ENGINEERING_CONFIG} />
 }

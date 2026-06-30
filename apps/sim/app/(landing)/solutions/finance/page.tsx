@@ -5,9 +5,9 @@ import FinanceSolution from '@/app/(landing)/solutions/finance/finance'
 export const revalidate = 3600
 
 const PAGE_URL = `${SITE_URL}/solutions/finance`
-const TITLE = 'Sim for Finance — AI Agents for Finance Operations'
+const TITLE = 'AI Agents for Invoice Processing & Reconciliation | Sim'
 const DESCRIPTION =
-  'Finance teams use Sim, the open-source AI workspace, to build, deploy, and manage AI agents that automate reconciliation, invoice processing, and reporting.'
+  'Finance teams use Sim, the open-source AI workspace, to build and deploy AI agents that automate reconciliation, invoice processing, and reporting.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
         url: '/logo/426-240/reverse/small.png',
         width: 2130,
         height: 1200,
-        alt: 'Sim for Finance — AI Agents for Finance Operations',
+        alt: 'AI Agents for Invoice Processing & Reconciliation | Sim',
         type: 'image/png',
       },
     ],
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     creator: '@simdotai',
     title: TITLE,
     description: DESCRIPTION,
-    images: { url: '/logo/426-240/reverse/small.png', alt: 'Sim for Finance' },
+    images: { url: '/logo/426-240/reverse/small.png', alt: 'Sim' },
   },
   alternates: {
     canonical: PAGE_URL,

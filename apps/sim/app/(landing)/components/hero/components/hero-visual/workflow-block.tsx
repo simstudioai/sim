@@ -8,8 +8,8 @@ interface WorkflowBlockProps {
 }
 
 /**
- * The inner content of a workflow block — the icon-tile header and optional
- * label → value rows — WITHOUT the card chrome or handle nubs. Split out so the
+ * The inner content of a workflow block - the icon-tile header and optional
+ * label → value rows - WITHOUT the card chrome or handle nubs. Split out so the
  * chat card can host the exact same content while morphing into the first block
  * (the card keeps its own continuous shell; only this content crossfades in).
  */
@@ -60,7 +60,7 @@ export function WorkflowBlockContent({ block }: WorkflowBlockProps) {
 }
 
 /**
- * The decorative edge-handle nubs for a block — an inbound nub on the left
+ * The decorative edge-handle nubs for a block - an inbound nub on the left
  * unless the block is a trigger, an outbound nub on the right unless it's
  * terminal. Absolutely positioned, so the caller must be a `relative` (or
  * otherwise positioned) box of the block's width. Shared so the morphed chat
@@ -96,7 +96,7 @@ export function BlockHandles({ block, handlesVisible = true }: WorkflowBlockProp
  * A pure presentational workflow block card, faithful to the real WorkflowBlock:
  * a fixed-width card with an icon-tile header and optional label → value rows,
  * plus decorative handle nubs on its left and right edges. Stateless and
- * client-free — positioning and the rise animation are owned by the parent stage.
+ * client-free - positioning and the rise animation are owned by the parent stage.
  * `contentVisible`/`handlesVisible` crossfade the content and handles so a block
  * can soften into a shell (used when the Jira block morphs into the KB panel).
  */

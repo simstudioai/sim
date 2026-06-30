@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 /**
- * Legal-page content contract — the entire content a legal route passes to
+ * Legal-page content contract - the entire content a legal route passes to
  * {@link ProsePage}. Every field is content-only: copy strings plus `ReactNode`
  * for inline rich text (bold terms, mailto links via {@link ProseLink}). There
  * is deliberately no `className`, `style`, or layout knob anywhere in this tree;
@@ -16,14 +16,14 @@ import type { ReactNode } from 'react'
 export type LegalBlock =
   /** A body paragraph. `content` may carry inline `<strong>` / {@link ProseLink}. */
   | { kind: 'paragraph'; content: ReactNode }
-  /** A sub-heading inside a section — rendered as `<h3>`. */
+  /** A sub-heading inside a section - rendered as `<h3>`. */
   | { kind: 'subheading'; text: string }
   /** A bulleted list. Each item may carry inline rich text. */
   | { kind: 'list'; items: ReactNode[] }
   /** An emphasized callout box (e.g. the arbitration / GDPR notices). */
   | { kind: 'callout'; content: ReactNode }
 
-/** A numbered (or named) legal section — an `<h2>` plus its ordered blocks. */
+/** A numbered (or named) legal section - an `<h2>` plus its ordered blocks. */
 export interface LegalSection {
   /** Stable id for the `<section>` landmark and `aria-labelledby` wiring. */
   id: string

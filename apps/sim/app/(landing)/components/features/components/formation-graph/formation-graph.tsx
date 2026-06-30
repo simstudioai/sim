@@ -2,10 +2,10 @@ import { AgentIcon, AnthropicIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
- * FormationGraph — the Formation beat's callout: several agents running in
+ * FormationGraph - the Formation beat's callout: several agents running in
  * parallel that fan *in* to one merged result. Deliberately the inverse shape of
  * every other beat (linear trigger → agent → action), and of the workflow behind
- * it — so it reads as "many agents on one problem," not another branching flow.
+ * it - so it reads as "many agents on one problem," not another branching flow.
  *
  * Free-form (no white block): the agent cards sit directly on the faded platform
  * backdrop, wired with `#c9c9c9` bezier edges, exactly as they read on the
@@ -61,7 +61,7 @@ function AgentCard({ className, name, status, model }: AgentCardProps) {
 export function FormationGraph() {
   return (
     <div aria-hidden='true' className='relative h-[300px] w-[520px]'>
-      {/* Edge layer — three parallel agents fanning in to the merge node. */}
+      {/* Edge layer - three parallel agents fanning in to the merge node. */}
       <svg className='absolute inset-0 h-full w-full' fill='none' aria-hidden='true'>
         <path d='M184,28 C260,28 256,140 332,140' stroke='var(--surface-7)' strokeWidth='1.5' />
         <path d='M184,140 C260,140 256,140 332,140' stroke='var(--surface-7)' strokeWidth='1.5' />

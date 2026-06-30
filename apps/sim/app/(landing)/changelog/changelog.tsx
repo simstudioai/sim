@@ -3,13 +3,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ChangelogActions, ChangelogTimeline } from '@/app/(landing)/changelog/components'
 import type { ChangelogEntry, GitHubRelease } from '@/app/(landing)/changelog/types'
 import { mapReleases, releasesEndpoint } from '@/app/(landing)/changelog/utils'
-import { LandingShell } from '@/app/(landing)/components'
 import { ProseHero, ProseShell } from '@/app/(landing)/components/prose-page'
 
 const logger = createLogger('Changelog')
 
 /**
- * Changelog page — reuses the shared prose primitives ({@link ProseShell} +
+ * Changelog page - reuses the shared prose primitives ({@link ProseShell} +
  * {@link ProseHero}) so its headline and column match Terms and Privacy, then
  * renders the GitHub-release timeline. The first page of releases is
  * fetched here on the server at build/revalidate time; the {@link ChangelogTimeline}
@@ -18,7 +17,7 @@ const logger = createLogger('Changelog')
  */
 
 const LEAD =
-  'Every new feature, improvement, and fix in Sim, the open-source AI workspace — release notes straight from GitHub.'
+  'Every new feature, improvement, and fix in Sim, the open-source AI workspace, with release notes straight from GitHub.'
 
 async function getInitialEntries(): Promise<ChangelogEntry[]> {
   try {
@@ -41,13 +40,11 @@ export default async function Changelog() {
   const entries = await getInitialEntries()
 
   return (
-    <LandingShell>
-      <ProseShell>
-        <ProseHero title='Changelog' lead={LEAD} actions={<ChangelogActions />} />
-        <section id='releases' aria-label='Release history'>
-          <ChangelogTimeline initialEntries={entries} />
-        </section>
-      </ProseShell>
-    </LandingShell>
+    <ProseShell>
+      <ProseHero title='Changelog' lead={LEAD} actions={<ChangelogActions />} />
+      <section id='releases' aria-label='Release history'>
+        <ChangelogTimeline initialEntries={entries} />
+      </section>
+    </ProseShell>
   )
 }

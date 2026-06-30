@@ -1,7 +1,7 @@
 import Image from 'next/image'
 
 /**
- * Shared customer-logo block — the single source of truth for the wordmarks
+ * Shared customer-logo block - the single source of truth for the wordmarks
  * shown both in the landing hero (a grid of bordered logo cards on the left half)
  * and on every platform page (a single centered row of bare wordmarks). Neither
  * consumer redefines the data or the per-logo optical sizing; they only pass a
@@ -11,7 +11,7 @@ import Image from 'next/image'
  * ratio (Rivian|VW ≈ 11:1, eXp ≈ 2:1, Mobile Health ≈ 8:1) and in how much of their own
  * viewBox the ink fills, so a single fixed slot makes them read at wildly
  * different sizes. Each logo carries its own optically-tuned {@link Logo.height}
- * — the single knob for balancing them by eye — and renders at its intrinsic
+ * - the single knob for balancing them by eye - and renders at its intrinsic
  * {@link Logo.aspect} (width = height × aspect, rounded). Width following the
  * aspect ratio means no distortion; explicit dimensions mean zero CLS.
  */
@@ -25,14 +25,14 @@ interface Logo {
   name: string
   /** Path to the SVG wordmark under `/public`. */
   src: string
-  /** Intrinsic aspect ratio (width ÷ height from the SVG viewBox) — keeps scaling distortion-free. */
+  /** Intrinsic aspect ratio (width ÷ height from the SVG viewBox) - keeps scaling distortion-free. */
   aspect: number
-  /** Optically-tuned display height in px — the single knob for balancing logos by eye. */
+  /** Optically-tuned display height in px - the single knob for balancing logos by eye. */
   height: number
 }
 
 /**
- * The canonical six customer wordmarks, in row-major reading order — the 3×2
+ * The canonical six customer wordmarks, in row-major reading order - the 3×2
  * hero grid places them as: Rivian|VW (top-left), Russell (top-center),
  * eXp Realty (top-right); Artie (bottom-left), thinkproject (bottom-center),
  * Mobile Health (bottom-right).
@@ -69,11 +69,14 @@ const LOGOS: readonly Logo[] = [
 interface LogosProps {
   /**
    * Layout intent.
-   * - `grid` — the hero's logo wall: each wordmark sits in its own bordered
-   *   `--surface-1` card (the platform card chrome — `rounded-lg`, `--border-1`,
-   *   `h-24` × `w-[180px]`) on a content-hugging 3-up grid (2-up on phones) at a `gap-3` rhythm.
+   * - `grid` - the hero's logo wall: each wordmark sits in its own bordered
+   *   `--surface-1` card (the platform card chrome - `rounded-lg`, `--border-1`,
+   *   `h-24`) on a `gap-3` 3-up grid. On desktop (`xl+`) the grid hugs its content
+   *   with fixed `w-[180px]` cards; below `xl` (where the hero/demo split collapses
+   *   to a stacked column) the grid stretches full-width and the cards flex to fill
+   *   it, dropping to 2-up on phones (`max-sm`) so the wall never wraps early.
    *   Wordmarks render at {@link GRID_ICON_SCALE} of their optical row size.
-   * - `row` — the platform page's single centered row of bare wordmarks.
+   * - `row` - the platform page's single centered row of bare wordmarks.
    */
   layout: 'grid' | 'row'
 }
@@ -93,7 +96,7 @@ export function Logos({ layout }: LogosProps) {
       aria-label='Companies building AI agents with Sim'
       className={
         isGrid
-          ? 'grid w-fit grid-cols-3 gap-3 max-sm:grid-cols-2'
+          ? 'grid w-fit grid-cols-3 gap-3 max-sm:grid-cols-2 max-xl:w-full'
           : 'flex flex-wrap items-center justify-center gap-x-24 gap-y-12'
       }
     >
@@ -104,7 +107,7 @@ export function Logos({ layout }: LogosProps) {
             key={logo.name}
             className={
               isGrid
-                ? 'flex h-24 w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3'
+                ? 'flex h-24 w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3 max-xl:w-full'
                 : undefined
             }
           >

@@ -17,7 +17,7 @@ const STROKE_PAINT = ISO_STROKE
 const LINE_PROPS = createIsoLineProps('iso-integrate-line', STROKE_PAINT)
 
 /**
- * Inline supplied illustration for the Integrate area — a three-tier isometric
+ * Inline supplied illustration for the Integrate area - a three-tier isometric
  * stack (a socket node up top, a connector port on each of the lower tiers).
  * The top and bottom tiers breathe toward the middle on a slow loop; hovering
  * redraws every contour from zero.
