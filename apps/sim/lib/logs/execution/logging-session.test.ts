@@ -67,21 +67,15 @@ vi.mock('@/lib/logs/execution/logger', () => ({
 }))
 
 const {
-  isFeatureEnabledMock,
   setLastStartedBlockMock,
   setLastCompletedBlockMock,
   getProgressMarkersMock,
   clearProgressMarkersMock,
 } = vi.hoisted(() => ({
-  isFeatureEnabledMock: vi.fn().mockResolvedValue(false),
   setLastStartedBlockMock: vi.fn().mockResolvedValue(false),
   setLastCompletedBlockMock: vi.fn().mockResolvedValue(false),
   getProgressMarkersMock: vi.fn().mockResolvedValue({}),
   clearProgressMarkersMock: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: isFeatureEnabledMock,
 }))
 
 vi.mock('@/lib/logs/execution/progress-markers', () => ({
@@ -720,8 +714,7 @@ describe('LoggingSession progress-marker write path', () => {
     dbMocks.execute.mockResolvedValue(undefined)
   })
 
-  it('writes markers to Redis (not the row) when the flag is on and Redis accepts the write', async () => {
-    isFeatureEnabledMock.mockResolvedValue(true)
+  it('writes markers to Redis (not the row) when Redis accepts the write', async () => {
     setLastStartedBlockMock.mockResolvedValue(true)
     setLastCompletedBlockMock.mockResolvedValue(true)
     const session = new LoggingSession('wf-1', 'exec-redis', 'manual', 'req-1')
@@ -741,8 +734,7 @@ describe('LoggingSession progress-marker write path', () => {
     expect(dbMocks.execute).not.toHaveBeenCalled()
   })
 
-  it('falls back to the SQL UPDATE when the flag is on but the Redis write fails', async () => {
-    isFeatureEnabledMock.mockResolvedValue(true)
+  it('falls back to the SQL UPDATE when the Redis write fails', async () => {
     setLastStartedBlockMock.mockResolvedValue(false)
     const session = new LoggingSession('wf-1', 'exec-redis-down', 'manual', 'req-1')
     await session.start({ workspaceId: 'ws-1' })
@@ -751,47 +743,5 @@ describe('LoggingSession progress-marker write path', () => {
 
     expect(setLastStartedBlockMock).toHaveBeenCalled()
     expect(dbMocks.execute).toHaveBeenCalledTimes(1)
-  })
-
-  it('writes markers via jsonb_set UPDATE when the flag is off', async () => {
-    isFeatureEnabledMock.mockResolvedValue(false)
-    const session = new LoggingSession('wf-1', 'exec-sql', 'manual', 'req-1')
-    await session.start({ workspaceId: 'ws-1' })
-
-    await session.onBlockStart('b1', 'Fetch', 'api', '2026-06-27T10:00:00.000Z')
-
-    expect(dbMocks.execute).toHaveBeenCalledTimes(1)
-    expect(setLastStartedBlockMock).not.toHaveBeenCalled()
-  })
-
-  it('falls back to the SQL path when flag resolution throws', async () => {
-    isFeatureEnabledMock.mockRejectedValue(new Error('appconfig unavailable'))
-    const session = new LoggingSession('wf-1', 'exec-fallback', 'manual', 'req-1')
-    await session.start({ workspaceId: 'ws-1' })
-
-    await session.onBlockStart('b1', 'Fetch', 'api', '2026-06-27T10:00:00.000Z')
-
-    expect(dbMocks.execute).toHaveBeenCalledTimes(1)
-    expect(setLastStartedBlockMock).not.toHaveBeenCalled()
-  })
-
-  it('tells completion to read Redis markers only when the flag is on (no wasted ops when off)', async () => {
-    completeWorkflowExecutionMock.mockResolvedValue({})
-
-    isFeatureEnabledMock.mockResolvedValue(true)
-    const onSession = new LoggingSession('wf-1', 'exec-on', 'manual', 'req-1')
-    await onSession.start({ workspaceId: 'ws-1' })
-    await onSession.safeComplete({ finalOutput: { ok: true } })
-    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ executionId: 'exec-on', readProgressMarkers: true })
-    )
-
-    isFeatureEnabledMock.mockResolvedValue(false)
-    const offSession = new LoggingSession('wf-1', 'exec-off', 'manual', 'req-1')
-    await offSession.start({ workspaceId: 'ws-1' })
-    await offSession.safeComplete({ finalOutput: { ok: true } })
-    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ executionId: 'exec-off', readProgressMarkers: false })
-    )
   })
 })

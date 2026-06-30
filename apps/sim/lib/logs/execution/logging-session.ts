@@ -288,7 +288,6 @@ export class LoggingSession {
       isResume: this.isResume,
       level: params.level,
       status: params.status,
-      readProgressMarkers: true,
     })
 
     // Release the admission reservation from preprocessing. Skipped on pause: a
