@@ -239,6 +239,15 @@ export async function maskPIIBatch(
     const chunkTexts = indices.map((i) => texts[i])
     const spansPerText = await analyzeBatch(chunkTexts, entityTypes, language)
 
+    // A short/misaligned batch response would silently leave the unmatched
+    // strings unmasked (fail-open). Throw so the caller applies its fail-safe
+    // (scrub for logs, abort for in-flight stages) instead of leaking PII.
+    if (spansPerText.length !== chunkTexts.length) {
+      throw new Error(
+        `Presidio analyze_batch returned ${spansPerText.length} result(s) for ${chunkTexts.length} input(s)`
+      )
+    }
+
     const toAnonymize: AnonymizeBatchItem[] = []
     const anonymizePositions: number[] = []
     indices.forEach((originalIndex, pos) => {
@@ -252,6 +261,11 @@ export async function maskPIIBatch(
     })
 
     const masked = await anonymizeBatch(toAnonymize)
+    if (masked.length !== toAnonymize.length) {
+      throw new Error(
+        `Presidio anonymize_batch returned ${masked.length} result(s) for ${toAnonymize.length} input(s)`
+      )
+    }
     anonymizePositions.forEach((pos, k) => {
       result[indices[pos]] = masked[k]
     })
