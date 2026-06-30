@@ -188,8 +188,7 @@ export async function importAppendRows(
     }
     return { inserted, table: working }
   })
-  // Audit post-commit: a mid-import row-batch failure rolls the whole tx back,
-  // so the columns are only truly added once db.transaction resolves.
+  // Audit post-commit — a mid-import rollback means the columns weren't added.
   if (additions.length > 0) {
     auditTableColumnsAdded(
       table,
@@ -236,8 +235,7 @@ export async function importReplaceRows(
       requestId
     )
   })
-  // Audit post-commit — see importAppendRows: the columns are only truly added
-  // once the replace transaction resolves.
+  // Audit post-commit (see importAppendRows).
   if (additions.length > 0) {
     auditTableColumnsAdded(
       table,

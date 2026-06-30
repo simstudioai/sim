@@ -87,9 +87,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     runDetached('table-export', () => runTableExport(payload))
   }
 
-  // Audit at authorization (job start), mirroring the sync export route, so an
-  // authorized export is recorded even if the background job later fails or is
-  // abandoned. The actual file egress is captured separately at download time.
+  // Audit at authorization (like the sync route) so a failed/abandoned job still records the export.
   recordAudit({
     workspaceId,
     actorId: authResult.userId,
