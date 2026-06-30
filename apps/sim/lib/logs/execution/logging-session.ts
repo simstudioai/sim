@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
@@ -136,13 +135,6 @@ export class LoggingSession {
   private workflowState?: WorkflowState
   private correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
   private isResume = false
-  /**
-   * Whether per-block progress markers go to Redis (vs jsonb_set UPDATEs on the
-   * log row). Resolved once in {@link start} and cached so an execution never
-   * mixes write paths across its block callbacks. Defaults to the legacy SQL
-   * path until resolved.
-   */
-  private useRedisMarkers = false
   private completed = false
   /** Synchronous flag to prevent concurrent completion attempts (race condition guard) */
   private completing = false
@@ -182,24 +174,12 @@ export class LoggingSession {
   }
 
   /**
-   * Resolve the per-block marker write path (Redis vs jsonb_set UPDATE) for this
-   * session. Defaults to the legacy SQL path if flag resolution fails.
-   */
-  private async resolveRedisMarkerMode(): Promise<boolean> {
-    try {
-      return await isFeatureEnabled('redis-progress-markers')
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Persist the last-started-block marker. Redis is the primary path when the
-   * flag is on; falls back to the durable jsonb_set UPDATE when Redis is
-   * unavailable or the write fails, so a marker is never dropped.
+   * Persist the last-started-block marker. Redis is the primary path; falls back
+   * to the durable jsonb_set UPDATE when Redis is unavailable or the write fails,
+   * so a marker is never dropped.
    */
   private async persistLastStartedBlock(marker: ExecutionLastStartedBlock): Promise<void> {
-    if (this.useRedisMarkers && (await setLastStartedBlock(this.executionId, marker))) {
+    if (await setLastStartedBlock(this.executionId, marker)) {
       return
     }
     try {
@@ -220,12 +200,12 @@ export class LoggingSession {
   }
 
   /**
-   * Persist the last-completed-block marker. Redis is the primary path when the
-   * flag is on; falls back to the durable jsonb_set UPDATE when Redis is
-   * unavailable or the write fails, so a marker is never dropped.
+   * Persist the last-completed-block marker. Redis is the primary path; falls
+   * back to the durable jsonb_set UPDATE when Redis is unavailable or the write
+   * fails, so a marker is never dropped.
    */
   private async persistLastCompletedBlock(marker: ExecutionLastCompletedBlock): Promise<void> {
-    if (this.useRedisMarkers && (await setLastCompletedBlock(this.executionId, marker))) {
+    if (await setLastCompletedBlock(this.executionId, marker)) {
       return
     }
     try {
@@ -308,7 +288,7 @@ export class LoggingSession {
       isResume: this.isResume,
       level: params.level,
       status: params.status,
-      readProgressMarkers: this.useRedisMarkers,
+      readProgressMarkers: true,
     })
 
     // Release the admission reservation from preprocessing. Skipped on pause: a
@@ -356,8 +336,6 @@ export class LoggingSession {
     } = params
 
     try {
-      this.useRedisMarkers = await this.resolveRedisMarkerMode()
-
       this.trigger = createTriggerObject(this.triggerType, triggerData)
       this.correlation = triggerData?.correlation
       this.environment = createEnvironmentObject(
