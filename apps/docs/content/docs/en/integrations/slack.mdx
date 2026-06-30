@@ -1686,6 +1686,186 @@ Publish a static view to a user's Home tab in Slack. Used to create or update th
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
+### `slack_schedule_message`
+
+Schedule a message to be sent to a Slack channel or DM at a future time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel, private group, or DM to receive the message \(e.g., C1234567890\) |
+| `postAt` | number | Yes | Unix timestamp \(seconds\) representing the future time the message should post |
+| `text` | string | No | Message text to send \(supports Slack mrkdwn formatting\) |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
+| `threadTs` | string | No | Thread timestamp to reply to \(creates a scheduled thread reply\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `scheduledMessageId` | string | Identifier of the scheduled message \(used to delete it before it posts\) |
+| `postAt` | number | Unix timestamp when the message will post |
+| `channel` | string | Channel ID where the message is scheduled |
+| `message` | object | The scheduled message object returned by Slack |
+
+### `slack_list_scheduled_messages`
+
+List pending scheduled messages in a Slack workspace, optionally filtered by channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | No | Optional channel ID to filter scheduled messages \(e.g., C1234567890\) |
+| `limit` | number | No | Maximum number of scheduled messages to return |
+| `cursor` | string | No | Pagination cursor \(next_cursor\) from a previous response |
+| `oldest` | string | No | Unix timestamp of the oldest scheduled message to include |
+| `latest` | string | No | Unix timestamp of the latest scheduled message to include |
+| `teamId` | string | No | Encoded team ID \(required only with org-level tokens\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `scheduledMessages` | array | Array of pending scheduled message objects |
+|   ↳ `id` | string | Scheduled message ID |
+|   ↳ `channel_id` | string | Channel the message is scheduled for |
+|   ↳ `post_at` | number | Unix timestamp when the message will post |
+|   ↳ `date_created` | number | Unix timestamp when the schedule was created |
+|   ↳ `text` | string | Scheduled message text |
+| `nextCursor` | string | Cursor for the next page \(null when there are no more pages\) |
+
+### `slack_delete_scheduled_message`
+
+Delete a pending scheduled message before it posts to Slack.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the scheduled message is queued \(e.g., C1234567890\) |
+| `scheduledMessageId` | string | Yes | Scheduled message ID from chat.scheduleMessage \(e.g., Q1234ABCD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the scheduled message was deleted successfully |
+
+### `slack_archive_conversation`
+
+Archive a Slack channel so it is closed to new activity.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | ID of the channel to archive \(e.g., C1234567890\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the conversation was archived successfully |
+
+### `slack_rename_conversation`
+
+Rename an existing Slack channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | ID of the channel to rename \(e.g., C1234567890\) |
+| `name` | string | Yes | New channel name \(lowercase letters, numbers, hyphens, underscores only; max 80 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | The channel object after renaming |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### `slack_set_conversation_topic`
+
+Set the topic for a Slack channel (max 250 characters).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | ID of the channel to update \(e.g., C1234567890\) |
+| `topic` | string | Yes | New topic text \(max 250 characters; no formatting or linkification\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | The channel object after updating the topic |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### `slack_set_conversation_purpose`
+
+Set the purpose (description) for a Slack channel (max 250 characters).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | ID of the channel to update \(e.g., C1234567890\) |
+| `purpose` | string | Yes | New purpose/description text \(max 250 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purpose` | string | The purpose/description that was set on the channel |
+
 
 
 ## Triggers
