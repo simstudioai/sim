@@ -36,7 +36,7 @@ The Function block here runs after both agents complete, with both of their outp
 
 A workflow can split. A [Condition](/workflows/blocks/condition) block branches on an explicit rule; a [Router](/workflows/blocks/router) block lets a model choose the path. Only the branch that is taken runs. A block on a branch that didn't run produces no output, which is why a [connection tag](/workflows/connections) pointing at it comes back empty.
 
-<WorkflowPreview workflow={ROUTING_WORKFLOW} height={340} />
+<WorkflowPreview workflow={ROUTING_WORKFLOW} height={400} />
 
 To repeat work, a [Loop](/workflows/blocks/loop) block runs its inner blocks over a list, a count, or while a condition holds, and a [Parallel](/workflows/blocks/parallel) block runs them for several items at once.
 

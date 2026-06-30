@@ -233,7 +233,7 @@ function PreviewFlow({
  */
 export function WorkflowPreview({
   workflow,
-  height = 260,
+  height = 300,
   animate = false,
   highlightBlock,
   highlightEdge,
