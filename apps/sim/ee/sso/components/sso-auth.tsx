@@ -8,10 +8,7 @@ import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { chatSSOContract } from '@/lib/api/contracts/chats'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
-import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 const logger = createLogger('SSOAuth')
 
@@ -98,77 +95,69 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
   }
 
   return (
-    <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
-        <header className='shrink-0 bg-[var(--landing-bg)]'>
-          <Navbar logoOnly />
-        </header>
-        <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
-          <div className='w-full max-w-lg px-4'>
-            <div className='flex flex-col items-center justify-center'>
-              <div className='space-y-1 text-center'>
-                <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-                  SSO Authentication
-                </h1>
-                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-                  This chat requires SSO authentication
-                </p>
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  handleAuthenticate()
-                }}
-                className='mt-8 w-full max-w-[410px] space-y-6'
-              >
-                <div className='space-y-2'>
-                  <div className='flex items-center justify-between'>
-                    <Label htmlFor='email'>Work Email</Label>
-                  </div>
-                  <Input
-                    id='email'
-                    name='email'
-                    required
-                    type='email'
-                    autoCapitalize='none'
-                    autoComplete='email'
-                    autoCorrect='off'
-                    placeholder='Enter your work email'
-                    value={email}
-                    onChange={handleEmailChange}
-                    onKeyDown={handleKeyDown}
-                    className={cn(
-                      showEmailValidationError &&
-                        emailErrors.length > 0 &&
-                        'border-red-500 focus:border-red-500'
-                    )}
-                  />
-                  {showEmailValidationError && emailErrors.length > 0 && (
-                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {emailErrors.map((error) => (
-                        <p key={error}>{error}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
-                  {isLoading ? (
-                    <span className='flex items-center gap-2'>
-                      <Loader className='size-4' animate />
-                      Redirecting to SSO…
-                    </span>
-                  ) : (
-                    'Continue with SSO'
-                  )}
-                </button>
-              </form>
-            </div>
+    <div className='flex flex-1 items-center justify-center px-4 py-16'>
+      <div className='w-full max-w-[410px]'>
+        <div className='flex flex-col items-center justify-center'>
+          <div className='space-y-1 text-center'>
+            <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
+              SSO Authentication
+            </h1>
+            <p className='text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
+              This chat requires SSO authentication
+            </p>
           </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleAuthenticate()
+            }}
+            className='mt-8 w-full max-w-[410px] space-y-6'
+          >
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='email'>Work Email</Label>
+              </div>
+              <Input
+                id='email'
+                name='email'
+                required
+                type='email'
+                autoCapitalize='none'
+                autoComplete='email'
+                autoCorrect='off'
+                placeholder='Enter your work email'
+                value={email}
+                onChange={handleEmailChange}
+                onKeyDown={handleKeyDown}
+                className={cn(
+                  showEmailValidationError &&
+                    emailErrors.length > 0 &&
+                    'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                )}
+              />
+              {showEmailValidationError && emailErrors.length > 0 && (
+                <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
+                  {emailErrors.map((error) => (
+                    <p key={error}>{error}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
+              {isLoading ? (
+                <span className='flex items-center gap-2'>
+                  <Loader className='size-4' animate />
+                  Redirecting to SSO…
+                </span>
+              ) : (
+                'Continue with SSO'
+              )}
+            </button>
+          </form>
         </div>
-        <SupportFooter position='absolute' />
-      </main>
-    </AuthBackground>
+      </div>
+    </div>
   )
 }

@@ -3,6 +3,7 @@ import { Badge, cn, handleKeyboardActivation } from '@sim/emcn'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '../dimensions'
+import { tileIconColorClass } from '../lib/tile-icon-color'
 import type { BlockRunStatus, DiffStatus } from '../types'
 
 /** Data attached to loop/parallel container nodes. */
@@ -163,7 +164,12 @@ export function SubflowNodeView({
               className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{ backgroundColor: isEnabled ? blockIconBg : 'gray' }}
             >
-              <BlockIcon className='size-[16px] text-white' />
+              <BlockIcon
+                className={cn(
+                  'size-[16px]',
+                  isEnabled ? tileIconColorClass(blockIconBg) : 'text-[var(--text-icon)]'
+                )}
+              />
             </div>
             <span
               className={cn(

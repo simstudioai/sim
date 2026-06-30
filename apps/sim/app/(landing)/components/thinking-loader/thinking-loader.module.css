@@ -1,0 +1,382 @@
+/**
+ * ThinkingLoader gooey animation
+ *
+ * Metaball technique on the SVG alpha channel: ink shapes are blurred with
+ * feGaussianBlur, then feColorMatrix crushes the soft alpha back to hard
+ * edges. Unlike the CSS blur+contrast trick this needs no solid backdrop and
+ * no blend mode, so the loader composites cleanly on any background.
+ *
+ * Every variant is authored in the shared 100x100 viewBox. All stages stack
+ * inside one filtered group; because the alpha crush happens after the
+ * stages composite, crossfading two stages reads as one pattern melting
+ * into the next, which is what drives the cycling morph.
+ *
+ * Ink color rides on currentColor: near-black on light surfaces, off-white
+ * in dark mode.
+ */
+
+.frame {
+  /* currentColor paints the squeeze ring's stroked arcs (the only non-filled
+     geometry). It tracks the loader polarity — dark on light, light on dark —
+     matching the gradient stops below. */
+  color: #2c2c2c;
+  flex: none;
+  /* Loader fill is a radial gradient (center → edge) plus a soft white inner
+     glow, per the Figma loader spec. Stops and glow opacity are theme vars,
+     inherited by the gradient stops and feFlood inside the SVG, so one set of
+     defs serves both themes. Light mode = the DARK-grey loader (reads on white):
+     #2C2C2C → #5F5F5F, glow white 0.6. */
+  --tl-grad-inner: #2c2c2c;
+  --tl-grad-outer: #5f5f5f;
+  --tl-glow: rgba(255, 255, 255, 0.6);
+}
+
+/* Gradient stops + glow flood read the theme vars via CSS (a raw `var()` in an
+   SVG presentation attribute would not resolve — it must come through CSS).
+   `stop-color`/`flood-color` are transitionable even when fed by a var, so a
+   caller that re-points the ink vars (e.g. settling the loader's material into
+   a surface it hands off to) gets a smooth color tween, not a hard flip. */
+.gradInner {
+  stop-color: var(--tl-grad-inner);
+  transition: stop-color 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.gradOuter {
+  stop-color: var(--tl-grad-outer);
+  transition: stop-color 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.glow {
+  flood-color: var(--tl-glow);
+  transition: flood-color 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Wall-clock phase lock: the component sets --tl-sync to a shared negative
+   delay (now mod the common animation period), so every instance's keyframes
+   line up no matter when it mounted. The doubled class out-specifies the
+   shape classes' animation shorthand (implicit 0s delay) regardless of
+   source order. */
+.frame.frame * {
+  animation-delay: var(--tl-sync, 0s);
+}
+
+:global(.dark) .frame {
+  color: #d6d6d6;
+  /* Dark mode = the LIGHT-grey loader (reads on dark): #A7A7A7 → #D6D6D6,
+     glow white 0.9. */
+  --tl-grad-inner: #a7a7a7;
+  --tl-grad-outer: #d6d6d6;
+  --tl-glow: rgba(255, 255, 255, 0.9);
+}
+
+/* An explicit `.light` wrapper (e.g. the always-light landing) re-asserts the
+   dark-grey loader even when an outer `.dark` theme is on the document — the
+   nearer theme wins. Ordered after the `.dark` rule so on equal specificity
+   (both ancestors present) this takes precedence. */
+:global(.light) .frame {
+  color: #2c2c2c;
+  --tl-grad-inner: #2c2c2c;
+  --tl-grad-outer: #5f5f5f;
+  --tl-glow: rgba(255, 255, 255, 0.6);
+}
+
+.labelRow {
+  display: inline-flex;
+  align-items: center;
+  /* gap + label size scale with the loader (vars set per-instance); defaults
+     match the chat's size-20 loader (8px gap, 14px text). */
+  gap: var(--tl-label-gap, 8px);
+  /* The status phrase must never break onto a second line — the glyph + phrase
+     stay on one row regardless of phrase length or how narrow the available
+     width is (e.g. the hero loader docked near the card's right edge).
+     white-space inherits, so this one declaration reaches both the shimmer
+     (.label) and static (.labelStatic) text spans. */
+  white-space: nowrap;
+}
+
+/* Claude-style shimmer: the text paints from a gradient with a light band
+   that sweeps across the glyphs via background-clip. */
+.label {
+  font-size: var(--tl-label-size, 14px);
+  /* Canonical normal weight (per emcn rules: body text is 400, never medium).
+     Reads light and clean under the shimmer gradient on light surfaces. */
+  font-weight: 400;
+  background-image: linear-gradient(90deg, #4a4a4a 40%, #b0b0b0 50%, #4a4a4a 60%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: label-shimmer 2.2s linear infinite;
+}
+
+:global(.dark) .label {
+  background-image: linear-gradient(90deg, #b9b9b9 40%, #f8f8f8 50%, #b9b9b9 60%);
+}
+
+/* Static label (shimmer off): the phrase in solid body ink, no gradient sweep. */
+.labelStatic {
+  font-size: var(--tl-label-size, 14px);
+  font-weight: 400;
+  color: var(--text-body);
+}
+
+@keyframes label-shimmer {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+/* Phrase crossfade — the incoming phrase rises and fades in while the outgoing
+   one rises and fades out (stacked over it), so phrases rotate smoothly. */
+.labelStack {
+  position: relative;
+  display: inline-flex;
+}
+.labelLayer {
+  display: inline-flex;
+}
+/* Incoming phrase wipes in left → right through an animated gradient mask
+   (soft trailing edge), so it's revealed horizontally rather than fading up. */
+.labelIn {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 70%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 70%, transparent 100%);
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: label-reveal 460ms ease both;
+}
+.labelOut {
+  position: absolute;
+  inset: 0;
+  animation: label-out 300ms ease both;
+}
+@keyframes label-reveal {
+  from {
+    opacity: 0;
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+  to {
+    opacity: 1;
+    -webkit-mask-position: 0% 0;
+    mask-position: 0% 0;
+  }
+}
+@keyframes label-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.stage {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.stageActive {
+  opacity: 1;
+}
+
+/* metaballs — two circles drift apart and melt back together */
+.metaballsA {
+  animation: metaballs-a 1s infinite alternate;
+}
+.metaballsB {
+  animation: metaballs-b 1s infinite alternate;
+}
+@keyframes metaballs-a {
+  90%,
+  100% {
+    transform: translateX(28px);
+  }
+}
+@keyframes metaballs-b {
+  90%,
+  100% {
+    transform: translateX(-28px);
+  }
+}
+
+/* relay (Return) — always left → right: the ball emerges from the left post,
+   travels across, and dissolves into the right post (the goo morphs it into
+   that shape). It fades out at the right and in at the left, so the reset back
+   to the start happens while invisible — no bounce, no hard snap. */
+.relayBall {
+  animation: relay 1.3s linear infinite;
+}
+@keyframes relay {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(58px);
+    opacity: 0;
+  }
+}
+
+/* corners — four dots rotate around a center square */
+.cornersA {
+  animation: corners-a 0.8s infinite;
+}
+.cornersB {
+  animation: corners-b 0.8s infinite;
+}
+.cornersC {
+  animation: corners-c 0.8s infinite;
+}
+.cornersD {
+  animation: corners-d 0.8s infinite;
+}
+@keyframes corners-a {
+  100% {
+    transform: translate(46px, 0);
+  }
+}
+@keyframes corners-b {
+  100% {
+    transform: translate(0, 46px);
+  }
+}
+@keyframes corners-c {
+  100% {
+    transform: translate(-46px, 0);
+  }
+}
+@keyframes corners-d {
+  100% {
+    transform: translate(0, -46px);
+  }
+}
+
+/* burst — four dots repeatedly fling out of a center cross */
+.burstUp {
+  animation: burst-up 0.8s infinite;
+}
+.burstDown {
+  animation: burst-down 0.8s infinite;
+}
+.burstLeft {
+  animation: burst-left 0.8s infinite;
+}
+.burstRight {
+  animation: burst-right 0.8s infinite;
+}
+@keyframes burst-up {
+  100% {
+    transform: translateY(-50px);
+  }
+}
+@keyframes burst-down {
+  100% {
+    transform: translateY(50px);
+  }
+}
+@keyframes burst-left {
+  100% {
+    transform: translateX(-50px);
+  }
+}
+@keyframes burst-right {
+  100% {
+    transform: translateX(50px);
+  }
+}
+
+/* compass — one dot tours the four cardinal points */
+.compassMover {
+  animation: compass 2s infinite;
+}
+@keyframes compass {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(27px, 27px);
+  }
+  50% {
+    transform: translate(0, 54px);
+  }
+  75% {
+    transform: translate(-27px, 27px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* squeeze — two bars pinch together inside the ring arcs */
+.squeezeBarL {
+  animation: squeeze-l 0.6s infinite alternate;
+}
+.squeezeBarR {
+  animation: squeeze-r 0.6s infinite alternate;
+}
+@keyframes squeeze-l {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(10px);
+  }
+}
+@keyframes squeeze-r {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-10px);
+  }
+}
+
+/* thinking — three small blobs drift out from the core and back on offset
+   periods (1.3/1.6/1.9s), so the merged cloud churns and never repeats:
+   the Core weighing options. */
+.thinkA {
+  animation: think-a 1.6s infinite alternate;
+}
+.thinkB {
+  animation: think-b 1.9s infinite alternate;
+}
+.thinkC {
+  animation: think-c 1.3s infinite alternate;
+}
+@keyframes think-a {
+  100% {
+    transform: translate(-20px, -14px);
+  }
+}
+@keyframes think-b {
+  100% {
+    transform: translate(22px, -10px);
+  }
+}
+@keyframes think-c {
+  100% {
+    transform: translate(2px, 22px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame *,
+  .label,
+  .labelIn {
+    animation: none;
+  }
+  .gradInner,
+  .gradOuter,
+  .glow {
+    transition: none;
+  }
+  /* No crossfade — the incoming phrase just replaces the outgoing one. */
+  .labelOut {
+    display: none;
+  }
+}

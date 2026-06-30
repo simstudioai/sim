@@ -58,11 +58,11 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     rows: [
       {
         label: 'Monthly credits',
-        values: ['1,000 (trial)', '6,000/mo', '25,000/mo', 'Custom'],
+        values: ['1,000', '6,000', '25,000', 'Custom'],
       },
       {
         label: 'Daily refresh',
-        values: [false, '+50/day', '+200/day', 'Custom'],
+        values: [false, '+50', '+200', 'Custom'],
       },
     ],
   },

@@ -6,9 +6,9 @@ import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/l
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
 
 const PILL_BASE =
-  'rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-0.5 text-[13.5px] text-[var(--landing-text)] transition-colors' as const
-const PILL_ACTIVE = 'bg-[var(--landing-bg-elevated)]' as const
-const PILL_INACTIVE = 'hover:bg-[var(--landing-bg-elevated)]' as const
+  'rounded-[5px] border border-[var(--border-1)] px-[9px] py-0.5 text-small text-[var(--text-primary)] transition-colors' as const
+const PILL_ACTIVE = 'bg-[var(--surface-active)]' as const
+const PILL_INACTIVE = 'hover:bg-[var(--surface-hover)]' as const
 
 interface IntegrationGridProps {
   integrations: readonly Integration[]
@@ -77,10 +77,10 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         ))}
       </div>
 
-      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <div className='h-px w-full bg-[var(--border)]' />
 
       {filtered.length === 0 ? (
-        <p className='py-12 text-center text-[15px] text-[var(--landing-text-subtle)]'>
+        <p className='py-12 text-center text-[15px] text-[var(--text-muted)]'>
           No integrations found
           {query ? <> for &ldquo;{query}&rdquo;</> : null}
           {activeCategory ? <> in {formatIntegrationType(activeCategory)}</> : null}

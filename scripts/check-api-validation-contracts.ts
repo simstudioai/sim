@@ -31,7 +31,6 @@ const BOUNDARY_POLICY_BASELINE = {
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
-  'apps/sim/app/api/contact/route.ts',
   'apps/sim/app/api/demo-requests/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',
@@ -101,7 +100,6 @@ const INDIRECT_ZOD_ROUTES = new Set([
  */
 const RAW_JSON_BASELINE_ROUTES = new Set([
   'apps/sim/app/api/billing/portal/route.ts',
-  'apps/sim/app/api/contact/route.ts',
   'apps/sim/app/api/copilot/api-keys/generate/route.ts',
   'apps/sim/app/api/copilot/api-keys/validate/route.ts',
   'apps/sim/app/api/copilot/chat/abort/route.ts',

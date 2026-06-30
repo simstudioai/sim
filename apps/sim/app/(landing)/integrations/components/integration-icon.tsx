@@ -1,13 +1,14 @@
 import type { ComponentType, ElementType, HTMLAttributes, SVGProps } from 'react'
 import { cn } from '@sim/emcn'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 
 interface IntegrationIconProps extends HTMLAttributes<HTMLElement> {
   bgColor: string
-  /** Integration name — used for the fallback initial letter. */
+  /** Integration name - used for the fallback initial letter. */
   name: string
   /** Optional icon component. When absent, renders the first letter of `name`. */
   Icon?: ComponentType<SVGProps<SVGSVGElement>> | null
-  /** Tailwind size + rounding classes for the container. Default: `h-10 w-10 rounded-lg` */
+  /** Tailwind size + rounding classes for the container. Default: `h-10 w-10 rounded-xl` */
   className?: string
   /** Tailwind size classes for the icon SVG. Default: `h-5 w-5` */
   iconClassName?: string
@@ -39,9 +40,11 @@ export function IntegrationIcon({
       {...rest}
     >
       {Icon ? (
-        <Icon className={cn(iconClassName, 'text-white')} />
+        <Icon className={cn(iconClassName, getTileIconColorClass(bgColor))} />
       ) : (
-        <span className={cn('text-white leading-none', fallbackClassName)}>{name.charAt(0)}</span>
+        <span className={cn('leading-none', getTileIconColorClass(bgColor), fallbackClassName)}>
+          {name.charAt(0)}
+        </span>
       )}
     </Tag>
   )
