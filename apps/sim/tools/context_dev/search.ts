@@ -94,7 +94,13 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
           body.numResults = Math.min(100, Math.max(10, requested))
         }
       }
-      if (params.country) body.country = String(params.country).trim().toUpperCase()
+      if (params.country) {
+        const country = String(params.country).trim().toUpperCase()
+        if (!/^[A-Z]{2}$/.test(country)) {
+          throw new Error('country must be a 2-letter ISO 3166-1 alpha-2 code (e.g., US)')
+        }
+        body.country = country
+      }
       if (params.queryFanout != null) body.queryFanout = params.queryFanout
       if (params.markdownEnabled != null) {
         body.markdownOptions = { enabled: params.markdownEnabled }
