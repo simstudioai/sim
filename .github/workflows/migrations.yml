@@ -69,7 +69,18 @@ jobs:
 
           if [ "${ENVIRONMENT}" = "dev" ]; then
             echo "Dev environment — pushing schema directly (db:push)"
-            bun run db:push --force
+            # `--force` only suppresses the data-loss confirm, not drizzle's
+            # rename-vs-drop prompt, which fires (and crashes, no TTY) when a
+            # diff both adds and drops tables/columns at once. Turn that opaque
+            # crash into an actionable failure instead of a bare stack trace.
+            push_output="$(bun run db:push --force 2>&1)" && push_status=0 || push_status=$?
+            echo "$push_output"
+            if [ "$push_status" -ne 0 ]; then
+              if printf '%s' "$push_output" | grep -q 'Interactive prompts require a TTY'; then
+                echo "::error title=Dev schema push needs manual reconciliation::drizzle-kit push hit an interactive rename/drop prompt that CI cannot answer. The dev DB has drifted from schema.ts: it still holds table(s)/column(s) the schema no longer declares while the schema also adds new ones, so drizzle cannot tell a rename from a drop+create. Fix: drop the stale objects on the dev DB to match schema.ts — the same DROPs the latest versioned migration already applied to staging/prod (grep packages/db/migrations for the most recent DROP TABLE / DROP COLUMN) — then re-run this workflow. --force cannot bypass this prompt."
+              fi
+              exit "$push_status"
+            fi
           else
             echo "Applying versioned migrations (db:migrate)"
             bun run ./scripts/migrate.ts
