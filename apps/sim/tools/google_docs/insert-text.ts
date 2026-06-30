@@ -40,7 +40,7 @@ export const insertTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertTe
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The zero-based character index at which to insert the text. When omitted, text is appended to the end of the document.',
+        'The character index (the document body starts at index 1) at which to insert the text. When omitted, text is appended to the end of the document.',
     },
   },
   request: {

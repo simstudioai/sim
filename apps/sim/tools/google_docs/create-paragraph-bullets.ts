@@ -56,7 +56,8 @@ export const createParagraphBulletsTool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The zero-based start character index of the range to bullet (inclusive)',
+      description:
+        'The start character index (the document body starts at index 1) of the range to bullet (inclusive)',
     },
     endIndex: {
       type: 'number',

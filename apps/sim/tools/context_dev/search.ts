@@ -87,8 +87,14 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
       if (params.includeDomains?.length) body.includeDomains = params.includeDomains
       if (params.excludeDomains?.length) body.excludeDomains = params.excludeDomains
       if (params.freshness) body.freshness = params.freshness
-      if (params.numResults != null) body.numResults = params.numResults
-      if (params.country) body.country = params.country
+      if (params.numResults != null) {
+        // Context.dev accepts 10-100 results — clamp to the documented bounds.
+        const requested = Math.trunc(Number(params.numResults))
+        if (Number.isFinite(requested)) {
+          body.numResults = Math.min(100, Math.max(10, requested))
+        }
+      }
+      if (params.country) body.country = String(params.country).trim().toUpperCase()
       if (params.queryFanout != null) body.queryFanout = params.queryFanout
       if (params.markdownEnabled != null) {
         body.markdownOptions = { enabled: params.markdownEnabled }
