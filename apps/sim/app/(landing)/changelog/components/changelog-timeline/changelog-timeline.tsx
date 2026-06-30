@@ -1,11 +1,11 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { Avatar, AvatarFallback, AvatarImage, Chip, cn } from '@sim/emcn'
-import { useChangelogReleases } from '@/app/(landing)/changelog/components/changelog-timeline/use-changelog-releases'
-import type { ChangelogEntry } from '@/app/(landing)/changelog/types'
+import type { ChangelogEntry, GitHubRelease } from '@/app/(landing)/changelog/types'
+import { mapReleases, releasesEndpoint } from '@/app/(landing)/changelog/utils'
 
 /**
  * The changelog timeline - the single client leaf of the changelog page. Renders
@@ -62,9 +62,35 @@ function formatDate(value: string): string {
 }
 
 export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useChangelogReleases(initialEntries)
-  const entries = data?.pages.flat() ?? initialEntries
+  const [entries, setEntries] = useState<ChangelogEntry[]>(initialEntries)
+  const [page, setPage] = useState<number>(1)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [done, setDone] = useState<boolean>(false)
+
+  const loadMore = async () => {
+    if (loading || done) return
+    setLoading(true)
+    try {
+      const nextPage = page + 1
+      // boundary-raw-fetch: external GitHub Releases API (cross-origin), not a same-origin contract
+      const res = await fetch(releasesEndpoint(nextPage), {
+        headers: { Accept: 'application/vnd.github+json' },
+      })
+      const releases = (await res.json()) as GitHubRelease[]
+      const mapped = mapReleases(releases ?? [])
+
+      if (mapped.length === 0) {
+        setDone(true)
+      } else {
+        setEntries((prev) => [...prev, ...mapped])
+        setPage(nextPage)
+      }
+    } catch {
+      setDone(true)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className='flex flex-col gap-7'>
@@ -187,10 +213,10 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
         )
       })}
 
-      {hasNextPage ? (
+      {!done ? (
         <div>
-          <Chip type='button' flush onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-            {isFetchingNextPage ? 'Loading…' : 'Show more'}
+          <Chip type='button' flush onClick={loadMore} disabled={loading}>
+            {loading ? 'Loading…' : 'Show more'}
           </Chip>
         </div>
       ) : null}
