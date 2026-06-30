@@ -108,7 +108,7 @@ describe('resolveEffectivePiiRedaction', () => {
       })
     })
 
-    it('keeps an enabled stage active (redact all) when it has no entity types, and disables a disabled stage', () => {
+    it('disables a stage that is enabled but has no entity types (empty = off)', () => {
       const result = resolveEffectivePiiRedaction({
         orgSettings: settings([
           {
@@ -123,9 +123,7 @@ describe('resolveEffectivePiiRedaction', () => {
         ]),
         workspaceId: 'ws-1',
       })
-      // enabled + empty entityTypes = redact ALL detected PII (not disabled).
-      expect(result.input).toEqual({ enabled: true, entityTypes: [], language: 'en' })
-      // disabled stage stays off regardless of its entity types.
+      expect(result.input).toEqual(DISABLED)
       expect(result.blockOutputs).toEqual(DISABLED)
       expect(result.logs).toEqual({ enabled: true, entityTypes: ['PERSON'], language: 'en' })
     })

@@ -113,14 +113,24 @@ export const userFileSchema = z
   })
   .passthrough()
 
-/** Per-stage redaction policy: which entity types to mask, in which language. */
-export const piiStagePolicySchema = z.object({
-  enabled: z.boolean(),
-  /** Presidio entity types to mask. Empty (or disabled) = redact nothing. */
-  entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
-  /** Language whose Presidio recognizers apply; defaults to English. */
-  language: z.enum(PII_LANGUAGE_CODES).optional(),
-})
+/**
+ * Per-stage redaction policy: which entity types to mask, in which language. An
+ * enabled stage must name at least one entity type — "redact all" is not an
+ * expressible policy, so `enabled: true` with an empty list (which would resolve
+ * to off and silently skip masking) is rejected at the boundary.
+ */
+export const piiStagePolicySchema = z
+  .object({
+    enabled: z.boolean(),
+    /** Presidio entity types to mask. Disabled stages may be empty. */
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
+    /** Language whose Presidio recognizers apply; defaults to English. */
+    language: z.enum(PII_LANGUAGE_CODES).optional(),
+  })
+  .refine((stage) => !stage.enabled || stage.entityTypes.length > 0, {
+    message: 'An enabled redaction stage must select at least one entity type.',
+    path: ['entityTypes'],
+  })
 
 export type PiiStagePolicy = z.output<typeof piiStagePolicySchema>
 

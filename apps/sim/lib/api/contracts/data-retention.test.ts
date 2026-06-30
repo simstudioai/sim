@@ -106,6 +106,32 @@ describe('piiRedactionRuleSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects an enabled stage with no entity types (redact-all is not expressible)', () => {
+    const result = piiRedactionRuleSchema.safeParse({
+      id: 'r-1',
+      workspaceId: null,
+      stages: {
+        input: stage(true, []),
+        blockOutputs: stage(false, []),
+        logs: stage(false, []),
+      },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts a disabled stage with no entity types (off)', () => {
+    const result = piiRedactionRuleSchema.safeParse({
+      id: 'r-1',
+      workspaceId: null,
+      stages: {
+        input: stage(false, []),
+        blockOutputs: stage(false, []),
+        logs: stage(true, ['PERSON']),
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
   it('rejects an unsupported stage language', () => {
     const result = piiRedactionRuleSchema.safeParse({
       id: 'r-1',

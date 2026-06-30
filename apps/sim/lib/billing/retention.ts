@@ -38,17 +38,18 @@ function sanitizeEntityTypes(value: unknown): string[] {
 }
 
 /**
- * Expand a stored stage policy into its effective form. A disabled stage redacts
- * nothing. An ENABLED stage with no entity types redacts ALL detected PII — the
- * masking layer omits `entities` from the Presidio request — so it stays active;
- * treating enabled-but-empty as disabled would let an explicit "redact all" save
- * silently skip masking (fail-open).
+ * Expand a stored stage policy into its effective form. A stage redacts nothing
+ * unless it is enabled AND names at least one entity type. "Redact all" is not an
+ * expressible policy (the checkbox UI has no such control, and the contract
+ * rejects enabled-with-no-types), so an empty entity list always means "off" —
+ * consistent across the UI, the contract, and the masking layer.
  */
 function toEffectiveStage(policy: PiiStagePolicy | undefined): EffectivePiiStage {
-  if (!policy?.enabled) return DISABLED_STAGE
+  const types = sanitizeEntityTypes(policy?.entityTypes)
+  if (!policy?.enabled || types.length === 0) return DISABLED_STAGE
   return {
     enabled: true,
-    entityTypes: sanitizeEntityTypes(policy.entityTypes),
+    entityTypes: types,
     language: coercePiiLanguage(policy.language) ?? DEFAULT_PII_LANGUAGE,
   }
 }
@@ -60,10 +61,9 @@ function toEffectiveStage(policy: PiiStagePolicy | undefined): EffectivePiiStage
  * selection is whole-rule; the selected rule is then expanded into three stages.
  *
  * Back-compat: a legacy rule with no `stages` is treated exactly as it was before
- * — logs-only, masking its flat `entityTypes` (input/blockOutputs disabled); an
- * empty flat `entityTypes` redacts nothing (the workspace-exemption shape). For
- * per-stage rules an enabled stage with no entity types redacts ALL detected PII
- * (see {@link toEffectiveStage}). Defensive about the loosely-typed JSON column.
+ * — logs-only, masking its flat `entityTypes` (input/blockOutputs disabled). A
+ * resolved stage with no entity types redacts nothing (an empty list is the
+ * workspace-exemption / off shape). Defensive about the loosely-typed JSON column.
  */
 export function resolveEffectivePiiRedaction(params: {
   orgSettings: DataRetentionSettings | null | undefined
