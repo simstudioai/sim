@@ -1,4 +1,5 @@
 import { generateId } from '@sim/utils/id'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
@@ -85,19 +86,22 @@ export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
     if (file === null || typeof file !== 'object') return false
     const f = file as InputFormatFile
     // Require the full run-ready shape the executor's normalizeStartFile needs,
-    // including a usable `key` (the uploader always sets one), so a partial
-    // object or an external/signed URL never opens in uploader mode or reaches
-    // the files channel only to be rejected — which would silently drop every
-    // file. Anything short of this falls back to the JSON editor.
+    // with a recoverable key: either an explicit non-empty `key`, or an internal
+    // `/api/files/serve/...` URL the executor can recover the key from (same rule
+    // as normalizeStartFile). A partial object or external/signed URL without a
+    // key is rejected so it never opens in uploader mode or reaches the files
+    // channel only to be dropped; it falls back to the JSON editor instead.
+    const hasRecoverableKey =
+      (typeof f.key === 'string' && f.key.length > 0) ||
+      (typeof f.url === 'string' && isInternalFileUrl(f.url))
     return (
       typeof f.id === 'string' &&
       typeof f.name === 'string' &&
       typeof f.url === 'string' &&
-      typeof f.key === 'string' &&
-      f.key.length > 0 &&
       typeof f.size === 'number' &&
       Number.isFinite(f.size) &&
-      typeof f.type === 'string'
+      typeof f.type === 'string' &&
+      hasRecoverableKey
     )
   })
 }

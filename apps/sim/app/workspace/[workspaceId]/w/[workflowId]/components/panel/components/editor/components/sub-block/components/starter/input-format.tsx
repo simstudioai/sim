@@ -493,9 +493,14 @@ export function FieldFormat({
     }
 
     if (isFileFieldType(field.type)) {
-      const mode = fileFieldModes[field.id] ?? defaultFileFieldMode(field.value)
+      // The uploader is only offered when it can represent the stored value
+      // losslessly (empty or all run-ready). For mixed/legacy values it would
+      // drop the entries it can't show on save, so we force JSON mode and hide
+      // the toggle until the value is cleared or made fully run-ready.
+      const canUseUploader = defaultFileFieldMode(field.value) === 'upload'
+      const mode = canUseUploader ? (fileFieldModes[field.id] ?? 'upload') : 'json'
 
-      const modeToggle = (
+      const modeToggle = canUseUploader ? (
         <div className='flex justify-end'>
           <Button
             type='button'
@@ -512,7 +517,7 @@ export function FieldFormat({
             {mode === 'upload' ? 'Enter JSON manually' : 'Use file uploader'}
           </Button>
         </div>
-      )
+      ) : null
 
       if (mode === 'upload') {
         const currentFiles = parseInputFormatFiles(field.value)

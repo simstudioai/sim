@@ -300,10 +300,16 @@ describe('parseInputFormatFiles', () => {
     ).toEqual([])
   })
 
-  it.concurrent('rejects files without a usable key', () => {
+  it.concurrent('rejects files with no key and a non-internal url (key unrecoverable)', () => {
     const { key, ...noKey } = file
-    expect(parseInputFormatFiles(JSON.stringify([noKey]))).toEqual([])
-    expect(parseInputFormatFiles(JSON.stringify([{ ...file, key: '' }]))).toEqual([])
+    const external = { ...noKey, url: 'https://example.com/x.pdf' }
+    expect(parseInputFormatFiles(JSON.stringify([external]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...external, key: '' }]))).toEqual([])
+  })
+
+  it.concurrent('accepts a key-less file when the url is an internal serve url', () => {
+    const { key, ...noKey } = file
+    expect(parseInputFormatFiles(JSON.stringify([noKey]))).toEqual([noKey])
   })
 })
 
