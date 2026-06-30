@@ -22,10 +22,16 @@ export function WorkspaceScopeSync() {
 
   useEffect(() => {
     if (!workspaceId) return
-    posthog?.group('workspace', workspaceId, workspaceName ? { name: workspaceName } : undefined)
     if (organizationId) {
       posthog?.group('organization', organizationId)
+    } else {
+      // A personal workspace has no org — drop any organization group carried
+      // over from a previously-active team workspace so later events don't keep
+      // rolling up under it. resetGroups clears all groups, so the workspace
+      // group is re-applied immediately below.
+      posthog?.resetGroups()
     }
+    posthog?.group('workspace', workspaceId, workspaceName ? { name: workspaceName } : undefined)
   }, [posthog, workspaceId, workspaceName, organizationId])
 
   useEffect(() => {
