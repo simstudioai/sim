@@ -40,7 +40,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
               className='size-6 rounded-md object-cover'
             />
           )}
-          <h2 className='font-medium text-[var(--landing-text)] text-lg'>
+          <h2 className='font-medium text-[var(--text-primary)] text-lg'>
             {chatConfig?.customizations?.headerText || chatConfig?.title || 'Chat'}
           </h2>
         </div>
@@ -52,7 +52,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
             href='https://github.com/simstudioai/sim'
             target='_blank'
             rel='noopener noreferrer'
-            className='flex items-center gap-2 text-[var(--landing-text-muted)] text-md transition-colors hover:text-[var(--landing-text)]'
+            className='flex items-center gap-2 text-[var(--text-muted)] text-md transition-colors hover:text-[var(--text-primary)]'
             aria-label={`GitHub repository - ${starCount} stars`}
           >
             <GithubIcon className='size-[16px]' aria-hidden='true' />
@@ -67,7 +67,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
             aria-label='Sim home'
           >
             <Image
-              src='/logo/sim-landing.svg'
+              src='/logo/wordmark-dark.svg'
               alt='Sim'
               width={71}
               height={22}

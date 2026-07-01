@@ -1,11 +1,10 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { Mic, MicOff, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { Button } from '@/components/ui/button'
 import { requestJson } from '@/lib/api/client/request'
 import { speechTokenContract } from '@/lib/api/contracts/media/speech'
 import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
@@ -525,7 +524,7 @@ export function VoiceInterface({
   return (
     <div
       className={cn(
-        'dark fixed inset-0 z-[100] flex flex-col bg-[var(--landing-bg)] text-[var(--landing-text)]',
+        'light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]',
         className
       )}
     >
@@ -544,40 +543,32 @@ export function VoiceInterface({
         <div className='mb-16 flex h-24 items-center justify-center'>
           {currentTranscript && (
             <div className='max-w-2xl px-8'>
-              <p className='overflow-hidden text-center text-[var(--landing-text)] text-xl leading-relaxed'>
+              <p className='overflow-hidden text-center text-[var(--text-primary)] text-xl leading-relaxed'>
                 {currentTranscript}
               </p>
             </div>
           )}
         </div>
 
-        <p className='mb-8 text-center text-[var(--landing-text-muted)] text-lg'>
+        <p className='mb-8 text-center text-[var(--text-muted)] text-lg'>
           {getStatusText()}
-          {isMuted && (
-            <span className='ml-2 text-[var(--landing-text-muted)] text-sm'>(Muted)</span>
-          )}
+          {isMuted && <span className='ml-2 text-[var(--text-muted)] text-sm'>(Muted)</span>}
         </p>
       </div>
 
       <div className='px-8 pb-12'>
         <div className='flex items-center justify-center gap-x-12'>
-          <Button
-            onClick={handleCallEnd}
-            variant='outline'
-            size='icon'
-            className='size-14 rounded-full border-[var(--border-1)] hover:bg-[var(--landing-bg-elevated)]'
-          >
+          <Button onClick={handleCallEnd} variant='outline' className='size-14 rounded-full p-0'>
             <Phone className='size-6 rotate-[135deg]' />
           </Button>
 
           <Button
             onClick={toggleMute}
             variant='outline'
-            size='icon'
             disabled={!isInitialized}
             className={cn(
-              'h-14 w-14 rounded-full border-[var(--border-1)] bg-transparent hover:bg-[var(--landing-bg-elevated)]',
-              isMuted ? 'text-[var(--landing-text-muted)]' : 'text-[var(--landing-text)]'
+              'size-14 rounded-full p-0',
+              isMuted ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'
             )}
           >
             {getButtonContent()}
