@@ -75,6 +75,21 @@ return [...items].sort(compare)
 
 **Do NOT reach for `toSorted()` / `toReversed()` / `with()` / `toSpliced()` on client render paths.** They are ES2023 *runtime* methods — and a tsconfig `"lib": ["ES2023"]` only makes them **type-check**, it does not make them **run**. Next/SWC compiles syntax but does **not** polyfill prototype methods, and the default browserslist still includes browsers without them (`toSorted` landed in Safari 16 / iOS 16, so any device capped at iOS 15 throws `TypeError: x.toSorted is not a function` and crashes the page). The perf difference vs `[...arr].sort()` is negligible (both allocate one array), so the copy-then-sort form is the correct default everywhere client code runs. Only consider the immutable methods in Node-only code (server routes, scripts) on Node ≥20, where the runtime is known.
 
+## Run independent awaits in parallel
+
+Sequential `await`s that don't consume each other's result serialize latency for nothing — in an async Server Component or a route handler this directly delays the response. Kick them off together with `Promise.all` and destructure.
+
+```typescript
+// ✗ Bad — waits for params, then separately waits for searchParams
+const { id } = await params
+const { kbName } = await searchParams
+
+// ✓ Good — one combined wait
+const [{ id }, { kbName }] = await Promise.all([params, searchParams])
+```
+
+Only keep awaits sequential when a later call genuinely uses an earlier result, or when the ordering is deliberate (rate-limited batches, retry loops, write-then-read).
+
 ## Local feature barrels are the convention — do not "fix" them
 
 Tooling (e.g. react-doctor's `no-barrel-import`) will flag imports from local `index.ts` barrels as a bundle cost. In this repo that is a **false positive**: barrel imports for 3+ export folders are mandated by `.claude/rules/sim-imports.md`. Leave them.
