@@ -1,6 +1,6 @@
 name: companion-pr-check
 
-# Soft, NON-BLOCKING warning: when a PR targeting staging/main declares a
+# Soft, NON-BLOCKING warning: when a PR targeting dev/staging/main declares a
 # cross-repo "Companion:" PR, surface whether that companion is merged yet, so
 # copilot and sim stay in lockstep (a change in one often needs the other).
 #
@@ -19,7 +19,7 @@ on:
   # re-edit the PR (or run this workflow manually via the Actions tab).
   pull_request:
     types: [opened, edited, reopened, synchronize]
-    branches: [staging, main]
+    branches: [dev, staging, main]
   workflow_dispatch: {}
 
 permissions:
@@ -199,8 +199,8 @@ jobs:
             if (context.eventName === 'pull_request') {
               await checkPR(context.payload.pull_request);
             } else {
-              // workflow_dispatch only: manual full re-scan of open staging/main PRs.
-              for (const b of ['staging', 'main']) {
+              // workflow_dispatch only: manual full re-scan of open dev/staging/main PRs.
+              for (const b of ['dev', 'staging', 'main']) {
                 const prs = await github.paginate(github.rest.pulls.list, { owner, repo, base: b, state: 'open', per_page: 100 });
                 for (const pr of prs) await checkPR(pr);
               }
