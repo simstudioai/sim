@@ -364,7 +364,7 @@ import {
   servicenowWebhookTrigger,
 } from '@/triggers/servicenow'
 import { simWorkspaceEventTrigger } from '@/triggers/sim'
-import { slackWebhookTrigger } from '@/triggers/slack'
+import { slackOAuthTrigger, slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { tableNewRowTrigger } from '@/triggers/table'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
@@ -406,6 +406,7 @@ import {
 } from '@/triggers/zoom'
 
 export const TRIGGER_REGISTRY: TriggerRegistry = {
+  slack_oauth: slackOAuthTrigger,
   slack_webhook: slackWebhookTrigger,
   airtable_webhook: airtableWebhookTrigger,
   ashby_application_submit: ashbyApplicationSubmitTrigger,

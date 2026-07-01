@@ -373,7 +373,10 @@ export async function syncAllWebhooksForCredentialSet(
 
     const { credentialId: _cId, userId: _uId, basePath: _bp, ...baseConfig } = config
     const basePath =
-      (config.basePath as string) || representativeWebhook.blockId || representativeWebhook.path
+      (config.basePath as string) ||
+      representativeWebhook.blockId ||
+      representativeWebhook.path ||
+      ''
 
     try {
       const syncResult = await syncWebhooksForCredentialSet({

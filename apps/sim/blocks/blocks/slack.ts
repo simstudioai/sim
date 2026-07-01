@@ -1344,7 +1344,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
         placeholder: 'Describe the view/modal you want to create...',
       },
     },
-    ...getTrigger('slack_webhook').subBlocks,
+    ...getTrigger('slack_oauth').subBlocks,
   ],
   tools: {
     access: [
@@ -2227,7 +2227,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
   // New: Trigger capabilities
   triggers: {
     enabled: true,
-    available: ['slack_webhook'],
+    available: ['slack_oauth'],
   },
 }
 

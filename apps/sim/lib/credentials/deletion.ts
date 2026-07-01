@@ -90,7 +90,27 @@ export async function clearCredentialRefs(
     clearInPausedExecutions(credentialId, workspaceId, needle),
     clearInWorkflowCheckpoints(credentialId, workspaceId, needle),
     clearInKnowledgeConnectors(credentialId),
+    deactivateSlackAppWebhooks(credentialId),
   ])
+}
+
+/**
+ * Deactivates native Slack (`slack_app`) trigger webhooks bound to this
+ * credential so inbound events stop routing once the account is disconnected.
+ * The credential id lives in `providerConfig`, not a foreign key, so it is not
+ * covered by CASCADE.
+ */
+async function deactivateSlackAppWebhooks(credentialId: string): Promise<void> {
+  await db
+    .update(schema.webhook)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.webhook.provider, 'slack_app'),
+        eq(schema.webhook.isActive, true),
+        sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
+      )
+    )
 }
 
 async function clearInWorkflowBlocks(

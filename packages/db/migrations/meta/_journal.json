@@ -1765,6 +1765,13 @@
       "when": 1782685998491,
       "tag": "0252_remove_a2a",
       "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1782872623999,
+      "tag": "0253_fearless_gateway",
+      "breakpoints": true
     }
   ]
 }

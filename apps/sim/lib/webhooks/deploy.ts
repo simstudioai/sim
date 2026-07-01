@@ -13,11 +13,13 @@ import {
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { fetchSlackTeamId } from '@/lib/webhooks/providers/slack'
 import {
   findConflictingWebhookPathOwner,
   syncWebhooksForCredentialSet,
 } from '@/lib/webhooks/utils.server'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -503,7 +505,8 @@ export async function saveTriggerWebhooksForDeploy({
   type WebhookConfig = {
     provider: string
     providerConfig: Record<string, unknown>
-    triggerPath: string
+    triggerPath: string | null
+    routingKey: string | null
     triggerDef: ReturnType<typeof getTrigger>
   }
   const webhookConfigs = new Map<string, WebhookConfig>()
@@ -518,7 +521,7 @@ export async function saveTriggerWebhooksForDeploy({
 
     const triggerDef = getTrigger(triggerId)
     const provider = triggerDef.provider
-    const { providerConfig, missingFields, triggerPath } = buildProviderConfig(
+    const { providerConfig, missingFields, triggerPath, credentialId } = buildProviderConfig(
       block,
       triggerId,
       triggerDef
@@ -545,24 +548,81 @@ export async function saveTriggerWebhooksForDeploy({
       }
     }
 
-    const pathConflict = await findConflictingWebhookPathOwner({
-      path: triggerPath,
-      workflowId,
-    })
-    if (pathConflict) {
-      logger.warn(
-        `[${requestId}] Webhook path conflict for "${triggerPath}": already owned by workflow ${pathConflict}`
-      )
-      return {
-        success: false,
-        error: {
-          message: `Webhook path "${triggerPath}" is already in use. Choose a different path.`,
-          status: 409,
-        },
+    /**
+     * The unified Slack trigger (`slack_oauth`) resolves to one of two backends
+     * by App Type: `sim` routes inbound events on the official Sim app by Slack
+     * `team_id` (routingKey, no path); `custom` reuses the legacy per-workflow
+     * `slack` webhook (path + signing secret). The team_id is derived here from
+     * the connected account via `auth.test` — never from user input.
+     */
+    let effectiveProvider = provider
+    let effectivePath: string | null = triggerPath
+    let routingKey: string | null = null
+    if (triggerId === 'slack_oauth') {
+      const appType = typeof providerConfig.appType === 'string' ? providerConfig.appType : 'sim'
+      if (appType === 'sim') {
+        if (!credentialId) {
+          return {
+            success: false,
+            error: { message: 'Select a Slack account for the trigger.', status: 400 },
+          }
+        }
+        const botToken = await refreshAccessTokenIfNeeded(credentialId, userId, requestId)
+        if (!botToken) {
+          return {
+            success: false,
+            error: {
+              message: 'Could not access the connected Slack account. Reconnect it and try again.',
+              status: 400,
+            },
+          }
+        }
+        try {
+          routingKey = await fetchSlackTeamId(botToken)
+        } catch (error: unknown) {
+          logger.error(`[${requestId}] Slack team_id resolution failed for ${block.id}`, error)
+          return {
+            success: false,
+            error: {
+              message:
+                'Could not verify the connected Slack workspace. Reconnect it and try again.',
+              status: 400,
+            },
+          }
+        }
+        effectiveProvider = 'slack_app'
+        effectivePath = null
+      } else {
+        effectiveProvider = 'slack'
       }
     }
 
-    webhookConfigs.set(block.id, { provider, providerConfig, triggerPath, triggerDef })
+    if (effectivePath) {
+      const pathConflict = await findConflictingWebhookPathOwner({
+        path: effectivePath,
+        workflowId,
+      })
+      if (pathConflict) {
+        logger.warn(
+          `[${requestId}] Webhook path conflict for "${effectivePath}": already owned by workflow ${pathConflict}`
+        )
+        return {
+          success: false,
+          error: {
+            message: `Webhook path "${effectivePath}" is already in use. Choose a different path.`,
+            status: 409,
+          },
+        }
+      }
+    }
+
+    webhookConfigs.set(block.id, {
+      provider: effectiveProvider,
+      providerConfig,
+      triggerPath: effectivePath,
+      routingKey,
+      triggerDef,
+    })
 
     if (providerConfig.credentialSetId) {
       blocksNeedingCredentialSetSync.push(block)
@@ -588,7 +648,7 @@ export async function saveTriggerWebhooksForDeploy({
         forceRecreateSubscriptions ||
         shouldRecreateExternalWebhookSubscription({
           previousProvider: existingWh.provider as string,
-          nextProvider: provider,
+          nextProvider: effectiveProvider,
           previousConfig: existingConfig,
           nextConfig: providerConfig,
         })
@@ -652,7 +712,7 @@ export async function saveTriggerWebhooksForDeploy({
         workflowId,
         blockId: block.id,
         provider,
-        triggerPath,
+        triggerPath: triggerPath ?? '',
         providerConfig,
         requestId,
         deploymentVersionId,
@@ -683,7 +743,8 @@ export async function saveTriggerWebhooksForDeploy({
     webhookId: string
     block: BlockState
     provider: string
-    triggerPath: string
+    triggerPath: string | null
+    routingKey: string | null
     updatedProviderConfig: Record<string, unknown>
     externalSubscriptionCreated: boolean
   }> = []
@@ -693,7 +754,7 @@ export async function saveTriggerWebhooksForDeploy({
     const config = webhookConfigs.get(block.id)
     if (!config) continue
 
-    const { provider, providerConfig, triggerPath } = config
+    const { provider, providerConfig, triggerPath, routingKey } = config
     const webhookId = generateShortId()
     const createPayload = {
       id: webhookId,
@@ -703,13 +764,15 @@ export async function saveTriggerWebhooksForDeploy({
     }
 
     try {
-      await pendingVerificationTracker.register({
-        path: triggerPath,
-        provider,
-        workflowId,
-        blockId: block.id,
-        metadata: providerConfig,
-      })
+      if (triggerPath) {
+        await pendingVerificationTracker.register({
+          path: triggerPath,
+          provider,
+          workflowId,
+          blockId: block.id,
+          metadata: providerConfig,
+        })
+      }
 
       const result = await createExternalWebhookSubscription(
         request,
@@ -724,6 +787,7 @@ export async function saveTriggerWebhooksForDeploy({
         block,
         provider,
         triggerPath,
+        routingKey,
         updatedProviderConfig: result.updatedProviderConfig as Record<string, unknown>,
         externalSubscriptionCreated: result.externalSubscriptionCreated,
       })
@@ -783,6 +847,7 @@ export async function saveTriggerWebhooksForDeploy({
           deploymentVersionId: deploymentVersionId || null,
           blockId: sub.block.id,
           path: sub.triggerPath,
+          routingKey: sub.routingKey,
           provider: sub.provider,
           providerConfig: sub.updatedProviderConfig,
           credentialSetId:
@@ -900,7 +965,8 @@ async function persistCreatedWebhookRecordAfterCleanupFailure({
     webhookId: string
     block: BlockState
     provider: string
-    triggerPath: string
+    triggerPath: string | null
+    routingKey: string | null
     updatedProviderConfig: Record<string, unknown>
   }
   requestId: string
@@ -912,6 +978,7 @@ async function persistCreatedWebhookRecordAfterCleanupFailure({
       deploymentVersionId: deploymentVersionId || null,
       blockId: sub.block.id,
       path: sub.triggerPath,
+      routingKey: sub.routingKey,
       provider: sub.provider,
       providerConfig: sub.updatedProviderConfig,
       credentialSetId: (sub.updatedProviderConfig.credentialSetId as string | undefined) || null,

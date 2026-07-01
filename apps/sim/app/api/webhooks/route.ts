@@ -246,7 +246,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             .limit(1)
 
           if (existingForBlock.length > 0) {
-            finalPath = existingForBlock[0].path
+            finalPath = existingForBlock[0].path ?? ''
             logger.info(
               `[${requestId}] Reusing existing generated path for ${provider} trigger: ${finalPath}`
             )

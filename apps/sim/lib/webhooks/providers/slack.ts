@@ -405,11 +405,28 @@ async function fetchSlackMessageText(
 const SLACK_TIMESTAMP_MAX_SKEW = 300
 
 /**
+ * Resolve the Slack `team_id` for a bot token via `auth.test`. Used at deploy
+ * time to derive the tenant routing key for the native (`slack_app`) trigger —
+ * the id is Slack-attested, never taken from user input. Throws on failure so
+ * deploy fails fast rather than registering an unroutable trigger.
+ */
+export async function fetchSlackTeamId(botToken: string): Promise<string> {
+  const response = await fetch('https://slack.com/api/auth.test', {
+    headers: { Authorization: `Bearer ${botToken}` },
+  })
+  const data = (await response.json()) as { ok?: boolean; team_id?: string; error?: string }
+  if (!data.ok || !data.team_id) {
+    throw new Error(`Slack auth.test failed: ${data.error || 'unknown error'}`)
+  }
+  return data.team_id
+}
+
+/**
  * Validate Slack request signature using HMAC-SHA256.
  * Basestring format: `v0:{timestamp}:{rawBody}`
  * Signature header format: `v0={hex}`
  */
-function validateSlackSignature(
+export function validateSlackSignature(
   signingSecret: string,
   signature: string,
   timestamp: string,
@@ -448,43 +465,53 @@ export function handleSlackChallenge(body: unknown): NextResponse | null {
   return null
 }
 
+/**
+ * Verify a Slack request's timestamp + HMAC signature against a signing secret.
+ * Returns a 401 `NextResponse` on failure, or `null` when valid. Shared by the
+ * per-workflow webhook handler (secret from providerConfig) and the native app
+ * ingest route (secret from `SLACK_SIGNING_SECRET`).
+ */
+export function verifySlackRequestSignature(
+  signingSecret: string,
+  request: Request,
+  rawBody: string,
+  requestId: string
+): NextResponse | null {
+  const signature = request.headers.get('x-slack-signature')
+  const timestamp = request.headers.get('x-slack-request-timestamp')
+
+  if (!signature || !timestamp) {
+    logger.warn(`[${requestId}] Slack webhook missing signature or timestamp header`)
+    return new NextResponse('Unauthorized - Missing Slack signature', { status: 401 })
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+  const parsedTimestamp = Number(timestamp)
+  if (Number.isNaN(parsedTimestamp)) {
+    logger.warn(`[${requestId}] Slack webhook timestamp is not a valid number`, { timestamp })
+    return new NextResponse('Unauthorized - Invalid timestamp', { status: 401 })
+  }
+  const skew = Math.abs(now - parsedTimestamp)
+  if (skew > SLACK_TIMESTAMP_MAX_SKEW) {
+    logger.warn(`[${requestId}] Slack webhook timestamp too old`, { timestamp, now, skew })
+    return new NextResponse('Unauthorized - Request timestamp too old', { status: 401 })
+  }
+
+  if (!validateSlackSignature(signingSecret, signature, timestamp, rawBody)) {
+    logger.warn(`[${requestId}] Slack signature verification failed`)
+    return new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
+  }
+
+  return null
+}
+
 export const slackHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret) {
       return null
     }
-
-    const signature = request.headers.get('x-slack-signature')
-    const timestamp = request.headers.get('x-slack-request-timestamp')
-
-    if (!signature || !timestamp) {
-      logger.warn(`[${requestId}] Slack webhook missing signature or timestamp header`)
-      return new NextResponse('Unauthorized - Missing Slack signature', { status: 401 })
-    }
-
-    const now = Math.floor(Date.now() / 1000)
-    const parsedTimestamp = Number(timestamp)
-    if (Number.isNaN(parsedTimestamp)) {
-      logger.warn(`[${requestId}] Slack webhook timestamp is not a valid number`, { timestamp })
-      return new NextResponse('Unauthorized - Invalid timestamp', { status: 401 })
-    }
-    const skew = Math.abs(now - parsedTimestamp)
-    if (skew > SLACK_TIMESTAMP_MAX_SKEW) {
-      logger.warn(`[${requestId}] Slack webhook timestamp too old`, {
-        timestamp,
-        now,
-        skew,
-      })
-      return new NextResponse('Unauthorized - Request timestamp too old', { status: 401 })
-    }
-
-    if (!validateSlackSignature(signingSecret, signature, timestamp, rawBody)) {
-      logger.warn(`[${requestId}] Slack signature verification failed`)
-      return new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
-    }
-
-    return null
+    return verifySlackRequestSignature(signingSecret, request, rawBody, requestId)
   },
 
   handleChallenge(body: unknown) {

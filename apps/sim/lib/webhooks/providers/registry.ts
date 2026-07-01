@@ -103,6 +103,9 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   sendblue: sendblueHandler,
   servicenow: servicenowHandler,
   slack: slackHandler,
+  // Native OAuth Slack trigger — inbound events are verified in the shared
+  // /api/webhooks/slack route; the handler reuses Slack payload normalization.
+  slack_app: slackHandler,
   stripe: stripeHandler,
   table: tableProviderHandler,
   telegram: telegramHandler,

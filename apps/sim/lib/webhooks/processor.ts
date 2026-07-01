@@ -406,6 +406,58 @@ export async function findAllWebhooksForPath(
   return results
 }
 
+/**
+ * Finds all active `slack_app` webhooks for a Slack `team_id` (the routing key).
+ *
+ * Unlike path-based lookup, multi-workflow fan-out is legitimate here: a single
+ * Slack workspace can have many workflows listening on the native Sim app, so
+ * every matching workflow is returned. The routing key is server-derived at
+ * deploy time (Slack-attested `team_id`), not user-controlled, so the
+ * cross-tenant collision guard used for guessable paths does not apply.
+ */
+export async function findWebhooksByRoutingKey(
+  routingKey: string,
+  requestId: string
+): Promise<Array<{ webhook: any; workflow: any }>> {
+  if (!routingKey) {
+    return []
+  }
+
+  const results = await db
+    .select({
+      webhook: webhook,
+      workflow: workflow,
+    })
+    .from(webhook)
+    .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+    .leftJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflow.id),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .where(
+      and(
+        eq(webhook.routingKey, routingKey),
+        eq(webhook.provider, 'slack_app'),
+        eq(webhook.isActive, true),
+        isNull(webhook.archivedAt),
+        isNull(workflow.archivedAt),
+        or(
+          eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+          and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+        )
+      )
+    )
+
+  if (results.length === 0) {
+    logger.warn(`[${requestId}] No active slack_app webhooks for routing key`)
+  }
+
+  return results
+}
+
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
   return resolveEnvVarReferences(value, envVars) as string
 }
@@ -805,7 +857,7 @@ export async function processPolledWebhookEvent(
         source: 'webhook' as const,
         workflowId: foundWorkflow.id,
         webhookId: foundWebhook.id,
-        path: foundWebhook.path,
+        path: foundWebhook.path ?? '',
         provider,
         triggerType: 'webhook',
       } satisfies AsyncExecutionCorrelation)
@@ -821,7 +873,7 @@ export async function processPolledWebhookEvent(
       provider,
       body,
       headers: { 'content-type': 'application/json' } as Record<string, string>,
-      path: foundWebhook.path,
+      path: foundWebhook.path ?? '',
       blockId: foundWebhook.blockId ?? undefined,
       workspaceId,
       ...(credentialId ? { credentialId } : {}),
