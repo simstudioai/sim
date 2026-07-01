@@ -176,7 +176,7 @@ export function useSkillAutoMention({ skills, setSelectedContexts }: UseSkillAut
       // descending so earlier replacements don't shift later indices; the
       // sentinel is one code unit wide like '/'.
       let result = text
-      for (const idx of slashIndices.toSorted((a, b) => b - a)) {
+      for (const idx of [...slashIndices].sort((a, b) => b - a)) {
         result = result.slice(0, idx) + SKILL_CHIP_TRIGGER + result.slice(idx + 1)
       }
       return result
