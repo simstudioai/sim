@@ -222,7 +222,7 @@ const nextConfig: NextConfig = {
       },
       {
         // For main app routes, Google Drive Picker, the /demo Cal.com embed, and Vercel resources - use permissive policies
-        source: '/(w/.*|workspace/.*|api/tools/drive|demo|_next/.*|_vercel/.*)',
+        source: '/(w/.*|workspace/.*|api/tools/drive|demo(/.*)?|_next/.*|_vercel/.*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
