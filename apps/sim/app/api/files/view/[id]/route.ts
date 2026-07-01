@@ -44,14 +44,16 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    // Only workspace-scoped files are embeddable/viewable here. Other contexts (e.g. chat-scoped
-    // `mothership` uploads) are not durable workspace artifacts; now that the caller is known to have
-    // access, reject with a legible 422 so the embed fails cleanly and the file agent can self-correct.
-    if (record.context !== 'workspace') {
-      logger.warn('Rejected non-workspace file view', { id, context: record.context })
+    // Embeddable contexts: durable `workspace` files and chat-scoped `output` files
+    // (agent-generated one-offs the user previews inline before optionally saving to
+    // the workspace). Other contexts (e.g. `mothership` user uploads) are not embeddable
+    // here; now that the caller is known to have access, reject with a legible 422 so the
+    // embed fails cleanly and the file agent can self-correct.
+    if (record.context !== 'workspace' && record.context !== 'output') {
+      logger.warn('Rejected non-embeddable file view', { id, context: record.context })
       return NextResponse.json(
         {
-          error: `File ${id} has context "${record.context}" and is not embeddable. Only workspace files can be viewed via /api/files/view. Save it into the workspace and reference the workspace copy.`,
+          error: `File ${id} has context "${record.context}" and is not embeddable. Only workspace and output files can be viewed via /api/files/view. Save it into the workspace and reference the workspace copy.`,
         },
         { status: 422 }
       )

@@ -15,6 +15,23 @@ import { isUuid } from '@/executor/constants'
 
 const logger = createLogger('FileAuthorization')
 
+/**
+ * Contexts this key lookup resolves for workspace-membership authorization:
+ * `workspace` (durable UI files) and `output` (chat-scoped agent outputs). Both
+ * share the `workspace/<id>/...` key shape and are authorized by workspace
+ * membership, so a by-key match on either is safe to grant to any member.
+ *
+ * `mothership` chat uploads ALSO share the bucket/key shape but are deliberately
+ * left OUT: today they authorize via the Priority-2 object-metadata fallback, and
+ * moving them onto this Priority-1 DB path would change how uploads work — an
+ * unrelated change deferred to its own PR (see outputs-vfs-followups.md #2).
+ * Owner-scoped contexts that also live in `workspace_files` (`copilot`,
+ * `knowledge-base`, `workspace-logos`) are excluded too: they have stricter
+ * per-owner rules and must never be granted through workspace membership on a
+ * key collision.
+ */
+const WORKSPACE_FILE_LOOKUP_CONTEXTS: StorageContext[] = ['workspace', 'output']
+
 /** Thrown by utility functions when file access is denied, so route handlers can return 404. */
 export class FileAccessDeniedError extends Error {
   constructor() {
@@ -54,8 +71,15 @@ async function lookupWorkspaceFileByKey(
 ): Promise<{ workspaceId: string; uploadedBy: string } | null> {
   try {
     const { includeDeleted = false } = options ?? {}
-    // Priority 1: Check new workspaceFiles table
-    const fileRecord = await getFileMetadataByKey(key, 'workspace', { includeDeleted })
+    // Priority 1: Check new workspaceFiles table. Look up by key across
+    // WORKSPACE_FILE_LOOKUP_CONTEXTS (`workspace` + `output`): both share the
+    // `workspace/<id>/...` key shape and authorize by workspace membership. Filtering
+    // to `workspace` alone made `output` files unservable (broken previews); scoping to
+    // this explicit set (rather than dropping the filter) keeps outputs servable while
+    // leaving upload (`mothership`) authorization and the owner-scoped contexts untouched.
+    const fileRecord = await getFileMetadataByKey(key, WORKSPACE_FILE_LOOKUP_CONTEXTS, {
+      includeDeleted,
+    })
 
     if (fileRecord) {
       return {

@@ -114,6 +114,11 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
 
       const outputFile = params.outputs?.files?.[0]
       const ext = audioExtFromContentType(result.contentType)
+      // Omitted outputs.files keeps the pre-feature `files/` default. Chat-scoped
+      // one-offs are opt-in via an explicit "outputs/<name>" path — mothership's
+      // chat-scoped-outputs flag steers the agent to pass one (and resource-writer
+      // redirects outputs/ to files/ for non-interactive runs, which lack a
+      // persisted copilot_chats row).
       const outputPath = outputFile?.path || `files/generated-audio.${ext}`
       const mode = outputFile?.mode ?? 'create'
 
@@ -121,6 +126,8 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
+        chatId: context.chatId,
+        interactive: context.interactive,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,

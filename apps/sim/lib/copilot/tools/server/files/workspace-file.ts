@@ -146,6 +146,12 @@ export function splitWorkspaceFilePath(fileName: string): {
   }
 }
 
+/** True when a path/name targets the chat-scoped `outputs/` namespace, which is non-editable. */
+function isOutputsPath(path: string | undefined): boolean {
+  if (!path) return false
+  return path.trim().replace(/^\/+/, '').startsWith('outputs/')
+}
+
 export interface DocumentFormatInfo {
   isDoc: boolean
   formatName?: 'PPTX' | 'DOCX' | 'PDF'
@@ -290,6 +296,11 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       if (!target || (target.kind !== 'path' && target.kind !== 'file_id')) {
         return { error: `${operationName} requires target.kind=path with target.path` }
       }
+      if (target.kind === 'path' && isOutputsPath(target.path)) {
+        return {
+          error: `${operationName} cannot target outputs/. outputs/ files are not editable — materialize the file to files/ first, then edit it there.`,
+        }
+      }
       let fileRecord: WorkspaceFileRecord | null = null
       let vfsPath: string | undefined
       if (target.kind === 'path') {
@@ -348,6 +359,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return {
               success: false,
               message: 'create requires target.kind=new_file with target.fileName',
+            }
+          }
+          if (isOutputsPath(target.fileName)) {
+            return {
+              success: false,
+              message:
+                'workspace_file cannot create files under outputs/. outputs/ holds single-shot generated files and is not editable; create editable files under files/ instead.',
             }
           }
 

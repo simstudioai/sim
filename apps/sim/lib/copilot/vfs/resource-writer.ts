@@ -1,4 +1,8 @@
-import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import {
+  canonicalWorkspaceFilePath,
+  decodeVfsPathSegments,
+  encodeVfsSegment,
+} from '@/lib/copilot/vfs/path-utils'
 import {
   ensureWorkflowAliasBacking,
   ensureWorkspacePlanBacking,
@@ -22,6 +26,7 @@ import {
   getWorkspaceFileByName,
   resolveWorkspaceFileReference,
   updateWorkspaceFileContent,
+  uploadChatOutput,
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -290,8 +295,70 @@ export async function writeWorkspaceFileByPath(args: {
   target: WorkspaceFileWriteTarget
   buffer: Buffer
   inferredMimeType: string
+  /**
+   * Active chat id. Required only when writing to the `outputs/` namespace
+   * (chat-scoped one-off files). Ignored for normal `files/` writes.
+   */
+  chatId?: string
+  /**
+   * True only for genuine interactive chat turns, which always have a persisted
+   * `copilot_chats` row. `outputs/` rows carry a `chat_id` foreign key to
+   * `copilot_chats`, so a headless run (e.g. Mothership block execution) with an
+   * ephemeral, non-persisted chatId must NOT write there. When an `outputs/` path
+   * is requested without an interactive chat, we transparently redirect it to a
+   * persisted `files/` path instead of failing the FK insert.
+   */
+  interactive?: boolean
 }): Promise<WorkspaceFileWriteResult> {
   const contentType = args.target.mimeType || args.inferredMimeType
+
+  // Chat-scoped one-off output: persisted under the `outputs/` namespace instead
+  // of the workspace. Outputs are flat and write-once (non-editable) — the agent
+  // materializes one to `files/` first if it needs to edit it.
+  const normalizedTargetPath = args.target.path.trim().replace(/^\/+/, '')
+  if (normalizedTargetPath.startsWith('outputs/')) {
+    // Outputs are flat (no folders), so collapse to the leaf name.
+    const decoded = decodeVfsPathSegments(normalizedTargetPath.slice('outputs/'.length))
+    const leafName = normalizeWorkspaceFileItemName(decoded.at(-1) ?? '', 'File')
+    if (!leafName) {
+      throw new Error('outputs/ path must include a file name')
+    }
+
+    // Only interactive chats have a persisted copilot_chats row to satisfy the
+    // chat_id FK. Otherwise redirect to a persisted files/ write below.
+    if (args.chatId && args.interactive) {
+      if (args.target.mode === 'overwrite') {
+        throw new Error(
+          'outputs/ files are write-once and cannot be overwritten. Generate a new output, or materialize it to files/ to edit.'
+        )
+      }
+      const uploaded = await uploadChatOutput({
+        workspaceId: args.workspaceId,
+        userId: args.userId,
+        chatId: args.chatId,
+        fileBuffer: args.buffer,
+        fileName: leafName,
+        contentType,
+      })
+      return {
+        id: uploaded.id,
+        name: uploaded.name,
+        size: uploaded.size,
+        contentType: uploaded.type,
+        downloadUrl: uploaded.url,
+        vfsPath: `outputs/${encodeVfsSegment(uploaded.name)}`,
+        mode: 'create',
+      }
+    }
+
+    // Non-interactive / no persisted chat: fall through to a normal workspace
+    // (files/) write so the asset still persists instead of hitting the FK error.
+    args = {
+      ...args,
+      target: { ...args.target, path: `files/${encodeVfsSegment(leafName)}` },
+    }
+  }
+
   const alias = await resolveWorkflowAliasForWorkspace({
     workspaceId: args.workspaceId,
     path: args.target.path,

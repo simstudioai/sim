@@ -134,6 +134,12 @@ export async function runCopilotLifecycle(
       abortSignal: lifecycleOptions.abortSignal,
     }))
 
+  // Only genuine interactive turns have a persisted `copilot_chats` row; headless
+  // runs (e.g. Mothership block execution) carry an ephemeral, non-persisted
+  // chatId. Server tools gate chat-scoped `outputs/` writes on this so they never
+  // attempt a `chat_id` FK insert against a chat that does not exist.
+  execContext.interactive = lifecycleOptions.interactive === true
+
   const context = createStreamingContext({
     chatId,
     requestId: lifecycleOptions.simRequestId,

@@ -234,6 +234,11 @@ const RESOURCE_INVALIDATORS: Record<
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(wId, id) })
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+    // Chat-scoped outputs live under their own key (not `lists()`); a generated
+    // output file must refresh them or `outputs/...` path references (e.g. the
+    // agent's #wsres-file links) can't resolve to the new file's id until the
+    // 30s staleTime lapses — the "File not found on first click" bug.
+    qc.invalidateQueries({ queryKey: workspaceFilesKeys.chatOutputsAll() })
   },
   workflow: (qc, wId) => {
     void invalidateWorkflowLists(qc, wId)

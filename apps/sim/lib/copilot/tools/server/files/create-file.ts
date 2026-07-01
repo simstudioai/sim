@@ -52,6 +52,13 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     }
     const outputPath =
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)
+    if (outputPath.trim().replace(/^\/+/, '').startsWith('outputs/')) {
+      return {
+        success: false,
+        message:
+          'create_file cannot target outputs/. The outputs/ folder holds single-shot generated files (images, downloads, media) and is not editable. Create editable files under files/ instead.',
+      }
+    }
     if (isPlanAliasPath(outputPath)) {
       return {
         success: false,

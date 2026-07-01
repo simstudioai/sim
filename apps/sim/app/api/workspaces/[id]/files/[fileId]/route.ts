@@ -14,11 +14,61 @@ import {
   performDeleteWorkspaceFileItems,
   performRenameWorkspaceFile,
 } from '@/lib/workspace-files/orchestration'
+import { getPreviewableWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkspaceFileAPI')
+
+/**
+ * GET /api/workspaces/[id]/files/[fileId]
+ * Fetch a single file record by id, including chat-scoped `output` files that never
+ * appear in the workspace Files list. Used by the resource panel to preview an output
+ * the list-based lookup can't see. Requires workspace membership (read).
+ */
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
+    const requestId = generateRequestId()
+    const paramsResult = workspaceFileParamsSchema.safeParse(await params)
+    if (!paramsResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+        { status: 400 }
+      )
+    }
+    const { id: workspaceId, fileId } = paramsResult.data
+
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
+      )
+      if (userPermission === null) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
+
+      const file = await getPreviewableWorkspaceFile(workspaceId, fileId)
+      if (!file) {
+        return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+      }
+
+      return NextResponse.json({ success: true, file })
+    } catch (error) {
+      logger.error(`[${requestId}] Error fetching workspace file:`, error)
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Failed to fetch file') },
+        { status: 500 }
+      )
+    }
+  }
+)
 
 /**
  * PATCH /api/workspaces/[id]/files/[fileId]

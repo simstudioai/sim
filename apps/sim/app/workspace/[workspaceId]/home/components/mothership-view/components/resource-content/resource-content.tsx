@@ -56,7 +56,11 @@ import { useLogDetail } from '@/hooks/queries/logs'
 import { useScheduleById } from '@/hooks/queries/schedules'
 import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import {
+  useChatOutputs,
+  useWorkspaceFileById,
+  useWorkspaceFiles,
+} from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -507,8 +511,8 @@ interface EmbeddedFileActionsProps {
 
 function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
   const router = useRouter()
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
+  const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
+  const listFile = useMemo(
     () =>
       files.find(
         (f) =>
@@ -518,6 +522,14 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActi
       ),
     [files, fileId, filePath]
   )
+  // Mirror EmbeddedFile: chat-scoped `output` files aren't in the list, so fall back to
+  // a by-id fetch when the list settles without a hit — keeps Download working for them.
+  const { data: fallbackFile = null } = useWorkspaceFileById(
+    workspaceId,
+    fileId,
+    !isLoading && !isFetching && !listFile
+  )
+  const file = listFile ?? fallbackFile
 
   const handleDownload = async () => {
     if (!file) return
@@ -629,7 +641,7 @@ function EmbeddedFile({
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
+  const listFile = useMemo(
     () =>
       files.find(
         (f) =>
@@ -640,7 +652,43 @@ function EmbeddedFile({
     [files, fileId, filePath]
   )
 
-  if (isLoading || (isFetching && !file)) return LOADING_SKELETON
+  // Chat-scoped `output` files are excluded from the workspace Files list, so the
+  // lookup above misses them. When the list has settled without a hit, fall back to a
+  // direct by-id fetch (which includes outputs) so the panel can still preview them.
+  const listSettled = !isLoading && !isFetching
+  const { data: fallbackFile = null, isLoading: fallbackLoading } = useWorkspaceFileById(
+    workspaceId,
+    fileId,
+    listSettled && !listFile
+  )
+
+  // The agent may reference an output by PATH (e.g. an `outputs/generated-image.jpg` link)
+  // rather than by id, in which case both the list and the by-id fetch miss (by-id matches
+  // on the wf_ id, not a path). Resolve it against this chat's outputs by leaf name.
+  // `previewContextKey` is the active chat id in this surface.
+  const { data: chatOutputs = [], isLoading: outputsLoading } = useChatOutputs(previewContextKey)
+  const outputFallback = useMemo(() => {
+    if (listFile || fallbackFile) return null
+    const ref = filePath ?? (fileId || '')
+    if (!ref) return null
+    const rawLeaf = ref.split('/').pop() ?? ''
+    let leaf = rawLeaf
+    try {
+      leaf = decodeURIComponent(rawLeaf)
+    } catch {
+      leaf = rawLeaf
+    }
+    return chatOutputs.find((o) => o.id === fileId || o.name === leaf || o.name === rawLeaf) ?? null
+  }, [listFile, fallbackFile, chatOutputs, filePath, fileId])
+
+  const file = listFile ?? fallbackFile ?? outputFallback
+
+  if (
+    isLoading ||
+    (isFetching && !file) ||
+    (listSettled && !listFile && (fallbackLoading || outputsLoading))
+  )
+    return LOADING_SKELETON
 
   if (!file) {
     return (

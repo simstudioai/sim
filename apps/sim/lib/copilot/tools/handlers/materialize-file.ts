@@ -6,10 +6,14 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { findChatOutputRowByChatAndName } from '@/lib/copilot/tools/handlers/output-file-reader'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
-import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  allocateUniqueWorkspaceFileName,
+  fetchWorkspaceFileBuffer,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -36,17 +40,37 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
 }
 
 async function executeSave(fileName: string, chatId: string): Promise<ToolCallResult> {
-  const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
+  // `save` promotes a chat-scoped file into the permanent workspace. The source is
+  // either a user upload (`uploads/`, context 'mothership') or an agent-generated
+  // one-off output (`outputs/`, context 'output') — both live in workspace_files and
+  // promote identically (flip context to 'workspace', detach from the chat).
+  const row =
+    (await findMothershipUploadRowByChatAndName(chatId, fileName)) ??
+    (await findChatOutputRowByChatAndName(chatId, fileName))
   if (!row) {
     return {
       success: false,
-      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
+      error: `File not found: "${fileName}". Use glob("uploads/*") or glob("outputs/*") to list available chat files.`,
     }
   }
 
+  // Chat-scoped names are unique only within their chat, so two chats can each hold a
+  // "generated-image.jpg". Promoting both to the workspace root would collide on the
+  // `workspace_files_workspace_folder_name_active_unique` index (context='workspace'),
+  // so disambiguate against existing workspace files first (e.g. "generated-image (1).jpg").
+  const desiredName = row.displayName ?? row.originalName
+  const uniqueName = row.workspaceId
+    ? await allocateUniqueWorkspaceFileName(row.workspaceId, desiredName, row.folderId ?? null)
+    : desiredName
+
   const [updated] = await db
     .update(workspaceFiles)
-    .set({ context: 'workspace', chatId: null, originalName: row.displayName ?? row.originalName })
+    .set({
+      context: 'workspace',
+      chatId: null,
+      originalName: uniqueName,
+      displayName: uniqueName,
+    })
     .where(and(eq(workspaceFiles.id, row.id), isNull(workspaceFiles.deletedAt)))
     .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
 
@@ -71,6 +95,10 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
     output: {
       message: `File "${updated.originalName}" materialized. It is now available at ${canonicalPath} and will persist independently of this chat.`,
       fileId: updated.id,
+      // `name` is the ACTUAL saved name, which may be disambiguated from the requested
+      // name (e.g. "generated-image (1).jpg") when a workspace file already uses it. The
+      // batch wrapper surfaces this so the agent reports the real name, not the input.
+      name: updated.originalName,
       path: canonicalPath,
     },
     resources: [{ type: 'file', id: updated.id, title: updated.originalName }],
@@ -216,7 +244,9 @@ export async function executeMaterializeFile(
       error: `Unsupported materialize_file operation "${operation}". Use "save" or "import". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
     }
   }
-  const succeeded: string[] = []
+  // Report the ACTUAL saved name/path (which `save` may disambiguate from the requested
+  // name), so the agent tells the user the real filename instead of what it passed in.
+  const succeeded: Array<{ requested: string; name: string; path?: string }> = []
   const failed: Array<{ fileName: string; error: string }> = []
   const resources: NonNullable<ToolCallResult['resources']> = []
 
@@ -230,7 +260,16 @@ export async function executeMaterializeFile(
       }
 
       if (result.success) {
-        succeeded.push(fileName)
+        const out = (result.output ?? {}) as {
+          name?: string
+          path?: string
+          workflowName?: string
+        }
+        succeeded.push({
+          requested: fileName,
+          name: out.name ?? out.workflowName ?? fileName,
+          ...(out.path ? { path: out.path } : {}),
+        })
         if (result.resources) resources.push(...result.resources)
       } else {
         failed.push({ fileName, error: result.error ?? 'Failed to materialize file' })

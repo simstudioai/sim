@@ -12,6 +12,13 @@ export interface ToolExecutionContext {
   requestMode?: string
   currentAgentId?: string
   /**
+   * True only for genuine interactive chat turns (which always have a persisted
+   * `copilot_chats` row). Undefined/false for headless runs (e.g. Mothership
+   * block execution) whose `chatId` is ephemeral and not persisted. Gates
+   * chat-scoped `outputs/` writes, which carry a `chat_id` FK to `copilot_chats`.
+   */
+  interactive?: boolean
+  /**
    * The invoking subagent's channel id (its outer tool_use id), threaded per
    * tool call so server tools can scope state to one subagent invocation. Two
    * concurrent file subagents share currentAgentId ("file") but have distinct

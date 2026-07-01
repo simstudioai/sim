@@ -19,8 +19,15 @@ const CHAT_FILE_COLLECT_CHUNK_SIZE = 500
  * files, execution logs, knowledge bases, profile pictures, etc. are owned by
  * other subsystems and must never be touched by chat cleanup — even if a row
  * somehow ends up with `chatId` set through a future flow.
+ *
+ * - `copilot` / `mothership`: user uploads attached to a chat.
+ * - `output`: agent-generated one-off files written to the `outputs/` VFS namespace.
  */
-const CHAT_SCOPED_CONTEXTS = ['copilot', 'mothership'] as const satisfies readonly StorageContext[]
+const CHAT_SCOPED_CONTEXTS = [
+  'copilot',
+  'mothership',
+  'output',
+] as const satisfies readonly StorageContext[]
 type ChatScopedContext = (typeof CHAT_SCOPED_CONTEXTS)[number]
 
 interface FileRef {

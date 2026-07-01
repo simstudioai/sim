@@ -52,6 +52,8 @@ export const workspaceFilesKeys = {
       ...(storageKey ? [storageKey] : []),
     ] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
+  chatOutputsAll: () => [...workspaceFilesKeys.all, 'chatOutputs'] as const,
+  chatOutputs: (chatId: string) => [...workspaceFilesKeys.chatOutputsAll(), chatId] as const,
 }
 
 /**
@@ -78,6 +80,55 @@ export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
     enabled: !!workspaceId && !!fileId,
     staleTime: 30 * 1000,
     select: (files) => files.find((f) => f.id === fileId) ?? null,
+  })
+}
+
+/**
+ * List the chat-scoped `output` files (agent-generated one-offs) for a chat. These are
+ * NOT in {@link useWorkspaceFiles} (which is workspace-only), so the resource panel uses
+ * this to surface them alongside workspace files in the "+" picker and as open tabs.
+ * Returns the same `WorkspaceFileRecord` shape as the workspace file list.
+ */
+export function useChatOutputs(chatId: string | undefined) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.chatOutputs(chatId ?? ''),
+    queryFn: async ({ signal }): Promise<WorkspaceFileRecord[]> => {
+      if (!chatId) return []
+      // boundary-raw-fetch: chat-scoped outputs list; no contract
+      const response = await fetch(
+        `/api/mothership/chats/${encodeURIComponent(chatId)}/outputs`,
+        { signal, cache: 'no-store' }
+      )
+      if (!response.ok) return []
+      const data = await response.json().catch(() => null)
+      return data?.success && Array.isArray(data.files) ? (data.files as WorkspaceFileRecord[]) : []
+    },
+    enabled: !!chatId,
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Fallback hook to fetch a single file record by id directly from the API, including
+ * chat-scoped `output` files that never appear in the workspace Files list (and so are
+ * absent from {@link useWorkspaceFiles}). The resource panel uses this only when the
+ * list lookup misses, so a generated `outputs/` file can still be previewed.
+ */
+export function useWorkspaceFileById(workspaceId: string, fileId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...workspaceFilesKeys.all, 'byId', workspaceId, fileId] as const,
+    queryFn: async ({ signal }): Promise<WorkspaceFileRecord | null> => {
+      // boundary-raw-fetch: single-file record lookup incl. chat-scoped outputs; no contract
+      const response = await fetch(
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/files/${encodeURIComponent(fileId)}`,
+        { signal, cache: 'no-store' }
+      )
+      if (!response.ok) return null
+      const data = await response.json().catch(() => null)
+      return data?.success && data.file ? (data.file as WorkspaceFileRecord) : null
+    },
+    enabled: enabled && !!workspaceId && !!fileId,
+    staleTime: 30 * 1000,
   })
 }
 

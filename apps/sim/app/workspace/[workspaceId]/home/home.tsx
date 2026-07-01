@@ -44,7 +44,7 @@ import {
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useChatOutputs, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -124,6 +124,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   )
   const firstName = userName?.split(' ')[0] ?? ''
   const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
+  // Chat-scoped agent outputs aren't in the workspace list; used to resolve an
+  // `outputs/...` file reference (e.g. a #wsres-file link) to its real file id.
+  const { data: chatOutputs = [] } = useChatOutputs(chatId)
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
   const posthog = usePostHog()
@@ -418,15 +421,32 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         )
       })
 
-      if (!file) return resource
-      return {
-        ...resource,
-        id: file.id,
-        title: resource.title || file.name,
-        path: alias ? reference : resource.path,
+      if (file) {
+        return {
+          ...resource,
+          id: file.id,
+          title: resource.title || file.name,
+          path: alias ? reference : resource.path,
+        }
       }
+
+      // Not a workspace file — try this chat's outputs (excluded from the workspace
+      // list). Resolving to the real file id lets the panel open it normally and
+      // de-dupes against the tab the generator auto-opened.
+      let leaf = reference.split('/').pop() ?? reference
+      try {
+        leaf = decodeURIComponent(leaf)
+      } catch {
+        // keep raw leaf
+      }
+      const output = chatOutputs.find((o) => o.id === reference || o.name === leaf)
+      if (output) {
+        return { ...resource, id: output.id, title: resource.title || output.name }
+      }
+
+      return resource
     },
-    [workflowAliasEntries, workspaceFiles]
+    [workflowAliasEntries, workspaceFiles, chatOutputs]
   )
 
   function handleWorkspaceResourceSelect(resource: MothershipResource) {

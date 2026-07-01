@@ -6,6 +6,7 @@ import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { grepChatOutput, listChatOutputs, readChatOutput } from './output-file-reader'
 import { grepChatUpload, listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
@@ -38,6 +39,12 @@ function isWorkspaceFileGrepPath(path: string | undefined): path is string {
 function isChatUploadGrepPath(path: string | undefined): path is string {
   if (!path) return false
   return /^uploads(\/|$)/.test(path.replace(/^\/+/, ''))
+}
+
+/** True when a grep `path` targets the chat-scoped outputs namespace. */
+function isChatOutputGrepPath(path: string | undefined): path is string {
+  if (!path) return false
+  return /^outputs(\/|$)/.test(path.replace(/^\/+/, ''))
 }
 
 function serializedResultSize(value: unknown): number {
@@ -99,25 +106,36 @@ export async function executeVfsGrep(
     // Chat uploads are opt-in like recently-deleted/: they are never in the VFS
     // map, so an unscoped grep can't touch them — only an explicit uploads/<file>
     // path does, and only one upload at a time.
+    // uploads/ and outputs/ are both chat-scoped, single-file content greps (opt-in,
+    // never in the VFS map). Resolve which namespace once — computing it in a ternary
+    // (not chained if/else type guards) keeps rawPath typed as string | undefined.
+    const chatScopedNamespace: 'uploads' | 'outputs' | null = isChatUploadGrepPath(rawPath)
+      ? 'uploads'
+      : isChatOutputGrepPath(rawPath)
+        ? 'outputs'
+        : null
+
     let result: GrepMatch[] | string[] | GrepCountEntry[]
-    if (isChatUploadGrepPath(rawPath)) {
+    if (chatScopedNamespace) {
       if (!context.chatId) {
-        return { success: false, error: 'No chat context available for uploads/' }
+        return { success: false, error: `No chat context available for ${chatScopedNamespace}/` }
       }
-      // The upload is the first segment after uploads/; any trailing segment
-      // (e.g. a /content suffix) is ignored, mirroring the uploads read path.
-      const filename = rawPath
+      // The file is the first segment after the namespace; any trailing segment
+      // (e.g. a /content suffix) is ignored, mirroring the read path.
+      const filename = (rawPath ?? '')
         .replace(/^\/+/, '')
-        .replace(/^uploads\/?/, '')
+        .replace(chatScopedNamespace === 'uploads' ? /^uploads\/?/ : /^outputs\/?/, '')
         .split('/')[0]
       if (!filename) {
         return {
           success: false,
-          error:
-            'Grep over chat uploads must target a single upload (e.g. path: "uploads/report.json"). Use glob("uploads/*") to list uploads.',
+          error: `Grep over chat ${chatScopedNamespace} must target a single file (e.g. path: "${chatScopedNamespace}/report.json"). Use glob("${chatScopedNamespace}/*") to list them.`,
         }
       }
-      result = await grepChatUpload(filename, context.chatId, pattern, grepOptions)
+      result =
+        chatScopedNamespace === 'uploads'
+          ? await grepChatUpload(filename, context.chatId, pattern, grepOptions)
+          : await grepChatOutput(filename, context.chatId, pattern, grepOptions)
     } else {
       const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
       result = isWorkspaceFileGrepPath(rawPath)
@@ -185,6 +203,13 @@ export async function executeVfsGlob(
       // upload resolver accepts both the encoded path and the raw display name.
       const uploadPaths = uploads.map((f) => `uploads/${encodeUploadSegment(f.name)}`)
       files = [...files, ...uploadPaths]
+    }
+
+    // Chat outputs are opt-in like uploads: only explicit outputs/ patterns include them.
+    if (context.chatId && (pattern === 'outputs/*' || pattern.startsWith('outputs/'))) {
+      const outputs = await listChatOutputs(context.chatId)
+      const outputPaths = outputs.map((f) => `outputs/${encodeUploadSegment(f.name)}`)
+      files = [...files, ...outputPaths]
     }
 
     logger.debug('vfs_glob result', { pattern, fileCount: files.length })
@@ -278,6 +303,50 @@ export async function executeVfsRead(
       return {
         success: false,
         error: `Upload not found: ${path}. Use glob("uploads/*") to list available uploads.`,
+      }
+    }
+
+    // Chat-scoped agent outputs via the outputs/ virtual prefix (twin of uploads/).
+    // Flat and read directly; any trailing segment after the leaf is ignored.
+    if (path.startsWith('outputs/')) {
+      if (!context.chatId) {
+        return { success: false, error: 'No chat context available for outputs/' }
+      }
+      const filename = path.slice('outputs/'.length).split('/')[0]
+      const outputResult = await readChatOutput(filename, context.chatId)
+      if (outputResult) {
+        const isAttachment = hasModelAttachment(outputResult)
+        if (
+          !isAttachment &&
+          (isOversizedReadPlaceholder(outputResult.content) ||
+            serializedResultSize(outputResult) > TOOL_RESULT_MAX_INLINE_CHARS)
+        ) {
+          logger.warn('Output read result too large', {
+            path,
+            hasAttachment: isAttachment,
+            contentLength: outputResult.content.length,
+            serializedSize: serializedResultSize(outputResult),
+          })
+          return {
+            success: false,
+            error: isOversizedReadPlaceholder(outputResult.content)
+              ? outputResult.content
+              : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit.',
+          }
+        }
+        const windowedOutput = applyWindow(outputResult)
+        logger.debug('vfs_read resolved chat output', {
+          path,
+          totalLines: outputResult.totalLines,
+          hasAttachment: isAttachment,
+          offset,
+          limit,
+        })
+        return { success: true, output: windowedOutput }
+      }
+      return {
+        success: false,
+        error: `Output not found: ${path}. Use glob("outputs/*") to list available outputs.`,
       }
     }
 

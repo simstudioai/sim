@@ -9,7 +9,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   checkStorageQuota,
@@ -71,8 +71,8 @@ export interface WorkspaceFileRecord {
   deletedAt?: Date | null
   uploadedAt: Date
   updatedAt: Date
-  /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
-  storageContext?: 'workspace' | 'mothership'
+  /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads, agent outputs). */
+  storageContext?: 'workspace' | 'mothership' | 'output'
   /** Public share state, attached at the API boundary. `null` when never shared. */
   share?: ShareRecord | null
 }
@@ -148,7 +148,7 @@ function withCopySuffix(fileName: string, n: number): string {
 /**
  * Picks a display name that does not collide with an active workspace file (`original_name`).
  */
-async function allocateUniqueWorkspaceFileName(
+export async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
   baseName: string,
   folderId?: string | null
@@ -547,6 +547,131 @@ export async function trackChatUpload(
   throw new FileConflictError(fileName)
 }
 
+const MAX_CHAT_OUTPUT_NAME_RETRIES = 1000
+
+/**
+ * Whether an active chat-scoped output already uses this VFS name in the chat.
+ * Advisory only — there is no DB unique index for outputs (by design: no migration) —
+ * so a rare concurrent insert can still produce duplicate names, in which case the
+ * reader resolves the most recent. Good enough for one-off generated files.
+ */
+async function chatOutputNameExists(chatId: string, name: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: workspaceFiles.id })
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.chatId, chatId),
+        eq(workspaceFiles.context, 'output'),
+        eq(workspaceFiles.displayName, name),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .limit(1)
+  return rows.length > 0
+}
+
+/** Pick a collision-free `displayName` within the chat's outputs (suffixes ` (2)`, ` (3)`, ...). */
+async function allocateChatOutputName(chatId: string, baseName: string): Promise<string> {
+  for (let n = 1; n <= MAX_CHAT_OUTPUT_NAME_RETRIES; n++) {
+    const candidate = suffixedName(baseName, n)
+    if (!(await chatOutputNameExists(chatId, candidate))) {
+      return candidate
+    }
+  }
+  throw new FileConflictError(baseName)
+}
+
+/**
+ * Persist an agent-generated one-off file as a chat-scoped output.
+ *
+ * Mirrors {@link trackChatUpload} (the user-upload equivalent) but for files the
+ * AGENT generates: same workspace storage bucket and `workspace_files` table, but
+ * tagged `context='output'` with the owning `chatId`. The copilot VFS exposes these
+ * under `outputs/<displayName>`; they never appear in the Files UI and are deleted
+ * with the chat (see CHAT_SCOPED_CONTEXTS in chat-cleanup). Outputs are write-once —
+ * there is no update path; to edit one the agent materializes it to `files/` first.
+ */
+export async function uploadChatOutput(args: {
+  workspaceId: string
+  userId: string
+  chatId: string
+  fileBuffer: Buffer
+  fileName: string
+  contentType: string
+}): Promise<UserFile> {
+  const { workspaceId, userId, chatId, fileBuffer, fileName, contentType } = args
+  logger.info(`Uploading chat output file: ${fileName} for chat ${chatId}`)
+
+  const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
+
+  const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
+  if (!quotaCheck.allowed) {
+    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+  }
+
+  const displayName = await allocateChatOutputName(chatId, normalizedFileName)
+  const storageKey = generateWorkspaceFileKey(workspaceId, displayName)
+  const fileId = `wf_${generateShortId()}`
+
+  try {
+    // NOTE: do NOT pass `metadata` here. When `uploadFile` receives `metadata` it
+    // ALSO inserts a `workspace_files` row (via insertFileMetadataHelper) keyed on
+    // the storage key. We do our own chat-scoped insert below (with chat_id +
+    // display_name + context 'output'), so passing metadata would produce a second
+    // row with the same key and fail the `workspace_files_key_active_unique` index
+    // (duplicate key, 23505). Upload the bytes only; this insert is the sole DB row.
+    const uploadResult = await uploadFile({
+      file: fileBuffer,
+      fileName: storageKey,
+      contentType,
+      context: 'output',
+      preserveKey: true,
+      customKey: storageKey,
+    })
+
+    await db.insert(workspaceFiles).values({
+      id: fileId,
+      key: uploadResult.key,
+      userId,
+      workspaceId,
+      context: 'output',
+      chatId,
+      originalName: displayName,
+      displayName,
+      contentType,
+      size: fileBuffer.length,
+    })
+
+    try {
+      await incrementStorageUsage(userId, fileBuffer.length, workspaceId)
+    } catch (storageError) {
+      logger.error('Failed to update storage tracking:', storageError)
+    }
+
+    const pathPrefix = getServePathPrefix()
+    const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=output`
+
+    logger.info(`Tracked chat output: ${displayName} for chat ${chatId}`)
+
+    return {
+      id: fileId,
+      name: displayName,
+      size: fileBuffer.length,
+      type: contentType,
+      url: serveUrl,
+      key: uploadResult.key,
+      context: 'output',
+    }
+  } catch (error) {
+    if (error instanceof FileConflictError) {
+      throw error
+    }
+    logger.error(`Failed to upload chat output file ${fileName}:`, error)
+    throw new Error(`Failed to upload output file: ${getErrorMessage(error, 'Unknown error')}`)
+  }
+}
+
 /**
  * Check if a file with the same name already exists in workspace
  */
@@ -849,6 +974,43 @@ export async function getWorkspaceFile(
     return mapSingleWorkspaceFileRecord(files[0], workspaceId)
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Fetch a single file record by id for PREVIEW, including the chat-scoped `output`
+ * context (agent-generated outputs) that never appears in the workspace Files list.
+ * Returns the same shape as {@link listWorkspaceFiles} so the resource panel can
+ * render an output that {@link getWorkspaceFile}/list would miss. Authorization
+ * (workspace membership) is the caller's responsibility.
+ *
+ * `mothership` chat uploads are intentionally not included here — surfacing uploads
+ * through this preview path is out of scope for the outputs feature (see
+ * outputs-vfs-followups.md #2/#7) and can be added later if wanted.
+ */
+export async function getPreviewableWorkspaceFile(
+  workspaceId: string,
+  fileId: string
+): Promise<WorkspaceFileRecord | null> {
+  try {
+    const [file] = await db
+      .select()
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          inArray(workspaceFiles.context, ['workspace', 'output']),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .limit(1)
+
+    if (!file) return null
+    return mapSingleWorkspaceFileRecord(file, workspaceId)
+  } catch (error) {
+    logger.error(`Failed to get previewable workspace file ${fileId}:`, error)
     return null
   }
 }
