@@ -1,4 +1,13 @@
-import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
+import {
+  type JSX,
+  type MouseEvent,
+  memo,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
 import { isEqual } from 'es-toolkit'
 import {
@@ -443,6 +452,14 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
 }
 
 /**
+ * Stops mouse-down propagation so interacting with an input doesn't trigger
+ * parent drag/selection handlers.
+ */
+const handleMouseDown = (e: MouseEvent<HTMLDivElement>): void => {
+  e.stopPropagation()
+}
+
+/**
  * Renders a single workflow sub-block input based on config.type.
  *
  * @param blockId - The parent block identifier
@@ -467,7 +484,7 @@ function SubBlockComponent({
   labelSuffix,
   dependencyContext,
   isSearchHighlighted,
-}: SubBlockProps): JSX.Element {
+}: SubBlockProps): ReactNode {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -484,10 +501,6 @@ function SubBlockComponent({
     isPreview,
     useWebhookUrl: config.useWebhookUrl,
   })
-
-  const handleMouseDown = (e: MouseEvent<HTMLDivElement>): void => {
-    e.stopPropagation()
-  }
 
   const handleValidationChange = (isValid: boolean): void => {
     setIsValidJson(isValid)
@@ -631,7 +644,7 @@ function SubBlockComponent({
    *
    * @returns The appropriate input component JSX element
    */
-  const renderInput = (): JSX.Element => {
+  const renderInput = (): ReactNode => {
     switch (config.type) {
       case 'short-input':
         return (

@@ -1,16 +1,7 @@
 'use client'
 
 import type React from 'react'
-import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { createContext, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge, ChevronDown, cn } from '@sim/emcn'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
@@ -269,16 +260,24 @@ function buildPathToIndicesMap(matchPaths: string[]): Map<string, number[]> {
   return map
 }
 
+interface HighlightedSegmentsProps {
+  text: string
+  query: string
+  matchIndices: number[]
+  currentMatchIndex: number
+  path: string
+}
+
 /**
  * Renders text with search highlights using segments.
  */
-function renderHighlightedSegments(
-  text: string,
-  query: string,
-  matchIndices: number[],
-  currentMatchIndex: number,
-  path: string
-): React.ReactNode {
+function HighlightedSegments({
+  text,
+  query,
+  matchIndices,
+  currentMatchIndex,
+  path,
+}: HighlightedSegmentsProps): React.ReactNode {
   if (!query || matchIndices.length === 0) return text
 
   const textMatches = findTextMatches(text, query)
@@ -335,13 +334,19 @@ const HighlightedText = memo(function HighlightedText({
   path,
   currentMatchIndex,
 }: HighlightedTextProps) {
-  const searchContext = useContext(SearchContext)
+  const searchContext = use(SearchContext)
 
   if (!searchContext || matchIndices.length === 0) return <>{text}</>
 
   return (
     <>
-      {renderHighlightedSegments(text, searchContext.query, matchIndices, currentMatchIndex, path)}
+      <HighlightedSegments
+        text={text}
+        query={searchContext.query}
+        matchIndices={matchIndices}
+        currentMatchIndex={currentMatchIndex}
+        path={path}
+      />
     </>
   )
 })
@@ -371,7 +376,7 @@ const StructuredNode = memo(function StructuredNode({
   currentMatchIndex,
   isError = false,
 }: StructuredNodeProps) {
-  const searchContext = useContext(SearchContext)
+  const searchContext = use(SearchContext)
   const displayValue = getDisplayValue(value)
   const type = getTypeLabel(displayValue)
   const isPrimitiveValue = isPrimitive(displayValue)
@@ -704,13 +709,13 @@ function VirtualizedRow({
           wrapText ? '[word-break:break-word]' : 'whitespace-nowrap'
         )}
       >
-        {renderHighlightedSegments(
-          row.displayText,
-          searchQuery,
-          row.matchIndices,
-          currentMatchIndex,
-          row.path
-        )}
+        <HighlightedSegments
+          text={row.displayText}
+          query={searchQuery}
+          matchIndices={row.matchIndices}
+          currentMatchIndex={currentMatchIndex}
+          path={row.path}
+        />
       </div>
     </div>
   )

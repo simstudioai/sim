@@ -63,6 +63,7 @@ export const DiffControls = memo(function DiffControls() {
       >
         {/* Reject side */}
         <button
+          type='button'
           onClick={handleReject}
           title='Reject changes'
           className='relative flex h-full items-center border border-[var(--border)] bg-[var(--surface-4)] pr-5 pl-3 font-medium text-[var(--text-secondary)] text-small transition-colors hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-6)] hover-hover:text-[var(--text-primary)] dark:hover-hover:bg-[var(--surface-5)]'
@@ -86,6 +87,7 @@ export const DiffControls = memo(function DiffControls() {
         />
         {/* Accept side */}
         <button
+          type='button'
           onClick={handleAccept}
           title='Accept changes (⇧⌘⏎)'
           className='-ml-2.5 relative flex h-full items-center border border-[rgba(0,0,0,0.15)] bg-[var(--brand-accent)] pr-3 pl-5 font-medium text-[var(--text-inverse)] text-small transition-[background-color,border-color,fill,stroke] hover-hover:brightness-110 dark:border-[rgba(255,255,255,0.1)]'

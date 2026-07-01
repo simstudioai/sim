@@ -22,6 +22,7 @@ const logger = createLogger('HelpModal')
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 const TARGET_SIZE_MB = 2
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+const ACCEPTED_IMAGE_TYPES_SET = new Set(ACCEPTED_IMAGE_TYPES)
 
 const SCROLL_DELAY_MS = 100
 const SUCCESS_RESET_DELAY_MS = 2000
@@ -213,7 +214,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
           continue
         }
 
-        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        if (!ACCEPTED_IMAGE_TYPES_SET.has(file.type)) {
           hasError = true
           continue
         }
@@ -254,7 +255,12 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
       <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; support</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-        <button type='submit' hidden disabled={helpMutation.isPending || isProcessing} />
+        <button
+          type='submit'
+          hidden
+          aria-label='Submit help request'
+          disabled={helpMutation.isPending || isProcessing}
+        />
         <ChipModalBody ref={scrollContainerRef} className='max-h-[60vh]'>
           <Controller
             name='type'

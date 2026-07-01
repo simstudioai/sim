@@ -52,7 +52,7 @@ export function SortBuilder({
   )
 
   const value = isPreview ? previewValue : storeValue
-  const rules: SortRule[] = Array.isArray(value) ? value : []
+  const rules: SortRule[] = useMemo(() => (Array.isArray(value) ? value : []), [value])
   const isReadOnly = isPreview || disabled
 
   const addRule = useCallback(() => {

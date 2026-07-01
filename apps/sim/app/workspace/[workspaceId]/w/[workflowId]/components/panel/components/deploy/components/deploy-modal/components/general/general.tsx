@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Button,
   ButtonGroup,
@@ -24,7 +24,7 @@ import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/compon
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { Versions } from './components'
+import { Versions } from './components/versions'
 import { formatVersionLabel } from './format-version-label'
 
 const logger = createLogger('GeneralDeploy')
@@ -135,12 +135,14 @@ export function GeneralDeploy({
     }
   }
 
-  useEffect(() => {
+  const prevWorkflowIdRef = useRef(workflowId)
+  if (prevWorkflowIdRef.current !== workflowId) {
+    prevWorkflowIdRef.current = workflowId
     setShowLoadDialog(false)
     setVersionToLoad(null)
     setShowPromoteDialog(false)
     setVersionToPromote(null)
-  }, [workflowId])
+  }
 
   const confirmPromoteToLive = async () => {
     if (!versionToPromote || isPromotingVersion) return

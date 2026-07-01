@@ -23,6 +23,28 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const MAX_VISIBLE_MULTI_SELECT_BADGES = 2
 
 /**
+ * Normalizes variable references in JSON strings by wrapping them in quotes
+ * @param jsonString - The JSON string containing variable references
+ * @returns Normalized JSON string with quoted variable references
+ */
+const normalizeVariableReferences = (jsonString: string): string => {
+  return jsonString.replace(/([^"]<[^>]+>)/g, '"$1"')
+}
+
+/**
+ * Infers the type of a value for builder data field configuration
+ * @param value - The value to infer type from
+ * @returns The inferred type as a string literal
+ */
+const inferType = (value: any): 'string' | 'number' | 'boolean' | 'object' | 'array' => {
+  if (typeof value === 'boolean') return 'boolean'
+  if (typeof value === 'number') return 'number'
+  if (Array.isArray(value)) return 'array'
+  if (typeof value === 'object' && value !== null) return 'object'
+  return 'string'
+}
+
+/**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon.
  * Options with `hidden: true` are excluded from the picker but still resolve for label display,
  * so existing workflows that reference them continue to work.
@@ -153,13 +175,10 @@ export const Dropdown = memo(function Dropdown({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const singleValue = multiSelect ? null : (value as string | null | undefined)
-  const multiValues = multiSelect
-    ? Array.isArray(value)
-      ? value
-      : value
-        ? [value as string]
-        : []
-    : null
+  const multiValues = useMemo(
+    () => (multiSelect ? (Array.isArray(value) ? value : value ? [value as string] : []) : null),
+    [multiSelect, value]
+  )
 
   const fetchOptionsIfNeeded = useCallback(async () => {
     if (!fetchOptions || isPreview || disabled) return
@@ -282,15 +301,6 @@ export const Dropdown = memo(function Dropdown({
   }, [storeValue, defaultOptionValue, setStoreValue, multiSelect])
 
   /**
-   * Normalizes variable references in JSON strings by wrapping them in quotes
-   * @param jsonString - The JSON string containing variable references
-   * @returns Normalized JSON string with quoted variable references
-   */
-  const normalizeVariableReferences = (jsonString: string): string => {
-    return jsonString.replace(/([^"]<[^>]+>)/g, '"$1"')
-  }
-
-  /**
    * Converts a JSON string to builder data format for structured editing
    * @param jsonString - The JSON string to convert
    * @returns Array of field objects with id, name, type, value, and collapsed properties
@@ -320,19 +330,6 @@ export const Dropdown = memo(function Dropdown({
     } catch (error) {
       return []
     }
-  }
-
-  /**
-   * Infers the type of a value for builder data field configuration
-   * @param value - The value to infer type from
-   * @returns The inferred type as a string literal
-   */
-  const inferType = (value: any): 'string' | 'number' | 'boolean' | 'object' | 'array' => {
-    if (typeof value === 'boolean') return 'boolean'
-    if (typeof value === 'number') return 'number'
-    if (Array.isArray(value)) return 'array'
-    if (typeof value === 'object' && value !== null) return 'object'
-    return 'string'
   }
 
   useEffect(() => {

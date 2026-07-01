@@ -68,6 +68,11 @@ const logger = createLogger('WorkflowBlock')
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
+/** Whether connecting `source` to `target` would introduce a cycle in the current graph. */
+function wouldCreateConnectionCycle(source: string, target: string) {
+  return wouldCreateCycle(useWorkflowStore.getState().edges, source, target)
+}
+
 interface SubBlockRowProps {
   title: string
   value?: string
@@ -166,13 +171,7 @@ const SubBlockRow = memo(function SubBlockRow({
       }
       return accumulator
     }, {})
-  }, [
-    canonicalIndex,
-    canonicalModeOverrides,
-    displayAdvancedOptions,
-    rawValues,
-    subBlock?.dependsOn,
-  ])
+  }, [canonicalIndex, canonicalModeOverrides, rawValues, subBlock?.dependsOn])
 
   const credentialSourceId =
     subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined
@@ -587,9 +586,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const subBlockRows = subBlockRowsData.rows
   const subBlockState = subBlockRowsData.stateToUse
-  const topologySubBlocks = data.isPreview
-    ? (data.blockState?.subBlocks ?? {})
-    : (currentStoreBlock?.subBlocks ?? {})
+  const topologySubBlocks = useMemo(
+    () =>
+      data.isPreview ? (data.blockState?.subBlocks ?? {}) : (currentStoreBlock?.subBlocks ?? {}),
+    [data.isPreview, data.blockState?.subBlocks, currentStoreBlock?.subBlocks]
+  )
   const effectiveAdvanced = useMemo(() => {
     const rawValues = Object.entries(subBlockState).reduce<Record<string, unknown>>(
       (acc, [key, entry]) => {
@@ -700,57 +701,75 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
 
-  const wouldCreateConnectionCycle = (source: string, target: string) =>
-    wouldCreateCycle(useWorkflowStore.getState().edges, source, target)
-
   const webhookProviderName = webhookProvider ? getProviderName(webhookProvider) : undefined
 
-  const rows =
-    type === 'condition' || type === 'router_v2' ? null : (
-      <>
-        {subBlockRows.map((row, rowIndex) =>
-          row.flatMap((subBlock) => {
-            const rawValue = subBlockState[subBlock.id]?.value
-            if (subBlock.type === 'mcp-dynamic-args') {
-              const schema = subBlockState._toolSchema?.value as
-                | { properties?: Record<string, unknown> }
-                | undefined
-              const properties = schema?.properties
-              if (properties && typeof properties === 'object') {
-                const args = (rawValue && typeof rawValue === 'object' ? rawValue : {}) as Record<
-                  string,
-                  unknown
-                >
-                return Object.keys(properties).map((paramName) => (
-                  <SubBlockRow
-                    key={`${subBlock.id}-${paramName}-${rowIndex}`}
-                    title={formatParameterLabel(paramName)}
-                    value={getDisplayValue(args[paramName])}
-                  />
-                ))
+  const rows = useMemo(
+    () =>
+      type === 'condition' || type === 'router_v2' ? null : (
+        <>
+          {subBlockRows.map((row, rowIndex) =>
+            row.flatMap((subBlock) => {
+              const rawValue = subBlockState[subBlock.id]?.value
+              if (subBlock.type === 'mcp-dynamic-args') {
+                const schema = subBlockState._toolSchema?.value as
+                  | { properties?: Record<string, unknown> }
+                  | undefined
+                const properties = schema?.properties
+                if (properties && typeof properties === 'object') {
+                  const args = (rawValue && typeof rawValue === 'object' ? rawValue : {}) as Record<
+                    string,
+                    unknown
+                  >
+                  return Object.keys(properties).map((paramName) => (
+                    <SubBlockRow
+                      key={`${subBlock.id}-${paramName}-${rowIndex}`}
+                      title={formatParameterLabel(paramName)}
+                      value={getDisplayValue(args[paramName])}
+                    />
+                  ))
+                }
+                return []
               }
-              return []
-            }
-            return [
-              <SubBlockRow
-                key={`${subBlock.id}-${rowIndex}`}
-                title={subBlock.title ?? subBlock.id}
-                value={getDisplayValue(rawValue)}
-                subBlock={subBlock}
-                rawValue={rawValue}
-                workspaceId={workspaceId}
-                workflowId={currentWorkflowId}
-                blockId={id}
-                allSubBlockValues={subBlockState}
-                displayAdvancedOptions={effectiveAdvanced}
-                canonicalIndex={canonicalIndex}
-                canonicalModeOverrides={canonicalModeOverrides}
-              />,
-            ]
-          })
-        )}
-      </>
-    )
+              return [
+                <SubBlockRow
+                  key={`${subBlock.id}-${rowIndex}`}
+                  title={subBlock.title ?? subBlock.id}
+                  value={getDisplayValue(rawValue)}
+                  subBlock={subBlock}
+                  rawValue={rawValue}
+                  workspaceId={workspaceId}
+                  workflowId={currentWorkflowId}
+                  blockId={id}
+                  allSubBlockValues={subBlockState}
+                  displayAdvancedOptions={effectiveAdvanced}
+                  canonicalIndex={canonicalIndex}
+                  canonicalModeOverrides={canonicalModeOverrides}
+                />,
+              ]
+            })
+          )}
+        </>
+      ),
+    [
+      type,
+      subBlockRows,
+      subBlockState,
+      workspaceId,
+      currentWorkflowId,
+      id,
+      effectiveAdvanced,
+      canonicalIndex,
+      canonicalModeOverrides,
+    ]
+  )
+
+  const actionBar = useMemo(
+    () =>
+      !data.isPreview && !data.isEmbedded ? (
+        <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
+      ) : undefined,
+    [data.isPreview, data.isEmbedded, id, type, canEditWorkflow]
+  )
 
   return (
     <WorkflowBlockView
@@ -804,11 +823,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }}
       onSelect={handleClick}
       contentRef={contentRef}
-      actionBar={
-        !data.isPreview && !data.isEmbedded ? (
-          <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
-        ) : undefined
-      }
+      actionBar={actionBar}
       rows={rows}
     />
   )

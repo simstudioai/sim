@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { SendIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -28,14 +28,14 @@ export function WandPromptBar({
 }: WandPromptBarProps) {
   const promptBarRef = useRef<HTMLDivElement>(null)
   const [isExiting, setIsExiting] = useState(false)
-  const [prevIsVisible, setPrevIsVisible] = useState(isVisible)
-  if (isVisible !== prevIsVisible) {
-    setPrevIsVisible(isVisible)
+  const prevIsVisibleRef = useRef(isVisible)
+  if (prevIsVisibleRef.current !== isVisible) {
+    prevIsVisibleRef.current = isVisible
     if (isVisible) setIsExiting(false)
   }
 
   // Handle the fade-out animation
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (!isLoading && !isStreaming) {
       setIsExiting(true)
       // Wait for animation to complete before actual cancellation
@@ -44,7 +44,7 @@ export function WandPromptBar({
         onCancel()
       }, 150) // Matches the CSS transition duration
     }
-  }
+  }, [isLoading, isStreaming, onCancel])
 
   useEffect(() => {
     // Handle click outside
@@ -68,7 +68,7 @@ export function WandPromptBar({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isVisible, isStreaming, isLoading, isExiting, onCancel])
+  }, [isVisible, isStreaming, isLoading, isExiting, handleCancel])
 
   if (!isVisible && !isStreaming && !isExiting) {
     return null
@@ -94,6 +94,7 @@ export function WandPromptBar({
             value={isStreaming ? 'Generating...' : promptValue}
             onChange={(e) => !isStreaming && onChange(e.target.value)}
             placeholder={placeholder}
+            aria-label={placeholder}
             autoComplete='off'
             autoCorrect='off'
             autoCapitalize='off'

@@ -45,6 +45,16 @@ const TagIcon: React.FC<{
 const EMPTY_OUTPUTS: string[] = []
 
 /**
+ * Gets the background color for a block output based on its type
+ * @param blockType - The type of the block
+ * @returns The hex color code for the block
+ */
+const getOutputColor = (blockType: string) => {
+  const blockConfig = getBlock(blockType)
+  return blockConfig?.bgColor || '#2F55FF'
+}
+
+/**
  * Props for the OutputSelect component
  */
 interface OutputSelectProps {
@@ -159,16 +169,7 @@ export function OutputSelect({
         path: f.path,
       }
     })
-  }, [
-    workflowBlocks,
-    workflowId,
-    isShowingDiff,
-    isDiffReady,
-    baselineWorkflow,
-    blocks,
-    subBlockValues,
-    shouldUseBaseline,
-  ])
+  }, [workflowBlocks, workflowId, baselineWorkflow, subBlockValues, shouldUseBaseline])
 
   /**
    * Gets display text for selected outputs
@@ -192,16 +193,6 @@ export function OutputSelect({
 
     return `${validOutputs.length} outputs`
   }, [selectedOutputs, workflowOutputs, placeholder])
-
-  /**
-   * Gets the background color for a block output based on its type
-   * @param blockType - The type of the block
-   * @returns The hex color code for the block
-   */
-  const getOutputColor = (blockType: string) => {
-    const blockConfig = getBlock(blockType)
-    return blockConfig?.bgColor || '#2F55FF'
-  }
 
   /**
    * Groups outputs by block and sorts by distance from starter block.

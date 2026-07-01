@@ -387,6 +387,7 @@ export function Editor() {
               <input
                 ref={nameInputRefCallback}
                 type='text'
+                aria-label='Block name'
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
                 onBlur={handleSaveRename}

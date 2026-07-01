@@ -60,6 +60,13 @@ const HEADER_ICON_SIZE = 16
 const LINE_HEIGHT = 21
 const MIN_EDITOR_HEIGHT = 120
 
+/** Blurs the variable-name input when Enter is pressed to commit the edit. */
+function handleVariableNameKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (e.key === 'Enter') {
+    e.currentTarget.blur()
+  }
+}
+
 /**
  * User-facing strings for errors, labels, and placeholders
  */
@@ -417,12 +424,6 @@ export function Variables({ readOnly = false }: VariablesProps) {
     },
     [localNames, isDuplicateName, collaborativeUpdateVariable, readOnly]
   )
-
-  const handleVariableNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.currentTarget.blur()
-    }
-  }
 
   const handleClose = () => {
     setIsOpen(false)

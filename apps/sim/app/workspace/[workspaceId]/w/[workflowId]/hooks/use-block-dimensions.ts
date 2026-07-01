@@ -30,9 +30,11 @@ export function useBlockDimensions({
   const updateNodeInternals = useUpdateNodeInternals()
   const updateBlockLayoutMetrics = useWorkflowStore((state) => state.updateBlockLayoutMetrics)
   const previousDimensions = useRef<BlockDimensions | null>(null)
+  const calculateDimensionsRef = useRef(calculateDimensions)
+  calculateDimensionsRef.current = calculateDimensions
 
   useEffect(() => {
-    const dimensions = calculateDimensions()
+    const dimensions = calculateDimensionsRef.current()
     const previous = previousDimensions.current
 
     if (!previous || previous.width !== dimensions.width || previous.height !== dimensions.height) {

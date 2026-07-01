@@ -12,6 +12,9 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { FilterRuleRow } from './components/filter-rule-row'
 
+/** Stable empty-rules reference so the derived `rules` identity only changes when the store value does. */
+const EMPTY_RULES: FilterRule[] = []
+
 interface FilterBuilderProps {
   blockId: string
   subBlockId: string
@@ -43,7 +46,7 @@ export function FilterBuilder({
   }, [propColumns, dynamicColumns])
 
   const value = isPreview ? previewValue : storeValue
-  const rules: FilterRule[] = Array.isArray(value) ? value : []
+  const rules: FilterRule[] = Array.isArray(value) ? value : EMPTY_RULES
   const isReadOnly = isPreview || disabled
 
   const { comparisonOptions, logicalOptions, addRule, removeRule, updateRule } = useFilterBuilder({

@@ -64,6 +64,11 @@ export const NoteBlock = memo(function NoteBlock({
   const userPermissions = useUserPermissionsContext()
   const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
 
+  const actionBar = useMemo(
+    () => <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />,
+    [id, type, canEditWorkflow]
+  )
+
   /**
    * Calculate deterministic dimensions based on content structure. Uses fixed
    * width and computed height to avoid ResizeObserver jitter.
@@ -90,7 +95,7 @@ export const NoteBlock = memo(function NoteBlock({
       hasRing={hasRing}
       ringStyles={ringStyles}
       onSelect={handleClick}
-      actionBar={<ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />}
+      actionBar={actionBar}
     />
   )
 })

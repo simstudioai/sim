@@ -355,14 +355,6 @@ export function PreviewWorkflow({
     }
   }, [workflowState.blocks, getSubflowExecutionStatus, blockExecutionMap])
 
-  const edgesStructure = useMemo(() => {
-    if (!isValidWorkflowState) return { count: 0, ids: '' }
-    return {
-      count: workflowState.edges?.length || 0,
-      ids: workflowState.edges?.map((e) => e.id).join(',') || '',
-    }
-  }, [workflowState.edges, isValidWorkflowState])
-
   const nodes: Node[] = useMemo(() => {
     if (!isValidWorkflowState) return []
 
@@ -472,6 +464,7 @@ export function PreviewWorkflow({
     workflowState.blocks,
     isValidWorkflowState,
     executedBlocks,
+    blockExecutionMap,
     selectedBlockId,
     getSubflowExecutionStatus,
     workflowMap,
@@ -545,13 +538,7 @@ export function PreviewWorkflow({
         zIndex: status === 'success' ? 10 : isErrorEdge ? 5 : 0,
       }
     })
-  }, [
-    edgesStructure,
-    workflowState.edges,
-    isValidWorkflowState,
-    blockExecutionMap,
-    getBlockExecutionStatus,
-  ])
+  }, [workflowState.edges, isValidWorkflowState, blockExecutionMap, getBlockExecutionStatus])
 
   if (!isValidWorkflowState) {
     return (

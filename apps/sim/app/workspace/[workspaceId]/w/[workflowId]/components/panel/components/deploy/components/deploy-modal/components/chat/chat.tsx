@@ -32,7 +32,7 @@ import {
   useUpdateChat,
 } from '@/hooks/queries/chats'
 import type { ChatDetail } from '@/hooks/queries/deployments'
-import { useIdentifierValidation } from './hooks'
+import { useIdentifierValidation } from './hooks/use-identifier-validation'
 import {
   getPasswordHelperText,
   getPasswordPlaceholder,
@@ -99,7 +99,7 @@ export function ChatDeploy({
   onDeployed,
   onVersionActivated,
 }: ChatDeployProps) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const imageUrlRef = useRef<string | null>(null)
   const [internalShowDeleteConfirmation, setInternalShowDeleteConfirmation] = useState(false)
 
   const showDeleteConfirmation =
@@ -195,13 +195,13 @@ export function ChatDeploy({
       })
 
       if (existingChat.customizations?.imageUrl) {
-        setImageUrl(existingChat.customizations.imageUrl)
+        imageUrlRef.current = existingChat.customizations.imageUrl
       }
 
       hasInitializedFormRef.current = true
     } else if (!existingChat && !isLoadingChat) {
       setFormData(initialFormData)
-      setImageUrl(null)
+      imageUrlRef.current = null
       hasInitializedFormRef.current = false
     }
   }, [existingChat, isLoadingChat])
@@ -238,14 +238,14 @@ export function ChatDeploy({
           chatId: existingChat.id,
           workflowId,
           formData,
-          imageUrl,
+          imageUrl: imageUrlRef.current,
         })
         chatUrl = result.chatUrl
       } else {
         const result = await createChatMutation.mutateAsync({
           workflowId,
           formData,
-          imageUrl,
+          imageUrl: imageUrlRef.current,
         })
         chatUrl = result.chatUrl
       }
@@ -285,7 +285,7 @@ export function ChatDeploy({
         workflowId,
       })
 
-      setImageUrl(null)
+      imageUrlRef.current = null
       hasInitializedFormRef.current = false
       setFormInitCounter((c) => c + 1)
       await onRefetchChat()
@@ -403,6 +403,7 @@ export function ChatDeploy({
           <button
             type='button'
             data-delete-trigger
+            aria-label='Delete chat'
             onClick={() => setShowDeleteConfirmation(true)}
             className='hidden'
           />

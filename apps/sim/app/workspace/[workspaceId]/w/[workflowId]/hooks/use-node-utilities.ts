@@ -224,40 +224,47 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       loopPosition: { x: number; y: number }
       dimensions: { width: number; height: number }
     } | null => {
-      const containingNodes = getNodes()
-        .filter((n) => n.type && isContainerType(n.type))
-        .filter((n) => {
-          // Use absolute coordinates for nested containers
-          const absolutePos = getNodeAbsolutePosition(n.id)
-          const rect = {
-            left: absolutePos.x,
-            right: absolutePos.x + (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
-            top: absolutePos.y,
-            bottom: absolutePos.y + (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
-          }
+      const containingNodes: Array<{
+        loopId: string
+        loopPosition: { x: number; y: number }
+        dimensions: { width: number; height: number }
+      }> = []
 
-          return (
-            position.x >= rect.left &&
-            position.x <= rect.right &&
-            position.y >= rect.top &&
-            position.y <= rect.bottom
-          )
-        })
-        .map((n) => ({
-          loopId: n.id,
-          loopPosition: getNodeAbsolutePosition(n.id),
-          dimensions: {
-            width: n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-            height: n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-          },
-        }))
+      for (const n of getNodes()) {
+        if (!n.type || !isContainerType(n.type)) continue
+
+        // Use absolute coordinates for nested containers
+        const absolutePos = getNodeAbsolutePosition(n.id)
+        const rect = {
+          left: absolutePos.x,
+          right: absolutePos.x + (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
+          top: absolutePos.y,
+          bottom: absolutePos.y + (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
+        }
+
+        if (
+          position.x >= rect.left &&
+          position.x <= rect.right &&
+          position.y >= rect.top &&
+          position.y <= rect.bottom
+        ) {
+          containingNodes.push({
+            loopId: n.id,
+            loopPosition: getNodeAbsolutePosition(n.id),
+            dimensions: {
+              width: n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+              height: n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+            },
+          })
+        }
+      }
 
       if (containingNodes.length > 0) {
-        return containingNodes.sort((a, b) => {
-          const aArea = a.dimensions.width * a.dimensions.height
-          const bArea = b.dimensions.width * b.dimensions.height
-          return aArea - bArea
-        })[0]
+        return containingNodes.reduce((smallest, node) => {
+          const nodeArea = node.dimensions.width * node.dimensions.height
+          const smallestArea = smallest.dimensions.width * smallest.dimensions.height
+          return nodeArea < smallestArea ? node : smallest
+        })
       }
 
       return null
@@ -298,14 +305,16 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   const resizeLoopNodes = useCallback(
     (updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void) => {
       const currentBlocks = useWorkflowStore.getState().blocks
-      const containerBlocks = Object.entries(currentBlocks)
-        .filter(([, block]) => block?.type && isContainerType(block.type))
-        .map(([id, block]) => ({
-          id,
-          block,
-          depth: getNodeDepth(id),
-        }))
-        .sort((a, b) => b.depth - a.depth)
+      const containerBlocks: Array<{
+        id: string
+        block: (typeof currentBlocks)[string]
+        depth: number
+      }> = []
+      for (const [id, block] of Object.entries(currentBlocks)) {
+        if (!block?.type || !isContainerType(block.type)) continue
+        containerBlocks.push({ id, block, depth: getNodeDepth(id) })
+      }
+      containerBlocks.sort((a, b) => b.depth - a.depth)
 
       for (const { id, block } of containerBlocks) {
         const dimensions = calculateLoopDimensions(id)

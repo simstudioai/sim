@@ -9,13 +9,16 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 export function useDynamicHandleRefresh() {
   const updateNodeInternals = useUpdateNodeInternals()
   const blocks = useWorkflowStore((state) => state.blocks)
-  const previousSignaturesRef = useRef<Map<string, string>>(new Map())
+  const previousSignaturesRef = useRef<Map<string, string> | null>(null)
+  if (previousSignaturesRef.current === null) {
+    previousSignaturesRef.current = new Map()
+  }
 
   const signatures = useMemo(() => collectDynamicHandleTopologySignatures(blocks), [blocks])
 
   useEffect(() => {
     const changedBlockIds = getChangedDynamicHandleBlockIds(
-      previousSignaturesRef.current,
+      previousSignaturesRef.current ?? new Map(),
       signatures
     )
     previousSignaturesRef.current = signatures

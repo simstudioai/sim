@@ -72,17 +72,16 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
   const isDisabled = isWebhookConfigured && webhook?.isActive === false
   const webhookId = isWebhookConfigured ? webhook?.id : undefined
 
-  const reactivateMutation = useReactivateWebhook()
+  const { mutateAsync: reactivateWebhookMutation } = useReactivateWebhook()
   const reactivateWebhook = useCallback(
     async (id: string) => {
       try {
-        await reactivateMutation.mutateAsync({ webhookId: id, workflowId, blockId })
+        await reactivateWebhookMutation({ webhookId: id, workflowId, blockId })
       } catch (error) {
         logger.error('Error reactivating webhook:', error)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workflowId, blockId]
+    [reactivateWebhookMutation, workflowId, blockId]
   )
 
   return {

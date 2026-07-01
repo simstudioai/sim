@@ -144,8 +144,7 @@ export function useWorkspaceManagement({
         return false
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [updateWorkspaceMutation.mutateAsync]
   )
 
   const switchWorkspace = useCallback(
@@ -178,8 +177,7 @@ export function useWorkspaceManagement({
         logger.error('Error creating workspace:', error)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [switchWorkspace]
+    [createWorkspaceMutation.mutateAsync, switchWorkspace]
   )
 
   const confirmDeleteWorkspace = useCallback(
@@ -211,8 +209,7 @@ export function useWorkspaceManagement({
         logger.error('Error deleting workspace:', error)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [switchWorkspace]
+    [deleteWorkspaceMutation.mutateAsync, switchWorkspace]
   )
 
   const handleLeaveWorkspace = useCallback(
@@ -251,8 +248,7 @@ export function useWorkspaceManagement({
         throw error
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [switchWorkspace, sessionUserId]
+    [leaveWorkspaceMutation.mutateAsync, switchWorkspace, sessionUserId]
   )
 
   return {

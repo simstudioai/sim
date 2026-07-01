@@ -44,6 +44,13 @@ const unescapeContent = (str: string): string =>
   str.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
 
 /**
+ * Capitalizes the first letter of the role
+ */
+const formatRole = (role: string): string => {
+  return role.charAt(0).toUpperCase() + role.slice(1)
+}
+
+/**
  * Interface for individual message in the messages array
  */
 interface Message {
@@ -245,22 +252,38 @@ export function MessagesInput({
     [wandHook]
   )
 
-  const localMessagesRef = useRef(localMessages)
-  localMessagesRef.current = localMessages
+  /**
+   * Adopts an external message source (preview prop or persisted store value) into the
+   * local editable buffer during render, so the sync happens without an extra committed
+   * frame or a copy-into-state effect. Only reacts when one of the sources changes
+   * identity, and only overwrites when the value actually differs (deep), matching the
+   * previous effect's guards. Regenerates stable render keys in lockstep with the reset.
+   */
+  const messagesSyncRef = useRef<{
+    isPreview: boolean
+    previewValue: typeof previewValue
+    messages: typeof messages
+  } | null>(null)
 
-  useEffect(() => {
+  if (
+    messagesSyncRef.current === null ||
+    messagesSyncRef.current.isPreview !== isPreview ||
+    messagesSyncRef.current.previewValue !== previewValue ||
+    messagesSyncRef.current.messages !== messages
+  ) {
+    messagesSyncRef.current = { isPreview, previewValue, messages }
     if (isPreview && previewValue && Array.isArray(previewValue)) {
-      if (!isEqual(localMessagesRef.current, previewValue)) {
+      if (!isEqual(localMessages, previewValue)) {
         messageIdsRef.current = previewValue.map(() => generateShortId())
         setLocalMessages(previewValue)
       }
     } else if (messages && Array.isArray(messages) && messages.length > 0) {
-      if (!isEqual(localMessagesRef.current, messages)) {
+      if (!isEqual(localMessages, messages)) {
         messageIdsRef.current = messages.map(() => generateShortId())
         setLocalMessages(messages)
       }
     }
-  }, [isPreview, previewValue, messages])
+  }
 
   /**
    * Gets the current messages array
@@ -389,13 +412,6 @@ export function MessagesInput({
     },
     [localMessages, setMessages, isPreview, disabled]
   )
-
-  /**
-   * Capitalizes the first letter of the role
-   */
-  const formatRole = (role: string): string => {
-    return role.charAt(0).toUpperCase() + role.slice(1)
-  }
 
   /**
    * Handles header click to focus the textarea
@@ -716,6 +732,7 @@ export function MessagesInput({
                       textareaRefs.current[fieldId] = el
                     }}
                     className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
+                    aria-label={`Message ${index + 1} content`}
                     placeholder='Enter message content...'
                     value={message.content}
                     onChange={fieldHandlers.onChange}
@@ -797,6 +814,7 @@ export function MessagesInput({
                     <div
                       role='separator'
                       aria-orientation='horizontal'
+                      tabIndex={-1}
                       className='absolute right-1 bottom-1 z-[3] flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                       onMouseDown={(e) => handleResizeStart(fieldId, e)}
                       onDragStart={(e) => {

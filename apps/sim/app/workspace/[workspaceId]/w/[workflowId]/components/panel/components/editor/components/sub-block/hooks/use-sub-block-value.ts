@@ -190,11 +190,8 @@ export function useSubBlockValue<T = any>(
     [
       blockId,
       subBlockId,
-      blockType,
-      isApiKey,
       storeValue,
       triggerWorkflowUpdate,
-      modelValue,
       isStreaming,
       emitValue,
       isBaselineView,
@@ -210,13 +207,8 @@ export function useSubBlockValue<T = any>(
       ? storeValue
       : initialValue
 
-  // Initialize valueRef on first render
-  useEffect(() => {
-    valueRef.current = effectiveValue
-  }, [])
-
-  // Update the ref if the effective value changes
-  // This ensures we're always working with the latest value
+  // Keep the ref in sync with the effective value so we always work with the latest value.
+  // On first render valueRef starts as null, so this effect also performs the initial seed.
   useEffect(() => {
     // Use deep comparison for objects to prevent unnecessary updates
     if (!isEqual(valueRef.current, effectiveValue)) {

@@ -21,7 +21,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
-import { ConnectionBlocks } from '../connection-blocks'
+import { ConnectionBlocks } from '../connection-blocks/connection-blocks'
 import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
 
 const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'

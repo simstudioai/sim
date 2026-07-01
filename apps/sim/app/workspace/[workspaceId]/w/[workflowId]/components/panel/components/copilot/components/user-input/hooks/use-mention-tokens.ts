@@ -50,16 +50,22 @@ export function useMentionTokens({
     const ranges: MentionRange[] = []
     if (!message || selectedContexts.length === 0) return ranges
 
-    const labels = selectedContexts.map((c) => c.label).filter(Boolean)
+    const labels = selectedContexts.flatMap((c) => (c.label ? [c.label] : []))
     if (labels.length === 0) return ranges
 
     // Deduplicate labels to avoid finding the same token multiple times
     // when multiple contexts share the same label
     const uniqueLabels = Array.from(new Set(labels))
 
+    // Precompute first-matching context per label for O(1) lookups in the loop
+    const contextByLabel = new Map<string, (typeof selectedContexts)[number]>()
+    for (const c of selectedContexts) {
+      if (c.label && !contextByLabel.has(c.label)) contextByLabel.set(c.label, c)
+    }
+
     for (const label of uniqueLabels) {
       // Find matching context to determine if it's a slash command
-      const matchingContext = selectedContexts.find((c) => c.label === label)
+      const matchingContext = contextByLabel.get(label)
       const prefix =
         matchingContext?.kind === 'skill'
           ? SKILL_CHIP_TRIGGER

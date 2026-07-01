@@ -92,6 +92,35 @@ const validateFieldName = (name: string): string => name.replace(/[\x00-\x1F"\\]
 
 const jsonHighlight = (code: string): string => highlight(code, languages.json, 'json')
 
+/**
+ * Renders a field label. A stable component (not an inline render call) so React
+ * preserves its identity across renders.
+ */
+function FieldLabel({ label }: { label: string }) {
+  return <Label>{label}</Label>
+}
+
+/**
+ * Renders the line-number gutter for the code editors. A stable component (not an
+ * inline render call) so React preserves its identity across renders.
+ */
+function LineNumbers({ count }: { count: number }) {
+  return Array.from({ length: count }, (_, i) => (
+    <div
+      key={i}
+      className='font-medium font-mono text-[var(--text-muted)] text-xs'
+      style={{ height: `${21}px`, lineHeight: `${21}px` }}
+    >
+      {i + 1}
+    </div>
+  ))
+}
+
+/**
+ * Generates a unique field key for name inputs to avoid collision with value inputs
+ */
+const getNameFieldKey = (fieldId: string) => `name-${fieldId}`
+
 export function FieldFormat({
   blockId,
   subBlockId,
@@ -139,8 +168,6 @@ export function FieldFormat({
   const value = isPreview ? previewValue : storeValue
   const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [fallbackField]
   const isReadOnly = isPreview || disabled
-
-  const renderFieldLabel = (label: string) => <Label>{label}</Label>
 
   /**
    * Resolves the current editor mode for a file field. The uploader is only
@@ -283,11 +310,6 @@ export function FieldFormat({
     const overlay = nameOverlayRefs.current[fieldId]
     if (overlay) overlay.scrollLeft = scrollLeft
   }
-
-  /**
-   * Generates a unique field key for name inputs to avoid collision with value inputs
-   */
-  const getNameFieldKey = (fieldId: string) => `name-${fieldId}`
 
   /**
    * Renders the name input field with tag dropdown support
@@ -480,21 +502,11 @@ export function FieldFormat({
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
 
-      const renderLineNumbers = () => {
-        return Array.from({ length: lineCount }, (_, i) => (
-          <div
-            key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
-            style={{ height: `${21}px`, lineHeight: `${21}px` }}
-          >
-            {i + 1}
-          </div>
-        ))
-      }
-
       return (
         <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+          <Code.Gutter width={gutterWidth}>
+            <LineNumbers count={lineCount} />
+          </Code.Gutter>
           <Code.Content paddingLeft={`${gutterWidth}px`}>
             <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
               {'{\n  "key": "value"\n}'}
@@ -515,21 +527,11 @@ export function FieldFormat({
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
 
-      const renderLineNumbers = () => {
-        return Array.from({ length: lineCount }, (_, i) => (
-          <div
-            key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
-            style={{ height: `${21}px`, lineHeight: `${21}px` }}
-          >
-            {i + 1}
-          </div>
-        ))
-      }
-
       return (
         <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+          <Code.Gutter width={gutterWidth}>
+            <LineNumbers count={lineCount} />
+          </Code.Gutter>
           <Code.Content paddingLeft={`${gutterWidth}px`}>
             <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
               {'[\n  1, 2, 3\n]'}
@@ -574,20 +576,12 @@ export function FieldFormat({
 
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
-      const renderLineNumbers = () =>
-        Array.from({ length: lineCount }, (_, i) => (
-          <div
-            key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
-            style={{ height: `${21}px`, lineHeight: `${21}px` }}
-          >
-            {i + 1}
-          </div>
-        ))
 
       return (
         <Code.Container className='min-h-[120px]'>
-          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+          <Code.Gutter width={gutterWidth}>
+            <LineNumbers count={lineCount} />
+          </Code.Gutter>
           <Code.Content paddingLeft={`${gutterWidth}px`}>
             <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
               {
@@ -672,13 +666,13 @@ export function FieldFormat({
             <ExpandableContent>
               <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                 <div className='flex flex-col gap-1.5'>
-                  {renderFieldLabel('Name')}
+                  <FieldLabel label='Name' />
                   <div className='relative'>{renderNameInput(field)}</div>
                 </div>
 
                 {showType && (
                   <div className='flex flex-col gap-1.5'>
-                    {renderFieldLabel('Type')}
+                    <FieldLabel label='Type' />
                     <Combobox
                       options={TYPE_OPTIONS}
                       value={field.type}
@@ -690,7 +684,7 @@ export function FieldFormat({
 
                 {showDescription && (
                   <div className='flex flex-col gap-1.5'>
-                    {renderFieldLabel('Description')}
+                    <FieldLabel label='Description' />
                     <div className='relative'>
                       <Input
                         value={field.description ?? ''}
@@ -738,11 +732,11 @@ export function FieldFormat({
                   <div className='flex flex-col gap-1.5'>
                     {isFileFieldType(field.type) ? (
                       <div className='flex items-center justify-between'>
-                        {renderFieldLabel('Value')}
+                        <FieldLabel label='Value' />
                         {renderFileModeToggle(field)}
                       </div>
                     ) : (
-                      renderFieldLabel('Value')
+                      <FieldLabel label='Value' />
                     )}
                     <div className='relative'>{renderValueInput(field)}</div>
                   </div>

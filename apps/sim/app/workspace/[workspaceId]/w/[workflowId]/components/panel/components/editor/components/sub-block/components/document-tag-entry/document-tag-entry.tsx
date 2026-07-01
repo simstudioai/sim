@@ -56,6 +56,96 @@ const createDefaultTag = (): DocumentTag => ({
   collapsed: false,
 })
 
+/**
+ * Parses a JSON tag value into a normalized array of document tags
+ */
+const parseTags = (tagValue: string | null): DocumentTag[] => {
+  if (!tagValue) return []
+  try {
+    const parsed = JSON.parse(tagValue)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((t: DocumentTag) => ({
+      ...t,
+      fieldType: t.fieldType || 'text',
+      collapsed: t.collapsed ?? false,
+    }))
+  } catch {
+    return []
+  }
+}
+
+interface TagHeaderProps {
+  tag: DocumentTag
+  index: number
+  isReadOnly: boolean
+  canAddMoreTags: boolean
+  onToggle: () => void
+  onAdd: () => void
+  onRemove: () => void
+}
+
+/**
+ * Renders the tag header with name, badge, and action buttons.
+ * Shows tag name only when collapsed (as summary), generic label when expanded.
+ */
+function TagHeader({
+  tag,
+  index,
+  isReadOnly,
+  canAddMoreTags,
+  onToggle,
+  onAdd,
+  onRemove,
+}: TagHeaderProps) {
+  return (
+    <div
+      role='group'
+      aria-label={`Tag ${index + 1}`}
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
+      onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, onToggle)
+      }}
+    >
+      <div className='flex min-w-0 flex-1 items-center gap-2'>
+        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+          {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
+        </span>
+        {tag.collapsed && tag.tagName && (
+          <Badge variant='type' size='sm'>
+            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
+          </Badge>
+        )}
+      </div>
+      <div
+        role='presentation'
+        className='flex items-center gap-2 pl-2'
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Button
+          variant='ghost'
+          onClick={onAdd}
+          disabled={isReadOnly || !canAddMoreTags}
+          className='h-auto p-0'
+        >
+          <Plus className='size-[14px]' />
+          <span className='sr-only'>Add Tag</span>
+        </Button>
+        <Button
+          variant='ghost'
+          onClick={onRemove}
+          disabled={isReadOnly}
+          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+        >
+          <Trash className='size-[14px]' />
+          <span className='sr-only'>Delete Tag</span>
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function DocumentTagEntry({
   blockId,
   subBlock,
@@ -98,29 +188,20 @@ export function DocumentTagEntry({
 
   const currentValue = isPreview ? previewValue : storeValue
 
-  const parseTags = (tagValue: string | null): DocumentTag[] => {
-    if (!tagValue) return []
-    try {
-      const parsed = JSON.parse(tagValue)
-      if (!Array.isArray(parsed)) return []
-      return parsed.map((t: DocumentTag) => ({
-        ...t,
-        fieldType: t.fieldType || 'text',
-        collapsed: t.collapsed ?? false,
-      }))
-    } catch {
-      return []
-    }
-  }
-
   const parsedTags = parseTags(currentValue || null)
   const tags: DocumentTag[] = parsedTags.length > 0 ? parsedTags : [createDefaultTag()]
   const isReadOnly = isPreview || disabled
 
-  // Get tag names already used (case-insensitive)
-  const usedTagNames = useMemo(() => {
-    return new Set(tags.map((t) => t.tagName?.toLowerCase()).filter((name) => name?.trim()))
-  }, [tags])
+  // Get tag names already used (case-insensitive).
+  // `tags` is rebuilt every render, so this is computed during render rather than memoized.
+  const usedTagNames = (() => {
+    const names = new Set<string>()
+    for (const t of tags) {
+      const name = t.tagName?.toLowerCase()
+      if (name?.trim()) names.add(name)
+    }
+    return names
+  })()
 
   // Filter available tags (exclude already used ones)
   const availableTagDefinitions = useMemo(() => {
@@ -240,58 +321,6 @@ export function DocumentTagEntry({
       </div>
     )
   }
-
-  /**
-   * Renders the tag header with name, badge, and action buttons
-   * Shows tag name only when collapsed (as summary), generic label when expanded
-   */
-  const renderTagHeader = (tag: DocumentTag, index: number) => (
-    <div
-      role='group'
-      aria-label={`Tag ${index + 1}`}
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={() => toggleCollapse(tag.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, () => toggleCollapse(tag.id))
-      }}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
-          {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
-        </span>
-        {tag.collapsed && tag.tagName && (
-          <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
-          </Badge>
-        )}
-      </div>
-      <div
-        role='presentation'
-        className='flex items-center gap-2 pl-2'
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button
-          variant='ghost'
-          onClick={addTag}
-          disabled={isReadOnly || !canAddMoreTags}
-          className='h-auto p-0'
-        >
-          <Plus className='size-[14px]' />
-          <span className='sr-only'>Add Tag</span>
-        </Button>
-        <Button
-          variant='ghost'
-          onClick={() => removeTag(tag.id)}
-          disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
-        >
-          <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Tag</span>
-        </Button>
-      </div>
-    </div>
-  )
 
   /**
    * Renders the value input with tag dropdown support
@@ -423,7 +452,15 @@ export function DocumentTagEntry({
             tag.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >
-          {renderTagHeader(tag, index)}
+          <TagHeader
+            tag={tag}
+            index={index}
+            isReadOnly={isReadOnly}
+            canAddMoreTags={canAddMoreTags}
+            onToggle={() => toggleCollapse(tag.id)}
+            onAdd={addTag}
+            onRemove={() => removeTag(tag.id)}
+          />
           {!tag.collapsed && renderTagContent(tag)}
         </div>
       ))}

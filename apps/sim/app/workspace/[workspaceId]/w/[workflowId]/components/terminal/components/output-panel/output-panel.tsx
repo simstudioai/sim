@@ -270,11 +270,7 @@ export const OutputPanel = React.memo(function OutputPanel({
     return () => document.removeEventListener('selectionchange', handleSelectionChange)
   }, [isOutputMenuOpen])
 
-  // Memoize the search query for structured output to avoid re-renders
-  const structuredSearchQuery = useMemo(
-    () => (isOutputSearchActive ? outputSearchQuery : undefined),
-    [isOutputSearchActive, outputSearchQuery]
-  )
+  const structuredSearchQuery = isOutputSearchActive ? outputSearchQuery : undefined
 
   const outputDataStringified = useMemo(() => {
     if (

@@ -2,8 +2,8 @@
 
 import {
   type ComponentType,
-  forwardRef,
   memo,
+  type Ref,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -324,6 +324,8 @@ const ToolbarSection = memo(function ToolbarSection({
 interface ToolbarProps {
   /** Whether the toolbar tab is currently active */
   isActive?: boolean
+  /** Imperative handle forwarded to the toolbar root */
+  ref?: Ref<ToolbarRef>
 }
 
 /**
@@ -345,440 +347,435 @@ interface ToolbarRef {
  * @param props.isActive - Whether the toolbar tab is currently active
  * @returns Toolbar view with triggers, blocks, and tools sections
  */
-export const Toolbar = memo(
-  forwardRef<ToolbarRef, ToolbarProps>(function Toolbar({ isActive = true }: ToolbarProps, ref) {
-    const rootRef = useRef<HTMLDivElement>(null)
-    const searchInputRef = useRef<HTMLInputElement>(null)
-    const triggerItemRefs = useRef<Array<HTMLDivElement | null>>([])
-    const blockItemRefs = useRef<Array<HTMLDivElement | null>>([])
-    const toolItemRefs = useRef<Array<HTMLDivElement | null>>([])
+export const Toolbar = memo(function Toolbar({ isActive = true, ref }: ToolbarProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const triggerItemRefs = useRef<Array<HTMLDivElement | null>>([])
+  const blockItemRefs = useRef<Array<HTMLDivElement | null>>([])
+  const toolItemRefs = useRef<Array<HTMLDivElement | null>>([])
 
-    const triggerRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
-    const blockRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
-    const toolRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
+  const triggerRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
+  const blockRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
+  const toolRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
 
-    const getTriggerRefCallback = useCallback((index: number) => {
-      if (!triggerRefCallbacks.current[index]) {
-        triggerRefCallbacks.current[index] = (el) => {
-          triggerItemRefs.current[index] = el
-        }
+  const getTriggerRefCallback = useCallback((index: number) => {
+    if (!triggerRefCallbacks.current[index]) {
+      triggerRefCallbacks.current[index] = (el) => {
+        triggerItemRefs.current[index] = el
       }
-      return triggerRefCallbacks.current[index]
-    }, [])
+    }
+    return triggerRefCallbacks.current[index]
+  }, [])
 
-    const getBlockRefCallback = useCallback((index: number) => {
-      if (!blockRefCallbacks.current[index]) {
-        blockRefCallbacks.current[index] = (el) => {
-          blockItemRefs.current[index] = el
-        }
+  const getBlockRefCallback = useCallback((index: number) => {
+    if (!blockRefCallbacks.current[index]) {
+      blockRefCallbacks.current[index] = (el) => {
+        blockItemRefs.current[index] = el
       }
-      return blockRefCallbacks.current[index]
-    }, [])
+    }
+    return blockRefCallbacks.current[index]
+  }, [])
 
-    const getToolRefCallback = useCallback((index: number) => {
-      if (!toolRefCallbacks.current[index]) {
-        toolRefCallbacks.current[index] = (el) => {
-          toolItemRefs.current[index] = el
-        }
+  const getToolRefCallback = useCallback((index: number) => {
+    if (!toolRefCallbacks.current[index]) {
+      toolRefCallbacks.current[index] = (el) => {
+        toolItemRefs.current[index] = el
       }
-      return toolRefCallbacks.current[index]
-    }, [])
+    }
+    return toolRefCallbacks.current[index]
+  }, [])
 
-    const posthog = usePostHog()
-    const { filterBlocks } = usePermissionConfig()
-    const sandboxAllowedBlocks = useSandboxBlockConstraints()
+  const posthog = usePostHog()
+  const { filterBlocks } = usePermissionConfig()
+  const sandboxAllowedBlocks = useSandboxBlockConstraints()
 
-    const expandedSections = useToolbarStore((state) => state.expandedSections)
-    const setSectionExpanded = useToolbarStore((state) => state.setSectionExpanded)
+  const expandedSections = useToolbarStore((state) => state.expandedSections)
+  const setSectionExpanded = useToolbarStore((state) => state.setSectionExpanded)
 
-    const [isSearchActive, setIsSearchActive] = useState(false)
-    const [searchQuery, setSearchQuery] = useState('')
-    /**
-     * Collapsible animations are only enabled after the user explicitly toggles
-     * a section. Reset when the tab becomes inactive so the next visibility
-     * cycle (display: none → block) does not replay the open animation —
-     * CSS animations restart whenever a hidden ancestor becomes visible again.
-     */
-    const [animationsEnabled, setAnimationsEnabled] = useState(false)
-    const [prevIsActive, setPrevIsActive] = useState(isActive)
-    if (isActive !== prevIsActive) {
-      setPrevIsActive(isActive)
-      if (!isActive) {
-        setIsSearchActive(false)
-        setSearchQuery('')
-        setAnimationsEnabled(false)
+  const [isSearchActive, setIsSearchActive] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  /**
+   * Collapsible animations are only enabled after the user explicitly toggles
+   * a section. Reset when the tab becomes inactive so the next visibility
+   * cycle (display: none → block) does not replay the open animation —
+   * CSS animations restart whenever a hidden ancestor becomes visible again.
+   */
+  const [animationsEnabled, setAnimationsEnabled] = useState(false)
+  const prevIsActiveRef = useRef(isActive)
+  if (isActive !== prevIsActiveRef.current) {
+    prevIsActiveRef.current = isActive
+    if (!isActive) {
+      setIsSearchActive(false)
+      setSearchQuery('')
+      setAnimationsEnabled(false)
+    }
+  }
+
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+  const contextMenuRef = useRef<HTMLDivElement>(null)
+  const [activeItemInfo, setActiveItemInfo] = useState<{
+    type: string
+    isTrigger: boolean
+    docsLink?: string
+  } | null>(null)
+  const isContextMenuOpen = activeItemInfo !== null
+
+  const { handleDragStart, handleItemClick } = useToolbarItemInteractions()
+
+  const allTriggers = getTriggers()
+  const allBlocks = getBlocks()
+  const allTools = getTools()
+
+  const visibleTriggers = useMemo(() => {
+    if (sandboxAllowedBlocks !== null) return []
+    return filterBlocks(allTriggers)
+  }, [filterBlocks, allTriggers, sandboxAllowedBlocks])
+
+  const visibleBlocks = useMemo(() => {
+    const permitted = filterBlocks(allBlocks)
+    if (sandboxAllowedBlocks === null) return permitted
+    return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
+  }, [filterBlocks, allBlocks, sandboxAllowedBlocks])
+
+  const visibleTools = useMemo(() => {
+    const permitted = filterBlocks(allTools)
+    if (sandboxAllowedBlocks === null) return permitted
+    return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
+  }, [filterBlocks, allTools, sandboxAllowedBlocks])
+
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+  const isSearching = normalizedQuery.length > 0
+
+  const filteredTriggers = useMemo(() => {
+    if (!isSearching) return visibleTriggers
+    return visibleTriggers.filter((trigger) => trigger.name.toLowerCase().includes(normalizedQuery))
+  }, [visibleTriggers, isSearching, normalizedQuery])
+
+  const filteredBlocks = useMemo(() => {
+    if (!isSearching) return visibleBlocks
+    return visibleBlocks.filter((block) => block.name.toLowerCase().includes(normalizedQuery))
+  }, [visibleBlocks, isSearching, normalizedQuery])
+
+  const filteredTools = useMemo(() => {
+    if (!isSearching) return visibleTools
+    return visibleTools.filter((tool) => tool.name.toLowerCase().includes(normalizedQuery))
+  }, [visibleTools, isSearching, normalizedQuery])
+
+  /**
+   * Trim ref arrays to current filtered length to prevent stale refs from
+   * polluting keyboard navigation when items disappear (search, sandbox).
+   */
+  triggerItemRefs.current.length = filteredTriggers.length
+  blockItemRefs.current.length = filteredBlocks.length
+  toolItemRefs.current.length = filteredTools.length
+
+  /**
+   * Section expansion is derived during search (force-expand sections with
+   * matches, hide sections with zero matches via items.length === 0). When
+   * not searching, the persisted store state drives expansion.
+   */
+  const sectionExpanded: Record<ToolbarSectionKey, boolean> = {
+    triggers: isSearching ? filteredTriggers.length > 0 : expandedSections.triggers,
+    blocks: isSearching ? filteredBlocks.length > 0 : expandedSections.blocks,
+    tools: isSearching ? filteredTools.length > 0 : expandedSections.tools,
+  }
+
+  const handleSectionToggle = useCallback(
+    (key: ToolbarSectionKey) => {
+      if (isSearching) return
+      setAnimationsEnabled(true)
+      setSectionExpanded(key, !expandedSections[key])
+    },
+    [isSearching, expandedSections, setSectionExpanded]
+  )
+
+  const focusSearch = useCallback(() => {
+    setIsSearchActive(true)
+    queueMicrotask(() => searchInputRef.current?.focus())
+  }, [])
+
+  useImperativeHandle(ref, () => ({ focusSearch }), [focusSearch])
+
+  /**
+   * Handle search input blur.
+   *
+   * If the search query is empty, deactivate search mode to show the search icon again.
+   * If there's a query, keep search mode active so ArrowUp/Down navigation continues
+   * to work after focus moves into the section lists.
+   */
+  const handleSearchBlur = useCallback(() => {
+    if (!searchQuery.trim()) {
+      setIsSearchActive(false)
+    }
+  }, [searchQuery])
+
+  const handleItemContextMenu = useCallback(
+    (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setContextMenuPosition({ x: e.clientX, y: e.clientY })
+      setActiveItemInfo({ type, isTrigger, docsLink })
+    },
+    []
+  )
+
+  const closeContextMenu = useCallback(() => {
+    setActiveItemInfo(null)
+  }, [])
+
+  const handleContextMenuAddToCanvas = useCallback(() => {
+    if (activeItemInfo) {
+      handleItemClick(activeItemInfo.type, activeItemInfo.isTrigger)
+    }
+  }, [activeItemInfo, handleItemClick])
+
+  const handleViewDocumentation = useCallback(() => {
+    if (activeItemInfo?.docsLink) {
+      window.open(activeItemInfo.docsLink, '_blank', 'noopener,noreferrer')
+      captureEvent(posthog, 'docs_opened', {
+        source: 'toolbar_context_menu',
+        block_type: activeItemInfo.type,
+      })
+    }
+  }, [activeItemInfo, posthog])
+
+  useEffect(() => {
+    if (!isContextMenuOpen) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        closeContextMenu()
       }
     }
 
-    const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
-    const contextMenuRef = useRef<HTMLDivElement>(null)
-    const [activeItemInfo, setActiveItemInfo] = useState<{
-      type: string
-      isTrigger: boolean
-      docsLink?: string
-    } | null>(null)
-    const isContextMenuOpen = activeItemInfo !== null
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside)
+    }, 0)
 
-    const { handleDragStart, handleItemClick } = useToolbarItemInteractions()
-
-    const allTriggers = getTriggers()
-    const allBlocks = getBlocks()
-    const allTools = getTools()
-
-    const visibleTriggers = useMemo(() => {
-      if (sandboxAllowedBlocks !== null) return []
-      return filterBlocks(allTriggers)
-    }, [filterBlocks, allTriggers, sandboxAllowedBlocks])
-
-    const visibleBlocks = useMemo(() => {
-      const permitted = filterBlocks(allBlocks)
-      if (sandboxAllowedBlocks === null) return permitted
-      return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
-    }, [filterBlocks, allBlocks, sandboxAllowedBlocks])
-
-    const visibleTools = useMemo(() => {
-      const permitted = filterBlocks(allTools)
-      if (sandboxAllowedBlocks === null) return permitted
-      return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
-    }, [filterBlocks, allTools, sandboxAllowedBlocks])
-
-    const normalizedQuery = searchQuery.trim().toLowerCase()
-    const isSearching = normalizedQuery.length > 0
-
-    const filteredTriggers = useMemo(() => {
-      if (!isSearching) return visibleTriggers
-      return visibleTriggers.filter((trigger) =>
-        trigger.name.toLowerCase().includes(normalizedQuery)
-      )
-    }, [visibleTriggers, isSearching, normalizedQuery])
-
-    const filteredBlocks = useMemo(() => {
-      if (!isSearching) return visibleBlocks
-      return visibleBlocks.filter((block) => block.name.toLowerCase().includes(normalizedQuery))
-    }, [visibleBlocks, isSearching, normalizedQuery])
-
-    const filteredTools = useMemo(() => {
-      if (!isSearching) return visibleTools
-      return visibleTools.filter((tool) => tool.name.toLowerCase().includes(normalizedQuery))
-    }, [visibleTools, isSearching, normalizedQuery])
-
-    /**
-     * Trim ref arrays to current filtered length to prevent stale refs from
-     * polluting keyboard navigation when items disappear (search, sandbox).
-     */
-    triggerItemRefs.current.length = filteredTriggers.length
-    blockItemRefs.current.length = filteredBlocks.length
-    toolItemRefs.current.length = filteredTools.length
-
-    /**
-     * Section expansion is derived during search (force-expand sections with
-     * matches, hide sections with zero matches via items.length === 0). When
-     * not searching, the persisted store state drives expansion.
-     */
-    const sectionExpanded: Record<ToolbarSectionKey, boolean> = {
-      triggers: isSearching ? filteredTriggers.length > 0 : expandedSections.triggers,
-      blocks: isSearching ? filteredBlocks.length > 0 : expandedSections.blocks,
-      tools: isSearching ? filteredTools.length > 0 : expandedSections.tools,
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('click', handleClickOutside)
     }
+  }, [isContextMenuOpen, closeContextMenu])
 
-    const handleSectionToggle = useCallback(
-      (key: ToolbarSectionKey) => {
-        if (isSearching) return
-        setAnimationsEnabled(true)
-        setSectionExpanded(key, !expandedSections[key])
-      },
-      [isSearching, expandedSections, setSectionExpanded]
-    )
+  /**
+   * Keyboard navigation across the three sections.
+   *
+   * - Active only when the toolbar tab is active and search mode is on.
+   * - Skips collapsed or empty sections so focus only lands on visible items.
+   * - ArrowDown traverses search → triggers → blocks → tools.
+   * - ArrowUp moves backward; from the first item of the first visible section
+   *   it wraps back to the search input.
+   */
+  useEffect(() => {
+    if (!isActive || !isSearchActive) return
 
-    const focusSearch = useCallback(() => {
-      setIsSearchActive(true)
-      queueMicrotask(() => searchInputRef.current?.focus())
-    }, [])
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
 
-    useImperativeHandle(ref, () => ({ focusSearch }), [focusSearch])
+      const activeEl = document.activeElement as HTMLElement | null
+      const toolbarRoot = rootRef.current
+      if (!toolbarRoot || !activeEl || !toolbarRoot.contains(activeEl)) return
 
-    /**
-     * Handle search input blur.
-     *
-     * If the search query is empty, deactivate search mode to show the search icon again.
-     * If there's a query, keep search mode active so ArrowUp/Down navigation continues
-     * to work after focus moves into the section lists.
-     */
-    const handleSearchBlur = useCallback(() => {
-      if (!searchQuery.trim()) {
-        setIsSearchActive(false)
+      type SectionList = {
+        key: ToolbarSectionKey
+        items: HTMLDivElement[]
       }
-    }, [searchQuery])
 
-    const handleItemContextMenu = useCallback(
-      (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setContextMenuPosition({ x: e.clientX, y: e.clientY })
-        setActiveItemInfo({ type, isTrigger, docsLink })
-      },
-      []
-    )
+      const allSections: SectionList[] = [
+        {
+          key: 'triggers',
+          items: sectionExpanded.triggers
+            ? triggerItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+            : [],
+        },
+        {
+          key: 'blocks',
+          items: sectionExpanded.blocks
+            ? blockItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+            : [],
+        },
+        {
+          key: 'tools',
+          items: sectionExpanded.tools
+            ? toolItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+            : [],
+        },
+      ]
+      const sections = allSections.filter((section) => section.items.length > 0)
 
-    const closeContextMenu = useCallback(() => {
-      setActiveItemInfo(null)
-    }, [])
+      let sectionIndex = -1
+      let itemIndex = -1
+      const isSearch = activeEl === searchInputRef.current
 
-    const handleContextMenuAddToCanvas = useCallback(() => {
-      if (activeItemInfo) {
-        handleItemClick(activeItemInfo.type, activeItemInfo.isTrigger)
-      }
-    }, [activeItemInfo, handleItemClick])
-
-    const handleViewDocumentation = useCallback(() => {
-      if (activeItemInfo?.docsLink) {
-        window.open(activeItemInfo.docsLink, '_blank', 'noopener,noreferrer')
-        captureEvent(posthog, 'docs_opened', {
-          source: 'toolbar_context_menu',
-          block_type: activeItemInfo.type,
-        })
-      }
-    }, [activeItemInfo, posthog])
-
-    useEffect(() => {
-      if (!isContextMenuOpen) return
-
-      const handleClickOutside = (e: MouseEvent) => {
-        if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
-          closeContextMenu()
+      if (!isSearch) {
+        for (let s = 0; s < sections.length; s++) {
+          const idx = sections[s].items.findIndex((el) => el === activeEl || el.contains(activeEl))
+          if (idx !== -1) {
+            sectionIndex = s
+            itemIndex = idx
+            break
+          }
         }
       }
 
-      const timeoutId = setTimeout(() => {
-        document.addEventListener('click', handleClickOutside)
-      }, 0)
-
-      return () => {
-        clearTimeout(timeoutId)
-        document.removeEventListener('click', handleClickOutside)
+      const focusItem = (sIdx: number, iIdx: number) => {
+        const el = sections[sIdx]?.items[iIdx]
+        if (el) {
+          event.preventDefault()
+          event.stopPropagation()
+          el.focus()
+        }
       }
-    }, [isContextMenuOpen, closeContextMenu])
 
-    /**
-     * Keyboard navigation across the three sections.
-     *
-     * - Active only when the toolbar tab is active and search mode is on.
-     * - Skips collapsed or empty sections so focus only lands on visible items.
-     * - ArrowDown traverses search → triggers → blocks → tools.
-     * - ArrowUp moves backward; from the first item of the first visible section
-     *   it wraps back to the search input.
-     */
-    useEffect(() => {
-      if (!isActive || !isSearchActive) return
-
-      const handleKeyDown = (event: KeyboardEvent) => {
-        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-
-        const activeEl = document.activeElement as HTMLElement | null
-        const toolbarRoot = rootRef.current
-        if (!toolbarRoot || !activeEl || !toolbarRoot.contains(activeEl)) return
-
-        type SectionList = {
-          key: ToolbarSectionKey
-          items: HTMLDivElement[]
+      const focusSearchInput = () => {
+        if (searchInputRef.current) {
+          event.preventDefault()
+          event.stopPropagation()
+          searchInputRef.current.focus()
         }
+      }
 
-        const allSections: SectionList[] = [
-          {
-            key: 'triggers',
-            items: sectionExpanded.triggers
-              ? triggerItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
-              : [],
-          },
-          {
-            key: 'blocks',
-            items: sectionExpanded.blocks
-              ? blockItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
-              : [],
-          },
-          {
-            key: 'tools',
-            items: sectionExpanded.tools
-              ? toolItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
-              : [],
-          },
-        ]
-        const sections = allSections.filter((section) => section.items.length > 0)
-
-        let sectionIndex = -1
-        let itemIndex = -1
-        const isSearch = activeEl === searchInputRef.current
-
-        if (!isSearch) {
-          for (let s = 0; s < sections.length; s++) {
-            const idx = sections[s].items.findIndex(
-              (el) => el === activeEl || el.contains(activeEl)
-            )
-            if (idx !== -1) {
-              sectionIndex = s
-              itemIndex = idx
-              break
-            }
-          }
-        }
-
-        const focusItem = (sIdx: number, iIdx: number) => {
-          const el = sections[sIdx]?.items[iIdx]
-          if (el) {
-            event.preventDefault()
-            event.stopPropagation()
-            el.focus()
-          }
-        }
-
-        const focusSearchInput = () => {
-          if (searchInputRef.current) {
-            event.preventDefault()
-            event.stopPropagation()
-            searchInputRef.current.focus()
-          }
-        }
-
-        if (event.key === 'ArrowDown') {
-          if (isSearch || sectionIndex === -1) {
-            if (sections.length > 0) focusItem(0, 0)
-            return
-          }
-          const currentSection = sections[sectionIndex]
-          if (itemIndex < currentSection.items.length - 1) {
-            focusItem(sectionIndex, itemIndex + 1)
-            return
-          }
-          if (sectionIndex < sections.length - 1) {
-            focusItem(sectionIndex + 1, 0)
-          }
+      if (event.key === 'ArrowDown') {
+        if (isSearch || sectionIndex === -1) {
+          if (sections.length > 0) focusItem(0, 0)
           return
         }
-
-        if (event.key === 'ArrowUp') {
-          if (isSearch || sectionIndex === -1) return
-          if (itemIndex > 0) {
-            focusItem(sectionIndex, itemIndex - 1)
-            return
-          }
-          if (sectionIndex > 0) {
-            const prev = sections[sectionIndex - 1]
-            focusItem(sectionIndex - 1, prev.items.length - 1)
-            return
-          }
-          focusSearchInput()
+        const currentSection = sections[sectionIndex]
+        if (itemIndex < currentSection.items.length - 1) {
+          focusItem(sectionIndex, itemIndex + 1)
+          return
         }
+        if (sectionIndex < sections.length - 1) {
+          focusItem(sectionIndex + 1, 0)
+        }
+        return
       }
 
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [
-      isActive,
-      isSearchActive,
-      sectionExpanded.triggers,
-      sectionExpanded.blocks,
-      sectionExpanded.tools,
-    ])
+      if (event.key === 'ArrowUp') {
+        if (isSearch || sectionIndex === -1) return
+        if (itemIndex > 0) {
+          focusItem(sectionIndex, itemIndex - 1)
+          return
+        }
+        if (sectionIndex > 0) {
+          const prev = sections[sectionIndex - 1]
+          focusItem(sectionIndex - 1, prev.items.length - 1)
+          return
+        }
+        focusSearchInput()
+      }
+    }
 
-    return (
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    isActive,
+    isSearchActive,
+    sectionExpanded.triggers,
+    sectionExpanded.blocks,
+    sectionExpanded.tools,
+  ])
+
+  return (
+    <div
+      ref={rootRef}
+      data-toolbar-root
+      data-search-active={isSearchActive ? 'true' : 'false'}
+      className='flex h-full flex-col'
+    >
+      {/* Header */}
       <div
-        ref={rootRef}
-        data-toolbar-root
-        data-search-active={isSearchActive ? 'true' : 'false'}
-        className='flex h-full flex-col'
+        role='button'
+        tabIndex={0}
+        className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
+        onClick={focusSearch}
+        onKeyDown={(event) => handleKeyboardActivation(event, focusSearch)}
       >
-        {/* Header */}
-        <div
-          role='button'
-          tabIndex={0}
-          className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
-          onClick={focusSearch}
-          onKeyDown={(event) => handleKeyboardActivation(event, focusSearch)}
-        >
-          <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
-          <div className='flex shrink-0 items-center gap-2'>
-            {!isSearchActive ? (
-              <Button
-                variant='ghost'
-                className='p-0'
-                aria-label='Search toolbar'
-                onClick={focusSearch}
-              >
-                <Search className='size-[14px]' />
-              </Button>
-            ) : (
-              <input
-                ref={searchInputRef}
-                type='text'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onBlur={handleSearchBlur}
-                className='w-full border-none bg-transparent pr-0.5 text-right font-medium text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
-              />
-            )}
-          </div>
+        <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
+        <div className='flex shrink-0 items-center gap-2'>
+          {!isSearchActive ? (
+            <Button
+              variant='ghost'
+              className='p-0'
+              aria-label='Search toolbar'
+              onClick={focusSearch}
+            >
+              <Search className='size-[14px]' />
+            </Button>
+          ) : (
+            <input
+              ref={searchInputRef}
+              type='text'
+              aria-label='Search toolbar'
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={handleSearchBlur}
+              className='w-full border-none bg-transparent pr-0.5 text-right font-medium text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
+            />
+          )}
         </div>
+      </div>
 
-        {/* Single scroll container with three collapsible sections */}
-        <div className='flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-none pb-3'>
-          <ToolbarSection
-            label='Triggers'
-            tooltip='Events that start a workflow'
-            sectionKey='triggers'
-            items={filteredTriggers}
-            isTrigger={true}
-            expanded={sectionExpanded.triggers}
-            searching={isSearching}
-            animate={animationsEnabled}
-            onToggle={handleSectionToggle}
-            getItemRef={getTriggerRefCallback}
-            onDragStart={handleDragStart}
-            onItemClick={handleItemClick}
-            onContextMenu={handleItemContextMenu}
-          />
-          <ToolbarSection
-            label='Core Blocks'
-            tooltip='Core building blocks for agent logic'
-            sectionKey='blocks'
-            items={filteredBlocks}
-            isTrigger={false}
-            expanded={sectionExpanded.blocks}
-            searching={isSearching}
-            animate={animationsEnabled}
-            onToggle={handleSectionToggle}
-            getItemRef={getBlockRefCallback}
-            onDragStart={handleDragStart}
-            onItemClick={handleItemClick}
-            onContextMenu={handleItemContextMenu}
-          />
-          <ToolbarSection
-            label='Integrations'
-            tooltip='Connect agents to external services'
-            sectionKey='tools'
-            items={filteredTools}
-            isTrigger={false}
-            expanded={sectionExpanded.tools}
-            searching={isSearching}
-            animate={animationsEnabled}
-            onToggle={handleSectionToggle}
-            getItemRef={getToolRefCallback}
-            onDragStart={handleDragStart}
-            onItemClick={handleItemClick}
-            onContextMenu={handleItemContextMenu}
-          />
-        </div>
-
-        {/* Toolbar Item Context Menu */}
-        <ToolbarItemContextMenu
-          isOpen={isContextMenuOpen}
-          position={contextMenuPosition}
-          menuRef={contextMenuRef}
-          onClose={closeContextMenu}
-          onAddToCanvas={handleContextMenuAddToCanvas}
-          onViewDocumentation={handleViewDocumentation}
-          showViewDocumentation={Boolean(activeItemInfo?.docsLink)}
+      {/* Single scroll container with three collapsible sections */}
+      <div className='flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-none pb-3'>
+        <ToolbarSection
+          label='Triggers'
+          tooltip='Events that start a workflow'
+          sectionKey='triggers'
+          items={filteredTriggers}
+          isTrigger={true}
+          expanded={sectionExpanded.triggers}
+          searching={isSearching}
+          animate={animationsEnabled}
+          onToggle={handleSectionToggle}
+          getItemRef={getTriggerRefCallback}
+          onDragStart={handleDragStart}
+          onItemClick={handleItemClick}
+          onContextMenu={handleItemContextMenu}
+        />
+        <ToolbarSection
+          label='Core Blocks'
+          tooltip='Core building blocks for agent logic'
+          sectionKey='blocks'
+          items={filteredBlocks}
+          isTrigger={false}
+          expanded={sectionExpanded.blocks}
+          searching={isSearching}
+          animate={animationsEnabled}
+          onToggle={handleSectionToggle}
+          getItemRef={getBlockRefCallback}
+          onDragStart={handleDragStart}
+          onItemClick={handleItemClick}
+          onContextMenu={handleItemContextMenu}
+        />
+        <ToolbarSection
+          label='Integrations'
+          tooltip='Connect agents to external services'
+          sectionKey='tools'
+          items={filteredTools}
+          isTrigger={false}
+          expanded={sectionExpanded.tools}
+          searching={isSearching}
+          animate={animationsEnabled}
+          onToggle={handleSectionToggle}
+          getItemRef={getToolRefCallback}
+          onDragStart={handleDragStart}
+          onItemClick={handleItemClick}
+          onContextMenu={handleItemContextMenu}
         />
       </div>
-    )
-  })
-)
+
+      {/* Toolbar Item Context Menu */}
+      <ToolbarItemContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={contextMenuRef}
+        onClose={closeContextMenu}
+        onAddToCanvas={handleContextMenuAddToCanvas}
+        onViewDocumentation={handleViewDocumentation}
+        showViewDocumentation={Boolean(activeItemInfo?.docsLink)}
+      />
+    </div>
+  )
+})

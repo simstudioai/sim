@@ -41,13 +41,11 @@ export function escapeRegex(value: string): string {
  * @returns Array of prefixed token strings (e.g., "@workflow", "/web")
  */
 export function extractContextTokens(contexts: ChatContext[]): string[] {
-  return contexts
-    .filter((c) => c.kind !== 'current_workflow' && c.label)
-    .map((c) => {
-      const prefix =
-        c.kind === 'skill' ? SKILL_CHIP_TRIGGER : c.kind === 'slash_command' ? '/' : '@'
-      return `${prefix}${c.label}`
-    })
+  return contexts.flatMap((c) => {
+    if (c.kind === 'current_workflow' || !c.label) return []
+    const prefix = c.kind === 'skill' ? SKILL_CHIP_TRIGGER : c.kind === 'slash_command' ? '/' : '@'
+    return [`${prefix}${c.label}`]
+  })
 }
 
 /**

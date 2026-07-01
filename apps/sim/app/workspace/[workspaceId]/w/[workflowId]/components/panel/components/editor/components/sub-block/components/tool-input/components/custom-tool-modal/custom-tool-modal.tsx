@@ -68,6 +68,64 @@ export interface CustomTool {
 
 type ToolSection = 'schema' | 'code'
 
+/**
+ * Validates a custom tool JSON schema string against the expected function shape.
+ */
+const validateSchema = (schema: string): { isValid: boolean; error: string | null } => {
+  if (!schema) return { isValid: false, error: null }
+
+  try {
+    const parsed = JSON.parse(schema)
+
+    if (!parsed.type || parsed.type !== 'function') {
+      return { isValid: false, error: 'Missing "type": "function"' }
+    }
+    if (!parsed.function || !parsed.function.name) {
+      return { isValid: false, error: 'Missing function.name field' }
+    }
+    if (!parsed.function.parameters) {
+      return { isValid: false, error: 'Missing function.parameters object' }
+    }
+    if (!parsed.function.parameters.type) {
+      return { isValid: false, error: 'Missing parameters.type field' }
+    }
+    if (parsed.function.parameters.properties === undefined) {
+      return { isValid: false, error: 'Missing parameters.properties field' }
+    }
+    if (
+      typeof parsed.function.parameters.properties !== 'object' ||
+      parsed.function.parameters.properties === null
+    ) {
+      return { isValid: false, error: 'parameters.properties must be an object' }
+    }
+
+    return { isValid: true, error: null }
+  } catch {
+    return { isValid: false, error: 'Invalid JSON format' }
+  }
+}
+
+/**
+ * Determines whether the schema-parameter autocomplete dropdown should show for
+ * the current cursor context, along with matching parameters.
+ */
+const checkSchemaParamTrigger = (text: string, cursorPos: number, parameters: any[]) => {
+  if (parameters.length === 0) return { show: false, searchTerm: '' }
+
+  const beforeCursor = text.substring(0, cursorPos)
+  const words = beforeCursor.split(/[\s=();,{}[\]]+/)
+  const currentWord = words[words.length - 1] || ''
+
+  if (currentWord.length > 0 && /^[a-zA-Z_][\w]*$/.test(currentWord)) {
+    const matchingParams = parameters.filter((param) =>
+      param.name.toLowerCase().startsWith(currentWord.toLowerCase())
+    )
+    return { show: matchingParams.length > 0, searchTerm: currentWord, matches: matchingParams }
+  }
+
+  return { show: false, searchTerm: '' }
+}
+
 export function CustomToolModal({
   open,
   onOpenChange,
@@ -84,7 +142,7 @@ export function CustomToolModal({
   const [schemaError, setSchemaError] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [toolId, setToolId] = useState<string | undefined>(undefined)
+  const toolIdRef = useRef<string | undefined>(undefined)
   const [initialJsonSchema, setInitialJsonSchema] = useState('')
   const [initialFunctionCode, setInitialFunctionCode] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -319,7 +377,7 @@ try {
         setInitialJsonSchema(schemaValue)
         setInitialFunctionCode(codeValue)
         setIsEditing(true)
-        setToolId(initialValues.id)
+        toolIdRef.current = initialValues.id
       } catch (error) {
         logger.error('Error initializing form with initial values:', { error })
         setSchemaError('Failed to load tool data. Please try again.')
@@ -350,7 +408,7 @@ try {
     setCodeError(null)
     setActiveSection('schema')
     setIsEditing(false)
-    setToolId(undefined)
+    toolIdRef.current = undefined
     setIsSchemaPromptActive(false)
     setIsCodePromptActive(false)
     setSchemaPromptInput('')
@@ -367,40 +425,6 @@ try {
     if (codeGeneration.isStreaming) codeGeneration.cancelGeneration()
     resetForm()
     onOpenChange(false)
-  }
-
-  const validateSchema = (schema: string): { isValid: boolean; error: string | null } => {
-    if (!schema) return { isValid: false, error: null }
-
-    try {
-      const parsed = JSON.parse(schema)
-
-      if (!parsed.type || parsed.type !== 'function') {
-        return { isValid: false, error: 'Missing "type": "function"' }
-      }
-      if (!parsed.function || !parsed.function.name) {
-        return { isValid: false, error: 'Missing function.name field' }
-      }
-      if (!parsed.function.parameters) {
-        return { isValid: false, error: 'Missing function.parameters object' }
-      }
-      if (!parsed.function.parameters.type) {
-        return { isValid: false, error: 'Missing parameters.type field' }
-      }
-      if (parsed.function.parameters.properties === undefined) {
-        return { isValid: false, error: 'Missing parameters.properties field' }
-      }
-      if (
-        typeof parsed.function.parameters.properties !== 'object' ||
-        parsed.function.parameters.properties === null
-      ) {
-        return { isValid: false, error: 'parameters.properties must be an object' }
-      }
-
-      return { isValid: true, error: null }
-    } catch {
-      return { isValid: false, error: 'Invalid JSON format' }
-    }
   }
 
   const isSchemaValid = useMemo(() => validateSchema(jsonSchema).isValid, [jsonSchema])
@@ -452,7 +476,7 @@ try {
       const name = schema.function.name
       const description = schema.function.description || ''
 
-      let toolIdToUpdate: string | undefined = toolId
+      let toolIdToUpdate: string | undefined = toolIdRef.current
       if (isEditing && !toolIdToUpdate && initialValues?.schema) {
         const originalName = initialValues.schema.function?.name
         if (originalName) {
@@ -589,23 +613,6 @@ try {
         }
       }
     }
-  }
-
-  const checkSchemaParamTrigger = (text: string, cursorPos: number, parameters: any[]) => {
-    if (parameters.length === 0) return { show: false, searchTerm: '' }
-
-    const beforeCursor = text.substring(0, cursorPos)
-    const words = beforeCursor.split(/[\s=();,{}[\]]+/)
-    const currentWord = words[words.length - 1] || ''
-
-    if (currentWord.length > 0 && /^[a-zA-Z_][\w]*$/.test(currentWord)) {
-      const matchingParams = parameters.filter((param) =>
-        param.name.toLowerCase().startsWith(currentWord.toLowerCase())
-      )
-      return { show: matchingParams.length > 0, searchTerm: currentWord, matches: matchingParams }
-    }
-
-    return { show: false, searchTerm: '' }
   }
 
   const handleEnvVarSelect = (newValue: string) => {
@@ -794,6 +801,7 @@ try {
   }
 
   const handleDelete = async () => {
+    const toolId = toolIdRef.current
     if (!toolId || !isEditing) return
 
     try {

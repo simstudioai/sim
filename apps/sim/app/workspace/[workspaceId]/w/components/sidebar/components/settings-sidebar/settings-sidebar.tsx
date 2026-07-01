@@ -278,12 +278,10 @@ export function SettingsSidebar({
       >
         <div ref={scrollContentRef} className='flex flex-col'>
           {sectionConfig
-            .map(({ key, title }) => ({
-              key,
-              title,
-              items: navigationItems.filter((item) => item.section === key),
-            }))
-            .filter(({ items }) => items.length > 0)
+            .flatMap(({ key, title }) => {
+              const items = navigationItems.filter((item) => item.section === key)
+              return items.length > 0 ? [{ key, title, items }] : []
+            })
             .map(({ key, title, items: sectionItems }, index) => (
               <div
                 key={key}

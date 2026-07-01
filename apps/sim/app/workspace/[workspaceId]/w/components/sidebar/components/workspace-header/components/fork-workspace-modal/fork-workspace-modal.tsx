@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Chip,
   ChipConfirmModal,
@@ -58,6 +58,12 @@ const RESOURCE_KINDS: ReadonlyArray<{ key: ResourceKey; label: string }> = [
   { key: 'workflowMcpServers', label: 'Workflow MCP servers' },
 ]
 
+const REQUIRED_ACCESSORY = (
+  <span className='text-[var(--text-error)]' title='Required'>
+    *
+  </span>
+)
+
 const emptySelection = (): ResourceSelection => ({
   files: new Set(),
   tables: new Set(),
@@ -102,23 +108,30 @@ export function ForkWorkspaceModal({
   const [forkedWorkspace, setForkedWorkspace] = useState<{ id: string; name: string } | null>(null)
   const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
 
-  useEffect(() => {
-    if (open) {
-      setName(`${sourceWorkspaceName} (fork)`)
-      setSelected(emptySelection())
-      setDefaulted(false)
-      setError(null)
-      setActiveTab('config')
-      setForkedWorkspace(null)
-      setConfirmRollbackOpen(false)
-    }
-  }, [open, sourceWorkspaceName])
+  // Reset the modal to a fresh state each time it opens (or the source name changes while
+  // open). Adjusted during render via prev-value refs rather than a post-commit effect, so the
+  // reopened modal never briefly commits the previous fork's name/selection before clearing it.
+  const prevOpenRef = useRef(open)
+  const prevSourceNameRef = useRef(sourceWorkspaceName)
+  if (open && (prevOpenRef.current !== open || prevSourceNameRef.current !== sourceWorkspaceName)) {
+    setName(`${sourceWorkspaceName} (fork)`)
+    setSelected(emptySelection())
+    setDefaulted(false)
+    setError(null)
+    setActiveTab('config')
+    setForkedWorkspace(null)
+    setConfirmRollbackOpen(false)
+  }
+  prevOpenRef.current = open
+  prevSourceNameRef.current = sourceWorkspaceName
 
-  useEffect(() => {
-    if (!open || !resources.data || defaulted) return
+  // Seed the selection with everything the moment the resources query resolves (once per open,
+  // guarded by `defaulted`). Adjusted during render for the same reason as the reset above:
+  // routing it through an effect would commit an empty selection for a frame before the default.
+  if (open && resources.data && !defaulted) {
     setDefaulted(true)
     setSelected(fullSelection(resources.data))
-  }, [open, resources.data, defaulted])
+  }
 
   const isForking = forkWorkspace.isPending
 
@@ -247,14 +260,7 @@ export function ForkWorkspaceModal({
                   <ChipCopyInput value={sourceWorkspaceName} aria-label='Forking from' />
                 </SettingsSection>
 
-                <SettingsSection
-                  label='Name'
-                  headerAccessory={
-                    <span className='text-[var(--text-error)]' title='Required'>
-                      *
-                    </span>
-                  }
-                >
+                <SettingsSection label='Name' headerAccessory={REQUIRED_ACCESSORY}>
                   <ChipInput
                     value={name}
                     onChange={(event) => setName(event.target.value)}

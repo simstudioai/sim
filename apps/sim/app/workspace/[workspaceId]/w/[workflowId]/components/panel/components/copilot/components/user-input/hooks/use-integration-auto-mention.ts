@@ -95,7 +95,10 @@ export function useIntegrationAutoMention({ setSelectedContexts }: UseIntegratio
     (additions: IntegrationContext[]) => {
       if (additions.length === 0) return
       setSelectedContexts((prev) => {
-        const existing = new Set(prev.filter((c) => c.kind === 'integration').map((c) => c.label))
+        const existing = new Set<string>()
+        for (const c of prev) {
+          if (c.kind === 'integration') existing.add(c.label)
+        }
         const fresh = additions.filter((c) => !existing.has(c.label))
         return fresh.length > 0 ? [...prev, ...fresh] : prev
       })

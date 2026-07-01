@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Button, Combobox as EditableCombobox } from '@sim/emcn'
 import { X } from 'lucide-react'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -82,19 +82,10 @@ export function SelectorCombobox({
   const [inputValue, setInputValue] = useState(selectedLabel)
   const previousActiveValue = useRef<string | undefined>(activeValue)
 
-  useEffect(() => {
-    if (previousActiveValue.current !== activeValue) {
-      previousActiveValue.current = activeValue
-      setIsEditing(false)
-    }
-  }, [activeValue])
-
-  useEffect(() => {
-    if (!allowSearch) return
-    if (!isEditing) {
-      setInputValue(selectedLabel)
-    }
-  }, [selectedLabel, allowSearch, isEditing])
+  if (previousActiveValue.current !== activeValue) {
+    previousActiveValue.current = activeValue
+    setIsEditing(false)
+  }
 
   const comboboxOptions = useMemo(
     () =>
@@ -128,7 +119,7 @@ export function SelectorCombobox({
   )
 
   const showClearButton = Boolean(activeValue) && !disabled && !readOnly
-  const displayValue = allowSearch ? inputValue : selectedLabel
+  const displayValue = allowSearch ? (isEditing ? inputValue : selectedLabel) : selectedLabel
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
     activeSearchTarget,
     blockId,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -55,6 +55,12 @@ export function McpToolSelector({
 
   const selectedTool = availableTools.find((tool) => tool.id === selectedToolId)
 
+  const prevSelectedToolRef = useRef<typeof selectedTool>(undefined)
+  if (prevSelectedToolRef.current !== selectedTool) {
+    prevSelectedToolRef.current = selectedTool
+    setInputValue(selectedTool ? selectedTool.name : '')
+  }
+
   useEffect(() => {
     if (serverValue && selectedToolId && !selectedTool && availableTools.length === 0) {
       refreshTools()
@@ -102,14 +108,6 @@ export function McpToolSelector({
       refreshTools()
     }
   }
-
-  useEffect(() => {
-    if (selectedTool) {
-      setInputValue(selectedTool.name)
-    } else {
-      setInputValue('')
-    }
-  }, [selectedTool])
 
   const isDisabled = disabled || !serverValue
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({

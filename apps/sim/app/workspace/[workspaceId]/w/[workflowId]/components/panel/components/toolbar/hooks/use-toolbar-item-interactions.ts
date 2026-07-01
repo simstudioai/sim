@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { createDragPreview, type DragItemInfo } from '../components'
+import { createDragPreview, type DragItemInfo } from '../components/drag-preview'
 
 const logger = createLogger('ToolbarItemInteractions')
 

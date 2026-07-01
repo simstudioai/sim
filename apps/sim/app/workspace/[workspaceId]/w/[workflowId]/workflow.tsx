@@ -553,7 +553,14 @@ const WorkflowContent = React.memo(
 
       if (!isShowingDiff && isDiffReady && diffAnalysis?.edge_diff?.deleted_edges) {
         const reconstructedEdges: Edge[] = []
-        const validHandles = ['source', 'target', 'success', 'error', 'default', 'condition']
+        const validHandles = new Set([
+          'source',
+          'target',
+          'success',
+          'error',
+          'default',
+          'condition',
+        ])
 
         diffAnalysis.edge_diff.deleted_edges.forEach((edgeIdentifier) => {
           const parts = edgeIdentifier.split('-')
@@ -562,7 +569,7 @@ const WorkflowContent = React.memo(
             let targetStartIndex = -1
 
             for (let i = 1; i < parts.length - 1; i++) {
-              if (validHandles.includes(parts[i])) {
+              if (validHandles.has(parts[i])) {
                 sourceEndIndex = i
                 for (let j = i + 1; j < parts.length - 1; j++) {
                   if (parts[j].length > 0) {
@@ -1809,9 +1816,16 @@ const WorkflowContent = React.memo(
                 }
               )
 
-              const existingChildBlocks = Object.values(blocks)
-                .filter((b) => b.data?.parentId === containerInfo.loopId)
-                .map((b) => ({ id: b.id, type: b.type, position: b.position }))
+              const existingChildBlocks: {
+                id: string
+                type: string
+                position: { x: number; y: number }
+              }[] = []
+              for (const b of Object.values(blocks)) {
+                if (b.data?.parentId === containerInfo.loopId) {
+                  existingChildBlocks.push({ id: b.id, type: b.type, position: b.position })
+                }
+              }
 
               const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
                 targetParentId: containerInfo.loopId,
@@ -1901,9 +1915,16 @@ const WorkflowContent = React.memo(
             )
 
             // Capture existing child blocks for auto-connect
-            const existingChildBlocks = Object.values(blocks)
-              .filter((b) => b.data?.parentId === containerInfo.loopId)
-              .map((b) => ({ id: b.id, type: b.type, position: b.position }))
+            const existingChildBlocks: {
+              id: string
+              type: string
+              position: { x: number; y: number }
+            }[] = []
+            for (const b of Object.values(blocks)) {
+              if (b.data?.parentId === containerInfo.loopId) {
+                existingChildBlocks.push({ id: b.id, type: b.type, position: b.position })
+              }
+            }
 
             const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
               targetParentId: containerInfo.loopId,
@@ -2116,13 +2137,15 @@ const WorkflowContent = React.memo(
 
     /** Tracks blocks to pan to after diff updates. */
     const pendingZoomBlockIdsRef = useRef<Set<string> | null>(null)
-    const seenDiffBlocksRef = useRef<Set<string>>(new Set())
+    const seenDiffBlocksRef = useRef<Set<string> | null>(null)
 
     /** Queues newly changed blocks for viewport panning. */
     useEffect(() => {
+      if (seenDiffBlocksRef.current === null) seenDiffBlocksRef.current = new Set()
+      const seenDiffBlocks = seenDiffBlocksRef.current
       if (!isDiffReady || !diffAnalysis) {
         pendingZoomBlockIdsRef.current = null
-        seenDiffBlocksRef.current.clear()
+        seenDiffBlocks.clear()
         return
       }
 
@@ -2130,10 +2153,10 @@ const WorkflowContent = React.memo(
       const allBlocks = [...(diffAnalysis.new_blocks || []), ...(diffAnalysis.edited_blocks || [])]
 
       for (const id of allBlocks) {
-        if (!seenDiffBlocksRef.current.has(id)) {
+        if (!seenDiffBlocks.has(id)) {
           newBlocks.add(id)
         }
-        seenDiffBlocksRef.current.add(id)
+        seenDiffBlocks.add(id)
       }
 
       if (newBlocks.size > 0) {
@@ -2336,6 +2359,7 @@ const WorkflowContent = React.memo(
           })
       }
     }, [
+      sandbox,
       workflowIdParam,
       isWorkflowMapLoading,
       isWorkflowMapPlaceholderData,
@@ -2383,9 +2407,10 @@ const WorkflowContent = React.memo(
         )
 
         // Validate that workflows belong to the current workspace before redirecting
-        const workspaceWorkflows = Object.entries(workflows)
-          .filter(([, workflow]) => workflow.workspaceId === workspaceId)
-          .map(([id]) => id)
+        const workspaceWorkflows: string[] = []
+        for (const [id, workflow] of Object.entries(workflows)) {
+          if (workflow.workspaceId === workspaceId) workspaceWorkflows.push(id)
+        }
 
         if (workspaceWorkflows.length > 0) {
           router.replace(`/workspace/${workspaceId}/w/${workspaceWorkflows[0]}`)
@@ -2407,6 +2432,7 @@ const WorkflowContent = React.memo(
       }
     }, [
       embedded,
+      sandbox,
       workflowIdParam,
       isWorkflowMapLoading,
       isWorkflowMapPlaceholderData,
@@ -2419,12 +2445,14 @@ const WorkflowContent = React.memo(
       workflows,
     ])
 
-    const blockConfigCache = useRef<Map<string, any>>(new Map())
+    const blockConfigCache = useRef<Map<string, any> | null>(null)
     const getBlockConfig = useCallback((type: string) => {
-      if (!blockConfigCache.current.has(type)) {
-        blockConfigCache.current.set(type, getBlock(type))
+      if (blockConfigCache.current === null) blockConfigCache.current = new Map()
+      const cache = blockConfigCache.current
+      if (!cache.has(type)) {
+        cache.set(type, getBlock(type))
       }
-      return blockConfigCache.current.get(type)
+      return cache.get(type)
     }, [])
 
     const prevBlocksHashRef = useRef<string>('')
@@ -2566,7 +2594,6 @@ const WorkflowContent = React.memo(
 
       return nodeArray
     }, [
-      blocksStructureHash,
       blocks,
       activeBlockIds,
       pendingBlocks,
@@ -2581,10 +2608,13 @@ const WorkflowContent = React.memo(
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
     const [lastInteractedNodeId, setLastInteractedNodeId] = useState<string | null>(null)
 
-    const selectedNodeIds = useMemo(
-      () => displayNodes.filter((node) => node.selected).map((node) => node.id),
-      [displayNodes]
-    )
+    const selectedNodeIds = useMemo(() => {
+      const ids: string[] = []
+      for (const node of displayNodes) {
+        if (node.selected) ids.push(node.id)
+      }
+      return ids
+    }, [displayNodes])
     const selectedNodeIdsKey = selectedNodeIds.join(',')
 
     useEffect(() => {
@@ -2592,12 +2622,15 @@ const WorkflowContent = React.memo(
     }, [selectedNodeIdsKey])
 
     // Keep the most recently selected block on top even after deselection, so a
-    // dragged block doesn't suddenly drop behind other overlapping blocks.
-    useEffect(() => {
-      if (selectedNodeIds.length > 0) {
-        setLastInteractedNodeId(selectedNodeIds[selectedNodeIds.length - 1])
-      }
-    }, [selectedNodeIdsKey])
+    // dragged block doesn't suddenly drop behind other overlapping blocks. Adjust
+    // during render (not through an effect) so the latched id never lags a commit
+    // behind the selection it mirrors. It retains the previous value when the
+    // selection is cleared, so this is a latch rather than plain derived state.
+    const lastSelectedNodeId =
+      selectedNodeIds.length > 0 ? selectedNodeIds[selectedNodeIds.length - 1] : null
+    if (lastSelectedNodeId !== null && lastSelectedNodeId !== lastInteractedNodeId) {
+      setLastInteractedNodeId(lastSelectedNodeId)
+    }
 
     useEffect(() => {
       // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
@@ -2617,7 +2650,10 @@ const WorkflowContent = React.memo(
 
       // Preserve existing selection state
       setDisplayNodes((currentNodes) => {
-        const selectedIds = new Set(currentNodes.filter((n) => n.selected).map((n) => n.id))
+        const selectedIds = new Set<string>()
+        for (const n of currentNodes) {
+          if (n.selected) selectedIds.add(n.id)
+        }
         return derivedNodes.map((node) => ({
           ...node,
           selected: selectedIds.has(node.id),
@@ -2979,7 +3015,7 @@ const WorkflowContent = React.memo(
     const findNodeAtScreenPosition = useCallback(
       (clientX: number, clientY: number) => {
         const elements = document.elementsFromPoint(clientX, clientY)
-        const nodes = getNodes()
+        const nodesById = new Map(getNodes().map((n) => [n.id, n]))
 
         for (const el of elements) {
           const nodeEl = el.closest('.react-flow__node') as HTMLElement | null
@@ -2988,7 +3024,7 @@ const WorkflowContent = React.memo(
           const nodeId = nodeEl.getAttribute('data-id')
           if (!nodeId) continue
 
-          const node = nodes.find((n) => n.id === nodeId)
+          const node = nodesById.get(nodeId)
           if (node && node.type !== 'subflowNode') return node
         }
 
@@ -3477,9 +3513,16 @@ const WorkflowContent = React.memo(
           }
 
           // Auto-connect when moving an existing block into a container
-          const existingChildBlocks = Object.values(blocks)
-            .filter((b) => b.data?.parentId === potentialParentId && b.id !== node.id)
-            .map((b) => ({ id: b.id, type: b.type, position: b.position }))
+          const existingChildBlocks: {
+            id: string
+            type: string
+            position: { x: number; y: number }
+          }[] = []
+          for (const b of Object.values(blocks)) {
+            if (b.data?.parentId === potentialParentId && b.id !== node.id) {
+              existingChildBlocks.push({ id: b.id, type: b.type, position: b.position })
+            }
+          }
 
           const autoConnectEdge = tryCreateAutoConnectEdge(relativePositionBefore, node.id, {
             targetParentId: potentialParentId,
@@ -3717,7 +3760,6 @@ const WorkflowContent = React.memo(
         potentialParentId,
         getNodeAbsolutePosition,
         getNodeDepth,
-        clearDragHighlights,
         highlightContainerNode,
       ]
     )
@@ -3748,6 +3790,7 @@ const WorkflowContent = React.memo(
         potentialParentId,
         clearDragHighlights,
         executeBatchParentUpdate,
+        setDragStartPosition,
       ]
     )
 

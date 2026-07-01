@@ -226,7 +226,10 @@ export function resolveParentChildSelectionConflicts(
   nodes: Node[],
   blocks: Record<string, { data?: { parentId?: string } }>
 ): Node[] {
-  const selectedIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id))
+  const selectedIds = new Set<string>()
+  for (const n of nodes) {
+    if (n.selected) selectedIds.add(n.id)
+  }
 
   let hasConflict = false
   const resolved = nodes.map((n) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { chipVariants, cn } from '@sim/emcn'
 import { Lock } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -276,8 +276,9 @@ export function FolderItem({ folder }: FolderItemProps) {
       const f = folderMap[id]
       if (f) names.push(f.name)
     }
+    const workflowById = new Map(workflows.map((wf) => [wf.id, wf]))
     for (const id of workflowIds) {
-      const w = workflows.find((wf) => wf.id === id)
+      const w = workflowById.get(id)
       if (w) names.push(w.name)
     }
 
@@ -291,7 +292,7 @@ export function FolderItem({ folder }: FolderItemProps) {
     const canDeleteAllFolders = folderIds.every((id) => canDeleteFolder(id))
     const canDeleteAllWorkflows = workflowIds.length === 0 || canDeleteWorkflows(workflowIds)
     setCanDeleteSelection(canDeleteAllFolders && canDeleteAllWorkflows)
-  }, [folder.id, canDeleteFolder, canDeleteWorkflows])
+  }, [folder.id, workspaceId, canDeleteFolder, canDeleteWorkflows])
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -453,15 +454,11 @@ export function FolderItem({ folder }: FolderItemProps) {
     }
   }, [handleDuplicateSelection, handleDuplicateThisFolder])
 
-  const isMixedSelection = useMemo(() => {
-    return capturedSelectionRef.current?.isMixed ?? false
-  }, [isContextMenuOpen])
+  const isMixedSelection = capturedSelectionRef.current?.isMixed ?? false
 
-  const hasExportableContent = useMemo(() => {
-    if (!capturedSelectionRef.current) return hasWorkflows
-    const { workflowIds } = capturedSelectionRef.current
-    return workflowIds.length > 0 || hasWorkflows
-  }, [isContextMenuOpen, hasWorkflows])
+  const hasExportableContent = capturedSelectionRef.current
+    ? capturedSelectionRef.current.workflowIds.length > 0 || hasWorkflows
+    : hasWorkflows
 
   return (
     <>
@@ -503,6 +500,7 @@ export function FolderItem({ folder }: FolderItemProps) {
         {isEditing ? (
           <input
             ref={inputRef}
+            aria-label='Folder name'
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   ChipCombobox,
@@ -74,6 +74,12 @@ function shouldReconfigureEntry(entry: ForkMappingEntry, targets: Record<string,
 
 /** Shared empty owners map for the pull direction so the options mapper never re-allocates. */
 const EMPTY_TARGET_OWNERS: ReadonlyMap<string, string> = new Map()
+
+const REQUIRED_SYNC_ACCESSORY = (
+  <span className='text-[var(--text-error)]' title='Required to sync'>
+    *
+  </span>
+)
 
 /**
  * Stable empty arrays so an entry with no usages/dependents keeps a constant prop reference,
@@ -210,22 +216,38 @@ export function PromoteWorkspaceModal({
   const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    if (open) {
-      setSelectedKey(edgeOptions[0]?.value ?? '')
-    }
-  }, [open, edgeOptions])
+  // Seed the direction picker when the modal opens (or the parent edge changes while it's
+  // open). Adjusted during render via a prev-value compare so the seeded value lands before
+  // paint instead of a post-paint effect flashing the prior selection. `selectedKey` stays
+  // editable (the dropdown sets it), so it isn't derived state.
+  const prevOpenSeedRef = useRef(false)
+  const prevEdgeOptionsRef = useRef(edgeOptions)
+  const openSeedChanged = prevOpenSeedRef.current !== open
+  const edgeOptionsChanged = prevEdgeOptionsRef.current !== edgeOptions
+  prevOpenSeedRef.current = open
+  prevEdgeOptionsRef.current = edgeOptions
+  if (open && (openSeedChanged || edgeOptionsChanged)) {
+    setSelectedKey(edgeOptions[0]?.value ?? '')
+  }
 
-  // Restart at the overview and drop in-session overrides whenever it (re)opens or
-  // the direction changes - the mapping set, and therefore the steps, depend on the
-  // direction.
-  useEffect(() => {
+  // Restart at the overview and drop in-session overrides whenever it (re)opens or the
+  // direction changes - the mapping set, and therefore the steps, depend on the direction.
+  // Adjusted during render (prev-value compare) so the reset lands before paint rather than
+  // an effect flashing the prior edge's state. `copyDefaulted` stays state so its reset here
+  // re-triggers the copy-default effect below (needed on a reopen with cached diff data).
+  const prevOpenResetRef = useRef(false)
+  const prevSelectedKeyRef = useRef(selectedKey)
+  const openResetChanged = prevOpenResetRef.current !== open
+  const selectedKeyChanged = prevSelectedKeyRef.current !== selectedKey
+  prevOpenResetRef.current = open
+  prevSelectedKeyRef.current = selectedKey
+  if (openResetChanged || selectedKeyChanged) {
     setStep(0)
     setTargets({})
     setReconfig({})
     setCopySelected(new Set())
     setCopyDefaulted(false)
-  }, [open, selectedKey])
+  }
 
   const selected = edgeOptions.find((option) => option.value === selectedKey)
   const otherWorkspaceId = selected?.otherWorkspaceId
@@ -526,16 +548,16 @@ export function PromoteWorkspaceModal({
         copySelected.has(copyableKey(candidate))
       )
       const copyResources = {
-        knowledgeBases: selectedCopyables
-          .filter((c) => c.kind === 'knowledge-base')
-          .map((c) => c.sourceId),
-        tables: selectedCopyables.filter((c) => c.kind === 'table').map((c) => c.sourceId),
-        customTools: selectedCopyables
-          .filter((c) => c.kind === 'custom-tool')
-          .map((c) => c.sourceId),
-        skills: selectedCopyables.filter((c) => c.kind === 'skill').map((c) => c.sourceId),
+        knowledgeBases: selectedCopyables.flatMap((c) =>
+          c.kind === 'knowledge-base' ? [c.sourceId] : []
+        ),
+        tables: selectedCopyables.flatMap((c) => (c.kind === 'table' ? [c.sourceId] : [])),
+        customTools: selectedCopyables.flatMap((c) =>
+          c.kind === 'custom-tool' ? [c.sourceId] : []
+        ),
+        skills: selectedCopyables.flatMap((c) => (c.kind === 'skill' ? [c.sourceId] : [])),
         // Files are identified by storage key (the copyable candidate's sourceId is the key).
-        files: selectedCopyables.filter((c) => c.kind === 'file').map((c) => c.sourceId),
+        files: selectedCopyables.flatMap((c) => (c.kind === 'file' ? [c.sourceId] : [])),
       }
 
       const result = await promote.mutateAsync({
@@ -813,9 +835,9 @@ export function PromoteWorkspaceModal({
                       // (matching `copyableKey`), so derive the per-kind selected-id subset and
                       // re-prefix on toggle.
                       const selectedIds = new Set(
-                        candidates
-                          .filter((candidate) => copySelected.has(copyableKey(candidate)))
-                          .map((candidate) => candidate.sourceId)
+                        candidates.flatMap((candidate) =>
+                          copySelected.has(copyableKey(candidate)) ? [candidate.sourceId] : []
+                        )
                       )
                       const toggleMany = (ids: string[], checked: boolean) =>
                         setCopySelected((prev) => {
@@ -885,13 +907,7 @@ export function PromoteWorkspaceModal({
                   <SettingsSection
                     key={entryKey(entry)}
                     label={entry.sourceLabel}
-                    headerAccessory={
-                      entry.required ? (
-                        <span className='text-[var(--text-error)]' title='Required to sync'>
-                          *
-                        </span>
-                      ) : undefined
-                    }
+                    headerAccessory={entry.required ? REQUIRED_SYNC_ACCESSORY : undefined}
                   >
                     <ChipCombobox
                       className='w-full'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChipConfirmModal, type ChipConfirmTextSegment, ChipModalField } from '@sim/emcn'
 
 interface DeleteModalProps {
@@ -48,10 +48,10 @@ export function DeleteModal({
   itemName,
 }: DeleteModalProps) {
   const [confirmationText, setConfirmationText] = useState('')
-  const [prevIsOpen, setPrevIsOpen] = useState(false)
+  const prevIsOpenRef = useRef(false)
 
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen)
+  if (isOpen !== prevIsOpenRef.current) {
+    prevIsOpenRef.current = isOpen
     if (isOpen) {
       setConfirmationText('')
     }

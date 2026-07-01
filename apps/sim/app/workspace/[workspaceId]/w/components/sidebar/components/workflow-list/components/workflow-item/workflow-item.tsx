@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { chipVariants, cn } from '@sim/emcn'
 import { Lock } from '@sim/emcn/icons'
 import clsx from 'clsx'
@@ -190,9 +190,7 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
     preventDismiss,
   } = useContextMenu()
 
-  const isMixedSelection = useMemo(() => {
-    return capturedSelectionRef.current?.isMixed ?? false
-  }, [isContextMenuOpen])
+  const isMixedSelection = capturedSelectionRef.current?.isMixed ?? false
 
   const captureSelectionState = useCallback(() => {
     const store = useFolderStore.getState()
@@ -216,8 +214,9 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
     const folderMap = getFolderMap(workspaceId)
 
     const names: string[] = []
+    const workflowById = new Map(workflows.map((wf) => [wf.id, wf]))
     for (const id of workflowIds) {
-      const w = workflows.find((wf) => wf.id === id)
+      const w = workflowById.get(id)
       if (w) names.push(w.name)
     }
     for (const id of folderIds) {
@@ -236,7 +235,7 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
     const canDeleteAllFolders =
       folderIds.length === 0 || folderIds.every((id) => canDeleteFolder(id))
     setCanDeleteSelection(canDeleteAllWorkflows && canDeleteAllFolders)
-  }, [workflow.id, canDeleteWorkflows, canDeleteFolder])
+  }, [workflow.id, workspaceId, canDeleteWorkflows, canDeleteFolder])
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -413,6 +412,7 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
             {isEditing ? (
               <input
                 ref={inputRef}
+                aria-label='Workflow name'
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}

@@ -30,6 +30,54 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('FileUpload')
 
+/**
+ * Checks if a file's MIME type matches the accepted types
+ * Supports exact matches, wildcard patterns (e.g., 'image/*'), and '*' for all types
+ */
+const isFileTypeAccepted = (fileType: string | undefined, accepted: string): boolean => {
+  if (accepted === '*') return true
+  if (!fileType) return false
+
+  const acceptedList = accepted.split(',').map((t) => t.trim().toLowerCase())
+  const normalizedFileType = fileType.toLowerCase()
+
+  return acceptedList.some((acceptedType) => {
+    if (acceptedType === normalizedFileType) return true
+
+    if (acceptedType.endsWith('/*')) {
+      const typePrefix = acceptedType.slice(0, -1) // 'image/' from 'image/*'
+      return normalizedFileType.startsWith(typePrefix)
+    }
+
+    if (acceptedType.startsWith('.')) {
+      const extension = acceptedType.slice(1).toLowerCase()
+      const fileExtension = getExtensionFromMimeType(normalizedFileType)
+      if (fileExtension === extension) return true
+      return normalizedFileType.endsWith(`/${extension}`)
+    }
+
+    return false
+  })
+}
+
+/**
+ * Formats file size for display in a human-readable format
+ */
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/**
+ * Truncate long file names keeping both start and end segments.
+ */
+const truncateMiddle = (text: string, start = 28, end = 18) => {
+  if (!text) return ''
+  if (text.length <= start + end + 3) return text
+  return `${text.slice(0, start)}...${text.slice(-end)}`
+}
+
 interface FileUploadProps {
   blockId: string
   subBlockId: string
@@ -228,36 +276,6 @@ export function FileUpload({
   }, [modelValue, maxSize])
   const maxSizeLabel = `${Math.round(maxSizeInBytes / (1024 * 1024))}MB`
 
-  /**
-   * Checks if a file's MIME type matches the accepted types
-   * Supports exact matches, wildcard patterns (e.g., 'image/*'), and '*' for all types
-   */
-  const isFileTypeAccepted = (fileType: string | undefined, accepted: string): boolean => {
-    if (accepted === '*') return true
-    if (!fileType) return false
-
-    const acceptedList = accepted.split(',').map((t) => t.trim().toLowerCase())
-    const normalizedFileType = fileType.toLowerCase()
-
-    return acceptedList.some((acceptedType) => {
-      if (acceptedType === normalizedFileType) return true
-
-      if (acceptedType.endsWith('/*')) {
-        const typePrefix = acceptedType.slice(0, -1) // 'image/' from 'image/*'
-        return normalizedFileType.startsWith(typePrefix)
-      }
-
-      if (acceptedType.startsWith('.')) {
-        const extension = acceptedType.slice(1).toLowerCase()
-        const fileExtension = getExtensionFromMimeType(normalizedFileType)
-        if (fileExtension === extension) return true
-        return normalizedFileType.endsWith(`/${extension}`)
-      }
-
-      return false
-    })
-  }
-
   const availableWorkspaceFiles = workspaceFiles.filter((workspaceFile) => {
     const existingFiles = Array.isArray(value) ? value : value ? [value] : []
 
@@ -284,24 +302,6 @@ export function FileUpload({
       fileInputRef.current.value = ''
       fileInputRef.current.click()
     }
-  }
-
-  /**
-   * Formats file size for display in a human-readable format
-   */
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-
-  /**
-   * Truncate long file names keeping both start and end segments.
-   */
-  const truncateMiddle = (text: string, start = 28, end = 18) => {
-    if (!text) return ''
-    if (text.length <= start + end + 3) return text
-    return `${text.slice(0, start)}...${text.slice(-end)}`
   }
 
   /**
@@ -632,8 +632,9 @@ export function FileUpload({
     [workspaceFiles, acceptedTypes]
   )
 
-  // Find the selected file's workspace ID for highlighting in single file mode
-  const selectedFileId = useMemo(() => {
+  // Find the selected file's workspace ID for highlighting in single file mode.
+  // `filesArray` is rebuilt every render, so this is computed during render rather than memoized.
+  const selectedFileId = (() => {
     if (!hasFiles || multiple) return ''
     const currentFile = filesArray[0]
     if (!currentFile) return ''
@@ -645,7 +646,7 @@ export function FileUpload({
         currentFile.path?.includes(wf.key)
     )
     return matchedWorkspaceFile?.id || ''
-  }, [filesArray, workspaceFiles, hasFiles, multiple])
+  })()
 
   const handleComboboxChange = (value: string) => {
     setInputValue(value)
@@ -685,6 +686,7 @@ export function FileUpload({
         style={{ display: 'none' }}
         accept={acceptedTypes}
         multiple={multiple}
+        aria-label='Upload file'
         data-testid='file-input-element'
       />
 

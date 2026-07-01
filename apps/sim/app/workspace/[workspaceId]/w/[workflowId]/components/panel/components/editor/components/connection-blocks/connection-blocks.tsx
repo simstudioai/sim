@@ -201,7 +201,10 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(() => new Set())
   const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(() => new Set())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const connectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const connectionRefs = useRef<Map<string, HTMLDivElement> | null>(null)
+  if (connectionRefs.current === null) {
+    connectionRefs.current = new Map()
+  }
 
   const { blocks } = useWorkflowStore(
     useShallow((state) => ({
@@ -240,7 +243,7 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
 
       if (isExpanding) {
         setTimeout(() => {
-          const connectionElement = connectionRefs.current.get(connectionId)
+          const connectionElement = connectionRefs.current?.get(connectionId)
           const scrollContainer = scrollContainerRef.current
 
           if (connectionElement && scrollContainer) {
@@ -327,9 +330,9 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
             onConnectionDragStart={handleConnectionDragStart}
             connectionRef={(el) => {
               if (el) {
-                connectionRefs.current.set(connection.id, el)
+                connectionRefs.current?.set(connection.id, el)
               } else {
-                connectionRefs.current.delete(connection.id)
+                connectionRefs.current?.delete(connection.id)
               }
             }}
             mergedSubBlocks={mergedSubBlocks}

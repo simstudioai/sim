@@ -54,17 +54,38 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  ApiDeploy,
-  ChatDeploy,
-  DeployUpgradeGate,
-  type ExistingChat,
-  GeneralDeploy,
-  McpDeploy,
-} from './components'
+import { ApiDeploy } from './components/api/api'
+import { ChatDeploy, type ExistingChat } from './components/chat/chat'
+import { DeployUpgradeGate } from './components/deploy-upgrade-gate/deploy-upgrade-gate'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
+import { GeneralDeploy } from './components/general/general'
+import { McpDeploy } from './components/mcp/mcp'
 
 const logger = createLogger('DeployModal')
+
+function isWorkflowStillActive(targetWorkflowId: string) {
+  return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
+}
+
+function handleChatFormSubmit() {
+  const form = document.getElementById('chat-deploy-form') as HTMLFormElement
+  form?.requestSubmit()
+}
+
+function handleChatDelete() {
+  const form = document.getElementById('chat-deploy-form') as HTMLFormElement
+  if (form) {
+    const deleteButton = form.querySelector('[data-delete-trigger]') as HTMLButtonElement
+    if (deleteButton) {
+      deleteButton.click()
+    }
+  }
+}
+
+function handleMcpToolFormSubmit() {
+  const form = document.getElementById('mcp-deploy-form') as HTMLFormElement
+  form?.requestSubmit()
+}
 
 /** Renders the upgrade prompt in place of a programmatic-deploy tab when gated. */
 function GatedTabContent({
@@ -202,10 +223,6 @@ export function DeployModal({
 
   const versions = versionsData?.versions ?? []
 
-  const isWorkflowStillActive = (targetWorkflowId: string) => {
-    return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
-  }
-
   const syncDraftAfterDeploy = async (): Promise<string | null> => {
     if (!workflowId) return null
 
@@ -225,11 +242,13 @@ export function DeployModal({
     }
   }
 
-  useEffect(() => {
+  const prevWorkflowIdRef = useRef(workflowId)
+  if (prevWorkflowIdRef.current !== workflowId) {
+    prevWorkflowIdRef.current = workflowId
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
     setUndeployTargetWorkflowId(null)
-  }, [workflowId])
+  }
 
   const getApiKeyLabel = (value?: string | null) => {
     if (value && value.trim().length > 0) {
@@ -268,35 +287,42 @@ export function DeployModal({
   const selectedStreamingOutputsRef = useRef(selectedStreamingOutputs)
   selectedStreamingOutputsRef.current = selectedStreamingOutputs
 
-  useEffect(() => {
-    if (open && workflowId) {
-      setActiveTab('general')
-      setDeployError(null)
-      setDeployWarnings([])
-      setChatSuccess(false)
+  const prevOpenRef = useRef(open)
+  const prevResetWorkflowIdRef = useRef(workflowId)
+  const openChanged = prevOpenRef.current !== open
+  const resetWorkflowIdChanged = prevResetWorkflowIdRef.current !== workflowId
+  prevOpenRef.current = open
+  prevResetWorkflowIdRef.current = workflowId
+  if (open && workflowId && (openChanged || resetWorkflowIdChanged)) {
+    setActiveTab('general')
+    setDeployError(null)
+    setDeployWarnings([])
+    setChatSuccess(false)
 
-      const currentOutputs = selectedStreamingOutputsRef.current
-      if (currentOutputs.length > 0) {
-        const blocks = Object.values(useWorkflowStore.getState().blocks)
-        const validOutputs = currentOutputs.filter((outputId) => {
-          if (startsWithUuid(outputId)) {
-            const underscoreIndex = outputId.indexOf('_')
-            if (underscoreIndex === -1) return false
-            const blockId = outputId.substring(0, underscoreIndex)
-            return blocks.some((b) => b.id === blockId)
-          }
-          const parts = outputId.split('.')
-          if (parts.length >= 2) {
-            const blockName = parts[0]
-            return blocks.some((b) => b.name && normalizeName(b.name) === blockName.toLowerCase())
-          }
-          return true
-        })
-        if (validOutputs.length !== currentOutputs.length) {
-          setSelectedStreamingOutputs(validOutputs)
+    const currentOutputs = selectedStreamingOutputsRef.current
+    if (currentOutputs.length > 0) {
+      const blocks = Object.values(useWorkflowStore.getState().blocks)
+      const validOutputs = currentOutputs.filter((outputId) => {
+        if (startsWithUuid(outputId)) {
+          const underscoreIndex = outputId.indexOf('_')
+          if (underscoreIndex === -1) return false
+          const blockId = outputId.substring(0, underscoreIndex)
+          return blocks.some((b) => b.id === blockId)
         }
+        const parts = outputId.split('.')
+        if (parts.length >= 2) {
+          const blockName = parts[0]
+          return blocks.some((b) => b.name && normalizeName(b.name) === blockName.toLowerCase())
+        }
+        return true
+      })
+      if (validOutputs.length !== currentOutputs.length) {
+        setSelectedStreamingOutputs(validOutputs)
       }
     }
+  }
+
+  useEffect(() => {
     return () => {
       if (chatSuccessTimeoutRef.current) {
         clearTimeout(chatSuccessTimeoutRef.current)
@@ -491,26 +517,6 @@ export function DeployModal({
 
   const handleRefetchChat = async () => {
     await refetchChatInfo()
-  }
-
-  const handleChatFormSubmit = () => {
-    const form = document.getElementById('chat-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
-  }
-
-  const handleChatDelete = () => {
-    const form = document.getElementById('chat-deploy-form') as HTMLFormElement
-    if (form) {
-      const deleteButton = form.querySelector('[data-delete-trigger]') as HTMLButtonElement
-      if (deleteButton) {
-        deleteButton.click()
-      }
-    }
-  }
-
-  const handleMcpToolFormSubmit = () => {
-    const form = document.getElementById('mcp-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
   }
 
   const isSubmitting = deployMutation.isPending || isFinalizingDeploy

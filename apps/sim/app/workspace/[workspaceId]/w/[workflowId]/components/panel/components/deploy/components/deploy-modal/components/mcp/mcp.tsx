@@ -327,6 +327,7 @@ export function McpDeploy({
       const errors: string[] = []
       const addedEntries: Record<string, WorkflowMcpTool> = {}
       const removedIds: string[] = []
+      const serversById = new Map(servers.map((s) => [s.id, s]))
 
       for (const serverId of toAdd) {
         setPendingServerChanges((prev) => new Set(prev).add(serverId))
@@ -343,7 +344,7 @@ export function McpDeploy({
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
-          const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+          const serverName = serversById.get(serverId)?.name || serverId
           errors.push(`Failed to add to ${serverName}`)
           logger.error(`Failed to add tool to server ${serverId}:`, error)
         } finally {
@@ -368,7 +369,7 @@ export function McpDeploy({
           })
           removedIds.push(serverId)
         } catch (error) {
-          const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+          const serverName = serversById.get(serverId)?.name || serverId
           errors.push(`Failed to remove from ${serverName}`)
           logger.error(`Failed to remove tool from server ${serverId}:`, error)
         } finally {
@@ -396,7 +397,7 @@ export function McpDeploy({
               parameterDescriptionOverrides,
             })
           } catch (error) {
-            const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+            const serverName = serversById.get(serverId)?.name || serverId
             // The tool can be removed out-of-band (undeploying a workflow deletes its MCP tools), so
             // a stale-cache update may hit a missing tool — re-create it instead of failing the save.
             if (error instanceof ApiClientError && error.status === 404) {
@@ -528,7 +529,7 @@ export function McpDeploy({
         handleSave()
       }}
     >
-      <button type='submit' hidden />
+      <button type='submit' hidden aria-label='Save MCP tool' />
 
       {servers.map((server) => (
         <ServerToolsQuery

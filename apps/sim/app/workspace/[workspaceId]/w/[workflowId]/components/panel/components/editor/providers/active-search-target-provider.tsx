@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { createContext, useContext } from 'react'
+import { createContext, use } from 'react'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 const ActiveSearchTargetContext = createContext<ActiveSearchTarget | null>(null)
@@ -34,5 +34,5 @@ export function ActiveSearchTargetProvider({ value, children }: ActiveSearchTarg
  * `null` when no search target applies (no provider, or target outside scope).
  */
 export function useActiveSearchTarget(): ActiveSearchTarget | null {
-  return useContext(ActiveSearchTargetContext)
+  return use(ActiveSearchTargetContext)
 }
