@@ -597,6 +597,43 @@ export function inferContextFromKey(key: string): StorageContext {
 }
 
 /**
+ * World-readable storage contexts. Reads for these short-circuit file
+ * authorization and can resolve to the shared bucket, so a caller-supplied
+ * context must never select one for a key that does not carry the matching
+ * prefix.
+ */
+const PUBLIC_STORAGE_CONTEXTS = new Set<StorageContext>([
+  'profile-pictures',
+  'og-images',
+  'workspace-logos',
+])
+
+/**
+ * Resolve the storage context for a stored file from its trusted key prefix.
+ *
+ * The storage key is written server-side at upload time and cannot be forged to
+ * change tenant, whereas a file's `context` field is attacker-authorable in a
+ * workflow. When the key carries a recognized prefix that prefix is
+ * authoritative and the caller-supplied `context` is ignored — this prevents a
+ * private `workspace/…` key from being relabeled with a world-readable context
+ * to bypass authorization and read the shared bucket.
+ *
+ * Legacy keys predating context-prefixed keys cannot be inferred; for those the
+ * persisted `context` is honored so existing files stay resolvable — except a
+ * world-readable context, which would reopen the bypass on an un-inferrable key.
+ */
+export function resolveTrustedFileContext(key: string, context?: string): StorageContext {
+  try {
+    return inferContextFromKey(key)
+  } catch (error) {
+    if (context && !PUBLIC_STORAGE_CONTEXTS.has(context as StorageContext)) {
+      return context as StorageContext
+    }
+    throw error
+  }
+}
+
+/**
  * Extract storage key and context from an internal file URL
  * @param fileUrl - Internal file URL (e.g., /api/files/serve/key?context=workspace)
  * @returns Object with storage key and context

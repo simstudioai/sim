@@ -13,7 +13,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
-import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
+import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import {
   ExternalUrlValidationError,
@@ -303,7 +303,6 @@ async function parseFileSingle(
     return handleCloudFile(
       filePath,
       fileType,
-      undefined,
       userId,
       executionContext,
       maxDownloadBytes,
@@ -329,7 +328,6 @@ async function parseFileSingle(
     return handleCloudFile(
       filePath,
       fileType,
-      undefined,
       userId,
       executionContext,
       maxDownloadBytes,
@@ -608,7 +606,6 @@ async function handleExternalUrl(
 async function handleCloudFile(
   filePath: string,
   fileType: string,
-  explicitContext: string | undefined,
   userId: string,
   executionContext?: ExecutionContext,
   maxDownloadBytes = MAX_DOWNLOAD_SIZE_BYTES,
@@ -619,7 +616,7 @@ async function handleCloudFile(
 
     logger.info('Extracted cloud key:', cloudKey)
 
-    const context = (explicitContext as StorageContext) || inferContextFromKey(cloudKey)
+    const context = inferContextFromKey(cloudKey)
 
     const hasAccess = await verifyFileAccess(
       cloudKey,
@@ -658,7 +655,7 @@ async function handleCloudFile(
       maxBytes: maxDownloadBytes,
     })
     logger.info(
-      `Downloaded file from ${context} storage (${explicitContext ? 'explicit' : 'inferred'}): ${cloudKey}, size: ${fileBuffer.length} bytes`
+      `Downloaded file from ${context} storage: ${cloudKey}, size: ${fileBuffer.length} bytes`
     )
 
     const filename = originalFilename || cloudKey.split('/').pop() || cloudKey
