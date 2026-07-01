@@ -134,23 +134,16 @@ export function InboxTaskList() {
               const isClickable =
                 task.chatId && (task.status === 'completed' || task.status === 'failed')
               return (
-                <div
+                <button
                   key={task.id}
-                  className={`flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
+                  type='button'
+                  disabled={!isClickable}
+                  className={`flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
                     isClickable
                       ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]'
                       : 'cursor-default'
                   }`}
-                  role='button'
-                  aria-disabled={!isClickable}
-                  tabIndex={isClickable ? 0 : undefined}
                   onClick={() => handleTaskClick(task)}
-                  onKeyDown={(e) => {
-                    if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault()
-                      handleTaskClick(task)
-                    }
-                  }}
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>
                     <div className='flex min-w-0 items-center gap-1.5'>
@@ -202,7 +195,7 @@ export function InboxTaskList() {
                       <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                     )}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>

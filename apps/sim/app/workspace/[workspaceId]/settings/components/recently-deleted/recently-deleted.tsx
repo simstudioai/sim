@@ -303,7 +303,7 @@ export function RecentlyDeleted() {
     }
     const col = (activeSort ?? DEFAULT_SORT).column
     const dir = (activeSort ?? DEFAULT_SORT).direction
-    items = [...items].sort((a, b) => {
+    items.sort((a, b) => {
       let cmp = 0
       switch (col) {
         case 'name':

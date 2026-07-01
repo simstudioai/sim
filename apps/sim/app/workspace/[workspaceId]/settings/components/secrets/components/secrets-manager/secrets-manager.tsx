@@ -173,10 +173,14 @@ function parseEnvVarLine(line: string): UIEnvironmentVariable | null {
 
 /** Parses an array of raw text lines, returning only valid non-empty KEY=VALUE entries. */
 function parseValidEnvVars(lines: string[]): UIEnvironmentVariable[] {
-  return lines
-    .map(parseEnvVarLine)
-    .filter((parsed): parsed is UIEnvironmentVariable => parsed !== null)
-    .filter(({ key, value }) => key && value)
+  const result: UIEnvironmentVariable[] = []
+  for (const line of lines) {
+    const parsed = parseEnvVarLine(line)
+    if (parsed?.key && parsed.value) {
+      result.push(parsed)
+    }
+  }
+  return result
 }
 
 interface WorkspaceVariableRowProps {
@@ -771,9 +775,10 @@ export function SecretsManager() {
     }
 
     const personalChanged = (() => {
-      const initialMap = new Map(
-        initialVarsRef.current.filter((v) => v.key && v.value).map((v) => [v.key, v.value])
-      )
+      const initialMap = new Map<string, string>()
+      for (const v of initialVarsRef.current) {
+        if (v.key && v.value) initialMap.set(v.key, v.value)
+      }
       const currentKeys = Object.keys(validVariables)
       if (initialMap.size !== currentKeys.length) return true
       for (const [key, value] of Object.entries(validVariables)) {
@@ -912,13 +917,14 @@ export function SecretsManager() {
 
   return (
     <>
-      <div className='hidden'>
+      <div className='hidden' aria-hidden='true'>
         <input
           type='text'
           name='fakeusernameremembered'
           autoComplete='username'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
         <input
           type='password'
@@ -926,6 +932,7 @@ export function SecretsManager() {
           autoComplete='current-password'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
         <input
           type='email'
@@ -933,6 +940,7 @@ export function SecretsManager() {
           autoComplete='email'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
       </div>
 
