@@ -12,6 +12,10 @@ describe('forkMappableResourceTypeSchema', () => {
     expect(forkMappableResourceTypeSchema.safeParse('workflow').success).toBe(false)
   })
 
+  it('rejects knowledge_document (a document follows its parent knowledge base)', () => {
+    expect(forkMappableResourceTypeSchema.safeParse('knowledge_document').success).toBe(false)
+  })
+
   it('accepts user-mappable resource types', () => {
     for (const type of [
       'oauth_credential',
@@ -19,7 +23,6 @@ describe('forkMappableResourceTypeSchema', () => {
       'env_var',
       'table',
       'knowledge_base',
-      'knowledge_document',
       'file',
       'mcp_server',
       'custom_tool',

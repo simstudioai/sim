@@ -193,6 +193,8 @@ function formatRejectionReason(reason: string): string {
       return 'Automated sender'
     case 'rate_limit_exceeded':
       return 'Rate limit exceeded'
+    case 'not_entitled':
+      return 'Plan no longer includes Sim Mailer'
     default:
       return reason
   }

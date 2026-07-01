@@ -74,6 +74,8 @@ export const demoRequestResponseSchema = z.object({
   message: z.string(),
 })
 
+export type DemoRequestResult = z.output<typeof demoRequestResponseSchema>
+
 export const submitDemoRequestContract = defineRouteContract({
   method: 'POST',
   path: '/api/demo-requests',

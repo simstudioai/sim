@@ -17,7 +17,12 @@ import {
   findConflictingWebhookPathOwner,
   syncWebhooksForCredentialSet,
 } from '@/lib/webhooks/utils.server'
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  isCanonicalPair,
+  resolveActiveCanonicalValue,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -250,7 +255,13 @@ function getConfigValue(block: BlockState, subBlock: SubBlockConfig): unknown {
   return fieldValue
 }
 
-function buildProviderConfig(
+/**
+ * Build the persisted `webhook.providerConfig` for a trigger block at deploy time.
+ *
+ * Exported for unit testing the canonical-collapse pass; not part of the public
+ * deploy API.
+ */
+export function buildProviderConfig(
   block: BlockState,
   triggerId: string,
   triggerDef: { subBlocks: SubBlockConfig[] }
@@ -305,6 +316,25 @@ function buildProviderConfig(
     if (canonicalId && satisfiedCanonicalIds.has(canonicalId)) continue
     if (isFieldRequired(subBlock, subBlockValues)) {
       missingFields.push(subBlock.title || subBlock.id)
+    }
+  }
+
+  // Collapse each canonical pair (basic + advanced swap) to its ACTIVE value under the
+  // canonical key, so pollers read one authoritative key instead of guessing basic-first.
+  // resolveActiveCanonicalValue is the shared SOT: an explicit block.data.canonicalModes
+  // override, else the value heuristic. The raw subblock keys written in the first pass are
+  // kept for transitional readers (removable in a follow-up contract phase). This only runs on
+  // a (re)deploy, so any drift collapse is scoped to the new deployment version — already
+  // deployed rows are migrated separately and keep their current resource.
+  const canonicalModes = block.data?.canonicalModes
+  const flatSubBlockValues = buildSubBlockValues(block.subBlocks || {})
+  for (const group of Object.values(canonicalIndex.groupsById)) {
+    if (!isCanonicalPair(group)) continue
+    const activeValue = resolveActiveCanonicalValue(group, flatSubBlockValues, canonicalModes)
+    if (activeValue !== null && activeValue !== undefined && activeValue !== '') {
+      providerConfig[group.canonicalId] = activeValue
+    } else {
+      delete providerConfig[group.canonicalId]
     }
   }
 

@@ -1,46 +1,14 @@
-import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { noInputSchema } from '@/lib/api/contracts/primitives'
 import { validationErrorResponse } from '@/lib/api/server'
-import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-
-const logger = createLogger('StarsRoute')
-
-function formatStarCount(num: number): string {
-  if (num < 1000) return String(num)
-  const formatted = (Math.round(num / 100) / 10).toFixed(1)
-  return formatted.endsWith('.0') ? `${formatted.slice(0, -2)}k` : `${formatted}k`
-}
+import { getGitHubStars } from '@/lib/github/stars'
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  try {
-    const queryValidation = noInputSchema.safeParse(
-      Object.fromEntries(request.nextUrl.searchParams.entries())
-    )
-    if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+  const queryValidation = noInputSchema.safeParse(
+    Object.fromEntries(request.nextUrl.searchParams.entries())
+  )
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
 
-    const token = env.GITHUB_TOKEN
-    const response = await fetch('https://api.github.com/repos/simstudioai/sim', {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'Sim/1.0',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      next: { revalidate: 3600 },
-      cache: 'force-cache',
-    })
-
-    if (!response.ok) {
-      logger.warn('GitHub API request failed:', response.status)
-      return NextResponse.json({ stars: formatStarCount(19400) })
-    }
-
-    const data = await response.json()
-    return NextResponse.json({ stars: formatStarCount(Number(data?.stargazers_count ?? 19400)) })
-  } catch (error) {
-    logger.warn('Error fetching GitHub stars:', error)
-    return NextResponse.json({ stars: formatStarCount(19400) })
-  }
+  return NextResponse.json({ stars: await getGitHubStars() })
 })

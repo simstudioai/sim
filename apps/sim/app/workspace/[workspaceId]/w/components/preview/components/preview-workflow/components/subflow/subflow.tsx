@@ -5,6 +5,7 @@ import { Badge, cn } from '@sim/emcn'
 import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 
 /** Execution status for subflows in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
@@ -97,7 +98,12 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
             className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
             style={{ backgroundColor: enabled ? blockIconBg : 'var(--surface-4)' }}
           >
-            <BlockIcon className='size-[16px] text-white' />
+            <BlockIcon
+              className={cn(
+                'size-[16px]',
+                enabled ? getTileIconColorClass(blockIconBg) : 'text-[var(--text-icon)]'
+              )}
+            />
           </div>
           <span
             className={cn('truncate font-medium text-md', !enabled && 'text-[var(--text-muted)]')}

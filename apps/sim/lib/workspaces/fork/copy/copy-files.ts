@@ -2,14 +2,27 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+import {
+  type ForkContentRefMaps,
+  rewriteForkContentRefs,
+} from '@/lib/workspaces/fork/remap/remap-content-refs'
 
 const logger = createLogger('WorkspaceForkCopyFiles')
+
+const MARKDOWN_CONTENT_TYPES = new Set(['text/markdown', 'text/x-markdown'])
+
+/** Whether a copied blob is markdown text whose in-content references should be rewritten. */
+function isMarkdownBlob(task: Pick<BlobCopyTask, 'contentType' | 'fileName'>): boolean {
+  if (MARKDOWN_CONTENT_TYPES.has(task.contentType)) return true
+  const name = task.fileName.toLowerCase()
+  return name.endsWith('.md') || name.endsWith('.mdx') || name.endsWith('.markdown')
+}
 
 export interface BlobCopyTask {
   sourceKey: string
@@ -25,10 +38,17 @@ export interface PlanForkFileCopiesResult {
   /**
    * source storage key -> child storage key. `file-upload` subblocks reference
    * files by storage key (not `workspace_files.id`), so the fork remap keys on the
-   * storage key. File identity is not persisted in the fork resource map - files
-   * are a fork-copy-only resource (not remapped on promote).
+   * storage key. At sync time this map is persisted in the fork resource map
+   * (`resourceType: 'file'`, keyed by storage key) so a re-sync resolves the copy
+   * instead of re-copying; at create-fork time it is not (the child is brand new).
    */
   keyMap: Map<string, string>
+  /**
+   * source `workspace_files.id` -> child id. Used to rewrite in-content file references
+   * that key on the file id (`sim:file/<id>`, `/api/files/view/<id>`, the in-app files
+   * path) inside copied skill/markdown content; not persisted in the fork resource map.
+   */
+  idMap: Map<string, string>
   /** Blob duplications to run after the fork transaction commits. */
   blobTasks: BlobCopyTask[]
 }
@@ -40,31 +60,44 @@ export interface PlanForkFileCopiesResult {
  * (its idempotent metadata insert reuses the row), and both must run after the
  * child workspace row exists (FK). Runs in the fork transaction; blob I/O is
  * deferred to {@link executeForkFileBlobCopies}.
+ *
+ * Files are selected EITHER by `workspace_files.id` (the fork modal's picker lists files
+ * by id) OR by storage `key` (sync references key files by their storage key, not id). At
+ * least one of the two must be non-empty; both may be supplied (their matched rows union).
  */
 export async function planForkFileCopies(params: {
   tx: DbOrTx
   sourceWorkspaceId: string
   childWorkspaceId: string
   userId: string
-  fileIds: string[]
+  fileIds?: string[]
+  fileKeys?: string[]
   now: Date
 }): Promise<PlanForkFileCopiesResult> {
-  const { tx, sourceWorkspaceId, childWorkspaceId, userId, fileIds, now } = params
+  const { tx, sourceWorkspaceId, childWorkspaceId, userId, now } = params
+  const fileIds = params.fileIds ?? []
+  const fileKeys = params.fileKeys ?? []
   const keyMap = new Map<string, string>()
+  const idMap = new Map<string, string>()
   const blobTasks: BlobCopyTask[] = []
-  if (fileIds.length === 0) return { keyMap, blobTasks }
+  if (fileIds.length === 0 && fileKeys.length === 0) return { keyMap, idMap, blobTasks }
 
-  // Batch the metadata read (one query for all selected files) instead of a per-file
-  // lookup: non-deleted, scoped to the source workspace, and restricted to durable
-  // `workspace` files. Only workspace files are forkable - chat/copilot/mothership
-  // uploads are session-scoped and their chat-bound unique index can't be duplicated -
-  // so any non-workspace id passed here is ignored rather than copied.
+  // Match by id and/or storage key (OR'd) so either selection shape resolves to the same
+  // source rows. Batch the metadata read (one query for all selected files): non-deleted,
+  // scoped to the source workspace, and restricted to durable `workspace` files. Only
+  // workspace files are forkable - chat/copilot/mothership uploads are session-scoped and
+  // their chat-bound unique index can't be duplicated - so any non-workspace id/key passed
+  // here is ignored rather than copied.
+  const selectors = [
+    fileIds.length > 0 ? inArray(workspaceFiles.id, fileIds) : undefined,
+    fileKeys.length > 0 ? inArray(workspaceFiles.key, fileKeys) : undefined,
+  ].filter((clause): clause is NonNullable<typeof clause> => clause !== undefined)
   const metas = await tx
     .select()
     .from(workspaceFiles)
     .where(
       and(
-        inArray(workspaceFiles.id, fileIds),
+        selectors.length === 1 ? selectors[0] : or(...selectors),
         eq(workspaceFiles.workspaceId, sourceWorkspaceId),
         eq(workspaceFiles.context, 'workspace'),
         isNull(workspaceFiles.deletedAt)
@@ -87,6 +120,7 @@ export async function planForkFileCopies(params: {
       uploadedAt: now,
     })
     keyMap.set(meta.key, targetKey)
+    idMap.set(meta.id, childFileId)
     blobTasks.push({
       sourceKey: meta.key,
       targetKey,
@@ -98,21 +132,27 @@ export async function planForkFileCopies(params: {
     })
   }
 
-  return { keyMap, blobTasks }
+  return { keyMap, idMap, blobTasks }
 }
 
 /**
  * Duplicate each planned file blob to its new key. `uploadFile`'s metadata insert
  * is idempotent on the key (the row was already created in the transaction), so
- * this only copies bytes. Best-effort: a failed blob leaves the metadata row
- * pointing at a missing object, which the user can re-upload.
+ * this only copies bytes. Markdown blobs additionally have their in-content references
+ * (`sim:` links, embedded file/image URLs) rewritten through `contentRefMaps` so they
+ * point at the copied resources (unmapped targets are left as graceful broken links).
+ * Best-effort: a content-rewrite failure falls back to copying the raw bytes. A failed
+ * blob's child storage key is returned in `failedTargetKeys` so the caller can clear the
+ * `file-upload` references pointing at the now-missing object (the metadata row is left in
+ * place, so the user can still re-upload the blob).
  */
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
-  requestId = 'unknown'
-): Promise<{ copied: number; failed: number }> {
+  requestId = 'unknown',
+  contentRefMaps?: ForkContentRefMaps
+): Promise<{ copied: number; failed: number; failedTargetKeys: string[] }> {
   let copied = 0
-  let failed = 0
+  const failedTargetKeys: string[] = []
   for (const task of blobTasks) {
     try {
       const buffer = await downloadFile({
@@ -120,8 +160,21 @@ export async function executeForkFileBlobCopies(
         context: task.context,
         maxBytes: MAX_FILE_SIZE,
       })
+      let body: Buffer = buffer
+      if (contentRefMaps && isMarkdownBlob(task)) {
+        try {
+          const text = buffer.toString('utf8')
+          const rewritten = rewriteForkContentRefs(text, contentRefMaps)
+          if (rewritten !== text) body = Buffer.from(rewritten, 'utf8')
+        } catch (error) {
+          logger.warn(`[${requestId}] Failed to rewrite markdown blob content; copying raw bytes`, {
+            targetKey: task.targetKey,
+            error: getErrorMessage(error),
+          })
+        }
+      }
       await uploadFile({
-        file: buffer,
+        file: body,
         fileName: task.fileName,
         contentType: task.contentType,
         context: task.context,
@@ -135,12 +188,12 @@ export async function executeForkFileBlobCopies(
       })
       copied += 1
     } catch (error) {
-      failed += 1
+      failedTargetKeys.push(task.targetKey)
       logger.warn(`[${requestId}] Failed to copy file blob during fork`, {
         targetKey: task.targetKey,
         error: getErrorMessage(error),
       })
     }
   }
-  return { copied, failed }
+  return { copied, failed: failedTargetKeys.length, failedTargetKeys }
 }

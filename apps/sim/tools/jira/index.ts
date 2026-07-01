@@ -12,8 +12,13 @@ import { jiraDeleteIssueLinkTool } from '@/tools/jira/delete_issue_link'
 import { jiraDeleteWorklogTool } from '@/tools/jira/delete_worklog'
 import { jiraGetAttachmentsTool } from '@/tools/jira/get_attachments'
 import { jiraGetCommentsTool } from '@/tools/jira/get_comments'
+import { jiraGetFieldsTool } from '@/tools/jira/get_fields'
+import { jiraGetProjectTool } from '@/tools/jira/get_project'
+import { jiraGetTransitionsTool } from '@/tools/jira/get_transitions'
 import { jiraGetUsersTool } from '@/tools/jira/get_users'
 import { jiraGetWorklogsTool } from '@/tools/jira/get_worklogs'
+import { jiraListIssueTypesTool } from '@/tools/jira/list_issue_types'
+import { jiraListProjectsTool } from '@/tools/jira/list_projects'
 import { jiraRemoveWatcherTool } from '@/tools/jira/remove_watcher'
 import { jiraRetrieveTool } from '@/tools/jira/retrieve'
 import { jiraSearchIssuesTool } from '@/tools/jira/search_issues'
@@ -50,4 +55,9 @@ export {
   jiraRemoveWatcherTool,
   jiraGetUsersTool,
   jiraSearchUsersTool,
+  jiraListProjectsTool,
+  jiraGetProjectTool,
+  jiraGetTransitionsTool,
+  jiraListIssueTypesTool,
+  jiraGetFieldsTool,
 }

@@ -110,7 +110,7 @@ Insert text at a specific index in a Google Docs document. When no index is prov
 | --------- | ---- | -------- | ----------- |
 | `documentId` | string | Yes | The ID of the document to insert text into |
 | `text` | string | Yes | The text to insert |
-| `index` | number | No | The 1-based character index at which to insert the text. When omitted, text is appended to the end of the document. |
+| `index` | number | No | The character index \(the document body starts at index 1\) at which to insert the text. When omitted, text is appended to the end of the document. |
 
 #### Output
 
@@ -158,7 +158,7 @@ Insert an empty table with the given number of rows and columns into a Google Do
 | `documentId` | string | Yes | The ID of the document to insert the table into |
 | `rows` | number | Yes | The number of rows in the table |
 | `columns` | number | Yes | The number of columns in the table |
-| `index` | number | No | The 1-based character index at which to insert the table. When omitted, the table is appended to the end of the document. |
+| `index` | number | No | The character index \(the document body starts at index 1\) at which to insert the table. When omitted, the table is appended to the end of the document. |
 
 #### Output
 
@@ -181,7 +181,7 @@ Insert an inline image from a public URL into a Google Docs document. The image 
 | --------- | ---- | -------- | ----------- |
 | `documentId` | string | Yes | The ID of the document to insert the image into |
 | `imageUrl` | string | Yes | The publicly accessible URL of the image to insert |
-| `index` | number | No | The 1-based character index at which to insert the image. When omitted, the image is appended to the end of the document. |
+| `index` | number | No | The character index \(the document body starts at index 1\) at which to insert the image. When omitted, the image is appended to the end of the document. |
 | `width` | number | No | Optional image width in points \(PT\) |
 | `height` | number | No | Optional image height in points \(PT\) |
 
@@ -205,7 +205,7 @@ Insert a page break into a Google Docs document. When no index is provided, the 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `documentId` | string | Yes | The ID of the document to insert the page break into |
-| `index` | number | No | The 1-based character index at which to insert the page break. When omitted, the page break is appended to the end of the document. |
+| `index` | number | No | The character index \(the document body starts at index 1\) at which to insert the page break. When omitted, the page break is appended to the end of the document. |
 
 #### Output
 
@@ -227,7 +227,7 @@ Apply bold, italic, underline, and/or font size to a range of text in a Google D
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `documentId` | string | Yes | The ID of the document to update |
-| `startIndex` | number | Yes | The 1-based start character index of the range to style \(inclusive\) |
+| `startIndex` | number | Yes | The start character index \(the document body starts at index 1\) of the range to style \(inclusive\) |
 | `endIndex` | number | Yes | The end character index of the range to style \(exclusive\) |
 | `bold` | boolean | No | Whether to make the text bold |
 | `italic` | boolean | No | Whether to make the text italic |
@@ -239,6 +239,148 @@ Apply bold, italic, underline, and/or font size to a range of text in a Google D
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `updatedContent` | boolean | Indicates if the text style was applied successfully |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_update_paragraph_style`
+
+Apply a named paragraph style (such as a heading or title) and/or alignment to the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The ID of the document to update |
+| `startIndex` | number | Yes | The start character index \(the document body starts at index 1\) of the range to style \(inclusive\) |
+| `endIndex` | number | Yes | The end character index of the range to style \(exclusive\) |
+| `namedStyleType` | string | No | The named paragraph style to apply. One of: NORMAL_TEXT, TITLE, SUBTITLE, HEADING_1, HEADING_2, HEADING_3, HEADING_4, HEADING_5, HEADING_6. |
+| `alignment` | string | No | The paragraph alignment to apply. One of: LEFT, CENTER, RIGHT, JUSTIFY. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indicates if the paragraph style was applied successfully |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_create_paragraph_bullets`
+
+Add bulleted or numbered list formatting to the paragraphs overlapping a range of text in a Google Docs document, using a chosen bullet glyph preset.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The ID of the document to update |
+| `startIndex` | number | Yes | The start character index \(the document body starts at index 1\) of the range to bullet \(inclusive\) |
+| `endIndex` | number | Yes | The end character index of the range to bullet \(exclusive\) |
+| `bulletPreset` | string | No | The bullet glyph preset to apply. Defaults to BULLET_DISC_CIRCLE_SQUARE. Examples: BULLET_DISC_CIRCLE_SQUARE, BULLET_CHECKBOX, NUMBERED_DECIMAL_ALPHA_ROMAN, NUMBERED_DECIMAL_NESTED. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indicates if the bullets were applied successfully |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_delete_paragraph_bullets`
+
+Remove bullet or numbered list formatting from the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The ID of the document to update |
+| `startIndex` | number | Yes | The start character index \(the document body starts at index 1\) of the range to clear bullets from \(inclusive\) |
+| `endIndex` | number | Yes | The end character index of the range to clear bullets from \(exclusive\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indicates if the bullets were removed successfully |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_delete_content_range`
+
+Delete all content between a start and end character index in a Google Docs document. The endIndex is exclusive and must be greater than the startIndex.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The ID of the document to delete content from |
+| `startIndex` | number | Yes | The start character index \(the document body starts at index 1\) of the range to delete \(inclusive\) |
+| `endIndex` | number | Yes | The end character index of the range to delete \(exclusive\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indicates if the content range was deleted successfully |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_create_named_range`
+
+Create a named range over a span of content in a Google Docs document so it can be referenced or deleted later. The name may be 1-256 characters and need not be unique.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The ID of the document to update |
+| `name` | string | Yes | The name of the range to create \(1-256 characters\) |
+| `startIndex` | number | Yes | The start character index \(the document body starts at index 1\) of the range \(inclusive\) |
+| `endIndex` | number | Yes | The end character index of the range \(exclusive\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `namedRangeId` | string | The ID of the created named range |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_delete_named_range`
+
+Delete one or more named ranges from a Google Docs document by their ID or by name. Provide exactly one of namedRangeId or name; deleting by name removes all ranges sharing that name. The content itself is not removed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The ID of the document to update |
+| `namedRangeId` | string | No | The ID of the named range to delete. Provide exactly one of namedRangeId or namedRangeName. |
+| `namedRangeName` | string | No | The name of the named range\(s\) to delete. All ranges sharing this name are removed. Provide exactly one of namedRangeId or namedRangeName. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indicates if the named range\(s\) were deleted successfully |
 | `metadata` | json | Updated document metadata including ID, title, and URL |
 |   ↳ `documentId` | string | Google Docs document ID |
 |   ↳ `title` | string | Document title |

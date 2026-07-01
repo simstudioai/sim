@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode, Ref } from 'react'
 import { Badge, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { Handle, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '../dimensions'
+import { tileIconColorClass } from '../lib/tile-icon-color'
 import type { BlockRunStatus } from '../types'
 import { SubBlockRowView } from './sub-block-row-view'
 
@@ -204,7 +205,12 @@ export function WorkflowBlockView({
                 background: isEnabled ? iconBgColor : 'gray',
               }}
             >
-              <Icon className='size-[16px] text-white' />
+              <Icon
+                className={cn(
+                  'size-[16px]',
+                  isEnabled ? tileIconColorClass(iconBgColor) : 'text-[var(--text-icon)]'
+                )}
+              />
             </div>
             <span
               className={cn(

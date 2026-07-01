@@ -133,6 +133,8 @@ export interface ContextDevSearchParams {
   includeDomains?: string[]
   excludeDomains?: string[]
   freshness?: string
+  numResults?: number
+  country?: string
   queryFanout?: boolean
   markdownEnabled?: boolean
   timeoutMS?: number
@@ -400,7 +402,10 @@ export const BRAND_OUTPUT_PROPERTIES = {
   email: { type: 'string', description: 'Brand contact email' },
   phone: { type: 'string', description: 'Brand contact phone' },
   industries: { type: 'json', description: 'Industry taxonomy (eic industry/subindustry pairs)' },
-  links: { type: 'json', description: 'Key brand links (careers, privacy, terms, blog, pricing)' },
+  links: {
+    type: 'json',
+    description: 'Key brand links (careers, privacy, terms, blog, pricing, contact)',
+  },
   primary_language: { type: 'string', description: 'Primary language of the brand site' },
 } as const
 

@@ -23,6 +23,7 @@ import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
+import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -63,6 +64,7 @@ export function SettingsSidebar({
     enabled: isBillingEnabled,
     staleTime: 5 * 60 * 1000,
   })
+  const { data: inboxConfig } = useInboxConfig(workspaceId)
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders({
     enabled: !isHosted,
   })
@@ -78,6 +80,7 @@ export function SettingsSidebar({
   const isAdmin = userRole === 'admin'
   const isOrgAdminOrOwner = isOwner || isAdmin
   const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const inboxEntitled = inboxConfig?.entitled ?? false
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
   const isEnterprisePlan = isEnterprise(subscriptionData?.data?.plan)
@@ -296,7 +299,11 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
-                    const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
+                    const isLocked =
+                      item.requiresMax &&
+                      (item.id === 'inbox'
+                        ? !inboxEntitled
+                        : !subscriptionAccess.hasUsableMaxAccess)
                     const itemClassName = chipVariants({ active, fullWidth: true })
                     const content = (
                       <>

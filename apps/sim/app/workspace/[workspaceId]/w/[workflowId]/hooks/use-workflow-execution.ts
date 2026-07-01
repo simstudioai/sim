@@ -13,6 +13,7 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
+import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import {
   extractTriggerMockPayload,
   selectBestTrigger,
@@ -136,6 +137,41 @@ function normalizeErrorMessage(error: unknown): string {
   }
 
   return WORKFLOW_EXECUTION_FAILURE_MESSAGE
+}
+
+/**
+ * Builds the manual-run workflow input from a trigger's inputFormat subblock.
+ * Named fields are coerced by type; file-typed fields are excluded as named
+ * inputs and routed to the dedicated `files` channel (already uploaded, so they
+ * pass straight to the executor's normalizeStartFile). Returns undefined when
+ * the format yields nothing. Shared by every manual entry path so they stay
+ * consistent.
+ */
+function buildInputFormatInput(inputFormatValue: unknown): Record<string, any> | undefined {
+  if (!Array.isArray(inputFormatValue)) return undefined
+
+  const testInput: Record<string, any> = {}
+  for (const field of inputFormatValue) {
+    if (
+      field &&
+      typeof field === 'object' &&
+      field.name &&
+      field.value !== undefined &&
+      !isFileFieldType(field.type)
+    ) {
+      testInput[field.name] = coerceValue(field.type, field.value)
+    }
+  }
+
+  // Route file[] fields to the dedicated `files` channel. `files` is the start
+  // block's canonical file channel (the chat trigger names its own file field
+  // `files`), so uploaded files must own it and take precedence over a plain
+  // field that happens to be named `files` — dropping real attachments would be
+  // the worse outcome.
+  const files = collectInputFormatFiles(inputFormatValue)
+  if (files.length > 0) testInput.files = files
+
+  return Object.keys(testInput).length > 0 ? testInput : undefined
 }
 
 export function useWorkflowExecution() {
@@ -948,21 +984,6 @@ export function useWorkflowExecution() {
       selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
-    // Helper to extract test values from inputFormat subblock
-    const extractTestValuesFromInputFormat = (inputFormatValue: any): Record<string, any> => {
-      const testInput: Record<string, any> = {}
-
-      if (Array.isArray(inputFormatValue)) {
-        inputFormatValue.forEach((field: any) => {
-          if (field && typeof field === 'object' && field.name && field.value !== undefined) {
-            testInput[field.name] = coerceValue(field.type, field.value)
-          }
-        })
-      }
-
-      return testInput
-    }
-
     // Determine start block and workflow input based on execution type
     let startBlockId: string | undefined
     let finalWorkflowInput = workflowInput
@@ -1052,10 +1073,9 @@ export function useWorkflowExecution() {
         selectedCandidate.path === StartBlockPath.SPLIT_INPUT ||
         selectedCandidate.path === StartBlockPath.UNIFIED
       ) {
-        const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
-        const testInput = extractTestValuesFromInputFormat(inputFormatValue)
-        if (Object.keys(testInput).length > 0) {
-          finalWorkflowInput = testInput
+        const builtInput = buildInputFormatInput(selectedTrigger.subBlocks?.inputFormat?.value)
+        if (builtInput) {
+          finalWorkflowInput = builtInput
         }
       }
     }
@@ -1807,17 +1827,9 @@ export function useWorkflowExecution() {
             candidate.path === StartBlockPath.SPLIT_INPUT ||
             candidate.path === StartBlockPath.UNIFIED
           ) {
-            const inputFormatValue = candidate.block.subBlocks?.inputFormat?.value
-            if (Array.isArray(inputFormatValue)) {
-              const testInput: Record<string, any> = {}
-              inputFormatValue.forEach((field: any) => {
-                if (field && typeof field === 'object' && field.name && field.value !== undefined) {
-                  testInput[field.name] = coerceValue(field.type, field.value)
-                }
-              })
-              if (Object.keys(testInput).length > 0) {
-                workflowInput = testInput
-              }
+            const builtInput = buildInputFormatInput(candidate.block.subBlocks?.inputFormat?.value)
+            if (builtInput) {
+              workflowInput = builtInput
             }
           }
         } else {

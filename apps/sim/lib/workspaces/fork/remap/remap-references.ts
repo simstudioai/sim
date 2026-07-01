@@ -18,12 +18,19 @@ import {
   type StructuredWorkflowSearchResourceKind,
 } from '@/lib/workflows/search-replace/resources/registry'
 import {
+  buildCanonicalIndex,
   buildSubBlockValues,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  isCanonicalPair,
   isNonEmptyValue,
+  resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
-import { remapForkFileUploadValue } from '@/lib/workspaces/fork/remap/remap-files'
+import {
+  collectForkFileUploadKeys,
+  remapForkFileUploadValue,
+} from '@/lib/workspaces/fork/remap/remap-files'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 
@@ -38,7 +45,12 @@ export type ForkRemapKind = z.infer<typeof forkRemapKindSchema>
 
 const logger = createLogger('WorkspaceForkRemapReferences')
 
-const REQUIRED_KINDS = new Set<ForkRemapKind>(['credential', 'env-var'])
+/**
+ * Reference kinds whose absence BLOCKS a sync (they gate `requiredComplete` and are resolved by
+ * mapping), as opposed to optional kinds that silently clear. Exported so the cleared-ref preview
+ * can exclude them - a required ref is a blocker, never a silent "will be cleared" item.
+ */
+export const REQUIRED_KINDS = new Set<ForkRemapKind>(['credential', 'env-var'])
 
 /**
  * Id-based override kind for a TOOL param's credential, resolved by subblock id so a
@@ -59,19 +71,42 @@ export const REGISTRY_KIND_TO_FORK_KIND: Partial<
 > = {
   'oauth-credential': 'credential',
   'knowledge-base': 'knowledge-base',
+  'knowledge-document': 'knowledge-document',
   table: 'table',
   'mcp-server': 'mcp-server',
 }
-// `file` and `knowledge-document` are intentionally excluded from the generic
-// registry path. `file-upload` (workspace files) is remapped by storage key via
-// `remapForkFileUploadValue`; `file-selector` (external provider file ids,
-// credential-scoped) carries over unchanged; `document-selector` is cleared by the
-// `dependsOn` rule (clearDependentsOnRemap) when its parent knowledge base is remapped.
-// `mcp-tool-selector` is likewise cleared by `dependsOn` when its `mcp-server-selector`
-// parent is remapped - the tool list is server-scoped and may differ in the target.
+// `file` is intentionally excluded from the generic registry path: `file-upload`
+// (workspace files) is remapped by storage key via `remapForkFileUploadValue`, and
+// `file-selector` (external provider file ids, credential-scoped) carries over
+// unchanged. `document-selector` (`knowledge-document`) IS remapped through the doc-id
+// map when its referenced document was copied into the fork; an unmapped document (its
+// parent KB wasn't copied, or the doc wasn't copyable) resolves to null and is cleared,
+// and `clearDependentsOnRemap` still clears it as a `knowledgeBaseId` dependent when the
+// parent KB itself is unmapped. `mcp-tool-selector` is cleared by `dependsOn` when its
+// `mcp-server-selector` parent is remapped - the tool list is server-scoped and may
+// differ in the target.
 
 /** Matches `{{ENV_KEY}}` references inside subblock values; shared with cascade detection. */
 export const ENV_REF_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
+
+/**
+ * Rewrite `{{ENV}}` references in free text (a copied custom tool's `code`, an MCP url/header)
+ * through an env-name resolver, so a promote that renames an env var (e.g. SLACK_API_KEY ->
+ * SLACK_API_KEY_TEST) keeps the copied text pointing at the right key. A key the resolver leaves
+ * unmapped (null/undefined) or maps to the same name is kept verbatim - a graceful no-op so an env
+ * that exists under the same name in the target still works. Pure; mirrors {@link remapEnvInValue}'s
+ * preserve-by-name policy for the string case.
+ */
+export function rewriteEnvRefsInText(
+  text: string,
+  resolveEnvName: (key: string) => string | null | undefined
+): string {
+  if (!text) return text
+  return text.replace(ENV_REF_PATTERN, (full, key: string) => {
+    const target = resolveEnvName(key)
+    return target && target !== key ? `{{${target}}}` : full
+  })
+}
 
 /**
  * A `credentialSet:<id>` reference points at an ORG-scoped credential set. A fork
@@ -108,6 +143,16 @@ export interface RemapSubBlocksResult {
   unmapped: ForkReference[]
   /** Subblock keys whose resource id was rewritten/cleared this pass (the `dependsOn` parents). */
   remappedKeys: Set<string>
+}
+
+/** Per-block context for the fork remap. `blockType`/`canonicalModes` gate DETECTION (not rewrite). */
+export interface RemapForkContext {
+  blockId?: string
+  blockName?: string
+  /** Block type, to build the canonical index for active-member DETECTION gating (rewrite unaffected). */
+  blockType?: string
+  /** Canonical-mode overrides (`block.data.canonicalModes`), picking the active member per pair. */
+  canonicalModes?: CanonicalModeOverrides
 }
 
 function remapEnvInValue(
@@ -232,8 +277,12 @@ export function remapToolBlockResources(
 
     if (definition.kind === 'file') {
       // file-upload (workspace file) remaps by storage key; file-selector (external
-      // provider id) carries over unchanged.
+      // provider id) carries over unchanged. Each key is recorded as a `file` reference so
+      // a nested tool's workspace file surfaces in the scan / unmapped set and can be copied.
       if (config.type !== 'file-upload') continue
+      for (const fileKey of collectForkFileUploadKeys(currentValue)) {
+        opts.record?.('file', fileKey, opts.resolveFileKey(fileKey) != null)
+      }
       const remapped = remapForkFileUploadValue(currentValue, opts.resolveFileKey)
       if (remapped !== currentValue) {
         setParam(paramId, remapped)
@@ -420,7 +469,7 @@ export function remapForkSubBlocks(
   subBlocks: SubBlockRecord,
   resolve: ForkReferenceResolver,
   mode: 'create' | 'promote',
-  context?: { blockId?: string; blockName?: string }
+  context?: RemapForkContext
 ): RemapSubBlocksResult {
   const clearUnresolved = true
   const result: SubBlockRecord = {}
@@ -432,6 +481,25 @@ export function remapForkSubBlocks(
     if (mode !== 'promote') return
     references.set(key, reference)
     if (!mapped) unmapped.set(key, reference)
+  }
+
+  // DETECTION gate: a DORMANT canonical member's stale value must not be recorded as a reference
+  // (so it is never offered as a required mapping / copyable / usage and can't gate sync). The value
+  // REWRITE below is untouched - both basic + advanced ids are still remapped. Needs `blockType` to
+  // build the canonical index; callers that omit it (create-mode transforms) keep today's detection,
+  // and with `canonicalModes` absent the value heuristic keeps a populated member active (no-op).
+  const canonicalIndex = context?.blockType
+    ? buildCanonicalIndex(getBlock(context.blockType)?.subBlocks ?? [])
+    : undefined
+  const detectionValues = canonicalIndex ? buildSubBlockValues(subBlocks) : {}
+  const isDormantCanonicalMember = (key: string): boolean => {
+    if (!canonicalIndex) return false
+    const baseKey = key.replace(/_\d+$/, '')
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[baseKey]
+    const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+    if (!group || !isCanonicalPair(group)) return false
+    const activeMode = resolveCanonicalMode(group, detectionValues, context?.canonicalModes)
+    return (activeMode === 'advanced') !== group.advancedIds.includes(baseKey)
   }
 
   for (const [subBlockKey, subBlock] of Object.entries(subBlocks)) {
@@ -450,6 +518,8 @@ export function remapForkSubBlocks(
     const forkKind = definition ? REGISTRY_KIND_TO_FORK_KIND[definition.kind] : undefined
 
     if (definition && forkKind && subBlockType) {
+      // A dormant canonical member is rewritten (below) but NOT detected as a reference.
+      const isDormant = isDormantCanonicalMember(subBlockKey)
       const parsed = parseWorkflowSearchSubBlockResources(value, {
         type: subBlockType as SubBlockType,
       })
@@ -469,7 +539,7 @@ export function remapForkSubBlocks(
         }
         const target = resolve(forkKind, ref.rawValue)
         const mapped = target != null
-        recordReference(`${forkKind}:${ref.rawValue}`, reference, mapped)
+        if (!isDormant) recordReference(`${forkKind}:${ref.rawValue}`, reference, mapped)
         if (mapped) {
           if (target !== ref.rawValue) {
             const replaceResult = definition.codec.replace(value, ref.rawValue, target)
@@ -485,9 +555,25 @@ export function remapForkSubBlocks(
     }
 
     if (subBlockType === 'file-upload') {
-      // Workspace-file refs don't sync on promote (the target lacks the source's
-      // blob); clear them rather than carry a cross-workspace key. On fork, the
-      // resolver returns the copied key. `file-selector` (external) is untouched.
+      // Each workspace-file key is a `file` reference (keyed by storage key). Recording it
+      // surfaces the file in the scan / unmapped set so a sync can copy it into the target,
+      // exactly like fork - rather than silently clearing it. The resolver returns the copied
+      // key once the file has been copied; an unmapped (uncopied) key is dropped by the remap
+      // below. `file-selector` (external provider ids) is untouched.
+      for (const fileKey of collectForkFileUploadKeys(value)) {
+        recordReference(
+          `file:${fileKey}`,
+          {
+            kind: 'file',
+            sourceId: fileKey,
+            blockId: context?.blockId,
+            blockName: context?.blockName,
+            subBlockKey,
+            required: false,
+          },
+          resolve('file', fileKey) != null
+        )
+      }
       value = remapForkFileUploadValue(value, (sourceKey) => resolve('file', sourceKey) ?? null)
     } else if (subBlockType === 'tool-input' || subBlockType === 'skill-input') {
       const record = (kind: ForkRemapKind, sourceId: string, mapped: boolean) =>
@@ -552,14 +638,32 @@ export function remapForkSubBlocks(
 export function clearDependentsOnRemap(
   subBlocks: SubBlockRecord,
   blockType: string,
-  remappedKeys: ReadonlySet<string>
+  remappedKeys: ReadonlySet<string>,
+  canonicalModes?: CanonicalModeOverrides
 ): SubBlockRecord {
   if (remappedKeys.size === 0) return subBlocks
   const config = getBlock(blockType)
   if (!config) return subBlocks
 
+  // Only a remap of the ACTIVE canonical member should clear its dependents: a dormant member's
+  // stale value being remapped/cleared must not clear a child that hangs off the active parent
+  // (only the active mode is serialized). With `canonicalModes` absent the value heuristic keeps a
+  // populated basic member active, so this is a no-op for the normal case; the gate only bites the
+  // toggle-with-stale-dormant edge (advanced active + a dormant basic that was remapped).
+  const canonicalIndex = buildCanonicalIndex(config.subBlocks)
+  const values = buildSubBlockValues(subBlocks)
+  const isDormantCanonicalMember = (key: string): boolean => {
+    const baseKey = key.replace(/_\d+$/, '')
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[baseKey]
+    const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+    if (!group || !isCanonicalPair(group)) return false
+    const mode = resolveCanonicalMode(group, values, canonicalModes)
+    return (mode === 'advanced') !== group.advancedIds.includes(baseKey)
+  }
+
   const toClear = new Set<string>()
   for (const key of remappedKeys) {
+    if (isDormantCanonicalMember(key)) continue
     for (const clear of getWorkflowSearchDependentClears(config.subBlocks, key)) {
       if (!remappedKeys.has(clear.subBlockId)) toClear.add(clear.subBlockId)
     }
@@ -864,7 +968,7 @@ export function applyDependentOverrides(
 export function remapSubBlocks(
   subBlocks: SubBlockRecord,
   resolve: ForkReferenceResolver,
-  context?: { blockId?: string; blockName?: string }
+  context?: RemapForkContext
 ): RemapSubBlocksResult {
   return remapForkSubBlocks(subBlocks, resolve, 'promote', context)
 }
@@ -872,10 +976,14 @@ export function remapSubBlocks(
 /** A `copyWorkflowStateIntoTarget` subBlock transform that rewrites references via the resolver. */
 export function createForkSubBlockTransform(
   resolve: ForkReferenceResolver
-): (subBlocks: SubBlockRecord, blockType: string) => SubBlockRecord {
-  return (subBlocks, blockType) => {
+): (
+  subBlocks: SubBlockRecord,
+  blockType: string,
+  canonicalModes?: CanonicalModeOverrides
+) => SubBlockRecord {
+  return (subBlocks, blockType, canonicalModes) => {
     const result = remapSubBlocks(subBlocks, resolve)
-    return clearDependentsOnRemap(result.subBlocks, blockType, result.remappedKeys)
+    return clearDependentsOnRemap(result.subBlocks, blockType, result.remappedKeys, canonicalModes)
   }
 }
 
@@ -890,7 +998,15 @@ export interface WorkflowReferenceScan {
  * paths to surface what needs mapping and to block on unmapped required refs.
  */
 export function scanWorkflowReferences(
-  blocks: Array<{ id: string; name: string; subBlocks: unknown }>,
+  blocks: Array<{
+    id: string
+    name: string
+    /** Block type, so detection can collapse a canonical pair to its active member. */
+    type?: string
+    subBlocks: unknown
+    /** `block.data.canonicalModes`, picking the active member per canonical pair for detection. */
+    canonicalModes?: CanonicalModeOverrides
+  }>,
   resolve: ForkReferenceResolver
 ): WorkflowReferenceScan {
   const references = new Map<string, ForkReference>()
@@ -903,6 +1019,8 @@ export function scanWorkflowReferences(
     const blockResult = remapSubBlocks(block.subBlocks as SubBlockRecord, resolve, {
       blockId: block.id,
       blockName: block.name,
+      blockType: block.type,
+      canonicalModes: block.canonicalModes,
     })
     for (const reference of blockResult.references) {
       const key = `${reference.kind}:${reference.sourceId}`

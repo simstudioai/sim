@@ -2,7 +2,20 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { buildPromoteWorkflowIdMap } from '@/lib/workspaces/fork/promote/promote-plan'
+import type { ForkCopyableLabel } from '@/lib/workspaces/fork/mapping/resources'
+import {
+  assembleForkCopyableUnmapped,
+  buildPromoteWorkflowIdMap,
+  collectForkCopyableIdsByKind,
+} from '@/lib/workspaces/fork/promote/promote-plan'
+import type { ForkReference } from '@/lib/workspaces/fork/remap/remap-references'
+
+const ref = (kind: ForkReference['kind'], sourceId: string): ForkReference => ({
+  kind,
+  sourceId,
+  subBlockKey: 'sb',
+  required: false,
+})
 
 /**
  * `buildPromoteWorkflowIdMap` decides which cross-workflow references survive a
@@ -78,5 +91,64 @@ describe('buildPromoteWorkflowIdMap', () => {
       items: [{ sourceWorkflowId: 's', targetWorkflowId: 't-new' }],
     })
     expect(map.get('s')).toBe('t-new')
+  })
+})
+
+describe('collectForkCopyableIdsByKind', () => {
+  it('groups copyable kinds and ignores non-copyable kinds (credential / env-var)', () => {
+    const byKind = collectForkCopyableIdsByKind([
+      ref('knowledge-base', 'kb-1'),
+      ref('knowledge-base', 'kb-2'),
+      ref('table', 'tbl-1'),
+      ref('credential', 'cred-1'),
+      ref('env-var', 'API_KEY'),
+      ref('custom-tool', 'ct-1'),
+      ref('skill', 'sk-1'),
+      ref('file', 'fk-1'),
+    ])
+    expect(byKind).toEqual({
+      'knowledge-base': ['kb-1', 'kb-2'],
+      table: ['tbl-1'],
+      'custom-tool': ['ct-1'],
+      skill: ['sk-1'],
+      file: ['fk-1'],
+    })
+  })
+})
+
+describe('assembleForkCopyableUnmapped', () => {
+  const flat = (label: string): ForkCopyableLabel => ({ label, parentId: null, parentLabel: null })
+
+  it('emits a candidate per copyable ref whose label resolved, carrying its labels', () => {
+    const labels = new Map<string, ForkCopyableLabel>([
+      ['knowledge-base:kb-1', flat('Docs KB')],
+      ['file:fk-1', { label: 'a.png', parentId: 'fld-1', parentLabel: 'Folder' }],
+    ])
+    const result = assembleForkCopyableUnmapped(
+      [ref('knowledge-base', 'kb-1'), ref('file', 'fk-1'), ref('credential', 'cred-1')],
+      labels
+    )
+    expect(result).toEqual([
+      {
+        kind: 'knowledge-base',
+        sourceId: 'kb-1',
+        label: 'Docs KB',
+        parentId: null,
+        parentLabel: null,
+      },
+      { kind: 'file', sourceId: 'fk-1', label: 'a.png', parentId: 'fld-1', parentLabel: 'Folder' },
+    ])
+  })
+
+  it('drops a copyable ref whose label is missing (no longer exists in the source)', () => {
+    expect(assembleForkCopyableUnmapped([ref('knowledge-base', 'kb-gone')], new Map())).toEqual([])
+  })
+
+  it('ignores non-copyable kinds entirely (credential / env-var)', () => {
+    const result = assembleForkCopyableUnmapped(
+      [ref('credential', 'cred-1'), ref('env-var', 'API_KEY')],
+      new Map([['credential:cred-1', flat('X')]])
+    )
+    expect(result).toEqual([])
   })
 })

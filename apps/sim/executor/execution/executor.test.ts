@@ -331,6 +331,63 @@ describe('DAGExecutor run-from-block snapshot metadata', () => {
   })
 })
 
+describe('DAGExecutor resume DAG construction', () => {
+  it('includes non-starter resume targets when a workflow has a disconnected starter', async () => {
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start-t2-v2', BlockType.STARTER),
+        createBlock('webhook-start', 'generic_webhook'),
+        createBlock('hitl', BlockType.HUMAN_IN_THE_LOOP),
+        createBlock('generate-report', BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'webhook-start', target: 'hitl', sourceHandle: 'source' },
+        { source: 'hitl', target: 'generate-report', sourceHandle: 'source' },
+      ],
+      loops: {},
+      parallels: {},
+    }
+    let capturedDag: ReturnType<DAGBuilder['build']> | undefined
+    const executor = new DAGExecutor({
+      workflow,
+      contextExtensions: {
+        resumeFromSnapshot: true,
+        remainingEdges: [{ source: 'hitl', target: 'generate-report', sourceHandle: 'source' }],
+        dagIncomingEdges: { 'start-t2-v2': [] },
+        snapshotState: {
+          blockStates: {},
+          executedBlocks: ['webhook-start', 'hitl'],
+          blockLogs: [],
+          decisions: { router: {}, condition: {} },
+          completedLoops: [],
+          activeExecutionPath: [],
+        },
+      },
+    }) as unknown as DAGExecutor & {
+      buildExecutionPipeline: (
+        context: ExecutionContext,
+        dag: ReturnType<DAGBuilder['build']>
+      ) => { run: () => Promise<ExecutionResult> }
+    }
+    executor.buildExecutionPipeline = vi.fn((_context, dag) => {
+      capturedDag = dag
+      return {
+        run: async (): Promise<ExecutionResult> => ({
+          success: true,
+          output: { ok: true },
+          metadata: {},
+        }),
+      }
+    })
+
+    await executor.execute('wf')
+
+    expect(capturedDag?.nodes.has('generate-report')).toBe(true)
+    expect(capturedDag?.nodes.get('generate-report')?.incomingEdges.has('hitl')).toBe(true)
+  })
+})
+
 describe('DAGExecutor createExecutionContext useDraftState', () => {
   function buildMetadataUseDraftState(opts: {
     metadataUseDraftState?: boolean

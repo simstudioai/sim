@@ -2,6 +2,7 @@ import { LinqIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
+import { getTrigger } from '@/triggers'
 
 const CHAT_ID_OPS = [
   'get_chat',
@@ -559,6 +560,12 @@ export const LinqBlock: BlockConfig = {
       condition: { field: 'operation', value: [...PAGINATION_OPS] },
       mode: 'advanced',
     },
+    ...getTrigger('linq_message_received').subBlocks,
+    ...getTrigger('linq_message_delivered').subBlocks,
+    ...getTrigger('linq_message_failed').subBlocks,
+    ...getTrigger('linq_message_read').subBlocks,
+    ...getTrigger('linq_reaction_added').subBlocks,
+    ...getTrigger('linq_webhook').subBlocks,
   ],
 
   tools: {
@@ -862,6 +869,18 @@ export const LinqBlock: BlockConfig = {
     signingSecret: { type: 'string', description: 'Webhook signing secret (returned once)' },
     events: { type: 'json', description: 'Available webhook event types' },
     docUrl: { type: 'string', description: 'Documentation URL' },
+  },
+
+  triggers: {
+    enabled: true,
+    available: [
+      'linq_message_received',
+      'linq_message_delivered',
+      'linq_message_failed',
+      'linq_message_read',
+      'linq_reaction_added',
+      'linq_webhook',
+    ],
   },
 }
 
