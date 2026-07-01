@@ -913,11 +913,16 @@ export function HeroVisual() {
     return () => cancelAnimationFrame(raf)
   }, [loaderPainting, paintFrame])
 
+  const phaseRef = useRef<Phase>(phase)
   useEffect(() => {
-    const onResize = () => positionCursor(phase, true)
+    phaseRef.current = phase
+  }, [phase])
+
+  useEffect(() => {
+    const onResize = () => positionCursor(phaseRef.current, true)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [phase, positionCursor])
+  }, [positionCursor])
 
   useEffect(
     () => () => {
