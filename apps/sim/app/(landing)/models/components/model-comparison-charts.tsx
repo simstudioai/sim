@@ -27,7 +27,7 @@ function selectComparisonModels(models: CatalogModel[]): CatalogModel[] {
   const seen = new Set<string>()
   const result: CatalogModel[] = []
 
-  const sorted = models.toSorted((a, b) => {
+  const sorted = [...models].sort((a, b) => {
     const score = (m: CatalogModel) => {
       const reseller = RESELLER_PROVIDERS.has(m.providerId) ? -50 : 0
       const reasoning = m.capabilities.reasoningEffort || m.capabilities.thinking ? 10 : 0

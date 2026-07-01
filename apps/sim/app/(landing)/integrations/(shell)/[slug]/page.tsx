@@ -129,7 +129,7 @@ function escapeRegex(value: string): string {
  * names.
  */
 function mentionifyPromptForNames(prompt: string, names: readonly string[]): string {
-  const unique = Array.from(new Set(names.filter((n) => n.trim().length >= 2))).toSorted(
+  const unique = Array.from(new Set(names.filter((n) => n.trim().length >= 2))).sort(
     (a, b) => b.length - a.length
   )
   if (unique.length === 0) return prompt
