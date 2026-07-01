@@ -22,8 +22,8 @@ function connectorIcons(icons: React.ComponentType<{ className?: string }>[]) {
   return {
     content: (
       <div className='flex items-center gap-1'>
-        {icons.map((Icon, i) => (
-          <Icon key={i} className='size-3.5 flex-shrink-0' />
+        {icons.map((Icon) => (
+          <Icon key={Icon.displayName ?? Icon.name} className='size-3.5 flex-shrink-0' />
         ))}
       </div>
     ),

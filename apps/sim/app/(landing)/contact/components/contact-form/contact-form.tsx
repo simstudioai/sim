@@ -108,7 +108,7 @@ export function ContactForm() {
   const [errors, setErrors] = useState<ContactErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [website, setWebsite] = useState('')
-  const [widgetLoaded, setWidgetLoaded] = useState(false)
+  const widgetLoadedRef = useRef(false)
 
   function updateField<TField extends keyof ContactFormState>(
     field: TField,
@@ -147,7 +147,7 @@ export function ContactForm() {
     let captchaToken: string | undefined
     const widget = turnstileRef.current
 
-    if (TURNSTILE_SITE_KEY && widgetLoaded && widget) {
+    if (TURNSTILE_SITE_KEY && widgetLoadedRef.current && widget) {
       try {
         widget.reset()
         widget.execute()
@@ -313,9 +313,15 @@ export function ContactForm() {
             ref={turnstileRef}
             siteKey={TURNSTILE_SITE_KEY}
             options={{ execution: 'execute', appearance: 'execute', size: 'invisible' }}
-            onWidgetLoad={() => setWidgetLoaded(true)}
-            onError={() => setWidgetLoaded(false)}
-            onUnsupported={() => setWidgetLoaded(false)}
+            onWidgetLoad={() => {
+              widgetLoadedRef.current = true
+            }}
+            onError={() => {
+              widgetLoadedRef.current = false
+            }}
+            onUnsupported={() => {
+              widgetLoadedRef.current = false
+            }}
           />
         ) : null}
 

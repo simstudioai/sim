@@ -2,14 +2,16 @@ import Link from 'next/link'
 import { getProviderColor } from '@/app/(landing)/models/components/constants'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
 
+const SHORT_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
 function formatShortDate(date: string): string {
   try {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      timeZone: 'UTC',
-    }).format(new Date(date))
+    return SHORT_DATE_FORMAT.format(new Date(date))
   } catch {
     return date
   }

@@ -4,10 +4,8 @@ import type {
   PreviewColumn,
   PreviewRow,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
-import {
-  LandingPreviewResource,
-  ownerCell,
-} from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
+import { LandingPreviewResource } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
+import { ownerCell } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/utils'
 
 /** Generic audio/zip icon using basic SVG since no dedicated component exists */
 function AudioIcon({ className }: { className?: string }) {

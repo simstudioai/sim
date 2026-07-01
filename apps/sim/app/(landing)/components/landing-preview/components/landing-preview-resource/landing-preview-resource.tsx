@@ -31,17 +31,6 @@ interface LandingPreviewResourceProps {
   onRowClick?: (id: string) => void
 }
 
-export function ownerCell(initial: string, name: string): PreviewCell {
-  return {
-    icon: (
-      <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-        {initial}
-      </span>
-    ),
-    label: name,
-  }
-}
-
 export function LandingPreviewResource({
   icon: Icon,
   title,
@@ -73,7 +62,7 @@ export function LandingPreviewResource({
       : rows
 
     if (!sortColId) return filtered
-    return [...filtered].sort((a, b) => {
+    return filtered.toSorted((a, b) => {
       const av = a.cells[sortColId]?.label ?? ''
       const bv = b.cells[sortColId]?.label ?? ''
       const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' })
@@ -107,6 +96,7 @@ export function LandingPreviewResource({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
               className='flex-1 bg-transparent text-[var(--text-body)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
             />
           </div>

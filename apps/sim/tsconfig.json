@@ -2,6 +2,7 @@
   "extends": "@sim/tsconfig/nextjs.json",
   "compilerOptions": {
     "baseUrl": ".",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "paths": {
       "@/*": ["./*"],
       "@/components/*": ["components/*"],

@@ -342,9 +342,10 @@ export interface EditorPromptData {
 export function getEditorPrompt(workflow: PreviewWorkflow): EditorPromptData | null {
   for (const block of workflow.blocks) {
     if (!AGENT_BLOCK_TYPES.has(block.type)) continue
-    const promptRow = block.rows.find((r) => r.title === 'Prompt' || r.title === 'System Prompt')
+    const rowsByTitle = new Map(block.rows.map((row) => [row.title, row]))
+    const promptRow = rowsByTitle.get('Prompt') ?? rowsByTitle.get('System Prompt')
     if (promptRow) {
-      const modelRow = block.rows.find((r) => r.title === 'Model')
+      const modelRow = rowsByTitle.get('Model')
       return {
         blockId: block.id,
         blockName: block.name,
