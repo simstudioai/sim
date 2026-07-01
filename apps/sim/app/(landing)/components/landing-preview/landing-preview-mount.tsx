@@ -52,6 +52,12 @@ export function LandingPreviewMount({ autoplay, view, workflowId }: LandingPrevi
 
   useEffect(() => {
     if (inView) return
+    // Graceful degradation: without IntersectionObserver support, load eagerly
+    // rather than leave the preview stuck on its placeholder.
+    if (typeof IntersectionObserver === 'undefined') {
+      setInView(true)
+      return
+    }
     const el = ref.current
     if (!el) return
     const observer = new IntersectionObserver(
