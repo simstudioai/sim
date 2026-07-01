@@ -217,7 +217,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     return !descriptionChanged && !paramDescriptionsChanged
   })()
 
-  const tools = data?.tools ?? []
+  const tools = useMemo(() => data?.tools ?? [], [data?.tools])
 
   const availableWorkflows = useMemo(() => {
     const existingWorkflowIds = new Set(tools.map((t) => t.workflowId))

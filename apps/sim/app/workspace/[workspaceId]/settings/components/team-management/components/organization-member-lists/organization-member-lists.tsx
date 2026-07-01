@@ -66,6 +66,10 @@ function copyToClipboard(text: string) {
   void navigator.clipboard.writeText(text)
 }
 
+function buildActionsMenu(actions: RowAction[]) {
+  return <RowActionsMenu label='Member actions' actions={actions} />
+}
+
 interface OrganizationMemberListsProps {
   organizationId: string
   roster: OrganizationRoster | null | undefined
@@ -108,10 +112,6 @@ export function OrganizationMemberLists({
     !q || name.toLowerCase().includes(q) || email.toLowerCase().includes(q)
 
   const isActiveSearch = q.length > 0
-
-  const buildActionsMenu = (actions: RowAction[]) => (
-    <RowActionsMenu label='Member actions' actions={actions} />
-  )
 
   const renderOrgMemberRow = (member: RosterMember) => {
     const isSelf = member.userId === currentUserId

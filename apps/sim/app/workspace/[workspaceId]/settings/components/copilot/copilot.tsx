@@ -27,6 +27,12 @@ import {
 
 const logger = createLogger('CopilotSettings')
 
+/** Formats a key's last-used timestamp, falling back to "Never" when unset. */
+function formatLastUsed(dateString?: string | null): string {
+  if (!dateString) return 'Never'
+  return formatDate(new Date(dateString))
+}
+
 /**
  * Copilot Keys management component for handling API keys used with the Copilot feature.
  * Provides functionality to create, view, and delete copilot API keys.
@@ -93,11 +99,6 @@ export function Copilot() {
     } catch (error) {
       logger.error('Failed to delete copilot API key', { error })
     }
-  }
-
-  const formatLastUsed = (dateString?: string | null) => {
-    if (!dateString) return 'Never'
-    return formatDate(new Date(dateString))
   }
 
   const hasKeys = keys.length > 0
