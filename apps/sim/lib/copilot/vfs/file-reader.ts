@@ -274,6 +274,141 @@ export interface FileReadResult {
   }
 }
 
+/** Placeholder returned when a text file exceeds the inline read budget. */
+function textTooLargeResult(name: string, size: number): FileReadResult {
+  return {
+    content: `[File too large to display inline: ${name} (${size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
+    totalLines: 1,
+  }
+}
+
+/** Placeholder returned when a parseable document exceeds the inline parse budget. */
+function documentTooLargeResult(name: string, size: number): FileReadResult {
+  return {
+    content: `[Document too large to parse inline: ${name} (${size} bytes, limit ${MAX_PARSEABLE_READ_BYTES})]`,
+    totalLines: 1,
+  }
+}
+
+/** Placeholder returned for a file whose bytes cannot be rendered as text. */
+function binaryPlaceholderResult(name: string, type: string, size: number): FileReadResult {
+  return {
+    content: `[Binary file: ${name} (${type}, ${size} bytes). Cannot display as text.]`,
+    totalLines: 1,
+  }
+}
+
+/** True when a file is binary — not an image, not text, and not a parseable document. */
+function isBinaryFile(type: string, ext: string): boolean {
+  return !isImageFileType(type) && !isReadableType(type) && !PARSEABLE_EXTENSIONS.has(ext)
+}
+
+/**
+ * Render an in-memory file buffer into a {@link FileReadResult} using the same
+ * image / text / parseable-document / binary logic as a stored upload.
+ *
+ * Pure aside from the optional `span`, which only carries read-path/outcome
+ * telemetry when called from {@link readFileRecord}; archive-entry reads pass no
+ * span. Size caps apply to the buffer length, so an inflated zip entry is bounded
+ * exactly like a stored file.
+ */
+export async function renderFileBuffer(
+  buffer: Buffer,
+  meta: { name: string; type: string; ext: string },
+  span?: Span
+): Promise<FileReadResult> {
+  const { name, type, ext } = meta
+
+  if (isImageFileType(type)) {
+    span?.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Image)
+    const prepared = await prepareImageForVision(buffer, type)
+    if (!prepared) {
+      span?.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
+      return {
+        content: `[Image too large: ${name} (${(buffer.length / 1024 / 1024).toFixed(1)}MB, limit 5MB after resize/compression)]`,
+        totalLines: 1,
+      }
+    }
+    const sizeKb = (prepared.buffer.length / 1024).toFixed(1)
+    const resizeNote = prepared.resized ? ', resized for vision' : ''
+    span?.setAttributes({
+      [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.ImagePrepared,
+      [TraceAttr.CopilotVfsReadOutputBytes]: prepared.buffer.length,
+      [TraceAttr.CopilotVfsReadOutputMediaType]: prepared.mediaType,
+      [TraceAttr.CopilotVfsReadImageResized]: prepared.resized,
+    })
+    return {
+      content: `Image: ${name} (${sizeKb}KB, ${prepared.mediaType}${resizeNote})`,
+      totalLines: 1,
+      attachment: {
+        type: 'image',
+        name,
+        source: {
+          type: 'base64' as const,
+          media_type: prepared.mediaType,
+          data: prepared.buffer.toString('base64'),
+        },
+      },
+    }
+  }
+
+  if (isReadableType(type)) {
+    span?.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Text)
+    if (buffer.length > MAX_TEXT_READ_BYTES) {
+      span?.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)
+      return textTooLargeResult(name, buffer.length)
+    }
+    const content = buffer.toString('utf-8')
+    const lines = content.split('\n').length
+    span?.setAttributes({
+      [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.TextRead,
+      [TraceAttr.CopilotVfsReadOutputBytes]: buffer.length,
+      [TraceAttr.CopilotVfsReadOutputLines]: lines,
+    })
+    return { content, totalLines: lines }
+  }
+
+  if (PARSEABLE_EXTENSIONS.has(ext)) {
+    span?.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.ParseableDocument)
+    if (buffer.length > MAX_PARSEABLE_READ_BYTES) {
+      span?.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.DocumentTooLarge)
+      return documentTooLargeResult(name, buffer.length)
+    }
+    try {
+      const { parseBuffer } = await import('@/lib/file-parsers')
+      const result = await parseBuffer(buffer, ext)
+      const content = result.content || ''
+      const lines = content.split('\n').length
+      span?.setAttributes({
+        [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.DocumentParsed,
+        [TraceAttr.CopilotVfsReadOutputBytes]: content.length,
+        [TraceAttr.CopilotVfsReadOutputLines]: lines,
+      })
+      return { content, totalLines: lines }
+    } catch (parseErr) {
+      logger.warn('Failed to parse document', {
+        fileName: name,
+        ext,
+        error: toError(parseErr).message,
+      })
+      span?.addEvent(TraceEvent.CopilotVfsParseFailed, {
+        [TraceAttr.ErrorMessage]: toError(parseErr).message.slice(0, 500),
+      })
+      span?.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ParseFailed)
+      return {
+        content: `[Could not parse ${name} (${type}, ${buffer.length} bytes)]`,
+        totalLines: 1,
+      }
+    }
+  }
+
+  span?.setAttributes({
+    [TraceAttr.CopilotVfsReadPath]: CopilotVfsReadPath.Binary,
+    [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.BinaryPlaceholder,
+  })
+  return binaryPlaceholderResult(name, type, buffer.length)
+}
+
 /**
  * Read and return the content of a workspace file record.
  * Handles images (base64 attachment), parseable documents (PDF, DOCX, etc.),
@@ -298,111 +433,35 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
     },
     async (span) => {
       try {
-        if (isImageFileType(record.type)) {
-          span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Image)
-          const originalBuffer = await fetchWorkspaceFileBuffer(record)
-          const prepared = await prepareImageForVision(originalBuffer, record.type)
-          if (!prepared) {
-            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
-            return {
-              content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB after resize/compression)]`,
-              totalLines: 1,
-            }
-          }
-          const sizeKb = (prepared.buffer.length / 1024).toFixed(1)
-          const resizeNote = prepared.resized ? ', resized for vision' : ''
-          span.setAttributes({
-            [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.ImagePrepared,
-            [TraceAttr.CopilotVfsReadOutputBytes]: prepared.buffer.length,
-            [TraceAttr.CopilotVfsReadOutputMediaType]: prepared.mediaType,
-            [TraceAttr.CopilotVfsReadImageResized]: prepared.resized,
-          })
-          return {
-            content: `Image: ${record.name} (${sizeKb}KB, ${prepared.mediaType}${resizeNote})`,
-            totalLines: 1,
-            attachment: {
-              type: 'image',
-              name: record.name,
-              source: {
-                type: 'base64' as const,
-                media_type: prepared.mediaType,
-                data: prepared.buffer.toString('base64'),
-              },
-            },
-          }
-        }
-
-        if (isReadableType(record.type)) {
-          span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Text)
-          if (record.size > MAX_TEXT_READ_BYTES) {
-            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)
-            return {
-              content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
-              totalLines: 1,
-            }
-          }
-
-          const buffer = await fetchWorkspaceFileBuffer(record)
-          const content = buffer.toString('utf-8')
-          const lines = content.split('\n').length
-          span.setAttributes({
-            [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.TextRead,
-            [TraceAttr.CopilotVfsReadOutputBytes]: buffer.length,
-            [TraceAttr.CopilotVfsReadOutputLines]: lines,
-          })
-          return { content, totalLines: lines }
-        }
-
         const ext = getExtension(record.name)
-        if (PARSEABLE_EXTENSIONS.has(ext)) {
+        // Pre-fetch size guards: reject oversized text/parseable files without
+        // paying for the download. Images are always fetched (to sniff + resize).
+        if (isReadableType(record.type) && record.size > MAX_TEXT_READ_BYTES) {
+          span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.Text)
+          span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.TextTooLarge)
+          return textTooLargeResult(record.name, record.size)
+        }
+        if (
+          !isImageFileType(record.type) &&
+          !isReadableType(record.type) &&
+          PARSEABLE_EXTENSIONS.has(ext) &&
+          record.size > MAX_PARSEABLE_READ_BYTES
+        ) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.ParseableDocument)
-          if (record.size > MAX_PARSEABLE_READ_BYTES) {
-            span.setAttribute(
-              TraceAttr.CopilotVfsReadOutcome,
-              CopilotVfsReadOutcome.DocumentTooLarge
-            )
-            return {
-              content: `[Document too large to parse inline: ${record.name} (${record.size} bytes, limit ${MAX_PARSEABLE_READ_BYTES})]`,
-              totalLines: 1,
-            }
-          }
-          const buffer = await fetchWorkspaceFileBuffer(record)
-          try {
-            const { parseBuffer } = await import('@/lib/file-parsers')
-            const result = await parseBuffer(buffer, ext)
-            const content = result.content || ''
-            const lines = content.split('\n').length
-            span.setAttributes({
-              [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.DocumentParsed,
-              [TraceAttr.CopilotVfsReadOutputBytes]: content.length,
-              [TraceAttr.CopilotVfsReadOutputLines]: lines,
-            })
-            return { content, totalLines: lines }
-          } catch (parseErr) {
-            logger.warn('Failed to parse document', {
-              fileName: record.name,
-              ext,
-              error: toError(parseErr).message,
-            })
-            span.addEvent(TraceEvent.CopilotVfsParseFailed, {
-              [TraceAttr.ErrorMessage]: toError(parseErr).message.slice(0, 500),
-            })
-            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ParseFailed)
-            return {
-              content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
-              totalLines: 1,
-            }
-          }
+          span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.DocumentTooLarge)
+          return documentTooLargeResult(record.name, record.size)
         }
-
-        span.setAttributes({
-          [TraceAttr.CopilotVfsReadPath]: CopilotVfsReadPath.Binary,
-          [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.BinaryPlaceholder,
-        })
-        return {
-          content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
-          totalLines: 1,
+        // Binary/unknown types never need the bytes — return the placeholder
+        // without paying for a download (workspace files can be multi-GB).
+        if (isBinaryFile(record.type, ext)) {
+          span.setAttributes({
+            [TraceAttr.CopilotVfsReadPath]: CopilotVfsReadPath.Binary,
+            [TraceAttr.CopilotVfsReadOutcome]: CopilotVfsReadOutcome.BinaryPlaceholder,
+          })
+          return binaryPlaceholderResult(record.name, record.type, record.size)
         }
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        return await renderFileBuffer(buffer, { name: record.name, type: record.type, ext }, span)
       } catch (err) {
         logger.warn('Failed to read workspace file', {
           fileName: record.name,

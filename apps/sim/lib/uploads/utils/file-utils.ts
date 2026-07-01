@@ -1,7 +1,11 @@
 import type { Logger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import type { StorageContext } from '@/lib/uploads'
-import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
+import {
+  ACCEPTED_FILE_TYPES,
+  SUPPORTED_ARCHIVE_EXTENSIONS,
+  SUPPORTED_DOCUMENT_EXTENSIONS,
+} from '@/lib/uploads/utils/validation'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -204,6 +208,16 @@ export const MODEL_SUPPORTED_IMAGE_MIME_TYPES = new Set([
 export function getFileExtension(filename: string): string {
   const lastDot = filename.lastIndexOf('.')
   return lastDot !== -1 ? filename.slice(lastDot + 1).toLowerCase() : ''
+}
+
+const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
+
+/**
+ * True when a file name is a supported archive (zip). Detection is by extension
+ * so it is robust to the varied/empty MIME types browsers assign to archives.
+ */
+export function isArchiveFileName(filename: string): boolean {
+  return ARCHIVE_EXTENSIONS.has(getFileExtension(filename))
 }
 
 const EXTENSION_TO_MIME: Record<string, string> = {

@@ -7,13 +7,20 @@ import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
+import {
+  type ChatUploadArchiveEntry,
+  listChatUploadArchiveEntries,
+} from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
+/** Max archive entries listed inline in the upload context before truncating. */
+const MAX_UPLOAD_TREE_ENTRIES = 50
 const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
 const INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES = 500
 
@@ -297,15 +304,56 @@ export async function buildCopilotRequestPayload(
         } catch {
           encodedUploadName = displayName
         }
-        const lines = [
-          `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
-          `Read with: read("uploads/${encodedUploadName}")`,
-          `To save permanently: materialize_file(fileName: "${displayName}")`,
-        ]
-        if (displayName.endsWith('.json')) {
-          lines.push(
-            `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
-          )
+        let lines: string[]
+        if (isArchiveFileName(displayName)) {
+          // An archive is presented as a virtual folder. Show a capped file tree
+          // up front so the agent sees the contents without a glob round-trip;
+          // degrade to a glob hint if the tree can't be built (never block send).
+          let entries: ChatUploadArchiveEntry[] | null = null
+          try {
+            entries = await listChatUploadArchiveEntries(displayName, chatId)
+          } catch (treeErr) {
+            logger.warn('Failed to build archive upload tree', {
+              filename,
+              chatId,
+              error: toError(treeErr).message,
+            })
+          }
+          if (entries && entries.length > 0) {
+            const shown = entries.slice(0, MAX_UPLOAD_TREE_ENTRIES)
+            const treeLines = shown.map((entry) => `  ${entry.path}`)
+            if (entries.length > MAX_UPLOAD_TREE_ENTRIES) {
+              treeLines.push(`  … and ${entries.length - MAX_UPLOAD_TREE_ENTRIES} more`)
+            }
+            lines = [
+              `Archive "${displayName}" (${mediaType}, ${f.size} bytes) uploaded — ${
+                entries.length
+              } file${entries.length === 1 ? '' : 's'}:`,
+              ...treeLines,
+              '',
+              `List entries with: glob("uploads/${encodedUploadName}/**")`,
+              `Read an entry with: read("uploads/${encodedUploadName}/<path>")`,
+              `To save the archive permanently: materialize_file(fileName: "${displayName}")`,
+            ]
+          } else {
+            lines = [
+              `Archive "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
+              `List entries with: glob("uploads/${encodedUploadName}/**")`,
+              `Read an entry with: read("uploads/${encodedUploadName}/<path>")`,
+              `To save the archive permanently: materialize_file(fileName: "${displayName}")`,
+            ]
+          }
+        } else {
+          lines = [
+            `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
+            `Read with: read("uploads/${encodedUploadName}")`,
+            `To save permanently: materialize_file(fileName: "${displayName}")`,
+          ]
+          if (displayName.endsWith('.json')) {
+            lines.push(
+              `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
+            )
+          }
         }
         uploadContexts.push({
           type: 'uploaded_file',

@@ -71,11 +71,20 @@ describe('validateAttachmentFileType', () => {
     expect(validateAttachmentFileType('config.json')).toBeNull()
   })
 
-  it('rejects executables and unknown extensions', () => {
+  it('accepts zip archives', () => {
+    expect(validateAttachmentFileType('mydata.zip')).toBeNull()
+    expect(validateAttachmentFileType('mydata~1782582468496.zip')).toBeNull()
+    expect(validateAttachmentFileType('UPPER.ZIP')).toBeNull()
+  })
+
+  it('rejects executables and other archive formats we do not extract', () => {
     expect(validateAttachmentFileType('virus.exe')?.code).toBe('UNSUPPORTED_FILE_TYPE')
     expect(validateAttachmentFileType('installer.msi')?.code).toBe('UNSUPPORTED_FILE_TYPE')
     expect(validateAttachmentFileType('archive.dmg')?.code).toBe('UNSUPPORTED_FILE_TYPE')
     expect(validateAttachmentFileType('binary.bin')?.code).toBe('UNSUPPORTED_FILE_TYPE')
+    expect(validateAttachmentFileType('bundle.tar')?.code).toBe('UNSUPPORTED_FILE_TYPE')
+    expect(validateAttachmentFileType('bundle.gz')?.code).toBe('UNSUPPORTED_FILE_TYPE')
+    expect(validateAttachmentFileType('bundle.rar')?.code).toBe('UNSUPPORTED_FILE_TYPE')
   })
 
   it('rejects files with no extension', () => {
