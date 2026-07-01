@@ -13,6 +13,7 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:Slack')
 
@@ -559,10 +560,25 @@ export const slackHandler: WebhookProviderHandler = {
     return new NextResponse(null, { status: 200 })
   },
 
-  async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
+  async formatInput({
+    body,
+    webhook,
+    workflow,
+    requestId,
+  }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
-    const botToken = providerConfig.botToken as string | undefined
+    let botToken = providerConfig.botToken as string | undefined
+    // Native (slack_app) triggers carry an OAuth credential rather than a pasted
+    // bot token; resolve it so reaction-message text and file downloads work.
+    if (!botToken && typeof providerConfig.credentialId === 'string') {
+      botToken =
+        (await refreshAccessTokenIfNeeded(
+          providerConfig.credentialId,
+          workflow.userId,
+          requestId
+        )) ?? undefined
+    }
     const includeFiles = Boolean(providerConfig.includeFiles)
 
     // Slash commands: flat form fields identified by a leading-slash `command`.

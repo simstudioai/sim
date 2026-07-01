@@ -124,6 +124,15 @@ export const slackOAuthTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'includeFiles',
+      title: 'Include file attachments',
+      type: 'switch',
+      defaultValue: false,
+      description: 'Download and include file attachments from messages. Requires files:read.',
+      required: false,
+      mode: 'trigger',
+    },
+    {
       id: 'setupWizard',
       title: 'Slack App Setup',
       type: 'modal',
