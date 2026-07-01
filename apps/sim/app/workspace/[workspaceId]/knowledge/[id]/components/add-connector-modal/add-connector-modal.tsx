@@ -36,6 +36,7 @@ import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/component
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
@@ -477,7 +478,12 @@ function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
           )}
           style={brandBg ? { background: brandBg } : undefined}
         >
-          <Icon className={cn('size-5', brandBg ? 'text-white' : 'text-[var(--text-icon)]')} />
+          <Icon
+            className={cn(
+              'size-5',
+              brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+            )}
+          />
         </div>
       </div>
       <div className='flex min-w-0 flex-1 flex-col'>

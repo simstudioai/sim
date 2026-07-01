@@ -22,11 +22,18 @@ export const env = createEnv({
     DATABASE_REPLICA_URL:                  z.string().url().optional(),            // Read-replica connection string; opt-in reads fall back to the primary when unset
     DB_APP_NAME:                           z.string().optional(),                  // Postgres application_name for query attribution (sim-app/sim-trigger/sim-realtime)
     SIM_DB_ROLE:                           z.enum(['web', 'trigger', 'realtime']).optional(), // Per-process pool profile selector (read directly by @sim/db)
+    DATABASE_URL_WEB:                      z.string().url().optional(),            // Per-role primary URL override; @sim/db falls back to DATABASE_URL
+    DATABASE_URL_TRIGGER:                  z.string().url().optional(),            // Per-role primary URL override (trigger)
+    DATABASE_URL_REALTIME:                 z.string().url().optional(),            // Per-role primary URL override (realtime)
+    DATABASE_REPLICA_URL_WEB:              z.string().url().optional(),            // Per-role replica URL override; falls back to DATABASE_REPLICA_URL
+    DATABASE_REPLICA_URL_TRIGGER:          z.string().url().optional(),            // Per-role replica URL override (trigger)
+    DATABASE_REPLICA_URL_REALTIME:         z.string().url().optional(),            // Per-role replica URL override (realtime)
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
     EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional().default(true),   // Enable email/password authentication (server-side enforcement)
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
+    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Opt-in (self-hosted only): let database/connector tools reach private/reserved/loopback hosts (e.g. Docker/K8s service names). Loosens the SSRF boundary; ignored on the hosted platform.
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")

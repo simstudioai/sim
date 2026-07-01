@@ -15,7 +15,6 @@ interface NoOrganizationViewProps {
   hasTeamPlan: boolean
   hasEnterprisePlan: boolean
   orgName: string
-  setOrgName: (name: string) => void
   orgSlug: string
   setOrgSlug: (slug: string) => void
   onOrgNameChange: (e: React.ChangeEvent<HTMLInputElement>) => void
@@ -30,7 +29,6 @@ export function NoOrganizationView({
   hasTeamPlan,
   hasEnterprisePlan,
   orgName,
-  setOrgName,
   orgSlug,
   setOrgSlug,
   onOrgNameChange,
@@ -67,6 +65,8 @@ export function NoOrganizationView({
               style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
               tabIndex={-1}
               readOnly
+              aria-hidden='true'
+              aria-label='Ignore this field'
             />
             <div>
               <Label htmlFor='team-name-field' className='font-medium text-small'>
@@ -139,6 +139,8 @@ export function NoOrganizationView({
               style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
               tabIndex={-1}
               readOnly
+              aria-hidden='true'
+              aria-label='Ignore this field'
             />
             <ChipModalField
               type='input'

@@ -48,10 +48,10 @@ export function resourceTypeToForkKind(resourceType: ForkResourceType): ForkRema
   return RESOURCE_TYPE_TO_FORK_KIND[resourceType]
 }
 
-const NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE: Record<
-  Exclude<ForkRemapKind, 'credential'>,
-  Exclude<ForkResourceType, 'workflow'>
-> = {
+// `as const satisfies` (not a `Record<K, V>` annotation) so each key keeps its precise literal
+// value type - the generic accessor below then narrows its return per input kind (a uniform
+// Record value type would collapse every key to the full value union).
+const NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE = {
   'env-var': 'env_var',
   table: 'table',
   'knowledge-base': 'knowledge_base',
@@ -60,16 +60,19 @@ const NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE: Record<
   'mcp-server': 'mcp_server',
   'custom-tool': 'custom_tool',
   skill: 'skill',
-}
+} as const satisfies Record<
+  Exclude<ForkRemapKind, 'credential'>,
+  Exclude<ForkResourceType, 'workflow'>
+>
 
 /**
  * Stored resource type for a non-credential remap kind. Credentials are resolved
  * separately via `classifyCredentialResourceType` since the type (oauth vs
  * service account) depends on the credential row.
  */
-export function nonCredentialForkKindToResourceType(
-  kind: Exclude<ForkRemapKind, 'credential'>
-): Exclude<ForkResourceType, 'workflow'> {
+export function nonCredentialForkKindToResourceType<K extends Exclude<ForkRemapKind, 'credential'>>(
+  kind: K
+): (typeof NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE)[K] {
   return NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE[kind]
 }
 

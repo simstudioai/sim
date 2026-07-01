@@ -242,6 +242,47 @@ export function getCanonicalValues(
 }
 
 /**
+ * Resolve the ACTIVE canonical member's value for a group: the basic value in basic mode, the
+ * advanced value in advanced mode (per {@link resolveCanonicalMode} - honoring an explicit
+ * override, then the value heuristic). Strict: returns ONLY the active member's value with no
+ * cross-mode fallback, so a dormant mode's stale value can never leak. The single source of truth
+ * for "what value is live for this canonical pair" - use it instead of basic-first `||` /
+ * `?? 'basic'` reads or last-write-wins scans.
+ */
+export function resolveActiveCanonicalValue(
+  group: CanonicalGroup,
+  values: Record<string, unknown>,
+  overrides?: CanonicalModeOverrides
+): unknown {
+  const mode = resolveCanonicalMode(group, values, overrides)
+  const { basicValue, advancedValue } = getCanonicalValues(group, values)
+  return mode === 'advanced' ? advancedValue : basicValue
+}
+
+/**
+ * Strip the `${toolType}:` prefix from canonical-mode override keys, returning the overrides for a
+ * nested tool keyed by bare `canonicalId`. An agent block stores its nested tools' modes scoped as
+ * `${toolType}:${canonicalId}` (to avoid cross-tool collisions when tools share a `canonicalParamId`),
+ * so this is the canonical un-scoping primitive. Returns `undefined` when there are no overrides, no
+ * `toolType`, or no matching keys.
+ */
+export function scopeCanonicalModesForTool(
+  overrides: CanonicalModeOverrides | undefined,
+  toolType: string | undefined
+): CanonicalModeOverrides | undefined {
+  if (!overrides || !toolType) return undefined
+  const prefix = `${toolType}:`
+  let scoped: CanonicalModeOverrides | undefined
+  for (const [key, value] of Object.entries(overrides)) {
+    if (key.startsWith(prefix) && value) {
+      scoped = scoped ?? {}
+      scoped[key.slice(prefix.length)] = value
+    }
+  }
+  return scoped
+}
+
+/**
  * Check if a block has any standalone advanced-only fields (not part of canonical pairs).
  * These require the block-level advanced mode toggle to be visible.
  */

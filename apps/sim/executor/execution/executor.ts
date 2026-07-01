@@ -88,6 +88,7 @@ export class DAGExecutor {
     const dag = this.dagBuilder.build(this.workflow, {
       triggerBlockId,
       savedIncomingEdges,
+      includeAllBlocks: this.contextExtensions.resumeFromSnapshot === true,
     })
     const restoredClonedSubflows = this.restoreSnapshotParallelBatches(
       dag,

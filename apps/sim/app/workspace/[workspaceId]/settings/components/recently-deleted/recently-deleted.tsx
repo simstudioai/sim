@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Button, ChipInput, ChipModalTabs } from '@sim/emcn'
+import { Chip, ChipInput, ChipModalTabs } from '@sim/emcn'
 import { Folder, Search, Workflow } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
@@ -21,6 +21,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
@@ -82,7 +83,7 @@ const SORT_OPTIONS: ColumnOption[] = [
   { id: 'type', label: 'Type' },
 ]
 
-const ICON_CLASS = 'size-[14px]'
+const ICON_CLASS = 'size-5'
 
 const RESOURCE_TYPE_TO_MOTHERSHIP: Partial<
   Record<Exclude<ResourceType, 'all'>, MothershipResourceType>
@@ -302,7 +303,7 @@ export function RecentlyDeleted() {
     }
     const col = (activeSort ?? DEFAULT_SORT).column
     const dir = (activeSort ?? DEFAULT_SORT).direction
-    items = [...items].sort((a, b) => {
+    items.sort((a, b) => {
       let cmp = 0
       switch (col) {
         case 'name':
@@ -464,45 +465,40 @@ export function RecentlyDeleted() {
             const isRestored = restoredItems.has(resource.id)
 
             return (
-              <div
+              <SettingsResourceRow
                 key={resource.id}
-                className='flex items-center gap-2.5 rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-              >
-                <ResourceIcon resource={resource} />
-
-                <div className='flex min-w-0 flex-1 flex-col'>
-                  <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                    {resource.name}
-                  </span>
-                  <span className='text-[var(--text-muted)] text-small'>
+                icon={<ResourceIcon resource={resource} />}
+                title={resource.name}
+                description={
+                  <>
                     {TYPE_LABEL[resource.type]}
                     {' \u00b7 '}
                     Deleted {formatDate(resource.deletedAt)}
-                  </span>
-                </div>
-
-                {isRestoring ? (
-                  <Button variant='primary' size='sm' disabled className='shrink-0'>
-                    Restoring...
-                  </Button>
-                ) : isRestored ? (
-                  <div className='flex shrink-0 items-center gap-2'>
-                    <span className='text-[var(--text-muted)] text-small'>Restored</span>
-                    <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
-                      View
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant='primary'
-                    size='sm'
-                    onClick={() => void handleRestore(resource)}
-                    className='shrink-0'
-                  >
-                    Restore
-                  </Button>
-                )}
-              </div>
+                  </>
+                }
+                trailing={
+                  isRestoring ? (
+                    <Chip variant='primary' disabled className='shrink-0'>
+                      Restoring...
+                    </Chip>
+                  ) : isRestored ? (
+                    <div className='flex shrink-0 items-center gap-2'>
+                      <span className='text-[var(--text-muted)] text-small'>Restored</span>
+                      <Chip variant='primary' onClick={() => handleView(resource)}>
+                        View
+                      </Chip>
+                    </div>
+                  ) : (
+                    <Chip
+                      variant='primary'
+                      onClick={() => void handleRestore(resource)}
+                      className='shrink-0'
+                    >
+                      Restore
+                    </Chip>
+                  )
+                }
+              />
             )
           })}
         </div>

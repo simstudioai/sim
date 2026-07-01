@@ -22,6 +22,7 @@ import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -95,12 +96,13 @@ export function ConnectorsSection({
   }, [])
 
   const syncTriggeredAt = useRef<Record<string, number>>({})
-  const cooldownTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+  const cooldownTimersRef = useRef<Set<ReturnType<typeof setTimeout>> | null>(null)
+  cooldownTimersRef.current ??= new Set()
   const [, forceUpdate] = useState(0)
 
   useEffect(() => {
     return () => {
-      for (const timer of cooldownTimers.current) {
+      for (const timer of cooldownTimersRef.current ?? []) {
         clearTimeout(timer)
       }
     }
@@ -125,10 +127,10 @@ export function ConnectorsSection({
           onSuccess: () => {
             setError(null)
             const timer = setTimeout(() => {
-              cooldownTimers.current.delete(timer)
+              cooldownTimersRef.current?.delete(timer)
               forceUpdate((n) => n + 1)
             }, SYNC_COOLDOWN_MS)
-            cooldownTimers.current.add(timer)
+            cooldownTimersRef.current?.add(timer)
           },
           onError: (err) => {
             logger.error('Sync trigger failed', { error: err.message })
@@ -301,8 +303,10 @@ function ConnectorCard({
 
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes =
-    connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []
+  const requiredScopes = useMemo(
+    () => (connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []),
+    [connectorDef]
+  )
 
   const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
     workspaceId,
@@ -346,7 +350,10 @@ function ConnectorCard({
             >
               {Icon && (
                 <Icon
-                  className={cn('size-5', brandBg ? 'text-white' : 'text-[var(--text-icon)]')}
+                  className={cn(
+                    'size-5',
+                    brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+                  )}
                 />
               )}
             </div>

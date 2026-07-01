@@ -1276,6 +1276,18 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Releases AgentMail inbox + webhook for workspaces whose Sim Mailer plan
+    # lapsed (canceled/downgraded off Max/Enterprise). Tolerates past_due, so a
+    # transient payment failure never tears down a paying customer's inbox.
+    reconcileInboxEntitlement:
+      enabled: true
+      name: reconcile-inbox-entitlement
+      schedule: "0 3 * * *"
+      path: "/api/cron/reconcile-inbox-entitlement"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     workspaceEventsPoll:
       enabled: true
       name: workspace-events-poll

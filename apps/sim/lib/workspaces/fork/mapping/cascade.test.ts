@@ -14,6 +14,7 @@ function queuedExecutor(results: unknown[][]): DbOrTx {
   let index = 0
   const builder = {
     from: () => builder,
+    innerJoin: () => builder,
     where: () => Promise.resolve(results[index++] ?? []),
   }
   return { select: () => builder } as unknown as DbOrTx

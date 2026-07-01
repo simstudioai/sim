@@ -251,4 +251,161 @@ Add a comment to a Trello card
 |     ↳ `id` | string | List ID |
 |     ↳ `name` | string | List name |
 
+### `trello_create_board`
+
+Create a new Trello board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the board |
+| `desc` | string | No | Description of the board |
+| `idOrganization` | string | No | ID or name of the workspace/organization the board belongs to |
+| `defaultLists` | boolean | No | Whether to create the default lists \(To Do, Doing, Done\) on the new board |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `board` | json | Created board \(id, name, desc, url, closed, idOrganization\) |
+|   ↳ `id` | string | Board ID |
+|   ↳ `name` | string | Board name |
+|   ↳ `desc` | string | Board description |
+|   ↳ `url` | string | Full board URL |
+|   ↳ `closed` | boolean | Whether the board is closed |
+|   ↳ `idOrganization` | string | ID of the workspace/organization the board belongs to |
+
+### `trello_get_board`
+
+Retrieve a single Trello board by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | Trello board ID \(24-character hex string\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `board` | json | Board \(id, name, desc, url, closed, idOrganization\) |
+|   ↳ `id` | string | Board ID |
+|   ↳ `name` | string | Board name |
+|   ↳ `desc` | string | Board description |
+|   ↳ `url` | string | Full board URL |
+|   ↳ `closed` | boolean | Whether the board is closed |
+|   ↳ `idOrganization` | string | ID of the workspace/organization the board belongs to |
+
+### `trello_create_list`
+
+Create a new list on a Trello board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | Trello board ID the list belongs to \(24-character hex string\) |
+| `name` | string | Yes | Name of the list |
+| `pos` | string | No | Position of the list \(top, bottom, or positive float\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | json | Created list \(id, name, closed, pos, idBoard\) |
+|   ↳ `id` | string | List ID |
+|   ↳ `name` | string | List name |
+|   ↳ `closed` | boolean | Whether the list is archived |
+|   ↳ `pos` | number | List position on the board |
+|   ↳ `idBoard` | string | Board ID containing the list |
+
+### `trello_get_card`
+
+Retrieve a single Trello card by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Yes | Trello card ID \(24-character hex string\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `card` | json | Card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
+|   ↳ `id` | string | Card ID |
+|   ↳ `name` | string | Card name |
+|   ↳ `desc` | string | Card description |
+|   ↳ `url` | string | Full card URL |
+|   ↳ `idBoard` | string | Board ID containing the card |
+|   ↳ `idList` | string | List ID containing the card |
+|   ↳ `closed` | boolean | Whether the card is archived |
+|   ↳ `labelIds` | array | Label IDs applied to the card |
+|   ↳ `labels` | array | Labels applied to the card |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color |
+|   ↳ `due` | string | Card due date in ISO 8601 format |
+|   ↳ `dueComplete` | boolean | Whether the due date is complete |
+
+### `trello_add_checklist`
+
+Add a checklist to a Trello card
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Yes | Trello card ID to add the checklist to \(24-character hex string\) |
+| `name` | string | Yes | Name of the checklist |
+| `pos` | string | No | Position of the checklist \(top, bottom, or positive float\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checklist` | json | Created checklist \(id, name, idCard, idBoard, pos\) |
+|   ↳ `id` | string | Checklist ID |
+|   ↳ `name` | string | Checklist name |
+|   ↳ `idCard` | string | Card ID containing the checklist |
+|   ↳ `idBoard` | string | Board ID containing the checklist |
+|   ↳ `pos` | number | Checklist position on the card |
+
+### `trello_add_label`
+
+Attach an existing label to a Trello card
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Yes | Trello card ID to attach the label to \(24-character hex string\) |
+| `labelId` | string | Yes | ID of the label to attach \(24-character hex string\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `labelIds` | array | Label IDs now applied to the card |
+
+### `trello_add_member`
+
+Assign a member to a Trello card
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Yes | Trello card ID to assign the member to \(24-character hex string\) |
+| `memberId` | string | Yes | ID of the member to assign \(24-character hex string\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memberIds` | array | Member IDs now assigned to the card |
+
 

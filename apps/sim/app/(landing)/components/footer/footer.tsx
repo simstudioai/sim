@@ -1,37 +1,58 @@
-import { cn } from '@sim/emcn'
-import Image from 'next/image'
 import Link from 'next/link'
-import { FooterCTA } from '@/app/(landing)/components/footer/footer-cta'
+import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
+import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
+
+/**
+ * Landing footer - the site link directory. Re-authored from the prior landing
+ * footer's structure and link content, but on the platform's light tokens and
+ * with no cross-import from `(home)`. Fully responsive like the rest of the page
+ * - desktop is the baseline, scaled down via `max-*` overrides (7→3→2 columns).
+ * The closing CTA lives in its own {@link Cta} section above; this is purely the
+ * `<footer>` landmark.
+ *
+ * Carries `SiteNavigationElement` schema for crawlable footer nav. A top
+ * hairline separates it from the page and spans the full viewport width
+ * (edge-to-edge): the border lives on the full-width `<footer>` landmark while
+ * an inner container caps and centers the content at the shared
+ * `max-w-[1446px]` with the same `px-12` gutter as every section above.
+ */
 
 const LINK_CLASS =
-  'text-sm text-[var(--landing-text-muted)] transition-colors hover:text-[var(--landing-text)]'
+  'text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
 
 interface FooterItem {
   label: string
   href: string
   external?: boolean
-  externalArrow?: boolean
 }
 
 const PRODUCT_LINKS: FooterItem[] = [
-  { label: 'Chat', href: 'https://docs.sim.ai/mothership', external: true },
+  { label: 'Mothership', href: 'https://docs.sim.ai/mothership', external: true },
   { label: 'Workflows', href: 'https://docs.sim.ai', external: true },
   { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
   { label: 'Tables', href: 'https://docs.sim.ai/tables', external: true },
   { label: 'MCP', href: 'https://docs.sim.ai/agents/mcp', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/platform/self-hosting', external: true },
-  { label: 'Status', href: 'https://status.sim.ai', external: true, externalArrow: true },
+  { label: 'Status', href: 'https://status.sim.ai', external: true },
 ]
 
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
-  { label: 'Models', href: '/models' },
   { label: 'Partners', href: '/partners' },
-  { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true, externalArrow: true },
+  { label: 'Careers', href: '/careers' },
   { label: 'Changelog', href: '/changelog' },
   { label: 'Contact', href: '/contact' },
+]
+
+/** Top model providers, sourced from the catalog so labels/hrefs never drift. */
+const MODEL_LINKS: FooterItem[] = [
+  { label: 'All Models', href: '/models' },
+  ...MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 8).map((provider) => ({
+    label: provider.name,
+    href: provider.href,
+  })),
 ]
 
 const BLOCK_LINKS: FooterItem[] = [
@@ -49,48 +70,29 @@ const BLOCK_LINKS: FooterItem[] = [
 
 const INTEGRATION_LINKS: FooterItem[] = [
   { label: 'All Integrations', href: '/integrations' },
-  { label: 'Confluence', href: 'https://docs.sim.ai/integrations/confluence', external: true },
   { label: 'Slack', href: 'https://docs.sim.ai/integrations/slack', external: true },
   { label: 'GitHub', href: 'https://docs.sim.ai/integrations/github', external: true },
   { label: 'Gmail', href: 'https://docs.sim.ai/integrations/gmail', external: true },
-  { label: 'HubSpot', href: 'https://docs.sim.ai/integrations/hubspot', external: true },
-  { label: 'Salesforce', href: 'https://docs.sim.ai/integrations/salesforce', external: true },
   { label: 'Notion', href: 'https://docs.sim.ai/integrations/notion', external: true },
-  { label: 'Google Drive', href: 'https://docs.sim.ai/integrations/google_drive', external: true },
-  {
-    label: 'Google Sheets',
-    href: 'https://docs.sim.ai/integrations/google_sheets',
-    external: true,
-  },
+  { label: 'Salesforce', href: 'https://docs.sim.ai/integrations/salesforce', external: true },
+  { label: 'Jira', href: '/integrations/jira' },
+  { label: 'Linear', href: 'https://docs.sim.ai/integrations/linear', external: true },
   { label: 'Supabase', href: 'https://docs.sim.ai/integrations/supabase', external: true },
   { label: 'Stripe', href: 'https://docs.sim.ai/integrations/stripe', external: true },
-  { label: 'Jira', href: 'https://docs.sim.ai/integrations/jira', external: true },
-  { label: 'Linear', href: 'https://docs.sim.ai/integrations/linear', external: true },
-  { label: 'Airtable', href: 'https://docs.sim.ai/integrations/airtable', external: true },
-  { label: 'Firecrawl', href: 'https://docs.sim.ai/integrations/firecrawl', external: true },
-  { label: 'Discord', href: 'https://docs.sim.ai/integrations/discord', external: true },
-  {
-    label: 'Microsoft Teams',
-    href: 'https://docs.sim.ai/integrations/microsoft_teams',
-    external: true,
-  },
-  { label: 'Telegram', href: 'https://docs.sim.ai/integrations/telegram', external: true },
 ]
 
 const SOCIAL_LINKS: FooterItem[] = [
-  { label: 'X (Twitter)', href: 'https://x.com/simdotai', external: true, externalArrow: true },
+  { label: 'X (Twitter)', href: 'https://x.com/simdotai', external: true },
   {
     label: 'LinkedIn',
     href: 'https://www.linkedin.com/company/simstudioai/',
     external: true,
-    externalArrow: true,
   },
-  { label: 'Discord', href: 'https://discord.gg/Hr4UWYEcTT', external: true, externalArrow: true },
+  { label: 'Discord', href: 'https://discord.gg/Hr4UWYEcTT', external: true },
   {
     label: 'GitHub',
     href: 'https://github.com/simstudioai/sim',
     external: true,
-    externalArrow: true,
   },
 ]
 
@@ -99,56 +101,21 @@ const LEGAL_LINKS: FooterItem[] = [
   { label: 'Privacy Policy', href: '/privacy' },
 ]
 
-function ChevronArrow({ external }: { external?: boolean }) {
-  return (
-    <svg
-      className={cn('h-3 w-3 shrink-0', external && '-rotate-45')}
-      viewBox='0 0 10 10'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-    >
-      <line
-        x1='0'
-        y1='5'
-        x2='9'
-        y2='5'
-        stroke='currentColor'
-        strokeWidth='1.33'
-        strokeLinecap='square'
-        className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
-      />
-      <path
-        d='M3.5 2L6.5 5L3.5 8'
-        stroke='currentColor'
-        strokeWidth='1.33'
-        strokeLinecap='square'
-        strokeLinejoin='miter'
-        fill='none'
-        className='transition-transform duration-200 ease-out group-hover/link:translate-x-[30%]'
-      />
-    </svg>
-  )
-}
-
 function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) {
   return (
     <div>
-      <h3 className='mb-4 font-medium text-[var(--landing-text)] text-sm'>{title}</h3>
+      <h3 className='mb-4 text-[var(--text-primary)] text-sm'>{title}</h3>
       <div className='flex flex-col gap-2.5'>
-        {items.map(({ label, href, external, externalArrow }) =>
+        {items.map(({ label, href, external }) =>
           external ? (
             <a
               key={label}
               href={href}
               target='_blank'
               rel='noopener noreferrer'
-              className={cn(
-                LINK_CLASS,
-                externalArrow && 'group/link inline-flex items-center gap-1'
-              )}
+              className={LINK_CLASS}
             >
               {label}
-              {externalArrow && <ChevronArrow external />}
             </a>
           ) : (
             <Link key={label} href={href} className={LINK_CLASS}>
@@ -161,64 +128,34 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
   )
 }
 
-interface FooterProps {
-  hideCTA?: boolean
-}
-
-export default function Footer({ hideCTA }: FooterProps) {
+export function Footer() {
   return (
-    <footer
-      role='contentinfo'
-      className={cn(
-        'bg-[var(--landing-bg)] pb-10 font-[430] font-season text-sm',
-        hideCTA && 'pt-10'
-      )}
-    >
-      {!hideCTA && <FooterCTA />}
-      <div className='relative px-[1.6vw] sm:px-8 lg:px-16'>
-        <div
-          aria-hidden='true'
-          className='absolute top-0 left-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute top-0 right-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute bottom-0 left-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute right-0 bottom-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div className='relative z-10 border border-[var(--landing-bg-elevated)] px-6 pt-10 pb-8 sm:px-10 sm:pt-12 sm:pb-10'>
-          <nav
-            aria-label='Footer navigation'
-            itemScope
-            itemType='https://schema.org/SiteNavigationElement'
-            className='relative z-[1] grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-7'
+    <footer className='mt-[120px] w-full border-[var(--border)] border-t max-sm:mt-16 max-lg:mt-[88px]'>
+      <div className='mx-auto w-full max-w-[1446px] px-12 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
+        <nav
+          aria-label='Footer navigation'
+          itemScope
+          itemType='https://schema.org/SiteNavigationElement'
+          className='grid grid-cols-8 gap-x-8 gap-y-10 max-sm:grid-cols-2 max-sm:gap-y-8 max-lg:grid-cols-3'
+        >
+          <Link
+            href='/'
+            aria-label='Sim home'
+            className='flex h-[18px] items-center max-lg:col-span-full max-lg:mb-2'
           >
-            <div className='col-span-2 flex flex-col gap-6 sm:col-span-1'>
-              <Link href='/' aria-label='Sim home'>
-                <Image
-                  src='/logo/sim-landing.svg'
-                  alt=''
-                  width={85}
-                  height={26}
-                  className='h-[26.4px] w-auto'
-                />
-              </Link>
-            </div>
+            <SimWordmark />
+          </Link>
 
-            <FooterColumn title='Product' items={PRODUCT_LINKS} />
-            <FooterColumn title='Resources' items={RESOURCES_LINKS} />
-            <FooterColumn title='Blocks' items={BLOCK_LINKS} />
-            <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
-            <FooterColumn title='Socials' items={SOCIAL_LINKS} />
-            <FooterColumn title='Legal' items={LEGAL_LINKS} />
-          </nav>
-        </div>
+          <FooterColumn title='Product' items={PRODUCT_LINKS} />
+          <FooterColumn title='Resources' items={RESOURCES_LINKS} />
+          <FooterColumn title='Blocks' items={BLOCK_LINKS} />
+          <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
+          <FooterColumn title='Models' items={MODEL_LINKS} />
+          <FooterColumn title='Socials' items={SOCIAL_LINKS} />
+          <FooterColumn title='Legal' items={LEGAL_LINKS} />
+        </nav>
+
+        <p className='mt-16 text-[var(--text-muted)] text-sm'>© 2026 Sim. All rights reserved.</p>
       </div>
     </footer>
   )

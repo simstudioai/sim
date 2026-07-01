@@ -180,12 +180,13 @@ interface TagValue {
  */
 function getDocumentTags(doc: DocumentData, definitions: TagDefinition[]): TagValue[] {
   const result: TagValue[] = []
+  const defsBySlot = new Map(definitions.map((d) => [d.tagSlot, d]))
 
   for (const slot of ALL_TAG_SLOTS) {
     const raw = doc[slot]
     if (raw == null) continue
 
-    const def = definitions.find((d) => d.tagSlot === slot)
+    const def = defsBySlot.get(slot)
     const fieldType = def?.fieldType || getFieldTypeForSlot(slot) || 'text'
 
     let value: string
@@ -263,22 +264,21 @@ export function KnowledgeBase({
 
   const activeTagFilters: DocumentTagFilter[] = useMemo(
     () =>
-      tagFilterEntries
-        .filter((f) => {
-          if (!f.tagSlot || !f.value.trim()) return false
-          // A `between` filter only applies once both bounds are set. Sending it
-          // with just the lower bound would be rejected at the API boundary and
-          // break the whole list while the user is still entering the range.
-          if (f.operator === 'between' && !f.valueTo.trim()) return false
-          return true
-        })
-        .map((f) => ({
+      tagFilterEntries.reduce<DocumentTagFilter[]>((acc, f) => {
+        if (!f.tagSlot || !f.value.trim()) return acc
+        // A `between` filter only applies once both bounds are set. Sending it
+        // with just the lower bound would be rejected at the API boundary and
+        // break the whole list while the user is still entering the range.
+        if (f.operator === 'between' && !f.valueTo.trim()) return acc
+        acc.push({
           tagSlot: f.tagSlot,
           fieldType: f.fieldType,
           operator: f.operator,
           value: f.value,
           ...(f.operator === 'between' ? { valueTo: f.valueTo } : {}),
-        })),
+        })
+        return acc
+      }, []),
     [tagFilterEntries]
   )
 
@@ -1023,9 +1023,9 @@ export function KnowledgeBase({
             },
           ]
         : []),
-      ...tagFilterEntries
-        .filter((f) => f.tagSlot && f.value.trim())
-        .map((f) => ({
+      ...tagFilterEntries.reduce<{ label: string; onRemove: () => void }[]>((acc, f) => {
+        if (!f.tagSlot || !f.value.trim()) return acc
+        acc.push({
           label: `${f.tagName}: ${f.value}`,
           onRemove: () => {
             const updated = tagFilterEntries.filter((e) => e.id !== f.id)
@@ -1034,7 +1034,9 @@ export function KnowledgeBase({
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
           },
-        })),
+        })
+        return acc
+      }, []),
     ],
     [enabledFilter, tagFilterEntries]
   )

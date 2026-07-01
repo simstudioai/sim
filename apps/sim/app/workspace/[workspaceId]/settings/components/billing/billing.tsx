@@ -8,6 +8,7 @@ import {
   chipVariants,
   cn,
   Switch,
+  Tooltip,
   toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -18,6 +19,12 @@ import { useParams, useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
+import {
+  getCoveredUsage,
+  getIsOnDemandActive,
+  getOnDemandOffLimit,
+  isOnDemandOffDisabled,
+} from '@/lib/billing/on-demand'
 import {
   getDisplayPlanName,
   getPlanTierCredits,
@@ -83,12 +90,23 @@ function formatInvoiceDate(createdSeconds: number): string {
   })
 }
 
+/** Cached currency formatters, keyed by upper-cased ISO currency code. */
+const invoiceAmountFormatters = new Map<string, Intl.NumberFormat>()
+
+/** Resolve (and memoize) an `Intl.NumberFormat` for a currency code. */
+function getInvoiceAmountFormatter(currency: string): Intl.NumberFormat {
+  const code = currency.toUpperCase()
+  let formatter = invoiceAmountFormatters.get(code)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency: code })
+    invoiceAmountFormatters.set(code, formatter)
+  }
+  return formatter
+}
+
 /** Format a minor-unit (e.g. cents) amount as a localized currency string. */
 function formatInvoiceAmount(amountMinor: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-  }).format(amountMinor / 100)
+  return getInvoiceAmountFormatter(currency).format(amountMinor / 100)
 }
 
 export function Billing() {
@@ -199,15 +217,41 @@ export function Billing() {
       ? organizationBillingData.data.totalUsageLimit
       : usageLimitData.currentLimit || usage.limit
 
-  const isOnDemandActive =
-    subscription.isPaid && planIncludedAmount > 0 && effectiveUsageLimit > planIncludedAmount
-
   const effectiveCurrentUsage =
     subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
       ? organizationBillingData.data.totalCurrentUsage
       : usage.current
 
-  const canDisableOnDemand = isOnDemandActive && effectiveCurrentUsage <= planIncludedAmount
+  /**
+   * Goodwill credits are already baked into the usage limit by
+   * `setUsageLimitForCredits` (limit = planBase + creditBalance). `covered` is
+   * that same never-billed ceiling, so on-demand is "on" only when the limit is
+   * raised above it — a credit grant alone must not read as on-demand.
+   * `creditBalance` is the org's balance for org-scoped admins (resolved
+   * server-side by `getCreditBalance`) and the user's balance otherwise.
+   */
+  const creditBalance = subscriptionData?.data?.creditBalance ?? 0
+  const covered = getCoveredUsage(planIncludedAmount, creditBalance)
+
+  const isOnDemandActive = getIsOnDemandActive({
+    isPaid: subscription.isPaid,
+    planIncludedAmount,
+    effectiveUsageLimit,
+    covered,
+  })
+
+  /**
+   * When usage already sits above `covered`, turning on-demand off would re-cap
+   * the limit at current usage and the switch would bounce straight back on
+   * (see `getOnDemandOffLimit`). Disable it and explain why via tooltip instead
+   * of accepting a no-op click; it re-enables once usage drops back to/below
+   * covered (e.g. the next billing reset).
+   */
+  const onDemandLockedOn = isOnDemandOffDisabled({
+    isOnDemandActive,
+    effectiveCurrentUsage,
+    covered,
+  })
 
   const permissions = getSubscriptionPermissions(
     {
@@ -244,31 +288,17 @@ export function Billing() {
         )
       }
 
-      if (isOnDemandActive) {
-        if (!canDisableOnDemand) {
-          toast.error("Can't turn off on-demand usage", {
-            description:
-              "Your usage is above your plan's included amount. It can be turned off once usage drops below it.",
-          })
-          return
-        }
-        if (shouldUseOrganizationBillingContext) {
-          await updateOrgLimit.mutateAsync({
-            organizationId: billingOrganizationId!,
-            limit: planIncludedAmount,
-          })
-        } else {
-          await updateUserLimit.mutateAsync({ limit: planIncludedAmount })
-        }
+      const nextLimit = isOnDemandActive
+        ? getOnDemandOffLimit(effectiveCurrentUsage, covered)
+        : ON_DEMAND_UNLIMITED
+
+      if (shouldUseOrganizationBillingContext) {
+        await updateOrgLimit.mutateAsync({
+          organizationId: billingOrganizationId!,
+          limit: nextLimit,
+        })
       } else {
-        if (shouldUseOrganizationBillingContext) {
-          await updateOrgLimit.mutateAsync({
-            organizationId: billingOrganizationId!,
-            limit: ON_DEMAND_UNLIMITED,
-          })
-        } else {
-          await updateUserLimit.mutateAsync({ limit: ON_DEMAND_UNLIMITED })
-        }
+        await updateUserLimit.mutateAsync({ limit: nextLimit })
       }
     } catch (error) {
       logger.error('Failed to toggle on-demand billing', { error })
@@ -452,11 +482,28 @@ export function Billing() {
             <span className='text-[var(--text-body)] text-small'>
               Allow usage to go past included usage
             </span>
-            <Switch
-              checked={isOnDemandActive}
-              disabled={isTogglingOnDemand || !canManageBilling}
-              onCheckedChange={handleToggleOnDemand}
-            />
+            {onDemandLockedOn ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span className='inline-flex'>
+                    <Switch checked disabled onCheckedChange={handleToggleOnDemand} />
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content className='max-w-[260px]'>
+                  <p>
+                    {
+                      "Your usage is above your plan's included amount, so on-demand can't be turned off yet. It turns off once usage drops below it — at the latest when your billing period resets."
+                    }
+                  </p>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            ) : (
+              <Switch
+                checked={isOnDemandActive}
+                disabled={isTogglingOnDemand || !canManageBilling}
+                onCheckedChange={handleToggleOnDemand}
+              />
+            )}
           </div>
         </SettingsSection>
       )}

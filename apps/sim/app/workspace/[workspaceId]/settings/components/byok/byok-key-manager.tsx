@@ -23,6 +23,7 @@ import {
 import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const logger = createLogger('BYOKKeyManager')
@@ -278,21 +279,13 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     const Icon = provider.icon
 
     return (
-      <div key={provider.id} className='flex items-center justify-between gap-2.5'>
-        <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-            <Icon className='size-5' />
-          </div>
-          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-            <span className='truncate text-[14px] text-[var(--text-body)]'>{provider.name}</span>
-            <span className='truncate text-[12px] text-[var(--text-muted)]'>
-              {provider.description}
-            </span>
-          </div>
-        </div>
-
-        {renderActions(provider)}
-      </div>
+      <SettingsResourceRow
+        key={provider.id}
+        icon={<Icon />}
+        title={provider.name}
+        description={provider.description}
+        trailing={renderActions(provider)}
+      />
     )
   }
 
@@ -306,6 +299,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               strokeWidth={2}
             />
             <input
+              aria-label='Search providers'
               placeholder='Search providers...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -387,6 +381,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               type='text'
               name='fakeusernameremembered'
               autoComplete='username'
+              aria-hidden='true'
               style={{
                 position: 'absolute',
                 left: '-9999px',
@@ -398,6 +393,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
             />
             <div className={CHIP_FIELD_SHELL}>
               <input
+                aria-label='API Key'
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => {

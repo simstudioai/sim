@@ -78,6 +78,22 @@ const TOKEN_REPLACEMENTS: Record<string, string> = {
   router: 'Router',
 }
 
+const PRICE_NUMBER_FORMAT_3 = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+})
+
+const PRICE_NUMBER_FORMAT_4 = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 4,
+})
+
+const UPDATED_AT_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+})
+
 export interface PricingInfo {
   input: number
   cachedInput?: number
@@ -169,23 +185,14 @@ export function formatPrice(price?: number | null): string {
     return 'N/A'
   }
 
-  const maximumFractionDigits = price > 0 && price < 0.001 ? 4 : 3
+  const formatter = price > 0 && price < 0.001 ? PRICE_NUMBER_FORMAT_4 : PRICE_NUMBER_FORMAT_3
 
-  return `$${trimTrailingZeros(
-    new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits,
-    }).format(price)
-  )}`
+  return `$${trimTrailingZeros(formatter.format(price))}`
 }
 
 export function formatUpdatedAt(date: string): string {
   try {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }).format(new Date(date))
+    return UPDATED_AT_DATE_FORMAT.format(new Date(date))
   } catch {
     return date
   }
@@ -506,7 +513,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     models.find((model) => model.id === provider.defaultModel)?.displayName ||
     (provider.defaultModel ? formatModelDisplayName(provider.id, provider.defaultModel) : 'Dynamic')
 
-  const featuredModels = [...models].sort(compareModelsByRelevance).slice(0, 6)
+  const featuredModels = models.toSorted(compareModelsByRelevance).slice(0, 6)
 
   return {
     id: provider.id,
@@ -621,20 +628,28 @@ export function getRelatedModels(targetModel: CatalogModel, limit = 6): CatalogM
 
   const targetTokens = new Set(tokenizeModelName(stripTechnicalSuffixes(targetModel.shortId)))
 
-  return provider.models
-    .filter((model) => model.id !== targetModel.id)
-    .map((model) => {
+  const scored = provider.models.reduce<Array<{ model: CatalogModel; score: number }>>(
+    (acc, model) => {
+      if (model.id === targetModel.id) {
+        return acc
+      }
+
       const modelTokens = tokenizeModelName(stripTechnicalSuffixes(model.shortId))
       const sharedTokenCount = modelTokens.filter((token) => targetTokens.has(token)).length
       const sharedCapabilityCount = model.capabilityTags.filter((tag) =>
         targetModel.capabilityTags.includes(tag)
       ).length
 
-      return {
+      acc.push({
         model,
         score: sharedTokenCount * 2 + sharedCapabilityCount + (model.contextWindow ?? 0) / 1000000,
-      }
-    })
+      })
+      return acc
+    },
+    []
+  )
+
+  return scored
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(({ model }) => model)
@@ -807,45 +822,4 @@ export function getLargestContextProviderModel(provider: CatalogProvider): Catal
   return provider.models.reduce((max, m) =>
     (m.contextWindow ?? 0) > (max.contextWindow ?? 0) ? m : max
   )
-}
-
-export function getProviderCapabilitySummary(provider: CatalogProvider): CapabilityFact[] {
-  const reasoningCount = provider.models.filter(
-    (model) => model.capabilities.reasoningEffort || model.capabilities.thinking
-  ).length
-  const structuredCount = provider.models.filter((model) =>
-    supportsCatalogStructuredOutputs(model.capabilities)
-  ).length
-  const deepResearchCount = provider.models.filter(
-    (model) => model.capabilities.deepResearch
-  ).length
-  const cheapestModel = getCheapestProviderModel(provider)
-  const largestContextModel = getLargestContextProviderModel(provider)
-
-  return [
-    {
-      label: 'Reasoning-capable models',
-      value: reasoningCount > 0 ? `${reasoningCount} tracked` : 'None tracked',
-    },
-    {
-      label: 'Structured outputs',
-      value: structuredCount > 0 ? `${structuredCount} tracked` : 'None tracked',
-    },
-    {
-      label: 'Deep research models',
-      value: deepResearchCount > 0 ? `${deepResearchCount} tracked` : 'None tracked',
-    },
-    {
-      label: 'Lowest input price',
-      value: cheapestModel
-        ? `${cheapestModel.displayName} at ${formatPrice(cheapestModel.pricing.input)}/1M`
-        : 'Not available',
-    },
-    {
-      label: 'Largest context window',
-      value: largestContextModel?.contextWindow
-        ? `${largestContextModel.displayName} at ${formatTokenCount(largestContextModel.contextWindow)}`
-        : 'Not available',
-    },
-  ]
 }

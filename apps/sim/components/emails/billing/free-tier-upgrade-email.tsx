@@ -39,7 +39,7 @@ export function FreeTierUpgradeEmail({
       {/* Pro Features */}
       <Section
         style={{
-          backgroundColor: '#f8faf9',
+          backgroundColor: colors.surfaceSubtle,
           border: `1px solid ${colors.brandTertiary}20`,
           borderRadius: '8px',
           padding: '16px 20px',

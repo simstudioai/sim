@@ -27,6 +27,16 @@ export interface PreviewBlock {
 }
 
 /**
+ * A scripted Mothership conversation shown in the chat pane beside a staged
+ * resource - the request a builder typed and Sim's reply. Anchors the
+ * "chat everywhere" narrative: the chat drives whatever is staged on the right.
+ */
+export interface PreviewChat {
+  user: string
+  assistant: string
+}
+
+/**
  * Workflow definition containing nodes, edges, and metadata
  */
 export interface PreviewWorkflow {
@@ -35,23 +45,25 @@ export interface PreviewWorkflow {
   color: string
   blocks: PreviewBlock[]
   edges: Array<{ id: string; source: string; target: string }>
+  /** The Mothership exchange that produced this workflow, shown in the chat pane. */
+  chat?: PreviewChat
   /** Public JSON export used to seed the landing-page import flow */
   seedPath?: string
 }
 
 /**
- * IT Service Management workflow — Slack Trigger -> Agent (KB tool) -> Jira
+ * IT Service Management workflow - Slack Trigger -> Agent (KB tool) -> Jira
  */
 const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
   id: 'wf-it-service',
   name: 'IT Service Management',
-  color: '#FF6B2C',
+  color: '#2C2C2C',
   blocks: [
     {
       id: 'slack-1',
       name: 'Slack',
       type: 'slack',
-      bgColor: '#611f69',
+      bgColor: '#2C2C2C',
       rows: [
         { title: 'Channel', value: '#it-support' },
         { title: 'Event', value: 'New Message' },
@@ -63,7 +75,7 @@ const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
       id: 'agent-1',
       name: 'Agent',
       type: 'agent',
-      bgColor: '#701ffc',
+      bgColor: '#2C2C2C',
       rows: [
         { title: 'Model', value: 'claude-sonnet-4.6' },
         {
@@ -72,14 +84,14 @@ const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
             'Triage incoming IT support requests from Slack, categorize by severity, and create Jira tickets for the appropriate team.',
         },
       ],
-      tools: [{ name: 'Knowledge Base', type: 'knowledge_base', bgColor: '#10B981' }],
+      tools: [{ name: 'Knowledge Base', type: 'knowledge_base', bgColor: '#2C2C2C' }],
       position: { x: 420, y: 40 },
     },
     {
       id: 'jira-1',
       name: 'Jira',
       type: 'jira',
-      bgColor: '#E0E0E0',
+      bgColor: '#2C2C2C',
       rows: [
         { title: 'Operation', value: 'Get Issues' },
         { title: 'Project', value: 'IT-Support' },
@@ -92,21 +104,26 @@ const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
     { id: 'e-1', source: 'slack-1', target: 'agent-1' },
     { id: 'e-2', source: 'slack-1', target: 'jira-1' },
   ],
+  chat: {
+    user: 'Set up an IT support agent that answers Slack questions from our docs and files Jira tickets.',
+    assistant:
+      'Built IT Service Management. It watches #it-support, answers from your knowledge base, and opens Jira issues for anything it can’t resolve.',
+  },
 }
 
 /**
- * Self-healing CRM workflow — Schedule -> Agent
+ * Self-healing CRM workflow - Schedule -> Agent
  */
 const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
   id: 'wf-self-healing-crm',
   name: 'Self-healing CRM',
-  color: '#33C482',
+  color: '#2C2C2C',
   blocks: [
     {
       id: 'schedule-1',
       name: 'Schedule',
       type: 'schedule',
-      bgColor: '#6366F1',
+      bgColor: '#2C2C2C',
       rows: [
         { title: 'Run Frequency', value: 'Daily' },
         { title: 'Time', value: '09:00 AM' },
@@ -118,7 +135,7 @@ const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
       id: 'agent-crm',
       name: 'CRM Agent',
       type: 'agent',
-      bgColor: '#701ffc',
+      bgColor: '#2C2C2C',
       rows: [
         { title: 'Model', value: 'gpt-5.4' },
         {
@@ -128,29 +145,34 @@ const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
         },
       ],
       tools: [
-        { name: 'HubSpot', type: 'hubspot', bgColor: '#FF7A59' },
-        { name: 'Salesforce', type: 'salesforce', bgColor: '#E0E0E0' },
+        { name: 'HubSpot', type: 'hubspot', bgColor: '#2C2C2C' },
+        { name: 'Salesforce', type: 'salesforce', bgColor: '#2C2C2C' },
       ],
       position: { x: 420, y: 140 },
       hideSourceHandle: true,
     },
   ],
   edges: [{ id: 'e-3', source: 'schedule-1', target: 'agent-crm' }],
+  chat: {
+    user: 'Build an agent that audits our CRM every morning and fixes bad records.',
+    assistant:
+      'Done. Self-healing CRM runs daily at 9 AM, audits HubSpot and Salesforce, and fixes duplicates, missing fields, and stale entries.',
+  },
 }
 
 /**
- * Customer Support Agent workflow — Gmail Trigger -> Agent (KB + Notion tools) -> Slack
+ * Customer Support Agent workflow - Gmail Trigger -> Agent (KB + Notion tools) -> Slack
  */
 const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
   id: 'wf-customer-support',
   name: 'Customer Support Agent',
-  color: '#0EA5E9',
+  color: '#2C2C2C',
   blocks: [
     {
       id: 'gmail-1',
       name: 'Gmail',
       type: 'gmail',
-      bgColor: '#E0E0E0',
+      bgColor: '#2C2C2C',
       rows: [
         { title: 'Event', value: 'New Email' },
         { title: 'Label', value: 'Support' },
@@ -162,7 +184,7 @@ const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
       id: 'agent-3',
       name: 'Support Agent',
       type: 'agent',
-      bgColor: '#701ffc',
+      bgColor: '#2C2C2C',
       rows: [
         { title: 'Model', value: 'gpt-5.4' },
         {
@@ -172,8 +194,8 @@ const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
         },
       ],
       tools: [
-        { name: 'Knowledge', type: 'knowledge_base', bgColor: '#10B981' },
-        { name: 'Notion', type: 'notion', bgColor: '#181C1E' },
+        { name: 'Knowledge', type: 'knowledge_base', bgColor: '#2C2C2C' },
+        { name: 'Notion', type: 'notion', bgColor: '#2C2C2C' },
       ],
       position: { x: 420, y: 40 },
     },
@@ -181,7 +203,7 @@ const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
       id: 'slack-3',
       name: 'Slack',
       type: 'slack',
-      bgColor: '#611f69',
+      bgColor: '#2C2C2C',
       rows: [
         { title: 'Channel', value: '#support' },
         { title: 'Operation', value: 'Send Message' },
@@ -194,15 +216,20 @@ const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
     { id: 'e-cs-1', source: 'gmail-1', target: 'agent-3' },
     { id: 'e-cs-2', source: 'gmail-1', target: 'slack-3' },
   ],
+  chat: {
+    user: 'Make a support agent that replies to customer emails using our help docs.',
+    assistant:
+      'Here it is. Customer Support Agent triages new support email, drafts replies from your Knowledge Base and Notion, and posts to #support.',
+  },
 }
 
 /**
- * Empty "New Agent" workflow — a single note prompting the user to start building
+ * Empty "New Agent" workflow - a single note prompting the user to start building
  */
 const NEW_AGENT_WORKFLOW: PreviewWorkflow = {
   id: 'wf-new-agent',
   name: 'New Agent',
-  color: '#787878',
+  color: '#2C2C2C',
   blocks: [
     {
       id: 'note-1',
@@ -229,11 +256,11 @@ export const PREVIEW_WORKFLOWS: PreviewWorkflow[] = [
 /** Stagger delay between each block appearing (seconds). */
 export const BLOCK_STAGGER = 0.12
 
-/** Shared cubic-bezier easing — fast deceleration, gentle settle. */
+/** Shared cubic-bezier easing - fast deceleration, gentle settle. */
 export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 /** Shared edge style applied to all preview workflow connections */
-const EDGE_STYLE = { stroke: '#454545', strokeWidth: 1.5 } as const
+const EDGE_STYLE = { stroke: '#c9c9c9', strokeWidth: 1.5 } as const
 
 /**
  * Converts a PreviewWorkflow to React Flow nodes and edges.
@@ -243,8 +270,7 @@ const EDGE_STYLE = { stroke: '#454545', strokeWidth: 1.5 } as const
  */
 export function toReactFlowElements(
   workflow: PreviewWorkflow,
-  animate = false,
-  highlightedBlockId?: string | null
+  animate = false
 ): {
   nodes: Node[]
   edges: Edge[]
@@ -266,7 +292,6 @@ export function toReactFlowElements(
       hideSourceHandle: block.hideSourceHandle,
       index,
       animate,
-      isHighlighted: highlightedBlockId === block.id,
     },
     draggable: true,
     selectable: false,
@@ -317,9 +342,14 @@ export interface EditorPromptData {
 export function getEditorPrompt(workflow: PreviewWorkflow): EditorPromptData | null {
   for (const block of workflow.blocks) {
     if (!AGENT_BLOCK_TYPES.has(block.type)) continue
-    const promptRow = block.rows.find((r) => r.title === 'Prompt' || r.title === 'System Prompt')
+    /** Single ordered pass: first row matching either prompt title, and the first Model row. */
+    let promptRow: (typeof block.rows)[number] | undefined
+    let modelRow: (typeof block.rows)[number] | undefined
+    for (const row of block.rows) {
+      if (!promptRow && (row.title === 'Prompt' || row.title === 'System Prompt')) promptRow = row
+      if (!modelRow && row.title === 'Model') modelRow = row
+    }
     if (promptRow) {
-      const modelRow = block.rows.find((r) => r.title === 'Model')
       return {
         blockId: block.id,
         blockName: block.name,
@@ -345,6 +375,42 @@ export function getWorkflowAnimationTiming(workflow: PreviewWorkflow): { editorD
   const buffer = 0.15
   const total = maxBlockIndex * BLOCK_STAGGER + BLOCK_STAGGER + edgeDuration + buffer
   return { editorDelay: Math.round(total * 1000) }
+}
+
+/**
+ * Scripted chat for the non-workflow resources the demo stages (logs, tables),
+ * keyed by sidebar view. Keeps the chat pane present and on-topic so the
+ * "chat everywhere" story holds while a non-workflow resource is staged.
+ */
+export const RESOURCE_CHATS: Record<string, PreviewChat> = {
+  logs: {
+    user: 'How are my agents doing today?',
+    assistant:
+      '7 runs today across your agents, 2 errors: Lead Enrichment and Content Moderator. Want me to dig into those?',
+  },
+  tables: {
+    user: 'Show me my data tables.',
+    assistant:
+      'Here are your tables: Customer Leads, Product Catalog, and three more. Ask me to query or update any of them.',
+  },
+  files: {
+    user: 'What files do we have in the workspace?',
+    assistant: 'Pulling up your files. I can summarize, extract, or feed any of them to an agent.',
+  },
+  knowledge: {
+    user: 'What’s in our knowledge base?',
+    assistant: 'Here are your knowledge bases. Your agents read from these to ground every answer.',
+  },
+  'scheduled-tasks': {
+    user: 'What’s scheduled to run?',
+    assistant: 'These are your scheduled tasks. I can pause, edit, or add a new one for you.',
+  },
+}
+
+/** The chat shown for a staged resource: the workflow's own exchange, else the view's. */
+export function getViewChat(view: string, workflow?: PreviewWorkflow): PreviewChat | null {
+  if (view === 'workflow') return workflow?.chat ?? null
+  return RESOURCE_CHATS[view] ?? null
 }
 
 /** Milliseconds between each character typed in the Editor prompt animation. */

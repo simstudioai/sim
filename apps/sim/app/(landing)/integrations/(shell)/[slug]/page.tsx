@@ -1,3 +1,4 @@
+import { ChipLink } from '@sim/emcn'
 import { truncate } from '@sim/utils/string'
 import type { Metadata } from 'next'
 import Image from 'next/image'
@@ -13,17 +14,20 @@ import {
   INTEGRATIONS_UPDATED_AT,
   type Integration,
 } from '@/lib/integrations'
+import { BackLink } from '@/app/(landing)/components'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
+import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-cta-button'
-import { IntegrationFAQ } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-faq'
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
+import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 import { getTemplatesForBlock } from '@/blocks/registry'
 
 const allIntegrations = INTEGRATIONS
 const INTEGRATION_COUNT = allIntegrations.length
 const baseUrl = SITE_URL
 
-/** Fast O(1) lookups — avoids repeated linear scans inside render loops. */
+/** Fast O(1) lookups - avoids repeated linear scans inside render loops. */
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
 
@@ -33,10 +37,10 @@ export const dynamicParams = false
  * Returns up to `limit` related integration slugs.
  *
  * Scoring (additive):
- *   +3 per shared operation name  — strongest signal (same capability)
- *   +2 per shared operation word  — weaker signal (e.g. both have "create" ops)
- *   +2  same integration category — topical relevance (both CRMs, both devops)
- *   +1  same auth type            — comparable setup experience
+ *   +3 per shared operation name  - strongest signal (same capability)
+ *   +2 per shared operation word  - weaker signal (e.g. both have "create" ops)
+ *   +2  same integration category - topical relevance (both CRMs, both devops)
+ *   +1  same auth type            - comparable setup experience
  *
  * Every integration gets a score, so the sidebar always has suggestions.
  * Ties are broken by alphabetical slug order for determinism.
@@ -59,8 +63,8 @@ function getRelatedSlugs(
   )
 
   return allIntegrations
-    .filter((i) => i.slug !== slug)
-    .map((i) => {
+    .reduce<Array<{ slug: string; score: number }>>((scored, i) => {
+      if (i.slug === slug) return scored
       const sharedNames = i.operations.filter((o) =>
         currentOpNames.has(o.name.toLowerCase())
       ).length
@@ -72,18 +76,23 @@ function getRelatedSlugs(
       ).length
       const sameCategory = i.integrationType === integrationType ? 2 : 0
       const sameAuth = i.authType === authType ? 1 : 0
-      return { slug: i.slug, score: sharedNames * 3 + sharedWords * 2 + sameCategory + sameAuth }
-    })
+      scored.push({
+        slug: i.slug,
+        score: sharedNames * 3 + sharedWords * 2 + sameCategory + sameAuth,
+      })
+      return scored
+    }, [])
     .sort((a, b) => b.score - a.score || a.slug.localeCompare(b.slug))
     .slice(0, limit)
     .map(({ slug: s }) => s)
 }
 
 const AUTH_STEP: Record<AuthType, (name: string) => string> = {
-  oauth: (name) => `Connect your ${name} account with one-click OAuth — no credentials to copy.`,
+  oauth: (name) =>
+    `Connect your ${name} account with one-click OAuth, with no credentials to copy.`,
   'api-key': (name) =>
-    `Paste your ${name} API key to authenticate — you can find it in your ${name} account settings.`,
-  none: () => 'No authentication is needed — the block works as soon as you drop it in.',
+    `Paste your ${name} API key to authenticate. You can find it in your ${name} account settings.`,
+  none: () => 'No authentication is needed, so the block works as soon as you drop it in.',
 }
 
 /** Human-readable catalog refresh date for the visible last-updated line. */
@@ -107,7 +116,7 @@ function escapeRegex(value: string): string {
 /**
  * Server-side rewrite of bare integration names in a curated template prompt
  * to `@`-mention form (`Slack` → `@Slack`) so the prompt chips with brand
- * icons once it is populated into the Mothership home input after signup —
+ * icons once it is populated into the Mothership home input after signup -
  * the home auto-mention pipeline only chips token-starting `@` mentions, so
  * curated prompts must opt in.
  *
@@ -120,7 +129,7 @@ function escapeRegex(value: string): string {
  * names.
  */
 function mentionifyPromptForNames(prompt: string, names: readonly string[]): string {
-  const unique = [...new Set(names.filter((n) => n.trim().length >= 2))].sort(
+  const unique = Array.from(new Set(names.filter((n) => n.trim().length >= 2))).toSorted(
     (a, b) => b.length - a.length
   )
   if (unique.length === 0) return prompt
@@ -134,6 +143,48 @@ function mentionifyPromptForNames(prompt: string, names: readonly string[]): str
 /** Lowercases only the first character so acronyms in tool names survive. */
 function lowercaseFirst(value: string): string {
   return value.charAt(0).toLowerCase() + value.slice(1)
+}
+
+/**
+ * The ordered integration-icon chain for a template card - one tile per block
+ * type in flow order, separated by arrows. Resolves each type through its
+ * versioned aliases so v2/v3 blocks reuse the base icon and name.
+ */
+function TemplateIconRow({ allTypes }: { allTypes: string[] }) {
+  return (
+    <>
+      {allTypes.map((bt, idx) => {
+        const resolvedBt = byType.get(bt)
+          ? bt
+          : byType.get(`${bt}_v2`)
+            ? `${bt}_v2`
+            : byType.get(`${bt}_v3`)
+              ? `${bt}_v3`
+              : bt
+        const int = byType.get(resolvedBt)
+        const ToolIcon = blockTypeToIconMap[resolvedBt]
+        return (
+          <span key={bt} className='inline-flex items-center gap-1.5'>
+            {idx > 0 && (
+              <span className='text-[11px] text-[var(--text-subtle)]' aria-hidden='true'>
+                →
+              </span>
+            )}
+            <IntegrationIcon
+              bgColor={int?.bgColor ?? 'var(--surface-active)'}
+              name={int?.name ?? bt}
+              Icon={ToolIcon}
+              as='span'
+              className='size-6 rounded-[4px]'
+              iconClassName='size-3.5'
+              fallbackClassName='text-[10px]'
+              aria-hidden='true'
+            />
+          </span>
+        )
+      })}
+    </>
+  )
 }
 
 /** Joins items into readable prose: "a", "a and b", or "a, b, and c". */
@@ -177,15 +228,15 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
       : toProseList(triggerNames)
   const firstTriggerWhen = firstTrigger?.description.match(/^trigger workflow (when .+)$/i)?.[1]
   const connectFinalStep = firstOp
-    ? `Pick a tool such as "${firstOp.name}", wire up its inputs, and click Run — your agent is live.`
+    ? `Pick a tool such as "${firstOp.name}", wire up its inputs, and click Run, and your agent is live.`
     : triggerCount > 0
       ? `Choose the ${name} event you want to listen for, and your agent runs automatically from then on.`
-      : `Configure the block's inputs and click Run — your agent is live.`
+      : `Configure the block's inputs and click Run, and your agent is live.`
 
   const faqs: FAQItem[] = [
     {
       question: `What is Sim's ${name} integration?`,
-      answer: `Sim's ${name} integration ${capabilityPhrase ? `adds ${capabilityPhrase} to` : `connects ${name} to`} the AI agents you build in Sim's visual workflow builder — no code required. ${faqDescription}${
+      answer: `Sim's ${name} integration ${capabilityPhrase ? `adds ${capabilityPhrase} to` : `connects ${name} to`} the AI agents you build in Sim's visual workflow builder — you build it all visually. ${faqDescription}${
         pairings.length === 2
           ? ` Teams often pair ${name} with ${pairings[0]} and ${pairings[1]} in the same agent.`
           : ''
@@ -215,7 +266,7 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
             question: `How do I ${lowercaseFirst(firstOp.name)} with ${name} in Sim?`,
             answer: `Add ${articleFor(name)} ${name} block to your agent and select "${firstOp.name}" as the tool.${
               firstOp.description ? ` ${sentenceWithTerminalPunctuation(firstOp.description)}` : ''
-            } Fill in the required fields — inputs can reference outputs from earlier steps, such as text generated by an AI block or data fetched from another integration. No code is required.`,
+            } Fill in the required fields. Inputs can reference outputs from earlier steps, such as text generated by an AI block or data fetched from another integration, and you build it all visually.`,
           },
         ]
       : []),
@@ -223,11 +274,11 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
       ? [
           {
             question: `How do I trigger a Sim agent from ${name} automatically?`,
-            answer: `Add ${articleFor(name)} ${name} trigger block to your agent and copy its generated webhook URL into ${name}'s webhook settings. Sim supports ${triggersPhrase} for ${name}: ${triggerListPhrase}. Once configured, every matching ${name} event starts your agent instantly — no polling, no delay.`,
+            answer: `Add ${articleFor(name)} ${name} trigger block to your agent and copy its generated webhook URL into ${name}'s webhook settings. Sim supports ${triggersPhrase} for ${name}: ${triggerListPhrase}. Once configured, every matching ${name} event starts your agent instantly, no polling, no delay.`,
           },
           {
             question: `What data does Sim receive when a ${name} event triggers an agent?`,
-            answer: `Sim receives the full event payload ${name} sends — typically the record or object that changed, plus metadata like the event type and timestamp.${
+            answer: `Sim receives the full event payload ${name} sends, typically the record or object that changed, plus metadata like the event type and timestamp.${
               firstTriggerWhen
                 ? ` For example, the "${firstTrigger.name}" trigger fires ${sentenceWithTerminalPunctuation(firstTriggerWhen)}`
                 : ''
@@ -259,12 +310,17 @@ export async function generateMetadata({
     .map((o) => o.name)
     .join(', ')
   const categoryLabel = formatIntegrationType(integration.integrationType)
-  const metaDesc = `Automate ${name} with AI agents in Sim. ${sentenceWithTerminalPunctuation(truncate(description, 100))} Free to start.`
+  const seo = INTEGRATION_SEO[slug]
+  const metaDesc =
+    seo?.description ??
+    `Automate ${name} with AI agents in Sim. ${sentenceWithTerminalPunctuation(truncate(description, 100))} Free to start.`
 
   return {
-    title: `${name} Integration`,
+    // A hand-authored SEO title is rendered verbatim (it carries its own brand
+    // suffix); otherwise the bare name flows through the root `%s | Sim` template.
+    title: seo?.title ? { absolute: seo.title } : `${name} Integration`,
     description: metaDesc,
-    keywords: [
+    keywords: seo?.keywords ?? [
       `${name} automation`,
       `${name} integration`,
       `automate ${name}`,
@@ -279,18 +335,22 @@ export async function generateMetadata({
       'AI agent integrations',
       'AI agent builder',
     ],
-    // og:image/twitter:image come from the sibling opengraph-image.tsx —
+    // og:image/twitter:image come from the sibling opengraph-image.tsx -
     // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
-      title: `${name} Integration | Sim AI Workspace`,
-      description: `Connect ${name} to ${INTEGRATION_COUNT - 1}+ tools using AI agents. ${sentenceWithTerminalPunctuation(truncate(description, 100))}`,
+      title: seo?.title ?? `${name} Integration | Sim AI Workspace`,
+      description:
+        seo?.description ??
+        `Connect ${name} to ${INTEGRATION_COUNT - 1}+ tools using AI agents. ${sentenceWithTerminalPunctuation(truncate(description, 100))}`,
       url: `${baseUrl}/integrations/${slug}`,
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${name} Integration | Sim`,
-      description: `Automate ${name} with AI agents in Sim. Connect to ${INTEGRATION_COUNT - 1}+ tools. Free to start.`,
+      title: seo?.title ?? `${name} Integration | Sim`,
+      description:
+        seo?.description ??
+        `Automate ${name} with AI agents in Sim. Connect to ${INTEGRATION_COUNT - 1}+ tools. Free to start.`,
     },
     alternates: { canonical: `${baseUrl}/integrations/${slug}` },
   }
@@ -305,6 +365,8 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     integration
 
   const landingContent = integration.landingContent
+  const seo = INTEGRATION_SEO[slug]
+  const overviewBody = seo?.overview ?? longDescription
 
   const IconComponent = blockTypeToIconMap[integration.type]
   const categoryLabel = formatIntegrationType(integration.integrationType)
@@ -361,56 +423,15 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   }
 
   return (
-    <section className='bg-[var(--landing-bg)]'>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
+    <section className='bg-[var(--bg)]'>
+      <JsonLd data={breadcrumbJsonLd} />
+      <JsonLd data={softwareAppJsonLd} />
+      <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
-      <div className='px-5 pt-[60px] lg:px-16 lg:pt-[100px]'>
+      <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
         <div className='mb-6'>
-          <Link
-            href='/integrations'
-            className='group/link inline-flex items-center gap-1.5 font-season text-[var(--landing-text-muted)] text-sm tracking-[0.02em] hover:text-[var(--landing-text)]'
-          >
-            <svg
-              className='size-3 shrink-0'
-              viewBox='0 0 10 10'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-              aria-hidden='true'
-            >
-              <line
-                x1='1'
-                y1='5'
-                x2='10'
-                y2='5'
-                stroke='currentColor'
-                strokeWidth='1.33'
-                strokeLinecap='square'
-                className='origin-right scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
-              />
-              <path
-                d='M6.5 2L3.5 5L6.5 8'
-                stroke='currentColor'
-                strokeWidth='1.33'
-                strokeLinecap='square'
-                strokeLinejoin='miter'
-                fill='none'
-                className='group-hover/link:-translate-x-[30%] transition-transform duration-200 ease-out'
-              />
-            </svg>
-            Back to Integrations
-          </Link>
+          <BackLink href='/integrations' label='Back to Integrations' />
         </div>
 
         {/* Hero content */}
@@ -419,23 +440,23 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             bgColor={bgColor}
             name={name}
             Icon={IconComponent}
-            className='size-12 rounded-[5px]'
-            iconClassName='h-6 w-6'
+            className='size-12 rounded-xl border border-[var(--border-1)]'
+            iconClassName='size-6'
             fallbackClassName='text-[20px]'
             aria-hidden='true'
           />
           <div>
             <h1
               id='integration-heading'
-              className='text-[28px] text-white leading-[100%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
+              className='text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
             >
-              {name}
+              {seo?.h1 ?? name}
             </h1>
           </div>
         </div>
 
-        <p className='mb-3 max-w-[700px] text-[var(--landing-text-body)] text-base leading-[150%] tracking-[0.02em]'>
-          {description}
+        <p className='mb-3 max-w-[700px] text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
+          {seo?.tagline ?? description}
         </p>
 
         <p className='sr-only'>
@@ -462,73 +483,44 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
         {/* CTAs */}
         <div className='flex flex-wrap gap-2'>
-          <IntegrationCtaButton
-            label='Start building free'
-            className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-          >
+          <IntegrationCtaButton label='Start building free'>
             Start building free
           </IntegrationCtaButton>
-          <a
+          <ChipLink
             href={docsUrl}
             target='_blank'
             rel='noopener noreferrer'
-            className='group/link inline-flex h-[32px] items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-season text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
+            className='border border-[var(--border-1)]'
           >
             View docs
-            <svg
-              aria-hidden='true'
-              className='-rotate-45 size-3 shrink-0'
-              viewBox='0 0 10 10'
-              fill='none'
-            >
-              <line
-                x1='0'
-                y1='5'
-                x2='9'
-                y2='5'
-                stroke='currentColor'
-                strokeWidth='1.33'
-                strokeLinecap='square'
-                className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
-              />
-              <path
-                d='M3.5 2L6.5 5L3.5 8'
-                stroke='currentColor'
-                strokeWidth='1.33'
-                strokeLinecap='square'
-                strokeLinejoin='miter'
-                fill='none'
-                className='transition-transform duration-200 ease-out group-hover/link:translate-x-[30%]'
-              />
-            </svg>
-          </a>
+          </ChipLink>
         </div>
 
-        <p className='mt-5 text-[var(--landing-text-secondary)] text-xs'>
+        <p className='mt-5 text-[var(--text-muted)] text-xs'>
           Last updated <time dateTime={INTEGRATIONS_UPDATED_AT}>{UPDATED_AT_DISPLAY}</time>
         </p>
       </div>
 
       {/* Full-width divider */}
-      <div className='mt-8 h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
       {/* Border-railed content */}
-      <div className='mx-5 border-[var(--landing-bg-elevated)] border-x lg:mx-16'>
+      <div className='mx-12 max-w-[1350px] border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8 min-[1446px]:mx-auto'>
         {/* Overview */}
-        {longDescription && (
+        {overviewBody && (
           <>
             <section aria-labelledby='overview-heading' className='px-6 py-10'>
               <h2
                 id='overview-heading'
-                className='mb-4 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
               >
                 Overview
               </h2>
-              <p className='text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
-                {longDescription}
+              <p className='text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+                {overviewBody}
               </p>
             </section>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <div className='h-px w-full bg-[var(--border)]' />
           </>
         )}
 
@@ -538,27 +530,27 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='install-heading' className='px-6 py-10'>
               <h2
                 id='install-heading'
-                className='mb-4 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
               >
                 {landingContent.install.heading}
               </h2>
-              <p className='mb-6 max-w-[700px] text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='mb-6 max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
                 {landingContent.install.intro}
               </p>
               <ol className='space-y-4' aria-label={`Steps to add ${name}`}>
                 {landingContent.install.steps.map((item, index) => (
                   <li key={item.title} className='flex gap-4'>
                     <span
-                      className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--landing-border-strong)] font-martian-mono text-[11px] text-[var(--landing-text-subtle)]'
+                      className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--border-1)] text-[11px] text-[var(--text-muted)]'
                       aria-hidden='true'
                     >
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <div>
-                      <h3 className='mb-1 text-[15px] text-white tracking-[-0.02em]'>
+                      <h3 className='mb-1 text-[15px] text-[var(--text-primary)] tracking-[-0.02em]'>
                         {item.title}
                       </h3>
-                      <p className='text-[14px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                      <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
                         {item.body}
                       </p>
                     </div>
@@ -566,15 +558,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 ))}
               </ol>
               <div className='mt-8 flex flex-wrap gap-2'>
-                <IntegrationCtaButton
-                  label={`Add to ${name}`}
-                  className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-                >
-                  Add to {name}
-                </IntegrationCtaButton>
+                <IntegrationCtaButton label={`Add to ${name}`}>Add to {name}</IntegrationCtaButton>
               </div>
             </section>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <div className='h-px w-full bg-[var(--border)]' />
           </>
         )}
 
@@ -584,22 +571,22 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='privacy-heading' className='px-6 py-10'>
               <h2
                 id='privacy-heading'
-                className='mb-4 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
               >
                 Privacy & data
               </h2>
-              <p className='max-w-[700px] text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
                 {landingContent.privacy.body}{' '}
                 <Link
                   href={landingContent.privacy.href}
-                  className='text-[var(--landing-text)] underline underline-offset-2 hover:text-white'
+                  className='text-[var(--text-primary)] underline underline-offset-2 hover:text-[var(--text-primary)]'
                 >
                   Privacy Policy
                 </Link>
                 .
               </p>
             </section>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <div className='h-px w-full bg-[var(--border)]' />
           </>
         )}
 
@@ -609,15 +596,15 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='ai-disclaimer-heading' className='px-6 py-10'>
               <h2
                 id='ai-disclaimer-heading'
-                className='mb-4 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
               >
                 AI-generated content
               </h2>
-              <p className='max-w-[700px] text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
                 {landingContent.aiDisclaimer}
               </p>
             </section>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <div className='h-px w-full bg-[var(--border)]' />
           </>
         )}
 
@@ -625,7 +612,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         <section aria-labelledby='how-it-works-heading' className='px-6 py-10'>
           <h2
             id='how-it-works-heading'
-            className='mb-6 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+            className='mb-6 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
           >
             How to automate {name} with Sim
           </h2>
@@ -644,7 +631,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                     ? `Open your workspace, drag ${articleFor(name)} ${name} block onto the workflow builder, and connect your account with one-click OAuth.`
                     : authType === 'api-key'
                       ? `Open your workspace, drag ${articleFor(name)} ${name} block onto the workflow builder, and paste in your ${name} API key.`
-                      : `Open your workspace, drag ${articleFor(name)} ${name} block onto the workflow builder — no authentication is needed.`,
+                      : `Open your workspace, drag ${articleFor(name)} ${name} block onto the workflow builder. No authentication is needed.`,
               },
               {
                 step: '03',
@@ -654,14 +641,16 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             ].map(({ step, title, body }) => (
               <li key={step} className='flex gap-4'>
                 <span
-                  className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--landing-border-strong)] font-martian-mono text-[11px] text-[var(--landing-text-subtle)]'
+                  className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--border-1)] text-[11px] text-[var(--text-muted)]'
                   aria-hidden='true'
                 >
                   {step}
                 </span>
                 <div>
-                  <h3 className='mb-1 text-[15px] text-white tracking-[-0.02em]'>{title}</h3>
-                  <p className='text-[14px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                  <h3 className='mb-1 text-[15px] text-[var(--text-primary)] tracking-[-0.02em]'>
+                    {title}
+                  </h3>
+                  <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
                     {body}
                   </p>
                 </div>
@@ -670,9 +659,9 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           </ol>
         </section>
 
-        <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+        <div className='h-px w-full bg-[var(--border)]' />
 
-        {/* Triggers — rows */}
+        {/* Triggers - rows */}
         {triggers.length > 0 && (
           <section aria-labelledby='triggers-heading'>
             <div className='px-6 pt-10 pb-4'>
@@ -683,52 +672,57 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 </span>
                 <h2
                   id='triggers-heading'
-                  className='text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+                  className='text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
                 >
                   Real-time triggers
                 </h2>
               </div>
-              <p className='text-[14px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
-                Connect {articleFor(name)} {name} webhook to Sim and your agent runs the instant an
-                event happens, no polling, no delay.
+              <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+                {seo?.triggersIntro ?? (
+                  <>
+                    Connect {articleFor(name)} {name} webhook to Sim and your agent runs the instant
+                    an event happens, no polling, no delay.
+                  </>
+                )}
               </p>
             </div>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <div className='h-px w-full bg-[var(--border)]' />
             {triggers.map((trigger) => (
               <div key={trigger.id}>
                 <div className='flex items-start gap-4 px-6 py-4'>
                   <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                    <p className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                    <p className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
                       {trigger.name}
                     </p>
                     {trigger.description && (
-                      <p className='text-[12px] text-[var(--landing-text-muted)] leading-[150%]'>
+                      <p className='text-[12px] text-[var(--text-muted)] leading-[150%]'>
                         {trigger.description}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+                <div className='h-px w-full bg-[var(--border)]' />
               </div>
             ))}
           </section>
         )}
 
-        {/* Workflow templates — horizontal cards */}
+        {/* Workflow templates - horizontal cards */}
         {matchingTemplates.length > 0 && (
           <section aria-labelledby='templates-heading'>
             <div className='px-6 pt-10 pb-4'>
               <h2
                 id='templates-heading'
-                className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
               >
                 Agent templates
               </h2>
-              <p className='text-[14px] text-[var(--landing-text-body)] tracking-[0.02em]'>
-                Ready-to-use templates featuring {name}. Click any to build it instantly.
+              <p className='text-[14px] text-[var(--text-body)] tracking-[0.02em]'>
+                {seo?.templatesIntro ??
+                  `Ready-to-use templates featuring ${name}. Click any to build it instantly.`}
               </p>
             </div>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <div className='h-px w-full bg-[var(--border)]' />
             {(() => {
               const isOdd = matchingTemplates.length % 2 === 1
               const pairedTemplates = isOdd ? matchingTemplates.slice(0, -1) : matchingTemplates
@@ -753,8 +747,8 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               /**
                * The curated template prompt rewritten so the integrations it
                * references chip in the home input after signup. Computed
-               * server-side from the template's own integration set — never the
-               * full registry — so the visible card text stays raw while the
+               * server-side from the template's own integration set - never the
+               * full registry - so the visible card text stays raw while the
                * stored prompt opts into mention treatment.
                */
               const storedPrompt = (template: (typeof matchingTemplates)[number]) =>
@@ -764,38 +758,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                     .map(resolveDisplayName)
                     .filter((n): n is string => n !== null)
                 )
-
-              const renderIcons = (allTypes: string[]) =>
-                allTypes.map((bt, idx) => {
-                  const resolvedBt = byType.get(bt)
-                    ? bt
-                    : byType.get(`${bt}_v2`)
-                      ? `${bt}_v2`
-                      : byType.get(`${bt}_v3`)
-                        ? `${bt}_v3`
-                        : bt
-                  const int = byType.get(resolvedBt)
-                  const ToolIcon = blockTypeToIconMap[resolvedBt]
-                  return (
-                    <span key={bt} className='inline-flex items-center gap-1.5'>
-                      {idx > 0 && (
-                        <span className='text-[#555] text-[11px]' aria-hidden='true'>
-                          →
-                        </span>
-                      )}
-                      <IntegrationIcon
-                        bgColor={int?.bgColor ?? '#333'}
-                        name={int?.name ?? bt}
-                        Icon={ToolIcon}
-                        as='span'
-                        className='size-6 rounded-[4px]'
-                        iconClassName='h-3.5 w-3.5'
-                        fallbackClassName='text-[10px]'
-                        aria-hidden='true'
-                      />
-                    </span>
-                  )
-                })
 
               return (
                 <>
@@ -812,23 +774,23 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                             <TemplateCardButton
                               key={template.title}
                               prompt={storedPrompt(template)}
-                              className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
+                              className='group flex flex-1 flex-col gap-4 border-[var(--border)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--surface-hover)] sm:border-t-0 sm:border-l sm:first:border-l-0'
                             >
                               <div className='flex items-center gap-1.5'>
-                                {renderIcons(resolveTypes(template))}
+                                <TemplateIconRow allTypes={resolveTypes(template)} />
                               </div>
                               <div className='flex flex-col gap-2'>
-                                <h3 className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                                <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
                                   {template.title}
                                 </h3>
-                                <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
+                                <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
                                   {template.prompt}
                                 </p>
                               </div>
                             </TemplateCardButton>
                           ))}
                         </nav>
-                        <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+                        <div className='h-px w-full bg-[var(--border)]' />
                       </div>
                     )
                   })}
@@ -838,21 +800,21 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                     <>
                       <TemplateCardButton
                         prompt={storedPrompt(lastTemplate)}
-                        className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--landing-bg-elevated)]'
+                        className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--surface-hover)]'
                       >
                         <div className='flex items-center gap-1.5'>
-                          {renderIcons(resolveTypes(lastTemplate))}
+                          <TemplateIconRow allTypes={resolveTypes(lastTemplate)} />
                         </div>
                         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                          <h3 className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                          <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
                             {lastTemplate.title}
                           </h3>
-                          <p className='line-clamp-1 text-[12px] text-[var(--landing-text-muted)] leading-[150%]'>
+                          <p className='line-clamp-1 text-[12px] text-[var(--text-muted)] leading-[150%]'>
                             {lastTemplate.prompt}
                           </p>
                         </div>
                       </TemplateCardButton>
-                      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+                      <div className='h-px w-full bg-[var(--border)]' />
                     </>
                   )}
                 </>
@@ -861,55 +823,56 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           </section>
         )}
 
-        {/* Supported tools — rows */}
+        {/* Supported tools - rows */}
         {operations.length > 0 && (
           <section aria-labelledby='tools-heading'>
             <div className='px-6 pt-10 pb-4'>
               <h2
                 id='tools-heading'
-                className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
               >
                 Supported tools
               </h2>
-              <p className='text-[14px] text-[var(--landing-text-body)] tracking-[0.02em]'>
+              <p className='text-[14px] text-[var(--text-body)] tracking-[0.02em]'>
                 {operations.length} {name} tool{operations.length === 1 ? '' : 's'} available in Sim
+                {seo?.toolsSubtitleSuffix ?? ''}
               </p>
             </div>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <div className='h-px w-full bg-[var(--border)]' />
             {operations.map((op) => (
               <div key={op.name}>
                 <div className='flex items-start gap-4 px-6 py-4'>
                   <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                    <p className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                    <p className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
                       {op.name}
                     </p>
                     {op.description && (
-                      <p className='text-[12px] text-[var(--landing-text-muted)] leading-[150%]'>
+                      <p className='text-[12px] text-[var(--text-muted)] leading-[150%]'>
                         {op.description}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+                <div className='h-px w-full bg-[var(--border)]' />
               </div>
             ))}
           </section>
         )}
 
-        {/* FAQ — full width */}
+        {/* FAQ - full width */}
         <section aria-labelledby='faq-heading' className='px-6 py-10'>
           <h2
             id='faq-heading'
-            className='mb-8 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+            className='mb-8 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
           >
             Frequently asked questions
           </h2>
-          <IntegrationFAQ faqs={faqs} />
+          <LandingFAQ faqs={faqs} />
         </section>
 
-        <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+        <div className='h-px w-full bg-[var(--border)]' />
 
-        {/* Related integrations — horizontal cards with vertical dividers (blog featured pattern) */}
+        {/* Related integrations - horizontal cards with vertical dividers (blog featured pattern) */}
         {relatedIntegrations.length > 0 && (
           <>
             <nav aria-label='Related integrations' className='flex flex-col sm:flex-row'>
@@ -917,28 +880,28 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 <Link
                   key={rel.slug}
                   href={`/integrations/${rel.slug}`}
-                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
+                  className='group flex flex-1 flex-col gap-4 border-[var(--border)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--surface-hover)] sm:border-t-0 sm:border-l sm:first:border-l-0'
                 >
                   <IntegrationIcon
                     bgColor={rel.bgColor}
                     name={rel.name}
                     Icon={blockTypeToIconMap[rel.type]}
                     as='span'
-                    className='size-10 rounded-[5px]'
+                    className='size-10 rounded-xl border border-[var(--border-1)]'
                     aria-hidden='true'
                   />
                   <div className='flex flex-col gap-2'>
-                    <h3 className='text-lg text-white leading-tight tracking-[-0.01em]'>
+                    <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
                       {rel.name}
                     </h3>
-                    <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
+                    <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
                       {rel.description}
                     </p>
                   </div>
                 </Link>
               ))}
             </nav>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <div className='h-px w-full bg-[var(--border)]' />
           </>
         )}
 
@@ -954,13 +917,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               unoptimized
             />
             <div className='flex items-center gap-2'>
-              <span className='h-px w-5 bg-[#3d3d3d]' aria-hidden='true' />
+              <span className='h-px w-5 bg-[var(--border-1)]' aria-hidden='true' />
               <span
-                className='flex size-7 items-center justify-center rounded-full border border-[var(--landing-border-strong)]'
+                className='flex size-7 items-center justify-center rounded-full border border-[var(--border-1)]'
                 aria-hidden='true'
               >
                 <svg
-                  className='size-3.5 text-[var(--landing-text-secondary)]'
+                  className='size-3.5 text-[var(--text-muted)]'
                   viewBox='0 0 24 24'
                   fill='none'
                   stroke='currentColor'
@@ -971,39 +934,34 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   <path d='M12 5v14' />
                 </svg>
               </span>
-              <span className='h-px w-5 bg-[#3d3d3d]' aria-hidden='true' />
+              <span className='h-px w-5 bg-[var(--border-1)]' aria-hidden='true' />
             </div>
             <IntegrationIcon
               bgColor={bgColor}
               name={name}
               Icon={IconComponent}
               className='size-14 rounded-xl'
-              iconClassName='h-7 w-7'
+              iconClassName='size-7'
               fallbackClassName='text-[22px]'
               aria-hidden='true'
             />
           </div>
           <h2
             id='cta-heading'
-            className='mb-3 text-[28px] text-white leading-[100%] tracking-[-0.02em] sm:text-[34px]'
+            className='mb-3 text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[34px]'
           >
             Start automating {name} today
           </h2>
-          <p className='mx-auto mb-8 max-w-[480px] text-[var(--landing-text-body)] text-base leading-[150%] tracking-[0.02em]'>
+          <p className='mx-auto mb-8 max-w-[480px] text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
             Build your first AI agent with {name} in minutes. Connect to every tool your team uses.
             Free to start, no credit card required.
           </p>
-          <IntegrationCtaButton
-            label='Build for free'
-            className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-          >
-            Build for free
-          </IntegrationCtaButton>
+          <IntegrationCtaButton label='Build for free'>Build for free</IntegrationCtaButton>
         </section>
       </div>
 
       {/* Closing full-width divider */}
-      <div className='-mt-px h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <div className='-mt-px h-px w-full bg-[var(--border)]' />
     </section>
   )
 }

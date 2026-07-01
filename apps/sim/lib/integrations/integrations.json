@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-29",
+  "updatedAt": "2026-06-30",
   "integrations": [
     {
       "type": "onepassword",
@@ -949,9 +949,41 @@
         {
           "name": "Add Comment",
           "description": "Add a comment (story) to an Asana task"
+        },
+        {
+          "name": "Create Subtask",
+          "description": "Create a subtask under an existing Asana task"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Delete an Asana task by its GID (moves it to the trash)"
+        },
+        {
+          "name": "Add Followers",
+          "description": "Add one or more followers to an Asana task"
+        },
+        {
+          "name": "Create Project",
+          "description": "Create a new project in an Asana workspace"
+        },
+        {
+          "name": "Get Project",
+          "description": "Retrieve a single Asana project by its GID"
+        },
+        {
+          "name": "List Workspaces",
+          "description": "List all Asana workspaces and organizations the authenticated user belongs to"
+        },
+        {
+          "name": "Create Section",
+          "description": "Create a new section in an Asana project"
+        },
+        {
+          "name": "List Sections",
+          "description": "List all sections in an Asana project"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 14,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -6383,9 +6415,33 @@
         {
           "name": "Apply Text Style",
           "description": "Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Apply Paragraph Style",
+          "description": "Apply a named paragraph style (such as a heading or title) and/or alignment to the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Create Bullets",
+          "description": "Add bulleted or numbered list formatting to the paragraphs overlapping a range of text in a Google Docs document, using a chosen bullet glyph preset."
+        },
+        {
+          "name": "Delete Bullets",
+          "description": "Remove bullet or numbered list formatting from the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Delete Content Range",
+          "description": "Delete all content between a start and end character index in a Google Docs document. The endIndex is exclusive and must be greater than the startIndex."
+        },
+        {
+          "name": "Create Named Range",
+          "description": "Create a named range over a span of content in a Google Docs document so it can be referenced or deleted later. The name may be 1-256 characters and need not be unique."
+        },
+        {
+          "name": "Delete Named Range",
+          "description": "Delete one or more named ranges from a Google Docs document by their ID or by name. Provide exactly one of namedRangeId or name; deleting by name removes all ranges sharing that name. The content itself is not removed."
         }
       ],
-      "operationCount": 9,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -8729,9 +8785,29 @@
         {
           "name": "Search Users",
           "description": "Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress."
+        },
+        {
+          "name": "List Projects",
+          "description": "List Jira projects visible to the user, with optional name/key filtering and pagination. Returns each project with id, key, name, and type."
+        },
+        {
+          "name": "Get Project",
+          "description": "Get the details of a single Jira project by its ID or key, including its type, lead, components, issue types, and versions."
+        },
+        {
+          "name": "Get Transitions",
+          "description": "Get the workflow transitions available for an issue in its current status. Use the returned transition IDs with the Transition Issue operation."
+        },
+        {
+          "name": "List Issue Types",
+          "description": "List all issue types visible to the user across projects (e.g., Task, Bug, Story, Epic, Subtask). Useful for discovering valid issue types before creating an issue."
+        },
+        {
+          "name": "Get Fields",
+          "description": "Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues."
         }
       ],
-      "operationCount": 25,
+      "operationCount": 30,
       "triggers": [
         {
           "id": "jira_issue_created",
@@ -9927,7 +10003,7 @@
         },
         {
           "name": "Mark Chat as Read",
-          "description": "Mark all messages in a chat as read"
+          "description": "Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)"
         },
         {
           "name": "Leave Chat",
@@ -10043,8 +10119,39 @@
         }
       ],
       "operationCount": 34,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "linq_message_received",
+          "name": "Linq Message Received",
+          "description": "Trigger workflow when an inbound message is received"
+        },
+        {
+          "id": "linq_message_delivered",
+          "name": "Linq Message Delivered",
+          "description": "Trigger workflow when a message is delivered"
+        },
+        {
+          "id": "linq_message_failed",
+          "name": "Linq Message Failed",
+          "description": "Trigger workflow when a message fails to deliver"
+        },
+        {
+          "id": "linq_message_read",
+          "name": "Linq Message Read",
+          "description": "Trigger workflow when a message is read"
+        },
+        {
+          "id": "linq_reaction_added",
+          "name": "Linq Reaction Added",
+          "description": "Trigger workflow when a reaction is added to a message"
+        },
+        {
+          "id": "linq_webhook",
+          "name": "Linq Webhook (All Events)",
+          "description": "Trigger on any Linq webhook event (messages, reactions, chats, and more)"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -10980,6 +11087,14 @@
           "description": "Update column values of an item on a Monday.com board"
         },
         {
+          "name": "Change Column Value",
+          "description": "Update a single column's value on a Monday.com item"
+        },
+        {
+          "name": "Duplicate Item",
+          "description": "Duplicate an existing item on a Monday.com board"
+        },
+        {
           "name": "Delete Item",
           "description": "Delete an item from a Monday.com board"
         },
@@ -11002,9 +11117,21 @@
         {
           "name": "Create Group",
           "description": "Create a new group on a Monday.com board"
+        },
+        {
+          "name": "Get Groups",
+          "description": "Get the groups on a Monday.com board"
+        },
+        {
+          "name": "Create Board",
+          "description": "Create a new board in Monday.com"
+        },
+        {
+          "name": "Create Column",
+          "description": "Create a new column on a Monday.com board"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "monday_item_created",
@@ -15506,9 +15633,37 @@
         {
           "name": "Publish View",
           "description": "Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience."
+        },
+        {
+          "name": "Schedule Message",
+          "description": "Schedule a message to be sent to a Slack channel or DM at a future time."
+        },
+        {
+          "name": "List Scheduled Messages",
+          "description": "List pending scheduled messages in a Slack workspace, optionally filtered by channel."
+        },
+        {
+          "name": "Delete Scheduled Message",
+          "description": "Delete a pending scheduled message before it posts to Slack."
+        },
+        {
+          "name": "Archive Conversation",
+          "description": "Archive a Slack channel so it is closed to new activity."
+        },
+        {
+          "name": "Rename Conversation",
+          "description": "Rename an existing Slack channel."
+        },
+        {
+          "name": "Set Conversation Topic",
+          "description": "Set the topic for a Slack channel (max 250 characters)."
+        },
+        {
+          "name": "Set Conversation Purpose",
+          "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 35,
+      "operationCount": 42,
       "triggers": [
         {
           "id": "slack_webhook",
@@ -15525,11 +15680,11 @@
       "landingContent": {
         "install": {
           "heading": "Add Sim to your Slack workspace",
-          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in) — connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
+          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in). Connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
           "steps": [
             {
               "title": "Create your free Sim account",
-              "body": "Sign up at sim.ai — no credit card required."
+              "body": "Sign up at sim.ai. No credit card required."
             },
             {
               "title": "Add a Slack block",
@@ -15549,7 +15704,7 @@
           "body": "Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.",
           "href": "/privacy"
         },
-        "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete — review automated outputs before relying on them, especially for important communications."
+        "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       }
     },
     {
@@ -17667,6 +17822,10 @@
           "description": "Create a new card in a Trello list"
         },
         {
+          "name": "Get Card",
+          "description": "Retrieve a single Trello card by ID"
+        },
+        {
           "name": "Update Card",
           "description": "Update an existing card on Trello"
         },
@@ -17677,9 +17836,33 @@
         {
           "name": "Add Comment",
           "description": "Add a comment to a Trello card"
+        },
+        {
+          "name": "Add Checklist",
+          "description": "Add a checklist to a Trello card"
+        },
+        {
+          "name": "Add Label",
+          "description": "Attach an existing label to a Trello card"
+        },
+        {
+          "name": "Add Member",
+          "description": "Assign a member to a Trello card"
+        },
+        {
+          "name": "Create Board",
+          "description": "Create a new Trello board"
+        },
+        {
+          "name": "Get Board",
+          "description": "Retrieve a single Trello board by ID"
+        },
+        {
+          "name": "Create List",
+          "description": "Create a new list on a Trello board"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

@@ -672,6 +672,7 @@ export function McpServerFormModal({
               type='text'
               name='fakeusernameremembered'
               autoComplete='username'
+              aria-hidden='true'
               style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
               tabIndex={-1}
               readOnly
@@ -680,6 +681,7 @@ export function McpServerFormModal({
               type='password'
               name='fakepasswordremembered'
               autoComplete='current-password'
+              aria-hidden='true'
               style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
               tabIndex={-1}
               readOnly

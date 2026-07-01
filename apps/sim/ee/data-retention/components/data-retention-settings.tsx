@@ -928,50 +928,45 @@ export function DataRetentionSettings() {
           ]}
         >
           <SettingsSection label='Retention policies'>
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>
-                Workspaces without an override inherit the organization defaults.
-              </span>
-              <div className='-mx-2 flex flex-col gap-y-0.5'>
+            <div className='-mx-2 flex flex-col gap-y-0.5'>
+              <button
+                type='button'
+                onClick={openEditOrg}
+                className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+              >
+                <div className='flex min-w-0 flex-1 flex-col'>
+                  <div className='flex items-center gap-2'>
+                    <span className='truncate text-[14px] text-[var(--text-body)]'>
+                      Organization
+                    </span>
+                    <ChipTag variant='gray' className='flex-shrink-0'>
+                      Default
+                    </ChipTag>
+                  </div>
+                  <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                    {orgRowSummary()}
+                  </span>
+                </div>
+                <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+              </button>
+              {overrideWorkspaceIds.map((workspaceId) => (
                 <button
+                  key={workspaceId}
                   type='button'
-                  onClick={openEditOrg}
+                  onClick={() => openEditOverride(workspaceId)}
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>
-                    <div className='flex items-center gap-2'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        Organization
-                      </span>
-                      <ChipTag variant='gray' className='flex-shrink-0'>
-                        Default
-                      </ChipTag>
-                    </div>
+                    <span className='truncate text-[14px] text-[var(--text-body)]'>
+                      {workspaceName(workspaceId)}
+                    </span>
                     <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                      {orgRowSummary()}
+                      {overrideRowSummary(workspaceId)}
                     </span>
                   </div>
                   <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                 </button>
-                {overrideWorkspaceIds.map((workspaceId) => (
-                  <button
-                    key={workspaceId}
-                    type='button'
-                    onClick={() => openEditOverride(workspaceId)}
-                    className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-                  >
-                    <div className='flex min-w-0 flex-1 flex-col'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        {workspaceName(workspaceId)}
-                      </span>
-                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                        {overrideRowSummary(workspaceId)}
-                      </span>
-                    </div>
-                    <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
           </SettingsSection>
         </SettingsPanel>

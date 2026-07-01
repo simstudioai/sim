@@ -84,7 +84,7 @@ export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetA
         url.searchParams.set('filter', params.filter)
       }
 
-      if (params.boardId && params.limit !== undefined) {
+      if (params.limit !== undefined) {
         url.searchParams.set('limit', String(params.limit))
       }
 

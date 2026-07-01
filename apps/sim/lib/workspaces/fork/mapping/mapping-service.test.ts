@@ -22,8 +22,10 @@ vi.mock('@/lib/workspaces/fork/mapping/resources', () => ({
 import { ForkError } from '@/lib/workspaces/fork/lineage/authz'
 import {
   findDuplicateTargetEntry,
+  suggestTarget,
   validateForkMappingTargets,
 } from '@/lib/workspaces/fork/mapping/mapping-service'
+import type { ForkResourceCandidate } from '@/lib/workspaces/fork/mapping/resources'
 
 type ExistingByKind = Partial<Record<ForkRemapKind, Set<string>>>
 
@@ -87,6 +89,34 @@ describe('validateForkMappingTargets', () => {
     await expect(
       validateForkMappingTargets('ws-source', 'ws-target', [
         { resourceType: 'table', sourceId: 'table-src', targetId: 'table-gone' },
+      ])
+    ).rejects.toBeInstanceOf(ForkError)
+  })
+
+  it('accepts a file target whose storage key exists in the target workspace', async () => {
+    // Files are mappable like any other content kind; the target is the storage key, and
+    // filterExistingForkTargets resolves file existence by key in the target workspace.
+    mockFilterExisting.mockResolvedValue({ file: new Set(['workspace/DST/report.pdf']) })
+    await expect(
+      validateForkMappingTargets('ws-source', 'ws-target', [
+        {
+          resourceType: 'file',
+          sourceId: 'workspace/SRC/report.pdf',
+          targetId: 'workspace/DST/report.pdf',
+        },
+      ])
+    ).resolves.toBeUndefined()
+  })
+
+  it('rejects a file target whose storage key is missing in the target workspace', async () => {
+    mockFilterExisting.mockResolvedValue({ file: new Set<string>() })
+    await expect(
+      validateForkMappingTargets('ws-source', 'ws-target', [
+        {
+          resourceType: 'file',
+          sourceId: 'workspace/SRC/report.pdf',
+          targetId: 'workspace/DST/gone.pdf',
+        },
       ])
     ).rejects.toBeInstanceOf(ForkError)
   })
@@ -178,5 +208,41 @@ describe('findDuplicateTargetEntry', () => {
         { resourceType: 'table', sourceId: 'c2', targetId: 'same' },
       ])
     ).toBeNull()
+  })
+})
+
+describe('suggestTarget', () => {
+  const cand = (id: string, label: string, providerId?: string): ForkResourceCandidate => ({
+    id,
+    label,
+    providerId,
+  })
+
+  it('disambiguates same-name credentials by matching the source provider', () => {
+    const target = suggestTarget('credential', 'Work', 'google-email', [
+      cand('c1', 'Work', 'google-calendar'),
+      cand('c2', 'Work', 'google-email'),
+    ])
+    expect(target).toBe('c2')
+  })
+
+  it('suggests a unique name match for a non-credential kind', () => {
+    expect(
+      suggestTarget('table', 'Orders', undefined, [cand('t1', 'Orders'), cand('t2', 'Other')])
+    ).toBe('t1')
+  })
+
+  it('returns null when the name is ambiguous (two same-name candidates)', () => {
+    expect(
+      suggestTarget('table', 'Dup', undefined, [cand('t1', 'Dup'), cand('t2', 'Dup')])
+    ).toBeNull()
+  })
+
+  it('returns null when no candidate name matches', () => {
+    expect(suggestTarget('table', 'Orders', undefined, [cand('t1', 'Other')])).toBeNull()
+  })
+
+  it('matches the name case- and whitespace-insensitively', () => {
+    expect(suggestTarget('table', '  Orders  ', undefined, [cand('t1', 'orders')])).toBe('t1')
   })
 })

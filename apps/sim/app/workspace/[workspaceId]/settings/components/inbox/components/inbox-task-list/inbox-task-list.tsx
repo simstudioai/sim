@@ -1,10 +1,16 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryStates } from 'nuqs'
+import {
+  type InboxStatusFilter,
+  inboxTaskParsers,
+  inboxTaskUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/inbox/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
@@ -18,7 +24,10 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ] as const
 
-type StatusFilter = (typeof STATUS_OPTIONS)[number]['value']
+type StatusFilter = InboxStatusFilter
+
+/** Debounce window for `search` URL writes; the input itself stays instant. */
+const SEARCH_DEBOUNCE_MS = 300 as const
 
 const STATUS_BADGES: Record<
   string,
@@ -36,8 +45,26 @@ export function InboxTaskList() {
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [{ status: statusFilter, search: searchTerm }, setInboxFilters] = useQueryStates(
+    inboxTaskParsers,
+    inboxTaskUrlKeys
+  )
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. Filtering below is cheap in-memory over the loaded
+   * tasks, so it reads the instant value too.
+   */
+  const setSearchTerm = useCallback(
+    (value: string) => {
+      const next = value.length > 0 ? value : null
+      setInboxFilters(
+        { search: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+      )
+    },
+    [setInboxFilters]
+  )
 
   const { data: config } = useInboxConfig(workspaceId)
   const { data: tasksData, isLoading } = useInboxTasks(workspaceId, {
@@ -80,7 +107,7 @@ export function InboxTaskList() {
           value={statusFilter}
           onChange={(value) => {
             if (STATUS_OPTIONS.some((option) => option.value === value)) {
-              setStatusFilter(value as StatusFilter)
+              setInboxFilters({ status: value as StatusFilter })
             }
           }}
           options={STATUS_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
@@ -106,25 +133,13 @@ export function InboxTaskList() {
               const statusBadge = STATUS_BADGES[task.status] || STATUS_BADGES.received
               const isClickable =
                 task.chatId && (task.status === 'completed' || task.status === 'failed')
-              return (
-                <div
-                  key={task.id}
-                  className={`flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
-                    isClickable
-                      ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]'
-                      : 'cursor-default'
-                  }`}
-                  role='button'
-                  aria-disabled={!isClickable}
-                  tabIndex={isClickable ? 0 : undefined}
-                  onClick={() => handleTaskClick(task)}
-                  onKeyDown={(e) => {
-                    if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault()
-                      handleTaskClick(task)
-                    }
-                  }}
-                >
+              const rowClassName = `flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
+                isClickable
+                  ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]'
+                  : 'cursor-default'
+              }`
+              const rowContent = (
+                <>
                   <div className='flex min-w-0 flex-1 flex-col'>
                     <div className='flex min-w-0 items-center gap-1.5'>
                       <span className='truncate text-[14px] text-[var(--text-body)]'>
@@ -175,6 +190,21 @@ export function InboxTaskList() {
                       <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                     )}
                   </div>
+                </>
+              )
+
+              return isClickable ? (
+                <button
+                  key={task.id}
+                  type='button'
+                  className={rowClassName}
+                  onClick={() => handleTaskClick(task)}
+                >
+                  {rowContent}
+                </button>
+              ) : (
+                <div key={task.id} className={rowClassName}>
+                  {rowContent}
                 </div>
               )
             })}
@@ -193,6 +223,8 @@ function formatRejectionReason(reason: string): string {
       return 'Automated sender'
     case 'rate_limit_exceeded':
       return 'Rate limit exceeded'
+    case 'not_entitled':
+      return 'Plan no longer includes Sim Mailer'
     default:
       return reason
   }

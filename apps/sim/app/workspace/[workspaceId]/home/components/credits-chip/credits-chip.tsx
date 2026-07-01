@@ -5,8 +5,8 @@ import { Chip } from '@sim/emcn'
 import { Credit } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCredits } from '@/lib/billing/credits/conversion'
+import { getPooledCreditsRemaining } from '@/lib/billing/on-demand'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useMyMemberCredits } from '@/hooks/queries/organization'
@@ -66,19 +66,17 @@ function CreditsChipInner() {
   if (memberLoading) return null
 
   /**
-   * Pooled/plan remaining (dollars): unused plan allowance plus any purchased
-   * credit balance. Null when the plan-based chip wouldn't show on its own (data
-   * not ready, or the plan isn't credit-metered). `ON_DEMAND_UNLIMITED` means
-   * effectively unbounded — rendered as ∞ — so short-circuit instead of
-   * subtracting usage from the sentinel.
+   * Pooled/plan remaining (dollars): unused plan allowance, matching enforcement
+   * (`currentUsage >= limit` blocks, so remaining is `limit - currentUsage`).
+   * Granted credits are already folded into `usageLimit`, so they are not added
+   * again here. Null when the plan-based chip wouldn't show on its own (data not
+   * ready, or the plan isn't credit-metered). The unlimited sentinel renders as ∞.
    */
   const pooledData = !isLoading && hasData && planView.showCredits ? (data?.data ?? null) : null
   const pooledRemaining =
     pooledData === null
       ? null
-      : pooledData.usageLimit >= ON_DEMAND_UNLIMITED
-        ? ON_DEMAND_UNLIMITED
-        : Math.max(0, pooledData.usageLimit + pooledData.creditBalance - pooledData.currentUsage)
+      : getPooledCreditsRemaining(pooledData.usageLimit, pooledData.currentUsage)
 
   /**
    * A per-member cap is the authoritative personal remaining, but the actor gate

@@ -1,4 +1,4 @@
-import { customTools, knowledgeConnector, mcpServers } from '@sim/db/schema'
+import { customTools, knowledgeBase, knowledgeConnector, mcpServers } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -148,6 +148,9 @@ export async function detectForkCascadeReferences(params: {
   }
 
   if (knowledgeBaseIds.size > 0) {
+    // Join to knowledgeBase + filter by the source workspace (defense-in-depth, matching the
+    // customTools/mcpServers reads above): a connector is only cascaded when its KB actually
+    // belongs to the source workspace, so a stale/crafted KB id can't pull in a foreign connector.
     const connectors = await executor
       .select({
         id: knowledgeConnector.id,
@@ -156,9 +159,12 @@ export async function detectForkCascadeReferences(params: {
         encryptedApiKey: knowledgeConnector.encryptedApiKey,
       })
       .from(knowledgeConnector)
+      .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
       .where(
         and(
           inArray(knowledgeConnector.knowledgeBaseId, Array.from(knowledgeBaseIds)),
+          eq(knowledgeBase.workspaceId, sourceWorkspaceId),
+          isNull(knowledgeBase.deletedAt),
           isNull(knowledgeConnector.deletedAt)
         )
       )

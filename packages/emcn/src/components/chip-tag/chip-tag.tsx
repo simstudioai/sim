@@ -15,6 +15,11 @@ import { cn } from '../../lib/cn'
  *   for emphasis (e.g. a discount next to a primary CTA).
  * - `gray` — a light surface over a slightly darker inset ring with muted
  *   `--text-secondary` text for low-emphasis status labels.
+ * - `solid` — a filled inverse tag: a dark neutral surface (`--text-secondary`)
+ *   with inverse text (`--text-inverse`), mirroring {@link Chip}'s `primary`
+ *   inverse-surface convention one step softer than near-black. For eyebrow
+ *   kickers and emphasis labels that should read as a solid chip rather than a
+ *   bordered one.
  * - `invite` — recipient pill used in invite/sharing flows. Borrows the chip
  *   family's icon gap (`gap-1.5`), `--text-body` label, and `--text-icon`
  *   leading/trailing icons; pairs with the `invalid` boolean to flip to an
@@ -27,6 +32,7 @@ const chipTagVariants = cva(
       variant: {
         mono: 'h-5 gap-[3px] px-1 bg-[var(--surface-5)] text-[var(--text-primary)] dark:bg-[var(--surface-4)]',
         gray: 'h-5 gap-[3px] px-1 bg-[var(--surface-5)] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_var(--border-1)]',
+        solid: 'h-5 gap-[3px] px-1 bg-[var(--text-secondary)] text-[var(--text-inverse)]',
         invite:
           'h-5 gap-1.5 px-1 bg-[var(--surface-5)] text-[var(--text-body)] shadow-[inset_0_0_0_1px_var(--border-1)] dark:bg-[var(--surface-4)]',
       },

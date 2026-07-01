@@ -39,9 +39,17 @@ interface FileUploadProps {
   isPreview?: boolean
   previewValue?: any | null
   disabled?: boolean
+  /**
+   * Controlled value. When `onValueChange` is provided the component reads from
+   * this prop and writes through `onValueChange` instead of the subblock store,
+   * letting it be embedded where the value lives outside a subblock (e.g. a
+   * single field inside the input-format editor).
+   */
+  value?: UploadedFile | UploadedFile[] | null
+  onValueChange?: (value: UploadedFile | UploadedFile[] | null) => void
 }
 
-interface UploadedFile {
+export interface UploadedFile {
   name: string
   path: string
   key?: string
@@ -165,9 +173,25 @@ export function FileUpload({
   isPreview = false,
   previewValue,
   disabled = false,
+  value: controlledValue,
+  onValueChange,
 }: FileUploadProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const isControlled = onValueChange !== undefined
+
+  /**
+   * Persists a new value. In controlled mode the caller owns persistence; in
+   * store mode we write through the subblock store and notify collaborators.
+   */
+  const commitValue = (next: UploadedFile | UploadedFile[] | null) => {
+    if (isControlled) {
+      onValueChange(next)
+      return
+    }
+    setStoreValue(next)
+    useWorkflowStore.getState().triggerUpdate()
+  }
   const [modelValue] = useSubBlockValue(blockId, 'model')
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -191,7 +215,7 @@ export function FileUpload({
   const uploadFileMutation = useUploadWorkspaceFile()
   const queryClient = useQueryClient()
 
-  const value = isPreview ? previewValue : storeValue
+  const value = isControlled ? controlledValue : isPreview ? previewValue : storeValue
 
   const maxSizeInBytes = useMemo(() => {
     const fallback = maxSize * 1024 * 1024
@@ -413,11 +437,9 @@ export function FileUpload({
 
         const newFiles = Array.from(uniqueFiles.values())
 
-        setStoreValue(newFiles)
-        useWorkflowStore.getState().triggerUpdate()
+        commitValue(newFiles)
       } else {
-        setStoreValue(uploadedFiles[0] || null)
-        useWorkflowStore.getState().triggerUpdate()
+        commitValue(uploadedFiles[0] || null)
       }
     } catch (error) {
       logger.error(getErrorMessage(error, 'Failed to upload file(s)'), activeWorkflowId)
@@ -459,12 +481,11 @@ export function FileUpload({
       uniqueFiles.set(uploadedFile.path, uploadedFile)
       const newFiles = Array.from(uniqueFiles.values())
 
-      setStoreValue(newFiles)
+      commitValue(newFiles)
     } else {
-      setStoreValue(uploadedFile)
+      commitValue(uploadedFile)
     }
 
-    useWorkflowStore.getState().triggerUpdate()
     logger.info(`Selected workspace file: ${selectedFile.name}`, activeWorkflowId)
   }
 
@@ -501,12 +522,10 @@ export function FileUpload({
       if (multiple) {
         const filesArray = Array.isArray(value) ? value : value ? [value] : []
         const updatedFiles = filesArray.filter((f) => f.path !== file.path)
-        setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
+        commitValue(updatedFiles.length > 0 ? updatedFiles : null)
       } else {
-        setStoreValue(null)
+        commitValue(null)
       }
-
-      useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
       logger.error(getErrorMessage(error, 'Failed to remove file'), activeWorkflowId)
     } finally {

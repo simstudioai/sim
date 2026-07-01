@@ -2,7 +2,9 @@
 
 import {
   type Dispatch,
+  lazy,
   type SetStateAction,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -49,7 +51,6 @@ import {
   CreditsChip,
   MothershipChat,
   MothershipResourcesProvider,
-  MothershipView,
   SuggestedActions,
   UserInput,
   type UserInputHandle,
@@ -58,6 +59,17 @@ import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hoo
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
+
+/**
+ * The resource preview panel pulls in the file-viewer stack (rich-markdown
+ * editor, CSV/PDF viewers). It only renders once a chat has messages, so it is
+ * code-split out of the initial `/chat` bundle and loaded on demand.
+ */
+const MothershipView = lazy(() =>
+  import('./components/mothership-view/mothership-view').then((m) => ({
+    default: m.MothershipView,
+  }))
+)
 
 interface HomeProps {
   chatId?: string
@@ -491,18 +503,20 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         reorderResources={reorderResources}
         collapseResource={collapseResource}
       >
-        <MothershipView
-          ref={mothershipRef}
-          workspaceId={workspaceId}
-          chatId={resolvedChatId}
-          resources={resources}
-          activeResourceId={activeResourceId}
-          isCollapsed={isResourceCollapsed}
-          previewSession={previewSession}
-          isAgentResponding={isSending}
-          genericResourceData={genericResourceData ?? undefined}
-          className={skipResourceTransition ? '!transition-none' : undefined}
-        />
+        <Suspense fallback={null}>
+          <MothershipView
+            ref={mothershipRef}
+            workspaceId={workspaceId}
+            chatId={resolvedChatId}
+            resources={resources}
+            activeResourceId={activeResourceId}
+            isCollapsed={isResourceCollapsed}
+            previewSession={previewSession}
+            isAgentResponding={isSending}
+            genericResourceData={genericResourceData ?? undefined}
+            className={skipResourceTransition ? '!transition-none' : undefined}
+          />
+        </Suspense>
       </MothershipResourcesProvider>
 
       {isResourceCollapsed && (
