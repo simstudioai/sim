@@ -23,6 +23,9 @@ import { useSubmitContact } from '@/hooks/queries/contact'
  */
 const FIELD_HEIGHT = 'h-[34px]'
 
+/** Build-time-inlined Turnstile site key; absent when captcha isn't configured. */
+const TURNSTILE_SITE_KEY = getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY')
+
 type ContactField = keyof ContactRequestPayload
 type ContactErrors = Partial<Record<ContactField, string>>
 
@@ -105,8 +108,7 @@ export function ContactForm() {
   const [errors, setErrors] = useState<ContactErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [website, setWebsite] = useState('')
-  const [widgetReady, setWidgetReady] = useState(false)
-  const [turnstileSiteKey] = useState(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
+  const [widgetLoaded, setWidgetLoaded] = useState(false)
 
   function updateField<TField extends keyof ContactFormState>(
     field: TField,
@@ -142,26 +144,25 @@ export function ContactForm() {
       return
     }
 
+    // Best-effort Turnstile execution: re-run the (invisible) widget on every
+    // submit, including after an expiry, since reset + execute yields a fresh
+    // token. If the widget never loaded or execution fails, the token is omitted
+    // and the server applies its stricter no-captcha rate limit.
     let captchaToken: string | undefined
-    let captchaUnavailable: boolean | undefined
     const widget = turnstileRef.current
 
-    if (turnstileSiteKey) {
-      if (widgetReady && widget) {
-        try {
-          widget.reset()
-          widget.execute()
-          captchaToken = await widget.getResponsePromise(30_000)
-        } catch {
-          captchaUnavailable = true
-        }
-      } else {
-        captchaUnavailable = true
+    if (TURNSTILE_SITE_KEY && widgetLoaded && widget) {
+      try {
+        widget.reset()
+        widget.execute()
+        captchaToken = await widget.getResponsePromise(30_000)
+      } catch {
+        captchaToken = undefined
       }
     }
 
     contactMutation.mutate(
-      { ...parsed.data, website, captchaToken, captchaUnavailable },
+      { ...parsed.data, website, captchaToken },
       {
         onSuccess: () => {
           captureClientEvent('landing_contact_submitted', { topic: parsed.data.topic })
@@ -171,9 +172,14 @@ export function ContactForm() {
         onError: () => {
           turnstileRef.current?.reset()
         },
+        // Reset the pre-submit gate only once the mutation settles, so `isBusy`
+        // stays true continuously (the captcha window then `isPending`) and a
+        // second click can never slip through to fire a duplicate request.
+        onSettled: () => {
+          setIsSubmitting(false)
+        },
       }
     )
-    setIsSubmitting(false)
   }
 
   const isBusy = contactMutation.isPending || isSubmitting
@@ -190,8 +196,7 @@ export function ContactForm() {
         </div>
         <h2 className='mt-5 text-[var(--text-primary)] text-xl leading-[1.2]'>Message received</h2>
         <p className='mt-2 max-w-sm text-[var(--text-muted)] text-sm leading-[1.6]'>
-          Thanks for reaching out. We've sent a confirmation to your inbox and will get back to you
-          shortly.
+          Thanks for reaching out. Our team will get back to you shortly.
         </p>
         <button
           type='button'
@@ -311,15 +316,14 @@ export function ContactForm() {
           />
         </ContactField>
 
-        {turnstileSiteKey ? (
+        {TURNSTILE_SITE_KEY ? (
           <Turnstile
             ref={turnstileRef}
-            siteKey={turnstileSiteKey}
+            siteKey={TURNSTILE_SITE_KEY}
             options={{ execution: 'execute', appearance: 'execute', size: 'invisible' }}
-            onWidgetLoad={() => setWidgetReady(true)}
-            onExpire={() => setWidgetReady(false)}
-            onError={() => setWidgetReady(false)}
-            onUnsupported={() => setWidgetReady(false)}
+            onWidgetLoad={() => setWidgetLoaded(true)}
+            onError={() => setWidgetLoaded(false)}
+            onUnsupported={() => setWidgetLoaded(false)}
           />
         ) : null}
 

@@ -34,6 +34,7 @@ const CAPTCHA_UNAVAILABLE_RATE_LIMIT: TokenBucketConfig = {
 }
 
 const SUCCESS_RESPONSE = { success: true, message: "Thanks — we'll be in touch soon." }
+const TOO_MANY_REQUESTS_RESPONSE = { error: 'Too many requests. Please try again later.' }
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
@@ -49,13 +50,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     if (!allowed) {
       logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        {
-          status: 429,
-          headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
-        }
-      )
+      return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, {
+        status: 429,
+        headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
+      })
     }
 
     const parsed = await parseRequest(submitContactContract, req, {})
@@ -72,56 +70,51 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
     }
 
-    const captchaUnavailable = parsed.data.body.captchaUnavailable === true
+    // Captcha is server-authoritative: a valid Turnstile token is the only way to
+    // skip the stricter fallback bucket. A missing token (widget could not load) or
+    // a Cloudflare transport error falls back to the tighter no-captcha rate limit
+    // rather than a free pass, so callers cannot opt out of the challenge. An
+    // outright invalid token is rejected.
+    if (isTurnstileConfigured()) {
+      let captchaVerified = false
+      const token =
+        typeof captchaToken === 'string' && captchaToken.length > 0 ? captchaToken : null
 
-    if (captchaUnavailable) {
-      const nocaptchaKey = `public:contact:nocaptcha:${ip}`
-      const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
-        nocaptchaKey,
-        CAPTCHA_UNAVAILABLE_RATE_LIMIT
-      )
-      if (!nocaptchaAllowed) {
-        logger.warn(`[${requestId}] Rate limit exceeded (no-captcha) for IP ${ip}`)
-        return NextResponse.json(
-          { error: 'Too many requests. Please try again later.' },
-          { status: 429 }
-        )
+      if (token) {
+        const verification = await verifyTurnstileToken({
+          token,
+          remoteIp: ip,
+          expectedHostname: SITE_HOSTNAME,
+        })
+        if (verification.success) {
+          captchaVerified = true
+        } else if (!verification.transportError) {
+          logger.warn(`[${requestId}] Captcha verification failed`, {
+            ip,
+            errorCodes: verification.errorCodes,
+          })
+          return NextResponse.json(
+            { error: 'Captcha verification failed. Please try again.' },
+            { status: 400 }
+          )
+        } else {
+          logger.warn(
+            `[${requestId}] Captcha transport error, falling back to no-captcha rate limit`,
+            { ip }
+          )
+        }
       }
-    }
 
-    if (isTurnstileConfigured() && !captchaUnavailable) {
-      const token = typeof captchaToken === 'string' ? captchaToken : null
-      const verification = await verifyTurnstileToken({
-        token,
-        remoteIp: ip,
-        expectedHostname: SITE_HOSTNAME,
-      })
-      if (!verification.success && verification.transportError) {
-        logger.warn(
-          `[${requestId}] Captcha transport error, falling back to no-captcha rate limit`,
-          { ip }
-        )
+      if (!captchaVerified) {
         const nocaptchaKey = `public:contact:nocaptcha:${ip}`
         const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
           nocaptchaKey,
           CAPTCHA_UNAVAILABLE_RATE_LIMIT
         )
         if (!nocaptchaAllowed) {
-          logger.warn(`[${requestId}] Rate limit exceeded (transport-error fallback) for IP ${ip}`)
-          return NextResponse.json(
-            { error: 'Too many requests. Please try again later.' },
-            { status: 429 }
-          )
+          logger.warn(`[${requestId}] Rate limit exceeded (no-captcha) for IP ${ip}`)
+          return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
         }
-      } else if (!verification.success) {
-        logger.warn(`[${requestId}] Captcha verification failed`, {
-          ip,
-          errorCodes: verification.errorCodes,
-        })
-        return NextResponse.json(
-          { error: 'Captcha verification failed. Please try again.' },
-          { status: 400 }
-        )
       }
     }
 
