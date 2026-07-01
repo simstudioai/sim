@@ -832,12 +832,13 @@ try {
         </ChipModalHeader>
 
         {/*
-          flex-none + overflow-visible opt this body out of the chrome's
-          scroll container: the caret-anchored EnvVar/Tag autocomplete
-          dropdowns are absolute-positioned inside it and must spill past
-          the body's bounds rather than clip against a scroll boundary.
+          The body is the scroll region so tall schema/code content stays inside
+          the modal and the footer (Next/Save) is always reachable. The EnvVar,
+          Tag, and schema-param autocompletes anchor to the textarea caret and
+          render in portaled popovers, so they aren't clipped by this scroll
+          boundary — see the `inputRef` wiring below.
         */}
-        <ChipModalBody className='flex-none gap-2 overflow-visible px-4'>
+        <ChipModalBody className='gap-2 px-4'>
           <ChipModalTabs
             tabs={[
               { value: 'schema', label: 'Schema' },
@@ -1045,11 +1046,10 @@ try {
                       setShowEnvVars(false)
                       setSearchTerm('')
                     }}
-                    className='w-64'
-                    style={{
-                      position: 'absolute',
-                      top: `${dropdownPosition.top}px`,
-                      left: `${dropdownPosition.left}px`,
+                    inputRef={{
+                      current: codeEditorRef.current?.querySelector(
+                        'textarea'
+                      ) as HTMLTextAreaElement,
                     }}
                   />
                 )}
@@ -1066,11 +1066,10 @@ try {
                       setShowTags(false)
                       setActiveSourceBlockId(null)
                     }}
-                    className='w-64'
-                    style={{
-                      position: 'absolute',
-                      top: `${dropdownPosition.top}px`,
-                      left: `${dropdownPosition.left}px`,
+                    inputRef={{
+                      current: codeEditorRef.current?.querySelector(
+                        'textarea'
+                      ) as HTMLTextAreaElement,
                     }}
                   />
                 )}
