@@ -232,7 +232,7 @@ export const linqHandler: WebhookProviderHandler = {
     const { webhook, requestId } = ctx
     try {
       const config = getProviderConfig(webhook)
-      const apiKey = config.apiKey as string | undefined
+      const apiKey = config.triggerApiKey as string | undefined
       const externalId = config.externalId as string | undefined
 
       if (!apiKey || !externalId) {
