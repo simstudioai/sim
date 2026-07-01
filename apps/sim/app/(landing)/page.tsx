@@ -4,6 +4,14 @@ import Landing from '@/app/(landing)/landing'
 
 export const revalidate = 3600
 
+const SOCIAL_IMAGE = {
+  url: '/brand/social/sim-og-image.png',
+  width: 1200,
+  height: 630,
+  alt: 'Sim, The AI Workspace for Teams',
+  type: 'image/png',
+} as const
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -29,15 +37,7 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: 'Sim',
     locale: 'en_US',
-    images: [
-      {
-        url: '/logo/426-240/reverse/small.png',
-        width: 2130,
-        height: 1200,
-        alt: 'Sim, The AI Workspace for Teams',
-        type: 'image/png',
-      },
-    ],
+    images: [SOCIAL_IMAGE],
   },
   twitter: {
     card: 'summary_large_image',
@@ -47,8 +47,8 @@ export const metadata: Metadata = {
     description:
       'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
     images: {
-      url: '/logo/426-240/reverse/small.png',
-      alt: 'Sim, The AI Workspace for Teams',
+      url: SOCIAL_IMAGE.url,
+      alt: SOCIAL_IMAGE.alt,
     },
   },
   alternates: {
