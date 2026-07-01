@@ -2,13 +2,68 @@ import type {
   RawMessageDeltaEvent,
   RawMessageStartEvent,
   RawMessageStreamEvent,
+  TextBlockParam,
+  Tool,
   Usage,
 } from '@anthropic-ai/sdk/resources'
 import { createLogger } from '@sim/logger'
 import { randomFloat } from '@sim/utils/random'
+import { shouldCacheStaticPrefix } from '@/providers/prompt-cache'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('AnthropicUtils')
+
+/** Mutable view of the parts of the Anthropic payload that carry cache breakpoints. */
+interface AnthropicCacheablePayload {
+  system?: string | Array<TextBlockParam>
+}
+
+/**
+ * Marks the static request prefix (system prompt + tools) with an ephemeral
+ * cache breakpoint when {@link shouldCacheStaticPrefix} deems it worthwhile, so
+ * repeated calls reuse the cached prefix. Mutates `payload.system` (string → a
+ * single cached text block) and the last entry of `tools` in place; a no-op when
+ * the prefix is too small or not present. Call after any structured-output
+ * mutation of `payload.system`, since it may replace the string with a block array.
+ *
+ * The worthiness gate is sized on the LARGER of the final `payload.system`
+ * (which may include appended structured-output schema text) and the original
+ * `systemPrompt` (non-empty even when the no-messages path relocates the system
+ * text into a user message and blanks `payload.system` — the tools prefix is
+ * still worth caching there).
+ *
+ * @param payload - Anthropic request payload; `system` is mutated in place.
+ * @param tools - Anthropic tool definitions; the last entry is mutated in place.
+ * @param systemPrompt - The original request system prompt, used only for sizing.
+ */
+export function applyAnthropicPromptCache(
+  payload: AnthropicCacheablePayload,
+  tools: Tool[] | undefined,
+  systemPrompt: string | null | undefined
+): void {
+  const payloadSystem = typeof payload.system === 'string' ? payload.system : ''
+
+  const gateSystem =
+    payloadSystem.length >= (systemPrompt?.length ?? 0) ? payloadSystem : systemPrompt
+
+  const shouldCache = shouldCacheStaticPrefix({
+    systemPrompt: gateSystem,
+    hasTools: !!tools?.length,
+    toolsApproxChars: tools ? JSON.stringify(tools).length : 0,
+  })
+  if (!shouldCache) {
+    return
+  }
+
+  if (payloadSystem.length > 0) {
+    payload.system = [{ type: 'text', text: payloadSystem, cache_control: { type: 'ephemeral' } }]
+  }
+
+  if (tools?.length) {
+    const lastIndex = tools.length - 1
+    tools[lastIndex] = { ...tools[lastIndex], cache_control: { type: 'ephemeral' } }
+  }
+}
 
 export interface AnthropicStreamUsage {
   input_tokens: number
