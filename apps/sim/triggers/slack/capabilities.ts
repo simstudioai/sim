@@ -105,7 +105,16 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     scopes: ['channels:history', 'groups:history', 'im:history', 'mpim:history'],
     events: [],
   },
-  // TODO: Restore the 'action_assistant' capability (scope 'assistant:write') once Slack app review is approved
+  {
+    id: 'action_assistant',
+    label: 'Drive assistant threads',
+    description:
+      'Let the bot set the assistant status, title, and suggested prompts on assistant threads (assistant.threads.*).',
+    defaultChecked: true,
+    group: 'action',
+    scopes: ['assistant:write'],
+    events: [],
+  },
   {
     id: 'action_read_files',
     label: 'Read file attachments',

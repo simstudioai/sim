@@ -156,7 +156,7 @@ async function checkWatchedWorkflow(
 ): Promise<void> {
   result.checked++
 
-  const blockKey = subscription.webhook.blockId ?? subscription.webhook.path
+  const blockKey = subscription.webhook.blockId ?? subscription.webhook.path ?? ''
   const cooldownMs = noActivityCooldownMs(config)
 
   const lastFiredAt = await readLastFiredAt(

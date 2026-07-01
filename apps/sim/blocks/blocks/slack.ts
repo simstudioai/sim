@@ -1450,7 +1450,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       },
       required: true,
     },
-    ...getTrigger('slack_webhook').subBlocks,
+    ...getTrigger('slack_oauth').subBlocks,
   ],
   tools: {
     access: [
@@ -2457,7 +2457,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
   // New: Trigger capabilities
   triggers: {
     enabled: true,
-    available: ['slack_webhook'],
+    available: ['slack_oauth'],
   },
 }
 

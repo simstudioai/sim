@@ -31,7 +31,7 @@ const SIM_RULE_COOLDOWN_MS = SIM_RULE_COOLDOWN_HOURS * 60 * 60 * 1000
 
 /** Stable cooldown identity for a subscriber block, surviving redeploys. */
 function subscriptionBlockKey(subscription: SimSubscription): string {
-  return subscription.webhook.blockId ?? subscription.webhook.path
+  return subscription.webhook.blockId ?? subscription.webhook.path ?? ''
 }
 
 /**
