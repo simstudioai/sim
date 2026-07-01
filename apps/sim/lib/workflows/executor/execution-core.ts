@@ -18,6 +18,7 @@ import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
@@ -675,25 +676,38 @@ export async function executeWorkflowCore(
       // predate the blockOutputs stage being enabled, re-mask them so downstream
       // blocks can't read unredacted PII from restored snapshot state. Masking is
       // idempotent, so outputs already masked in the original run are unaffected.
-      // Limitation: this walks inline strings only — values offloaded to
-      // large-value storage are still refs here and are not re-masked. In the
-      // normal flow that is safe (a run with the stage on masks before offload);
-      // the gap is the narrow case of a run that offloaded a large value while
-      // the stage was OFF and is resumed after the stage is turned ON.
+      //
+      // Two disjoint passes cover the whole state: `redactLargeValueRefsInValue`
+      // hydrates → masks → re-stores any value offloaded to large-value storage
+      // (>8MB refs the string walk treats as opaque), then `redactObjectStrings`
+      // masks the remaining inline string leaves. Both fail-fast (`throw`), so an
+      // unmaskable restored value aborts the resume rather than warming raw PII
+      // into `blockStates` for downstream blocks.
       const blockOutputOpts = {
         entityTypes: piiRedaction.blockOutputs.entityTypes,
         language: piiRedaction.blockOutputs.language,
         onFailure: 'throw' as const,
       }
+      const largeRefOpts = {
+        ...blockOutputOpts,
+        store: {
+          workspaceId: providedWorkspaceId,
+          workflowId,
+          executionId,
+          userId: userId ?? undefined,
+        },
+      }
       if (snapshot.state?.blockStates) {
-        snapshot.state.blockStates = await redactObjectStrings(
-          snapshot.state.blockStates,
-          blockOutputOpts
-        )
+        const hydrated = await redactLargeValueRefsInValue(snapshot.state.blockStates, largeRefOpts)
+        snapshot.state.blockStates = await redactObjectStrings(hydrated, blockOutputOpts)
       }
       if (runFromBlock?.sourceSnapshot?.blockStates) {
-        runFromBlock.sourceSnapshot.blockStates = await redactObjectStrings(
+        const hydrated = await redactLargeValueRefsInValue(
           runFromBlock.sourceSnapshot.blockStates,
+          largeRefOpts
+        )
+        runFromBlock.sourceSnapshot.blockStates = await redactObjectStrings(
+          hydrated,
           blockOutputOpts
         )
       }

@@ -66,6 +66,27 @@ function normalizeConfigured(
 }
 
 /**
+ * Which granular stages (`input`/`blockOutputs`) are already enabled per rule
+ * target (`workspaceId ?? ''` = the org default). Used to gate the
+ * `pii-granular-redaction` flag on *new* enablement only: when the flag is off,
+ * an org that already configured granular stages must still be able to re-save
+ * unrelated settings (the UI re-sends the full PII snapshot every save), so we
+ * reject only a stage transitioning off→on, never a preserved one.
+ */
+function granularStageEnablement(
+  settings: OrganizationRetentionValues['piiRedaction']
+): Map<string, { input: boolean; blockOutputs: boolean }> {
+  const map = new Map<string, { input: boolean; blockOutputs: boolean }>()
+  for (const rule of settings?.rules ?? []) {
+    map.set(rule.workspaceId ?? '', {
+      input: rule.stages?.input?.enabled === true,
+      blockOutputs: rule.stages?.blockOutputs?.enabled === true,
+    })
+  }
+  return map
+}
+
+/**
  * GET /api/organizations/[id]/data-retention
  * Returns the organization's data retention settings.
  * Accessible by any member of the organization.
@@ -210,18 +231,28 @@ export const PUT = withRouteHandler(
           { status: 403 }
         )
       }
-      const enablesGranularStage = (body.piiRedaction?.rules ?? []).some(
-        (rule) =>
-          rule.stages?.input?.enabled === true || rule.stages?.blockOutputs?.enabled === true
-      )
-      if (!piiGranularRedactionEnabled && enablesGranularStage) {
-        return NextResponse.json(
-          {
-            error:
-              'Granular PII redaction (workflow input and block outputs) is not enabled for this organization',
-          },
-          { status: 403 }
-        )
+      if (!piiGranularRedactionEnabled) {
+        // Reject only a granular stage transitioning off→on; a body that merely
+        // preserves already-enabled granular stages must still save (the UI
+        // re-sends the full snapshot on every save), so existing orgs aren't
+        // locked out of unrelated retention changes when the flag is off.
+        const currentGranular = granularStageEnablement(current.piiRedaction)
+        const newlyEnablesGranular = (body.piiRedaction?.rules ?? []).some((rule) => {
+          const cur = currentGranular.get(rule.workspaceId ?? '')
+          return (
+            (rule.stages?.input?.enabled === true && !cur?.input) ||
+            (rule.stages?.blockOutputs?.enabled === true && !cur?.blockOutputs)
+          )
+        })
+        if (newlyEnablesGranular) {
+          return NextResponse.json(
+            {
+              error:
+                'Granular PII redaction (workflow input and block outputs) is not enabled for this organization',
+            },
+            { status: 403 }
+          )
+        }
       }
       merged.piiRedaction = body.piiRedaction
     }

@@ -28,7 +28,11 @@ vi.mock('@/lib/guardrails/mask-client', () => ({
   maskPIIBatchViaHttp: mockMaskBatch,
 }))
 
-import { redactLargeValueRefs } from '@/lib/logs/execution/pii-large-values'
+import {
+  redactLargeValueRefs,
+  redactLargeValueRefsInValue,
+} from '@/lib/logs/execution/pii-large-values'
+import { PiiRedactionError } from '@/lib/logs/execution/pii-redaction'
 
 const REF = {
   __simLargeValueRef: true,
@@ -93,5 +97,50 @@ describe('redactLargeValueRefs', () => {
     })
     expect(result).toEqual(payload)
     expect(mockMaterializeRef).not.toHaveBeenCalled()
+  })
+})
+
+describe('redactLargeValueRefsInValue (arbitrary blockStates)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockMaskBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
+    mockCompact.mockImplementation(async (value: unknown) => value)
+  })
+
+  it('hydrates + re-stores a ref nested in a non-RedactablePayload shape', async () => {
+    mockMaterializeRef.mockResolvedValue({ note: 'contact bob' })
+    const blockStates = { 'block-1': { output: REF }, 'block-2': { output: { plain: 'hi' } } }
+
+    const result = await redactLargeValueRefsInValue(blockStates, {
+      entityTypes: ['PERSON'],
+      language: 'en',
+      store: STORE,
+    })
+
+    expect((result as any)['block-1'].output).toEqual({ note: 'MASKED(contact bob)' })
+    expect((result as any)['block-2'].output).toEqual({ plain: 'hi' })
+  })
+
+  it('throws PiiRedactionError on failure when onFailure is throw (aborts resume, no marker)', async () => {
+    mockMaterializeRef.mockResolvedValue(undefined)
+
+    await expect(
+      redactLargeValueRefsInValue(
+        { 'block-1': { output: REF } },
+        { entityTypes: [], language: 'en', store: STORE, onFailure: 'throw' }
+      )
+    ).rejects.toBeInstanceOf(PiiRedactionError)
+  })
+
+  it('rethrows a re-store failure as PiiRedactionError under throw mode', async () => {
+    mockMaterializeRef.mockResolvedValue({ note: 'secret@x.com' })
+    mockCompact.mockRejectedValueOnce(new Error('s3 down'))
+
+    await expect(
+      redactLargeValueRefsInValue(
+        { 'block-1': { output: REF } },
+        { entityTypes: [], language: 'en', store: STORE, onFailure: 'throw' }
+      )
+    ).rejects.toBeInstanceOf(PiiRedactionError)
   })
 })
