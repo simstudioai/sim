@@ -18,6 +18,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
+import { getCoveredUsage, getIsOnDemandActive, getOnDemandOffLimit } from '@/lib/billing/on-demand'
 import {
   getDisplayPlanName,
   getPlanTierCredits,
@@ -199,15 +200,28 @@ export function Billing() {
       ? organizationBillingData.data.totalUsageLimit
       : usageLimitData.currentLimit || usage.limit
 
-  const isOnDemandActive =
-    subscription.isPaid && planIncludedAmount > 0 && effectiveUsageLimit > planIncludedAmount
-
   const effectiveCurrentUsage =
     subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
       ? organizationBillingData.data.totalCurrentUsage
       : usage.current
 
-  const canDisableOnDemand = isOnDemandActive && effectiveCurrentUsage <= planIncludedAmount
+  /**
+   * Goodwill credits are already baked into the usage limit by
+   * `setUsageLimitForCredits` (limit = planBase + creditBalance). `covered` is
+   * that same never-billed ceiling, so on-demand is "on" only when the limit is
+   * raised above it — a credit grant alone must not read as on-demand.
+   * `creditBalance` is the org's balance for org-scoped admins (resolved
+   * server-side by `getCreditBalance`) and the user's balance otherwise.
+   */
+  const creditBalance = subscriptionData?.data?.creditBalance ?? 0
+  const covered = getCoveredUsage(planIncludedAmount, creditBalance)
+
+  const isOnDemandActive = getIsOnDemandActive({
+    isPaid: subscription.isPaid,
+    planIncludedAmount,
+    effectiveUsageLimit,
+    covered,
+  })
 
   const permissions = getSubscriptionPermissions(
     {
@@ -244,31 +258,17 @@ export function Billing() {
         )
       }
 
-      if (isOnDemandActive) {
-        if (!canDisableOnDemand) {
-          toast.error("Can't turn off on-demand usage", {
-            description:
-              "Your usage is above your plan's included amount. It can be turned off once usage drops below it.",
-          })
-          return
-        }
-        if (shouldUseOrganizationBillingContext) {
-          await updateOrgLimit.mutateAsync({
-            organizationId: billingOrganizationId!,
-            limit: planIncludedAmount,
-          })
-        } else {
-          await updateUserLimit.mutateAsync({ limit: planIncludedAmount })
-        }
+      const nextLimit = isOnDemandActive
+        ? getOnDemandOffLimit(effectiveCurrentUsage, covered)
+        : ON_DEMAND_UNLIMITED
+
+      if (shouldUseOrganizationBillingContext) {
+        await updateOrgLimit.mutateAsync({
+          organizationId: billingOrganizationId!,
+          limit: nextLimit,
+        })
       } else {
-        if (shouldUseOrganizationBillingContext) {
-          await updateOrgLimit.mutateAsync({
-            organizationId: billingOrganizationId!,
-            limit: ON_DEMAND_UNLIMITED,
-          })
-        } else {
-          await updateUserLimit.mutateAsync({ limit: ON_DEMAND_UNLIMITED })
-        }
+        await updateUserLimit.mutateAsync({ limit: nextLimit })
       }
     } catch (error) {
       logger.error('Failed to toggle on-demand billing', { error })
