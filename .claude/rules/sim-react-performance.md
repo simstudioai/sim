@@ -1,127 +1,95 @@
-# React & JS Performance Patterns
+# React & Render Performance
 
-Hot-path patterns that keep renders cheap and lists fast. These mirror the
-`react-doctor` ruleset that runs on the codebase — writing them right the first
-time keeps the health score up. Apply in components, hooks, and server
-components under `apps/sim/**`.
+Behavior-preserving performance idioms for components, hooks, and hot render paths. These are safe defaults — apply them freely. For the render-causing *effect/state* anti-patterns (derived state in effects, effect chains, state synced to a prop), use the dedicated skills: `/you-might-not-need-an-effect`, `/you-might-not-need-state`, `/you-might-not-need-a-memo`, `/you-might-not-need-a-callback`. Those refactors change render timing — verify them against the running UI, never mass-apply blind.
 
-## Stable references for memo/dep correctness
+## Lazy-init refs that hold objects
 
-A value rebuilt every render defeats every `useMemo`/`useCallback` that depends
-on it — the memo recomputes every time and child components re-render.
-
-- **Never leave an array/object fallback inline in render** when it feeds a hook
-  dep. `const items = raw ?? []` creates a fresh `[]` every render. Wrap the
-  whole computation in `useMemo` so the reference is stable:
-
-  ```typescript
-  // ✗ Bad — new array identity every render, downstream memos never cache
-  const displayChunks = rawChunks ?? []
-
-  // ✓ Good
-  const displayChunks = useMemo(() => rawChunks ?? [], [rawChunks])
-  ```
-
-  Same for a conditional array (`cond ? a.slice() : []`) or `cond ? x ?? [] : []`
-  — memoize it with the inputs as deps.
-
-- **Lazy-init refs — never `useRef(new Set())` / `useRef(new Map())`.** The
-  argument is evaluated every render and thrown away. Initialize on first use:
-
-  ```typescript
-  // ✗ Bad — allocates a Set every render
-  const timers = useRef<Set<Timer>>(new Set())
-
-  // ✓ Good — allocated once
-  const timersRef = useRef<Set<Timer> | null>(null)
-  timersRef.current ??= new Set()
-  // read as `timersRef.current ?? []` in effects/callbacks (ref is dep-exempt)
-  ```
-
-- **Hoist pure functions to module scope.** A helper inside a component/hook that
-  closes over nothing local is rebuilt every render. Move it out of the
-  component so it's defined once.
-
-## One pass, not two — collapse iteration chains
-
-Every chained array method is another full traversal and another intermediate
-array. Collapse them:
-
-- `.filter(...).map(...)` / `.map(...).filter(...)` → single `.reduce()` that
-  pushes only the kept, transformed items. Preserve order and the exact
-  predicate — `reduce` keeps first-seen order like the chain did.
-
-  ```typescript
-  // ✗ Bad — two passes, one throwaway array
-  const opts = types.filter((t) => hasSlot(t)).map((t) => toOption(t))
-
-  // ✓ Good — one pass
-  const opts = types.reduce<Option[]>((acc, t) => {
-    if (hasSlot(t)) acc.push(toOption(t))
-    return acc
-  }, [])
-  ```
-
-- `.map(...).filter(Boolean)` → `.flatMap(x => keep ? [value] : [])`.
-- `.map(...).filter(...).map(...)` → one `reduce`.
-
-## Map lookups, not `.find()` in a loop
-
-`array.find()` is O(n); calling it inside a loop over the same array is O(n²).
-Build a `Map` once before the loop, then do O(1) lookups:
+`useRef(new Map())` / `useRef(new Set())` / `useRef({...})` allocates a fresh object on **every render** and throws it away — only the first is ever kept. Lazy-init instead so the allocation happens once.
 
 ```typescript
-// ✗ Bad — O(n²)
-for (const slot of slots) {
-  const def = definitions.find((d) => d.tagSlot === slot)
+// ✗ Bad — allocates a new Map each render, discards all but the first
+const cacheRef = useRef<Map<string, string>>(new Map())
+
+// ✓ Good — allocated once, stable identity thereafter
+const cacheRef = useRef<Map<string, string> | null>(null)
+cacheRef.current ??= new Map()
+```
+
+Read `cacheRef.current` directly inside effects/handlers — refs are stable and never belong in a dependency array. A cheap primitive (`useRef(0)`, `useRef('')`, `useRef(null)`) needs no lazy init.
+
+## Hoist static values and closure-free functions to module scope
+
+A value or function declared inside a component is rebuilt every render. If it captures **nothing** from component scope (no props/state/refs), move it above the component at module scope. This skips the per-render allocation and keeps a stable identity so memoized children don't re-render.
+
+```typescript
+// ✗ Bad — rebuilt every render, new identity each time
+function Toolbar({ mode }: ToolbarProps) {
+  const TITLES = { create: 'Add', edit: 'Configure' } as const
+  const handleWheel = (e: React.WheelEvent) => e.currentTarget.scrollBy(e.deltaX, e.deltaY)
+  // ...
 }
 
-// ✓ Good — O(n)
-const defBySlot = new Map(definitions.map((d) => [d.tagSlot, d]))
-for (const slot of slots) {
-  const def = defBySlot.get(slot)
+// ✓ Good — allocated once at module load
+const TITLES = { create: 'Add', edit: 'Configure' } as const
+function handleWheel(e: React.WheelEvent) {
+  e.currentTarget.scrollBy(e.deltaX, e.deltaY)
+}
+function Toolbar({ mode }: ToolbarProps) { /* ... */ }
+```
+
+A closure-free function that IS wired through a ref sink or intentionally kept for stable identity may stay inline — hoisting a one-line `preventDefault` handler is churn, not a win. Hoist when it removes a real per-render allocation or unblocks child memoization.
+
+## Pre-index with Map/Set for repeated lookups
+
+`array.find()` / `array.includes()` / `array.indexOf()` scan the whole list each call. Inside a loop or a hot render path over a non-trivial list, that is O(n·m). Build a `Map` (for lookup-by-key) or `Set` (for membership) **once before** the loop, then look up in O(1).
+
+```typescript
+// ✗ Bad — find() re-scans outputs for every column
+for (const child of columns) {
+  const output = group.outputs.find((o) => o.columnName === getColumnId(child))
+}
+
+// ✓ Good — index once, then O(1) lookups
+const outputByName = new Map<string, Output>()
+for (const o of group.outputs) {
+  if (!outputByName.has(o.columnName)) outputByName.set(o.columnName, o) // first wins, matches find()
+}
+for (const child of columns) {
+  const output = outputByName.get(getColumnId(child))
 }
 ```
 
-Note the semantic detail: `.find()` returns the **first** match; `Map` built
-by `.map(...)` keeps the **last** value for a duplicate key. When keys are
-unique (the common case) they're equivalent — but if duplicates are possible and
-first-wins matters, build the map with a guard (`if (!m.has(k)) m.set(k, v)`).
+Preserve `.find()`'s **first-match** semantics when duplicate keys are possible: `new Map(arr.map(...))` keeps the *last* entry, so guard with `if (!map.has(key))` when replacing a `.find()`. Skip this for tiny, cold arrays (a handful of items in an event handler) where the Map build costs more than it saves.
 
-## Immutable sort — `toSorted`, not spread + `sort`
+## Never mutate a shared array in place
 
-`[...arr].sort()` copies the array just to sort it. `apps/sim/tsconfig.json`
-sets `lib` to ES2023, so `arr.toSorted(...)` (non-mutating, no manual copy)
-type-resolves and runs on every runtime the app targets (Node 20+, evergreen
-browsers). Packages pinned to ES2022 `lib` (`packages/tsconfig/base.json`) do
-**not** expose `toSorted` — keep `[...arr].sort()` there.
-
-## Independent awaits run in parallel
-
-Sequential `await`s that don't use each other's result double the wait. In
-server components this delays first paint:
+The real bug to avoid is `array.sort()` / `array.reverse()` on an array you don't own — sorting a React Query cache array in place corrupts shared state. Always sort a copy:
 
 ```typescript
-// ✗ Bad — waits twice
+// ✗ Bad — mutates the (possibly shared) source array in place
+return items.sort(compare)
+
+// ✓ Good — sorts a throwaway copy, source untouched
+return [...items].sort(compare)
+```
+
+**Do NOT reach for `toSorted()` / `toReversed()` / `with()` / `toSpliced()` on client render paths.** They are ES2023 *runtime* methods — and a tsconfig `"lib": ["ES2023"]` only makes them **type-check**, it does not make them **run**. Next/SWC compiles syntax but does **not** polyfill prototype methods, and the default browserslist still includes browsers without them (`toSorted` landed in Safari 16 / iOS 16, so any device capped at iOS 15 throws `TypeError: x.toSorted is not a function` and crashes the page). The perf difference vs `[...arr].sort()` is negligible (both allocate one array), so the copy-then-sort form is the correct default everywhere client code runs. Only consider the immutable methods in Node-only code (server routes, scripts) on Node ≥20, where the runtime is known.
+
+## Run independent awaits in parallel
+
+Sequential `await`s that don't consume each other's result serialize latency for nothing — in an async Server Component or a route handler this directly delays the response. Kick them off together with `Promise.all` and destructure.
+
+```typescript
+// ✗ Bad — waits for params, then separately waits for searchParams
 const { id } = await params
 const { kbName } = await searchParams
 
-// ✓ Good — one wait
+// ✓ Good — one combined wait
 const [{ id }, { kbName }] = await Promise.all([params, searchParams])
 ```
 
-The same applies to independent data fetches inside a request handler. Only keep
-awaits sequential when a later call genuinely consumes an earlier result, or when
-sequencing is deliberate (rate-limited batches, retry loops).
+Only keep awaits sequential when a later call genuinely uses an earlier result, or when the ordering is deliberate (rate-limited batches, retry loops, write-then-read).
 
-## Don't defeat these with false fixes
+## Local feature barrels are the convention — do not "fix" them
 
-- A `Date.now()` inside an `onClick`/event handler is fine — it is not a render
-  hydration mismatch. Only `Date.now()` reached during render is.
-- A TanStack Query v5 `.mutate` / `.mutateAsync` fn is referentially stable —
-  call it inside a `useCallback`/`useMemo` without listing it in the deps.
-  Adding it is inert noise (and a lint tool that flags it as a missing dep is
-  wrong here); never add the mutation **object** either — it is not stable, so
-  depend on nothing and call `.mutate` on it. See `sim-queries.md`.
-- Memoizing a value that is already primitive/stable adds overhead for nothing —
-  memoize arrays, objects, and functions, not booleans or strings.
+Tooling (e.g. react-doctor's `no-barrel-import`) will flag imports from local `index.ts` barrels as a bundle cost. In this repo that is a **false positive**: barrel imports for 3+ export folders are mandated by `.claude/rules/sim-imports.md`. Leave them.

@@ -251,7 +251,7 @@ export function Knowledge() {
 
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
-    return result.toSorted((a, b) => {
+    return [...result].sort((a, b) => {
       let cmp = 0
       switch (col) {
         case 'name':
