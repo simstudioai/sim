@@ -194,17 +194,10 @@ function CollapsibleSection({
 
   return (
     <div className='flex min-w-0 flex-col gap-2 overflow-hidden border-[var(--border)] border-b px-3 py-2.5'>
-      <div
+      <button
+        type='button'
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => setIsExpanded(!isExpanded)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setIsExpanded(!isExpanded)
-          }
-        }}
-        role='button'
-        tabIndex={0}
         aria-expanded={isExpanded}
         aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${title.toLowerCase()}`}
       >
@@ -224,7 +217,7 @@ function CollapsibleSection({
             isExpanded && 'rotate-180'
           )}
         />
-      </div>
+      </button>
 
       {isExpanded && (
         <>
@@ -287,9 +280,9 @@ function ConnectionsSection({
   const [expandedVariables, setExpandedVariables] = useState(true)
   const [expandedEnvVars, setExpandedEnvVars] = useState(true)
 
-  const [prevConnectionIds, setPrevConnectionIds] = useState(connectionIds)
-  if (connectionIds !== prevConnectionIds) {
-    setPrevConnectionIds(connectionIds)
+  const prevConnectionIdsRef = useRef(connectionIds)
+  if (connectionIds !== prevConnectionIdsRef.current) {
+    prevConnectionIdsRef.current = connectionIds
     setExpandedBlocks(new Set(connectionIds.split(',').filter(Boolean)))
   }
 
@@ -773,7 +766,7 @@ function PreviewEditorContent({
   }, [workflowVariables])
 
   const blockConfig = getBlock(block.type) as BlockConfig | undefined
-  const subBlockValues = block.subBlocks || {}
+  const subBlockValues = useMemo(() => block.subBlocks || {}, [block.subBlocks])
 
   const params = useParams()
   const workspaceId = params.workspaceId as string

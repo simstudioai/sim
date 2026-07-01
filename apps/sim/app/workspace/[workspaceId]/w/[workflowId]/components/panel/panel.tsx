@@ -200,9 +200,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   /**
    * Opens subscription settings modal
    */
-  const openSubscriptionSettings = () => {
+  const openSubscriptionSettings = useCallback(() => {
     navigateToSettings({ section: 'billing' })
-  }
+  }, [navigateToSettings])
 
   /**
    * Cancels the currently executing workflow
@@ -220,7 +220,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       return
     }
     await handleRunWorkflow()
-  }, [usageExceeded, handleRunWorkflow])
+  }, [usageExceeded, handleRunWorkflow, openSubscriptionSettings])
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore(
@@ -265,7 +265,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   // Auto-select most recent on first list arrival per workflow, and drop a
   // selection that no longer matches anything in the current list (e.g. the
   // chat was deleted in another tab).
-  const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
+  const autoSelectAttemptedForRef = useRef<Set<string> | null>(null)
+  if (autoSelectAttemptedForRef.current === null) {
+    autoSelectAttemptedForRef.current = new Set<string>()
+  }
   useEffect(() => {
     if (!activeWorkflowId) return
 
@@ -275,9 +278,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     }
 
     if (copilotChatId) return
-    if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
+    const autoSelectAttemptedFor = autoSelectAttemptedForRef.current ?? new Set<string>()
+    autoSelectAttemptedForRef.current = autoSelectAttemptedFor
+    if (autoSelectAttemptedFor.has(activeWorkflowId)) return
     if (copilotChatList.length === 0) return
-    autoSelectAttemptedForRef.current.add(activeWorkflowId)
+    autoSelectAttemptedFor.add(activeWorkflowId)
     setCopilotChatId(copilotChatList[0].id)
   }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId])
 
@@ -554,7 +559,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       setIsExporting(false)
       setIsMenuOpen(false)
     }
-  }, [currentWorkflow, activeWorkflowId, downloadFile])
+  }, [currentWorkflow, activeWorkflowId, workspaceId, downloadFile])
 
   /**
    * Handles duplicating the current workflow

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   ChevronDown,
   Chip,
@@ -33,6 +33,9 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
+
+/** Stable no-op subscribe for the mount snapshot store. */
+const subscribeToNothing = () => () => {}
 
 interface WorkspaceHeaderProps {
   /** The active workspace object */
@@ -121,10 +124,11 @@ function WorkspaceHeaderImpl({
   const contextMenuClosedRef = useRef(true)
   const hasInputFocusedRef = useRef(false)
 
-  const [isMounted, setIsMounted] = useState(false)
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
+  const isMounted = useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false
+  )
 
   const { navigateToSettings } = useSettingsNavigation()
   const forkingAvailable = useForkingAvailable(workspaceId)
@@ -439,6 +443,7 @@ function WorkspaceHeaderImpl({
                                   el.select()
                                 }
                               }}
+                              aria-label='Workspace name'
                               value={editingName}
                               onChange={(e) => setEditingName(e.target.value)}
                               onKeyDown={async (e) => {

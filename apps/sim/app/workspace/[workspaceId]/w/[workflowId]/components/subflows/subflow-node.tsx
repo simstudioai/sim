@@ -50,18 +50,24 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
    * container styling.
    */
   const nestingLevel = useMemo(() => {
+    const nodesById = new Map(getNodes().map((n) => [n.id, n]))
     let level = 0
     let currentParentId = data?.parentId
 
     while (currentParentId) {
       level++
-      const parentNode = getNodes().find((n) => n.id === currentParentId)
+      const parentNode = nodesById.get(currentParentId)
       if (!parentNode) break
       currentParentId = parentNode.data?.parentId
     }
 
     return level
   }, [data?.parentId, getNodes])
+
+  const actionBar = useMemo(
+    () => <ActionBar blockId={id} blockType={data.kind} disabled={!canEditWorkflow} />,
+    [id, data.kind, canEditWorkflow]
+  )
 
   return (
     <SubflowNodeView
@@ -76,7 +82,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}
       onSelect={() => setCurrentBlockId(id)}
-      actionBar={<ActionBar blockId={id} blockType={data.kind} disabled={!canEditWorkflow} />}
+      actionBar={actionBar}
     />
   )
 })

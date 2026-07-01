@@ -1,6 +1,14 @@
 'use client'
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { cn, Library } from '@sim/emcn'
 import {
   Calendar,
@@ -30,19 +38,6 @@ import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
-  CMDK_ITEM_GAP_CLASS,
-  CMDK_SECTION_GAP_CLASS,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useSearchModalStore } from '@/stores/modals/search/store'
-import type {
-  SearchBlockItem,
-  SearchDocItem,
-  SearchToolOperationItem,
-} from '@/stores/modals/search/types'
-import {
   ActionsGroup,
   BlocksGroup,
   ChatsGroup,
@@ -58,7 +53,20 @@ import {
   TriggersGroup,
   WorkflowsGroup,
   WorkspacesGroup,
-} from './components/search-groups'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups'
+import {
+  CMDK_ITEM_GAP_CLASS,
+  CMDK_SECTION_GAP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useSearchModalStore } from '@/stores/modals/search/store'
+import type {
+  SearchBlockItem,
+  SearchDocItem,
+  SearchToolOperationItem,
+} from '@/stores/modals/search/types'
 import type {
   ActionItem,
   FileItem,
@@ -75,17 +83,28 @@ const logger = createLogger('SearchModal')
 
 export type { SearchModalProps } from './utils'
 
+/** No-op subscribe for the client-mounted flag; the value never changes after mount. */
+const subscribeNoop = () => () => {}
+const getMountedClientSnapshot = () => true
+const getMountedServerSnapshot = () => false
+
+const EMPTY_WORKFLOWS: WorkflowItem[] = []
+const EMPTY_WORKSPACES: WorkspaceItem[] = []
+const EMPTY_TASKS: TaskItem[] = []
+const EMPTY_FILES: FileItem[] = []
+const EMPTY_INTEGRATIONS: IntegrationSearchItem[] = []
+
 export function SearchModal({
   open,
   onOpenChange,
-  workflows = [],
-  workspaces = [],
-  chats = [],
-  tables = [],
-  files = [],
-  knowledgeBases = [],
-  integrations = [],
-  connectedAccounts = [],
+  workflows = EMPTY_WORKFLOWS,
+  workspaces = EMPTY_WORKSPACES,
+  chats = EMPTY_TASKS,
+  tables = EMPTY_TASKS,
+  files = EMPTY_FILES,
+  knowledgeBases = EMPTY_TASKS,
+  integrations = EMPTY_INTEGRATIONS,
+  connectedAccounts = EMPTY_INTEGRATIONS,
   isOnWorkflowPage = false,
   isOnIntegrationsPage = false,
   canEdit = false,
@@ -97,7 +116,11 @@ export function SearchModal({
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const inputRef = useRef<HTMLInputElement>(null)
-  const [mounted, setMounted] = useState(false)
+  const mounted = useSyncExternalStore(
+    subscribeNoop,
+    getMountedClientSnapshot,
+    getMountedServerSnapshot
+  )
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
   const invokeCommand = useInvokeGlobalCommand()
@@ -109,10 +132,6 @@ export function SearchModal({
   onOpenChangeRef.current = onOpenChange
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const { blocks, tools, triggers, toolOperations, docs } = useSearchModalStore(
     (state) => state.data
@@ -291,9 +310,9 @@ export function SearchModal({
   ])
 
   const [search, setSearch] = useState('')
-  const [prevOpen, setPrevOpen] = useState(open)
-  if (open !== prevOpen) {
-    setPrevOpen(open)
+  const prevOpenRef = useRef(open)
+  if (open !== prevOpenRef.current) {
+    prevOpenRef.current = open
     if (open) setSearch('')
   }
 

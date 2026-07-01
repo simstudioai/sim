@@ -119,6 +119,68 @@ const generateStableId = (blockId: string, suffix: string): string => {
 }
 
 /**
+ * Safely parses JSON string into conditional blocks array.
+ *
+ * @param jsonString - JSON string to parse
+ * @returns Parsed blocks array or null if invalid
+ */
+const safeParseJSON = (jsonString: string | null): ConditionalBlock[] | null => {
+  if (!jsonString) return null
+  try {
+    const parsed = JSON.parse(jsonString)
+    if (!Array.isArray(parsed)) return null
+
+    // Validate that the parsed data has the expected structure
+    if (parsed.length === 0 || !('id' in parsed[0]) || !('title' in parsed[0])) {
+      return null
+    }
+
+    return parsed
+  } catch (error) {
+    logger.error('Failed to parse JSON:', { error, jsonString })
+    return null
+  }
+}
+
+/**
+ * Props for the LineNumbers component.
+ */
+interface LineNumbersProps {
+  /** ID of the block to render line numbers for */
+  blockId: string
+  /** Map of block IDs to their per-line visual heights (in line units) */
+  visualLineHeights: { [key: string]: number[] }
+}
+
+/**
+ * Renders line numbers for a specific conditional block.
+ *
+ * @param props - Component props
+ * @returns Line number elements
+ */
+function LineNumbers({ blockId, visualLineHeights }: LineNumbersProps): ReactElement {
+  const numbers: ReactElement[] = []
+  let lineNumber = 1
+  const blockHeights = visualLineHeights[blockId] || []
+
+  blockHeights.forEach((height) => {
+    for (let i = 0; i < height; i++) {
+      numbers.push(
+        <div
+          key={`${blockId}-${lineNumber}-${i}`}
+          className={cn('text-muted-foreground text-xs leading-[21px]', i > 0 && 'invisible')}
+        >
+          {lineNumber}
+        </div>
+      )
+    }
+    lineNumber++
+  })
+
+  return <>{numbers}</>
+}
+
+/**
  * Condition input component for creating if/else if/else conditional logic blocks.
  * Provides a code editor interface with syntax highlighting, tag completion,
  * and environment variable support for each condition branch.
@@ -326,30 +388,6 @@ export function ConditionInput({
     }
   }, [blockId])
 
-  /**
-   * Safely parses JSON string into conditional blocks array.
-   *
-   * @param jsonString - JSON string to parse
-   * @returns Parsed blocks array or null if invalid
-   */
-  const safeParseJSON = (jsonString: string | null): ConditionalBlock[] | null => {
-    if (!jsonString) return null
-    try {
-      const parsed = JSON.parse(jsonString)
-      if (!Array.isArray(parsed)) return null
-
-      // Validate that the parsed data has the expected structure
-      if (parsed.length === 0 || !('id' in parsed[0]) || !('title' in parsed[0])) {
-        return null
-      }
-
-      return parsed
-    } catch (error) {
-      logger.error('Failed to parse JSON:', { error, jsonString })
-      return null
-    }
-  }
-
   // Sync store value with conditional blocks when storeValue changes
   useEffect(() => {
     // Skip if syncing is already in progress
@@ -519,34 +557,6 @@ export function ConditionInput({
 
     return () => resizeObserver.disconnect()
   }, [conditionalBlocks])
-
-  /**
-   * Renders line numbers for a specific conditional block.
-   *
-   * @param blockId - ID of the block to render line numbers for
-   * @returns Array of line number elements
-   */
-  const renderLineNumbers = (blockId: string) => {
-    const numbers: ReactElement[] = []
-    let lineNumber = 1
-    const blockHeights = visualLineHeights[blockId] || []
-
-    blockHeights.forEach((height) => {
-      for (let i = 0; i < height; i++) {
-        numbers.push(
-          <div
-            key={`${blockId}-${lineNumber}-${i}`}
-            className={cn('text-muted-foreground text-xs leading-[21px]', i > 0 && 'invisible')}
-          >
-            {lineNumber}
-          </div>
-        )
-      }
-      lineNumber++
-    })
-
-    return numbers
-  }
 
   /**
    * Handles dropping a connection block onto a condition editor.
@@ -776,9 +786,9 @@ export function ConditionInput({
 
     // Remove any associated edges before removing the block
     const handlePrefix = isRouterMode ? `router-${id}` : `condition-${id}`
-    const edgeIdsToRemove = edges
-      .filter((edge) => edge.sourceHandle?.startsWith(handlePrefix))
-      .map((edge) => edge.id)
+    const edgeIdsToRemove = edges.flatMap((edge) =>
+      edge.sourceHandle?.startsWith(handlePrefix) ? [edge.id] : []
+    )
     if (edgeIdsToRemove.length > 0) {
       batchRemoveEdges(edgeIdsToRemove)
     }
@@ -1217,7 +1227,7 @@ export function ConditionInput({
                     className='rounded-t-none border-0'
                   >
                     <Code.Gutter width={blockGutterWidth}>
-                      {renderLineNumbers(block.id)}
+                      <LineNumbers blockId={block.id} visualLineHeights={visualLineHeights} />
                     </Code.Gutter>
 
                     <Code.Content paddingLeft={`${blockGutterWidth}px`}>

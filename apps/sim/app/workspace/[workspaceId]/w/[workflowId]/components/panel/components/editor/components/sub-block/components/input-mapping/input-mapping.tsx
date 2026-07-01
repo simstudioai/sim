@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Badge, CollapsibleCard, cn, Input, Label } from '@sim/emcn'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -121,12 +121,17 @@ export function InputMapping({
     }))
   }
 
-  useEffect(() => {
-    if (activeSearchTarget?.subBlockId !== subBlockId) return
+  /**
+   * Expand a collapsed field during render when the active search target points at it, so the
+   * highlighted match is visible. Guarded on the field's collapsed state, this converges after a
+   * single re-render instead of forcing an extra commit with the stale (collapsed) UI.
+   */
+  if (activeSearchTarget?.subBlockId === subBlockId) {
     const [fieldName] = activeSearchTarget.valuePath
-    if (typeof fieldName !== 'string' || !collapsedFields[fieldName]) return
-    setCollapsedFields((prev) => ({ ...prev, [fieldName]: false }))
-  }, [activeSearchTarget, collapsedFields, subBlockId])
+    if (typeof fieldName === 'string' && collapsedFields[fieldName]) {
+      setCollapsedFields((prev) => ({ ...prev, [fieldName]: false }))
+    }
+  }
 
   if (!selectedWorkflowId) {
     return (

@@ -41,6 +41,12 @@ const ROW_HEIGHT_PX = 24
 const MIN_HEIGHT_PX = 80
 
 /**
+ * Stable empty default for the optional workflow search value path, so the
+ * default prop value does not create a new array reference on every render.
+ */
+const EMPTY_SEARCH_VALUE_PATH: Array<string | number> = []
+
+/**
  * Props for the LongInput component
  */
 interface LongInputProps {
@@ -94,7 +100,7 @@ export function LongInput({
   disabled,
   wandControlRef,
   hideInternalWand = false,
-  workflowSearchValuePath = [],
+  workflowSearchValuePath = EMPTY_SEARCH_VALUE_PATH,
 }: LongInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
   // Local state for immediate UI updates during streaming
@@ -198,15 +204,16 @@ export function LongInput({
       ? propValue
       : ctrl.valueString
 
-  // Sync local content with base value when not streaming
-  useEffect(() => {
-    if (!wandHook.isStreaming) {
-      setLocalContent((prev) => {
-        const baseValueString = baseValue?.toString() ?? ''
-        return baseValueString !== prev ? baseValueString : prev
-      })
+  /**
+   * Sync local content with the base value when not streaming, adjusted during render (no effect)
+   * so the wand's currentValue never lags a commit. localContent is shown only while streaming.
+   */
+  if (!wandHook.isStreaming) {
+    const baseValueString = baseValue?.toString() ?? ''
+    if (baseValueString !== localContent) {
+      setLocalContent(baseValueString)
     }
-  }, [baseValue, wandHook.isStreaming])
+  }
 
   // Update height when rows prop changes
   useLayoutEffect(() => {

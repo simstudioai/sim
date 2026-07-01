@@ -45,6 +45,27 @@ function createParamConfig(
   }
 }
 
+/**
+ * Determines the input control type to render for an MCP tool parameter schema.
+ */
+function getInputType(paramSchema: any) {
+  if (paramSchema.enum) return 'dropdown'
+  if (paramSchema.type === 'boolean') return 'switch'
+  if (paramSchema.type === 'number' || paramSchema.type === 'integer') {
+    if (paramSchema.minimum !== undefined && paramSchema.maximum !== undefined) {
+      return 'slider'
+    }
+    return 'short-input'
+  }
+  if (paramSchema.type === 'string') {
+    if (paramSchema.format === 'date-time') return 'short-input'
+    if (paramSchema.maxLength && paramSchema.maxLength > 100) return 'long-input'
+    return 'short-input'
+  }
+  if (paramSchema.type === 'array') return 'long-input'
+  return 'short-input'
+}
+
 export function McpDynamicArgs({
   blockId,
   subBlockId,
@@ -114,24 +135,6 @@ export function McpDynamicArgs({
     },
     [currentArgs, setToolArgs, disabled]
   )
-
-  const getInputType = (paramSchema: any) => {
-    if (paramSchema.enum) return 'dropdown'
-    if (paramSchema.type === 'boolean') return 'switch'
-    if (paramSchema.type === 'number' || paramSchema.type === 'integer') {
-      if (paramSchema.minimum !== undefined && paramSchema.maximum !== undefined) {
-        return 'slider'
-      }
-      return 'short-input'
-    }
-    if (paramSchema.type === 'string') {
-      if (paramSchema.format === 'date-time') return 'short-input'
-      if (paramSchema.maxLength && paramSchema.maxLength > 100) return 'long-input'
-      return 'short-input'
-    }
-    if (paramSchema.type === 'array') return 'long-input'
-    return 'short-input'
-  }
 
   const renderParameterInput = (paramName: string, paramSchema: any) => {
     const current = currentArgs()
@@ -336,6 +339,7 @@ export function McpDynamicArgs({
         type='text'
         name='fakeusernameremembered'
         autoComplete='username'
+        aria-label='Hidden username field to prevent autofill'
         style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
         tabIndex={-1}
         readOnly
@@ -344,6 +348,7 @@ export function McpDynamicArgs({
         type='password'
         name='fakepasswordremembered'
         autoComplete='current-password'
+        aria-label='Hidden password field to prevent autofill'
         style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
         tabIndex={-1}
         readOnly
@@ -352,6 +357,7 @@ export function McpDynamicArgs({
         type='email'
         name='fakeemailremembered'
         autoComplete='email'
+        aria-label='Hidden email field to prevent autofill'
         style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
         tabIndex={-1}
         readOnly

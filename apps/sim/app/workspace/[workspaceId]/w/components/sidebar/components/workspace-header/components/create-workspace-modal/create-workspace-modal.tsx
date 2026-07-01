@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -28,11 +28,13 @@ export function CreateWorkspaceModal({
 }: CreateWorkspaceModalProps) {
   const [name, setName] = useState('')
 
-  useEffect(() => {
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) {
       setName('')
     }
-  }, [open])
+  }
 
   const handleSubmit = async () => {
     const trimmed = name.trim()

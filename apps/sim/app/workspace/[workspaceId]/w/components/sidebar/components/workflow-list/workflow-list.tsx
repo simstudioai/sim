@@ -483,9 +483,9 @@ export const WorkflowList = memo(function WorkflowList({
   )
 
   const rootDropZoneHandlers = createRootDropZone()
-  const rootWorkflows = workflowsByFolder.root || []
 
   const rootItems = useMemo(() => {
+    const rootWorkflows = workflowsByFolder.root || []
     const items: Array<{
       type: 'folder' | 'workflow'
       id: string
@@ -512,7 +512,7 @@ export const WorkflowList = memo(function WorkflowList({
       })
     }
     return items.sort(compareByOrder)
-  }, [folderTree, rootWorkflows])
+  }, [folderTree, workflowsByFolder])
 
   const hasRootItems = rootItems.length > 0
   const firstItemId = rootItems[0]?.id ?? null
@@ -546,6 +546,7 @@ export const WorkflowList = memo(function WorkflowList({
     <SidebarListContext.Provider value={listContextValue}>
       <div
         role='tree'
+        tabIndex={-1}
         aria-label='Workflows'
         className='flex min-h-full flex-col pb-2'
         onClick={handleContainerClick}

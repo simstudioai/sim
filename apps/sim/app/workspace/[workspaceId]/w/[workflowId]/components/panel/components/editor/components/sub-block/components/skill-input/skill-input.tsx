@@ -147,10 +147,21 @@ export function SkillInput({
                 className='group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out'
               >
                 <div
+                  role='button'
+                  tabIndex={0}
                   className='flex cursor-pointer items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
                       setEditingSkill(fullSkill)
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      if (fullSkill && !disabled && !isPreview) {
+                        setEditingSkill(fullSkill)
+                      }
                     }
                   }}
                 >

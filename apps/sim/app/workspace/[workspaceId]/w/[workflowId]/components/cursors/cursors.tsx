@@ -32,15 +32,17 @@ const CursorsComponent = () => {
       return []
     }
 
-    return presenceUsers
-      .filter((user): user is typeof user & { cursor: CursorPoint } => Boolean(user.cursor))
-      .filter((user) => user.socketId !== currentSocketId)
-      .map((user) => ({
+    const rendered: CursorRenderData[] = []
+    for (const user of presenceUsers) {
+      if (!user.cursor || user.socketId === currentSocketId) continue
+      rendered.push({
         id: user.socketId,
         name: user.userName?.trim() || 'Collaborator',
         cursor: user.cursor,
         color: getUserColor(user.userId),
-      }))
+      })
+    }
+    return rendered
   }, [activeWorkflowId, currentSocketId, currentWorkflowId, presenceUsers])
 
   if (!cursors.length) {

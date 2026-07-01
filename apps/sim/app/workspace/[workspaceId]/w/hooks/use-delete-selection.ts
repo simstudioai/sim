@@ -74,9 +74,12 @@ export function useDeleteSelection({
 
       const sidebarWorkflows = workflowList.filter((w) => w.workspaceId === workspaceId)
 
-      const workflowsInFolders = sidebarWorkflows
-        .filter((w) => w.folderId && folderIds.includes(w.folderId))
-        .map((w) => w.id)
+      const workflowsInFolders: string[] = []
+      for (const w of sidebarWorkflows) {
+        if (w.folderId && folderIds.includes(w.folderId)) {
+          workflowsInFolders.push(w.id)
+        }
+      }
 
       const allWorkflowsToDelete = [...new Set([...workflowIds, ...workflowsInFolders])]
 
@@ -160,6 +163,8 @@ export function useDeleteSelection({
     isActiveWorkflow,
     router,
     onSuccess,
+    deleteFolderMutation.mutateAsync,
+    deleteWorkflowMutation.mutateAsync,
   ])
 
   return {

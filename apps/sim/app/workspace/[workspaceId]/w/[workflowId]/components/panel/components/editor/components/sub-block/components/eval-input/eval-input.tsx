@@ -37,6 +37,56 @@ const createDefaultMetric = (): EvalMetric => ({
   range: { min: 0, max: 1 },
 })
 
+interface MetricHeaderProps {
+  index: number
+  metricId: string
+  disableAdd: boolean
+  disableRemove: boolean
+  onAdd: () => void
+  onRemove: () => void
+}
+
+function MetricHeader({
+  index,
+  metricId,
+  disableAdd,
+  disableRemove,
+  onAdd,
+  onRemove,
+}: MetricHeaderProps) {
+  return (
+    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
+      <span className='font-medium text-[var(--text-tertiary)] text-sm'>Metric {index + 1}</span>
+      <div className='flex items-center gap-2'>
+        <Tooltip.Root key={`add-${metricId}`}>
+          <Tooltip.Trigger asChild>
+            <Button variant='ghost' onClick={onAdd} disabled={disableAdd} className='h-auto p-0'>
+              <Plus className='size-[14px]' />
+              <span className='sr-only'>Add Metric</span>
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Add Metric</Tooltip.Content>
+        </Tooltip.Root>
+
+        <Tooltip.Root key={`remove-${metricId}`}>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              onClick={onRemove}
+              disabled={disableRemove}
+              className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+            >
+              <Trash className='size-[14px]' />
+              <span className='sr-only'>Delete Metric</span>
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Delete Metric</Tooltip.Content>
+        </Tooltip.Root>
+      </div>
+    </div>
+  )
+}
+
 export function EvalInput({
   blockId,
   subBlockId,
@@ -75,8 +125,6 @@ export function EvalInput({
       subBlockId,
       valuePath: [metricIndex, ...metricPath],
     })
-
-  const renderFieldLabel = (label: string) => <Label>{label}</Label>
 
   const addMetric = () => {
     if (isPreview || disabled) return
@@ -138,43 +186,6 @@ export function EvalInput({
     updateMetric(metricId, 'description', newDescription)
   }
 
-  const renderMetricHeader = (metric: EvalMetric, index: number) => (
-    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
-      <span className='font-medium text-[var(--text-tertiary)] text-sm'>Metric {index + 1}</span>
-      <div className='flex items-center gap-2'>
-        <Tooltip.Root key={`add-${metric.id}`}>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
-              onClick={addMetric}
-              disabled={isPreview || disabled}
-              className='h-auto p-0'
-            >
-              <Plus className='size-[14px]' />
-              <span className='sr-only'>Add Metric</span>
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content>Add Metric</Tooltip.Content>
-        </Tooltip.Root>
-
-        <Tooltip.Root key={`remove-${metric.id}`}>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
-              onClick={() => removeMetric(metric.id)}
-              disabled={isPreview || disabled || metrics.length === 1}
-              className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
-            >
-              <Trash className='size-[14px]' />
-              <span className='sr-only'>Delete Metric</span>
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content>Delete Metric</Tooltip.Content>
-        </Tooltip.Root>
-      </div>
-    </div>
-  )
-
   return (
     <div className='space-y-2'>
       {metrics.map((metric, index) => (
@@ -183,11 +194,18 @@ export function EvalInput({
           data-metric-id={metric.id}
           className='group relative overflow-visible rounded-sm border border-[var(--border-1)]'
         >
-          {renderMetricHeader(metric, index)}
+          <MetricHeader
+            index={index}
+            metricId={metric.id}
+            disableAdd={isPreview || disabled}
+            disableRemove={isPreview || disabled || metrics.length === 1}
+            onAdd={addMetric}
+            onRemove={() => removeMetric(metric.id)}
+          />
 
           <div className='flex flex-col gap-2 border-[var(--border-1)] px-2.5 pt-1.5 pb-2.5'>
             <div key={`name-${metric.id}`} className='flex flex-col gap-1.5'>
-              {renderFieldLabel('Name')}
+              <Label>Name</Label>
               <div className='relative'>
                 <Input
                   name='name'
@@ -215,7 +233,7 @@ export function EvalInput({
             </div>
 
             <div key={`description-${metric.id}`} className='flex flex-col gap-1.5'>
-              {renderFieldLabel('Description')}
+              <Label>Description</Label>
               <div className='relative'>
                 {(() => {
                   const fieldState = inputController.fieldHelpers.getFieldState(metric.id)
@@ -290,7 +308,7 @@ export function EvalInput({
 
             <div key={`range-${metric.id}`} className='grid grid-cols-2 gap-2'>
               <div className='flex flex-col gap-1.5'>
-                {renderFieldLabel('Min Value')}
+                <Label>Min Value</Label>
                 <div className='relative'>
                   <Input
                     type='text'
@@ -311,7 +329,7 @@ export function EvalInput({
                 </div>
               </div>
               <div className='flex flex-col gap-1.5'>
-                {renderFieldLabel('Max Value')}
+                <Label>Max Value</Label>
                 <div className='relative'>
                   <Input
                     type='text'

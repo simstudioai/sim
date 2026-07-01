@@ -126,12 +126,12 @@ export function VariablesInput({
   const isReadOnly = isPreview || disabled
 
   const getAvailableVariablesFor = (currentAssignmentId: string) => {
-    const otherSelectedIds = new Set(
-      assignments
-        .filter((a) => a.id !== currentAssignmentId)
-        .map((a) => a.variableId)
-        .filter((id): id is string => !!id)
-    )
+    const otherSelectedIds = new Set<string>()
+    for (const a of assignments) {
+      if (a.id !== currentAssignmentId && a.variableId) {
+        otherSelectedIds.add(a.variableId)
+      }
+    }
 
     return currentWorkflowVariables.filter((variable) => !otherSelectedIds.has(variable.id))
   }

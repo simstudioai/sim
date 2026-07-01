@@ -70,10 +70,9 @@ export function useMentionMenu({
       // Check if this '@' is part of a completed mention token
       if (selectedContexts.length > 0) {
         // Only check non-slash_command contexts for mentions
-        const mentionLabels = selectedContexts
-          .filter((c) => c.kind !== 'slash_command')
-          .map((c) => c.label)
-          .filter(Boolean) as string[]
+        const mentionLabels = selectedContexts.flatMap((c) =>
+          c.kind !== 'slash_command' && c.label ? [c.label] : []
+        ) as string[]
 
         for (const label of mentionLabels) {
           // Check for token at start of text: "@label "
@@ -143,10 +142,9 @@ export function useMentionMenu({
       // Check if this '/' is part of a completed slash token
       if (selectedContexts.length > 0) {
         // Only check slash_command contexts
-        const slashLabels = selectedContexts
-          .filter((c) => c.kind === 'slash_command')
-          .map((c) => c.label)
-          .filter(Boolean) as string[]
+        const slashLabels = selectedContexts.flatMap((c) =>
+          c.kind === 'slash_command' && c.label ? [c.label] : []
+        ) as string[]
 
         for (const label of slashLabels) {
           // Check for token at start of text: "/label "

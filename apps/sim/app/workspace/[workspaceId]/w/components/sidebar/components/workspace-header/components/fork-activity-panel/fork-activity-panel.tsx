@@ -19,10 +19,7 @@ const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
 /** Join "N verb" segments (verbs like "updated" aren't pluralized), dropping zero counts. */
 function countList(pairs: Array<[number | undefined, string]>): string {
-  return pairs
-    .filter(([n]) => (n ?? 0) > 0)
-    .map(([n, verb]) => `${n} ${verb}`)
-    .join(' · ')
+  return pairs.flatMap(([n, verb]) => ((n ?? 0) > 0 ? [`${n} ${verb}`] : [])).join(' · ')
 }
 
 /** A named, collapsible group (one resource kind or change action) of a job's report. */

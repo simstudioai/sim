@@ -53,6 +53,9 @@ const ERROR_HANDLE_STYLE: CSSProperties = {
   transform: 'translateY(50%)',
 }
 
+/** Stable empty workflow map so memoized subblock rows keep a constant reference. */
+const EMPTY_WORKFLOW_MAP: Record<string, WorkflowMetadata> = {}
+
 interface WorkflowPreviewBlockData {
   type: string
   name: string
@@ -175,7 +178,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const {
     type,
     name,
-    workflowMap = {},
+    workflowMap = EMPTY_WORKFLOW_MAP,
     workflowLabelsReady = false,
     isTrigger = false,
     horizontalHandles = false,

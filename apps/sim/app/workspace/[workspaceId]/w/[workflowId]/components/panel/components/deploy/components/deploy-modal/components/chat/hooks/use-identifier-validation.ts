@@ -11,6 +11,51 @@ interface IdentifierValidationState {
   isValid: boolean
 }
 
+type SyncValidation =
+  | { status: 'resolved'; error: string | null; isValid: boolean }
+  | { status: 'needsCheck' }
+
+/**
+ * Computes the synchronous portion of identifier validation.
+ * Returns a resolved state for cases decidable without a network call, or
+ * `needsCheck` when the identifier must be verified against the server.
+ */
+function computeSyncValidation(
+  identifier: string,
+  originalIdentifier?: string,
+  isEditingExisting?: boolean
+): SyncValidation {
+  if (!identifier.trim()) {
+    return { status: 'resolved', error: null, isValid: false }
+  }
+
+  if (originalIdentifier && identifier === originalIdentifier) {
+    return { status: 'resolved', error: null, isValid: true }
+  }
+
+  if (isEditingExisting && !originalIdentifier) {
+    return { status: 'resolved', error: null, isValid: true }
+  }
+
+  if (!IDENTIFIER_PATTERN.test(identifier)) {
+    return {
+      status: 'resolved',
+      error: 'Identifier can only contain lowercase letters, numbers, and hyphens',
+      isValid: false,
+    }
+  }
+
+  return { status: 'needsCheck' }
+}
+
+/** Maps a synchronous validation result to the exposed state shape. */
+function toValidationState(sync: SyncValidation): IdentifierValidationState {
+  if (sync.status === 'resolved') {
+    return { isChecking: false, error: sync.error, isValid: sync.isValid }
+  }
+  return { isChecking: true, error: null, isValid: false }
+}
+
 /**
  * Hook for validating chat identifier availability with debounced API checks
  * @param identifier - The identifier to validate
@@ -22,68 +67,57 @@ export function useIdentifierValidation(
   originalIdentifier?: string,
   isEditingExisting?: boolean
 ): IdentifierValidationState {
-  const [isChecking, setIsChecking] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isValid, setIsValid] = useState(false)
+  const sync = computeSyncValidation(identifier, originalIdentifier, isEditingExisting)
 
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [state, setState] = useState<IdentifierValidationState>(() => toValidationState(sync))
+
+  const prevDepsRef = useRef({ identifier, originalIdentifier, isEditingExisting })
+  const prev = prevDepsRef.current
+  if (
+    prev.identifier !== identifier ||
+    prev.originalIdentifier !== originalIdentifier ||
+    prev.isEditingExisting !== isEditingExisting
+  ) {
+    prevDepsRef.current = { identifier, originalIdentifier, isEditingExisting }
+    setState(toValidationState(sync))
+  }
 
   useEffect(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
-
-    setError(null)
-    setIsValid(false)
-    setIsChecking(false)
-
-    if (!identifier.trim()) {
+    if (
+      computeSyncValidation(identifier, originalIdentifier, isEditingExisting).status !==
+      'needsCheck'
+    ) {
       return
     }
 
-    if (originalIdentifier && identifier === originalIdentifier) {
-      setIsValid(true)
-      return
-    }
-
-    if (isEditingExisting && !originalIdentifier) {
-      setIsValid(true)
-      return
-    }
-
-    if (!IDENTIFIER_PATTERN.test(identifier)) {
-      setError('Identifier can only contain lowercase letters, numbers, and hyphens')
-      return
-    }
-
-    setIsChecking(true)
-    timeoutRef.current = setTimeout(async () => {
+    const handle = setTimeout(async () => {
       try {
         const data = await requestJson(validateChatIdentifierContract, {
           query: { identifier },
         })
 
         if (!data.available) {
-          setError(data.error || 'This identifier is already in use')
-          setIsValid(false)
+          setState({
+            isChecking: false,
+            error: data.error || 'This identifier is already in use',
+            isValid: false,
+          })
         } else {
-          setError(null)
-          setIsValid(true)
+          setState({ isChecking: false, error: null, isValid: true })
         }
       } catch {
-        setError('Error checking identifier availability')
-        setIsValid(false)
-      } finally {
-        setIsChecking(false)
+        setState({
+          isChecking: false,
+          error: 'Error checking identifier availability',
+          isValid: false,
+        })
       }
     }, DEBOUNCE_MS)
 
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+      clearTimeout(handle)
     }
   }, [identifier, originalIdentifier, isEditingExisting])
 
-  return { isChecking, error, isValid }
+  return state
 }

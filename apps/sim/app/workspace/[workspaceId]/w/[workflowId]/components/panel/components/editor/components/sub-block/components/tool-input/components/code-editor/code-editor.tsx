@@ -36,6 +36,35 @@ interface CodeEditorProps {
 
 const EMPTY_SCHEMA_PARAMETERS: NonNullable<CodeEditorProps['schemaParameters']> = []
 
+interface LineNumbersProps {
+  visualLineHeights: number[]
+}
+
+function LineNumbers({ visualLineHeights }: LineNumbersProps): ReactElement[] {
+  const numbers: ReactElement[] = []
+  let lineNumber = 1
+
+  visualLineHeights.forEach((height) => {
+    for (let i = 0; i < height; i++) {
+      numbers.push(
+        <div
+          key={`${lineNumber}-${i}`}
+          className={cn(
+            'text-xs tabular-nums',
+            `leading-[${CODE_LINE_HEIGHT_PX}px]`,
+            i > 0 ? 'invisible' : 'text-[var(--code-line-number)]'
+          )}
+        >
+          {lineNumber}
+        </div>
+      )
+    }
+    lineNumber++
+  })
+
+  return numbers
+}
+
 export function CodeEditor({
   value,
   onChange,
@@ -101,31 +130,6 @@ export function CodeEditor({
 
   const lineCount = value.split('\n').length
   const gutterWidth = calculateGutterWidth(lineCount)
-
-  const renderLineNumbers = () => {
-    const numbers: ReactElement[] = []
-    let lineNumber = 1
-
-    visualLineHeights.forEach((height) => {
-      for (let i = 0; i < height; i++) {
-        numbers.push(
-          <div
-            key={`${lineNumber}-${i}`}
-            className={cn(
-              'text-xs tabular-nums',
-              `leading-[${CODE_LINE_HEIGHT_PX}px]`,
-              i > 0 ? 'invisible' : 'text-[var(--code-line-number)]'
-            )}
-          >
-            {lineNumber}
-          </div>
-        )
-      }
-      lineNumber++
-    })
-
-    return numbers
-  }
 
   const customHighlight = (code: string) => {
     if (!highlightVariables || language !== 'javascript') {
@@ -197,7 +201,7 @@ export function CodeEditor({
       )}
 
       <Code.Gutter width={gutterWidth} className={gutterClassName}>
-        {renderLineNumbers()}
+        <LineNumbers visualLineHeights={visualLineHeights} />
       </Code.Gutter>
 
       <Code.Content paddingLeft={`${gutterWidth}px`} editorRef={editorRef}>

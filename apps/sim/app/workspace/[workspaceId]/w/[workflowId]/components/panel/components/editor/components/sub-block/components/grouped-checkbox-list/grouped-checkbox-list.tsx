@@ -65,6 +65,7 @@ export function GroupedCheckboxList({
   const [open, setOpen] = useState(false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const optionRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const prevSearchTargetRef = useRef<typeof activeSearchTarget | null>(null)
 
   const previewValue = isPreview && subBlockValues ? subBlockValues[subBlockId]?.value : undefined
   const selectedValues = ((isPreview ? previewValue : storeValue) as string[]) || []
@@ -108,11 +109,12 @@ export function GroupedCheckboxList({
   const allSelected = selectedValues.length === options.length
   const noneSelected = selectedValues.length === 0
 
-  useEffect(() => {
+  if (prevSearchTargetRef.current !== activeSearchTarget) {
+    prevSearchTargetRef.current = activeSearchTarget
     if (activeSearchTarget?.subBlockId === subBlockId) {
       setOpen(true)
     }
-  }, [activeSearchTarget, subBlockId])
+  }
 
   useEffect(() => {
     if (!open || activeSearchTarget?.subBlockId !== subBlockId) return

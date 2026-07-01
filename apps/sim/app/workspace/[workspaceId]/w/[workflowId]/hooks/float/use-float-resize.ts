@@ -323,7 +323,7 @@ export function useFloatResize({
         y: finalY,
       })
     },
-    [onDimensionsChange, onPositionChange]
+    [onDimensionsChange, onPositionChange, minWidth, maxWidth, minHeight, maxHeight]
   )
   const handleGlobalMouseMoveRef = useRef(handleGlobalMouseMove)
   handleGlobalMouseMoveRef.current = handleGlobalMouseMove

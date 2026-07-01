@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
@@ -166,12 +166,16 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     }))
 
   /**
-   * Resets past chats when workflow changes
+   * Resets past chats when workflow changes.
+   * Adjusted during render via a prev-ref comparison so the stale list is never
+   * committed between renders.
    */
-  useEffect(() => {
+  const prevWorkflowIdRef = useRef(workflowId)
+  if (prevWorkflowIdRef.current !== workflowId) {
+    prevWorkflowIdRef.current = workflowId
     setPastChats([])
     setIsLoadingPastChats(false)
-  }, [workflowId])
+  }
 
   /**
    * Syncs workflow blocks from store
@@ -270,35 +274,39 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
       const { getAllBlocks } = await import('@/blocks')
       const all = getAllBlocks()
       const regularBlocks = all
-        .filter(
-          (b: any) =>
-            b.type !== 'starter' &&
-            !b.hideFromToolbar &&
-            b.category === 'blocks' &&
-            isBlockAllowed(b.type)
+        .flatMap((b: any) =>
+          b.type !== 'starter' &&
+          !b.hideFromToolbar &&
+          b.category === 'blocks' &&
+          isBlockAllowed(b.type)
+            ? [
+                {
+                  id: b.type,
+                  name: b.name || b.type,
+                  iconComponent: b.icon,
+                  bgColor: b.bgColor,
+                },
+              ]
+            : []
         )
-        .map((b: any) => ({
-          id: b.type,
-          name: b.name || b.type,
-          iconComponent: b.icon,
-          bgColor: b.bgColor,
-        }))
         .sort((a: any, b: any) => a.name.localeCompare(b.name))
 
       const toolBlocks = all
-        .filter(
-          (b: any) =>
-            b.type !== 'starter' &&
-            !b.hideFromToolbar &&
-            b.category === 'tools' &&
-            isBlockAllowed(b.type)
+        .flatMap((b: any) =>
+          b.type !== 'starter' &&
+          !b.hideFromToolbar &&
+          b.category === 'tools' &&
+          isBlockAllowed(b.type)
+            ? [
+                {
+                  id: b.type,
+                  name: b.name || b.type,
+                  iconComponent: b.icon,
+                  bgColor: b.bgColor,
+                },
+              ]
+            : []
         )
-        .map((b: any) => ({
-          id: b.type,
-          name: b.name || b.type,
-          iconComponent: b.icon,
-          bgColor: b.bgColor,
-        }))
         .sort((a: any, b: any) => a.name.localeCompare(b.name))
 
       setBlocksList([...regularBlocks, ...toolBlocks])

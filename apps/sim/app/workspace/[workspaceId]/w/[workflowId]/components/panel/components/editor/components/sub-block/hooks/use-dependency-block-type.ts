@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext } from 'react'
+import { createContext, use } from 'react'
 
 const DependencyBlockTypeContext = createContext<string | null>(null)
 
@@ -16,4 +16,4 @@ export const DependencyBlockTypeProvider = DependencyBlockTypeContext.Provider
  * parents against the TOOL's config (e.g. a Gmail tool's `credential` -> `oauthCredential`,
  * which the host Agent block's subblocks don't define) and can fetch its options.
  */
-export const useDependencyBlockType = () => useContext(DependencyBlockTypeContext)
+export const useDependencyBlockType = () => use(DependencyBlockTypeContext)

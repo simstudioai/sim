@@ -108,6 +108,7 @@ export function useWand({
   const [isStreaming, setIsStreaming] = useState(false)
 
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
+  const conversationHistoryRef = useRef<ChatMessage[]>([])
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -192,7 +193,7 @@ export function useWand({
               prompt: userMessage,
               systemPrompt: systemPrompt,
               stream: true,
-              history: wandConfig?.maintainHistory ? conversationHistory : [],
+              history: wandConfig?.maintainHistory ? conversationHistoryRef.current : [],
               generationType: wandConfig?.generationType,
               workflowId: workflowId ?? undefined,
               workspaceId: workspaceId ?? undefined,
@@ -221,11 +222,13 @@ export function useWand({
           onGeneratedContent(accumulatedContent)
 
           if (wandConfig?.maintainHistory) {
-            setConversationHistory((prev) => [
-              ...prev,
+            const nextHistory: ChatMessage[] = [
+              ...conversationHistoryRef.current,
               { role: 'user', content: currentPrompt },
               { role: 'assistant', content: accumulatedContent },
-            ])
+            ]
+            conversationHistoryRef.current = nextHistory
+            setConversationHistory(nextHistory)
           }
 
           if (onGenerationComplete) {

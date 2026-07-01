@@ -570,8 +570,11 @@ function useCapabilitySelection(blockId: string): ReadonlySet<string> {
       })
     })
   )
-  return useMemo(
-    () => new Set(SLACK_CAPABILITIES.filter((_, i) => enabledFlags[i]).map((c) => c.id)),
-    [enabledFlags]
-  )
+  return useMemo(() => {
+    const selected = new Set<string>()
+    SLACK_CAPABILITIES.forEach((c, i) => {
+      if (enabledFlags[i]) selected.add(c.id)
+    })
+    return selected
+  }, [enabledFlags])
 }

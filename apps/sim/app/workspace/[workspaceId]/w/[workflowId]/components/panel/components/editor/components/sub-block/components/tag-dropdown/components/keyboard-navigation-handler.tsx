@@ -118,6 +118,11 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     const indices: number[] = []
     const nestedPath = nestedNav?.nestedPath ?? []
 
+    const tagIndexMap = new Map<string, number>()
+    flatTagList.forEach((item, i) => {
+      if (!tagIndexMap.has(item.tag)) tagIndexMap.set(item.tag, i)
+    })
+
     if (isInFolder && currentFolder) {
       let currentNestedTag: NestedTag | null = null
 
@@ -144,7 +149,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
         }
         if (currentNestedTag.children) {
           for (const child of currentNestedTag.children) {
-            const idx = flatTagList.findIndex((item) => item.tag === child.fullTag)
+            const idx = tagIndexMap.get(child.fullTag) ?? -1
             if (idx >= 0) {
               indices.push(idx)
             }
@@ -153,7 +158,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
         if (currentNestedTag.nestedChildren) {
           for (const nestedChild of currentNestedTag.nestedChildren) {
             if (nestedChild.parentTag) {
-              const idx = flatTagList.findIndex((item) => item.tag === nestedChild.parentTag)
+              const idx = tagIndexMap.get(nestedChild.parentTag) ?? -1
               if (idx >= 0) {
                 indices.push(idx)
               }

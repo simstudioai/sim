@@ -60,6 +60,25 @@ const createDefaultFilter = (): TagFilter => ({
   collapsed: false,
 })
 
+/**
+ * Parses a JSON filter value into a normalized array of tag filters
+ */
+const parseFilters = (filterValue: string | null): TagFilter[] => {
+  if (!filterValue) return []
+  try {
+    const parsed = JSON.parse(filterValue)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((f: TagFilter) => ({
+      ...f,
+      fieldType: f.fieldType || 'text',
+      operator: f.operator || 'eq',
+      collapsed: f.collapsed ?? false,
+    }))
+  } catch {
+    return []
+  }
+}
+
 export function KnowledgeTagFilters({
   blockId,
   subBlock,
@@ -99,22 +118,6 @@ export function KnowledgeTagFilters({
     isPreview,
     disabled,
   })
-
-  const parseFilters = (filterValue: string | null): TagFilter[] => {
-    if (!filterValue) return []
-    try {
-      const parsed = JSON.parse(filterValue)
-      if (!Array.isArray(parsed)) return []
-      return parsed.map((f: TagFilter) => ({
-        ...f,
-        fieldType: f.fieldType || 'text',
-        operator: f.operator || 'eq',
-        collapsed: f.collapsed ?? false,
-      }))
-    } catch {
-      return []
-    }
-  }
 
   const currentValue = isPreview ? previewValue : storeValue
   const parsedFilters = parseFilters(currentValue || null)

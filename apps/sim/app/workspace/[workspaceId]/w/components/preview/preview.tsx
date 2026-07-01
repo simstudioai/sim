@@ -216,9 +216,9 @@ export function Preview({
   })
 
   const [workflowStack, setWorkflowStack] = useState<WorkflowStackEntry[]>([])
-  const [prevRootState, setPrevRootState] = useState(rootWorkflowState)
-  if (rootWorkflowState !== prevRootState) {
-    setPrevRootState(rootWorkflowState)
+  const prevRootStateRef = useRef(rootWorkflowState)
+  if (rootWorkflowState !== prevRootStateRef.current) {
+    prevRootStateRef.current = rootWorkflowState
     setWorkflowStack([])
   }
 

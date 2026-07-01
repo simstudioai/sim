@@ -50,6 +50,72 @@ interface TableCellProps {
   subBlockId: string
 }
 
+interface TableHeaderProps {
+  columns: string[]
+  blockId: string
+  subBlockId: string
+  activeSearchTarget: ReturnType<typeof useActiveSearchTarget>
+}
+
+function TableHeader({ columns, blockId, subBlockId, activeSearchTarget }: TableHeaderProps) {
+  return (
+    <thead className='bg-transparent'>
+      <tr className='border-[var(--border-1)] border-b bg-transparent'>
+        {columns.map((column, index) => {
+          const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+            activeSearchTarget,
+            blockId,
+            subBlockId,
+            valuePath: ['columns', index],
+            label: column,
+          })
+          return (
+            <th
+              key={column}
+              className={cn(
+                'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
+                index < columns.length - 1 && 'border-[var(--border-1)] border-r'
+              )}
+            >
+              {formatDisplayText(column, { workflowSearchHighlight })}
+            </th>
+          )
+        })}
+      </tr>
+    </thead>
+  )
+}
+
+interface DeleteButtonCellProps {
+  rowIndex: number
+  rowsLength: number
+  isPreview: boolean
+  disabled: boolean
+  onDelete: (rowIndex: number) => void
+}
+
+function DeleteButtonCell({
+  rowIndex,
+  rowsLength,
+  isPreview,
+  disabled,
+  onDelete,
+}: DeleteButtonCellProps) {
+  if (rowsLength <= 1 || isPreview || disabled) return null
+
+  return (
+    <td className='w-0 p-0'>
+      <Button
+        variant='ghost'
+        className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
+        onClick={() => onDelete(rowIndex)}
+      >
+        <Trash className='size-[14px]' />
+      </Button>
+    </td>
+  )
+}
+
 function TableCell({
   row,
   rowIndex,
@@ -142,6 +208,7 @@ function TableCell({
           type='text'
           value={cellValue}
           placeholder={column}
+          aria-label={column}
           onChange={handlers.onChange}
           onKeyDown={handlers.onKeyDown}
           onScroll={handleScroll}
@@ -326,53 +393,16 @@ export function Table({
     setStoreValue(rows.filter((_, index) => index !== rowIndex))
   }
 
-  const renderHeader = () => (
-    <thead className='bg-transparent'>
-      <tr className='border-[var(--border-1)] border-b bg-transparent'>
-        {columns.map((column, index) => {
-          const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
-            activeSearchTarget,
-            blockId,
-            subBlockId,
-            valuePath: ['columns', index],
-            label: column,
-          })
-          return (
-            <th
-              key={column}
-              className={cn(
-                'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
-                index < columns.length - 1 && 'border-[var(--border-1)] border-r'
-              )}
-            >
-              {formatDisplayText(column, { workflowSearchHighlight })}
-            </th>
-          )
-        })}
-      </tr>
-    </thead>
-  )
-
-  const renderDeleteButton = (rowIndex: number) =>
-    rows.length > 1 &&
-    !isPreview &&
-    !disabled && (
-      <td className='w-0 p-0'>
-        <Button
-          variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
-          onClick={() => handleDeleteRow(rowIndex)}
-        >
-          <Trash className='size-[14px]' />
-        </Button>
-      </td>
-    )
-
   return (
     <div className='relative'>
       <div className='overflow-visible rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] dark:bg-[var(--code-bg)]'>
         <table className='w-full bg-transparent'>
-          {renderHeader()}
+          <TableHeader
+            columns={columns}
+            blockId={blockId}
+            subBlockId={subBlockId}
+            activeSearchTarget={activeSearchTarget}
+          />
           <tbody className='bg-transparent'>
             {rows.map((row, rowIndex) => (
               <tr
@@ -399,7 +429,13 @@ export function Table({
                     subBlockId={subBlockId}
                   />
                 ))}
-                {renderDeleteButton(rowIndex)}
+                <DeleteButtonCell
+                  rowIndex={rowIndex}
+                  rowsLength={rows.length}
+                  isPreview={isPreview}
+                  disabled={disabled}
+                  onDelete={handleDeleteRow}
+                />
               </tr>
             ))}
           </tbody>

@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ChevronDown,
@@ -159,7 +159,6 @@ const IterationNodeRow = memo(function IterationNodeRow({
   selectedEntryId,
   onSelectEntry,
   isExpanded,
-  onToggle,
   expandedNodes,
   onToggleNode,
   renderChildren = true,
@@ -168,12 +167,12 @@ const IterationNodeRow = memo(function IterationNodeRow({
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
   isExpanded: boolean
-  onToggle: () => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
   renderChildren?: boolean
 }) {
   const { entry, children, iterationInfo } = node
+  const handleToggle = useCallback(() => onToggleNode(entry.id), [onToggleNode, entry.id])
   const hasError = Boolean(entry.error) || children.some((c) => c.entry.error)
   const hasChildren = children.length > 0
   const hasRunningChild = children.some((c) => c.entry.isRunning)
@@ -192,9 +191,11 @@ const IterationNodeRow = memo(function IterationNodeRow({
         className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
         onClick={(e) => {
           e.stopPropagation()
-          onToggle()
+          handleToggle()
         }}
-        onKeyDown={(event) => handleKeyboardActivation(event, onToggle, { stopPropagation: true })}
+        onKeyDown={(event) =>
+          handleKeyboardActivation(event, handleToggle, { stopPropagation: true })
+        }
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <span
@@ -348,7 +349,6 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
               selectedEntryId={selectedEntryId}
               onSelectEntry={onSelectEntry}
               isExpanded={expandedNodes.has(iterNode.entry.id)}
-              onToggle={() => onToggleNode(iterNode.entry.id)}
               expandedNodes={expandedNodes}
               onToggleNode={onToggleNode}
             />
@@ -537,7 +537,6 @@ const EntryNodeRow = memo(function EntryNodeRow({
         selectedEntryId={selectedEntryId}
         onSelectEntry={onSelectEntry}
         isExpanded={expandedNodes.has(node.entry.id)}
-        onToggle={() => onToggleNode(node.entry.id)}
         expandedNodes={expandedNodes}
         onToggleNode={onToggleNode}
         renderChildren={renderChildren}
@@ -1173,6 +1172,14 @@ export const Terminal = memo(function Terminal() {
   )
 
   /**
+   * Effect Events for the keyboard handler so the window listener never
+   * re-subscribes when these callbacks change identity, while still seeing
+   * the latest props and state.
+   */
+  const expandToLastHeightEvent = useEffectEvent(expandToLastHeight)
+  const navigateToEntryEvent = useEffectEvent(navigateToEntry)
+
+  /**
    * Consolidated keyboard handler for all terminal navigation
    */
   useEffect(() => {
@@ -1211,21 +1218,21 @@ export const Terminal = memo(function Terminal() {
         // If no entry selected, select the first or last based on direction
         if (!currentEntry) {
           const targetEntry = e.key === 'ArrowDown' ? entries[0] : entries[entries.length - 1]
-          navigateToEntry(targetEntry)
+          navigateToEntryEvent(targetEntry)
           return
         }
 
         const currentIndex = entries.findIndex((navEntry) => navEntry.entry.id === currentEntry.id)
         if (currentIndex === -1) {
           // Current entry not in navigable list (shouldn't happen), select first
-          navigateToEntry(entries[0])
+          navigateToEntryEvent(entries[0])
           return
         }
 
         if (e.key === 'ArrowUp' && currentIndex > 0) {
-          navigateToEntry(entries[currentIndex - 1])
+          navigateToEntryEvent(entries[currentIndex - 1])
         } else if (e.key === 'ArrowDown' && currentIndex < entries.length - 1) {
-          navigateToEntry(entries[currentIndex + 1])
+          navigateToEntryEvent(entries[currentIndex + 1])
         }
         return
       }
@@ -1237,7 +1244,7 @@ export const Terminal = memo(function Terminal() {
         e.preventDefault()
 
         if (!isExpandedRef.current) {
-          expandToLastHeight()
+          expandToLastHeightEvent()
         }
 
         if (e.key === 'ArrowLeft' && showInputRef.current) {
@@ -1250,7 +1257,7 @@ export const Terminal = memo(function Terminal() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [expandToLastHeight, navigateToEntry])
+  }, [])
 
   /**
    * Adjust output panel width on resize.

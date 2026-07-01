@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   cn,
   Popover,
@@ -134,6 +134,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
 
   const userEnvVars = Object.keys(personalEnv)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const prevSearchTermRef = useRef(searchTerm)
 
   const envVarGroups: EnvVarGroup[] = []
 
@@ -155,18 +156,17 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
     envVar.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const filteredGroups = envVarGroups
-    .map((group) => ({
-      ...group,
-      variables: group.variables.filter((envVar) =>
-        envVar.toLowerCase().includes(searchTerm.toLowerCase())
-      ),
-    }))
-    .filter((group) => group.variables.length > 0)
+  const filteredGroups = envVarGroups.flatMap((group) => {
+    const variables = group.variables.filter((envVar) =>
+      envVar.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    return variables.length > 0 ? [{ ...group, variables }] : []
+  })
 
-  useEffect(() => {
+  if (prevSearchTermRef.current !== searchTerm) {
+    prevSearchTermRef.current = searchTerm
     setSelectedIndex(0)
-  }, [searchTerm])
+  }
 
   const openEnvironmentSettings = () => {
     if (workspaceId) {

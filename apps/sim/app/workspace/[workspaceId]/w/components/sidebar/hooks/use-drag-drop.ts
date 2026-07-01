@@ -50,6 +50,15 @@ function isSameFolderScope(
   return (parentOrFolderId ?? null) === (scope ?? null)
 }
 
+/** Stable sibling ordering: sortOrder, then creation time, then id as a deterministic tiebreak. */
+function compareSiblingItems(a: SiblingItem, b: SiblingItem): number {
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+  const timeA = a.createdAt.getTime()
+  const timeB = b.createdAt.getTime()
+  if (timeA !== timeB) return timeA - timeB
+  return a.id.localeCompare(b.id)
+}
+
 export function useDragDrop(options: UseDragDropOptions = {}) {
   const { disabled = false } = options
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null)
@@ -176,14 +185,6 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     []
   )
 
-  const compareSiblingItems = (a: SiblingItem, b: SiblingItem): number => {
-    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
-    const timeA = a.createdAt.getTime()
-    const timeB = b.createdAt.getTime()
-    if (timeA !== timeB) return timeA - timeB
-    return a.id.localeCompare(b.id)
-  }
-
   const getDestinationFolderId = useCallback((indicator: DropIndicator): string | null => {
     return indicator.position === 'inside'
       ? indicator.targetId === 'root'
@@ -222,13 +223,17 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     async (newOrder: SiblingItem[], destinationFolderId: string | null) => {
       const indexed = newOrder.map((item, i) => ({ ...item, sortOrder: i }))
 
-      const folderUpdates = indexed
-        .filter((item) => item.type === 'folder')
-        .map((item) => ({ id: item.id, sortOrder: item.sortOrder, parentId: destinationFolderId }))
+      const folderUpdates = indexed.flatMap((item) =>
+        item.type === 'folder'
+          ? [{ id: item.id, sortOrder: item.sortOrder, parentId: destinationFolderId }]
+          : []
+      )
 
-      const workflowUpdates = indexed
-        .filter((item) => item.type === 'workflow')
-        .map((item) => ({ id: item.id, sortOrder: item.sortOrder, folderId: destinationFolderId }))
+      const workflowUpdates = indexed.flatMap((item) =>
+        item.type === 'workflow'
+          ? [{ id: item.id, sortOrder: item.sortOrder, folderId: destinationFolderId }]
+          : []
+      )
 
       await Promise.all(
         [
@@ -283,22 +288,30 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       const currentFolders = workspaceId ? getFolderMap(workspaceId) : {}
       const currentWorkflows = workspaceId ? getWorkflows(workspaceId) : []
       const siblings = [
-        ...Object.values(currentFolders)
-          .filter((f) => isSameFolderScope(f.parentId, folderId))
-          .map((f) => ({
-            type: 'folder' as const,
-            id: f.id,
-            sortOrder: f.sortOrder,
-            createdAt: f.createdAt,
-          })),
-        ...currentWorkflows
-          .filter((w) => isSameFolderScope(w.folderId, folderId))
-          .map((w) => ({
-            type: 'workflow' as const,
-            id: w.id,
-            sortOrder: w.sortOrder,
-            createdAt: w.createdAt,
-          })),
+        ...Object.values(currentFolders).flatMap((f) =>
+          isSameFolderScope(f.parentId, folderId)
+            ? [
+                {
+                  type: 'folder' as const,
+                  id: f.id,
+                  sortOrder: f.sortOrder,
+                  createdAt: f.createdAt,
+                },
+              ]
+            : []
+        ),
+        ...currentWorkflows.flatMap((w) =>
+          isSameFolderScope(w.folderId, folderId)
+            ? [
+                {
+                  type: 'workflow' as const,
+                  id: w.id,
+                  sortOrder: w.sortOrder,
+                  createdAt: w.createdAt,
+                },
+              ]
+            : []
+        ),
       ].sort(compareSiblingItems)
 
       if (!isDraggingRef.current) {
@@ -372,8 +385,9 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       const fromDestination: SiblingItem[] = []
       const fromOther: SiblingItem[] = []
 
+      const workflowById = new Map(workflows.map((w) => [w.id, w]))
       for (const id of workflowIds) {
-        const workflow = workflows.find((w) => w.id === id)
+        const workflow = workflowById.get(id)
         if (!workflow) continue
         const item: SiblingItem = {
           type: 'workflow',

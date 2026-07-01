@@ -42,6 +42,8 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const EMPTY_VARIABLES: Variable[] = []
 
+const emptyVariableInfoMap: Record<string, { type: string; id: string }> = {}
+
 /**
  * Context for sharing nested navigation state between components.
  * This enables unlimited nesting depth with a single back button.
@@ -65,7 +67,7 @@ interface NestedNavigationContextValue {
 const NestedNavigationContext = React.createContext<NestedNavigationContextValue | null>(null)
 
 /** Hook to access nested navigation state from child components */
-export const useNestedNavigation = () => React.useContext(NestedNavigationContext)
+export const useNestedNavigation = () => React.use(NestedNavigationContext)
 
 /**
  * Props for the TagDropdown component
@@ -1019,8 +1021,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [inputValue, cursorPosition]
   )
 
-  const emptyVariableInfoMap: Record<string, { type: string; id: string }> = {}
-
   /**
    * Computes tags, variable info, and block tag groups
    */
@@ -1349,7 +1349,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     loops,
     parallels,
     workflowVariables,
-    workflowId,
   ])
 
   const filteredTags = useMemo(() => {
@@ -1366,14 +1365,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     })
 
-    const filteredGroups = blockTagGroups
-      .map((group: BlockTagGroup) => ({
-        ...group,
-        tags: group.tags.filter(
-          (tag: string) => !searchTerm || tag.toLowerCase().includes(searchTerm)
-        ),
-      }))
-      .filter((group: BlockTagGroup) => group.tags.length > 0)
+    const filteredGroups: BlockTagGroup[] = []
+    for (const group of blockTagGroups) {
+      const groupTags = group.tags.filter(
+        (tag: string) => !searchTerm || tag.toLowerCase().includes(searchTerm)
+      )
+      if (groupTags.length > 0) {
+        filteredGroups.push({ ...group, tags: groupTags })
+      }
+    }
 
     return {
       variableTags: varTags,
@@ -1631,16 +1631,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [nestedPath]
   )
 
-  useEffect(() => {
+  const prevVisibleRef = useRef(visible)
+  if (prevVisibleRef.current !== visible) {
+    prevVisibleRef.current = visible
     if (!visible) {
       setNestedPath([])
       baseFolderRef.current = null
     }
-  }, [visible])
+  }
 
-  useEffect(() => {
+  const prevFlatTagCountRef = useRef(flatTagList.length)
+  if (prevFlatTagCountRef.current !== flatTagList.length) {
+    prevFlatTagCountRef.current = flatTagList.length
     setSelectedIndex(0)
-  }, [flatTagList.length])
+  }
 
   const onCloseEvent = useEffectEvent(() => onClose?.())
 

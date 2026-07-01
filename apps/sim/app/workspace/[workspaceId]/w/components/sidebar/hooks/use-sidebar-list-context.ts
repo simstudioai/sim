@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, use, useMemo } from 'react'
 
 interface SidebarListContextValue {
   /** Whether any drag operation is currently in progress */
@@ -40,7 +40,7 @@ export const SidebarListContext = createContext<SidebarListContextValue>({
  * @returns The current sidebar list context value
  */
 export function useSidebarListContext(): SidebarListContextValue {
-  return useContext(SidebarListContext)
+  return use(SidebarListContext)
 }
 
 /**

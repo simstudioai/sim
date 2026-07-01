@@ -354,6 +354,60 @@ export function useWorkflowExecution() {
     )
   }, [])
 
+  const persistLogs = useCallback(
+    async (executionId: string, result: ExecutionResult, streamContent?: string) => {
+      try {
+        // Build trace spans from execution logs
+        const { traceSpans, totalDuration } = buildTraceSpans(result)
+
+        // Add trace spans to the execution result
+        const enrichedResult = {
+          ...result,
+          traceSpans,
+          totalDuration,
+        }
+
+        // If this was a streaming response and we have the final content, update it
+        if (streamContent && result.output && typeof streamContent === 'string') {
+          // Update the content with the final streaming content
+          enrichedResult.output.content = streamContent
+
+          // Also update any block logs to include the content where appropriate
+          if (enrichedResult.logs) {
+            // Get the streaming block ID from metadata if available
+            const streamingBlockId = (result.metadata as any)?.streamingBlockId || null
+
+            for (const log of enrichedResult.logs) {
+              // Only update the specific LLM block (agent/router) that was streamed
+              const isStreamingBlock = streamingBlockId && log.blockId === streamingBlockId
+              if (
+                isStreamingBlock &&
+                (log.blockType === 'agent' || log.blockType === 'router') &&
+                log.output
+              )
+                log.output.content = streamContent
+            }
+          }
+        }
+
+        if (!activeWorkflowId) return executionId
+        await requestJson(workflowLogContract, {
+          params: { id: activeWorkflowId },
+          body: {
+            executionId,
+            result: enrichedResult,
+          },
+        })
+
+        return executionId
+      } catch (error) {
+        logger.error('Error persisting logs:', error)
+        return executionId
+      }
+    },
+    [activeWorkflowId]
+  )
+
   /**
    * Handles debug session completion
    */
@@ -368,7 +422,7 @@ export function useWorkflowExecution() {
       // Reset debug state
       resetDebugState()
     },
-    [activeWorkflowId, resetDebugState]
+    [persistLogs, resetDebugState]
   )
 
   /**
@@ -415,63 +469,8 @@ export function useWorkflowExecution() {
       // Reset debug state
       resetDebugState()
     },
-    [debugContext, activeWorkflowId, resetDebugState]
+    [debugContext, persistLogs, resetDebugState]
   )
-
-  const persistLogs = async (
-    executionId: string,
-    result: ExecutionResult,
-    streamContent?: string
-  ) => {
-    try {
-      // Build trace spans from execution logs
-      const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-      // Add trace spans to the execution result
-      const enrichedResult = {
-        ...result,
-        traceSpans,
-        totalDuration,
-      }
-
-      // If this was a streaming response and we have the final content, update it
-      if (streamContent && result.output && typeof streamContent === 'string') {
-        // Update the content with the final streaming content
-        enrichedResult.output.content = streamContent
-
-        // Also update any block logs to include the content where appropriate
-        if (enrichedResult.logs) {
-          // Get the streaming block ID from metadata if available
-          const streamingBlockId = (result.metadata as any)?.streamingBlockId || null
-
-          for (const log of enrichedResult.logs) {
-            // Only update the specific LLM block (agent/router) that was streamed
-            const isStreamingBlock = streamingBlockId && log.blockId === streamingBlockId
-            if (
-              isStreamingBlock &&
-              (log.blockType === 'agent' || log.blockType === 'router') &&
-              log.output
-            )
-              log.output.content = streamContent
-          }
-        }
-      }
-
-      if (!activeWorkflowId) return executionId
-      await requestJson(workflowLogContract, {
-        params: { id: activeWorkflowId },
-        body: {
-          executionId,
-          result: enrichedResult,
-        },
-      })
-
-      return executionId
-    } catch (error) {
-      logger.error('Error persisting logs:', error)
-      return executionId
-    }
-  }
 
   const handleRunWorkflow = useCallback(
     async (workflowInput?: any, enableDebug = false) => {
@@ -1586,7 +1585,6 @@ export function useWorkflowExecution() {
     executor,
     debugContext,
     pendingBlocks,
-    activeWorkflowId,
     validateDebugState,
     resetDebugState,
     isDebugSessionComplete,
@@ -1638,10 +1636,12 @@ export function useWorkflowExecution() {
 
         currentResult = await executor!.continueExecution(currentPendingBlocks, currentContext)
 
+        const resultPendingBlocks = currentResult.metadata?.pendingBlocks
+
         logger.info('Resume iteration result:', {
           success: currentResult.success,
-          hasPendingBlocks: !!currentResult.metadata?.pendingBlocks,
-          pendingBlockCount: currentResult.metadata?.pendingBlocks?.length || 0,
+          hasPendingBlocks: !!resultPendingBlocks,
+          pendingBlockCount: resultPendingBlocks?.length || 0,
         })
 
         // Update context for next iteration
@@ -1653,8 +1653,8 @@ export function useWorkflowExecution() {
         }
 
         // Update pending blocks for next iteration
-        if (currentResult.metadata?.pendingBlocks) {
-          currentPendingBlocks = currentResult.metadata.pendingBlocks
+        if (resultPendingBlocks) {
+          currentPendingBlocks = resultPendingBlocks
         } else {
           logger.info('No pending blocks in result, ending resume')
           break
@@ -1687,7 +1687,6 @@ export function useWorkflowExecution() {
     executor,
     debugContext,
     pendingBlocks,
-    activeWorkflowId,
     validateDebugState,
     resetDebugState,
     handleDebugSessionComplete,
@@ -2059,8 +2058,6 @@ export function useWorkflowExecution() {
       setCurrentExecutionId,
       setIsExecuting,
       setActiveBlocks,
-      setBlockRunStatus,
-      setEdgeRunStatus,
       updateConsole,
       finishRunningEntries,
       setExecutionResult,

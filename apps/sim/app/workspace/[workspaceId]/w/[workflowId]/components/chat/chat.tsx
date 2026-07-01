@@ -269,10 +269,10 @@ export function Chat() {
   const { addToQueue } = useOperationQueue()
 
   const [chatMessage, setChatMessage] = useState('')
-  const [promptHistory, setPromptHistory] = useState<string[]>([])
-  const [historyIndex, setHistoryIndex] = useState(-1)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
+  const promptHistoryRef = useRef<string[]>([])
+  const historyIndexRef = useRef(-1)
   const inputRef = useRef<HTMLInputElement>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
@@ -292,22 +292,26 @@ export function Chat() {
     handleDrop,
   } = useChatFileUpload()
 
-  const filePreviewUrls = useRef<Map<string, string>>(new Map())
+  const filePreviewUrls = useRef<Map<string, string> | null>(null)
+  if (filePreviewUrls.current === null) {
+    filePreviewUrls.current = new Map()
+  }
 
   const getFilePreviewUrl = useCallback((file: ChatFile): string | null => {
     if (!file.type.startsWith('image/')) return null
 
-    const existing = filePreviewUrls.current.get(file.id)
+    const urls = (filePreviewUrls.current ??= new Map())
+    const existing = urls.get(file.id)
     if (existing) return existing
 
     const url = URL.createObjectURL(file.file)
-    filePreviewUrls.current.set(file.id, url)
+    urls.set(file.id, url)
     return url
   }, [])
 
   useEffect(() => {
     const currentFileIds = new Set(chatFiles.map((f) => f.id))
-    const urlMap = filePreviewUrls.current
+    const urlMap = (filePreviewUrls.current ??= new Map())
 
     for (const [fileId, url] of urlMap.entries()) {
       if (!currentFileIds.has(fileId)) {
@@ -454,21 +458,24 @@ export function Chat() {
   )
 
   const userMessages = useMemo(() => {
-    return workflowMessages
-      .filter((msg) => msg.type === 'user')
-      .map((msg) => msg.content)
-      .filter((content): content is string => typeof content === 'string')
+    const result: string[] = []
+    for (const msg of workflowMessages) {
+      if (msg.type === 'user' && typeof msg.content === 'string') {
+        result.push(msg.content)
+      }
+    }
+    return result
   }, [workflowMessages])
 
   useEffect(() => {
     if (!activeWorkflowId) {
-      setPromptHistory([])
-      setHistoryIndex(-1)
+      promptHistoryRef.current = []
+      historyIndexRef.current = -1
       return
     }
 
-    setPromptHistory(userMessages)
-    setHistoryIndex(-1)
+    promptHistoryRef.current = userMessages
+    historyIndexRef.current = -1
   }, [activeWorkflowId, userMessages])
 
   /**
@@ -607,7 +614,7 @@ export function Chat() {
         focusInput(100)
       }
     },
-    [appendMessageContent, finalizeMessageStream, focusInput, selectedOutputs, activeWorkflowId]
+    [appendMessageContent, finalizeMessageStream, focusInput]
   )
 
   /**
@@ -633,19 +640,18 @@ export function Chat() {
       }
 
       if ('success' in result && result.success && 'logs' in result && Array.isArray(result.logs)) {
-        selectedOutputs
-          .map((outputId) => extractOutputFromLogs(result.logs as BlockLog[], outputId))
-          .filter((output) => output !== undefined)
-          .forEach((output) => {
-            const content = formatOutputContent(output)
-            if (content) {
-              addMessage({
-                content,
-                workflowId: activeWorkflowId,
-                type: 'workflow',
-              })
-            }
-          })
+        for (const outputId of selectedOutputs) {
+          const output = extractOutputFromLogs(result.logs as BlockLog[], outputId)
+          if (output === undefined) continue
+          const content = formatOutputContent(output)
+          if (content) {
+            addMessage({
+              content,
+              workflowId: activeWorkflowId,
+              type: 'workflow',
+            })
+          }
+        }
         return
       }
 
@@ -674,10 +680,13 @@ export function Chat() {
 
     const sentMessage = chatMessage.trim()
 
-    if (sentMessage && promptHistory[promptHistory.length - 1] !== sentMessage) {
-      setPromptHistory((prev) => [...prev, sentMessage])
+    if (
+      sentMessage &&
+      promptHistoryRef.current[promptHistoryRef.current.length - 1] !== sentMessage
+    ) {
+      promptHistoryRef.current = [...promptHistoryRef.current, sentMessage]
     }
-    setHistoryIndex(-1)
+    historyIndexRef.current = -1
 
     const conversationId = getConversationId(activeWorkflowId)
 
@@ -732,7 +741,6 @@ export function Chat() {
     chatFiles,
     activeWorkflowId,
     isExecuting,
-    promptHistory,
     getConversationId,
     addMessage,
     handleRunWorkflow,
@@ -756,27 +764,29 @@ export function Chat() {
         }
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        if (promptHistory.length > 0) {
+        if (promptHistoryRef.current.length > 0) {
           const newIndex =
-            historyIndex === -1 ? promptHistory.length - 1 : Math.max(0, historyIndex - 1)
-          setHistoryIndex(newIndex)
-          setChatMessage(promptHistory[newIndex])
+            historyIndexRef.current === -1
+              ? promptHistoryRef.current.length - 1
+              : Math.max(0, historyIndexRef.current - 1)
+          historyIndexRef.current = newIndex
+          setChatMessage(promptHistoryRef.current[newIndex])
         }
       } else if (e.key === 'ArrowDown') {
         e.preventDefault()
-        if (historyIndex >= 0) {
-          const newIndex = historyIndex + 1
-          if (newIndex >= promptHistory.length) {
-            setHistoryIndex(-1)
+        if (historyIndexRef.current >= 0) {
+          const newIndex = historyIndexRef.current + 1
+          if (newIndex >= promptHistoryRef.current.length) {
+            historyIndexRef.current = -1
             setChatMessage('')
           } else {
-            setHistoryIndex(newIndex)
-            setChatMessage(promptHistory[newIndex])
+            historyIndexRef.current = newIndex
+            setChatMessage(promptHistoryRef.current[newIndex])
           }
         }
       }
     },
-    [handleSendMessage, promptHistory, historyIndex, isStreaming, isExecuting]
+    [handleSendMessage, isStreaming, isExecuting]
   )
 
   /**
@@ -1085,7 +1095,7 @@ export function Chat() {
                 value={chatMessage}
                 onChange={(e) => {
                   setChatMessage(e.target.value)
-                  setHistoryIndex(-1)
+                  historyIndexRef.current = -1
                 }}
                 onKeyDown={handleKeyPress}
                 placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
@@ -1122,6 +1132,7 @@ export function Chat() {
                 ) : (
                   <Button
                     onClick={handleSendMessage}
+                    aria-label='Send message'
                     variant='ghost'
                     disabled={
                       (!chatMessage.trim() && chatFiles.length === 0) ||

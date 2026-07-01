@@ -869,7 +869,10 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
   const handleDeleteChat = useCallback(() => {
     const { chatIds: ids } = contextMenuSelectionRef.current
     if (ids.length === 0) return
-    const names = ids.map((id) => chats.find((t) => t.id === id)?.name).filter(Boolean) as string[]
+    const names = ids.flatMap((id) => {
+      const name = chats.find((t) => t.id === id)?.name
+      return name ? [name] : []
+    })
     contextMenuSelectionRef.current = { chatIds: ids, names }
     setIsChatDeleteModalOpen(true)
   }, [chats])
@@ -1234,6 +1237,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
       <input
         ref={logoFileInputRef}
         type='file'
+        aria-label='Upload workspace logo'
         accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
         className='hidden'
         onChange={handleLogoFileChange}
@@ -1241,6 +1245,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
       <input
         ref={fileInputRef}
         type='file'
+        aria-label='Import workflow file'
         accept='.json,.zip'
         multiple
         className='hidden'
@@ -1396,6 +1401,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                                     >
                                       <input
                                         ref={chatFlyoutRename.inputRef}
+                                        aria-label='Chat name'
                                         value={chatFlyoutRename.value}
                                         onChange={(e) => chatFlyoutRename.setValue(e.target.value)}
                                         onKeyDown={chatFlyoutRename.handleKeyDown}

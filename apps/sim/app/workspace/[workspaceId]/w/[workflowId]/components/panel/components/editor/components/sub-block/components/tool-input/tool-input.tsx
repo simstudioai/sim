@@ -393,6 +393,16 @@ function getOperationOptions(blockType: string): { label: string; id: string }[]
 }
 
 /**
+ * Evaluates whether a tool parameter's UI condition is satisfied for the given
+ * stored tool's current values.
+ */
+function evaluateParameterCondition(param: ToolParameterConfig, tool: StoredTool): boolean {
+  if (!('uiComponent' in param) || !param.uiComponent?.condition) return true
+  const currentValues: Record<string, unknown> = { operation: tool.operation, ...tool.params }
+  return evaluateSubBlockCondition(param.uiComponent.condition as SubBlockCondition, currentValues)
+}
+
+/**
  * Creates a styled icon element for tool items in the selection dropdown.
  *
  * @param bgColor - Background color for the icon container
@@ -490,13 +500,16 @@ export const ToolInput = memo(function ToolInput({
 
   const value = isPreview ? previewValue : storeValue
 
-  const selectedTools: StoredTool[] =
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value[0] !== null &&
-    typeof value[0]?.type === 'string'
-      ? (value as StoredTool[])
-      : []
+  const selectedTools = useMemo<StoredTool[]>(
+    () =>
+      Array.isArray(value) &&
+      value.length > 0 &&
+      value[0] !== null &&
+      typeof value[0]?.type === 'string'
+        ? (value as StoredTool[])
+        : [],
+    [value]
+  )
 
   // Tool categories the consuming block can't run (declared on its tool-input
   // subBlock): shown in the picker but greyed out with a tooltip instead of added.
@@ -512,8 +525,9 @@ export const ToolInput = memo(function ToolInput({
   // Uses canonical resolution so the active field (basic vs advanced) is respected.
   const toolCredentialId = useMemo(() => {
     const allBlocks = getAllBlocks()
+    const blocksByType = new Map(allBlocks.map((b) => [b.type, b]))
     for (const tool of selectedTools) {
-      const blockConfig = allBlocks.find((b: { type: string }) => b.type === tool.type)
+      const blockConfig = blocksByType.get(tool.type)
       if (!blockConfig?.subBlocks) continue
       const toolCanonical = buildCanonicalIndex(blockConfig.subBlocks)
       const scopedOverrides = scopeCanonicalModesForTool(canonicalModeOverrides, tool.type)
@@ -734,15 +748,18 @@ export const ToolInput = memo(function ToolInput({
    * @param blockType - The block type for the tool
    * @returns `true` if tool is already selected (for single-operation tools only)
    */
-  const isToolAlreadySelected = (toolId: string, blockType: string) => {
-    if (hasMultipleOperations(blockType)) {
-      return false
-    }
-    if (blockType === 'workflow' || blockType === 'knowledge') {
-      return false
-    }
-    return selectedTools.some((tool) => tool.toolId === toolId)
-  }
+  const isToolAlreadySelected = useCallback(
+    (toolId: string, blockType: string) => {
+      if (hasMultipleOperations(blockType)) {
+        return false
+      }
+      if (blockType === 'workflow' || blockType === 'knowledge') {
+        return false
+      }
+      return selectedTools.some((tool) => tool.toolId === toolId)
+    },
+    [selectedTools]
+  )
 
   /**
    * Groups MCP tools by their parent server.
@@ -1017,7 +1034,7 @@ export const ToolInput = memo(function ToolInput({
         )
       )
     },
-    [isPreview, disabled, selectedTools, getToolIdForOperation, blockId, setStoreValue]
+    [isPreview, disabled, selectedTools, blockId, setStoreValue]
   )
 
   const handleUsageControlChange = useCallback(
@@ -1116,15 +1133,6 @@ export const ToolInput = memo(function ToolInput({
     setDragOverIndex(null)
   }
 
-  const evaluateParameterCondition = (param: ToolParameterConfig, tool: StoredTool): boolean => {
-    if (!('uiComponent' in param) || !param.uiComponent?.condition) return true
-    const currentValues: Record<string, unknown> = { operation: tool.operation, ...tool.params }
-    return evaluateSubBlockCondition(
-      param.uiComponent.condition as SubBlockCondition,
-      currentValues
-    )
-  }
-
   const getParamActiveSearchTarget = (
     toolIndex: number | undefined,
     paramId: string,
@@ -1202,12 +1210,13 @@ export const ToolInput = memo(function ToolInput({
       switch (uiComponent.type) {
         case 'dropdown': {
           const options =
-            (uiComponent.options as { id?: string; label: string; value?: string }[] | undefined)
-              ?.filter((option) => (option.id ?? option.value) !== '')
-              .map((option) => ({
-                label: option.label,
-                value: option.id ?? option.value ?? '',
-              })) || []
+            (
+              uiComponent.options as { id?: string; label: string; value?: string }[] | undefined
+            )?.flatMap((option) =>
+              (option.id ?? option.value) !== ''
+                ? [{ label: option.label, value: option.id ?? option.value ?? '' }]
+                : []
+            ) || []
           const selectedLabel = options.find((option) => option.value === value)?.label ?? ''
           const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
             activeSearchTarget: paramActiveSearchTarget,
@@ -1362,11 +1371,12 @@ export const ToolInput = memo(function ToolInput({
         const server = mcpServers.find((s) => s.id === mcpServerDrilldown)
         const serverName = tools[0]?.serverName || server?.name || 'Unknown Server'
         const toolCount = tools.length
-        const selectedToolIdsForServer = new Set(
-          selectedTools
-            .filter((t) => t.type === 'mcp' && t.params?.serverId === mcpServerDrilldown)
-            .map((t) => t.toolId)
-        )
+        const selectedToolIdsForServer = new Set<string | undefined>()
+        for (const t of selectedTools) {
+          if (t.type === 'mcp' && t.params?.serverId === mcpServerDrilldown) {
+            selectedToolIdsForServer.add(t.toolId)
+          }
+        }
         const allAlreadySelected = tools.every((t) => selectedToolIdsForServer.has(t.id))
         const serverToolItems: ComboboxOption[] = []
 
@@ -1525,9 +1535,10 @@ export const ToolInput = memo(function ToolInput({
     // MCP Servers — root folder view
     if (!permissionConfig.disableMcpTools && !mcpUnsupported && mcpToolsByServer.size > 0) {
       const serverItems: ComboboxOption[] = []
+      const serversById = new Map(mcpServers.map((s) => [s.id, s]))
 
       for (const [serverId, tools] of mcpToolsByServer) {
-        const server = mcpServers.find((s) => s.id === serverId)
+        const server = serversById.get(serverId)
         const serverName = tools[0]?.serverName || server?.name || 'Unknown Server'
         const toolCount = tools.length
 
@@ -1624,7 +1635,6 @@ export const ToolInput = memo(function ToolInput({
   }, [
     mcpServerDrilldown,
     customTools,
-    availableMcpTools,
     mcpServers,
     mcpToolsByServer,
     toolBlocks,
@@ -1901,6 +1911,7 @@ export const ToolInput = memo(function ToolInput({
                     >
                       <PopoverTrigger asChild>
                         <button
+                          type='button'
                           className='flex items-center justify-center font-medium text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
                           onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           aria-label='Tool usage control'
@@ -1961,6 +1972,7 @@ export const ToolInput = memo(function ToolInput({
                     >
                       <PopoverTrigger asChild>
                         <button
+                          type='button'
                           onClick={(e) => {
                             e.stopPropagation()
                             handleRemoveTool(toolIndex)
@@ -2004,6 +2016,7 @@ export const ToolInput = memo(function ToolInput({
                     </Popover>
                   ) : (
                     <button
+                      type='button'
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRemoveTool(toolIndex)
@@ -2030,12 +2043,9 @@ export const ToolInput = memo(function ToolInput({
                           Operation
                         </div>
                         <Combobox
-                          options={operationOptions
-                            .filter((option) => option.id !== '')
-                            .map((option) => ({
-                              label: option.label,
-                              value: option.id,
-                            }))}
+                          options={operationOptions.flatMap((option) =>
+                            option.id !== '' ? [{ label: option.label, value: option.id }] : []
+                          )}
                           value={tool.operation || operationOptions[0].id}
                           onChange={(value) => handleOperationChange(toolIndex, value)}
                           placeholder='Select operation'

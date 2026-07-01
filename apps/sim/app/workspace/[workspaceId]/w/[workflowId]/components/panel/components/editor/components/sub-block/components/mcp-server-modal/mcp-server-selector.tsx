@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Combobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -28,7 +28,6 @@ export function McpServerSelector({
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [inputValue, setInputValue] = useState('')
 
   const { data: servers = [], isLoading, error } = useMcpServers(workspaceId)
   const enabledServers = servers.filter((s) => s.enabled && !s.deletedAt)
@@ -41,6 +40,13 @@ export function McpServerSelector({
   const selectedServerId = effectiveValue || ''
 
   const selectedServer = enabledServers.find((server) => server.id === selectedServerId)
+
+  const [inputValue, setInputValue] = useState(() => (selectedServer ? selectedServer.name : ''))
+  const prevSelectedServerRef = useRef(selectedServer)
+  if (prevSelectedServerRef.current !== selectedServer) {
+    prevSelectedServerRef.current = selectedServer
+    setInputValue(selectedServer ? selectedServer.name : '')
+  }
 
   const comboboxOptions = useMemo(
     () =>
@@ -63,13 +69,6 @@ export function McpServerSelector({
     }
   }
 
-  useEffect(() => {
-    if (selectedServer) {
-      setInputValue(selectedServer.name)
-    } else {
-      setInputValue('')
-    }
-  }, [selectedServer])
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
     activeSearchTarget,
     subBlockId: subBlock.id,
