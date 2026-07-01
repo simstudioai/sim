@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -6,6 +7,7 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -54,6 +56,24 @@ export const POST = withRouteHandler(
       const viewerUrl = `${getBaseUrl()}/workspace/${workspaceId}/files/${fileId}`
 
       logger.info(`[${requestId}] Generated download URL for workspace file: ${fileRecord.name}`)
+
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        action: AuditAction.FILE_DOWNLOADED,
+        resourceType: AuditResourceType.FILE,
+        resourceId: fileId,
+        resourceName: fileRecord.name,
+        description: `Downloaded file "${fileRecord.name}"`,
+        metadata: { fileId, fileName: fileRecord.name, bytes: fileRecord.size },
+        request,
+      })
+      captureServerEvent(
+        session.user.id,
+        'file_downloaded',
+        { workspace_id: workspaceId, is_bulk: false, file_count: 1 },
+        { groups: { workspace: workspaceId } }
+      )
 
       return NextResponse.json({
         success: true,

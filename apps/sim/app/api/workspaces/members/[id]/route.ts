@@ -188,6 +188,7 @@ export const DELETE = withRouteHandler(
               seatReduction = await reconcileOrganizationSeats({
                 organizationId,
                 reason: 'member-removed',
+                actorId: session.user.id,
               })
             } catch (seatError) {
               logger.error('Failed to reduce seats after workspace member removal', {

@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,6 +8,7 @@ import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { parseEnterpriseSubscriptionMetadata } from '../types'
 
 const logger = createLogger('BillingEnterprise')
@@ -143,6 +145,43 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
     monthlyPrice,
     seats,
     note: 'Seats from metadata, Stripe quantity set to 1',
+  })
+
+  let actorId = referenceId
+  try {
+    const [provisioningUser] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.stripeCustomerId, stripeCustomerId))
+      .limit(1)
+    actorId = provisioningUser?.id ?? referenceId
+  } catch (error) {
+    logger.warn('Failed to resolve enterprise provisioning actor; falling back to reference id', {
+      referenceId,
+      error,
+    })
+  }
+
+  recordAudit({
+    actorId,
+    action: AuditAction.ENTERPRISE_SUBSCRIPTION_PROVISIONED,
+    resourceType: AuditResourceType.SUBSCRIPTION,
+    resourceId: subscriptionRow.id,
+    description: `Enterprise subscription provisioned for organization ${referenceId} (${seats} seats)`,
+    metadata: {
+      organizationId: referenceId,
+      stripeCustomerId,
+      stripeSubscriptionId: stripeSubscription.id,
+      seats,
+      monthlyPrice,
+      currency: 'usd',
+    },
+  })
+  captureServerEvent(actorId, 'enterprise_subscription_created', {
+    reference_id: referenceId,
+    seats,
+    monthly_price: monthlyPrice,
+    currency: 'usd',
   })
 
   try {

@@ -9,6 +9,7 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('ApiKeyAPI')
 
@@ -57,6 +58,11 @@ export const DELETE = withRouteHandler(
         resourceName: deletedKey.name,
         description: `Revoked personal API key: ${deletedKey.name}`,
         request,
+      })
+
+      captureServerEvent(userId, 'api_key_revoked', {
+        key_name: deletedKey.name,
+        scope: 'personal',
       })
 
       return NextResponse.json({ success: true })

@@ -8,7 +8,13 @@ const logger = createLogger('AuditLog')
 
 interface AuditLogParams {
   workspaceId?: string | null
-  actorId: string
+  /**
+   * The acting user's id (FK to `user.id`). Pass `null` for genuinely
+   * actor-less events such as anonymous public-share access — the row is then
+   * persisted with a null actor and the forensic context (ip/user-agent,
+   * metadata) carries the trail instead.
+   */
+  actorId: string | null
   action: AuditActionType
   resourceType: AuditResourceTypeValue
   resourceId?: string
@@ -44,24 +50,41 @@ async function insertAuditLog(params: AuditLogParams): Promise<void> {
 
   let { actorName, actorEmail } = params
 
-  if (actorName === undefined && actorEmail === undefined && params.actorId) {
+  /**
+   * `actorId` is a FK to `user.id`. System actors (e.g. the shared `'admin-api'`
+   * key) have no user row, so we persist a null FK with a readable label instead
+   * of letting the insert fail. When the caller already supplies actorName/Email
+   * we trust the id is a real user and skip the lookup.
+   */
+  let actorId: string | null = params.actorId
+
+  if (actorName === undefined && actorEmail === undefined && actorId) {
     try {
       const [row] = await db
         .select({ name: user.name, email: user.email })
         .from(user)
-        .where(eq(user.id, params.actorId))
+        .where(eq(user.id, actorId))
         .limit(1)
-      actorName = row?.name ?? undefined
-      actorEmail = row?.email ?? undefined
+      if (row) {
+        actorName = row.name ?? undefined
+        actorEmail = row.email ?? undefined
+      } else {
+        actorName = actorId === 'admin-api' ? 'Admin API' : 'System'
+        actorId = null
+      }
     } catch (error) {
-      logger.warn('Failed to resolve actor info', { error, actorId: params.actorId })
+      // Couldn't confirm the user exists — null the FK so the insert can't violate
+      // it (system actor like 'admin-api', or a deleted user); the label remains.
+      logger.warn('Failed to resolve actor info', { error, actorId })
+      actorName = actorId === 'admin-api' ? 'Admin API' : 'System'
+      actorId = null
     }
   }
 
   await db.insert(auditLog).values({
     id: generateShortId(),
     workspaceId: params.workspaceId || null,
-    actorId: params.actorId,
+    actorId,
     action: params.action,
     resourceType: params.resourceType,
     resourceId: params.resourceId,
