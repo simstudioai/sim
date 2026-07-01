@@ -1,3 +1,4 @@
+import type { SearchParams } from 'nuqs/server'
 import { buildLandingMetadata } from '@/lib/landing/seo'
 import Careers from '@/app/(landing)/careers/careers'
 
@@ -11,6 +12,6 @@ export const metadata = buildLandingMetadata({
   keywords: 'Sim careers, Sim jobs, AI workspace jobs, AI agent engineering jobs, open source jobs',
 })
 
-export default function Page() {
-  return <Careers />
+export default function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  return <Careers searchParams={searchParams} />
 }

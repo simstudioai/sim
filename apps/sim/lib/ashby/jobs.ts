@@ -16,6 +16,17 @@ const ASHBY_JOB_BOARD_URL = `https://api.ashbyhq.com/posting-api/job-board/${ASH
 const REVALIDATE_SECONDS = 3600
 
 /**
+ * An `http(s)`-only URL. `z.string().url()` alone accepts `javascript:`/`data:`
+ * (both parse as valid URLs), which would render as a live link, so the scheme is
+ * pinned explicitly — a posting whose `jobUrl` fails this is dropped rather than
+ * published as a clickable Apply link.
+ */
+const httpUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => /^https?:\/\//i.test(value), 'Only http(s) URLs are allowed')
+
+/**
  * Tolerant schema for a single Ashby posting. The public board omits several
  * fields depending on the posting, so everything beyond the identity/title is
  * optional or nullable — Ashby is a third party and its payload varies per board.
@@ -32,7 +43,7 @@ const ashbyPostingSchema = z
     isListed: z.boolean().nullish(),
     isRemote: z.boolean().nullish(),
     publishedAt: z.string().nullish(),
-    jobUrl: z.string(),
+    jobUrl: httpUrlSchema,
     applyUrl: z.string().nullish(),
     shouldDisplayCompensationOnJobPostings: z.boolean().nullish(),
     compensation: z
@@ -43,9 +54,14 @@ const ashbyPostingSchema = z
   })
   .passthrough()
 
+/**
+ * The board envelope validates loosely — each posting is validated individually
+ * in {@link getAshbyJobs} so a single malformed row is skipped rather than
+ * emptying the entire board.
+ */
 const ashbyJobBoardSchema = z.object({
   apiVersion: z.string().nullish(),
-  jobs: z.array(ashbyPostingSchema),
+  jobs: z.array(z.unknown()),
 })
 
 /** Human-friendly labels for Ashby's enum-ish string fields. */
@@ -101,16 +117,25 @@ export async function getAshbyJobs(): Promise<CareerPosting[]> {
       return []
     }
 
-    const parsed = ashbyJobBoardSchema.safeParse(await response.json())
-    if (!parsed.success) {
-      logger.warn('Ashby job board response failed validation', { issues: parsed.error.issues })
+    const envelope = ashbyJobBoardSchema.safeParse(await response.json())
+    if (!envelope.success) {
+      logger.warn('Ashby job board response failed validation', { issues: envelope.error.issues })
       return []
     }
 
-    return parsed.data.jobs
-      .filter((job) => job.isListed !== false)
-      .map(normalizePosting)
-      .sort(comparePostings)
+    const postings: CareerPosting[] = []
+    for (const raw of envelope.data.jobs) {
+      const parsed = ashbyPostingSchema.safeParse(raw)
+      if (!parsed.success) {
+        // Skip the offending posting rather than emptying the whole board.
+        logger.warn('Skipping malformed Ashby posting', { issues: parsed.error.issues })
+        continue
+      }
+      if (parsed.data.isListed === false) continue
+      postings.push(normalizePosting(parsed.data))
+    }
+
+    return postings.sort(comparePostings)
   } catch (error) {
     logger.warn('Ashby job board request threw', { error })
     return []

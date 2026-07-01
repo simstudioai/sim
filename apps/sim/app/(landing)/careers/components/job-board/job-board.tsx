@@ -4,6 +4,7 @@ import { ChipSelect, type ChipSelectOption } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import type { CareerPosting } from '@/lib/ashby/jobs'
 import {
+  filterPostings,
   groupByDepartment,
   JobGroups,
 } from '@/app/(landing)/careers/components/job-board/job-groups'
@@ -49,13 +50,7 @@ export function JobBoard({ postings }: JobBoardProps) {
     uniqueSorted(postings.map((p) => p.location).filter(Boolean)),
     'All locations'
   )
-  const groups = groupByDepartment(
-    postings.filter(
-      (p) =>
-        (team === ALL_FILTER_VALUE || p.department === team) &&
-        (location === ALL_FILTER_VALUE || p.location === location)
-    )
-  )
+  const groups = groupByDepartment(filterPostings(postings, team, location))
 
   return (
     <div className='flex flex-col gap-10'>

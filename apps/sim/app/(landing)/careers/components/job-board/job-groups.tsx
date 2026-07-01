@@ -1,10 +1,28 @@
 import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import type { CareerPosting } from '@/lib/ashby/jobs'
+import { ALL_FILTER_VALUE } from '@/app/(landing)/careers/search-params'
 
 export interface DepartmentGroup {
   department: string
   postings: CareerPosting[]
+}
+
+/**
+ * Narrows postings to a selected Team and Location, treating {@link ALL_FILTER_VALUE}
+ * as "any". Shared by the server-rendered fallback and the client board so a
+ * deep-linked filter resolves to the exact same set on both sides.
+ */
+export function filterPostings(
+  postings: CareerPosting[],
+  team: string,
+  location: string
+): CareerPosting[] {
+  return postings.filter(
+    (posting) =>
+      (team === ALL_FILTER_VALUE || posting.department === team) &&
+      (location === ALL_FILTER_VALUE || posting.location === location)
+  )
 }
 
 /**
@@ -74,8 +92,18 @@ interface JobRowProps {
  * tints the row and advances the arrow.
  */
 function JobRow({ posting }: JobRowProps) {
-  const meta = [posting.location, posting.employmentType, posting.workplaceType].filter(Boolean)
-  if (posting.compensationSummary) meta.push(posting.compensationSummary)
+  // De-duplicate: a remote posting normalizes both location and workplaceType to
+  // "Remote", which would otherwise render "Remote · Remote" and collide as keys.
+  const meta = Array.from(
+    new Set(
+      [
+        posting.location,
+        posting.employmentType,
+        posting.workplaceType,
+        posting.compensationSummary,
+      ].filter((value): value is string => Boolean(value))
+    )
+  )
 
   return (
     <a

@@ -1,11 +1,18 @@
 import { Suspense } from 'react'
+import type { SearchParams } from 'nuqs/server'
 import { getAshbyJobs } from '@/lib/ashby/jobs'
 import {
+  filterPostings,
   groupByDepartment,
   JobBoard,
   JobGroups,
 } from '@/app/(landing)/careers/components/job-board'
+import { careersSearchParamsCache } from '@/app/(landing)/careers/search-params'
 import { TrustedBy } from '@/app/(landing)/components/trusted-by'
+
+interface CareersProps {
+  searchParams: Promise<SearchParams>
+}
 
 /**
  * The careers page — a mission-led hero above the live open-roles board. Roles
@@ -21,12 +28,15 @@ import { TrustedBy } from '@/app/(landing)/components/trusted-by'
  * citation (landing CLAUDE.md → GEO); the roles section owns its own `<h2>`.
  *
  * Because {@link JobBoard} reads the URL via nuqs (`useSearchParams`), it sits under
- * a `<Suspense>` boundary whose fallback is the same list rendered statically
- * ({@link JobGroups}) — so the roles are present in the prerendered HTML and the
- * filter bar simply pops in on hydration, never flashing an empty frame.
+ * a `<Suspense>` boundary. The page parses the same `?team=`/`?location=` query on
+ * the server ({@link careersSearchParamsCache}) and pre-filters the fallback to
+ * match, so a deep-linked filter renders the correct roles server-side — the list
+ * never flashes unfiltered before the client board hydrates.
  */
-export default async function Careers() {
+export default async function Careers({ searchParams }: CareersProps) {
+  const { team, location } = await careersSearchParamsCache.parse(searchParams)
   const postings = await getAshbyJobs()
+  const fallbackGroups = groupByDepartment(filterPostings(postings, team, location))
 
   return (
     <main id='main-content'>
@@ -67,7 +77,7 @@ export default async function Careers() {
           Open roles
         </h2>
 
-        <Suspense fallback={<JobGroups groups={groupByDepartment(postings)} />}>
+        <Suspense fallback={<JobGroups groups={fallbackGroups} />}>
           <JobBoard postings={postings} />
         </Suspense>
 
