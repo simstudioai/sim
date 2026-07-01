@@ -14,6 +14,7 @@ import {
 import { decodeVfsSegment, encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('UploadFileReader')
 
@@ -142,7 +143,8 @@ export async function listChatUploads(chatId: string): Promise<WorkspaceFileReco
 /**
  * Read a specific uploaded file by display name within a chat session.
  * Resolves names with `normalizeVfsSegment` so macOS screenshot spacing (e.g. U+202F)
- * matches when the model passes a visually equivalent path.
+ * matches when the model passes a visually equivalent path. A `.zip` upload is not
+ * read directly — it returns extract-first guidance instead of binary bytes.
  */
 export async function readChatUpload(
   filename: string,
@@ -151,7 +153,11 @@ export async function readChatUpload(
   try {
     const row = await findMothershipUploadRowByChatAndName(chatId, filename)
     if (!row) return null
-    return readFileRecord(toWorkspaceFileRecord(row))
+    const record = toWorkspaceFileRecord(row)
+    if (isArchiveFileName(record.name)) {
+      return { content: `[${buildArchiveExtractGuidance(record.name)}]`, totalLines: 1 }
+    }
+    return readFileRecord(record)
   } catch (err) {
     logger.warn('Failed to read chat upload', {
       filename,
@@ -183,6 +189,9 @@ export async function grepChatUpload(
     )
   }
   const record = toWorkspaceFileRecord(row)
+  if (isArchiveFileName(record.name)) {
+    throw new WorkspaceFileGrepError(buildArchiveExtractGuidance(record.name))
+  }
   const result = await readFileRecord(record)
   if (!result) {
     throw new WorkspaceFileGrepError(`Upload content not found for "${filename}".`)
