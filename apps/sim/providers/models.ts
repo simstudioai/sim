@@ -670,6 +670,25 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'claude-fable-5',
+        pricing: {
+          input: 10.0,
+          cachedInput: 1.0,
+          output: 50.0,
+          updatedAt: '2026-07-01',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-06-09',
+      },
+      {
         id: 'claude-sonnet-5',
         pricing: {
           input: 2.0,
