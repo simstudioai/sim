@@ -834,9 +834,10 @@ try {
         {/*
           The body is the scroll region so tall schema/code content stays inside
           the modal and the footer (Next/Save) is always reachable. The EnvVar,
-          Tag, and schema-param autocompletes anchor to the textarea caret and
-          render in portaled popovers, so they aren't clipped by this scroll
-          boundary — see the `inputRef` wiring below.
+          Tag, and schema-param autocompletes render their menus in portaled
+          popovers (never clipped by this scroll boundary) and anchor to a
+          caret-positioned element inside the editor wrapper, so the menus track
+          the caret as the body scrolls.
         */}
         <ChipModalBody className='gap-2 px-4'>
           <ChipModalTabs
@@ -1046,10 +1047,11 @@ try {
                       setShowEnvVars(false)
                       setSearchTerm('')
                     }}
-                    inputRef={{
-                      current: codeEditorRef.current?.querySelector(
-                        'textarea'
-                      ) as HTMLTextAreaElement,
+                    className='w-64'
+                    style={{
+                      position: 'absolute',
+                      top: `${dropdownPosition.top}px`,
+                      left: `${dropdownPosition.left}px`,
                     }}
                   />
                 )}
@@ -1066,10 +1068,11 @@ try {
                       setShowTags(false)
                       setActiveSourceBlockId(null)
                     }}
-                    inputRef={{
-                      current: codeEditorRef.current?.querySelector(
-                        'textarea'
-                      ) as HTMLTextAreaElement,
+                    className='w-64'
+                    style={{
+                      position: 'absolute',
+                      top: `${dropdownPosition.top}px`,
+                      left: `${dropdownPosition.left}px`,
                     }}
                   />
                 )}
