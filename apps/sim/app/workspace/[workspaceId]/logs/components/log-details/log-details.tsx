@@ -585,7 +585,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 <Button
                   variant='default'
                   size='sm'
-                  className='gap-1.5 self-start'
+                  className='gap-1 self-start'
                   onClick={handleTroubleshoot}
                 >
                   <Wrench className='size-3' />
