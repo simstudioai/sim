@@ -68,13 +68,15 @@ export function WorkspaceChrome({
    */
   const isCollapsed = hasHydrated ? storeIsCollapsed : initialSidebarCollapsed
 
-  // Suppress sidebar transitions across the initial hydration window. The
-  // pre-paint script already set the correct `--sidebar-width`, but the store
-  // rehydration below re-applies it a tick later; without this guard that
-  // re-apply animates the rail, reading as a collapse -> expand flash on a
-  // fresh load. Runs before the rehydrate effect so the class is in place
-  // ahead of the width mutation, then lifts after the first paint so
-  // user-driven collapse toggles and the fullscreen slide still animate.
+  /**
+   * Suppresses sidebar transitions across the initial hydration window. The
+   * pre-paint script already set the correct `--sidebar-width`, but the store
+   * rehydration below re-applies it a tick later; without this guard that
+   * re-apply animates the rail, reading as a collapse -> expand flash on a
+   * fresh load. Applied before the rehydrate effect so the class is in place
+   * ahead of the width mutation, then lifted after the first paint so
+   * user-driven collapse toggles and the fullscreen slide still animate.
+   */
   useLayoutEffect(() => {
     const root = document.documentElement
     root.classList.add('sidebar-booting')
