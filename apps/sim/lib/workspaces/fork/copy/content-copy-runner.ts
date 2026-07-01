@@ -14,6 +14,26 @@ import type { ForkContentRefMaps } from '@/lib/workspaces/fork/remap/remap-conte
 const logger = createLogger('WorkspaceForkContentCopy')
 
 /**
+ * Whether a fork/sync has any heavy content to copy after the commit: table rows, KB documents,
+ * copied skill bodies, standalone documents, or file blobs. The single gate for scheduling the
+ * background content fill - shared by fork-create and promote so the two can't diverge. A
+ * skill-only (or documents-only) copy must still schedule it, otherwise the in-content `sim:` /
+ * serve-link rewrite in {@link runForkContentCopy} never runs and copied bodies keep source links.
+ */
+export function hasForkContentToCopy(
+  contentPlan: ForkContentPlan,
+  blobTasks: BlobCopyTask[]
+): boolean {
+  return (
+    contentPlan.tables.length > 0 ||
+    contentPlan.knowledgeBases.length > 0 ||
+    contentPlan.skills.length > 0 ||
+    contentPlan.documents.length > 0 ||
+    blobTasks.length > 0
+  )
+}
+
+/**
  * JSON-serializable form of {@link ForkContentRefMaps} (Maps become Records) so the in-content
  * reference maps survive the Trigger.dev payload boundary. Rehydrated to Maps in the runner.
  */

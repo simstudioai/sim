@@ -14,6 +14,7 @@ import {
 } from '@/lib/workspaces/fork/background-work/store'
 import {
   type ForkContentCopyPayload,
+  hasForkContentToCopy,
   scheduleForkContentCopy,
   serializeContentRefMaps,
 } from '@/lib/workspaces/fork/copy/content-copy-runner'
@@ -356,8 +357,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   // as the workflows exist and is never blocked on (or timed out by) heavy I/O.
   // Trigger.dev runs it out-of-process (surviving deploys); without it, runDetached
   // runs it inline best-effort. Both are batched/bounded internally.
-  const hasContent =
-    contentPlan.tables.length > 0 || contentPlan.knowledgeBases.length > 0 || blobTasks.length > 0
+  const hasContent = hasForkContentToCopy(contentPlan, blobTasks)
 
   // Record a durable job for EVERY fork (the fork already committed), scoped to the
   // SOURCE workspace - that's where the fork was initiated and where its Activity tab

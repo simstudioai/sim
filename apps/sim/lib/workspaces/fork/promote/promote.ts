@@ -15,6 +15,7 @@ import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { startBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
 import {
   type ForkContentCopyPayload,
+  hasForkContentToCopy,
   type SerializableForkContentRefMaps,
   scheduleForkContentCopy,
 } from '@/lib/workspaces/fork/copy/content-copy-runner'
@@ -806,12 +807,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   const copyContentPlan = txResult.copyContentPlan
   const copyBlobTasks = txResult.copyContentBlobTasks
   const hasCopyContent =
-    copyContentPlan != null &&
-    (copyContentPlan.tables.length > 0 ||
-      copyContentPlan.knowledgeBases.length > 0 ||
-      copyContentPlan.skills.length > 0 ||
-      copyContentPlan.documents.length > 0 ||
-      copyBlobTasks.length > 0)
+    copyContentPlan != null && hasForkContentToCopy(copyContentPlan, copyBlobTasks)
   if (copyContentPlan && hasCopyContent) {
     // Scope the durable record to the workspace whose Manage Forks -> Activity the user is
     // viewing (the one the sync was initiated from), matching where the route records the sync.

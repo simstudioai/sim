@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { serializeContentRefMaps } from '@/lib/workspaces/fork/copy/content-copy-runner'
+import {
+  hasForkContentToCopy,
+  serializeContentRefMaps,
+} from '@/lib/workspaces/fork/copy/content-copy-runner'
+import type { BlobCopyTask } from '@/lib/workspaces/fork/copy/copy-files'
+import type { ForkContentPlan } from '@/lib/workspaces/fork/copy/copy-resources'
 
 describe('serializeContentRefMaps', () => {
   it('converts each map to a record and drops empty maps', () => {
@@ -32,5 +37,48 @@ describe('serializeContentRefMaps', () => {
     expect(result.workspaceId).toBeUndefined()
     expect(result.fileKeys).toBeUndefined()
     expect(result.skills).toBeUndefined()
+  })
+})
+
+describe('hasForkContentToCopy', () => {
+  const emptyPlan = (): ForkContentPlan => ({
+    sourceWorkspaceId: 'src',
+    childWorkspaceId: 'child',
+    userId: 'u',
+    tables: [],
+    knowledgeBases: [],
+    skills: [],
+    documents: [],
+  })
+  // The helper only inspects array lengths, so a single placeholder entry per kind is enough.
+  const oneSkill = [{}] as unknown as ForkContentPlan['skills']
+  const oneDoc = [{}] as unknown as ForkContentPlan['documents']
+  const oneTable = [{}] as unknown as ForkContentPlan['tables']
+  const oneKb = [{}] as unknown as ForkContentPlan['knowledgeBases']
+  const oneBlob = [{}] as unknown as BlobCopyTask[]
+  const noBlobs: BlobCopyTask[] = []
+
+  it('is true when skills are non-empty (the create-fork skill-only fix)', () => {
+    expect(hasForkContentToCopy({ ...emptyPlan(), skills: oneSkill }, noBlobs)).toBe(true)
+  })
+
+  it('is true when documents are non-empty', () => {
+    expect(hasForkContentToCopy({ ...emptyPlan(), documents: oneDoc }, noBlobs)).toBe(true)
+  })
+
+  it('is true when tables are non-empty', () => {
+    expect(hasForkContentToCopy({ ...emptyPlan(), tables: oneTable }, noBlobs)).toBe(true)
+  })
+
+  it('is true when knowledgeBases are non-empty', () => {
+    expect(hasForkContentToCopy({ ...emptyPlan(), knowledgeBases: oneKb }, noBlobs)).toBe(true)
+  })
+
+  it('is true when there are blob tasks', () => {
+    expect(hasForkContentToCopy(emptyPlan(), oneBlob)).toBe(true)
+  })
+
+  it('is false for an all-empty plan with no blob tasks', () => {
+    expect(hasForkContentToCopy(emptyPlan(), noBlobs)).toBe(false)
   })
 })

@@ -115,11 +115,14 @@ describe('copyForkResourceContent', () => {
     })
   })
 
-  it('#4 rewrites a copied skill body post-commit via db.update using the content maps', async () => {
+  it('#4 re-reads a copied skill body post-commit and rewrites it via db.update (never from payload)', async () => {
+    // The body is no longer carried in the plan - the content phase keyset-re-reads the child row.
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'child-skill-1', content: 'see [K](sim:knowledge/src-kb)' },
+    ])
+
     const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        skills: [{ childId: 'child-skill-1', content: 'see [K](sim:knowledge/src-kb)' }],
-      }),
+      contentPlan: basePlan({ skills: [{ childId: 'child-skill-1' }] }),
       contentRefMaps: { knowledgeBases: new Map([['src-kb', 'child-kb']]) },
       requestId: 'test',
     })
@@ -131,11 +134,13 @@ describe('copyForkResourceContent', () => {
     })
   })
 
-  it('#4 leaves a skill untouched when nothing in its body remaps', async () => {
+  it('#4 leaves a skill untouched when nothing in its re-read body remaps', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'child-skill-1', content: 'no references here' },
+    ])
+
     const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        skills: [{ childId: 'child-skill-1', content: 'no references here' }],
-      }),
+      contentPlan: basePlan({ skills: [{ childId: 'child-skill-1' }] }),
       contentRefMaps: { knowledgeBases: new Map([['src-kb', 'child-kb']]) },
       requestId: 'test',
     })
@@ -144,14 +149,14 @@ describe('copyForkResourceContent', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('#4 skips the skill rewrite entirely when no content maps are supplied', async () => {
+  it('#4 skips the skill re-read + rewrite entirely when no content maps are supplied', async () => {
     await copyForkResourceContent({
-      contentPlan: basePlan({
-        skills: [{ childId: 'child-skill-1', content: 'see [K](sim:knowledge/src-kb)' }],
-      }),
+      contentPlan: basePlan({ skills: [{ childId: 'child-skill-1' }] }),
       requestId: 'test',
     })
 
+    // No maps -> the body is neither re-read from the DB nor updated.
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
@@ -286,6 +291,67 @@ describe('copyForkResourceContainers custom-tool code env rewrite', () => {
       workflowIdMap: new Map(),
     })
     expect(inserted[0].code).toBe('fetch("{{SLACK_API_KEY}}")')
+  })
+})
+
+describe('copyForkResourceContainers skill copy', () => {
+  function makeSkillTx(rows: Array<Record<string, unknown>>) {
+    const inserted: Array<Record<string, unknown>> = []
+    const tx = {
+      select: () => ({ from: () => ({ where: () => Promise.resolve(rows) }) }),
+      insert: () => ({
+        values: (values: Array<Record<string, unknown>>) => {
+          inserted.push(...values)
+          return Promise.resolve()
+        },
+      }),
+    }
+    return { tx: tx as unknown as DbOrTx, inserted }
+  }
+
+  const skillSelection = {
+    customTools: [],
+    skills: ['sk-1'],
+    workflowMcpServers: [],
+    tables: [],
+    knowledgeBases: [],
+  }
+
+  it('copies the skill body IN-DB and carries only the child id in the content plan', async () => {
+    // The source projection deliberately omits `content` (it is copied server-side), so the row
+    // fed to the tx mock has none - the body must never be materialized in app memory here.
+    const { tx, inserted } = makeSkillTx([
+      {
+        id: 'sk-1',
+        name: 'My Skill',
+        description: 'desc',
+        workspaceId: 'src-ws',
+        userId: 'src-user',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+
+    const result = await copyForkResourceContainers({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now: new Date(),
+      selection: skillSelection,
+      workflowIdMap: new Map(),
+    })
+
+    expect(inserted).toHaveLength(1)
+    const childId = inserted[0].id as string
+    expect(childId).not.toBe('sk-1')
+    expect(inserted[0].workspaceId).toBe('child-ws')
+    expect(inserted[0].userId).toBe('user-1')
+    // The body is deferred to a correlated subquery (in-DB copy), never a materialized string.
+    expect(typeof inserted[0].content).not.toBe('string')
+    // The content plan carries ONLY the child id - no skill body text crosses the job payload.
+    expect(result.contentPlan.skills).toEqual([{ childId }])
+    expect(result.names.skills).toEqual(['My Skill'])
   })
 })
 

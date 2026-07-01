@@ -12,7 +12,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
 import type { TableSchema } from '@/lib/table/types'
@@ -46,6 +46,13 @@ const CONTENT_PAGE = 500
  * processes one page at a time, so peak concurrency stays at this cap regardless of KB size.
  */
 const KB_DOCUMENT_COPY_CONCURRENCY = 5
+
+/**
+ * Max copied skill bodies rewritten concurrently within one keyset page. Bounds the per-skill
+ * re-read + UPDATE fan-out so a page of copied skills doesn't issue every write at once; the keyset
+ * loop still processes one page at a time, so peak concurrency stays at this cap.
+ */
+const SKILL_REWRITE_CONCURRENCY = 5
 
 export interface CopyResourcesParams {
   tx: DbOrTx
@@ -95,13 +102,14 @@ export interface ForkContentKbEntry extends ForkContentPlanEntry {
 
 /**
  * A copied skill whose body's in-content references (`sim:` links + embedded file URLs) are
- * rewritten post-commit. The child row is inserted in the fork tx with the SOURCE body; the
- * content phase rewrites it best-effort so it points at the copied child resources (an unmapped
- * target degrades to a graceful broken link, never an FK/subblock reference).
+ * rewritten post-commit. Only the child id is carried: the child row is inserted in the fork tx
+ * with the SOURCE body copied IN-DB (never materialized in app memory or embedded in the job
+ * payload), and the content phase RE-READS the body keyset-paginated to rewrite it best-effort so
+ * it points at the copied child resources (an unmapped target degrades to a graceful broken link,
+ * never an FK/subblock reference).
  */
 export interface ForkContentSkillEntry {
   childId: string
-  content: string
 }
 
 /**
@@ -180,6 +188,13 @@ function setId(idMap: Map<ForkResourceType, Map<string, string>>, type: ForkReso
   }
   return map
 }
+
+/**
+ * Child `skill` insert whose `content` is a correlated subquery (copied server-side from the source
+ * row) rather than a materialized string, so the fork tx never pulls skill bodies into app memory -
+ * see the skeleton skill copy in {@link copyForkResourceContainers}.
+ */
+type SkillSkeletonInsert = Omit<typeof skill.$inferInsert, 'content'> & { content: SQL }
 
 /**
  * Copy the selected resources' **container rows** into the child workspace inside
@@ -261,11 +276,22 @@ export async function copyForkResourceContainers(
   }
 
   if (selection.skills.length > 0) {
+    // Select every skill column EXCEPT `content`: the body (capped at 50 KB each, up to 2000 skills)
+    // is copied server-side via the correlated subquery below, so it is never materialized in app
+    // memory while the fork tx holds its locks - nor carried in the background-job payload.
     const rows = await tx
-      .select()
+      .select({
+        id: skill.id,
+        workspaceId: skill.workspaceId,
+        userId: skill.userId,
+        name: skill.name,
+        description: skill.description,
+        createdAt: skill.createdAt,
+        updatedAt: skill.updatedAt,
+      })
       .from(skill)
       .where(and(inArray(skill.id, selection.skills), eq(skill.workspaceId, sourceWorkspaceId)))
-    const inserts: (typeof skill.$inferInsert)[] = []
+    const inserts: SkillSkeletonInsert[] = []
     for (const row of rows) {
       const childId = generateId()
       inserts.push({
@@ -273,13 +299,14 @@ export async function copyForkResourceContainers(
         id: childId,
         workspaceId: childWorkspaceId,
         userId,
+        // Copy the body straight from the source row in-DB (never through app memory). Re-read and
+        // rewritten post-commit (see copyForkResourceContent), out of the locked fork tx.
+        content: sql`(SELECT ${skill.content} FROM ${skill} WHERE ${skill.id} = ${row.id})`,
         createdAt: now,
         updatedAt: now,
       })
       record('skill', row.id, childId)
-      // Rewritten post-commit (see copyForkResourceContent): the row is inserted with the
-      // source body here so the locked fork tx never runs the per-skill content UPDATE.
-      contentPlan.skills.push({ childId, content: row.content })
+      contentPlan.skills.push({ childId })
       names.skills.push(row.name)
     }
     if (inserts.length > 0) await tx.insert(skill).values(inserts)
@@ -578,8 +605,9 @@ function remapTableRowResourceUrls(value: unknown, maps: ForkContentRefMaps): un
  * resource is copied in its own short statements (never one long transaction).
  * Best-effort: a failure on one resource is logged and the others continue - the
  * fork itself (workflows + container rows) already succeeded. Copied skill bodies are
- * rewritten here too (`contentRefMaps`), out of the locked fork tx; that rewrite is an
- * in-content link fixup, so a failure degrades to a broken link and never fails a resource.
+ * RE-READ (keyset-paginated) and rewritten here too (`contentRefMaps`), out of the locked
+ * fork tx; that rewrite is an in-content link fixup, so a failure degrades to a broken link
+ * and never fails a resource.
  */
 export async function copyForkResourceContent(params: {
   contentPlan: ForkContentPlan
@@ -760,26 +788,47 @@ export async function copyForkResourceContent(params: {
     }
   }
 
-  // Rewrite copied skill bodies out of the locked fork tx (the rows were inserted with the
-  // source body). Their `sim:` links + embedded file URLs are remapped to the child resources;
-  // this is an in-content link fixup, so a per-skill failure degrades to a broken link and is
-  // never counted as a failed resource (unmapped targets are left as graceful broken links).
+  // Rewrite copied skill bodies out of the locked fork tx (the rows were inserted with the source
+  // body via an in-DB copy). RE-READ each child body keyset-paginated - it is never carried in the
+  // job payload - remap its `sim:` links + embedded file URLs to the child resources, and write it
+  // back. An in-content link fixup: a per-skill failure degrades to a broken link and is never
+  // counted as a failed resource (unmapped targets are left as graceful broken links).
   if (contentRefMaps && contentPlan.skills.length > 0) {
-    for (const copiedSkill of contentPlan.skills) {
-      try {
-        const rewritten = rewriteForkContentRefs(copiedSkill.content, contentRefMaps)
-        if (rewritten !== copiedSkill.content) {
-          await db
-            .update(skill)
-            .set({ content: rewritten })
-            .where(eq(skill.id, copiedSkill.childId))
+    const childSkillIds = contentPlan.skills.map((entry) => entry.childId)
+    let afterId: string | null = null
+    for (;;) {
+      const where: SQL<unknown> | undefined =
+        afterId === null
+          ? inArray(skill.id, childSkillIds)
+          : and(inArray(skill.id, childSkillIds), gt(skill.id, afterId))
+      const rows = await db
+        .select({ id: skill.id, content: skill.content })
+        .from(skill)
+        .where(where)
+        .orderBy(asc(skill.id))
+        .limit(CONTENT_PAGE)
+      if (rows.length === 0) break
+      // Bounded fan-out: the mapper never rejects (it captures its own error), so mapWithConcurrency
+      // settles the whole page. A rewrite is a best-effort link fixup, so a per-skill failure is
+      // logged and the body keeps its source links rather than failing a resource.
+      await mapWithConcurrency(rows, SKILL_REWRITE_CONCURRENCY, async (row): Promise<void> => {
+        try {
+          const rewritten = rewriteForkContentRefs(row.content, contentRefMaps)
+          if (rewritten !== row.content) {
+            await db.update(skill).set({ content: rewritten }).where(eq(skill.id, row.id))
+          }
+        } catch (error) {
+          logger.warn(
+            `[${requestId}] Failed to rewrite copied skill content; keeping source links`,
+            {
+              childSkillId: row.id,
+              error: getErrorMessage(error),
+            }
+          )
         }
-      } catch (error) {
-        logger.warn(`[${requestId}] Failed to rewrite copied skill content; keeping source links`, {
-          childSkillId: copiedSkill.childId,
-          error: getErrorMessage(error),
-        })
-      }
+      })
+      afterId = rows[rows.length - 1].id
+      if (rows.length < CONTENT_PAGE) break
     }
   }
 
