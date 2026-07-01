@@ -51,12 +51,14 @@ export function useWorkspaceImports(
   // jobs), so the tray reads them from their dedicated workspace listing.
   const { data: exportJobs } = useWorkspaceExportJobs(workspaceId)
 
-  const prevStatus = useRef<Map<string, string>>(new Map())
+  const prevStatusRef = useRef<Map<string, string> | null>(null)
+  prevStatusRef.current ??= new Map()
   useEffect(() => {
     if (!tables) return
+    const prevStatus = prevStatusRef.current ?? new Map<string, string>()
     const store = useImportTrayStore.getState()
     for (const table of tables) {
-      const before = prevStatus.current.get(table.id)
+      const before = prevStatus.get(table.id)
       const now = table.jobStatus ?? 'none'
       if (before === 'running' && now === 'ready') {
         // Success toast only for imports — deletes reflect instantly in the grid and backfills
@@ -80,7 +82,7 @@ export function useWorkspaceImports(
         if (table.jobType === 'import') store.notify(table.id)
       }
       if (now !== 'running' && store.isCanceled(table.id)) store.consumeCanceled(table.id)
-      prevStatus.current.set(table.id, now)
+      prevStatus.set(table.id, now)
     }
   }, [tables])
 

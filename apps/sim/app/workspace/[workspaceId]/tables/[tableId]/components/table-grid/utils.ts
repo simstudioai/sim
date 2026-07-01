@@ -116,10 +116,13 @@ export function expandToDisplayColumns(
         size++
       }
       const group = groupById.get(gid)
+      const outputByColumnName = group
+        ? new Map(group.outputs.map((o) => [o.columnName, o]))
+        : undefined
       const startIdx = out.length
       for (let k = 0; k < size; k++) {
         const child = columns[i + k]
-        const output = group?.outputs.find((o) => o.columnName === getColumnId(child))
+        const output = outputByColumnName?.get(getColumnId(child))
         out.push({
           ...child,
           key: getColumnId(child),
