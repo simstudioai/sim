@@ -122,14 +122,6 @@ const ModalClose = DialogPrimitive.Close
  * Modal overlay component with fade transition.
  * Outside interactions are handled by the dialog content so nested poppers can
  * close without also dismissing the modal.
- *
- * `[transform:translateZ(0)]` forces the overlay onto its own compositing layer.
- * A `backdrop-blur` overlay does not reliably paint above page content the
- * browser has already GPU-promoted — `position: sticky` headers and `z-index`ed
- * absolutes inside a scroll container (e.g. the scheduled-tasks calendar) can
- * sort ABOVE it despite its higher `z-index`, bleeding through. Promoting the
- * overlay (and the content wrapper below, so the panel occludes too) makes the
- * compositor honor stacking order.
  */
 const ModalOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
@@ -139,7 +131,7 @@ const ModalOverlay = React.forwardRef<
     <DialogPrimitive.Overlay
       ref={ref}
       className={cn(
-        'fixed inset-0 z-[var(--z-modal)] bg-black/10 backdrop-blur-[2px] [transform:translateZ(0)]',
+        'fixed inset-0 z-[var(--z-modal)] bg-black/10 backdrop-blur-[2px]',
         ANIMATION_CLASSES,
         className
       )}
@@ -237,7 +229,7 @@ const ModalContent = React.forwardRef<
       <ModalPortal>
         <ModalOverlay />
         <div
-          className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center [transform:translateZ(0)]'
+          className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
           style={
             size === 'full'
               ? undefined
