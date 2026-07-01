@@ -35,6 +35,20 @@ const CAPTCHA_UNAVAILABLE_RATE_LIMIT: TokenBucketConfig = {
 const SUCCESS_RESPONSE = { success: true, message: "Thanks — we'll be in touch soon." }
 const TOO_MANY_REQUESTS_RESPONSE = { error: 'Too many requests. Please try again later.' }
 
+/**
+ * Public contact-form endpoint: per-IP rate limit, honeypot drop, captcha, then a
+ * help-inbox notification plus a best-effort visitor confirmation.
+ *
+ * Captcha is server-authoritative — a valid Turnstile token is the only way past
+ * the stricter fallback bucket, so a caller cannot opt out of the challenge. A
+ * missing token (widget could not load) or a Cloudflare transport error falls
+ * back to the tighter no-captcha bucket rather than a free pass; an outright
+ * invalid token is rejected. That backstop is enforced `failClosed`, so an
+ * unavailable limiter rejects token-less submits instead of admitting them. No
+ * `expectedHostname` is pinned: the site key is already domain-bound in
+ * Cloudflare, and a single-host pin would reject valid self-hosted/preview/apex
+ * tokens.
+ */
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -69,20 +83,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
     }
 
-    // Captcha is server-authoritative: a valid Turnstile token is the only way to
-    // skip the stricter fallback bucket. A missing token (widget could not load) or
-    // a Cloudflare transport error falls back to the tighter no-captcha rate limit
-    // rather than a free pass, so callers cannot opt out of the challenge. An
-    // outright invalid token is rejected.
     if (isTurnstileConfigured()) {
       let captchaVerified = false
       const token =
         typeof captchaToken === 'string' && captchaToken.length > 0 ? captchaToken : null
 
       if (token) {
-        // No expectedHostname: the Turnstile site key is already domain-bound in
-        // Cloudflare, and pinning a single hostname here would reject valid tokens
-        // from self-hosted, preview, and apex-vs-www deployments.
         const verification = await verifyTurnstileToken({ token, remoteIp: ip })
         if (verification.success) {
           captchaVerified = true
@@ -104,9 +110,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
 
       if (!captchaVerified) {
-        // Fail closed: this bucket is the only throttle on token-less submits, so
-        // if the limiter storage is unavailable we reject rather than admit an
-        // uncaptcha'd request to the email path.
         const nocaptchaKey = `public:contact:nocaptcha:${ip}`
         const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
           nocaptchaKey,

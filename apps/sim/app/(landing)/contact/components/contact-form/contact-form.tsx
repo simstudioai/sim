@@ -144,10 +144,6 @@ export function ContactForm() {
       return
     }
 
-    // Best-effort Turnstile execution: re-run the (invisible) widget on every
-    // submit, including after an expiry, since reset + execute yields a fresh
-    // token. If the widget never loaded or execution fails, the token is omitted
-    // and the server applies its stricter no-captcha rate limit.
     let captchaToken: string | undefined
     const widget = turnstileRef.current
 
@@ -172,9 +168,6 @@ export function ContactForm() {
         onError: () => {
           turnstileRef.current?.reset()
         },
-        // Reset the pre-submit gate only once the mutation settles, so `isBusy`
-        // stays true continuously (the captcha window then `isPending`) and a
-        // second click can never slip through to fire a duplicate request.
         onSettled: () => {
           setIsSubmitting(false)
         },
@@ -224,7 +217,6 @@ export function ContactForm() {
         className='relative mt-5 flex flex-col gap-4'
         noValidate
       >
-        {/* Honeypot */}
         <div
           aria-hidden='true'
           className='pointer-events-none absolute left-[-9999px] h-px w-px overflow-hidden opacity-0'
@@ -333,10 +325,6 @@ export function ContactForm() {
           </p>
         ) : null}
 
-        {/*
-          `Chip` gives its label span `flex-1`; under `fullWidth` that left-aligns the
-          label, so center it with `justify-center` + a `flex-none` span override.
-        */}
         <Chip
           type='submit'
           variant='primary'
