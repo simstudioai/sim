@@ -175,10 +175,14 @@ interface Finding {
   snippet: string
 }
 
-/** Find the nearest preceding `export function XxxIcon` for a source offset. */
+/**
+ * Find the nearest preceding icon export for a source offset. Matches both
+ * `export function XxxIcon` and `export const XxxIcon =` forms so arrow-function
+ * icons are attributed correctly.
+ */
 function iconNameAt(src: string, offset: number): string {
   const before = src.slice(0, offset)
-  const matches = [...before.matchAll(/export function (\w+)/g)]
+  const matches = [...before.matchAll(/export (?:function|const) (\w+)\s*[=(]/g)]
   return matches.length ? matches[matches.length - 1][1] : '<unknown>'
 }
 
