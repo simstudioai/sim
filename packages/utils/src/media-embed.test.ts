@@ -7,10 +7,16 @@ describe('getEmbedInfo', () => {
     expect(getEmbedInfo('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual(expected)
     expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ')).toEqual(expected)
     expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ')).toEqual(expected)
-    // Extra query params around v= still resolve.
+    // Extra query params around v=, a youtu.be tracking param, a trailing slash,
+    // and an embed query string all still resolve to the same embed.
     expect(getEmbedInfo('https://www.youtube.com/watch?list=RD&v=dQw4w9WgXcQ&t=5')).toEqual(
       expected
     )
+    expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ?si=abc')).toEqual(expected)
+    expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ/')).toEqual(expected)
+    expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0')).toEqual(expected)
+    // A non-11-char id is not a valid YouTube video and does not embed.
+    expect(getEmbedInfo('https://www.youtube.com/watch?v=short')).toBeNull()
   })
 
   it('maps Facebook and fb.watch video links to the video plugin', () => {

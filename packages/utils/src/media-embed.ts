@@ -66,7 +66,7 @@ export function getEmbedInfo(url: string): EmbedInfo | null {
   const host = parsed?.hostname.toLowerCase() ?? null
   if (parsed && hostMatches(host, 'youtube.com', 'youtu.be')) {
     const id = hostMatches(host, 'youtu.be')
-      ? parsed.pathname.slice(1)
+      ? parsed.pathname.split('/')[1]
       : (parsed.searchParams.get('v') ?? parsed.pathname.match(/^\/embed\/([^/?]+)/)?.[1])
     if (id && /^[a-zA-Z0-9_-]{11}$/.test(id)) {
       return { url: `https://www.youtube.com/embed/${id}`, type: 'iframe' }
