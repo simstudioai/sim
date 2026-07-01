@@ -7,15 +7,13 @@ describe('getEmbedInfo', () => {
     expect(getEmbedInfo('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual(expected)
     expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ')).toEqual(expected)
     expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ')).toEqual(expected)
-    // Extra query params around v=, a youtu.be tracking param, a trailing slash,
-    // and an embed query string all still resolve to the same embed.
     expect(getEmbedInfo('https://www.youtube.com/watch?list=RD&v=dQw4w9WgXcQ&t=5')).toEqual(
       expected
     )
     expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ?si=abc')).toEqual(expected)
     expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ/')).toEqual(expected)
     expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0')).toEqual(expected)
-    // A non-11-char id is not a valid YouTube video and does not embed.
+    expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ?v=notAnId')).toEqual(expected)
     expect(getEmbedInfo('https://www.youtube.com/watch?v=short')).toBeNull()
   })
 
@@ -63,13 +61,10 @@ describe('getEmbedInfo', () => {
   })
 
   it('only embeds when the parsed host belongs to the provider', () => {
-    // A provider domain in the path or as a subdomain prefix of an attacker host
-    // must not be treated as that provider.
     expect(getEmbedInfo('https://evil.com/youtube.com/watch?v=dQw4w9WgXcQ')).toBeNull()
     expect(getEmbedInfo('https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ')).toBeNull()
     expect(getEmbedInfo('https://evil.com/open.spotify.com/track/abc123')).toBeNull()
     expect(getEmbedInfo('https://vimeo.com.evil.com/123456')).toBeNull()
-    // Legitimate subdomains of a provider still embed.
     expect(getEmbedInfo('https://m.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual({
       url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
       type: 'iframe',
@@ -96,8 +91,6 @@ describe('getEmbedInfo', () => {
     })
 
     it('does not apply the Dropbox direct-link rewrite to look-alike hosts', () => {
-      // Look-alike hosts fall through to the generic video handler with their
-      // original (untrusted) host intact — never rewritten as if trusted Dropbox.
       expect(getEmbedInfo('https://dropbox.com.evil.com/clip.mp4')?.url).not.toContain(
         'dropboxusercontent.com'
       )

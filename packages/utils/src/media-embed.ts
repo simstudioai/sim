@@ -65,9 +65,11 @@ export function getEmbedInfo(url: string): EmbedInfo | null {
   const parsed = parseUrl(url)
   const host = parsed?.hostname.toLowerCase() ?? null
   if (parsed && hostMatches(host, 'youtube.com', 'youtu.be')) {
-    const id = hostMatches(host, 'youtu.be')
-      ? parsed.pathname.split('/')[1]
-      : (parsed.searchParams.get('v') ?? parsed.pathname.match(/^\/embed\/([^/?]+)/)?.[1])
+    const segments = parsed.pathname.split('/')
+    let id: string | null | undefined
+    if (hostMatches(host, 'youtu.be')) id = segments[1]
+    else if (segments[1] === 'embed') id = segments[2]
+    else id = parsed.searchParams.get('v')
     if (id && /^[a-zA-Z0-9_-]{11}$/.test(id)) {
       return { url: `https://www.youtube.com/embed/${id}`, type: 'iframe' }
     }
@@ -322,7 +324,6 @@ export function getEmbedInfo(url: string): EmbedInfo | null {
   }
 
   if (parsed && hostMatches(host, 'giphy.com')) {
-    // Giphy ids are the trailing hyphen-delimited token of a /gifs/ or /embed/ path segment.
     const segment = parsed.pathname.match(/^\/(?:gifs|embed)\/([^/]+)/)?.[1]
     const giphyId = segment?.split('-').pop()
     if (giphyId && /^[a-zA-Z0-9]+$/.test(giphyId)) {
