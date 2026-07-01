@@ -34,6 +34,7 @@ import { getUserRole } from '@/lib/workspaces/organization'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type CredentialSet,
@@ -632,33 +633,23 @@ export function CredentialSets() {
             <div className='flex flex-col gap-4.5'>
               {filteredInvitations.length > 0 && (
                 <SettingsSection label='Pending Invitations'>
-                  <div className='flex flex-col gap-3'>
+                  <div className='flex flex-col gap-2'>
                     {filteredInvitations.map((invitation) => (
-                      <div
+                      <SettingsResourceRow
                         key={invitation.invitationId}
-                        className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-                      >
-                        <div className='flex items-center gap-2.5'>
-                          <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                            {getProviderIcon(invitation.providerId)}
-                          </div>
-                          <div className='flex flex-col'>
-                            <span className='text-[14px] text-[var(--text-body)]'>
-                              {invitation.credentialSetName}
-                            </span>
-                            <span className='text-[12px] text-[var(--text-muted)]'>
-                              {invitation.organizationName}
-                            </span>
-                          </div>
-                        </div>
-                        <Chip
-                          variant='primary'
-                          onClick={() => handleAcceptInvitation(invitation.token)}
-                          disabled={acceptInvitation.isPending}
-                        >
-                          {acceptInvitation.isPending ? 'Accepting...' : 'Accept'}
-                        </Chip>
-                      </div>
+                        icon={getProviderIcon(invitation.providerId)}
+                        title={invitation.credentialSetName}
+                        description={invitation.organizationName}
+                        trailing={
+                          <Chip
+                            variant='primary'
+                            onClick={() => handleAcceptInvitation(invitation.token)}
+                            disabled={acceptInvitation.isPending}
+                          >
+                            {acceptInvitation.isPending ? 'Accepting...' : 'Accept'}
+                          </Chip>
+                        }
+                      />
                     ))}
                   </div>
                 </SettingsSection>
@@ -666,34 +657,24 @@ export function CredentialSets() {
 
               {filteredMemberships.length > 0 && (
                 <SettingsSection label='My Memberships'>
-                  <div className='flex flex-col gap-3'>
+                  <div className='flex flex-col gap-2'>
                     {filteredMemberships.map((membership) => (
-                      <div
+                      <SettingsResourceRow
                         key={membership.membershipId}
-                        className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-                      >
-                        <div className='flex items-center gap-2.5'>
-                          <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                            {getProviderIcon(membership.providerId)}
-                          </div>
-                          <div className='flex flex-col'>
-                            <span className='text-[14px] text-[var(--text-body)]'>
-                              {membership.credentialSetName}
-                            </span>
-                            <span className='text-[12px] text-[var(--text-muted)]'>
-                              {membership.organizationName}
-                            </span>
-                          </div>
-                        </div>
-                        <Chip
-                          onClick={() =>
-                            handleLeave(membership.credentialSetId, membership.credentialSetName)
-                          }
-                          disabled={leaveCredentialSet.isPending}
-                        >
-                          Leave
-                        </Chip>
-                      </div>
+                        icon={getProviderIcon(membership.providerId)}
+                        title={membership.credentialSetName}
+                        description={membership.organizationName}
+                        trailing={
+                          <Chip
+                            onClick={() =>
+                              handleLeave(membership.credentialSetId, membership.credentialSetName)
+                            }
+                            disabled={leaveCredentialSet.isPending}
+                          >
+                            Leave
+                          </Chip>
+                        }
+                      />
                     ))}
                   </div>
                 </SettingsSection>
@@ -709,26 +690,14 @@ export function CredentialSets() {
                         No polling groups created yet
                       </div>
                     ) : (
-                      <div className='flex flex-col gap-3'>
+                      <div className='flex flex-col gap-2'>
                         {filteredOwnedSets.map((set) => (
-                          <div
+                          <SettingsResourceRow
                             key={set.id}
-                            className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-                          >
-                            <div className='flex items-center gap-2.5'>
-                              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                                {getProviderIcon(set.providerId)}
-                              </div>
-                              <div className='flex flex-col'>
-                                <span className='text-[14px] text-[var(--text-body)]'>
-                                  {set.name}
-                                </span>
-                                <span className='text-[12px] text-[var(--text-muted)]'>
-                                  {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                            </div>
-                            <div className='flex items-center gap-1'>
+                            icon={getProviderIcon(set.providerId)}
+                            title={set.name}
+                            description={`${set.memberCount} member${set.memberCount !== 1 ? 's' : ''}`}
+                            trailing={
                               <RowActionsMenu
                                 label='Group actions'
                                 actions={[
@@ -741,8 +710,8 @@ export function CredentialSets() {
                                   },
                                 ]}
                               />
-                            </div>
-                          </div>
+                            }
+                          />
                         ))}
                       </div>
                     )}
