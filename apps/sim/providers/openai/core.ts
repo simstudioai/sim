@@ -11,6 +11,7 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   enforceStrictSchema,
+  isCachedInput,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -255,6 +256,8 @@ export async function executeResponsesProviderRequest(
         timing: { kind: 'simple', segmentName: request.model },
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { input: 0, output: 0, total: 0 },
+        hostedKey: request.hostedKey,
+        cached: isCachedInput(request.context),
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromResponses(streamResponse, (content, usage) => {
             output.content = content
@@ -681,6 +684,8 @@ export async function executeResponsesProviderRequest(
           total: accumulatedCost.total,
         },
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+        hostedKey: request.hostedKey,
+        cached: isCachedInput(request.context),
         createStream: ({ output }) =>
           createReadableStreamFromResponses(streamResponse, (content, usage) => {
             output.content = content

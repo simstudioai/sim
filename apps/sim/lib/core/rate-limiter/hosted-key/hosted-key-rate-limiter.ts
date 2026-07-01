@@ -14,6 +14,7 @@ import {
   type CustomRateLimit,
   DEFAULT_BURST_MULTIPLIER,
   DEFAULT_WINDOW_MS,
+  type EnforcedRateLimitConfig,
   type HostedKeyRateLimitConfig,
   type ReportUsageResult,
   toTokenBucketConfig,
@@ -84,11 +85,25 @@ function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
  */
 function resolveEnvKeys(prefix: string): string[] {
   const count = Number.parseInt(process.env[`${prefix}_COUNT`] || '0', 10)
-  const names: string[] = []
-  for (let i = 1; i <= count; i++) {
-    names.push(`${prefix}_${i}`)
+  if (count > 0) {
+    const names: string[] = []
+    for (let i = 1; i <= count; i++) {
+      names.push(`${prefix}_${i}`)
+    }
+    return names
   }
-  return names
+
+  // No explicit _COUNT: probe numbered keys (_1.._N) until one is unset, so
+  // existing setups (e.g. OPENAI_API_KEY_1/2/3) work without new ops config.
+  // Stop only on an absent var (`undefined`), not an empty one — an empty middle
+  // slot (`_2=''`) must not truncate the pool; getAvailableKeys filters empties.
+  // Intentionally does NOT fall back to a bare `{prefix}` env var — that would
+  // accidentally pick up ambient keys (e.g. a developer's OPENAI_API_KEY).
+  const numbered: string[] = []
+  for (let i = 1; process.env[`${prefix}_${i}`] !== undefined; i++) {
+    numbered.push(`${prefix}_${i}`)
+  }
+  return numbered
 }
 
 /** Dimension name for per-billing-actor request rate limiting */
@@ -163,7 +178,7 @@ export class HostedKeyRateLimiter {
    * Build a token bucket config for the per-billing-actor request rate limit.
    * Works for both `per_request` and `custom` modes since both define `requestsPerMinute`.
    */
-  private getActorRateLimitConfig(config: HostedKeyRateLimitConfig): TokenBucketConfig | null {
+  private getActorRateLimitConfig(config: EnforcedRateLimitConfig): TokenBucketConfig | null {
     if (!config.requestsPerMinute) return null
     return toTokenBucketConfig(
       config.requestsPerMinute,
@@ -178,7 +193,7 @@ export class HostedKeyRateLimiter {
   private async checkActorRateLimit(
     provider: string,
     billingActorId: string,
-    config: HostedKeyRateLimitConfig
+    config: EnforcedRateLimitConfig
   ): Promise<{ rateLimited: true; retryAfterMs: number } | null> {
     const bucketConfig = this.getActorRateLimitConfig(config)
     if (!bucketConfig) return null
@@ -283,6 +298,12 @@ export class HostedKeyRateLimiter {
     billingActorId: string,
     signal?: AbortSignal
   ): Promise<AcquireKeyResult> {
+    // No rate limiting: skip the FIFO queue and per-actor token buckets entirely
+    // and select a key directly. Used by hosted LLM providers.
+    if (config.mode === 'none') {
+      return this.selectKey(provider, envKeyPrefix)
+    }
+
     const ticketId = generateShortId()
     const startedAt = Date.now()
     const waitState: WaitState = { lastHeartbeatAt: startedAt }
@@ -376,37 +397,46 @@ export class HostedKeyRateLimiter {
         })
       }
 
-      const envKeys = resolveEnvKeys(envKeyPrefix)
-      const availableKeys = this.getAvailableKeys(envKeys)
-
-      if (availableKeys.length === 0) {
-        logger.warn(`No hosted keys configured for provider ${provider}`)
-        return {
-          success: false,
-          error: `No hosted keys configured for ${provider}`,
-        }
-      }
-
-      const counter = this.roundRobinCounters.get(provider) ?? 0
-      const selected = availableKeys[counter % availableKeys.length]
-      this.roundRobinCounters.set(provider, counter + 1)
-
-      logger.debug(`Selected hosted key for ${provider}`, {
-        provider,
-        keyIndex: selected.keyIndex,
-        envVarName: selected.envVarName,
-      })
-
-      return {
-        success: true,
-        key: selected.key,
-        keyIndex: selected.keyIndex,
-        envVarName: selected.envVarName,
-      }
+      return this.selectKey(provider, envKeyPrefix)
     } finally {
       // Always remove our ticket so the next caller can advance, regardless of whether
       // we succeeded, hit the cap, or threw. Best-effort; safe to call multiple times.
       await this.queue.dequeue(provider, billingActorId, ticketId)
+    }
+  }
+
+  /**
+   * Resolve the configured env keys for a provider and pick the next one via
+   * round-robin. Pure key selection with no rate limiting — shared by the
+   * normal acquire path (after queue/bucket waits) and the `mode: 'none'` path.
+   */
+  private selectKey(provider: string, envKeyPrefix: string): AcquireKeyResult {
+    const envKeys = resolveEnvKeys(envKeyPrefix)
+    const availableKeys = this.getAvailableKeys(envKeys)
+
+    if (availableKeys.length === 0) {
+      logger.warn(`No hosted keys configured for provider ${provider}`)
+      return {
+        success: false,
+        error: `No hosted keys configured for ${provider}`,
+      }
+    }
+
+    const counter = this.roundRobinCounters.get(provider) ?? 0
+    const selected = availableKeys[counter % availableKeys.length]
+    this.roundRobinCounters.set(provider, counter + 1)
+
+    logger.debug(`Selected hosted key for ${provider}`, {
+      provider,
+      keyIndex: selected.keyIndex,
+      envVarName: selected.envVarName,
+    })
+
+    return {
+      success: true,
+      key: selected.key,
+      keyIndex: selected.keyIndex,
+      envVarName: selected.envVarName,
     }
   }
 
@@ -505,7 +535,7 @@ export class HostedKeyRateLimiter {
     provider: string,
     billingActorId: string,
     ticketId: string,
-    config: HostedKeyRateLimitConfig,
+    config: EnforcedRateLimitConfig,
     startedAt: number,
     waitState: WaitState,
     signal?: AbortSignal

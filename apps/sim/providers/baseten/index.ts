@@ -26,6 +26,7 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   generateSchemaInstructions,
+  isCachedInput,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -167,6 +168,8 @@ export const basetenProvider: ProviderConfig = {
           timing: { kind: 'simple', segmentName: request.model },
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
+          hostedKey: request.hostedKey,
+          cached: isCachedInput(request.context),
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
               output.content = content
@@ -469,6 +472,8 @@ export const basetenProvider: ProviderConfig = {
           },
           toolCalls:
             toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+          hostedKey: request.hostedKey,
+          cached: isCachedInput(request.context),
           createStream: ({ output }) =>
             createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
               output.content = content
