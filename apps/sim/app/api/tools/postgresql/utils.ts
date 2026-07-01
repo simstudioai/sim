@@ -9,7 +9,6 @@ export async function createPostgresConnection(config: PostgresConnectionConfig)
   }
 
   const resolvedHost = hostValidation.resolvedIP ?? config.host
-  const pinIP = config.ssl !== 'preferred'
 
   const sslConfig: boolean | 'prefer' | { rejectUnauthorized: boolean; servername?: string } =
     config.ssl === 'disabled'
@@ -19,7 +18,10 @@ export async function createPostgresConnection(config: PostgresConnectionConfig)
         : { rejectUnauthorized: false, servername: config.host }
 
   const sql = postgres({
-    host: pinIP ? resolvedHost : config.host,
+    // Always connect to the validated, pinned IP to prevent DNS rebinding between
+    // host validation and connection. For SSL modes that verify, the original
+    // hostname is preserved as the TLS servername (SNI) above.
+    host: resolvedHost,
     port: config.port,
     database: config.database,
     username: config.username,

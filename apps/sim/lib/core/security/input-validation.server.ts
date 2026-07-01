@@ -171,17 +171,19 @@ export async function validateDatabaseHost(
   }
 
   const lowerHost = host.toLowerCase()
+  const cleanHost =
+    lowerHost.startsWith('[') && lowerHost.endsWith(']') ? lowerHost.slice(1, -1) : lowerHost
 
-  if (lowerHost === 'localhost' && !allowPrivateDatabaseHosts) {
+  if (cleanHost === 'localhost' && !allowPrivateDatabaseHosts) {
     return { isValid: false, error: `${paramName} cannot be localhost` }
   }
 
-  if (ipaddr.isValid(lowerHost) && isPrivateOrReservedIP(lowerHost) && !allowPrivateDatabaseHosts) {
+  if (ipaddr.isValid(cleanHost) && isPrivateOrReservedIP(cleanHost) && !allowPrivateDatabaseHosts) {
     return { isValid: false, error: `${paramName} cannot be a private IP address` }
   }
 
   try {
-    const { address } = await dns.lookup(host, { verbatim: true })
+    const { address } = await dns.lookup(cleanHost, { verbatim: true })
 
     if (isPrivateOrReservedIP(address) && !allowPrivateDatabaseHosts) {
       logger.warn('Database host resolves to blocked IP address', {

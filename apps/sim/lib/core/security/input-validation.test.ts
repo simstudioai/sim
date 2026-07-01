@@ -793,6 +793,12 @@ describe('validateDatabaseHost', () => {
       expect(result.error).toContain('private IP')
     })
 
+    it('rejects a bracketed IPv6 loopback as a private IP (not unresolvable)', async () => {
+      const result = await validateDatabaseHost('[::1]')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
     it('accepts a public IP and pins the resolved address', async () => {
       const result = await validateDatabaseHost('1.1.1.1')
       expect(result.isValid).toBe(true)
@@ -821,6 +827,12 @@ describe('validateDatabaseHost', () => {
       const result = await validateDatabaseHost('127.0.0.1')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBe('127.0.0.1')
+    })
+
+    it('allows a bracketed IPv6 loopback and pins the unbracketed address', async () => {
+      const result = await validateDatabaseHost('[::1]')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('::1')
     })
 
     it('still surfaces unresolvable hostnames', async () => {
