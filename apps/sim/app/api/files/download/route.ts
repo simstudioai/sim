@@ -5,7 +5,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
-import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import { createErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
 
@@ -40,7 +40,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { key, name, isExecutionFile, context, url } = parsed.data.body
+    const { key, name, url } = parsed.data.body
 
     if (!key) {
       return createErrorResponse(new Error('File key is required'), 400)
@@ -58,10 +58,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const storageContext = resolveTrustedFileContext(
-      key,
-      isExecutionFile && !context ? 'execution' : context
-    )
+    // Derive context from the trusted key prefix, mirroring the serve route this URL
+    // delegates to, which re-derives context from the key and ignores any client-supplied value.
+    const storageContext = inferContextFromKey(key)
 
     const hasAccess = await verifyFileAccess(
       key,
