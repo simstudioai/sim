@@ -72,6 +72,7 @@ export const linqListPhoneNumbersTool: ToolConfig<
           healthStatus: {
             type: 'json',
             description: 'Line reputation/health status (status, doc_url)',
+            nullable: true,
           },
         },
       },
