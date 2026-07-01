@@ -348,13 +348,15 @@ export class MothershipHandoffStorage {
       timestamp?: number
     } | null>(MothershipHandoffStorage.KEY, null)
 
-    if (!data?.message || !data.timestamp) {
+    if (!data) {
       return null
     }
 
+    // Clear unconditionally once any entry exists, so a malformed or expired
+    // handoff is tombstoned rather than lingering across future mounts.
     MothershipHandoffStorage.clear()
 
-    if (Date.now() - data.timestamp > maxAge) {
+    if (!data.message || !data.timestamp || Date.now() - data.timestamp > maxAge) {
       return null
     }
 

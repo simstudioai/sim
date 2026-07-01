@@ -316,8 +316,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const message = (e as CustomEvent<MothershipSendMessageDetail>).detail?.message
-      if (message) sendMessage(message)
+      const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
+      if (!detail?.message) return
+      // Claim the event so a cross-surface producer (e.g. "Troubleshoot in
+      // Chat", fired while this chat is already mounted) knows a live chat
+      // consumed it and skips its navigate-and-persist fallback.
+      e.preventDefault()
+      sendMessage(detail.message, undefined, detail.contexts)
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -325,10 +330,11 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   /**
    * Consumes a one-shot handoff left by another surface (e.g. "Troubleshoot in
-   * Chat" on an errored log) and auto-sends it into this fresh chat, tagging the
-   * run so Sim can inspect the failure. `consume` clears the entry atomically,
-   * so it fires at most once — a re-run (StrictMode, reload, `sendMessage`
-   * identity change) reads nothing and no-ops.
+   * Chat" on an errored log viewed from a different route) and auto-sends it
+   * into this fresh chat, tagging the run so Sim can inspect the failure. Only
+   * the cross-route path lands here — when a chat is already mounted the event
+   * above delivers directly. `consume` clears the entry atomically, so it fires
+   * at most once even across a StrictMode remount or reload.
    */
   useEffect(() => {
     const handoff = MothershipHandoffStorage.consume()

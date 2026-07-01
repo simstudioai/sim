@@ -32,6 +32,7 @@ import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conver
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import {
   ExecutionSnapshot,
   FileCards,
@@ -407,8 +408,15 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     const message = workflowName
       ? `The "${workflowName}" workflow run failed. Investigate the error in this run and help me fix it.`
       : 'This workflow run failed. Investigate the error in this run and help me fix it.'
-    MothershipHandoffStorage.store({ message, contexts: [context] })
-    router.push(`/workspace/${workspaceId}/home`)
+    // If a chat is already mounted (e.g. the run is being viewed inside Chat's
+    // resource panel) it consumes the message directly. Otherwise persist a
+    // one-shot handoff and navigate so the fresh home mount picks it up — only
+    // navigating when the handoff actually stored, so a failed write never
+    // strands the user on an empty chat.
+    if (sendMothershipMessage(message, [context])) return
+    if (MothershipHandoffStorage.store({ message, contexts: [context] })) {
+      router.push(`/workspace/${workspaceId}/home`)
+    }
   }, [log.executionId, log.workflow?.name, workspaceId, router])
 
   return (

@@ -29,6 +29,13 @@ describe('MothershipHandoffStorage', () => {
     expect(MothershipHandoffStorage.consume()).toBeNull()
   })
 
+  it('tombstones a corrupted entry (missing timestamp) instead of leaving it forever', () => {
+    localStorage.setItem(STORAGE_KEYS.MOTHERSHIP_HANDOFF, JSON.stringify({ message: 'fix it' }))
+
+    expect(MothershipHandoffStorage.consume()).toBeNull()
+    expect(localStorage.getItem(STORAGE_KEYS.MOTHERSHIP_HANDOFF)).toBeNull()
+  })
+
   it('drops and clears a handoff older than maxAge', () => {
     vi.useFakeTimers()
     try {
