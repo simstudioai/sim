@@ -15,8 +15,10 @@ vi.mock('@/lib/copilot/vfs/file-reader', () => ({
   readFileRecord: mockReadFileRecord,
 }))
 
+import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import {
   findMothershipUploadRowByChatAndName,
+  grepChatUpload,
   listChatUploads,
   readChatUpload,
 } from './upload-file-reader'
@@ -167,6 +169,17 @@ describe('readChatUpload', () => {
     )
   })
 
+  it('returns extract-first guidance for a .zip upload instead of reading bytes', async () => {
+    const row = makeRow({ id: 'wf_z', displayName: 'bundle.zip', contentType: 'application/zip' })
+    mockOrderByThenLimit([row])
+
+    const result = await readChatUpload('bundle.zip', CHAT_ID)
+
+    expect(result?.content).toContain('materialize_file')
+    expect(result?.content).toContain('extract')
+    expect(mockReadFileRecord).not.toHaveBeenCalled()
+  })
+
   it('returns null when no row matches', async () => {
     mockOrderByThenLimit([])
     dbChainMockFns.orderBy.mockResolvedValueOnce([] as never)
@@ -174,6 +187,26 @@ describe('readChatUpload', () => {
     const result = await readChatUpload('nope.png', CHAT_ID)
 
     expect(result).toBeNull()
+    expect(mockReadFileRecord).not.toHaveBeenCalled()
+  })
+})
+
+describe('grepChatUpload', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockReadFileRecord.mockReset()
+  })
+
+  it('throws WorkspaceFileGrepError with extract-first guidance for a .zip upload', async () => {
+    const row = makeRow({ id: 'wf_z', displayName: 'bundle.zip', contentType: 'application/zip' })
+    mockOrderByThenLimit([row])
+
+    const error = await grepChatUpload('bundle.zip', CHAT_ID, 'foo').catch((e) => e)
+
+    expect(error).toBeInstanceOf(WorkspaceFileGrepError)
+    expect(error.message).toContain('materialize_file')
+    expect(error.message).toContain('extract')
     expect(mockReadFileRecord).not.toHaveBeenCalled()
   })
 })

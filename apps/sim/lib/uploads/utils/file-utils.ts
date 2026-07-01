@@ -1,7 +1,11 @@
 import type { Logger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import type { StorageContext } from '@/lib/uploads'
-import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
+import {
+  ACCEPTED_FILE_TYPES,
+  SUPPORTED_ARCHIVE_EXTENSIONS,
+  SUPPORTED_DOCUMENT_EXTENSIONS,
+} from '@/lib/uploads/utils/validation'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -204,6 +208,26 @@ export const MODEL_SUPPORTED_IMAGE_MIME_TYPES = new Set([
 export function getFileExtension(filename: string): string {
   const lastDot = filename.lastIndexOf('.')
   return lastDot !== -1 ? filename.slice(lastDot + 1).toLowerCase() : ''
+}
+
+const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
+
+/**
+ * True when a file name is a supported archive (zip). Detection is by extension
+ * so it is robust to the varied/empty MIME types browsers assign to archives.
+ */
+export function isArchiveFileName(filename: string): boolean {
+  return ARCHIVE_EXTENSIONS.has(getFileExtension(filename))
+}
+
+/**
+ * Single source of truth for the "extract a .zip first" guidance shown wherever
+ * the agent tries to read/grep a raw archive (upload reader, chat payload). A
+ * `.zip`'s contents aren't readable until it is decompressed into workspace
+ * `files/`, so this points at the explicit one-time extract step.
+ */
+export function buildArchiveExtractGuidance(name: string): string {
+  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with materialize_file(fileName: "${name}", operation: "extract"), then read the unpacked files under files/ (e.g. glob("files/<archive>/**") then read("files/<archive>/<path>/content")).`
 }
 
 const EXTENSION_TO_MIME: Record<string, string> = {

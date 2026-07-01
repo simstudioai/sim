@@ -15,8 +15,17 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
+import {
+  ArchiveError,
+  decompressArchiveBufferToWorkspaceFiles,
+  MAX_ARCHIVE_BYTES,
+  MAX_ARCHIVE_ENTRIES,
+  MAX_ARCHIVE_ENTRY_BYTES,
+  MAX_ARCHIVE_TOTAL_BYTES,
+} from '@/lib/uploads/archive'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
+import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -254,6 +263,120 @@ async function executeImport(
   }
 }
 
+/** Map an {@link ArchiveError} reason to a clear, user-facing extract message. */
+function archiveErrorMessage(err: ArchiveError, fileName: string): string {
+  switch (err.reason) {
+    case 'invalid':
+      return `"${fileName}" is not a valid .zip archive.`
+    case 'too_many_entries':
+      return `"${fileName}" has too many entries to extract. Maximum is ${MAX_ARCHIVE_ENTRIES}.`
+    case 'entry_too_large':
+      return `Archive entry "${err.entryName}" is too large to extract. Maximum is ${
+        MAX_ARCHIVE_ENTRY_BYTES / (1024 * 1024)
+      } MB per file.`
+    case 'total_too_large':
+      return `"${fileName}" expands to more than the ${
+        MAX_ARCHIVE_TOTAL_BYTES / (1024 * 1024)
+      } MB extraction limit.`
+  }
+}
+
+/**
+ * Decompress an uploaded `.zip` into the workspace `files/<archive>/` folder tree
+ * (reusing the shared, capped, zip-slip/bomb-safe extractor). The raw archive
+ * stays in uploads/; the extracted files persist in the workspace so the agent
+ * can read them with the normal files/ tooling. This is the explicit "extract
+ * before reading a zip" step.
+ */
+async function executeExtract(
+  fileName: string,
+  chatId: string,
+  workspaceId: string,
+  userId: string
+): Promise<ToolCallResult> {
+  const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
+  if (!row) {
+    return {
+      success: false,
+      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
+    }
+  }
+
+  // Defense in depth: the resolver is chat-scoped, but never extract an upload
+  // that belongs to a different workspace than the one driving this request.
+  if (row.workspaceId !== workspaceId) {
+    return {
+      success: false,
+      error: `Upload "${fileName}" does not belong to this workspace.`,
+    }
+  }
+
+  const displayName = row.displayName ?? row.originalName
+  if (!isArchiveFileName(displayName)) {
+    return {
+      success: false,
+      error: `"${fileName}" is not a .zip archive — only .zip uploads can be extracted. Read it directly with read("uploads/${fileName}").`,
+    }
+  }
+
+  const record = toFileRecord(row)
+  if (record.size > MAX_ARCHIVE_BYTES) {
+    return {
+      success: false,
+      error: `Archive too large to extract: "${fileName}" (${Math.round(
+        record.size / 1024 / 1024
+      )}MB, limit ${MAX_ARCHIVE_BYTES / 1024 / 1024}MB).`,
+    }
+  }
+
+  const baseName = displayName.replace(/\.zip$/i, '').trim() || 'archive'
+
+  let result: Awaited<ReturnType<typeof decompressArchiveBufferToWorkspaceFiles>>
+  try {
+    const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_ARCHIVE_BYTES })
+    result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId,
+      userId,
+      rootFolderSegments: [baseName],
+      // The agent-facing extract drops macOS/Windows filesystem cruft so the
+      // unpacked files/ tree only contains meaningful entries.
+      skipNoiseEntries: true,
+    })
+  } catch (err) {
+    if (err instanceof ArchiveError) {
+      return { success: false, error: archiveErrorMessage(err, fileName) }
+    }
+    throw err
+  }
+
+  if (result.extracted.length === 0) {
+    return { success: false, error: `No files could be extracted from "${fileName}".` }
+  }
+
+  // Use the canonical VFS path the extractor actually wrote to, so the glob/read
+  // hint resolves rather than echoing a hand-encoded (possibly mismatched) name.
+  const folderPath = result.rootFolderPath
+  const count = result.extracted.length
+
+  logger.info('Extracted archive into workspace files', {
+    fileName,
+    chatId,
+    folder: baseName,
+    extractedCount: count,
+    skipped: result.skipped,
+  })
+
+  return {
+    success: true,
+    output: {
+      message: `Extracted ${count} file${count === 1 ? '' : 's'} from "${fileName}" into ${folderPath}/. They now persist in the workspace — list them with glob("${folderPath}/**") and read one with read("${folderPath}/<path>/content").`,
+      fileCount: count,
+      path: folderPath,
+    },
+    resources: result.extracted.map((f) => ({ type: 'file' as const, id: f.id, title: f.name })),
+  }
+}
+
 export async function executeMaterializeFile(
   params: Record<string, unknown>,
   context: ExecutionContext
@@ -275,12 +398,13 @@ export async function executeMaterializeFile(
   }
 
   const operation = (params.operation as string | undefined) || 'save'
-  // Only save/import are implemented. Reject anything else with guidance instead of
-  // silently falling back to save (table/knowledge_base are handled by their subagents).
-  if (operation !== 'save' && operation !== 'import') {
+  // save (promote upload → workspace file), import (JSON → workflow), and extract
+  // (decompress a .zip upload → workspace files/) are implemented. Reject anything
+  // else with guidance instead of silently falling back to save.
+  if (operation !== 'save' && operation !== 'import' && operation !== 'extract') {
     return {
       success: false,
-      error: `Unsupported materialize_file operation "${operation}". Use "save" or "import". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
+      error: `Unsupported materialize_file operation "${operation}". Use "save", "import", or "extract". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
     }
   }
   const succeeded: string[] = []
@@ -292,6 +416,8 @@ export async function executeMaterializeFile(
       let result: ToolCallResult
       if (operation === 'import') {
         result = await executeImport(fileName, context.chatId, context.workspaceId, context.userId)
+      } else if (operation === 'extract') {
+        result = await executeExtract(fileName, context.chatId, context.workspaceId, context.userId)
       } else {
         result = await executeSave(fileName, context.chatId, context.workspaceId)
       }
