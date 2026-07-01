@@ -103,7 +103,10 @@ export const GET = withRouteHandler(
     }
 
     const isEnterprise = !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
-    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction')
+    const [piiRedactionEnabled, piiGranularRedactionEnabled] = await Promise.all([
+      isFeatureEnabled('pii-redaction'),
+      isFeatureEnabled('pii-granular-redaction'),
+    ])
     const configured = normalizeConfigured(org.dataRetentionSettings)
     const defaults = enterpriseDefaults()
 
@@ -115,6 +118,7 @@ export const GET = withRouteHandler(
         configured,
         effective: isEnterprise ? configured : defaults,
         piiRedactionEnabled,
+        piiGranularRedactionEnabled,
       },
     })
   }
@@ -183,7 +187,10 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction')
+    const [piiRedactionEnabled, piiGranularRedactionEnabled] = await Promise.all([
+      isFeatureEnabled('pii-redaction'),
+      isFeatureEnabled('pii-granular-redaction'),
+    ])
 
     const current = normalizeConfigured(currentOrg.dataRetentionSettings)
     const merged: DataRetentionSettings = { ...current }
@@ -200,6 +207,19 @@ export const PUT = withRouteHandler(
       if (!piiRedactionEnabled) {
         return NextResponse.json(
           { error: 'PII redaction is not enabled for this organization' },
+          { status: 403 }
+        )
+      }
+      const enablesGranularStage = (body.piiRedaction?.rules ?? []).some(
+        (rule) =>
+          rule.stages?.input?.enabled === true || rule.stages?.blockOutputs?.enabled === true
+      )
+      if (!piiGranularRedactionEnabled && enablesGranularStage) {
+        return NextResponse.json(
+          {
+            error:
+              'Granular PII redaction (workflow input and block outputs) is not enabled for this organization',
+          },
           { status: 403 }
         )
       }
@@ -267,6 +287,7 @@ export const PUT = withRouteHandler(
         configured,
         effective: configured,
         piiRedactionEnabled,
+        piiGranularRedactionEnabled,
       },
     })
   }

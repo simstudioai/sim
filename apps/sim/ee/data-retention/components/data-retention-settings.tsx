@@ -264,36 +264,19 @@ function EntityCheckboxGrid({
     }))
     .filter((group) => group.entities.length > 0)
 
-  const visibleValues: string[] = groups.flatMap((g) => g.entities.map((e) => e.value))
-  const allVisibleSelected =
-    visibleValues.length > 0 && visibleValues.every((v) => selected.includes(v))
-
   function toggle(value: string) {
     onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value])
   }
 
-  function toggleAllVisible() {
-    if (allVisibleSelected) {
-      onChange(selected.filter((v) => !visibleValues.includes(v)))
-    } else {
-      onChange([...new Set([...selected, ...visibleValues])])
-    }
-  }
-
   return (
     <div className='flex flex-col gap-3'>
-      <div className='flex items-center gap-2'>
-        <ChipInput
-          icon={Search}
-          placeholder='Search PII types...'
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className='min-w-0 flex-1'
-        />
-        <Chip onClick={toggleAllVisible} disabled={visibleValues.length === 0}>
-          {allVisibleSelected ? 'Deselect all' : 'Select all'}
-        </Chip>
-      </div>
+      <ChipInput
+        icon={Search}
+        placeholder='Search PII types...'
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className='w-full'
+      />
       {belowSearch}
       <div className='flex flex-col gap-3'>
         {groups.map((group) => (
@@ -399,6 +382,7 @@ interface PolicyDetailProps {
   changed: boolean
   isSaving: boolean
   piiEnabled: boolean
+  piiGranularEnabled: boolean
   canRemove: boolean
   workspaceOptions: { value: string; label: string }[]
   onChange: (draft: PolicyDraft) => void
@@ -414,6 +398,7 @@ function PolicyDetail({
   changed,
   isSaving,
   piiEnabled,
+  piiGranularEnabled,
   canRemove,
   workspaceOptions,
   onChange,
@@ -424,13 +409,22 @@ function PolicyDetail({
 }: PolicyDetailProps) {
   const isOrg = draft.isOrgDefault
   const showPiiGrid = isOrg || draft.piiOverride
+  // The execution-altering stages (input/blockOutputs) are gated behind the
+  // pii-granular-redaction flag; when off, only the Logs stage is configurable.
+  const visibleStages = piiGranularEnabled
+    ? PII_STAGE_META
+    : PII_STAGE_META.filter((s) => s.key === 'logs')
   const [activeStage, setActiveStage] = useState<PiiStageKey>(
     () =>
       PII_STAGE_META.find((s) => stageHasContent(draft.piiStages[s.key]))?.key ??
       PII_STAGE_META[0].key
   )
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
-  const activeStageMeta = PII_STAGE_META.find((s) => s.key === activeStage) ?? PII_STAGE_META[0]
+  // Clamp to a visible stage so turning the flag off never strands the tab on a hidden stage.
+  const effectiveStage = visibleStages.some((s) => s.key === activeStage)
+    ? activeStage
+    : visibleStages[0].key
+  const activeStageMeta = PII_STAGE_META.find((s) => s.key === effectiveStage) ?? PII_STAGE_META[0]
   const title = isOrg
     ? 'Organization defaults'
     : isNew
@@ -517,7 +511,31 @@ function PolicyDetail({
         </SettingsSection>
 
         {piiEnabled && (
-          <SettingsSection label='PII redaction'>
+          <SettingsSection
+            label='PII redaction'
+            action={
+              showPiiGrid ? (
+                <Chip
+                  onClick={() =>
+                    onChange({
+                      ...draft,
+                      piiStages: {
+                        ...draft.piiStages,
+                        [effectiveStage]: {
+                          ...draft.piiStages[effectiveStage],
+                          entityTypes: [],
+                          enabled: false,
+                        },
+                      },
+                    })
+                  }
+                  disabled={draft.piiStages[effectiveStage].entityTypes.length === 0}
+                >
+                  Deselect all
+                </Chip>
+              ) : undefined
+            }
+          >
             <div className='flex flex-col gap-4'>
               {!isOrg && (
                 <div className='flex items-center justify-between gap-3'>
@@ -537,27 +555,31 @@ function PolicyDetail({
               )}
               {!isOrg && draft.piiOverride && (
                 <span className='text-[var(--text-muted)] text-caption'>
-                  Overriding replaces all three redaction stages for this workspace.
+                  {piiGranularEnabled
+                    ? 'Overriding replaces all three redaction stages for this workspace.'
+                    : 'Overriding replaces the redaction settings for this workspace.'}
                 </span>
               )}
               {showPiiGrid && (
                 <>
-                  <ChipSwitch
-                    value={activeStage}
-                    onChange={setActiveStage}
-                    aria-label='Redaction stage'
-                    options={PII_STAGE_META.map((stage) => ({
-                      value: stage.key,
-                      label: stage.label,
-                    }))}
-                  />
+                  {visibleStages.length > 1 && (
+                    <ChipSwitch
+                      value={effectiveStage}
+                      onChange={setActiveStage}
+                      aria-label='Redaction stage'
+                      options={visibleStages.map((stage) => ({
+                        value: stage.key,
+                        label: stage.label,
+                      }))}
+                    />
+                  )}
                   <PiiStagePanel
                     description={activeStageMeta.description}
-                    value={draft.piiStages[activeStage]}
+                    value={draft.piiStages[effectiveStage]}
                     onChange={(next) =>
                       onChange({
                         ...draft,
-                        piiStages: { ...draft.piiStages, [activeStage]: next },
+                        piiStages: { ...draft.piiStages, [effectiveStage]: next },
                       })
                     }
                   />
@@ -614,6 +636,7 @@ export function DataRetentionSettings() {
   const userRole = getUserRole(activeOrganization, userEmail)
   const canManage = isOrgAdminRole(userRole)
   const piiEnabled = Boolean(data?.piiRedactionEnabled)
+  const piiGranularEnabled = Boolean(data?.piiGranularRedactionEnabled)
 
   const [logDays, setLogDays] = useState('')
   const [softDeleteDays, setSoftDeleteDays] = useState('')
@@ -907,6 +930,7 @@ export function DataRetentionSettings() {
           changed={editingChanged}
           isSaving={updateMutation.isPending}
           piiEnabled={piiEnabled}
+          piiGranularEnabled={piiGranularEnabled}
           canRemove={!editing.draft.isOrgDefault && !editing.isNew}
           workspaceOptions={workspacePickerOptions(editing.draft)}
           onChange={(draft) => setEditing({ ...editing, draft })}
