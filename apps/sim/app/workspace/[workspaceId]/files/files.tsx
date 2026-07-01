@@ -353,7 +353,7 @@ export function Files() {
       : siblings
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
-    return searched.toSorted((a, b) => {
+    return [...searched].sort((a, b) => {
       let cmp = 0
       if (col === 'updated') {
         cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
@@ -402,7 +402,7 @@ export function Files() {
 
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
-    return result.toSorted((a, b) => {
+    return [...result].sort((a, b) => {
       let cmp = 0
       switch (col) {
         case 'name':
