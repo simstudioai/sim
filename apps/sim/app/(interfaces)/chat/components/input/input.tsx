@@ -238,12 +238,12 @@ export const ChatInput: React.FC<{
                           </div>
                         )}
                         <Button
-                          variant='primary'
+                          variant='ghost'
                           onClick={(e) => {
                             e.stopPropagation()
                             handleRemoveFile(file.id)
                           }}
-                          className='absolute top-[2px] right-[2px] size-[16px] rounded-full p-0 opacity-0 group-hover:opacity-100'
+                          className='absolute top-[2px] right-[2px] size-[16px] rounded-full bg-black/60 p-0 text-white opacity-0 hover-hover:text-white group-hover:opacity-100'
                         >
                           <X className='size-[10px]' />
                         </Button>

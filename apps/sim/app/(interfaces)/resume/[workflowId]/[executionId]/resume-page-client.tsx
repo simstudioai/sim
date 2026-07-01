@@ -382,7 +382,7 @@ export default function ResumeExecutionPage({
         }
       }
     },
-    [formValues, handleFormFieldChange]
+    [formValues, formErrors, handleFormFieldChange]
   )
 
   const renderDisabledFieldInput = useCallback(
