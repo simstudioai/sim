@@ -31,6 +31,20 @@ import { Dashboard, Sidebar } from '@/app/workspace/[workspaceId]/logs/component
 import { Dashboard } from '@/app/workspace/[workspaceId]/logs/components/dashboard/dashboard'
 ```
 
+## Code-splitting through barrels
+
+When you `lazy(() => import(...))` a component to keep it out of a route's initial bundle, import the **deep module path** (`./components/foo/foo`), never the barrel — and **delete the now-dead barrel re-export** of that component. This app has no `"sideEffects": false` in `apps/sim/package.json`, so webpack keeps a barrel's re-export edge to the heavy module whenever any sibling still imports that barrel. A leftover `export { Foo } from './foo'` line therefore drags `Foo` (and its transitive deps) back into the initial chunk and silently defeats the split. Verify the split with a production bundle diff, not just by eyeballing the `lazy()` call.
+
+```typescript
+// ✓ Good — deep lazy import + no barrel edge left behind
+const MothershipView = lazy(() =>
+  import('./components/mothership-view/mothership-view').then((m) => ({ default: m.MothershipView }))
+)
+// (and remove `export { MothershipView } from './mothership-view'` from components/index.ts)
+```
+
+Wrap the lazy component in a **local `<Suspense>`** so its suspension resolves at the nearest boundary instead of bubbling to the page-level fallback (which would flash the whole route). `React.lazy(memo(forwardRef(...)))` forwards a DOM `ref` correctly in React 19 — but during the fallback window `ref.current` is `null`, so every consumer must guard it (`if (!el) return` / `el?.`).
+
 ## No Re-exports
 
 Do not re-export from non-barrel files. Import directly from the source.
