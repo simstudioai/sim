@@ -45,8 +45,11 @@ export function LandingPreviewChat({ chat, chatName, animationKey }: LandingPrev
   const [phase, setPhase] = useState<RevealPhase>('hidden')
   const revealRef = useRef<{ key: number; chat: PreviewChat | null }>({ key: animationKey, chat })
 
-  // Restart the reveal synchronously when the timeline (or staged chat) changes,
-  // so the pane never flashes the previous step's reply before the effect reruns.
+  // Restart the reveal synchronously when the timeline (or staged chat) changes, so
+  // the pane never flashes the previous step's reply before the effect reruns. The
+  // previous key/chat are tracked in a ref: these updates come from the parent's
+  // timer-driven state (never a transition/Suspense boundary), so the render can't be
+  // discarded between the ref write and commit - keeping the ref safe here.
   if (revealRef.current.key !== animationKey || revealRef.current.chat !== chat) {
     revealRef.current = { key: animationKey, chat }
     setPhase('hidden')

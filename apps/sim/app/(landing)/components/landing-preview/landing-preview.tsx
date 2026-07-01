@@ -183,6 +183,9 @@ export function LandingPreview({
     // the auto-demo on the cycle still being active - a resize after the visitor
     // has interacted must not restart the sequence from the first step.
     if (!isDesktop || !autoplay || !autoCycleActiveRef.current) return
+    // Reset the step index so the restart shows step 0 AND `scheduleNextStep` reads
+    // step 0's delay - otherwise a resize would replay from a stale index and skip beats.
+    demoIndexRef.current = 0
     applyDemoStep(DESKTOP_STEPS[0])
     scheduleNextStep()
     return clearDemoTimer
