@@ -141,7 +141,7 @@ export function LandingPreviewLogs() {
       : MOCK_LOGS
 
     if (!sortKey) return filtered
-    return filtered.toSorted((a, b) => {
+    return [...filtered].sort((a, b) => {
       const av = sortKey === 'cost' ? a.cost.replace(/\D/g, '') : a[sortKey]
       const bv = sortKey === 'cost' ? b.cost.replace(/\D/g, '') : b[sortKey]
       const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' })

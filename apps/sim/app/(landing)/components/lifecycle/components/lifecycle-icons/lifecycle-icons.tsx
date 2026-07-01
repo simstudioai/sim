@@ -121,7 +121,7 @@ export function MonitorIcon(props: IconProps) {
   return (
     <IconFrame {...props}>
       {/* Far → near so nearer bars occlude the ones behind them. */}
-      {MONITOR_BARS.toReversed().map((bar) => (
+      {[...MONITOR_BARS].reverse().map((bar) => (
         <IsoBox key={bar.x} cx={bar.x} topY={bar.ground - bar.h} w={5} h={bar.h} />
       ))}
     </IconFrame>
