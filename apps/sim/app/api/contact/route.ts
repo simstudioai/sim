@@ -12,14 +12,13 @@ import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isTurnstileConfigured, verifyTurnstileToken } from '@/lib/core/security/turnstile'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
-import { getEmailDomain, SITE_URL } from '@/lib/core/utils/urls'
+import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('ContactAPI')
 const rateLimiter = new RateLimiter()
-const SITE_HOSTNAME = new URL(SITE_URL).hostname
 
 const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 10,
@@ -81,11 +80,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         typeof captchaToken === 'string' && captchaToken.length > 0 ? captchaToken : null
 
       if (token) {
-        const verification = await verifyTurnstileToken({
-          token,
-          remoteIp: ip,
-          expectedHostname: SITE_HOSTNAME,
-        })
+        // No expectedHostname: the Turnstile site key is already domain-bound in
+        // Cloudflare, and pinning a single hostname here would reject valid tokens
+        // from self-hosted, preview, and apex-vs-www deployments.
+        const verification = await verifyTurnstileToken({ token, remoteIp: ip })
         if (verification.success) {
           captchaVerified = true
         } else if (!verification.transportError) {
