@@ -1,7 +1,10 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
+import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import {
   secureFetchWithPinnedIP,
@@ -13,7 +16,7 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:Slack')
 
@@ -560,24 +563,28 @@ export const slackHandler: WebhookProviderHandler = {
     return new NextResponse(null, { status: 200 })
   },
 
-  async formatInput({
-    body,
-    webhook,
-    workflow,
-    requestId,
-  }: FormatInputContext): Promise<FormatInputResult> {
+  async formatInput({ body, webhook, requestId }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     let botToken = providerConfig.botToken as string | undefined
     // Native (slack_app) triggers carry an OAuth credential rather than a pasted
-    // bot token; resolve it so reaction-message text and file downloads work.
+    // bot token; resolve it via the credential's OWNER (not the execution actor
+    // in workflow.userId, who may not own the credential) so reaction-message
+    // text and file downloads work.
     if (!botToken && typeof providerConfig.credentialId === 'string') {
-      botToken =
-        (await refreshAccessTokenIfNeeded(
-          providerConfig.credentialId,
-          workflow.userId,
-          requestId
-        )) ?? undefined
+      const credentialId = providerConfig.credentialId
+      const resolved = await resolveOAuthAccountId(credentialId)
+      if (resolved?.accountId) {
+        const [owner] = await db
+          .select({ userId: account.userId })
+          .from(account)
+          .where(eq(account.id, resolved.accountId))
+          .limit(1)
+        if (owner?.userId) {
+          botToken =
+            (await refreshAccessTokenIfNeeded(credentialId, owner.userId, requestId)) ?? undefined
+        }
+      }
     }
     const includeFiles = Boolean(providerConfig.includeFiles)
 

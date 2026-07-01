@@ -140,9 +140,10 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
     const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
 
     // Fire only for events that map to a selected Operation. Unmapped events
-    // (e.g. assistant_thread_*) and unselected events no-op — never bypass.
+    // (e.g. assistant_thread_*), unselected events, and an empty selection all
+    // no-op — never bypass the filter.
     const selectedEvents = normalizeSelection(providerConfig.events)
-    if (selectedEvents.length > 0 && (!eventKey || !selectedEvents.includes(eventKey))) {
+    if (!eventKey || !selectedEvents.includes(eventKey)) {
       continue
     }
 
