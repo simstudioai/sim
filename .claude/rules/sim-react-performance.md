@@ -61,19 +61,19 @@ for (const child of columns) {
 
 Preserve `.find()`'s **first-match** semantics when duplicate keys are possible: `new Map(arr.map(...))` keeps the *last* entry, so guard with `if (!map.has(key))` when replacing a `.find()`. Skip this for tiny, cold arrays (a handful of items in an event handler) where the Map build costs more than it saves.
 
-## Immutable array methods over spread-then-mutate
+## Never mutate a shared array in place
 
-Use `toSorted()` / `toReversed()` / `with()` / `toSpliced()` instead of copying an array only to mutate the copy. One pass instead of copy-then-mutate, and non-mutating by construction (so it never risks mutating a React Query cache array in place — which a bare `.sort()` would).
+The real bug to avoid is `array.sort()` / `array.reverse()` on an array you don't own — sorting a React Query cache array in place corrupts shared state. Always sort a copy:
 
 ```typescript
-// ✗ Bad — copies just to sort the copy
-return [...items].sort(compare)
+// ✗ Bad — mutates the (possibly shared) source array in place
+return items.sort(compare)
 
-// ✓ Good — sorts without the throwaway copy, still non-mutating
-return items.toSorted(compare)
+// ✓ Good — sorts a throwaway copy, source untouched
+return [...items].sort(compare)
 ```
 
-**Lib caveat:** these are ES2023. `apps/sim` sets `"lib": ["ES2023", ...]` in its `tsconfig.json`, so they type-check there. Packages under `packages/*` inherit the **ES2022** base tsconfig — in those, `toSorted` does not resolve; keep `[...arr].sort()`. Check the nearest `tsconfig` `lib` before reaching for these.
+**Do NOT reach for `toSorted()` / `toReversed()` / `with()` / `toSpliced()` on client render paths.** They are ES2023 *runtime* methods — and a tsconfig `"lib": ["ES2023"]` only makes them **type-check**, it does not make them **run**. Next/SWC compiles syntax but does **not** polyfill prototype methods, and the default browserslist still includes browsers without them (`toSorted` landed in Safari 16 / iOS 16, so any device capped at iOS 15 throws `TypeError: x.toSorted is not a function` and crashes the page). The perf difference vs `[...arr].sort()` is negligible (both allocate one array), so the copy-then-sort form is the correct default everywhere client code runs. Only consider the immutable methods in Node-only code (server routes, scripts) on Node ≥20, where the runtime is known.
 
 ## Local feature barrels are the convention — do not "fix" them
 
