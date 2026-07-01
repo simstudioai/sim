@@ -454,6 +454,19 @@ export function validateSlackSignature(
 }
 
 /**
+ * Channel a Slack event occurred in. Reaction events carry the channel under
+ * `item.channel`; message/mention events under `channel`.
+ */
+export function resolveSlackEventChannel(
+  event: Record<string, unknown> | undefined
+): string | undefined {
+  if (!event) return undefined
+  if (typeof event.channel === 'string') return event.channel
+  const item = event.item as Record<string, unknown> | undefined
+  return typeof item?.channel === 'string' ? item.channel : undefined
+}
+
+/**
  * Handle Slack verification challenges
  */
 export function handleSlackChallenge(body: unknown): NextResponse | null {
@@ -582,9 +595,7 @@ export const slackHandler: WebhookProviderHandler = {
     const isReactionEvent = SLACK_REACTION_EVENTS.has(eventType)
 
     const item = rawEvent?.item as Record<string, unknown> | undefined
-    const channel: string = isReactionEvent
-      ? (item?.channel as string) || ''
-      : (rawEvent?.channel as string) || ''
+    const channel: string = resolveSlackEventChannel(rawEvent) || ''
     const messageTs: string = isReactionEvent
       ? (item?.ts as string) || ''
       : (rawEvent?.ts as string) || (rawEvent?.event_ts as string) || ''

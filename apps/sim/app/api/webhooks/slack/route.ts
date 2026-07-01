@@ -10,7 +10,11 @@ import {
   parseWebhookBody,
   queueWebhookExecution,
 } from '@/lib/webhooks/processor'
-import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
+import {
+  handleSlackChallenge,
+  resolveSlackEventChannel,
+  verifySlackRequestSignature,
+} from '@/lib/webhooks/providers/slack'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
 import { SLACK_CHANNEL_SCOPED_EVENTS } from '@/triggers/slack/shared'
 
@@ -55,15 +59,6 @@ function isBotMessage(body: Record<string, unknown>): boolean {
   const event = body.event as Record<string, unknown> | undefined
   if (!event) return false
   return Boolean(event.bot_id) || event.subtype === 'bot_message'
-}
-
-/** Channel the event occurred in (reactions carry it under `item.channel`). */
-function resolveEventChannel(body: Record<string, unknown>): string | undefined {
-  const event = body.event as Record<string, unknown> | undefined
-  if (!event) return undefined
-  if (typeof event.channel === 'string') return event.channel
-  const item = event.item as Record<string, unknown> | undefined
-  return typeof item?.channel === 'string' ? item.channel : undefined
 }
 
 function normalizeSelection(value: unknown): string[] {
@@ -132,7 +127,10 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
   }
 
   const eventKey = resolveSlackEventKey(payload)
-  const eventChannel = resolveEventChannel(payload)
+  const eventChannel = resolveSlackEventChannel(
+    payload.event as Record<string, unknown> | undefined
+  )
+  const isBot = isBotMessage(payload)
   const slackRequestTimestamp = request.headers.get('x-slack-request-timestamp')
   const triggerTimestampMs = slackRequestTimestamp
     ? Number(slackRequestTimestamp) * 1000
@@ -157,7 +155,7 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
       }
     }
 
-    if (providerConfig.filterBotMessages !== false && isBotMessage(payload)) {
+    if (isBot && providerConfig.filterBotMessages !== false) {
       continue
     }
 
