@@ -13,8 +13,8 @@ function buildColors() {
     isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#1a1a1a'
 
   return {
-    /** Main canvas background — platform `--bg` */
-    bgOuter: '#fefefe',
+    /** Main canvas background — a hair off-white so the white card reads via contrast, not the border alone */
+    bgOuter: '#f8f8f8',
     /** Card/container background — platform `--surface-2` */
     bgCard: '#ffffff',
     /** Primary text — platform `--text-primary` */
@@ -39,7 +39,7 @@ function buildColors() {
     /** Error surface border — platform `--error-muted` */
     errorBorder: '#fecaca',
     /** Footer background — matches the canvas */
-    footerBg: '#fefefe',
+    footerBg: '#f8f8f8',
   }
 }
 

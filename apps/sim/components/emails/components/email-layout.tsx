@@ -30,6 +30,7 @@ export function EmailLayout({
 }: EmailLayoutProps) {
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
+  const hasCustomLogo = Boolean(brand.logoUrl)
 
   return (
     <Html>
@@ -42,10 +43,10 @@ export function EmailLayout({
           <Section style={baseStyles.header}>
             <Img
               src={brand.logoUrl || `${baseUrl}/brand/color/email/wordmark.png`}
-              width='70'
               height='34'
+              {...(hasCustomLogo ? {} : { width: '70' })}
               alt={brand.name}
-              style={{ display: 'block' }}
+              style={hasCustomLogo ? { display: 'block', width: 'auto' } : { display: 'block' }}
             />
           </Section>
 
