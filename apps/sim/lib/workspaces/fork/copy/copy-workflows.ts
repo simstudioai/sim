@@ -33,7 +33,11 @@ import type {
 
 const logger = createLogger('WorkspaceForkCopyWorkflows')
 
-type SubBlockTransform = (subBlocks: SubBlockRecord, blockType: string) => SubBlockRecord
+type SubBlockTransform = (
+  subBlocks: SubBlockRecord,
+  blockType: string,
+  canonicalModes?: Record<string, 'basic' | 'advanced'>
+) => SubBlockRecord
 
 interface ResolveForkFolderMappingParams {
   tx: DbOrTx
@@ -390,7 +394,12 @@ export async function copyWorkflowStateIntoTarget(
     const sanitizedSource = sanitizeSubBlocksForDuplicate(sourceSubBlocks)
     let subBlocks: SubBlockRecord = sanitizedSource
     if (transformSubBlocks) {
-      subBlocks = transformSubBlocks(subBlocks, block.type)
+      subBlocks = transformSubBlocks(
+        subBlocks,
+        block.type,
+        (block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined)
+          ?.canonicalModes
+      )
     }
     if (varIdMapping.size > 0) {
       subBlocks = remapVariableIdsInSubBlocks(subBlocks, varIdMapping)
@@ -399,6 +408,9 @@ export async function copyWorkflowStateIntoTarget(
     // rather than leave them pointing at the source workspace.
     subBlocks = remapWorkflowReferencesInSubBlocks(subBlocks, workflowIdMap, {
       clearUnmapped: true,
+      canonicalModes: (
+        block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined
+      )?.canonicalModes,
     })
     subBlocks = remapConditionIdsInSubBlocks(subBlocks, oldBlockId, newBlockId) as SubBlockRecord
 

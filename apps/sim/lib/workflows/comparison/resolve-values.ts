@@ -182,7 +182,11 @@ function extractSelectorContext(
 ): SelectorContext {
   const block = currentState.blocks?.[blockId]
   if (!block?.subBlocks) return { workflowId, workspaceId }
-  return buildSelectorContextFromBlock(block.type, block.subBlocks, { workflowId, workspaceId })
+  return buildSelectorContextFromBlock(block.type, block.subBlocks, {
+    workflowId,
+    workspaceId,
+    canonicalModes: block.data?.canonicalModes,
+  })
 }
 
 /**

@@ -20,13 +20,16 @@ vi.mock('@/tools/params', () => ({
 }))
 
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import { createForkBootstrapTransform } from '@/lib/workspaces/fork/remap/fork-bootstrap'
 import {
   applyDependentOverrides,
+  clearDependentsOnRemap,
   collectClearedDependents,
   parseNestedDependentKey,
   readTargetDraftDependentValue,
   remapForkSubBlocks,
   remapToolBlockResources,
+  scanWorkflowReferences,
 } from '@/lib/workspaces/fork/remap/remap-references'
 import { getBlock } from '@/blocks/registry'
 
@@ -201,6 +204,38 @@ describe('remapToolBlockResources', () => {
     })
     expect(result.params).toEqual({ knowledgeBaseId: 'kb-dst', documentId: '' })
   })
+
+  it('remaps a nested documentId through the doc map when its document was copied', () => {
+    const tool = {
+      type: 'depblock',
+      toolId: 'depblock_run',
+      params: { knowledgeBaseId: 'kb-src', documentId: 'doc-src' },
+    }
+    const map: Record<string, string> = {
+      'knowledge-base:kb-src': 'kb-dst',
+      'knowledge-document:doc-src': 'doc-dst',
+    }
+    const result = remapToolBlockResources(tool, {
+      resolve: (kind, id) => map[`${kind}:${id}`] ?? null,
+      resolveFileKey: () => null,
+      clearUnresolved: true,
+      blockConfigs: {
+        depblock: {
+          subBlocks: [
+            { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+            {
+              id: 'documentId',
+              title: 'Doc',
+              type: 'document-selector',
+              dependsOn: ['knowledgeBaseId'],
+            },
+          ],
+        },
+      },
+    })
+    // documentId is remapped (not cleared as a dependent) because its document was copied.
+    expect(result.params).toEqual({ knowledgeBaseId: 'kb-dst', documentId: 'doc-dst' })
+  })
 })
 
 describe('remapForkSubBlocks', () => {
@@ -283,12 +318,231 @@ describe('remapForkSubBlocks', () => {
     const tools = result.subBlocks.tools.value as Array<{ params: { subject: string } }>
     expect(tools[0].params.subject).toBe('Hi {{NEW}}')
   })
+
+  const fileSubBlock = (): SubBlockRecord => ({
+    file: {
+      id: 'file',
+      type: 'file-upload',
+      value: { key: 'workspace/SRC/a.png', name: 'a.png' },
+    },
+  })
+
+  it('promote mode: records an unmapped file-upload key as a file reference and clears it', () => {
+    const result = remapForkSubBlocks(fileSubBlock(), () => null, 'promote')
+    const keys = result.references.map((r) => `${r.kind}:${r.sourceId}`)
+    expect(keys).toContain('file:workspace/SRC/a.png')
+    // file refs are optional (not required), surfaced for the copy/clear decision.
+    expect(result.references.find((r) => r.kind === 'file')?.required).toBe(false)
+    expect(result.unmapped.map((r) => `${r.kind}:${r.sourceId}`)).toContain(
+      'file:workspace/SRC/a.png'
+    )
+    // An uncopied file key is dropped rather than carried cross-workspace.
+    expect(result.subBlocks.file.value).toBe('')
+  })
+
+  it('promote mode: remaps a file-upload key to the copied target and records it mapped', () => {
+    const result = remapForkSubBlocks(
+      fileSubBlock(),
+      (kind, id) =>
+        kind === 'file' && id === 'workspace/SRC/a.png' ? 'workspace/DST/a.png' : null,
+      'promote'
+    )
+    expect(result.references.map((r) => `${r.kind}:${r.sourceId}`)).toContain(
+      'file:workspace/SRC/a.png'
+    )
+    expect(result.unmapped).toHaveLength(0)
+    expect((result.subBlocks.file.value as { key: string }).key).toBe('workspace/DST/a.png')
+  })
+
+  it('create mode: does not record file references but still remaps copied files', () => {
+    const result = remapForkSubBlocks(
+      fileSubBlock(),
+      (kind, id) =>
+        kind === 'file' && id === 'workspace/SRC/a.png' ? 'workspace/DST/a.png' : null,
+      'create'
+    )
+    expect(result.references).toHaveLength(0)
+    expect((result.subBlocks.file.value as { key: string }).key).toBe('workspace/DST/a.png')
+  })
 })
 
 const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
   ({ name: 'Test', description: '', subBlocks, outputs: {} }) as unknown as BlockConfig
 
 const entry = (id: string, type: string, value: unknown) => ({ id, type, value })
+
+describe('createForkBootstrapTransform document-selector remap', () => {
+  const docBlock = () =>
+    blockWith([
+      { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+      { id: 'documentId', title: 'Doc', type: 'document-selector', dependsOn: ['knowledgeBaseId'] },
+    ])
+  const subBlocks = (): SubBlockRecord => ({
+    knowledgeBaseId: { id: 'knowledgeBaseId', type: 'knowledge-base-selector', value: 'kb-src' },
+    documentId: { id: 'documentId', type: 'document-selector', value: 'doc-src' },
+  })
+
+  it('remaps documentId to the copied document (not cleared as a KB dependent)', () => {
+    vi.mocked(getBlock).mockReturnValue(docBlock())
+    const map: Record<string, string> = {
+      'knowledge-base:kb-src': 'kb-dst',
+      'knowledge-document:doc-src': 'doc-dst',
+    }
+    const transform = createForkBootstrapTransform((kind, id) => map[`${kind}:${id}`] ?? null)
+    const result = transform(subBlocks(), 'knowledge')
+    expect(result.knowledgeBaseId.value).toBe('kb-dst')
+    expect(result.documentId.value).toBe('doc-dst')
+  })
+
+  it('clears documentId when its parent KB was not copied', () => {
+    vi.mocked(getBlock).mockReturnValue(docBlock())
+    const transform = createForkBootstrapTransform(() => null)
+    const result = transform(subBlocks(), 'knowledge')
+    expect(result.knowledgeBaseId.value).toBe('')
+    expect(result.documentId.value).toBe('')
+  })
+
+  it('clears documentId when its KB was copied but the document was not', () => {
+    vi.mocked(getBlock).mockReturnValue(docBlock())
+    const transform = createForkBootstrapTransform((kind, id) =>
+      kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null
+    )
+    const result = transform(subBlocks(), 'knowledge')
+    expect(result.knowledgeBaseId.value).toBe('kb-dst')
+    expect(result.documentId.value).toBe('')
+  })
+})
+
+describe('clearDependentsOnRemap canonical-pair gating', () => {
+  const kbCanonicalBlock = () =>
+    blockWith([
+      {
+        id: 'knowledgeBaseSelector',
+        title: 'KB',
+        type: 'knowledge-base-selector',
+        canonicalParamId: 'knowledgeBaseId',
+        mode: 'basic',
+      },
+      {
+        id: 'manualKnowledgeBaseId',
+        title: 'KB ID',
+        type: 'short-input',
+        canonicalParamId: 'knowledgeBaseId',
+        mode: 'advanced',
+      },
+      {
+        id: 'documentSelector',
+        title: 'Document',
+        type: 'document-selector',
+        dependsOn: ['knowledgeBaseSelector'],
+      },
+    ])
+
+  it('does not clear a dependent when only the DORMANT basic selector was remapped (advanced active)', () => {
+    vi.mocked(getBlock).mockReturnValue(kbCanonicalBlock())
+    const subBlocks: SubBlockRecord = {
+      knowledgeBaseSelector: { type: 'knowledge-base-selector', value: '' },
+      manualKnowledgeBaseId: { type: 'short-input', value: 'kb-active' },
+      documentSelector: { type: 'document-selector', value: 'doc-1' },
+    }
+    const result = clearDependentsOnRemap(
+      subBlocks,
+      'knowledge',
+      new Set(['knowledgeBaseSelector']),
+      {
+        knowledgeBaseId: 'advanced',
+      }
+    )
+    // The active advanced parent is unchanged, so the dependent must be preserved.
+    expect(result.documentSelector.value).toBe('doc-1')
+  })
+
+  it('clears a dependent when the ACTIVE basic selector was remapped (basic active)', () => {
+    vi.mocked(getBlock).mockReturnValue(kbCanonicalBlock())
+    const subBlocks: SubBlockRecord = {
+      knowledgeBaseSelector: { type: 'knowledge-base-selector', value: 'kb-new' },
+      manualKnowledgeBaseId: { type: 'short-input', value: '' },
+      documentSelector: { type: 'document-selector', value: 'doc-1' },
+    }
+    const result = clearDependentsOnRemap(
+      subBlocks,
+      'knowledge',
+      new Set(['knowledgeBaseSelector']),
+      {
+        knowledgeBaseId: 'basic',
+      }
+    )
+    // Basic is active; its remap clears the dependent (unchanged behavior).
+    expect(result.documentSelector.value).toBe('')
+  })
+})
+
+describe('scanWorkflowReferences canonical-pair detection', () => {
+  const credBlock = () =>
+    blockWith([
+      {
+        id: 'credential',
+        title: 'Account',
+        type: 'oauth-input',
+        canonicalParamId: 'credential',
+        mode: 'basic',
+      },
+      {
+        id: 'manualCredential',
+        title: 'Account ID',
+        type: 'short-input',
+        canonicalParamId: 'credential',
+        mode: 'advanced',
+      },
+    ])
+  // The advanced manualCredential is a short-input escape hatch (never scanned); the basic
+  // oauth-input is the detectable member, so the "active" assertion targets the basic mode.
+  const scanBlock = (canonicalModes?: Record<string, 'basic' | 'advanced'>) => ({
+    id: 'b1',
+    name: 'Send',
+    type: 'gmail',
+    canonicalModes,
+    subBlocks: {
+      credential: { id: 'credential', type: 'oauth-input', value: 'cred-stale' },
+      manualCredential: { id: 'manualCredential', type: 'short-input', value: 'cred-active' },
+    },
+  })
+
+  it('does not detect a DORMANT basic credential while advanced is active (no required ref / sync gate)', () => {
+    vi.mocked(getBlock).mockReturnValue(credBlock())
+    const scan = scanWorkflowReferences([scanBlock({ credential: 'advanced' })], () => null)
+    expect(scan.references.filter((ref) => ref.kind === 'credential')).toEqual([])
+    expect(scan.unmapped.filter((ref) => ref.kind === 'credential')).toEqual([])
+  })
+
+  it('detects the ACTIVE basic credential as a required reference (basic active)', () => {
+    vi.mocked(getBlock).mockReturnValue(credBlock())
+    const scan = scanWorkflowReferences([scanBlock({ credential: 'basic' })], () => null)
+    const creds = scan.references.filter((ref) => ref.kind === 'credential')
+    expect(creds).toHaveLength(1)
+    expect(creds[0].sourceId).toBe('cred-stale')
+    expect(creds[0].required).toBe(true)
+  })
+
+  it('skips DETECTION for a dormant member but still REWRITES its value (separation)', () => {
+    vi.mocked(getBlock).mockReturnValue(credBlock())
+    const result = remapForkSubBlocks(
+      {
+        credential: { id: 'credential', type: 'oauth-input', value: 'cred-stale' },
+        manualCredential: { id: 'manualCredential', type: 'short-input', value: 'cred-active' },
+      },
+      () => null,
+      'promote',
+      { blockType: 'gmail', canonicalModes: { credential: 'advanced' } }
+    )
+    // Detection skipped (dormant basic), so it never gates sync...
+    expect(result.references.filter((ref) => ref.kind === 'credential')).toEqual([])
+    // ...but the dual-mode rewrite still cleared the unresolved dormant basic credential.
+    expect(result.subBlocks.credential.value).toBe('')
+    // The advanced escape-hatch id is preserved verbatim (not auto-remapped).
+    expect(result.subBlocks.manualCredential.value).toBe('cred-active')
+  })
+})
 
 describe('collectClearedDependents', () => {
   it('flags a required dependent the target had set but the merge left empty', () => {

@@ -122,7 +122,7 @@ function jobReport(job: BackgroundWorkItem): JobReport {
   addGroup('Files', m.fileNames)
   addGroup('Custom tools', m.customToolNames)
   addGroup('Skills', m.skillNames)
-  addGroup('MCP servers', m.mcpServerNames)
+  addGroup('Workflow MCP servers', m.workflowMcpServerNames)
   // Pre-names entries fall back to the per-kind counts.
   if (groups.length === 0) {
     const counts = [
@@ -138,6 +138,9 @@ function jobReport(job: BackgroundWorkItem): JobReport {
   }
   if (m.failed && m.failed > 0) {
     notes.push({ value: `${plural(m.failed, 'resource')} failed to copy`, warning: true })
+  }
+  if (m.clearingFailed) {
+    notes.push({ value: 'Reference cleanup incomplete', warning: true })
   }
   return { groups, notes }
 }
@@ -247,9 +250,9 @@ function ForkJobRow({ job }: { job: BackgroundWorkItem }) {
           {report.groups.map((group) => (
             <ReportGroupRow key={group.label} group={group} />
           ))}
-          {report.notes.map((note) => (
+          {report.notes.map((note, index) => (
             <span
-              key={note.value}
+              key={`${index}:${note.value}`}
               className={cn(
                 'text-caption',
                 note.warning ? 'text-[var(--text-error)]' : 'text-[var(--text-tertiary)]'

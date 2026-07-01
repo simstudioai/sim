@@ -147,6 +147,7 @@ export function VersionDescriptionModal({
               isStreaming={isGenerating}
               error={description.length > MAX_DESCRIPTION_LENGTH}
               workspaceId={workspaceId}
+              disableTagging
             />
           </ChipModalField>
           <ChipModalError>

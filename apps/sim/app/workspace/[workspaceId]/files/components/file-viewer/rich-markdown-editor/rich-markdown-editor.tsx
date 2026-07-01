@@ -56,6 +56,8 @@ interface RichMarkdownEditorProps {
   streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
+  /** Disable the `@` tag-insertion menu (existing tags still render). Defaults off — the file editor keeps tagging. */
+  disableTagging?: boolean
 }
 
 /** Inline WYSIWYG markdown editor: agent output streams in read-only, then the same instance becomes editable on settle. */
@@ -72,6 +74,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   streamIsIncremental,
   disableStreamingAutoScroll = false,
   previewContextKey,
+  disableTagging,
 }: RichMarkdownEditorProps) {
   const {
     content,
@@ -113,6 +116,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       autoFocus={autoFocus}
       streamIsIncremental={streamIsIncremental}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
+      disableTagging={disableTagging}
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
     />
@@ -131,6 +135,7 @@ interface LoadedRichMarkdownEditorProps {
   /** See {@link RichMarkdownEditorProps.streamIsIncremental}. */
   streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
+  disableTagging?: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
 }
@@ -155,6 +160,7 @@ export function LoadedRichMarkdownEditor({
   autoFocus,
   streamIsIncremental,
   disableStreamingAutoScroll,
+  disableTagging,
   onChange,
   onSaveShortcut,
 }: LoadedRichMarkdownEditorProps) {
@@ -339,7 +345,7 @@ export function LoadedRichMarkdownEditor({
     }
   }, [editor])
 
-  useEditorMentions(editor, workspaceId, { navigable: true })
+  useEditorMentions(editor, workspaceId, { navigable: true, disableTagging })
 
   const wasStreamingRef = useRef(streamingAtMountRef.current)
 

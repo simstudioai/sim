@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import type { ForkMappingEntry } from '@/lib/api/contracts/workspace-fork'
+import type { ForkMappableResourceType, ForkMappingEntry } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import { listDeployedWorkflows, readDeployedState } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import { ForkError } from '@/lib/workspaces/fork/lineage/authz'
@@ -23,6 +23,7 @@ import {
   getWorkspaceEnvKeys,
   listForkResourceCandidates,
 } from '@/lib/workspaces/fork/mapping/resources'
+import { toScannerBlocks } from '@/lib/workspaces/fork/remap/reference-scan'
 import {
   type ForkReference,
   type ForkRemapKind,
@@ -35,7 +36,7 @@ interface ForkMappingViewParams {
   targetWorkspaceId: string
 }
 
-function suggestTarget(
+export function suggestTarget(
   kind: ForkRemapKind,
   sourceLabel: string,
   sourceProviderId: string | undefined,
@@ -73,12 +74,12 @@ export async function getForkMappingView(
 
   const resolver = buildForkResolver(mappingRows, { sourceIsParent, targetEnvKeys, sourceEnvKeys })
 
-  const resourceTypeBySourceId = new Map<string, Exclude<ForkResourceType, 'workflow'>>()
+  const resourceTypeBySourceId = new Map<string, ForkMappableResourceType>()
   for (const row of mappingRows) {
-    // Workflow identity rows are system-managed, not user-mappable; skip them so a
-    // scanned reference can never be labeled `workflow` and the view stays within
-    // the mappable-type contract.
-    if (row.resourceType === 'workflow') continue
+    // Workflow identity rows are system-managed and document rows ride their parent KB - neither is
+    // user-mappable. Skip both so a scanned reference can never be labeled with a non-mappable type
+    // and the view stays within the mappable-type contract.
+    if (row.resourceType === 'workflow' || row.resourceType === 'knowledge_document') continue
     const key = sourceIsParent ? row.parentResourceId : row.childResourceId
     if (key) resourceTypeBySourceId.set(key, row.resourceType)
   }
@@ -90,12 +91,7 @@ export async function getForkMappingView(
   for (const wf of deployedWorkflows) {
     const state = await readDeployedState(wf.id, sourceWorkspaceId)
     if (!state) continue
-    const blocks = Object.values(state.blocks).map((block) => ({
-      id: block.id,
-      name: block.name,
-      subBlocks: block.subBlocks as unknown,
-    }))
-    for (const reference of scanWorkflowReferences(blocks, () => null).references) {
+    for (const reference of scanWorkflowReferences(toScannerBlocks(state), () => null).references) {
       referenceByKey.set(`${reference.kind}:${reference.sourceId}`, reference)
     }
   }
@@ -116,7 +112,7 @@ export async function getForkMappingView(
   // valid mapping to a target past the display cap must be RETAINED, not shown unmapped.
   interface PendingEntry {
     reference: ForkReference
-    resourceType: Exclude<ForkResourceType, 'workflow'>
+    resourceType: ForkMappableResourceType
     sourceLabel: string
     sourceProviderId: string | undefined
     candidates: ForkResourceCandidate[]
@@ -129,6 +125,11 @@ export async function getForkMappingView(
     // Only SOURCE workspace secrets are mappable; a `{{KEY}}` that isn't a source
     // workspace env var is a personal (user-scoped) secret - leave it as-is.
     if (reference.kind === 'env-var' && !sourceEnvKeys.has(reference.sourceId)) continue
+    // Knowledge documents are not a standalone mappable kind: a document is a dependent field
+    // of its knowledge base (the `document-selector` dependsOn the KB selector), re-picked in
+    // that KB's reconfigure flow and auto-remapped when the KB is copied. So a document never
+    // gets its own mapping entry - it follows its parent KB's target.
+    if (reference.kind === 'knowledge-document') continue
     let resourceType = resourceTypeBySourceId.get(reference.sourceId)
     if (!resourceType) {
       resourceType =
