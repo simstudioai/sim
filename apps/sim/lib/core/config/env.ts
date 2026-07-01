@@ -26,6 +26,7 @@ export const env = createEnv({
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
     EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional().default(true),   // Enable email/password authentication (server-side enforcement)
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
+    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Opt-in (self-hosted only): let database/connector tools reach private/reserved/loopback hosts (e.g. Docker/K8s service names). Loosens the SSRF boundary; ignored on the hosted platform.
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
