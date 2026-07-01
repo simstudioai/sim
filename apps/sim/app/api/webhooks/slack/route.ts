@@ -145,8 +145,13 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
     }
 
     // Channel filter applies only to channel-scoped events, never to DMs.
+    // Channels can come from the picker (channelFilter) or manual IDs
+    // (manualChannelFilter) — the basic/advanced sides of one canonical field.
     if (eventKey && SLACK_CHANNEL_SCOPED_EVENTS.has(eventKey)) {
-      const selectedChannels = normalizeSelection(providerConfig.channelFilter)
+      const selectedChannels = [
+        ...normalizeSelection(providerConfig.channelFilter),
+        ...normalizeSelection(providerConfig.manualChannelFilter),
+      ]
       if (
         selectedChannels.length > 0 &&
         (!eventChannel || !selectedChannels.includes(eventChannel))
