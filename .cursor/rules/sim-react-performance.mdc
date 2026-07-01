@@ -94,10 +94,11 @@ first-wins matters, build the map with a guard (`if (!m.has(k)) m.set(k, v)`).
 
 ## Immutable sort — `toSorted`, not spread + `sort`
 
-`[...arr].sort()` copies the array just to sort it. `apps/sim` targets ES2023,
-so use `arr.toSorted(...)` (non-mutating, no manual copy). Packages pinned to
-ES2022 (`packages/tsconfig/base.json`) do **not** have `toSorted` — keep
-`[...arr].sort()` there.
+`[...arr].sort()` copies the array just to sort it. `apps/sim/tsconfig.json`
+sets `lib` to ES2023, so `arr.toSorted(...)` (non-mutating, no manual copy)
+type-resolves and runs on every runtime the app targets (Node 20+, evergreen
+browsers). Packages pinned to ES2022 `lib` (`packages/tsconfig/base.json`) do
+**not** expose `toSorted` — keep `[...arr].sort()` there.
 
 ## Independent awaits run in parallel
 
@@ -121,7 +122,10 @@ sequencing is deliberate (rate-limited batches, retry loops).
 
 - A `Date.now()` inside an `onClick`/event handler is fine — it is not a render
   hydration mismatch. Only `Date.now()` reached during render is.
-- Don't add a mutation **object** to a `useCallback`/`useMemo` dep array; the
-  `.mutate` fn from TanStack Query v5 is already stable (see `sim-queries`).
+- A TanStack Query v5 `.mutate` / `.mutateAsync` fn is referentially stable —
+  call it inside a `useCallback`/`useMemo` without listing it in the deps.
+  Adding it is inert noise (and a lint tool that flags it as a missing dep is
+  wrong here); never add the mutation **object** either — it is not stable, so
+  depend on nothing and call `.mutate` on it. See `sim-queries`.
 - Memoizing a value that is already primitive/stable adds overhead for nothing —
   memoize arrays, objects, and functions, not booleans or strings.
