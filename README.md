@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://sim.ai" target="_blank" rel="noopener noreferrer">
-    <img src="apps/sim/public/static/readme-hero.gif" alt="Sim — your workflow agent for solving automations. Build, deploy, and manage AI agents visually, conversationally, or with code." width="100%"/>
+    <img src="apps/sim/public/static/readme-banner.png" alt="Sim — Integrate, Context, Build, and Monitor AI agents" width="100%"/>
   </a>
 </p>
 
@@ -35,7 +35,7 @@ Open [http://localhost:3000](http://localhost:3000)
 Docker must be installed and running. Use `-p, --port <port>` to run Sim on a different port, or `--no-pull` to skip pulling the latest Docker images.
 
 <p align="center">
-  <img src="apps/sim/public/static/readme-tour.gif" alt="How Sim works — Integrate, Context, Build, Monitor — shown end to end: start a chat to build an agent, connect Slack and other integrations, add a knowledge base, build the workflow visually, deploy it, and monitor runs in the logs" width="100%"/>
+  <img src="apps/sim/public/static/readme-platform.png" alt="The Sim platform — chat on the left, the visual workflow builder on the right" width="100%"/>
 </p>
 
 ## Capabilities
@@ -45,6 +45,33 @@ Docker must be installed and running. Use `-p, --port <port>` to run Sim on a di
 - Build agents visually, conversationally, or with code
 - Ingest files, knowledge bases, and structured table data
 - Monitor runs, logs, schedules, and workflow activity
+
+## One workspace, every surface
+
+<p align="center">Chat and workflows are just the start — tables, files, knowledge, and scheduled tasks all live in the same workspace.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="apps/sim/public/static/readme-tables.png" alt="Tables in Sim — structured data your agents can query" width="100%"/>
+      <p align="center"><b>Tables</b> — a database, built in</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="apps/sim/public/static/readme-files.png" alt="Files in Sim — documents for your team and every agent" width="100%"/>
+      <p align="center"><b>Files</b> — one store for your team and every agent</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="apps/sim/public/static/readme-knowledge.png" alt="Knowledge bases in Sim — synced docs your agents can search" width="100%"/>
+      <p align="center"><b>Knowledge</b> — your agents' memory</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="apps/sim/public/static/readme-scheduled-tasks.png" alt="Scheduled tasks in Sim — recurring agent runs on a calendar" width="100%"/>
+      <p align="center"><b>Scheduled tasks</b> — runs on your schedule</p>
+    </td>
+  </tr>
+</table>
 
 ## Self-hosting
 
@@ -120,6 +147,9 @@ See the [environment variables reference](https://docs.sim.ai/self-hosting/envir
 
 ## Tech Stack
 
+<details>
+<summary>Next.js · Bun · PostgreSQL · Drizzle · Better Auth · Tailwind — and the rest of the stack</summary>
+
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **Runtime**: [Bun](https://bun.sh/)
 - **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
@@ -135,6 +165,8 @@ See the [environment variables reference](https://docs.sim.ai/self-hosting/envir
 - **Background Jobs**: [Trigger.dev](https://trigger.dev/)
 - **Remote Code Execution**: [E2B](https://www.e2b.dev/)
 - **Isolated Code Execution**: [isolated-vm](https://github.com/laverdet/isolated-vm)
+
+</details>
 
 ## Contributing
 
