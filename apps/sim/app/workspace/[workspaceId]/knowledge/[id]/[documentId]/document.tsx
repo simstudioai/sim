@@ -676,7 +676,7 @@ export function Document({
         { onError: () => updateChunk(chunkId, { enabled: chunk.enabled }) }
       )
     },
-    [displayChunks, knowledgeBaseId, documentId, updateChunk, updateChunkMutation]
+    [displayChunks, knowledgeBaseId, documentId, updateChunk]
   )
 
   const handleDeleteChunk = useCallback(
