@@ -96,8 +96,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     const hasModalContent =
       status.githubAvailable || status.googleAvailable || status.microsoftAvailable || ssoEnabled
     if (!hasModalContent) {
-      // Close the loading state (no-op if never opened) and route out. Registration
-      // being disabled sends signup requests to login, since signup is unavailable.
+      /** Close the loader (no-op if never opened) and route out; disabled registration sends signup to login. */
       setOpen(false)
       router.push(status.registrationDisabled || defaultView === 'login' ? '/login' : '/signup')
       return
@@ -119,16 +118,13 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
       openWithStatus(providerStatus)
       return
     }
-    // Status not loaded yet: open immediately (the loader shows) so the click feels
-    // responsive, then resolve - unless the visitor has since dismissed the modal.
+    /** Status not loaded yet: open the loader immediately for responsiveness, then resolve. */
     openRequestedRef.current = true
     setOpen(true)
     fetchProviderStatus().then((status) => {
       setProviderStatus(status)
       if (!openRequestedRef.current) return
-      // Consume the request so a queued double-click (or the mount prefetch resolving
-      // on the same promise) can't run openWithStatus twice - no duplicate
-      // `auth_modal_opened`, no redundant setView.
+      /** Consume the request so a queued double-click can't open twice (no duplicate event). */
       openRequestedRef.current = false
       openWithStatus(status)
     })
