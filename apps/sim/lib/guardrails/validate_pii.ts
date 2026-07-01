@@ -7,14 +7,14 @@ import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 const logger = createLogger('PIIValidator')
 
 /**
- * Concurrent chunk requests in flight. Each chunk is itself a batched sidecar call
- * (spaCy `nlp.pipe` over many strings), so a small concurrency keeps the single-model
- * sidecar from holding too many parallel docs in memory while still overlapping
- * HTTP/JSON with the next chunk's NER.
+ * Concurrent chunk requests in flight. Each chunk is itself a batched service call
+ * (spaCy `nlp.pipe` over many strings), so a small concurrency keeps a single-model
+ * Presidio instance from holding too many parallel docs in memory while still
+ * overlapping HTTP/JSON with the next chunk's NER.
  */
 const CHUNK_CONCURRENCY = 4
 
-/** Single Presidio sidecar serving both /analyze and /anonymize (VIN is native there). */
+/** Presidio service serving both /analyze and /anonymize (VIN is native there). */
 const PII_URL = env.PII_URL || 'http://localhost:5001'
 
 export interface PIIValidationInput {
@@ -58,7 +58,7 @@ async function analyze(
 ): Promise<AnalyzerSpan[]> {
   const entities = entityTypes.length > 0 ? entityTypes : undefined
 
-  // boundary-raw-fetch: internal call to the Presidio analyzer sidecar over localhost
+  // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
   const response = await fetch(`${PII_URL}/analyze`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -83,7 +83,7 @@ async function analyzeBatch(
 ): Promise<AnalyzerSpan[][]> {
   const entities = entityTypes.length > 0 ? entityTypes : undefined
 
-  // boundary-raw-fetch: internal call to the Presidio analyzer sidecar over localhost
+  // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
   const response = await fetch(`${PII_URL}/analyze_batch`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -110,7 +110,7 @@ interface AnonymizeBatchItem {
 async function anonymizeBatch(items: AnonymizeBatchItem[]): Promise<string[]> {
   if (items.length === 0) return []
 
-  // boundary-raw-fetch: internal call to the Presidio anonymizer sidecar over localhost
+  // boundary-raw-fetch: internal call to the Presidio anonymizer service via PII_URL
   const response = await fetch(`${PII_URL}/anonymize_batch`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -125,13 +125,13 @@ async function anonymizeBatch(items: AnonymizeBatchItem[]): Promise<string[]> {
 }
 
 /**
- * Mask spans via the Presidio anonymizer sidecar. Omitting `anonymizers` uses the
+ * Mask spans via the Presidio anonymizer service. Omitting `anonymizers` uses the
  * default `replace` operator, which yields `<ENTITY_TYPE>`. Throws on failure.
  */
 async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
   if (spans.length === 0) return text
 
-  // boundary-raw-fetch: internal call to the Presidio anonymizer sidecar over localhost
+  // boundary-raw-fetch: internal call to the Presidio anonymizer service via PII_URL
   const response = await fetch(`${PII_URL}/anonymize`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -146,7 +146,7 @@ async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
 }
 
 /**
- * Validate text for PII using the Presidio sidecar.
+ * Validate text for PII using the Presidio service.
  *
  * - block: fails validation if any PII is detected
  * - mask: passes and returns masked text with PII replaced by `<ENTITY_TYPE>`
@@ -209,14 +209,14 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
 }
 
 /**
- * Mask PII across many strings via the Presidio sidecar, preserving input order.
+ * Mask PII across many strings via the Presidio service, preserving input order.
  *
  * Strings are grouped into byte/count-budgeted chunks (see {@link chunkIndicesByBudget}),
  * and each chunk runs one batched `analyze` pass followed by one batched `anonymize`
- * pass over only the strings that actually matched — so the sidecar round-trip count
+ * pass over only the strings that actually matched — so the service round-trip count
  * scales with payload size, not leaf count, and spaCy batches NER via `nlp.pipe`.
  * Chunks run with bounded concurrency. Strings with no detected PII pass through
- * unchanged. Rejects on any sidecar failure (which fails the whole batch) so callers
+ * unchanged. Rejects on any service failure (which fails the whole batch) so callers
  * can apply their own fail-safe (scrub).
  */
 export async function maskPIIBatch(

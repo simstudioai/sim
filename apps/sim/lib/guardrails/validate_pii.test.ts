@@ -27,7 +27,7 @@ function emailSpans(text: string, entities: string[] | undefined): Span[] {
   return idx === -1 ? [] : [{ entity_type: 'EMAIL_ADDRESS', start: idx, end: idx + 7, score: 0.9 }]
 }
 
-describe('validate_pii (Presidio sidecar)', () => {
+describe('validate_pii (Presidio service)', () => {
   let analyzeBodies: Array<{ text: string; language: string; entities?: string[] }>
   let fetchMock: ReturnType<typeof vi.fn>
 
@@ -87,7 +87,7 @@ describe('validate_pii (Presidio sidecar)', () => {
       expect(await maskPIIBatch([''], [])).toEqual([''])
     })
 
-    it('throws on a sidecar failure so the caller can scrub', async () => {
+    it('throws on a service failure so the caller can scrub', async () => {
       fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 }))
       await expect(maskPIIBatch(['email a@b.com'], [])).rejects.toThrow(/Presidio analyze failed/)
     })

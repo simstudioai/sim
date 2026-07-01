@@ -8,19 +8,19 @@ import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 /**
  * Max in-flight mask-batch requests per call. Each request is a CPU-heavy NER
  * batch, so a single Presidio instance is easily saturated — default 4, raise it
- * via `PII_MASK_CHUNK_CONCURRENCY` for a scaled/load-balanced service, or set 1
- * for a single sidecar. No request timeout: masking a large batch is slow and the
- * (scaled) Presidio service is expected to eventually respond; an unreachable
- * sidecar still rejects fast (connection refused) so the caller scrubs.
+ * via `PII_MASK_CHUNK_CONCURRENCY` for a scaled-out/load-balanced service, or set
+ * 1 for a single instance. No request timeout: masking a large batch is slow and
+ * the (scaled) Presidio service is expected to eventually respond; an unreachable
+ * service still rejects fast (connection refused) so the caller scrubs.
  */
 const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 4
 
 /**
  * Mask PII across many strings via the internal app-container endpoint.
  *
- * The Presidio sidecars run only in the app task, but the log-redaction persist
- * path also runs inside the trigger.dev runtime — so redaction always routes
- * through HTTP, the same way the guardrails tool does.
+ * Only the app task reaches the Presidio service (it holds `PII_URL`), but the
+ * log-redaction persist path also runs inside the trigger.dev runtime — so
+ * redaction always routes through HTTP, the same way the guardrails tool does.
  * Strings are grouped into byte/count-budgeted chunks (keeping each request far
  * under the 10MB Next body limit) and the chunks are sent with bounded
  * concurrency, so a large payload fans out rather than serializing; order is
