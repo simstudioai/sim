@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 
 /**
@@ -26,7 +26,7 @@ const NavbarFrostContext = createContext<NavbarFrostContextValue | null>(null)
 
 /** Lets the mobile nav report its open state up to the shell so the bar can frost in sync. */
 export function useNavbarFrost(): NavbarFrostContextValue | null {
-  return useContext(NavbarFrostContext)
+  return use(NavbarFrostContext)
 }
 
 interface NavbarShellProps {
@@ -86,7 +86,7 @@ export function NavbarShell({ children }: NavbarShellProps) {
   const frost = useMemo<NavbarFrostContextValue>(() => ({ setMenuOpen }), [])
 
   return (
-    <NavbarFrostContext.Provider value={frost}>
+    <NavbarFrostContext value={frost}>
       <div ref={sentinelRef} aria-hidden='true' className='-mb-px h-px' />
       <header className='sticky top-0 z-50'>
         <div
@@ -98,6 +98,6 @@ export function NavbarShell({ children }: NavbarShellProps) {
         />
         {children}
       </header>
-    </NavbarFrostContext.Provider>
+    </NavbarFrostContext>
   )
 }

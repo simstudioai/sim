@@ -8,6 +8,7 @@ import {
   type Integration,
   POPULAR_WORKFLOWS,
 } from '@/lib/integrations'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { IntegrationCard } from '@/app/(landing)/integrations/components/integration-card'
 import { IntegrationGrid } from '@/app/(landing)/integrations/components/integration-grid'
@@ -55,6 +56,20 @@ const TOP_NAMES = [...new Set(POPULAR_WORKFLOWS.flatMap((p) => [p.from, p.to]))]
 
 const baseUrl = SITE_URL
 
+const INTEGRATIONS_BREADCRUMB_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: 'Integrations',
+      item: `${baseUrl}/integrations`,
+    },
+  ],
+}
+
 /** Curated featured integrations - high-recognition services shown as cards. */
 const FEATURED_SLUGS = ['slack', 'notion', 'github', 'gmail'] as const
 
@@ -96,20 +111,6 @@ export default async function IntegrationsPage({
 }) {
   await integrationsSearchParamsCache.parse(searchParams)
 
-  const breadcrumbJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
-      {
-        '@type': 'ListItem',
-        position: 2,
-        name: 'Integrations',
-        item: `${baseUrl}/integrations`,
-      },
-    ],
-  }
-
   const itemListJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
@@ -143,18 +144,9 @@ export default async function IntegrationsPage({
 
   return (
     <section className='bg-[var(--bg)]'>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
+      <JsonLd data={INTEGRATIONS_BREADCRUMB_JSON_LD} />
+      <JsonLd data={itemListJsonLd} />
+      <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
       <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>

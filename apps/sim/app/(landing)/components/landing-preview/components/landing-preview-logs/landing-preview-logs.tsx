@@ -141,7 +141,7 @@ export function LandingPreviewLogs() {
       : MOCK_LOGS
 
     if (!sortKey) return filtered
-    return [...filtered].sort((a, b) => {
+    return filtered.toSorted((a, b) => {
       const av = sortKey === 'cost' ? a.cost.replace(/\D/g, '') : a[sortKey]
       const bv = sortKey === 'cost' ? b.cost.replace(/\D/g, '') : b[sortKey]
       const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' })
@@ -201,6 +201,7 @@ export function LandingPreviewLogs() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder='Search logs...'
+              aria-label='Search logs'
               className='flex-1 bg-transparent text-[var(--text-body)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
             />
           </div>
