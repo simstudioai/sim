@@ -29,6 +29,7 @@ import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
+  MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
@@ -320,6 +321,18 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
+  }, [sendMessage])
+
+  /**
+   * Consumes a one-shot handoff left by another surface (e.g. "Troubleshoot in
+   * Chat" on an errored log) and auto-sends it into this fresh chat, tagging the
+   * run so Sim can inspect the failure. `consume` clears the entry atomically,
+   * so it fires at most once — a re-run (StrictMode, reload, `sendMessage`
+   * identity change) reads nothing and no-ops.
+   */
+  useEffect(() => {
+    const handoff = MothershipHandoffStorage.consume()
+    if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
   }, [sendMessage])
 
   function resolveResourceFromContext(

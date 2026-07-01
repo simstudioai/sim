@@ -20,14 +20,16 @@ import {
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { Workflow } from '@sim/emcn/icons'
+import { Workflow, Wrench } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { createPortal } from 'react-dom'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
@@ -52,6 +54,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
+import type { ChatContext } from '@/stores/panel'
 
 /**
  * Renders an already-apportioned integer credit value. `dollars` is only used
@@ -275,6 +278,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
+  const router = useRouter()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+
   const { config: permissionConfig } = usePermissionConfig()
 
   const isInitialTabMountRef = useRef(true)
@@ -381,6 +387,29 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
   const formattedTimestamp = formatDate(log.createdAt)
   const logStatus = getDisplayStatus(log.status)
+
+  /**
+   * Troubleshooting hands the failed run off to Chat, tagging it by
+   * `executionId`. A real Chat run can't be debugged from inside itself, so
+   * mothership-triggered logs are excluded — `isLikelyExecution` already encodes
+   * "has an executionId and isn't a mothership run".
+   */
+  const canTroubleshoot = log.status === 'failed' && isLikelyExecution
+
+  const handleTroubleshoot = useCallback(() => {
+    if (!log.executionId) return
+    const workflowName = log.workflow?.name?.trim() || null
+    const context: ChatContext = {
+      kind: 'logs',
+      executionId: log.executionId,
+      label: workflowName ?? 'this run',
+    }
+    const message = workflowName
+      ? `The "${workflowName}" workflow run failed. Investigate the error in this run and help me fix it.`
+      : 'This workflow run failed. Investigate the error in this run and help me fix it.'
+    MothershipHandoffStorage.store({ message, contexts: [context] })
+    router.push(`/workspace/${workspaceId}/home`)
+  }, [log.executionId, log.workflow?.name, workspaceId, router])
 
   return (
     <>
@@ -539,6 +568,19 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                   </span>
                   <WorkflowOutputSection output={workflowOutput} />
                 </div>
+              )}
+
+              {/* Troubleshoot — hand the failed run off to Chat to diagnose */}
+              {canTroubleshoot && (
+                <Button
+                  variant='default'
+                  size='sm'
+                  className='gap-1.5 self-start'
+                  onClick={handleTroubleshoot}
+                >
+                  <Wrench className='size-3' />
+                  Troubleshoot in Chat
+                </Button>
               )}
 
               {/* Files */}
