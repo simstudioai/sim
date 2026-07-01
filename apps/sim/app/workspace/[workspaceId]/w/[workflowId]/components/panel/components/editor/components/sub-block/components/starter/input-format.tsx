@@ -15,9 +15,10 @@ import {
   Input,
   Label,
   languages,
+  Tooltip,
 } from '@sim/emcn'
 import { Trash } from '@sim/emcn/icons'
-import { Plus } from 'lucide-react'
+import { ArrowLeftRight, Plus } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import {
   createDefaultInputFormatField,
@@ -140,6 +141,59 @@ export function FieldFormat({
   const isReadOnly = isPreview || disabled
 
   const renderFieldLabel = (label: string) => <Label>{label}</Label>
+
+  /**
+   * Resolves the current editor mode for a file field. The uploader is only
+   * offered when it can represent the stored value losslessly (empty or all
+   * run-ready); mixed/legacy values force JSON mode so the uploader can't drop
+   * entries it cannot show on save.
+   */
+  const getFileFieldMode = (field: Field): { mode: 'upload' | 'json'; canUseUploader: boolean } => {
+    const canUseUploader = defaultFileFieldMode(field.value) === 'upload'
+    return {
+      mode: canUseUploader ? (fileFieldModes[field.id] ?? 'upload') : 'json',
+      canUseUploader,
+    }
+  }
+
+  /**
+   * Renders the ⇄ toggle that switches a file field between the uploader and the
+   * raw JSON editor. Matches the canonical sub-block mode toggle. Hidden when the
+   * value can't be safely represented by the uploader.
+   */
+  const renderFileModeToggle = (field: Field) => {
+    const { mode, canUseUploader } = getFileFieldMode(field)
+    if (!canUseUploader) return null
+    const label = mode === 'upload' ? 'Switch to JSON' : 'Switch to file uploader'
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type='button'
+            className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+            onClick={() =>
+              setFileFieldModes((prev) => ({
+                ...prev,
+                [field.id]: mode === 'upload' ? 'json' : 'upload',
+              }))
+            }
+            disabled={isReadOnly}
+            aria-label={label}
+          >
+            <ArrowLeftRight
+              className={cn(
+                '!h-[12px] !w-[12px]',
+                mode === 'json' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+              )}
+            />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top'>
+          <p>{label}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
 
   /**
    * Adds a new field to the list
@@ -493,52 +547,28 @@ export function FieldFormat({
     }
 
     if (isFileFieldType(field.type)) {
-      // The uploader is only offered when it can represent the stored value
-      // losslessly (empty or all run-ready). For mixed/legacy values it would
-      // drop the entries it can't show on save, so we force JSON mode and hide
-      // the toggle until the value is cleared or made fully run-ready.
-      const canUseUploader = defaultFileFieldMode(field.value) === 'upload'
-      const mode = canUseUploader ? (fileFieldModes[field.id] ?? 'upload') : 'json'
-
-      const modeToggle = canUseUploader ? (
-        <div className='flex justify-end'>
-          <Button
-            type='button'
-            variant='ghost'
-            onClick={() =>
-              setFileFieldModes((prev) => ({
-                ...prev,
-                [field.id]: mode === 'upload' ? 'json' : 'upload',
-              }))
-            }
-            disabled={isReadOnly}
-            className='h-auto p-0 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-body)]'
-          >
-            {mode === 'upload' ? 'Enter JSON manually' : 'Use file uploader'}
-          </Button>
-        </div>
-      ) : null
+      // The mode toggle lives on the "Value" label row (see the field header);
+      // this only renders the active control. Mode derivation is shared via
+      // getFileFieldMode so the two stay in sync.
+      const { mode } = getFileFieldMode(field)
 
       if (mode === 'upload') {
         const currentFiles = parseInputFormatFiles(field.value)
         return (
-          <div className='flex flex-col gap-1.5'>
-            {modeToggle}
-            <FileUpload
-              blockId={blockId}
-              subBlockId={subBlockId}
-              multiple
-              disabled={isReadOnly}
-              value={filesToControlValue(currentFiles)}
-              onValueChange={(next) =>
-                updateField(
-                  field.id,
-                  'value',
-                  serializeInputFormatFiles(controlValueToFiles(next, currentFiles))
-                )
-              }
-            />
-          </div>
+          <FileUpload
+            blockId={blockId}
+            subBlockId={subBlockId}
+            multiple
+            disabled={isReadOnly}
+            value={filesToControlValue(currentFiles)}
+            onValueChange={(next) =>
+              updateField(
+                field.id,
+                'value',
+                serializeInputFormatFiles(controlValueToFiles(next, currentFiles))
+              )
+            }
+          />
         )
       }
 
@@ -556,26 +586,23 @@ export function FieldFormat({
         ))
 
       return (
-        <div className='flex flex-col gap-1.5'>
-          {modeToggle}
-          <Code.Container className='min-h-[120px]'>
-            <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
-            <Code.Content paddingLeft={`${gutterWidth}px`}>
-              <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
-                {
-                  '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
-                }
-              </Code.Placeholder>
-              <Editor
-                value={fieldValue}
-                onValueChange={getEditorValueChangeHandler(field.id)}
-                highlight={jsonHighlight}
-                disabled={isReadOnly}
-                {...getCodeEditorProps({ disabled: isReadOnly })}
-              />
-            </Code.Content>
-          </Code.Container>
-        </div>
+        <Code.Container className='min-h-[120px]'>
+          <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
+          <Code.Content paddingLeft={`${gutterWidth}px`}>
+            <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
+              {
+                '[\n  {\n    "data": "<base64>",\n    "type": "file",\n    "name": "document.pdf",\n    "mime": "application/pdf"\n  }\n]'
+              }
+            </Code.Placeholder>
+            <Editor
+              value={fieldValue}
+              onValueChange={getEditorValueChangeHandler(field.id)}
+              highlight={jsonHighlight}
+              disabled={isReadOnly}
+              {...getCodeEditorProps({ disabled: isReadOnly })}
+            />
+          </Code.Content>
+        </Code.Container>
       )
     }
 
@@ -709,7 +736,14 @@ export function FieldFormat({
 
                 {showValue && (
                   <div className='flex flex-col gap-1.5'>
-                    {renderFieldLabel('Value')}
+                    {isFileFieldType(field.type) ? (
+                      <div className='flex items-center justify-between'>
+                        {renderFieldLabel('Value')}
+                        {renderFileModeToggle(field)}
+                      </div>
+                    ) : (
+                      renderFieldLabel('Value')
+                    )}
                     <div className='relative'>{renderValueInput(field)}</div>
                   </div>
                 )}
