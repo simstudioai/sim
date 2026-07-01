@@ -127,7 +127,7 @@ export function Component({ requiredProp, optionalProp = false }: ComponentProps
 
 Extract when: 50+ lines, used in 2+ files, or has own state/logic. Keep inline when: < 10 lines, single use, purely presentational.
 
-Behavior-preserving render-performance idioms — lazy-init object refs, hoist closure-free values/functions to module scope, pre-index repeated lookups with `Map`/`Set`, and immutable array methods (`toSorted`) with the ES2022-vs-ES2023 lib caveat — are in `.claude/rules/sim-react-performance.md`. For the render-timing effect/state anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
+Behavior-preserving render-performance idioms — lazy-init object refs, hoist closure-free values/functions to module scope, pre-index repeated lookups with `Map`/`Set`, and never mutating a shared array in place — are in `.claude/rules/sim-react-performance.md` (which also explains why `toSorted`/`toReversed` are unsafe on client render paths despite the ES2023 tsconfig lib — SWC does not polyfill prototype methods, so use `[...arr].sort()`). For the render-timing effect/state anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
 
 ## API Contracts
 

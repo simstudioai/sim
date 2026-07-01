@@ -52,10 +52,9 @@ export function useWorkspaceImports(
   const { data: exportJobs } = useWorkspaceExportJobs(workspaceId)
 
   const prevStatusRef = useRef<Map<string, string> | null>(null)
-  prevStatusRef.current ??= new Map()
   useEffect(() => {
     if (!tables) return
-    const prevStatus = prevStatusRef.current ?? new Map<string, string>()
+    const prevStatus = (prevStatusRef.current ??= new Map())
     const store = useImportTrayStore.getState()
     for (const table of tables) {
       const before = prevStatus.get(table.id)
