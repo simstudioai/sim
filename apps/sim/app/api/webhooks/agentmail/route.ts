@@ -19,6 +19,7 @@ import {
   agentMailMessageSchema,
   webhookSvixHeadersSchema,
 } from '@/lib/api/contracts/webhooks'
+import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import {
@@ -167,27 +168,35 @@ export const POST = withRouteHandler(async (req: Request) => {
     const emailMessageId = message.message_id
     const inReplyTo = message.in_reply_to || null
 
-    const [existingResult, isAllowed, recentCount, parentTaskResult] = await Promise.all([
-      emailMessageId
-        ? db
-            .select({ id: mothershipInboxTask.id })
-            .from(mothershipInboxTask)
-            .where(eq(mothershipInboxTask.emailMessageId, emailMessageId))
-            .limit(1)
-        : Promise.resolve([]),
-      isSenderAllowed(fromEmail, result.id),
-      getRecentTaskCount(result.id),
-      inReplyTo
-        ? db
-            .select({ chatId: mothershipInboxTask.chatId })
-            .from(mothershipInboxTask)
-            .where(eq(mothershipInboxTask.responseMessageId, inReplyTo))
-            .limit(1)
-        : Promise.resolve([]),
-    ])
+    const [existingResult, isAllowed, recentCount, parentTaskResult, isEntitled] =
+      await Promise.all([
+        emailMessageId
+          ? db
+              .select({ id: mothershipInboxTask.id })
+              .from(mothershipInboxTask)
+              .where(eq(mothershipInboxTask.emailMessageId, emailMessageId))
+              .limit(1)
+          : Promise.resolve([]),
+        isSenderAllowed(fromEmail, result.id),
+        getRecentTaskCount(result.id),
+        inReplyTo
+          ? db
+              .select({ chatId: mothershipInboxTask.chatId })
+              .from(mothershipInboxTask)
+              .where(eq(mothershipInboxTask.responseMessageId, inReplyTo))
+              .limit(1)
+          : Promise.resolve([]),
+        hasWorkspaceInboxAccess(result.id),
+      ])
 
     if (existingResult[0]) {
       logger.info('Duplicate webhook, skipping', { emailMessageId })
+      return NextResponse.json({ ok: true })
+    }
+
+    if (!isEntitled) {
+      logger.info('Inbox no longer entitled, rejecting', { workspaceId: result.id })
+      await createRejectedTask(result.id, message, 'not_entitled')
       return NextResponse.json({ ok: true })
     }
 

@@ -1583,6 +1583,13 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     expect(result?.id).toBe('table_query_rows_tbl_xyz')
   })
 
+  it('resolves an advanced-only manual id via the heuristic when basic is empty and no mode is set', async () => {
+    // No canonicalModes entry: routing through resolveCanonicalMode picks advanced (empty basic),
+    // where the old `?? 'basic'` fallback dropped the advanced-only value.
+    const result = await transformTable({ manualTableId: 'tbl_only' })
+    expect(result?.id).toBe('table_query_rows_tbl_only')
+  })
+
   it('appends the canonical table id when already present in params', async () => {
     const result = await transformTable({ tableId: 'tbl_direct' })
     expect(result?.id).toBe('table_query_rows_tbl_direct')

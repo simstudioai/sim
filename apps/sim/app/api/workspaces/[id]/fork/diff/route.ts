@@ -1,4 +1,6 @@
 import { db } from '@sim/db'
+import { workflow } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getForkDiffContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
@@ -16,6 +18,8 @@ import {
   forkDependentValueKey,
   loadForkDependentValues,
 } from '@/lib/workspaces/fork/mapping/dependent-value-store'
+import { listForkResourceCandidates } from '@/lib/workspaces/fork/mapping/resources'
+import { collectForkClearedRefCandidates } from '@/lib/workspaces/fork/promote/cleared-refs'
 import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
 import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import { readTargetDraftDependentValue } from '@/lib/workspaces/fork/remap/remap-references'
@@ -63,10 +67,17 @@ export const GET = withRouteHandler(
     const replaceTargetIds = plan.items
       .filter((item) => item.mode === 'replace')
       .map((item) => item.targetWorkflowId)
-    const [storedValues, targetDraftByWorkflow] = await Promise.all([
-      loadForkDependentValues(db, auth.edge.childWorkspaceId, replaceTargetIds),
-      loadTargetDraftSubBlocks(db, replaceTargetIds),
-    ])
+    const [storedValues, targetDraftByWorkflow, sourceCandidates, sourceWorkflowRows] =
+      await Promise.all([
+        loadForkDependentValues(db, auth.edge.childWorkspaceId, replaceTargetIds),
+        loadTargetDraftSubBlocks(db, replaceTargetIds),
+        // Source resource labels (per kind) + workflow names, for the cleared-ref list's display.
+        listForkResourceCandidates(db, auth.sourceWorkspaceId),
+        db
+          .select({ id: workflow.id, name: workflow.name })
+          .from(workflow)
+          .where(eq(workflow.workspaceId, auth.sourceWorkspaceId)),
+      ])
     const storedByKey = new Map(
       storedValues.map((entry) => [
         forkDependentValueKey(entry.targetWorkflowId, entry.targetBlockId, entry.subBlockKey),
@@ -107,6 +118,24 @@ export const GET = withRouteHandler(
           field.subBlockKey
         ),
     }))
+
+    // References this sync will blank in the target (per block/field), for the pre-sync cleared-ref
+    // list. Labels resolve from the source candidate lists + workflow names loaded above.
+    const sourceLabels = new Map<string, string>()
+    for (const [kind, candidates] of Object.entries(sourceCandidates)) {
+      for (const candidate of candidates)
+        sourceLabels.set(`${kind}:${candidate.id}`, candidate.label)
+    }
+    const sourceWorkflowNames = new Map(sourceWorkflowRows.map((row) => [row.id, row.name]))
+    const clearedRefs = collectForkClearedRefCandidates({
+      items: plan.items,
+      sourceStates,
+      resolver: plan.resolver,
+      workflowIdMap: plan.workflowIdMap,
+      resolveBlockId,
+      sourceLabels,
+      sourceWorkflowNames,
+    })
 
     const toRef = (reference: (typeof plan.unmappedRequired)[number]) => ({
       kind: reference.kind,
@@ -155,6 +184,8 @@ export const GET = withRouteHandler(
       inlineSecretSources: plan.inlineSecretSources,
       dependentReconfigs,
       resourceUsages: collectForkResourceUsages(plan.items, sourceStates),
+      copyableUnmapped: plan.copyableUnmapped,
+      clearedRefs,
     })
   }
 )

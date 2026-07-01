@@ -27,6 +27,7 @@
   },
   "peerDependencies": {
     "@sim/emcn": "workspace:*",
+    "@sim/utils": "workspace:*",
     "lucide-react": ">=0.479.0",
     "react": "^19",
     "reactflow": "^11.11.4",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@sim/emcn": "workspace:*",
     "@sim/tsconfig": "workspace:*",
+    "@sim/utils": "workspace:*",
     "@types/react": "^19",
     "lucide-react": "^0.479.0",
     "react": "19.2.4",

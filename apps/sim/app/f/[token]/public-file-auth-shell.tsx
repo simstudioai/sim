@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Navbar from '@/app/(landing)/components/navbar/navbar'
+import { Navbar } from '@/app/(landing)/components/navbar/navbar'
 
 interface PublicFileAuthShellProps {
   title: string

@@ -268,6 +268,14 @@ import {
   linearWebhookV2Trigger,
 } from '@/triggers/linear'
 import {
+  linqMessageDeliveredTrigger,
+  linqMessageFailedTrigger,
+  linqMessageReadTrigger,
+  linqMessageReceivedTrigger,
+  linqReactionAddedTrigger,
+  linqWebhookTrigger,
+} from '@/triggers/linq'
+import {
   loopsCampaignEmailSentTrigger,
   loopsEmailClickedTrigger,
   loopsEmailDeliveredTrigger,
@@ -599,6 +607,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   linear_project_update_created_v2: linearProjectUpdateCreatedV2Trigger,
   linear_customer_request_created_v2: linearCustomerRequestCreatedV2Trigger,
   linear_customer_request_updated_v2: linearCustomerRequestUpdatedV2Trigger,
+  linq_message_received: linqMessageReceivedTrigger,
+  linq_message_delivered: linqMessageDeliveredTrigger,
+  linq_message_failed: linqMessageFailedTrigger,
+  linq_message_read: linqMessageReadTrigger,
+  linq_reaction_added: linqReactionAddedTrigger,
+  linq_webhook: linqWebhookTrigger,
   monday_item_created: mondayItemCreatedTrigger,
   monday_column_changed: mondayColumnChangedTrigger,
   monday_status_changed: mondayStatusChangedTrigger,

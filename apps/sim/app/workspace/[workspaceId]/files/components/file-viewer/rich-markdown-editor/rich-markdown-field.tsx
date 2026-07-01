@@ -38,6 +38,8 @@ interface RichMarkdownFieldProps {
   error?: boolean
   /** Enables the `@` mention menu scoped to this workspace. Omit to disable mentions. */
   workspaceId?: string
+  /** Force the `@` tag-insertion menu off even with a workspace set (existing tags still render). */
+  disableTagging?: boolean
   /**
    * Intercepts a plain-text paste before the editor handles it. Return `true` to consume the paste
    * (e.g. a full document the host destructures elsewhere); `false` to fall through to normal
@@ -62,6 +64,7 @@ function LoadedRichMarkdownField({
   maxHeight = 360,
   error = false,
   workspaceId,
+  disableTagging,
   onPasteText,
 }: RichMarkdownFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -166,7 +169,7 @@ function LoadedRichMarkdownField({
     if (editor.isEditable !== !disabled) editor.setEditable(!disabled)
   }, [editor, value, isStreaming, disabled])
 
-  useEditorMentions(editor, workspaceId)
+  useEditorMentions(editor, workspaceId, { disableTagging })
 
   return (
     <div

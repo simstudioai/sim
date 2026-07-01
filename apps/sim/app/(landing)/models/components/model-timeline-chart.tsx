@@ -1,8 +1,5 @@
-'use client'
-
-import { useMemo } from 'react'
 import Link from 'next/link'
-import { getProviderColor } from '@/app/(landing)/models/components/consts'
+import { getProviderColor } from '@/app/(landing)/models/components/constants'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
 
 function formatShortDate(date: string): string {
@@ -26,16 +23,14 @@ interface ModelTimelineChartProps {
 const ITEM_WIDTH = 150
 
 export function ModelTimelineChart({ models, providerId }: ModelTimelineChartProps) {
-  const entries = useMemo(() => {
-    return models
-      .filter((m) => m.releaseDate !== null)
-      .map((m) => ({
-        model: m,
-        date: new Date(m.releaseDate as string),
-        dateStr: m.releaseDate as string,
-      }))
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
-  }, [models])
+  const entries = models
+    .filter((m) => m.releaseDate !== null)
+    .map((m) => ({
+      model: m,
+      date: new Date(m.releaseDate as string),
+      dateStr: m.releaseDate as string,
+    }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
 
   if (entries.length === 0) return null
 
@@ -46,11 +41,11 @@ export function ModelTimelineChart({ models, providerId }: ModelTimelineChartPro
       <div className='px-6 pt-10 pb-4'>
         <h2
           id='timeline-heading'
-          className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+          className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
         >
           Release timeline
         </h2>
-        <p className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
+        <p className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
           When each model was first publicly available.
         </p>
       </div>
@@ -61,8 +56,8 @@ export function ModelTimelineChart({ models, providerId }: ModelTimelineChartPro
           className='relative h-[140px]'
           style={{ minWidth: `${entries.length * ITEM_WIDTH}px` }}
         >
-          {/* Horizontal line — vertically centered */}
-          <div className='absolute top-[70px] right-0 left-0 h-px bg-[var(--landing-border-strong)]' />
+          {/* Horizontal line - vertically centered */}
+          <div className='absolute top-[70px] right-0 left-0 h-px bg-[var(--border-1)]' />
 
           {entries.map(({ model, dateStr }, i) => {
             const left = i * ITEM_WIDTH + ITEM_WIDTH / 2
@@ -81,20 +76,19 @@ export function ModelTimelineChart({ models, providerId }: ModelTimelineChartPro
                   height: '100%',
                 }}
               >
-                {/* Dot — centered exactly on the line (70px - 4.5px) */}
                 <div
-                  className='-translate-x-1/2 absolute top-[66px] left-1/2 size-[9px] rounded-full transition-[filter,transform] duration-150 group-hover:scale-150 group-hover:brightness-150'
-                  style={{ backgroundColor: color, opacity: 0.85 }}
+                  className='-translate-x-1/2 absolute top-[64px] left-1/2 size-[12px] rounded-full opacity-[0.85] transition-[opacity,transform] duration-150 group-hover:scale-110 group-hover:opacity-100'
+                  style={{ backgroundColor: color }}
                 />
 
                 {/* Stem + label above */}
                 {isAbove && (
                   <div className='-translate-x-1/2 absolute bottom-[74px] left-1/2 flex flex-col items-center'>
                     <div className='flex flex-col items-center gap-0.5 pb-1.5'>
-                      <span className='whitespace-nowrap font-medium text-[12px] text-[var(--landing-text)] leading-none tracking-[-0.01em] transition-colors group-hover:text-white'>
+                      <span className='whitespace-nowrap text-[12px] text-[var(--text-primary)] leading-none tracking-[-0.01em] transition-colors group-hover:text-[var(--text-primary)]'>
                         {model.displayName}
                       </span>
-                      <span className='whitespace-nowrap font-mono text-[10px] text-[var(--landing-text-muted)] leading-none'>
+                      <span className='whitespace-nowrap text-[10px] text-[var(--text-muted)] leading-none'>
                         {formatShortDate(dateStr)}
                       </span>
                     </div>
@@ -113,10 +107,10 @@ export function ModelTimelineChart({ models, providerId }: ModelTimelineChartPro
                       style={{ height: '10px', backgroundColor: color, opacity: 0.2 }}
                     />
                     <div className='flex flex-col items-center gap-0.5 pt-1.5'>
-                      <span className='whitespace-nowrap font-medium text-[12px] text-[var(--landing-text)] leading-none tracking-[-0.01em] transition-colors group-hover:text-white'>
+                      <span className='whitespace-nowrap text-[12px] text-[var(--text-primary)] leading-none tracking-[-0.01em] transition-colors group-hover:text-[var(--text-primary)]'>
                         {model.displayName}
                       </span>
-                      <span className='whitespace-nowrap font-mono text-[10px] text-[var(--landing-text-muted)] leading-none'>
+                      <span className='whitespace-nowrap text-[10px] text-[var(--text-muted)] leading-none'>
                         {formatShortDate(dateStr)}
                       </span>
                     </div>

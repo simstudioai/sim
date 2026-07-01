@@ -16,11 +16,11 @@ export async function generateMetadata({
   const author = posts[0]?.author
   const name = author?.name ?? 'Author'
   return {
-    title: `${name} — Sim Blog`,
+    title: `${name} | Sim Blog`,
     description: `Read articles by ${name} on the Sim blog.`,
     alternates: { canonical: `${SITE_URL}/blog/authors/${id}` },
     openGraph: {
-      title: `${name} — Sim Blog`,
+      title: `${name} | Sim Blog`,
       description: `Read articles by ${name} on the Sim blog.`,
       url: `${SITE_URL}/blog/authors/${id}`,
       siteName: 'Sim',
@@ -31,7 +31,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: 'summary',
-      title: `${name} — Sim Blog`,
+      title: `${name} | Sim Blog`,
       description: `Read articles by ${name} on the Sim blog.`,
       site: '@simdotai',
       ...(author?.xHandle ? { creator: `@${author.xHandle}` } : {}),
@@ -46,7 +46,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
   if (!author) {
     return (
       <main className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
-        <h1 className='font-[500] text-[32px] text-[var(--landing-text)]'>Author not found</h1>
+        <h1 className='text-[32px] text-[var(--text-primary)]'>Author not found</h1>
       </main>
     )
   }
@@ -97,14 +97,12 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
             unoptimized
           />
         ) : null}
-        <h1 className='font-[500] text-[32px] text-[var(--landing-text)] leading-tight'>
-          {author.name}
-        </h1>
+        <h1 className='text-[32px] text-[var(--text-primary)] leading-tight'>{author.name}</h1>
       </div>
       <div className='grid grid-cols-1 gap-8 sm:grid-cols-2'>
         {posts.map((p) => (
           <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
-            <div className='overflow-hidden rounded-lg border border-[var(--landing-bg-elevated)]'>
+            <div className='overflow-hidden rounded-lg border border-[var(--border)]'>
               <Image
                 src={p.ogImage}
                 alt={p.title}
@@ -114,16 +112,14 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
                 unoptimized
               />
               <div className='p-3'>
-                <div className='mb-1 text-[var(--landing-text-muted)] text-xs'>
+                <div className='mb-1 text-[var(--text-muted)] text-xs'>
                   {new Date(p.date).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
                     year: 'numeric',
                   })}
                 </div>
-                <div className='font-[500] text-[var(--landing-text)] text-sm leading-tight'>
-                  {p.title}
-                </div>
+                <div className='text-[var(--text-primary)] text-sm leading-tight'>{p.title}</div>
               </div>
             </div>
           </Link>

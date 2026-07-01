@@ -3,7 +3,7 @@
 import { Chip } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   InboxEnableToggle,
   InboxSettingsTab,
@@ -11,9 +11,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 export function Inbox() {
   const params = useParams()
@@ -21,16 +19,20 @@ export function Inbox() {
   const workspaceId = params.workspaceId as string
 
   const { data: config, isLoading } = useInboxConfig(workspaceId)
-  const { data: subscriptionResponse, isLoading: isSubLoading } = useSubscriptionData({
-    enabled: isBillingEnabled,
-  })
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
+  const { canAdmin } = useUserPermissionsContext()
 
-  if (isLoading || (isBillingEnabled && isSubLoading)) {
+  if (isLoading) {
     return null
   }
 
-  if (isBillingEnabled && !subscriptionAccess.hasUsableMaxAccess) {
+  if (!config?.entitled) {
+    if (config?.enabled && canAdmin) {
+      return (
+        <SettingsPanel>
+          <InboxEnableToggle />
+        </SettingsPanel>
+      )
+    }
     return (
       <div className='flex h-full flex-col bg-[var(--bg)]'>
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>

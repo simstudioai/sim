@@ -61,6 +61,7 @@
     "@better-auth/sso": "1.6.11",
     "@better-auth/stripe": "1.6.11",
     "@browserbasehq/stagehand": "^3.2.1",
+    "@calcom/embed-react": "1.5.3",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",
     "@e2b/code-interpreter": "^2.0.0",
     "@earendil-works/pi-coding-agent": "0.79.4",

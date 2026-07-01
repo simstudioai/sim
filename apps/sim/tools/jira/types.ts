@@ -1597,6 +1597,135 @@ export interface JiraGetUsersResponse extends ToolResponse {
   }
 }
 
+export interface JiraListProjectsParams {
+  accessToken: string
+  domain: string
+  query?: string
+  startAt?: number
+  maxResults?: number
+  cloudId?: string
+}
+
+export interface JiraListProjectsResponse extends ToolResponse {
+  output: {
+    ts: string
+    projects: Array<{
+      id: string
+      key: string
+      name: string
+      projectTypeKey?: string | null
+      simplified?: boolean | null
+      style?: string | null
+      isPrivate?: boolean | null
+      url?: string | null
+      leadDisplayName?: string | null
+      leadAccountId?: string | null
+    }>
+    total: number
+    startAt: number
+    maxResults: number
+    isLast?: boolean | null
+  }
+}
+
+export interface JiraGetProjectParams {
+  accessToken: string
+  domain: string
+  projectId: string
+  cloudId?: string
+}
+
+export interface JiraGetProjectResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: string
+    key: string
+    name: string
+    description?: string | null
+    projectTypeKey?: string | null
+    simplified?: boolean | null
+    style?: string | null
+    isPrivate?: boolean | null
+    url?: string | null
+    leadDisplayName?: string | null
+    leadAccountId?: string | null
+    issueTypes: Array<{
+      id: string
+      name: string
+      subtask?: boolean | null
+    }>
+  }
+}
+
+export interface JiraGetTransitionsParams {
+  accessToken: string
+  domain: string
+  issueKey: string
+  cloudId?: string
+}
+
+export interface JiraGetTransitionsResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueKey: string
+    transitions: Array<{
+      id: string
+      name: string
+      toStatusId?: string | null
+      toStatusName?: string | null
+      toStatusCategory?: string | null
+      isAvailable?: boolean | null
+      hasScreen?: boolean | null
+    }>
+    total: number
+  }
+}
+
+export interface JiraListIssueTypesParams {
+  accessToken: string
+  domain: string
+  cloudId?: string
+}
+
+export interface JiraListIssueTypesResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueTypes: Array<{
+      id: string
+      name: string
+      description?: string | null
+      subtask?: boolean | null
+      hierarchyLevel?: number | null
+      iconUrl?: string | null
+      scope?: string | null
+    }>
+    total: number
+  }
+}
+
+export interface JiraGetFieldsParams {
+  accessToken: string
+  domain: string
+  cloudId?: string
+}
+
+export interface JiraGetFieldsResponse extends ToolResponse {
+  output: {
+    ts: string
+    fields: Array<{
+      id: string
+      key?: string | null
+      name: string
+      custom?: boolean | null
+      navigable?: boolean | null
+      searchable?: boolean | null
+      schemaType?: string | null
+      customType?: string | null
+    }>
+    total: number
+  }
+}
+
 export type JiraResponse =
   | JiraRetrieveResponse
   | JiraUpdateResponse
@@ -1623,3 +1752,8 @@ export type JiraResponse =
   | JiraRemoveWatcherResponse
   | JiraGetUsersResponse
   | JiraSearchUsersResponse
+  | JiraListProjectsResponse
+  | JiraGetProjectResponse
+  | JiraGetTransitionsResponse
+  | JiraListIssueTypesResponse
+  | JiraGetFieldsResponse

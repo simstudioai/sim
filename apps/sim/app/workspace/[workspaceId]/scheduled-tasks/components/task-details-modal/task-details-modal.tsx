@@ -1,6 +1,5 @@
 'use client'
 import {
-  Calendar,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -9,6 +8,7 @@ import {
   chipFieldSurfaceClass,
   cn,
 } from '@sim/emcn'
+import { Calendar } from '@sim/emcn/icons'
 import { format } from 'date-fns'
 import { useParams } from 'next/navigation'
 import {

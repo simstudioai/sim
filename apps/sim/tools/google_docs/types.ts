@@ -71,6 +71,48 @@ export interface GoogleDocsUpdateTextStyleResponse extends ToolResponse {
   }
 }
 
+export interface GoogleDocsDeleteContentRangeResponse extends ToolResponse {
+  output: {
+    updatedContent: boolean
+    metadata: GoogleDocsMetadata
+  }
+}
+
+export interface GoogleDocsUpdateParagraphStyleResponse extends ToolResponse {
+  output: {
+    updatedContent: boolean
+    metadata: GoogleDocsMetadata
+  }
+}
+
+export interface GoogleDocsCreateParagraphBulletsResponse extends ToolResponse {
+  output: {
+    updatedContent: boolean
+    metadata: GoogleDocsMetadata
+  }
+}
+
+export interface GoogleDocsDeleteParagraphBulletsResponse extends ToolResponse {
+  output: {
+    updatedContent: boolean
+    metadata: GoogleDocsMetadata
+  }
+}
+
+export interface GoogleDocsCreateNamedRangeResponse extends ToolResponse {
+  output: {
+    namedRangeId: string | null
+    metadata: GoogleDocsMetadata
+  }
+}
+
+export interface GoogleDocsDeleteNamedRangeResponse extends ToolResponse {
+  output: {
+    updatedContent: boolean
+    metadata: GoogleDocsMetadata
+  }
+}
+
 export interface GoogleDocsToolParams {
   accessToken: string
   documentId?: string
@@ -96,6 +138,12 @@ export interface GoogleDocsToolParams {
   italic?: boolean
   underline?: boolean
   fontSize?: number
+  namedStyleType?: string
+  alignment?: string
+  bulletPreset?: string
+  name?: string
+  namedRangeId?: string
+  namedRangeName?: string
 }
 
 export type GoogleDocsResponse =
@@ -108,3 +156,9 @@ export type GoogleDocsResponse =
   | GoogleDocsInsertImageResponse
   | GoogleDocsInsertPageBreakResponse
   | GoogleDocsUpdateTextStyleResponse
+  | GoogleDocsDeleteContentRangeResponse
+  | GoogleDocsUpdateParagraphStyleResponse
+  | GoogleDocsCreateParagraphBulletsResponse
+  | GoogleDocsDeleteParagraphBulletsResponse
+  | GoogleDocsCreateNamedRangeResponse
+  | GoogleDocsDeleteNamedRangeResponse
