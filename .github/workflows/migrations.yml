@@ -69,7 +69,20 @@ jobs:
 
           if [ "${ENVIRONMENT}" = "dev" ]; then
             echo "Dev environment — pushing schema directly (db:push)"
-            bun run db:push --force
+            # drizzle-kit push prompts interactively for ambiguous renames (which
+            # --force does NOT cover). With no TTY the prompt reads EOF and drizzle
+            # can still exit 0 without applying — a false green. Close stdin, then
+            # reject prompt markers and require a success marker so an unresolved
+            # rename or failed statement fails the job instead of passing.
+            bun run db:push --force < /dev/null 2>&1 | tee /tmp/db-push.log
+            if grep -qE "created or renamed|Do you want" /tmp/db-push.log; then
+              echo "ERROR: db:push hit an interactive rename prompt; resolve it with a versioned migration, not push." >&2
+              exit 1
+            fi
+            if ! grep -qE "Changes applied|No changes detected|No schema changes" /tmp/db-push.log; then
+              echo "ERROR: db:push did not confirm success (aborted prompt or failed statement)." >&2
+              exit 1
+            fi
           else
             echo "Applying versioned migrations (db:migrate)"
             bun run ./scripts/migrate.ts
