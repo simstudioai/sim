@@ -10003,7 +10003,7 @@
         },
         {
           "name": "Mark Chat as Read",
-          "description": "Mark all messages in a chat as read"
+          "description": "Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)"
         },
         {
           "name": "Leave Chat",
@@ -10119,8 +10119,39 @@
         }
       ],
       "operationCount": 34,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "linq_message_received",
+          "name": "Linq Message Received",
+          "description": "Trigger workflow when an inbound message is received"
+        },
+        {
+          "id": "linq_message_delivered",
+          "name": "Linq Message Delivered",
+          "description": "Trigger workflow when a message is delivered"
+        },
+        {
+          "id": "linq_message_failed",
+          "name": "Linq Message Failed",
+          "description": "Trigger workflow when a message fails to deliver"
+        },
+        {
+          "id": "linq_message_read",
+          "name": "Linq Message Read",
+          "description": "Trigger workflow when a message is read"
+        },
+        {
+          "id": "linq_reaction_added",
+          "name": "Linq Reaction Added",
+          "description": "Trigger workflow when a reaction is added to a message"
+        },
+        {
+          "id": "linq_webhook",
+          "name": "Linq Webhook (All Events)",
+          "description": "Trigger on any Linq webhook event (messages, reactions, chats, and more)"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -15649,11 +15680,11 @@
       "landingContent": {
         "install": {
           "heading": "Add Sim to your Slack workspace",
-          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in) — connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
+          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in). Connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
           "steps": [
             {
               "title": "Create your free Sim account",
-              "body": "Sign up at sim.ai — no credit card required."
+              "body": "Sign up at sim.ai. No credit card required."
             },
             {
               "title": "Add a Slack block",
@@ -15673,7 +15704,7 @@
           "body": "Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.",
           "href": "/privacy"
         },
-        "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete — review automated outputs before relying on them, especially for important communications."
+        "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       }
     },
     {
