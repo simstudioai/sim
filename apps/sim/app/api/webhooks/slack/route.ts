@@ -24,6 +24,9 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
+/** Message subtypes that represent real content (vs edits/deletes/system events). */
+const CONTENT_MESSAGE_SUBTYPES = new Set(['file_share', 'me_message', 'thread_broadcast'])
+
 /**
  * Maps an inbound Slack Events API payload to one of the selectable trigger
  * event ids (see SLACK_TRIGGER_EVENT_OPTIONS). Returns null for payloads we do
@@ -39,6 +42,13 @@ function resolveSlackEventKey(body: Record<string, unknown>): string | null {
   if (type === 'reaction_removed') return 'reaction_removed'
 
   if (type === 'message') {
+    // Only genuine new messages trigger. Edits, deletes, and channel system
+    // messages (joins, topic/name changes, etc.) arrive as `message` with a
+    // subtype — ignore all but content subtypes.
+    const subtype = event.subtype as string | undefined
+    if (subtype && !CONTENT_MESSAGE_SUBTYPES.has(subtype)) {
+      return null
+    }
     switch (event.channel_type as string | undefined) {
       case 'im':
         return 'message.im'
@@ -148,13 +158,15 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
     }
 
     // Channel filter applies only to channel-scoped events, never to DMs.
-    // Channels can come from the picker (channelFilter) or manual IDs
+    // Channels come from the picker (channelFilter) or manual IDs
     // (manualChannelFilter) — the basic/advanced sides of one canonical field.
+    // Prefer the picker when set so a stale manual value can't keep matching.
     if (eventKey && SLACK_CHANNEL_SCOPED_EVENTS.has(eventKey)) {
-      const selectedChannels = [
-        ...normalizeSelection(providerConfig.channelFilter),
-        ...normalizeSelection(providerConfig.manualChannelFilter),
-      ]
+      const pickerChannels = normalizeSelection(providerConfig.channelFilter)
+      const selectedChannels =
+        pickerChannels.length > 0
+          ? pickerChannels
+          : normalizeSelection(providerConfig.manualChannelFilter)
       if (
         selectedChannels.length > 0 &&
         (!eventChannel || !selectedChannels.includes(eventChannel))
