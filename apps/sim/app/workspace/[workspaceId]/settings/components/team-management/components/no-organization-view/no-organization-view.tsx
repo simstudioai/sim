@@ -15,7 +15,6 @@ interface NoOrganizationViewProps {
   hasTeamPlan: boolean
   hasEnterprisePlan: boolean
   orgName: string
-  setOrgName: (name: string) => void
   orgSlug: string
   setOrgSlug: (slug: string) => void
   onOrgNameChange: (e: React.ChangeEvent<HTMLInputElement>) => void
@@ -30,7 +29,6 @@ export function NoOrganizationView({
   hasTeamPlan,
   hasEnterprisePlan,
   orgName,
-  setOrgName,
   orgSlug,
   setOrgSlug,
   onOrgNameChange,

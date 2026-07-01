@@ -1,10 +1,16 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryStates } from 'nuqs'
+import {
+  type InboxStatusFilter,
+  inboxTaskParsers,
+  inboxTaskUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/inbox/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
@@ -18,7 +24,10 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ] as const
 
-type StatusFilter = (typeof STATUS_OPTIONS)[number]['value']
+type StatusFilter = InboxStatusFilter
+
+/** Debounce window for `search` URL writes; the input itself stays instant. */
+const SEARCH_DEBOUNCE_MS = 300 as const
 
 const STATUS_BADGES: Record<
   string,
@@ -36,8 +45,26 @@ export function InboxTaskList() {
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [{ status: statusFilter, search: searchTerm }, setInboxFilters] = useQueryStates(
+    inboxTaskParsers,
+    inboxTaskUrlKeys
+  )
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. Filtering below is cheap in-memory over the loaded
+   * tasks, so it reads the instant value too.
+   */
+  const setSearchTerm = useCallback(
+    (value: string) => {
+      const next = value.length > 0 ? value : null
+      setInboxFilters(
+        { search: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+      )
+    },
+    [setInboxFilters]
+  )
 
   const { data: config } = useInboxConfig(workspaceId)
   const { data: tasksData, isLoading } = useInboxTasks(workspaceId, {
@@ -80,7 +107,7 @@ export function InboxTaskList() {
           value={statusFilter}
           onChange={(value) => {
             if (STATUS_OPTIONS.some((option) => option.value === value)) {
-              setStatusFilter(value as StatusFilter)
+              setInboxFilters({ status: value as StatusFilter })
             }
           }}
           options={STATUS_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
