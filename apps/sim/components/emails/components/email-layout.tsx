@@ -42,8 +42,8 @@ export function EmailLayout({
           <Section style={baseStyles.header}>
             <Img
               src={brand.logoUrl || `${baseUrl}/brand/color/email/wordmark.png`}
-              width='107'
-              height='33'
+              width='70'
+              height='34'
               alt={brand.name}
               style={{ display: 'block' }}
             />

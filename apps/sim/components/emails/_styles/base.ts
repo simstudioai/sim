@@ -10,30 +10,36 @@ function buildColors() {
   const brand = getBrandConfig()
   const isWhitelabeled = brand.isWhitelabeled
   const accentColor =
-    isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#33C482'
+    isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#1a1a1a'
 
   return {
-    /** Main canvas background */
-    bgOuter: '#F7F9FC',
-    /** Card/container background - pure white */
+    /** Main canvas background — platform `--bg` */
+    bgOuter: '#fefefe',
+    /** Card/container background — platform `--surface-2` */
     bgCard: '#ffffff',
-    /** Primary text color */
-    textPrimary: '#2d2d2d',
-    /** Secondary text color */
-    textSecondary: '#404040',
-    /** Tertiary text color */
+    /** Primary text — platform `--text-primary` */
+    textPrimary: '#1a1a1a',
+    /** Secondary text — platform `--text-secondary` */
+    textSecondary: '#525252',
+    /** Tertiary text — platform `--text-tertiary` */
     textTertiary: '#5c5c5c',
-    /** Muted text (footer) */
-    textMuted: '#737373',
-    /** Brand primary color */
+    /** Muted text (footer) — platform `--text-muted` */
+    textMuted: '#707070',
+    /** Brand primary — neutral by default, brand color when whitelabeled */
     brandPrimary:
-      isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#33C482',
-    /** Brand accent - used for buttons and links */
+      isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#1a1a1a',
+    /** Accent for buttons and links — neutral by default, brand color when whitelabeled */
     brandTertiary: accentColor,
-    /** Border/divider color */
-    divider: '#ededed',
-    /** Footer background */
-    footerBg: '#F7F9FC',
+    /** Border/divider — platform `--border` */
+    divider: '#dedede',
+    /** Subtle fill for info/code boxes on the white card */
+    surfaceSubtle: '#f7f7f7',
+    /** Error surface fill — platform `--terminal-status-error-bg` */
+    errorBg: '#fef2f2',
+    /** Error surface border — platform `--error-muted` */
+    errorBorder: '#fecaca',
+    /** Footer background — matches the canvas */
+    footerBg: '#fefefe',
   }
 }
 
@@ -79,12 +85,13 @@ export const baseStyles = {
     margin: '0 auto',
   },
 
-  /** Main card container with rounded corners */
+  /** Main card container — white surface, chip-radius, hairline border on the near-white canvas */
   container: {
     maxWidth: `${spacing.containerWidth}px`,
     margin: '0 auto',
     backgroundColor: colors.bgCard,
-    borderRadius: '16px',
+    border: `1px solid ${colors.divider}`,
+    borderRadius: '8px',
     overflow: 'hidden',
   },
 
@@ -120,26 +127,27 @@ export const baseStyles = {
     display: 'inline',
   },
 
-  /** Primary CTA button - matches app tertiary button style */
+  /** Primary CTA button - matches the platform's primary Chip (inverse fill, rounded-lg, h-30, text-sm) */
   button: {
     display: 'inline-block',
     backgroundColor: colors.brandTertiary,
     color: '#ffffff',
-    fontWeight: 500,
+    fontWeight: 400,
     fontSize: '14px',
-    padding: '6px 12px',
-    borderRadius: '5px',
+    lineHeight: '30px',
+    padding: '0 12px',
+    borderRadius: '8px',
     textDecoration: 'none',
     textAlign: 'center' as const,
     margin: '4px 0',
     fontFamily: typography.fontFamily,
   },
 
-  /** Link text style */
+  /** Link text style - neutral color, so it carries an underline to read as a link */
   link: {
     color: colors.brandTertiary,
-    fontWeight: 'bold' as const,
-    textDecoration: 'none',
+    fontWeight: 400,
+    textDecoration: 'underline',
   },
 
   /** Horizontal divider */
@@ -169,8 +177,8 @@ export const baseStyles = {
   codeContainer: {
     margin: '12px 0',
     padding: '12px 16px',
-    backgroundColor: '#f8f9fa',
-    borderRadius: '6px',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: '8px',
     border: `1px solid ${colors.divider}`,
     textAlign: 'center' as const,
   },
@@ -198,9 +206,9 @@ export const baseStyles = {
 
   /** Highlighted info box (e.g., "What you get with Pro") */
   infoBox: {
-    backgroundColor: colors.bgOuter,
+    backgroundColor: colors.surfaceSubtle,
     padding: '16px 18px',
-    borderRadius: '6px',
+    borderRadius: '8px',
     margin: '16px 0',
   },
 
