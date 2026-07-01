@@ -207,8 +207,7 @@ export function useSubBlockValue<T = any>(
       ? storeValue
       : initialValue
 
-  // Keep the ref in sync with the effective value so we always work with the latest value.
-  // On first render valueRef starts as null, so this effect also performs the initial seed.
+  /** Mirror the latest effective value into the ref; also seeds it on first render (ref starts null). */
   useEffect(() => {
     // Use deep comparison for objects to prevent unnecessary updates
     if (!isEqual(valueRef.current, effectiveValue)) {

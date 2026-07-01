@@ -192,8 +192,7 @@ export function DocumentTagEntry({
   const tags: DocumentTag[] = parsedTags.length > 0 ? parsedTags : [createDefaultTag()]
   const isReadOnly = isPreview || disabled
 
-  // Get tag names already used (case-insensitive).
-  // `tags` is rebuilt every render, so this is computed during render rather than memoized.
+  /** Tag names already in use (case-insensitive); computed in render since `tags` is rebuilt each render. */
   const usedTagNames = (() => {
     const names = new Set<string>()
     for (const t of tags) {

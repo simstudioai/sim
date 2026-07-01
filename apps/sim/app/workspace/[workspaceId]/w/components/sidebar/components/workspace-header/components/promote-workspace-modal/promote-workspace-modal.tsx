@@ -216,10 +216,11 @@ export function PromoteWorkspaceModal({
   const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Seed the direction picker when the modal opens (or the parent edge changes while it's
-  // open). Adjusted during render via a prev-value compare so the seeded value lands before
-  // paint instead of a post-paint effect flashing the prior selection. `selectedKey` stays
-  // editable (the dropdown sets it), so it isn't derived state.
+  /**
+   * Seed the direction picker when the modal opens or the parent edge changes while open.
+   * Adjusted during render so the value lands before paint; `selectedKey` stays editable (the
+   * dropdown sets it), so it isn't derived state.
+   */
   const prevOpenSeedRef = useRef(false)
   const prevEdgeOptionsRef = useRef(edgeOptions)
   const openSeedChanged = prevOpenSeedRef.current !== open
@@ -230,11 +231,11 @@ export function PromoteWorkspaceModal({
     setSelectedKey(edgeOptions[0]?.value ?? '')
   }
 
-  // Restart at the overview and drop in-session overrides whenever it (re)opens or the
-  // direction changes - the mapping set, and therefore the steps, depend on the direction.
-  // Adjusted during render (prev-value compare) so the reset lands before paint rather than
-  // an effect flashing the prior edge's state. `copyDefaulted` stays state so its reset here
-  // re-triggers the copy-default effect below (needed on a reopen with cached diff data).
+  /**
+   * Restart at the overview and drop in-session overrides on (re)open or direction change (the
+   * mapping set, and therefore the steps, depend on direction). Adjusted during render;
+   * `copyDefaulted` stays state so its reset here re-triggers the copy-default effect below.
+   */
   const prevOpenResetRef = useRef(false)
   const prevSelectedKeyRef = useRef(selectedKey)
   const openResetChanged = prevOpenResetRef.current !== open

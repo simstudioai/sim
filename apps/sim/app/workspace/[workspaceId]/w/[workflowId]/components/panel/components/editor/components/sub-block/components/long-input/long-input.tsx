@@ -204,9 +204,10 @@ export function LongInput({
       ? propValue
       : ctrl.valueString
 
-  // Sync local content with base value when not streaming by adjusting state
-  // during render (no effect), so the wand's currentValue stays current without
-  // an extra commit. localContent is only displayed while streaming.
+  /**
+   * Sync local content with the base value when not streaming, adjusted during render (no effect)
+   * so the wand's currentValue never lags a commit. localContent is shown only while streaming.
+   */
   if (!wandHook.isStreaming) {
     const baseValueString = baseValue?.toString() ?? ''
     if (baseValueString !== localContent) {

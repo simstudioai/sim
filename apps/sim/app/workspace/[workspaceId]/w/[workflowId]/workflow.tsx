@@ -2621,11 +2621,11 @@ const WorkflowContent = React.memo(
       syncPanelWithSelection(selectedNodeIds)
     }, [selectedNodeIdsKey])
 
-    // Keep the most recently selected block on top even after deselection, so a
-    // dragged block doesn't suddenly drop behind other overlapping blocks. Adjust
-    // during render (not through an effect) so the latched id never lags a commit
-    // behind the selection it mirrors. It retains the previous value when the
-    // selection is cleared, so this is a latch rather than plain derived state.
+    /**
+     * Keep the most recently selected block on top even after deselection (so a dragged block
+     * doesn't drop behind overlapping blocks). Latched during render — retains the previous id
+     * when the selection clears, so it's a latch rather than plain derived state.
+     */
     const lastSelectedNodeId =
       selectedNodeIds.length > 0 ? selectedNodeIds[selectedNodeIds.length - 1] : null
     if (lastSelectedNodeId !== null && lastSelectedNodeId !== lastInteractedNodeId) {

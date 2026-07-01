@@ -108,9 +108,11 @@ export function ForkWorkspaceModal({
   const [forkedWorkspace, setForkedWorkspace] = useState<{ id: string; name: string } | null>(null)
   const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
 
-  // Reset the modal to a fresh state each time it opens (or the source name changes while
-  // open). Adjusted during render via prev-value refs rather than a post-commit effect, so the
-  // reopened modal never briefly commits the previous fork's name/selection before clearing it.
+  /**
+   * Reset the modal to a fresh state on open or when the source name changes while open.
+   * Adjusted during render so the reopened modal never commits the previous fork's
+   * name/selection before clearing it.
+   */
   const prevOpenRef = useRef(open)
   const prevSourceNameRef = useRef(sourceWorkspaceName)
   if (open && (prevOpenRef.current !== open || prevSourceNameRef.current !== sourceWorkspaceName)) {
@@ -125,9 +127,7 @@ export function ForkWorkspaceModal({
   prevOpenRef.current = open
   prevSourceNameRef.current = sourceWorkspaceName
 
-  // Seed the selection with everything the moment the resources query resolves (once per open,
-  // guarded by `defaulted`). Adjusted during render for the same reason as the reset above:
-  // routing it through an effect would commit an empty selection for a frame before the default.
+  /** Seed the full selection once the resources query resolves (once per open, guarded by `defaulted`). */
   if (open && resources.data && !defaulted) {
     setDefaulted(true)
     setSelected(fullSelection(resources.data))

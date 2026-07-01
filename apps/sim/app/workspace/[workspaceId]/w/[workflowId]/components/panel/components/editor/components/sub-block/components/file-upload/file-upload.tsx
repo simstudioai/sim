@@ -632,8 +632,7 @@ export function FileUpload({
     [workspaceFiles, acceptedTypes]
   )
 
-  // Find the selected file's workspace ID for highlighting in single file mode.
-  // `filesArray` is rebuilt every render, so this is computed during render rather than memoized.
+  /** Selected file's workspace id for single-file highlighting; computed in render since `filesArray` is rebuilt each render. */
   const selectedFileId = (() => {
     if (!hasFiles || multiple) return ''
     const currentFile = filesArray[0]

@@ -57,7 +57,7 @@ export function useMentionTokens({
     // when multiple contexts share the same label
     const uniqueLabels = Array.from(new Set(labels))
 
-    // Precompute first-matching context per label for O(1) lookups in the loop
+    /** First-matching context per label, for O(1) lookup while tokenizing. */
     const contextByLabel = new Map<string, (typeof selectedContexts)[number]>()
     for (const c of selectedContexts) {
       if (c.label && !contextByLabel.has(c.label)) contextByLabel.set(c.label, c)
