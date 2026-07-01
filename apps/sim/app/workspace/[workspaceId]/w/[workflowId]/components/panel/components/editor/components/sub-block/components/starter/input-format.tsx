@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -15,12 +15,24 @@ import {
   Input,
   Label,
   languages,
+  Tooltip,
 } from '@sim/emcn'
 import { Trash } from '@sim/emcn/icons'
-import { Plus } from 'lucide-react'
+import { ArrowLeftRight, Plus } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
-import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
+import {
+  createDefaultInputFormatField,
+  isFileFieldType,
+  parseInputFormatFiles,
+} from '@/lib/workflows/input-format'
+import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  controlValueToFiles,
+  defaultFileFieldMode,
+  filesToControlValue,
+  serializeInputFormatFiles,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/starter/input-format-files'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -101,6 +113,7 @@ export function FieldFormat({
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const [fileFieldModes, setFileFieldModes] = useState<Record<string, 'upload' | 'json'>>({})
 
   const inputController = useSubBlockInput({
     blockId,
@@ -128,6 +141,59 @@ export function FieldFormat({
   const isReadOnly = isPreview || disabled
 
   const renderFieldLabel = (label: string) => <Label>{label}</Label>
+
+  /**
+   * Resolves the current editor mode for a file field. The uploader is only
+   * offered when it can represent the stored value losslessly (empty or all
+   * run-ready); mixed/legacy values force JSON mode so the uploader can't drop
+   * entries it cannot show on save.
+   */
+  const getFileFieldMode = (field: Field): { mode: 'upload' | 'json'; canUseUploader: boolean } => {
+    const canUseUploader = defaultFileFieldMode(field.value) === 'upload'
+    return {
+      mode: canUseUploader ? (fileFieldModes[field.id] ?? 'upload') : 'json',
+      canUseUploader,
+    }
+  }
+
+  /**
+   * Renders the ⇄ toggle that switches a file field between the uploader and the
+   * raw JSON editor. Matches the canonical sub-block mode toggle. Hidden when the
+   * value can't be safely represented by the uploader.
+   */
+  const renderFileModeToggle = (field: Field) => {
+    const { mode, canUseUploader } = getFileFieldMode(field)
+    if (!canUseUploader) return null
+    const label = mode === 'upload' ? 'Switch to JSON' : 'Switch to file uploader'
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type='button'
+            className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+            onClick={() =>
+              setFileFieldModes((prev) => ({
+                ...prev,
+                [field.id]: mode === 'upload' ? 'json' : 'upload',
+              }))
+            }
+            disabled={isReadOnly}
+            aria-label={label}
+          >
+            <ArrowLeftRight
+              className={cn(
+                '!h-[12px] !w-[12px]',
+                mode === 'json' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+              )}
+            />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top'>
+          <p>{label}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
 
   /**
    * Adds a new field to the list
@@ -480,12 +546,36 @@ export function FieldFormat({
       )
     }
 
-    if (field.type === 'file[]') {
+    if (isFileFieldType(field.type)) {
+      // The mode toggle lives on the "Value" label row (see the field header);
+      // this only renders the active control. Mode derivation is shared via
+      // getFileFieldMode so the two stay in sync.
+      const { mode } = getFileFieldMode(field)
+
+      if (mode === 'upload') {
+        const currentFiles = parseInputFormatFiles(field.value)
+        return (
+          <FileUpload
+            blockId={blockId}
+            subBlockId={subBlockId}
+            multiple
+            disabled={isReadOnly}
+            value={filesToControlValue(currentFiles)}
+            onValueChange={(next) =>
+              updateField(
+                field.id,
+                'value',
+                serializeInputFormatFiles(controlValueToFiles(next, currentFiles))
+              )
+            }
+          />
+        )
+      }
+
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
-
-      const renderLineNumbers = () => {
-        return Array.from({ length: lineCount }, (_, i) => (
+      const renderLineNumbers = () =>
+        Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
             className='font-medium font-mono text-[var(--text-muted)] text-xs'
@@ -494,7 +584,6 @@ export function FieldFormat({
             {i + 1}
           </div>
         ))
-      }
 
       return (
         <Code.Container className='min-h-[120px]'>
@@ -647,7 +736,14 @@ export function FieldFormat({
 
                 {showValue && (
                   <div className='flex flex-col gap-1.5'>
-                    {renderFieldLabel('Value')}
+                    {isFileFieldType(field.type) ? (
+                      <div className='flex items-center justify-between'>
+                        {renderFieldLabel('Value')}
+                        {renderFileModeToggle(field)}
+                      </div>
+                    ) : (
+                      renderFieldLabel('Value')
+                    )}
                     <div className='relative'>{renderValueInput(field)}</div>
                   </div>
                 )}

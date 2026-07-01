@@ -1,15 +1,15 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { getAllTags } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
 
 export const metadata: Metadata = {
   title: 'Tags',
-  description: 'Browse Sim blog posts by topic — AI agents, workflows, integrations, and more.',
+  description: 'Browse Sim blog posts by topic: AI agents, workflows, integrations, and more.',
   alternates: { canonical: `${SITE_URL}/blog/tags` },
   openGraph: {
     title: 'Blog Tags | Sim',
-    description: 'Browse Sim blog posts by topic — AI agents, workflows, integrations, and more.',
+    description: 'Browse Sim blog posts by topic: AI agents, workflows, integrations, and more.',
     url: `${SITE_URL}/blog/tags`,
     siteName: 'Sim',
     locale: 'en_US',
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary',
     title: 'Blog Tags | Sim',
-    description: 'Browse Sim blog posts by topic — AI agents, workflows, integrations, and more.',
+    description: 'Browse Sim blog posts by topic: AI agents, workflows, integrations, and more.',
     site: '@simdotai',
   },
 }
@@ -36,31 +36,26 @@ const breadcrumbJsonLd = {
 export default async function TagsIndex() {
   const tags = await getAllTags()
   return (
-    <main className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
+    <section className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
-      <h1 className='mb-6 font-[500] text-[32px] text-[var(--landing-text)] leading-tight'>
-        Browse by tag
-      </h1>
+      <h1 className='mb-6 text-[32px] text-[var(--text-primary)] leading-tight'>Browse by tag</h1>
       <div className='flex flex-wrap gap-3'>
-        <Link
-          href='/blog'
-          className='rounded-full border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
-        >
+        <ChipLink href='/blog' className='border border-[var(--border-1)]'>
           All
-        </Link>
+        </ChipLink>
         {tags.map((t) => (
-          <Link
+          <ChipLink
             key={t.tag}
             href={`/blog?tag=${encodeURIComponent(t.tag)}`}
-            className='rounded-full border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
+            className='border border-[var(--border-1)]'
           >
             {t.tag} ({t.count})
-          </Link>
+          </ChipLink>
         ))}
       </div>
-    </main>
+    </section>
   )
 }

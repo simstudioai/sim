@@ -1,24 +1,6 @@
 // Shared types for the integrations section of the landing site.
 // Mirrors the shape written by scripts/generate-docs.ts → writeIntegrationsJson().
 
-export type AuthType = 'oauth' | 'api-key' | 'none'
-
-interface TriggerInfo {
-  id: string
-  name: string
-  description: string
-}
-
-interface OperationInfo {
-  name: string
-  description: string
-}
-
-export interface FAQItem {
-  question: string
-  answer: string
-}
-
 export interface IntegrationInstallStep {
   title: string
   body: string
@@ -47,22 +29,38 @@ export interface IntegrationLandingContent {
   aiDisclaimer?: string
 }
 
-export interface Integration {
-  type: string
-  slug: string
-  name: string
-  description: string
-  longDescription: string
-  bgColor: string
-  iconName: string
-  docsUrl: string
-  operations: OperationInfo[]
-  operationCount: number
-  triggers: TriggerInfo[]
-  triggerCount: number
-  authType: AuthType
-  category: string
-  integrationTypes?: string[]
-  tags?: string[]
-  landingContent?: IntegrationLandingContent
+/**
+ * Hand-authored, per-integration SEO/GEO overrides keyed by slug. Unlike
+ * {@link IntegrationLandingContent}, this is consumed at render time directly by
+ * the integration page (`integrations/(shell)/[slug]/page.tsx`) and is NOT baked
+ * into `integrations.json` - it never touches the build/generation pipeline.
+ *
+ * Every field is optional: when absent, the page falls back to its generated
+ * default (the bare integration name for the H1, the auto-built title/meta, the
+ * block's `longDescription` for the overview, etc.). Provide only the fields a
+ * given integration needs to tune.
+ */
+export interface IntegrationSeoContent {
+  /** Absolute `<title>` rendered verbatim (e.g. `GitHub Workflow Automation | Sim`). */
+  title?: string
+  /** Meta description (≤160 chars), overriding the generated one. */
+  description?: string
+  /** Focus keywords, replacing the generated keyword list when present. */
+  keywords?: string[]
+  /** Visible `<h1>` text, overriding the bare integration name. */
+  h1?: string
+  /** Short keyword-rich tagline under the H1, overriding the default short description. */
+  tagline?: string
+  /** Overview-section body prose, overriding the generated `longDescription`. */
+  overview?: string
+  /** Real-time-triggers intro paragraph, overriding the generated default. */
+  triggersIntro?: string
+  /** Agent-templates intro paragraph, overriding the generated default. */
+  templatesIntro?: string
+  /**
+   * Text appended to the `"{n} {name} tool(s) available in Sim"` subtitle (e.g.
+   * `" for Confluence automation across pages, blog posts, …"`). Keeps the tool
+   * count dynamic while letting authors extend the line with keyword context.
+   */
+  toolsSubtitleSuffix?: string
 }

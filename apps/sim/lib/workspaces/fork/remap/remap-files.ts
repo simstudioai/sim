@@ -37,6 +37,30 @@ function fileItemKeyField(item: unknown): { field: 'key' | 'path' | 'name'; key:
 }
 
 /**
+ * Enumerate the workspace-file storage keys referenced by a `file-upload` subblock
+ * value (single object, array, or JSON-string form). Used at promote time to emit each
+ * workspace file as a `file` reference (keyed by storage key) so it surfaces in the
+ * scan / unmapped set and can be copied into the target. Deduplicated, order-preserving.
+ */
+export function collectForkFileUploadKeys(value: unknown): string[] {
+  const parsed = parseMaybeJson(value)
+  const items = Array.isArray(parsed.value)
+    ? (parsed.value as unknown[])
+    : parsed.value
+      ? [parsed.value]
+      : []
+  const keys: string[] = []
+  const seen = new Set<string>()
+  for (const item of items) {
+    const keyInfo = fileItemKeyField(item)
+    if (!keyInfo || seen.has(keyInfo.key)) continue
+    seen.add(keyInfo.key)
+    keys.push(keyInfo.key)
+  }
+  return keys
+}
+
+/**
  * Remap a `file-upload` subblock value. `resolveFileKey(sourceKey)` returns the
  * copied target storage key, or null when the file was not copied (drop the ref).
  */

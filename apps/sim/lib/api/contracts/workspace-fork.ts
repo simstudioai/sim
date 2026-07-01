@@ -32,15 +32,36 @@ export const forkResourceTypeSchema = z.enum([
 ])
 
 /**
- * Resource types a user may map via the mapping editor. Excludes `workflow`:
- * workflow identity is system-managed (seeded at fork, maintained by promote,
- * dissolved by rollback) and must never be written through the mapping editor, or
- * a crafted entry could repoint a promote at the wrong target workflow.
+ * Resource types a user may map via the mapping editor. Excludes `workflow` (identity is
+ * system-managed - seeded at fork, maintained by promote, dissolved by rollback - and must never
+ * be written through the editor, or a crafted entry could repoint a promote at the wrong target
+ * workflow) AND `knowledge_document` (a document is never a standalone mapping: it follows its
+ * parent knowledge base, re-picked in that KB's reconfigure flow and auto-remapped when the KB is
+ * copied - the mapping view never emits one and `listForkResourceCandidates` returns none).
  */
-export const forkMappableResourceTypeSchema = forkResourceTypeSchema.exclude(['workflow'])
+export const forkMappableResourceTypeSchema = forkResourceTypeSchema.exclude([
+  'workflow',
+  'knowledge_document',
+])
 export type ForkMappableResourceType = z.infer<typeof forkMappableResourceTypeSchema>
 
 export const forkDirectionSchema = z.enum(['push', 'pull'])
+
+/**
+ * The remappable, copyable resource kinds a sync can copy into the target when they are
+ * referenced but unmapped (the fork-style copy at promote time). Excludes credentials, env
+ * vars, and external MCP servers (never copied this way); documents are auto-copied with their
+ * parent knowledge base, not selected individually. Workspace `file` references are keyed by
+ * storage key (not `workspace_files.id`) and copied like fork does.
+ */
+export const forkCopyableKindSchema = z.enum([
+  'knowledge-base',
+  'table',
+  'custom-tool',
+  'skill',
+  'file',
+])
+export type ForkCopyableKind = z.infer<typeof forkCopyableKindSchema>
 
 export const forkLineageNodeSchema = z.object({
   id: z.string(),
@@ -79,7 +100,9 @@ export const forkResourceSelectionSchema = z.object({
   knowledgeBases: forkResourceIdList,
   customTools: forkResourceIdList,
   skills: forkResourceIdList,
-  mcpServers: forkResourceIdList,
+  // External MCP servers are never copied (they carry secrets / require re-auth); only
+  // workflow-publishing MCP servers are copyable, as config-only shells with no workflows.
+  workflowMcpServers: forkResourceIdList,
 })
 
 export const forkWorkspaceBodySchema = z.object({
@@ -106,6 +129,18 @@ export type ForkWorkspaceResponse = z.output<typeof forkWorkspaceContract.respon
 
 export const forkCopyableResourceSchema = z.object({ id: z.string(), label: z.string() })
 export type ForkCopyableResource = z.output<typeof forkCopyableResourceSchema>
+
+/**
+ * A copyable workspace file plus its folder grouping. `folderId`/`folderName` are null when
+ * the file sits at the workspace root (or its folder was deleted). Files are the only copyable
+ * kind that nests in the picker (folder ▸ file); every other kind stays flat at the top level.
+ */
+export const forkCopyableFileSchema = forkCopyableResourceSchema.extend({
+  folderId: z.string().nullable(),
+  folderName: z.string().nullable(),
+})
+export type ForkCopyableFile = z.output<typeof forkCopyableFileSchema>
+
 export const getForkResourcesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/fork/resources',
@@ -113,12 +148,12 @@ export const getForkResourcesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      files: z.array(forkCopyableResourceSchema),
+      files: z.array(forkCopyableFileSchema),
       tables: z.array(forkCopyableResourceSchema),
       knowledgeBases: z.array(forkCopyableResourceSchema),
       customTools: z.array(forkCopyableResourceSchema),
       skills: z.array(forkCopyableResourceSchema),
-      mcpServers: z.array(forkCopyableResourceSchema),
+      workflowMcpServers: z.array(forkCopyableResourceSchema),
       deployedWorkflowCount: z.number().int(),
     }),
   },
@@ -284,6 +319,52 @@ export const forkResourceUsageSchema = z.object({
 })
 export type ForkResourceUsage = z.output<typeof forkResourceUsageSchema>
 
+/** Fields shared by every cleared-ref variant: the labels to phrase the "will be cleared" line. */
+const forkClearedRefBaseSchema = z.object({
+  targetWorkflowId: z.string(),
+  workflowName: z.string(),
+  blockId: z.string(),
+  blockLabel: z.string(),
+  fieldLabel: z.string(),
+  sourceId: z.string(),
+  sourceLabel: z.string(),
+})
+
+/**
+ * A reference in a synced source workflow that WILL be blanked in the target by this sync, with the
+ * labels to phrase it as "{blockLabel} will lose {fieldLabel} in workflow {workflowName}". A
+ * discriminated union on `cause` so clients narrow exhaustively (only `dependent` carries the parent
+ * fields):
+ *  - `reference`: an unmapped remappable resource (`kind`) - drops off the list once the user maps
+ *    OR copies it (matched to a mapping entry by `${kind}:${sourceId}`).
+ *  - `workflow`: a `workflow-selector`/`workflow_input` ref to a workflow not in the target -
+ *    always cleared (cannot be fixed in the modal).
+ *  - `dependent`: a create-target dependent selector a remapped parent clears. Carries the parent
+ *    (`parentKind`/`parentSourceId`); when the child follows its parent (a document under a knowledge
+ *    base) the client drops it once that parent is mapped/copied, else it stays (credential label /
+ *    table column).
+ */
+export const forkClearedRefSchema = z.discriminatedUnion('cause', [
+  forkClearedRefBaseSchema.extend({
+    cause: z.literal('reference'),
+    /** The unmapped remappable resource (never `workflow`). */
+    kind: forkRemapKindSchema,
+  }),
+  forkClearedRefBaseSchema.extend({
+    cause: z.literal('workflow'),
+    kind: z.literal('workflow'),
+  }),
+  forkClearedRefBaseSchema.extend({
+    cause: z.literal('dependent'),
+    /** Mirrors `parentKind` - the parent resource the cleared dependent hangs off. */
+    kind: forkRemapKindSchema,
+    /** The dependsOn parent; the entry drops off once this parent is mapped/copied (KB-document case). */
+    parentKind: forkRemapKindSchema,
+    parentSourceId: z.string(),
+  }),
+])
+export type ForkClearedRef = z.output<typeof forkClearedRefSchema>
+
 export const getForkDiffQuerySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
@@ -313,11 +394,35 @@ export const getForkDiffContract = defineRouteContract({
       dependentReconfigs: z.array(forkDependentReconfigSchema),
       /** Every workflow each mapped resource is used in, for the always-on reconfigure listing. */
       resourceUsages: z.array(forkResourceUsageSchema),
+      /**
+       * Referenced resources with no target mapping that the sync can copy into the target
+       * (fork-style), so the user can copy instead of mapping each one by hand. Default-selected
+       * in the modal; documents under a selected knowledge base are copied automatically.
+       * `parentId`/`parentLabel` carry the folder grouping for file entries (id + name); they
+       * are null for non-file kinds and for files at the workspace root.
+       */
+      copyableUnmapped: z.array(
+        z.object({
+          kind: forkCopyableKindSchema,
+          sourceId: z.string(),
+          label: z.string(),
+          parentId: z.string().nullable(),
+          parentLabel: z.string().nullable(),
+        })
+      ),
+      /**
+       * References this sync will blank in the target, with labels for a pre-sync "what will be
+       * cleared" list. The client filters this against the current mapping/copy selection so a
+       * `reference` item disappears once mapped or selected for copy; `workflow`/`dependent` items
+       * always clear (informational).
+       */
+      clearedRefs: z.array(forkClearedRefSchema),
     }),
   },
 })
 export type GetForkDiffResponse = z.output<typeof getForkDiffContract.response.schema>
 export type ForkWorkflowChange = z.output<typeof forkWorkflowChangeSchema>
+export type ForkCopyableUnmapped = GetForkDiffResponse['copyableUnmapped'][number]
 
 /**
  * A workflow whose required dependent fields a sync cleared because their parent
@@ -347,6 +452,21 @@ export const forkDependentValueEntrySchema = z.object({
 })
 export type ForkDependentValueEntry = z.input<typeof forkDependentValueEntrySchema>
 
+/**
+ * Source resource ids (by kind) the user chose to copy into the target before the sync gate,
+ * for referenced-but-unmapped resources. Each kind's documents under a copied knowledge base
+ * are discovered + copied automatically (the user selects only the parent resources).
+ */
+export const promoteCopyResourcesSchema = z.object({
+  knowledgeBases: forkResourceIdList,
+  tables: forkResourceIdList,
+  customTools: forkResourceIdList,
+  skills: forkResourceIdList,
+  /** Workspace files to copy, identified by storage key (not `workspace_files.id`). */
+  files: forkResourceIdList,
+})
+export type PromoteCopyResources = z.input<typeof promoteCopyResourcesSchema>
+
 export const promoteForkBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
@@ -357,6 +477,8 @@ export const promoteForkBodySchema = z.object({
    * an explicit `[]` clears it for the written replace targets.
    */
   dependentValues: z.array(forkDependentValueEntrySchema).max(2000).optional(),
+  /** Referenced-but-unmapped resources to copy into the target before the sync gate (U17). */
+  copyResources: promoteCopyResourcesSchema.optional(),
 })
 export const promoteForkContract = defineRouteContract({
   method: 'POST',
@@ -397,6 +519,10 @@ export const backgroundWorkMetadataSchema = z
     files: z.number().int().optional(),
     copied: z.number().int().optional(),
     failed: z.number().int().optional(),
+    /** Count of failed resources whose dangling references were cleared post-fork (U8). */
+    clearedReferences: z.number().int().optional(),
+    /** True when a reference-clear phase threw, so cleanup is incomplete (placeholders not dropped). */
+    clearingFailed: z.boolean().optional(),
     /** Names of the resources a fork copied, by kind, for the report breakdown. */
     workflowNames: z.array(z.string()).optional(),
     tableNames: z.array(z.string()).optional(),
@@ -404,7 +530,7 @@ export const backgroundWorkMetadataSchema = z
     fileNames: z.array(z.string()).optional(),
     customToolNames: z.array(z.string()).optional(),
     skillNames: z.array(z.string()).optional(),
-    mcpServerNames: z.array(z.string()).optional(),
+    workflowMcpServerNames: z.array(z.string()).optional(),
     // Sync / rollback
     otherWorkspaceName: z.string().optional(),
     direction: z.enum(['push', 'pull']).optional(),

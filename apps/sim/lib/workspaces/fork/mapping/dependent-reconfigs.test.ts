@@ -96,6 +96,71 @@ describe('collectForkDependentReconfigs', () => {
     ])
   })
 
+  it('anchors a dependent on the ACTIVE advanced parent member (not the dormant basic selector)', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        {
+          id: 'knowledgeBaseSelector',
+          title: 'Knowledge Base',
+          type: 'knowledge-base-selector',
+          canonicalParamId: 'knowledgeBaseId',
+          mode: 'basic',
+        },
+        {
+          id: 'manualKnowledgeBaseId',
+          title: 'KB ID',
+          type: 'short-input',
+          canonicalParamId: 'knowledgeBaseId',
+          mode: 'advanced',
+        },
+        {
+          id: 'documentSelector',
+          title: 'Document',
+          type: 'document-selector',
+          selectorKey: 'knowledge.documents',
+          dependsOn: ['knowledgeBaseSelector'],
+          required: true,
+        },
+      ])
+    )
+    // Advanced mode active: the dormant basic selector is empty; the active manual id holds the KB.
+    const advancedState = {
+      blocks: {
+        'block-1': {
+          id: 'block-1',
+          type: 'knowledge',
+          name: 'Block',
+          data: { canonicalModes: { knowledgeBaseId: 'advanced' } },
+          subBlocks: {
+            knowledgeBaseSelector: { value: '' },
+            manualKnowledgeBaseId: { value: 'kb-active' },
+            documentSelector: { value: 'doc-1' },
+          },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    } as unknown as WorkflowState
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', advancedState]]),
+      resolve
+    )
+    // Today (raw basic read) this is skipped because the basic selector is empty; the active-member
+    // resolution anchors the document on the advanced KB id so the re-pick is offered.
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      parentKind: 'knowledge-base',
+      parentSourceId: 'kb-active',
+      parentContextKey: 'knowledgeBaseId',
+      subBlockKey: 'documentSelector',
+      selectorKey: 'knowledge.documents',
+      currentValue: 'doc-1',
+    })
+  })
+
   it('emits a knowledge-base-dependent document selector', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([
@@ -327,6 +392,95 @@ describe('collectForkDependentReconfigs', () => {
         context: {},
       },
     ])
+  })
+
+  it('honors a nested tool-scoped advanced override (anchors on the active member, not the dormant basic)', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'gmail')
+        return blockWith([
+          {
+            id: 'credential',
+            title: 'Credential',
+            type: 'oauth-input',
+            canonicalParamId: 'credential',
+            mode: 'basic',
+          },
+          {
+            id: 'manualCredential',
+            title: 'Credential ID',
+            type: 'short-input',
+            canonicalParamId: 'credential',
+            mode: 'advanced',
+          },
+          {
+            id: 'folder',
+            title: 'Label',
+            type: 'folder-selector',
+            dependsOn: ['credential'],
+            selectorKey: 'gmail.labels',
+            required: true,
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    // Agent block with a nested gmail tool; the dormant basic credential holds a stale id while the
+    // tool-scoped `gmail:credential` override (when present) marks advanced as active.
+    const agentState = (canonicalModes?: Record<string, 'basic' | 'advanced'>) =>
+      ({
+        blocks: {
+          'block-1': {
+            id: 'block-1',
+            type: 'agent',
+            name: 'Block',
+            data: canonicalModes ? { canonicalModes } : {},
+            subBlocks: {
+              tools: {
+                value: [
+                  {
+                    type: 'gmail',
+                    title: 'Gmail 1',
+                    params: {
+                      credential: 'cred-stale',
+                      manualCredential: 'cred-active',
+                      folder: 'INBOX',
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+        variables: {},
+      }) as unknown as WorkflowState
+
+    // Scoped override present -> anchors on the ACTIVE advanced member (today's heuristic missed it).
+    const withOverride = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', agentState({ 'gmail:credential': 'advanced' })]]),
+      resolve
+    )
+    expect(withOverride).toHaveLength(1)
+    expect(withOverride[0]).toMatchObject({
+      parentKind: 'credential',
+      parentSourceId: 'cred-active',
+      subBlockKey: 'tools[0].folder',
+    })
+
+    // Control: no override -> the value heuristic keeps the non-empty basic (unchanged behavior).
+    const heuristic = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', agentState()]]),
+      resolve
+    )
+    expect(heuristic).toHaveLength(1)
+    expect(heuristic[0]).toMatchObject({
+      parentSourceId: 'cred-stale',
+      subBlockKey: 'tools[0].folder',
+    })
   })
 
   it('offers a nested tool selector even when the source left it empty', () => {

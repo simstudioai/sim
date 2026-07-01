@@ -66,19 +66,36 @@ export const mondaySearchItemsTool: ToolConfig<MondaySearchItemsParams, MondaySe
           }
         }
         const boardId = sanitizeNumericId(params.boardId, 'boardId')
-        let columnsJson: string
+        let parsedColumns: unknown
         try {
-          columnsJson =
-            typeof params.columns === 'string'
-              ? JSON.stringify(JSON.parse(params.columns))
-              : JSON.stringify(params.columns)
+          parsedColumns =
+            typeof params.columns === 'string' ? JSON.parse(params.columns) : params.columns
         } catch {
           throw new Error(
             'Column filters must be a valid JSON array, e.g. [{"column_id":"status","column_values":["Done"]}]'
           )
         }
+        if (!Array.isArray(parsedColumns) || parsedColumns.length === 0) {
+          throw new Error(
+            'Column filters must be a non-empty JSON array, e.g. [{"column_id":"status","column_values":["Done"]}]'
+          )
+        }
+        // The `columns` argument is a typed GraphQL input-object list (ItemsPageByColumnValuesQuery),
+        // which requires unquoted keys. Emit a literal with bare keys and JSON-escaped string values
+        // (JSON.stringify keeps the values injection-safe).
+        const columnsLiteral = `[${parsedColumns
+          .map((entry) => {
+            const column = entry as { column_id?: unknown; column_values?: unknown }
+            const columnId = JSON.stringify(String(column.column_id ?? ''))
+            const rawValues = Array.isArray(column.column_values)
+              ? column.column_values
+              : [column.column_values]
+            const columnValues = JSON.stringify(rawValues.map((value) => String(value)))
+            return `{ column_id: ${columnId}, column_values: ${columnValues} }`
+          })
+          .join(', ')}]`
         return {
-          query: `query { items_page_by_column_values(limit: ${limit}, board_id: ${boardId}, columns: ${columnsJson}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } }`,
+          query: `query { items_page_by_column_values(limit: ${limit}, board_id: ${boardId}, columns: ${columnsLiteral}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } }`,
         }
       },
     },

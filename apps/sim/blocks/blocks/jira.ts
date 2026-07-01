@@ -50,6 +50,11 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         { label: 'Remove Watcher', id: 'remove_watcher' },
         { label: 'Get Users', id: 'get_users' },
         { label: 'Search Users', id: 'search_users' },
+        { label: 'List Projects', id: 'list_projects' },
+        { label: 'Get Project', id: 'get_project' },
+        { label: 'Get Transitions', id: 'get_transitions' },
+        { label: 'List Issue Types', id: 'list_issue_types' },
+        { label: 'Get Fields', id: 'get_fields' },
       ],
       value: () => 'read',
     },
@@ -91,7 +96,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
-      required: { field: 'operation', value: ['write', 'read-bulk'] },
+      required: { field: 'operation', value: ['write', 'read-bulk', 'get_project'] },
     },
     // Manual project ID input (advanced mode)
     {
@@ -102,7 +107,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
-      required: { field: 'operation', value: ['write', 'read-bulk'] },
+      required: { field: 'operation', value: ['write', 'read-bulk', 'get_project'] },
     },
     // Issue selector (basic mode)
     {
@@ -134,6 +139,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'delete_worklog',
           'add_watcher',
           'remove_watcher',
+          'get_transitions',
         ],
       },
       required: {
@@ -156,6 +162,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'delete_worklog',
           'add_watcher',
           'remove_watcher',
+          'get_transitions',
         ],
       },
       mode: 'basic',
@@ -188,6 +195,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'delete_worklog',
           'add_watcher',
           'remove_watcher',
+          'get_transitions',
         ],
       },
       required: {
@@ -210,6 +218,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'delete_worklog',
           'add_watcher',
           'remove_watcher',
+          'get_transitions',
         ],
       },
       mode: 'advanced',
@@ -715,6 +724,30 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'search_users' },
       mode: 'advanced',
     },
+    // List Projects fields
+    {
+      id: 'projectSearchQuery',
+      title: 'Project Filter',
+      type: 'short-input',
+      placeholder: 'Filter projects by name or key (optional)',
+      condition: { field: 'operation', value: 'list_projects' },
+    },
+    {
+      id: 'listProjectsStartAt',
+      title: 'Start At',
+      type: 'short-input',
+      placeholder: 'Pagination start index (default: 0)',
+      condition: { field: 'operation', value: 'list_projects' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listProjectsMaxResults',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Maximum projects to return (default: 50, max: 100)',
+      condition: { field: 'operation', value: 'list_projects' },
+      mode: 'advanced',
+    },
     // Trigger SubBlocks
     ...getTrigger('jira_issue_created').subBlocks,
     ...getTrigger('jira_issue_updated').subBlocks,
@@ -759,6 +792,11 @@ Return ONLY the comment text - no explanations.`,
       'jira_remove_watcher',
       'jira_get_users',
       'jira_search_users',
+      'jira_list_projects',
+      'jira_get_project',
+      'jira_get_transitions',
+      'jira_list_issue_types',
+      'jira_get_fields',
     ],
     config: {
       tool: (params) => {
@@ -813,6 +851,16 @@ Return ONLY the comment text - no explanations.`,
             return 'jira_get_users'
           case 'search_users':
             return 'jira_search_users'
+          case 'list_projects':
+            return 'jira_list_projects'
+          case 'get_project':
+            return 'jira_get_project'
+          case 'get_transitions':
+            return 'jira_get_transitions'
+          case 'list_issue_types':
+            return 'jira_list_issue_types'
+          case 'get_fields':
+            return 'jira_get_fields'
           default:
             return 'jira_retrieve'
         }
@@ -1108,6 +1156,40 @@ Return ONLY the comment text - no explanations.`,
                 : undefined,
             }
           }
+          case 'list_projects': {
+            return {
+              ...baseParams,
+              query: params.projectSearchQuery || undefined,
+              startAt: params.listProjectsStartAt
+                ? Number.parseInt(params.listProjectsStartAt)
+                : undefined,
+              maxResults: params.listProjectsMaxResults
+                ? Number.parseInt(params.listProjectsMaxResults)
+                : undefined,
+            }
+          }
+          case 'get_project': {
+            return {
+              ...baseParams,
+              projectId: effectiveProjectId,
+            }
+          }
+          case 'get_transitions': {
+            return {
+              ...baseParams,
+              issueKey: effectiveIssueKey,
+            }
+          }
+          case 'list_issue_types': {
+            return {
+              ...baseParams,
+            }
+          }
+          case 'get_fields': {
+            return {
+              ...baseParams,
+            }
+          }
           default:
             return baseParams
         }
@@ -1198,6 +1280,19 @@ Return ONLY the comment text - no explanations.`,
     },
     searchUsersMaxResults: { type: 'string', description: 'Maximum users to return from search' },
     searchUsersStartAt: { type: 'string', description: 'Pagination start index for user search' },
+    // List Projects operation inputs
+    projectSearchQuery: {
+      type: 'string',
+      description: 'Filter projects by partial name or key match',
+    },
+    listProjectsStartAt: {
+      type: 'string',
+      description: 'Pagination start index for listing projects',
+    },
+    listProjectsMaxResults: {
+      type: 'string',
+      description: 'Maximum projects to return when listing',
+    },
   },
   outputs: {
     // Common outputs across all Jira operations
@@ -1283,6 +1378,31 @@ Return ONLY the comment text - no explanations.`,
     users: {
       type: 'json',
       description: 'Array of users with accountId, displayName, emailAddress, active status',
+    },
+
+    // jira_list_projects outputs
+    projects: {
+      type: 'json',
+      description: 'Array of projects with id, key, name, projectTypeKey, and lead',
+    },
+
+    // jira_get_project / jira_list_issue_types outputs
+    projectTypeKey: { type: 'string', description: 'Project type key (e.g., software, business)' },
+    issueTypes: {
+      type: 'json',
+      description: 'Array of issue types with id, name, description, subtask, hierarchyLevel',
+    },
+
+    // jira_get_transitions outputs
+    transitions: {
+      type: 'json',
+      description: 'Array of available workflow transitions with id, name, and target status',
+    },
+
+    // jira_get_fields outputs
+    fields: {
+      type: 'json',
+      description: 'Array of Jira fields with id, key, name, custom flag, and schema type',
     },
 
     // jira_bulk_read outputs

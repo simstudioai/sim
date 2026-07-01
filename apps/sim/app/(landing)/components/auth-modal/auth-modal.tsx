@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Loader,
   Modal,
@@ -45,7 +45,7 @@ const FALLBACK_STATUS: ProviderStatus = {
 }
 
 const SOCIAL_BTN =
-  'relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:cursor-not-allowed disabled:opacity-50'
+  'relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--border-1)] text-[13.5px] text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-50'
 
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
@@ -69,7 +69,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const [view, setView] = useState<AuthView>(defaultView)
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
   const [socialLoading, setSocialLoading] = useState<'github' | 'google' | 'microsoft' | null>(null)
-  const brand = useMemo(() => getBrandConfig(), [])
+  const brand = getBrandConfig()
 
   useEffect(() => {
     fetchProviderStatus().then(setProviderStatus)
@@ -133,10 +133,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   return (
     <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalTrigger asChild>{children}</ModalTrigger>
-      <ModalContent
-        size='sm'
-        className='dark bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)]'
-      >
+      <ModalContent size='sm' className='dark bg-[var(--bg)] text-[var(--text-primary)]'>
         <ModalTitle className='sr-only'>
           {view === 'login' ? 'Log in' : 'Create account'}
         </ModalTitle>
@@ -146,13 +143,13 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
         <div className='relative px-6 pt-6 pb-6'>
           <ModalClose className='absolute top-6 right-6 rounded-sm opacity-70 transition-opacity hover:opacity-100'>
-            <X className='size-5 text-[var(--landing-text-muted)]' />
+            <X className='size-5 text-[var(--text-muted)]' />
             <span className='sr-only'>Close</span>
           </ModalClose>
 
           {!providerStatus ? (
             <div className='flex items-center justify-center py-16'>
-              <Loader className='size-5 text-[var(--landing-text-muted)]' animate />
+              <Loader className='size-5 text-[var(--text-muted)]' animate />
             </div>
           ) : (
             <>
@@ -166,10 +163,10 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   className='h-[22px] w-auto shrink-0 object-contain'
                 />
                 <div className='flex flex-col gap-1 text-left'>
-                  <p className='text-[22px] text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] leading-[125%] tracking-[0.02em]'>
+                  <p className='text-[22px] text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] leading-[125%] tracking-[0.02em]'>
                     Start building.
                   </p>
-                  <h2 className='text-[22px] text-white leading-[110%] tracking-[-0.02em]'>
+                  <h2 className='text-[22px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
                     {view === 'login' ? 'Log in to continue' : 'Create free account'}
                   </h2>
                 </div>
@@ -222,17 +219,14 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                 )}
               </div>
 
-              {/* Email option only available on login — signup is OAuth-only */}
-              {emailEnabled && view === 'login' && (
+              {emailEnabled && (
                 <>
                   <div className='relative my-4'>
                     <div className='absolute inset-0 flex items-center'>
-                      <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
+                      <div className='w-full border-[var(--border)] border-t' />
                     </div>
                     <div className='relative flex justify-center text-[13.5px]'>
-                      <span className='bg-[var(--landing-bg)] px-4 text-[var(--landing-text-muted)]'>
-                        Or
-                      </span>
+                      <span className='bg-[var(--bg)] px-4 text-[var(--text-muted)]'>Or</span>
                     </div>
                   </div>
 
@@ -247,16 +241,16 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
               )}
 
               <div className='mt-4 text-center text-[13.5px]'>
-                <span className='text-[var(--landing-text-muted)]'>
+                <span className='text-[var(--text-muted)]'>
                   {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
                 </span>
                 {view === 'login' && providerStatus.registrationDisabled ? (
-                  <span className='text-[var(--landing-text-muted)]'>Registration is disabled</span>
+                  <span className='text-[var(--text-muted)]'>Registration is disabled</span>
                 ) : (
                   <button
                     type='button'
                     onClick={() => setView(view === 'login' ? 'signup' : 'login')}
-                    className='text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
+                    className='text-[var(--text-primary)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
                   >
                     {view === 'login' ? 'Sign up' : 'Sign in'}
                   </button>

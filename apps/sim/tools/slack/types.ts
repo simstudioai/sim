@@ -303,6 +303,18 @@ export const CHANNEL_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
+ * Output definition for scheduled message objects
+ * Based on Slack chat.scheduledMessages.list (https://docs.slack.dev/reference/methods/chat.scheduledMessages.list)
+ */
+export const SCHEDULED_MESSAGE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Scheduled message ID' },
+  channel_id: { type: 'string', description: 'Channel the message is scheduled for' },
+  post_at: { type: 'number', description: 'Unix timestamp when the message will post' },
+  date_created: { type: 'number', description: 'Unix timestamp when the schedule was created' },
+  text: { type: 'string', description: 'Scheduled message text', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
  * Complete channel object output definition
  */
 export const CHANNEL_OUTPUT: OutputProperty = {
@@ -913,6 +925,47 @@ export interface SlackPublishViewParams extends SlackBaseParams {
   view: object | string
 }
 
+export interface SlackScheduleMessageParams extends SlackBaseParams {
+  channel: string
+  postAt: number
+  text?: string
+  blocks?: string
+  threadTs?: string
+}
+
+export interface SlackListScheduledMessagesParams extends SlackBaseParams {
+  channel?: string
+  limit?: number
+  cursor?: string
+  oldest?: string
+  latest?: string
+  teamId?: string
+}
+
+export interface SlackDeleteScheduledMessageParams extends SlackBaseParams {
+  channel: string
+  scheduledMessageId: string
+}
+
+export interface SlackArchiveConversationParams extends SlackBaseParams {
+  channel: string
+}
+
+export interface SlackRenameConversationParams extends SlackBaseParams {
+  channel: string
+  name: string
+}
+
+export interface SlackSetConversationTopicParams extends SlackBaseParams {
+  channel: string
+  topic: string
+}
+
+export interface SlackSetConversationPurposeParams extends SlackBaseParams {
+  channel: string
+  purpose: string
+}
+
 export interface SlackMessageResponse extends ToolResponse {
   output: {
     // Legacy properties for backward compatibility
@@ -1398,6 +1451,60 @@ export interface SlackGetThreadRepliesResponse extends ToolResponse {
   }
 }
 
+export interface SlackScheduledMessage {
+  id: string
+  channel_id: string
+  post_at: number
+  date_created: number
+  text?: string
+}
+
+export interface SlackScheduleMessageResponse extends ToolResponse {
+  output: {
+    scheduledMessageId: string
+    postAt: number
+    channel: string
+    message: Record<string, unknown>
+  }
+}
+
+export interface SlackListScheduledMessagesResponse extends ToolResponse {
+  output: {
+    scheduledMessages: SlackScheduledMessage[]
+    nextCursor: string | null
+  }
+}
+
+export interface SlackDeleteScheduledMessageResponse extends ToolResponse {
+  output: {
+    ok: boolean
+  }
+}
+
+export interface SlackArchiveConversationResponse extends ToolResponse {
+  output: {
+    ok: boolean
+  }
+}
+
+export interface SlackRenameConversationResponse extends ToolResponse {
+  output: {
+    channelInfo: SlackChannel
+  }
+}
+
+export interface SlackSetConversationTopicResponse extends ToolResponse {
+  output: {
+    channelInfo: SlackChannel
+  }
+}
+
+export interface SlackSetConversationPurposeResponse extends ToolResponse {
+  output: {
+    purpose: string
+  }
+}
+
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -1434,3 +1541,10 @@ export type SlackResponse =
   | SlackUpdateViewResponse
   | SlackPushViewResponse
   | SlackPublishViewResponse
+  | SlackScheduleMessageResponse
+  | SlackListScheduledMessagesResponse
+  | SlackDeleteScheduledMessageResponse
+  | SlackArchiveConversationResponse
+  | SlackRenameConversationResponse
+  | SlackSetConversationTopicResponse
+  | SlackSetConversationPurposeResponse

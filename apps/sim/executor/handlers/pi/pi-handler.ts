@@ -37,7 +37,7 @@ import type {
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('PiBlockHandler')
-const DEFAULT_MODEL = 'claude-sonnet-4-6'
+const DEFAULT_MODEL = 'claude-sonnet-5'
 
 function asOptString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined

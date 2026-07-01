@@ -6,8 +6,8 @@ import { FAQ } from '@/lib/blog/faq'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { BackLink } from '@/app/(landing)/blog/[slug]/back-link'
 import { ShareButton } from '@/app/(landing)/blog/[slug]/share-button'
+import { BackLink } from '@/app/(landing)/components'
 
 export const dynamicParams = false
 
@@ -36,18 +36,14 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const related = await getRelatedPosts(slug, 3)
 
   return (
-    <article
-      className='w-full bg-[var(--landing-bg)]'
-      itemScope
-      itemType='https://schema.org/TechArticle'
-    >
+    <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/TechArticle'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }}
       />
-      <header className='px-5 pt-[60px] lg:px-16 lg:pt-[100px]'>
+      <header className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
         <div className='mb-6'>
-          <BackLink />
+          <BackLink href='/blog' label='Back to Blog' />
         </div>
 
         <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
@@ -69,18 +65,18 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           <div className='flex flex-1 flex-col justify-between'>
             <div>
               <h1
-                className='text-balance font-[430] font-season text-[28px] text-white leading-[110%] tracking-[-0.02em] sm:text-[36px] md:text-[44px] lg:text-[52px]'
+                className='text-balance text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] sm:text-[36px] md:text-[44px] lg:text-[52px]'
                 itemProp='headline'
               >
                 {post.title}
               </h1>
-              <p className='mt-4 font-[430] font-season text-[var(--landing-text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg'>
+              <p className='mt-4 text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg'>
                 {post.description}
               </p>
             </div>
             <div className='mt-6 flex items-center gap-6'>
               <time
-                className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'
+                className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'
                 dateTime={post.date}
                 itemProp='datePublished'
               >
@@ -104,7 +100,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                       href={a?.url || '#'}
                       target='_blank'
                       rel='noopener noreferrer author'
-                      className='font-martian-mono text-[var(--landing-text-muted)] text-xs uppercase tracking-[0.1em] hover:text-white'
+                      className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em] hover:text-[var(--text-primary)]'
                       itemProp='author'
                       itemScope
                       itemType='https://schema.org/Person'
@@ -122,59 +118,61 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         </div>
       </header>
 
-      <div className='mt-8 h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-      <div className='mx-5 border-[var(--landing-bg-elevated)] border-x lg:mx-16'>
-        <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
-          <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[var(--landing-border-strong)] prose-hr:border-[var(--landing-bg-elevated)] prose-headings:font-[430] prose-headings:font-season prose-a:text-white prose-blockquote:text-[var(--landing-text-muted)] prose-code:text-white prose-headings:text-white prose-li:text-[var(--landing-text-body)] prose-p:text-[var(--landing-text-body)] prose-strong:text-white prose-headings:tracking-[-0.02em]'>
-            <Article />
-            {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
+      <div className='mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'>
+        <div className='border-[var(--border)] border-x'>
+          <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
+            <div className='prose prose-lg max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--border)] prose-headings:font-season prose-a:text-[var(--text-primary)] prose-blockquote:text-[var(--text-muted)] prose-code:text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-li:text-[var(--text-body)] prose-p:text-[var(--text-body)] prose-strong:text-[var(--text-primary)] prose-headings:tracking-[-0.02em]'>
+              <Article />
+              {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
+            </div>
           </div>
-        </div>
 
-        {related.length > 0 && (
-          <>
-            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
-            <nav aria-label='Related posts' className='flex flex-col sm:flex-row'>
-              {related.map((p) => (
-                <Link
-                  key={p.slug}
-                  href={`/blog/${p.slug}`}
-                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
-                >
-                  <div className='relative aspect-video w-full overflow-hidden rounded-[5px]'>
-                    <Image
-                      src={p.ogImage}
-                      alt={p.title}
-                      fill
-                      sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
-                      className='object-cover'
-                      loading='lazy'
-                      unoptimized
-                    />
-                  </div>
-                  <div className='flex flex-col gap-2'>
-                    <span className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
-                      {new Date(p.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        year: '2-digit',
-                      })}
-                    </span>
-                    <h3 className='font-[430] font-season text-lg text-white leading-tight tracking-[-0.01em]'>
-                      {p.title}
-                    </h3>
-                    <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
-                      {p.description}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </nav>
-          </>
-        )}
+          {related.length > 0 && (
+            <>
+              <div className='h-px w-full bg-[var(--border)]' />
+              <nav aria-label='Related posts' className='flex flex-col sm:flex-row'>
+                {related.map((p) => (
+                  <Link
+                    key={p.slug}
+                    href={`/blog/${p.slug}`}
+                    className='group flex flex-1 flex-col gap-4 border-[var(--border)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--surface-hover)] sm:border-t-0 sm:border-l sm:first:border-l-0'
+                  >
+                    <div className='relative aspect-video w-full overflow-hidden rounded-[5px]'>
+                      <Image
+                        src={p.ogImage}
+                        alt={p.title}
+                        fill
+                        sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                        className='object-cover'
+                        loading='lazy'
+                        unoptimized
+                      />
+                    </div>
+                    <div className='flex flex-col gap-2'>
+                      <span className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'>
+                        {new Date(p.date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          year: '2-digit',
+                        })}
+                      </span>
+                      <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
+                        {p.title}
+                      </h3>
+                      <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
+                        {p.description}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </nav>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className='-mt-px h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <div className='-mt-px h-px w-full bg-[var(--border)]' />
 
       <meta itemProp='publisher' content='Sim' />
       <meta itemProp='inLanguage' content='en-US' />

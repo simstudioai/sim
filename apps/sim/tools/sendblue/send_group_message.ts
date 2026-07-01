@@ -23,10 +23,10 @@ export const sendblueSendGroupMessageTool: ToolConfig<
     ...sendblueBaseParamFields,
     numbers: {
       type: 'array',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Recipient phone numbers in E.164 format (e.g., ["+19998887777", "+13334445555"])',
+        'Recipient phone numbers in E.164 format (e.g., ["+19998887777", "+13334445555"]). Optional when sending to an existing group via group_id.',
       items: { type: 'string', description: 'Phone number in E.164 format' },
     },
     from_number: {
@@ -55,6 +55,13 @@ export const sendblueSendGroupMessageTool: ToolConfig<
       description:
         'iMessage expressive style (e.g., celebration, fireworks, lasers, confetti, balloons, invisible, slam).',
     },
+    seat_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Seat (user) the message is attributed to. Accepts the seat UUID or Firebase Auth subject.',
+    },
     group_id: {
       type: 'string',
       required: false,
@@ -73,16 +80,28 @@ export const sendblueSendGroupMessageTool: ToolConfig<
     url: `${SENDBLUE_API_BASE_URL}/api/send-group-message`,
     method: 'POST',
     headers: (params) => sendblueHeaders(params),
-    body: (params) =>
-      filterUndefined({
-        numbers: params.numbers,
+    body: (params) => {
+      const numbers = Array.isArray(params.numbers)
+        ? params.numbers.map((n) => n.trim()).filter(Boolean)
+        : undefined
+      const hasNumbers = numbers !== undefined && numbers.length > 0
+      const hasGroupId = typeof params.group_id === 'string' && params.group_id.trim().length > 0
+      if (!hasNumbers && !hasGroupId) {
+        throw new Error(
+          'Provide either "numbers" to start a new group or "group_id" to message an existing group.'
+        )
+      }
+      return filterUndefined({
+        numbers: hasNumbers ? numbers : undefined,
         from_number: params.from_number,
         content: params.content,
         media_url: params.media_url,
         send_style: params.send_style,
-        group_id: params.group_id,
+        seat_id: params.seat_id,
+        group_id: hasGroupId ? params.group_id?.trim() : undefined,
         status_callback: params.status_callback,
-      }),
+      })
+    },
   },
 
   transformResponse: async (response) => {

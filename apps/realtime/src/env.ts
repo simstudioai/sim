@@ -3,6 +3,8 @@ import { z } from 'zod'
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().url(),
+  DATABASE_URL_REALTIME: z.string().url().optional(),
+  DATABASE_REPLICA_URL_REALTIME: z.string().url().optional(),
   REDIS_URL: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().url().optional()

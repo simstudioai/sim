@@ -5,7 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listSurfacedBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { assertWorkspaceAdminAccess } from '@/lib/workspaces/fork/lineage/authz'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -18,13 +18,9 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { id } = parsed.data.params
 
-    const access = await checkWorkspaceAccess(id, session.user.id)
-    if (!access.exists) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-    }
-    if (!access.canAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    // The fork Activity feed is a fork feature: gate it behind the same forking-enabled +
+    // workspace-admin check the other fork routes use, instead of a bare access check.
+    await assertWorkspaceAdminAccess(id, session.user.id)
 
     const rows = await listSurfacedBackgroundWork(db, id)
     return NextResponse.json({

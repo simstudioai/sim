@@ -1,46 +1,70 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { ChipInput, Search } from '@sim/emcn'
+import { debounce, useQueryStates } from 'nuqs'
 import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
+import {
+  integrationsParsers,
+  integrationsUrlKeys,
+} from '@/app/(landing)/integrations/search-params'
+
+/** Debounce window for writing the search term to the URL (filtering is instant). */
+const SEARCH_DEBOUNCE_MS = 300
 
 const PILL_BASE =
-  'rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-0.5 text-[13.5px] text-[var(--landing-text)] transition-colors' as const
-const PILL_ACTIVE = 'bg-[var(--landing-bg-elevated)]' as const
-const PILL_INACTIVE = 'hover:bg-[var(--landing-bg-elevated)]' as const
+  'rounded-[5px] border border-[var(--border-1)] px-[9px] py-0.5 text-small text-[var(--text-primary)] transition-colors' as const
+const PILL_ACTIVE = 'bg-[var(--surface-active)]' as const
+const PILL_INACTIVE = 'hover:bg-[var(--surface-hover)]' as const
 
 interface IntegrationGridProps {
   integrations: readonly Integration[]
 }
 
 export function IntegrationGrid({ integrations }: IntegrationGridProps) {
-  const [query, setQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [{ q: query, category }, setParams] = useQueryStates(
+    integrationsParsers,
+    integrationsUrlKeys
+  )
+  const activeCategory = category || null
 
-  const counts = new Map<string, number>()
-  for (const i of integrations) {
-    if (i.integrationType) {
-      counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
+  // Category facets and a per-integration lowercased search index, derived once
+  // from the (stable) integration list instead of rebuilt on every keystroke.
+  // The index keeps each searchable field as its own entry so matching stays
+  // identical to a per-field `includes` (no cross-field boundary matches).
+  const { availableCategories, searchIndex } = useMemo(() => {
+    const counts = new Map<string, number>()
+    const searchIndex = new Map<string, string[]>()
+    for (const i of integrations) {
+      if (i.integrationType) {
+        counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
+      }
+      searchIndex.set(i.type, [
+        i.name.toLowerCase(),
+        i.description.toLowerCase(),
+        ...i.operations.flatMap((op) => [op.name.toLowerCase(), op.description.toLowerCase()]),
+        ...i.triggers.map((t) => t.name.toLowerCase()),
+      ])
     }
-  }
-  const availableCategories = Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([key]) => key)
+    return {
+      availableCategories: Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([key]) => key),
+      searchIndex,
+    }
+  }, [integrations])
 
   const q = query.trim().toLowerCase()
-  const filtered = integrations.filter((i) => {
-    if (activeCategory && i.integrationType !== activeCategory) return false
-    if (!q) return true
-    return (
-      i.name.toLowerCase().includes(q) ||
-      i.description.toLowerCase().includes(q) ||
-      i.operations.some(
-        (op) => op.name.toLowerCase().includes(q) || op.description.toLowerCase().includes(q)
-      ) ||
-      i.triggers.some((t) => t.name.toLowerCase().includes(q))
-    )
-  })
+  const filtered = useMemo(
+    () =>
+      integrations.filter((i) => {
+        if (activeCategory && i.integrationType !== activeCategory) return false
+        if (!q) return true
+        return searchIndex.get(i.type)?.some((field) => field.includes(q)) ?? false
+      }),
+    [integrations, searchIndex, q, activeCategory]
+  )
 
   return (
     <div>
@@ -51,7 +75,9 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
             type='search'
             placeholder='Search integrations, tools, or triggers…'
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) =>
+              setParams({ q: e.target.value }, { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) })
+            }
             aria-label='Search integrations'
           />
         </div>
@@ -60,7 +86,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
       <div className='mb-6 flex flex-wrap gap-2 px-6'>
         <button
           type='button'
-          onClick={() => setActiveCategory(null)}
+          onClick={() => setParams({ category: '' })}
           className={`${PILL_BASE} ${activeCategory === null ? PILL_ACTIVE : PILL_INACTIVE}`}
         >
           All
@@ -69,7 +95,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
           <button
             key={cat}
             type='button'
-            onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+            onClick={() => setParams({ category: activeCategory === cat ? '' : cat })}
             className={`${PILL_BASE} ${activeCategory === cat ? PILL_ACTIVE : PILL_INACTIVE}`}
           >
             {formatIntegrationType(cat)}
@@ -77,10 +103,10 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         ))}
       </div>
 
-      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <div className='h-px w-full bg-[var(--border)]' />
 
       {filtered.length === 0 ? (
-        <p className='py-12 text-center text-[15px] text-[var(--landing-text-subtle)]'>
+        <p className='py-12 text-center text-[15px] text-[var(--text-muted)]'>
           No integrations found
           {query ? <> for &ldquo;{query}&rdquo;</> : null}
           {activeCategory ? <> in {formatIntegrationType(activeCategory)}</> : null}

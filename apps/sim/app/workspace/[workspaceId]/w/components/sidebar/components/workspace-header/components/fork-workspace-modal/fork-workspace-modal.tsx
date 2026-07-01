@@ -1,9 +1,7 @@
 'use client'
 
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  Checkbox,
-  ChevronDown,
   Chip,
   ChipConfirmModal,
   ChipCopyInput,
@@ -15,19 +13,19 @@ import {
   type ChipModalFooterSlotAction,
   ChipModalHeader,
   ChipModalTabs,
-  cn,
   Tooltip,
   toast,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Search } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import type {
-  ForkCopyableResource,
-  GetForkResourcesResponse,
-} from '@/lib/api/contracts/workspace-fork'
+import type { GetForkResourcesResponse } from '@/lib/api/contracts/workspace-fork'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { ForkActivityPanel } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-activity-panel/fork-activity-panel'
+import {
+  FileKindRow,
+  ResourceKindRow,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-resource-picker/fork-resource-picker'
 import {
   type ForkDirection,
   useForkResources,
@@ -57,11 +55,8 @@ const RESOURCE_KINDS: ReadonlyArray<{ key: ResourceKey; label: string }> = [
   { key: 'knowledgeBases', label: 'Knowledge bases' },
   { key: 'customTools', label: 'Custom tools' },
   { key: 'skills', label: 'Skills' },
-  { key: 'mcpServers', label: 'MCP servers' },
+  { key: 'workflowMcpServers', label: 'Workflow MCP servers' },
 ]
-
-/** Show the inline search once a kind has more entries than fit comfortably. */
-const SEARCH_THRESHOLD = 8
 
 const emptySelection = (): ResourceSelection => ({
   files: new Set(),
@@ -69,115 +64,15 @@ const emptySelection = (): ResourceSelection => ({
   knowledgeBases: new Set(),
   customTools: new Set(),
   skills: new Set(),
-  mcpServers: new Set(),
+  workflowMcpServers: new Set(),
 })
 
-/**
- * One expandable resource kind in the fork picker: a tri-state "select all" header
- * (count of selected / total) plus, when expanded, a searchable scrollable list of
- * individual resources so the user can copy a specific subset.
- */
-function ResourceKindRow({
-  label,
-  items,
-  selected,
-  onToggleAll,
-  onToggleItem,
-  disabled,
-}: {
-  label: string
-  items: ForkCopyableResource[]
-  selected: Set<string>
-  onToggleAll: (selectAll: boolean) => void
-  onToggleItem: (id: string, checked: boolean) => void
-  disabled: boolean
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const [query, setQuery] = useState('')
-  const fieldId = useId()
-
-  const total = items.length
-  const selectedCount = selected.size
-  const headerState = selectedCount === 0 ? false : selectedCount === total ? true : 'indeterminate'
-
-  const filtered = useMemo(() => {
-    const trimmed = query.trim().toLowerCase()
-    if (!trimmed) return items
-    return items.filter((item) => item.label.toLowerCase().includes(trimmed))
-  }, [items, query])
-
-  return (
-    <div className='flex flex-col gap-1'>
-      <div className='flex items-center gap-2 text-[var(--text-body)] text-sm'>
-        <Checkbox
-          size='sm'
-          aria-label={`Copy all ${label}`}
-          checked={headerState}
-          onCheckedChange={() => onToggleAll(headerState !== true)}
-          disabled={disabled}
-        />
-        <button
-          type='button'
-          className='flex min-w-0 flex-1 items-center gap-1 text-left hover:text-[var(--text-primary)]'
-          onClick={() => setExpanded((value) => !value)}
-        >
-          <span className='min-w-0 flex-1 truncate'>
-            {label} ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
-          </span>
-          <ChevronDown
-            className={cn(
-              'h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-        </button>
-      </div>
-
-      {expanded ? (
-        <div className='ml-6 flex flex-col gap-1'>
-          {total > SEARCH_THRESHOLD ? (
-            <ChipInput
-              icon={Search}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={`Search ${label.toLowerCase()}`}
-              disabled={disabled}
-            />
-          ) : null}
-          <div className='flex max-h-44 flex-col gap-0.5 overflow-y-auto'>
-            {filtered.map((item) => {
-              const isChecked = selected.has(item.id)
-              const itemId = `${fieldId}-${item.id}`
-              return (
-                <label
-                  key={item.id}
-                  htmlFor={itemId}
-                  className={cn(
-                    'flex min-w-0 items-center gap-2 rounded-md py-0.5 text-[var(--text-body)] text-sm',
-                    disabled
-                      ? 'cursor-not-allowed opacity-60'
-                      : 'cursor-pointer hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  <Checkbox
-                    id={itemId}
-                    size='sm'
-                    checked={isChecked}
-                    onCheckedChange={(checked) => onToggleItem(item.id, checked === true)}
-                    disabled={disabled}
-                  />
-                  <span className='truncate'>{item.label}</span>
-                </label>
-              )
-            })}
-            {filtered.length === 0 ? (
-              <p className='py-1 text-[var(--text-secondary)] text-xs'>No matches</p>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  )
+const fullSelection = (data: GetForkResourcesResponse): ResourceSelection => {
+  const selection = emptySelection()
+  for (const kind of RESOURCE_KINDS) {
+    selection[kind.key] = new Set((data[kind.key] ?? []).map((item) => item.id))
+  }
+  return selection
 }
 
 /**
@@ -200,6 +95,7 @@ export function ForkWorkspaceModal({
   const resources = useForkResources(sourceWorkspaceId, open)
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<ResourceSelection>(emptySelection)
+  const [defaulted, setDefaulted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [activeTab, setActiveTab] = useState<'config' | 'activity'>('config')
@@ -210,6 +106,7 @@ export function ForkWorkspaceModal({
     if (open) {
       setName(`${sourceWorkspaceName} (fork)`)
       setSelected(emptySelection())
+      setDefaulted(false)
       setError(null)
       setActiveTab('config')
       setForkedWorkspace(null)
@@ -217,11 +114,26 @@ export function ForkWorkspaceModal({
     }
   }, [open, sourceWorkspaceName])
 
+  useEffect(() => {
+    if (!open || !resources.data || defaulted) return
+    setDefaulted(true)
+    setSelected(fullSelection(resources.data))
+  }, [open, resources.data, defaulted])
+
   const isForking = forkWorkspace.isPending
 
   const availableKinds = useMemo(
     () => RESOURCE_KINDS.filter((kind) => (resources.data?.[kind.key].length ?? 0) > 0),
     [resources.data]
+  )
+
+  const hasDeselection = useMemo(
+    () =>
+      defaulted &&
+      availableKinds.some(
+        (kind) => selected[kind.key].size < (resources.data?.[kind.key]?.length ?? 0)
+      ),
+    [defaulted, availableKinds, selected, resources.data]
   )
 
   // A fork always produces a usable workspace: deployed workflows are copied, and
@@ -239,11 +151,14 @@ export function ForkWorkspaceModal({
       return
     }
     const trimmed = name.trim()
-    if (!trimmed || isForking) return
+    // Block until the resources query resolves: building `copy` from an unloaded `resources.data`
+    // would send an empty selection and silently clear every reference in the fork. The Fork
+    // action is disabled in this state too; this is the defense-in-depth guard.
+    if (!trimmed || isForking || !resources.data) return
     setError(null)
-    const copy = resources.data
-      ? Object.fromEntries(RESOURCE_KINDS.map((kind) => [kind.key, Array.from(selected[kind.key])]))
-      : undefined
+    const copy = Object.fromEntries(
+      RESOURCE_KINDS.map((kind) => [kind.key, Array.from(selected[kind.key])])
+    )
     forkWorkspace.mutate(
       { workspaceId: sourceWorkspaceId, body: { name: trimmed, copy } },
       {
@@ -360,34 +275,83 @@ export function ForkWorkspaceModal({
                 {availableKinds.length > 0 ? (
                   <SettingsSection label='Copy resources'>
                     <div className='flex flex-col gap-2'>
-                      {availableKinds.map((kind) => (
-                        <ResourceKindRow
-                          key={kind.key}
-                          label={kind.label}
-                          items={resources.data?.[kind.key] ?? []}
-                          selected={selected[kind.key]}
-                          onToggleAll={(selectAll) =>
-                            setSelected((prev) => ({
-                              ...prev,
-                              [kind.key]: selectAll
-                                ? new Set((resources.data?.[kind.key] ?? []).map((item) => item.id))
-                                : new Set<string>(),
-                            }))
-                          }
-                          onToggleItem={(id, checked) =>
-                            setSelected((prev) => {
-                              const next = new Set(prev[kind.key])
-                              if (checked) next.add(id)
-                              else next.delete(id)
-                              return { ...prev, [kind.key]: next }
-                            })
-                          }
-                          disabled={isForking}
-                        />
-                      ))}
-                      <p className='text-[var(--text-muted)] text-caption'>
-                        Unselected resources leave their workflow fields empty in the fork.
-                      </p>
+                      {availableKinds.map((kind) =>
+                        kind.key === 'files' ? (
+                          <FileKindRow
+                            key={kind.key}
+                            label={kind.label}
+                            files={resources.data?.files ?? []}
+                            selected={selected.files}
+                            onToggleAll={(selectAll) =>
+                              setSelected((prev) => ({
+                                ...prev,
+                                files: selectAll
+                                  ? new Set((resources.data?.files ?? []).map((item) => item.id))
+                                  : new Set<string>(),
+                              }))
+                            }
+                            onToggleItem={(id, checked) =>
+                              setSelected((prev) => {
+                                const next = new Set(prev.files)
+                                if (checked) next.add(id)
+                                else next.delete(id)
+                                return { ...prev, files: next }
+                              })
+                            }
+                            onToggleMany={(ids, checked) =>
+                              setSelected((prev) => {
+                                const next = new Set(prev.files)
+                                for (const id of ids) {
+                                  if (checked) next.add(id)
+                                  else next.delete(id)
+                                }
+                                return { ...prev, files: next }
+                              })
+                            }
+                            disabled={isForking}
+                          />
+                        ) : (
+                          <ResourceKindRow
+                            key={kind.key}
+                            label={kind.label}
+                            items={resources.data?.[kind.key] ?? []}
+                            selected={selected[kind.key]}
+                            onToggleMany={(ids, checked) =>
+                              setSelected((prev) => {
+                                const next = new Set(prev[kind.key])
+                                for (const id of ids) {
+                                  if (checked) next.add(id)
+                                  else next.delete(id)
+                                }
+                                return { ...prev, [kind.key]: next }
+                              })
+                            }
+                            onToggleItem={(id, checked) =>
+                              setSelected((prev) => {
+                                const next = new Set(prev[kind.key])
+                                if (checked) next.add(id)
+                                else next.delete(id)
+                                return { ...prev, [kind.key]: next }
+                              })
+                            }
+                            disabled={isForking}
+                          />
+                        )
+                      )}
+                      {hasDeselection ? (
+                        <div className='flex items-start gap-1.5 text-[var(--text-secondary)] text-caption'>
+                          <AlertTriangle className='mt-[1px] size-[14px] shrink-0' />
+                          <span>
+                            Some resources are not selected — references to them in your workflows
+                            will be cleared in the fork.
+                          </span>
+                        </div>
+                      ) : (
+                        <p className='text-[var(--text-muted)] text-caption'>
+                          Everything referenced by your workflows is copied. Deselect a resource to
+                          skip it — its references will be cleared.
+                        </p>
+                      )}
                     </div>
                   </SettingsSection>
                 ) : null}
@@ -414,8 +378,14 @@ export function ForkWorkspaceModal({
               : {
                   label: isForking ? 'Forking...' : 'Fork',
                   onClick: handleSubmit,
-                  // At the cap the button stays clickable (no name needed) so it can route to upgrade.
-                  disabled: isForking || (canFork && !name.trim()),
+                  // At the cap the button stays clickable (no name needed) so it can route to
+                  // upgrade. Otherwise it needs a name AND the resources query loaded - forking
+                  // before `resources.data` arrives would clear every reference (P1-C).
+                  disabled: isForking || (canFork && (!name.trim() || !resources.data)),
+                  disabledTooltip:
+                    canFork && name.trim() && !resources.data
+                      ? 'Loading workspace resources…'
+                      : undefined,
                 }
           }
         />
@@ -437,7 +407,15 @@ export function ForkWorkspaceModal({
           pending: rollback.isPending,
           pendingLabel: 'Rolling back...',
         }}
-      />
+      >
+        <div className='flex items-start gap-1.5 px-2 text-[var(--text-secondary)] text-caption'>
+          <AlertTriangle className='mt-[1px] size-[14px] shrink-0' />
+          <span>
+            Resources copied into this workspace during syncs may remain afterward — rollback
+            restores workflows to their prior versions but does not remove copied resources.
+          </span>
+        </div>
+      </ChipConfirmModal>
     </>
   )
 }
