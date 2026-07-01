@@ -342,10 +342,15 @@ export interface EditorPromptData {
 export function getEditorPrompt(workflow: PreviewWorkflow): EditorPromptData | null {
   for (const block of workflow.blocks) {
     if (!AGENT_BLOCK_TYPES.has(block.type)) continue
-    const rowsByTitle = new Map(block.rows.map((row) => [row.title, row]))
-    const promptRow = rowsByTitle.get('Prompt') ?? rowsByTitle.get('System Prompt')
+    // Single ordered pass: the first row matching either prompt title (in row order)
+    // and the first Model row - preserving the original find() first-match semantics.
+    let promptRow: (typeof block.rows)[number] | undefined
+    let modelRow: (typeof block.rows)[number] | undefined
+    for (const row of block.rows) {
+      if (!promptRow && (row.title === 'Prompt' || row.title === 'System Prompt')) promptRow = row
+      if (!modelRow && row.title === 'Model') modelRow = row
+    }
     if (promptRow) {
-      const modelRow = rowsByTitle.get('Model')
       return {
         blockId: block.id,
         blockName: block.name,

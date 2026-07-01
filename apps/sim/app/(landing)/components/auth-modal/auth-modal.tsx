@@ -126,6 +126,10 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     fetchProviderStatus().then((status) => {
       setProviderStatus(status)
       if (!openRequestedRef.current) return
+      // Consume the request so a queued double-click (or the mount prefetch resolving
+      // on the same promise) can't run openWithStatus twice - no duplicate
+      // `auth_modal_opened`, no redundant setView.
+      openRequestedRef.current = false
       openWithStatus(status)
     })
   }
