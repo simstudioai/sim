@@ -10,6 +10,7 @@ import {
 } from '@/lib/billing/core/plan'
 import {
   getPlanTierCredits,
+  isEnterprise as isPlanEnterprise,
   isPro as isPlanPro,
   isTeam as isPlanTeam,
 } from '@/lib/billing/plan-helpers'
@@ -521,12 +522,13 @@ export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<
 const MAX_PLAN_CREDITS = 25000
 
 /**
- * Whether a resolved subscription entitles the inbox (Sim Mailer) feature: a Max
- * tier (credits >= 25000, covering `pro_25000` and `team_25000`) or any
- * enterprise plan.
+ * Whether a plan tier entitles the inbox (Sim Mailer) feature: a Max tier
+ * (credits >= 25000, covering `pro_25000` and `team_25000`) or any enterprise
+ * plan. Subscription status (usable vs entitled) is gated by callers before this
+ * runs — the predicate is tier-only.
  */
-function isInboxEntitledPlan(sub: { plan: string }): boolean {
-  return getPlanTierCredits(sub.plan) >= MAX_PLAN_CREDITS || checkEnterprisePlan(sub)
+function isInboxEntitledPlan(plan: string): boolean {
+  return getPlanTierCredits(plan) >= MAX_PLAN_CREDITS || isPlanEnterprise(plan)
 }
 
 /**
@@ -554,7 +556,7 @@ export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<bool
     if (ws.organizationId) {
       if (await isOrganizationBillingBlocked(ws.organizationId)) return false
       const orgSub = await getOrganizationSubscriptionUsable(ws.organizationId)
-      return !!orgSub && isInboxEntitledPlan(orgSub)
+      return !!orgSub && isInboxEntitledPlan(orgSub.plan)
     }
 
     const [billedSub, billingStatus] = await Promise.all([
@@ -563,10 +565,45 @@ export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<bool
     ])
     if (!billedSub) return false
     if (!hasUsableSubscriptionAccess(billedSub.status, billingStatus.billingBlocked)) return false
-    return isInboxEntitledPlan(billedSub)
+    return isInboxEntitledPlan(billedSub.plan)
   } catch (error) {
     logger.error('Error checking workspace inbox access', { error, workspaceId })
     return false
+  }
+}
+
+/**
+ * Whether a workspace should RETAIN its provisioned inbox (Sim Mailer)
+ * infrastructure. Unlike {@link hasWorkspaceInboxAccess}, which gates active use
+ * on a *usable* (active) subscription, this uses the broader *entitled* status
+ * set (active OR `past_due`) so a transient payment failure never triggers the
+ * destructive teardown of a paying customer's inbox.
+ *
+ * Reconciliation should delete AgentMail resources only when this returns
+ * `false` — i.e. the plan is genuinely terminal (canceled, downgraded off
+ * Max/Enterprise, or gone). Fails open (returns `true`) on any error or
+ * ambiguity: never tear down on uncertainty.
+ */
+export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise<boolean> {
+  try {
+    if (isInboxEnabled) return true
+    if (!isBillingEnabled) return true
+
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+    if (!ws) return true
+
+    if (ws.organizationId) {
+      const { getOrganizationSubscription } = await import('@/lib/billing/core/billing')
+      const orgSub = await getOrganizationSubscription(ws.organizationId)
+      return !!orgSub && isInboxEntitledPlan(orgSub.plan)
+    }
+
+    const billedSub = await getHighestPrioritySubscription(ws.billedAccountUserId)
+    return !!billedSub && isInboxEntitledPlan(billedSub.plan)
+  } catch (error) {
+    logger.error('Error checking workspace inbox grace access', { error, workspaceId })
+    return true
   }
 }
 
