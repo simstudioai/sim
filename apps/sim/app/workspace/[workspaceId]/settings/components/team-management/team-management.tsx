@@ -293,7 +293,6 @@ export function TeamManagement() {
         hasTeamPlan={hasTeamPlan}
         hasEnterprisePlan={hasEnterprisePlan}
         orgName={orgName}
-        setOrgName={setOrgName}
         orgSlug={orgSlug}
         setOrgSlug={setOrgSlug}
         onOrgNameChange={handleOrgNameChange}
@@ -337,7 +336,6 @@ export function TeamManagement() {
           roster={roster ?? null}
           isLoadingRoster={isLoadingRoster}
           currentUserId={session?.user?.id ?? ''}
-          currentUserEmail={session?.user?.email ?? ''}
           onRemoveMember={handleRemoveMember}
           onTransferOwnership={handleOpenTransferDialog}
         />

@@ -29,7 +29,6 @@ interface CreateWorkflowMcpServerModalProps {
   onOpenChange: (open: boolean) => void
   workspaceId: string
   workflowOptions?: ComboboxOption[]
-  isLoadingWorkflows?: boolean
 }
 
 export function CreateWorkflowMcpServerModal({
@@ -37,7 +36,6 @@ export function CreateWorkflowMcpServerModal({
   onOpenChange,
   workspaceId,
   workflowOptions,
-  isLoadingWorkflows = false,
 }: CreateWorkflowMcpServerModalProps) {
   const createServerMutation = useCreateWorkflowMcpServer()
 
