@@ -22,6 +22,7 @@ import {
   isInternalFileUrl,
   processSingleFileToUserFile,
   type RawFileInput,
+  resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -89,7 +90,7 @@ export async function resolveFileInputToUrl(
 
     // Generate presigned URL if we have a key but no URL
     if (!fileUrl && userFile.key) {
-      const context = inferContextFromKey(userFile.key)
+      const context = resolveTrustedFileContext(userFile.key, userFile.context)
       const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context, false)
 
       if (!hasAccess) {
@@ -280,7 +281,7 @@ export async function downloadFileFromStorage(
     )
     buffer = await downloadExecutionFile(userFile, { maxBytes: options.maxBytes })
   } else if (userFile.key) {
-    const context = inferContextFromKey(userFile.key)
+    const context = resolveTrustedFileContext(userFile.key, userFile.context)
     logger.info(`[${requestId}] Downloading from ${context} storage: ${userFile.key}`)
 
     const { downloadFile } = await import('@/lib/uploads/core/storage-service')
