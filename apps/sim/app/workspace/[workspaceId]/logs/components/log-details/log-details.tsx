@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
+  Chip,
   ChipInput,
   ChipModalTabs,
   Code,
@@ -540,15 +541,14 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Snapshot
                     </span>
-                    <Button
-                      variant='default'
-                      size='sm'
-                      className='gap-1'
+                    <Chip
+                      variant='primary'
+                      leftIcon={Eye}
+                      flush
                       onClick={() => setIsExecutionSnapshotOpen(true)}
                     >
-                      <Eye className='size-3' />
                       View Snapshot
-                    </Button>
+                    </Chip>
                   </div>
                 )}
               </div>
@@ -582,15 +582,15 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
               {/* Troubleshoot */}
               {canTroubleshoot && (
-                <Button
-                  variant='default'
-                  size='sm'
-                  className='gap-1 self-start'
+                <Chip
+                  variant='primary'
+                  leftIcon={Wrench}
+                  flush
+                  className='self-start'
                   onClick={handleTroubleshoot}
                 >
-                  <Wrench className='size-3' />
                   Troubleshoot in Chat
-                </Button>
+                </Chip>
               )}
 
               {/* Files */}
