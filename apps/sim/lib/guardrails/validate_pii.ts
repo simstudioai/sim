@@ -6,9 +6,6 @@ import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 
 const logger = createLogger('PIIValidator')
 
-/** Just above the analyzer's spaCy NER budget so a stuck sidecar aborts gracefully. */
-const REQUEST_TIMEOUT_MS = 45_000
-
 /**
  * Concurrent chunk requests in flight. Each chunk is itself a batched sidecar call
  * (spaCy `nlp.pipe` over many strings), so a small concurrency keeps the single-model
@@ -66,7 +63,6 @@ async function analyze(
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, language, ...(entities ? { entities } : {}) }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -92,7 +88,6 @@ async function analyzeBatch(
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ texts, language, ...(entities ? { entities } : {}) }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -120,7 +115,6 @@ async function anonymizeBatch(items: AnonymizeBatchItem[]): Promise<string[]> {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ items }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -142,7 +136,6 @@ async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, analyzer_results: spans }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')

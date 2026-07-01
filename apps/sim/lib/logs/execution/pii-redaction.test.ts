@@ -155,12 +155,11 @@ describe('redactObjectStrings', () => {
     ).rejects.toBeInstanceOf(PiiRedactionError)
   })
 
-  it('throws when the payload exceeds the ceiling and onFailure is throw', async () => {
+  it('masks large payloads (no size ceiling) rather than scrubbing them', async () => {
     const big = 'x'.repeat(17 * 1024 * 1024)
-    await expect(
-      redactObjectStrings({ big }, { entityTypes: [], onFailure: 'throw' })
-    ).rejects.toBeInstanceOf(PiiRedactionError)
-    expect(mockMaskPIIBatch).not.toHaveBeenCalled()
+    const result = (await redactObjectStrings({ big }, { entityTypes: [] })) as { big: string }
+    expect(result.big).toBe(`MASKED(${big})`)
+    expect(mockMaskPIIBatch).toHaveBeenCalledTimes(1)
   })
 
   it('scrubs (does not throw) by default on failure', async () => {

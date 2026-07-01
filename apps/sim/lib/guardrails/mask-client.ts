@@ -1,10 +1,19 @@
 import type { GuardrailsMaskBatchResult } from '@/lib/api/contracts'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { env } from '@/lib/core/config/env'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 
-/** Bounds one mask-batch request; an unreachable/stuck Presidio sidecar aborts so the caller scrubs. */
-const REQUEST_TIMEOUT_MS = 45_000
+/**
+ * Max in-flight mask-batch requests per call. Each request is a CPU-heavy NER
+ * batch, so a single Presidio instance is easily saturated — default 4, raise it
+ * via `PII_MASK_CHUNK_CONCURRENCY` for a scaled/load-balanced service, or set 1
+ * for a single sidecar. No request timeout: masking a large batch is slow and the
+ * (scaled) Presidio service is expected to eventually respond; an unreachable
+ * sidecar still rejects fast (connection refused) so the caller scrubs.
+ */
+const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 4
 
 /**
  * Mask PII across many strings via the internal app-container endpoint.
@@ -13,8 +22,9 @@ const REQUEST_TIMEOUT_MS = 45_000
  * path also runs inside the trigger.dev runtime — so redaction always routes
  * through HTTP, the same way the guardrails tool does.
  * Strings are grouped into byte/count-budgeted chunks (keeping each request far
- * under the 10MB Next body limit); order is preserved, so the returned array
- * matches `texts` length.
+ * under the 10MB Next body limit) and the chunks are sent with bounded
+ * concurrency, so a large payload fans out rather than serializing; order is
+ * preserved, so the returned array matches `texts` length.
  *
  * Rejects on any non-2xx, timeout, or shape mismatch so the caller can apply
  * its own fail-safe (scrubbing rather than leaking).
@@ -29,7 +39,7 @@ export async function maskPIIBatchViaHttp(
   const url = `${getInternalApiBaseUrl()}/api/guardrails/mask-batch`
   const masked = new Array<string>(texts.length)
 
-  for (const indices of chunkIndicesByBudget(texts)) {
+  await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
     const chunk = indices.map((i) => texts[i])
     const out = await postChunk(url, chunk, entityTypes, language)
     if (out.length !== chunk.length) {
@@ -38,7 +48,7 @@ export async function maskPIIBatchViaHttp(
     indices.forEach((originalIndex, k) => {
       masked[originalIndex] = out[k]
     })
-  }
+  })
 
   return masked
 }
@@ -61,7 +71,6 @@ async function postChunk(
       authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ texts, entityTypes, language }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
 
   if (!response.ok) {

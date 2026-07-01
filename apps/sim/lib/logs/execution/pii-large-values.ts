@@ -27,14 +27,16 @@ export interface RedactLargeValueRefsOptions {
  * Hydrate, mask, and re-store offloaded large values inside a log payload.
  *
  * The string redactor can't reach a value already offloaded to large-value
- * storage (a >8MB ref) — its bytes live in object storage, not inline. Block
- * outputs are masked BEFORE offload only when the block-output stage is on; when
- * it's off, the refs in a persisted log point to unredacted bytes. This walks the
- * payload and, for each ref / array manifest, materializes it, masks its content,
- * and re-stores a fresh masked ref — so the log keeps the redacted content rather
- * than losing the whole field. Any failure (materialization unavailable, missing
- * storage scope, re-store error) falls back to {@link REDACTION_FAILED_MARKER} so
- * raw PII is never left behind.
+ * storage (a >8MB ref) — its bytes live in object storage, not inline. This walks
+ * the payload and, for each ref / array manifest, materializes it, masks its
+ * content, and re-stores a fresh masked ref — so the log keeps the redacted
+ * content rather than losing the whole field. Any failure (materialization
+ * unavailable, missing storage scope, re-store error) falls back to
+ * {@link REDACTION_FAILED_MARKER} so raw PII is never left behind.
+ *
+ * Traversal is SYNCHRONOUS (collect refs, then substitute) so a large ref-free
+ * payload costs only a cheap walk — never a promise-per-node. Only the handful of
+ * actual refs incur async hydrate → mask → re-store work.
  */
 export async function redactLargeValueRefs(
   payload: RedactablePayload,
@@ -43,31 +45,65 @@ export async function redactLargeValueRefs(
   const result: RedactablePayload = { ...payload }
   for (const key of Object.keys(payload) as (keyof RedactablePayload)[]) {
     if (payload[key] !== undefined) {
-      result[key] = await redactNode(payload[key], options)
+      result[key] = await redactValueRefs(payload[key], options)
     }
   }
   return result
 }
 
-async function redactNode(node: unknown, options: RedactLargeValueRefsOptions): Promise<unknown> {
-  if (isLargeValueRef(node)) {
-    return redactRef(node, options)
+/** Sync-collect every ref/manifest in `value`, then async-replace each, then sync-substitute. */
+async function redactValueRefs(
+  value: unknown,
+  options: RedactLargeValueRefsOptions
+): Promise<unknown> {
+  const refs: object[] = []
+  collectRefs(value, refs, new WeakSet())
+  if (refs.length === 0) return value
+
+  const replacements = new Map<object, unknown>()
+  for (const ref of refs) {
+    if (replacements.has(ref)) continue
+    replacements.set(ref, await replaceRef(ref, options))
   }
-  if (isLargeArrayManifest(node)) {
-    return redactManifest(node, options)
+  return substituteRefs(value, replacements)
+}
+
+/** Depth-first sync walk collecting ref/manifest nodes (not recursing into them). */
+function collectRefs(value: unknown, out: object[], seen: WeakSet<object>): void {
+  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
+    out.push(value as object)
+    return
   }
-  if (Array.isArray(node)) {
-    return Promise.all(node.map((item) => redactNode(item, options)))
+  if (value === null || typeof value !== 'object') return
+  if (seen.has(value)) return
+  seen.add(value)
+  if (Array.isArray(value)) {
+    for (const item of value) collectRefs(item, out, seen)
+    return
   }
-  if (node !== null && typeof node === 'object') {
-    const entries = await Promise.all(
-      Object.entries(node).map(
-        async ([key, value]) => [key, await redactNode(value, options)] as const
-      )
-    )
-    return Object.fromEntries(entries)
+  for (const v of Object.values(value)) collectRefs(v, out, seen)
+}
+
+/** Sync rebuild of `value` with each collected ref swapped for its replacement (by identity). */
+function substituteRefs(value: unknown, replacements: Map<object, unknown>): unknown {
+  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
+    return replacements.has(value as object) ? replacements.get(value as object) : value
   }
-  return node
+  if (value === null || typeof value !== 'object') return value
+  if (Array.isArray(value)) {
+    return value.map((item) => substituteRefs(item, replacements))
+  }
+  const out: Record<string, unknown> = {}
+  for (const [key, v] of Object.entries(value)) {
+    out[key] = substituteRefs(v, replacements)
+  }
+  return out
+}
+
+async function replaceRef(ref: object, options: RedactLargeValueRefsOptions): Promise<unknown> {
+  return isLargeValueRef(ref)
+    ? redactRef(ref, options)
+    : redactManifest(ref as LargeArrayManifest, options)
 }
 
 /**
@@ -79,7 +115,7 @@ async function maskAndReStore(
   value: unknown,
   options: RedactLargeValueRefsOptions
 ): Promise<unknown> {
-  const nested = await redactNode(value, options)
+  const nested = await redactValueRefs(value, options)
   const masked = await redactObjectStrings(nested, {
     entityTypes: options.entityTypes,
     language: options.language,
