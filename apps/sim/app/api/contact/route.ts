@@ -104,13 +104,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
 
       if (!captchaVerified) {
+        // Fail closed: this bucket is the only throttle on token-less submits, so
+        // if the limiter storage is unavailable we reject rather than admit an
+        // uncaptcha'd request to the email path.
         const nocaptchaKey = `public:contact:nocaptcha:${ip}`
         const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
           nocaptchaKey,
-          CAPTCHA_UNAVAILABLE_RATE_LIMIT
+          CAPTCHA_UNAVAILABLE_RATE_LIMIT,
+          { failClosed: true }
         )
         if (!nocaptchaAllowed) {
-          logger.warn(`[${requestId}] Rate limit exceeded (no-captcha) for IP ${ip}`)
+          logger.warn(`[${requestId}] Rate limit rejected (no-captcha) for IP ${ip}`)
           return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
         }
       }
