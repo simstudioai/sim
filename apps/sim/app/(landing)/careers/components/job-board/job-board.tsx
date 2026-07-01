@@ -6,6 +6,7 @@ import type { CareerPosting } from '@/lib/ashby/jobs'
 import {
   filterPostings,
   groupByDepartment,
+  hasActiveFilters,
   JobGroups,
 } from '@/app/(landing)/careers/components/job-board/job-groups'
 import {
@@ -43,8 +44,6 @@ function uniqueSorted(values: string[]): string[] {
 export function JobBoard({ postings }: JobBoardProps) {
   const [{ team, location }, setFilters] = useQueryStates(careersParsers, careersUrlKeys)
 
-  // Derived directly — the board holds a handful of postings, so recomputing on a
-  // filter change is trivial and a memo would only add ceremony.
   const teamOptions = toFilterOptions(uniqueSorted(postings.map((p) => p.department)), 'All teams')
   const locationOptions = toFilterOptions(
     uniqueSorted(postings.map((p) => p.location).filter(Boolean)),
@@ -69,10 +68,7 @@ export function JobBoard({ postings }: JobBoardProps) {
         />
       </div>
 
-      <JobGroups
-        groups={groups}
-        emptyMessage='No roles match these filters right now. Try clearing them, or check back soon.'
-      />
+      <JobGroups groups={groups} filtersActive={hasActiveFilters(team, location)} />
     </div>
   )
 }

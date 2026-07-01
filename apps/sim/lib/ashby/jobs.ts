@@ -127,7 +127,6 @@ export async function getAshbyJobs(): Promise<CareerPosting[]> {
     for (const raw of envelope.data.jobs) {
       const parsed = ashbyPostingSchema.safeParse(raw)
       if (!parsed.success) {
-        // Skip the offending posting rather than emptying the whole board.
         logger.warn('Skipping malformed Ashby posting', { issues: parsed.error.issues })
         continue
       }

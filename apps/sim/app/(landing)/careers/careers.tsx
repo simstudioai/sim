@@ -4,6 +4,7 @@ import { getAshbyJobs } from '@/lib/ashby/jobs'
 import {
   filterPostings,
   groupByDepartment,
+  hasActiveFilters,
   JobBoard,
   JobGroups,
 } from '@/app/(landing)/careers/components/job-board'
@@ -77,7 +78,11 @@ export default async function Careers({ searchParams }: CareersProps) {
           Open roles
         </h2>
 
-        <Suspense fallback={<JobGroups groups={fallbackGroups} />}>
+        <Suspense
+          fallback={
+            <JobGroups groups={fallbackGroups} filtersActive={hasActiveFilters(team, location)} />
+          }
+        >
           <JobBoard postings={postings} />
         </Suspense>
 
