@@ -28,6 +28,14 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
+  ApiDeploy,
+  ChatDeploy,
+  DeployUpgradeGate,
+  type ExistingChat,
+  GeneralDeploy,
+  McpDeploy,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components'
+import {
   releaseDeployAction,
   tryAcquireDeployAction,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/deploy-action-lock'
@@ -54,12 +62,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { ApiDeploy } from './components/api/api'
-import { ChatDeploy, type ExistingChat } from './components/chat/chat'
-import { DeployUpgradeGate } from './components/deploy-upgrade-gate/deploy-upgrade-gate'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
-import { GeneralDeploy } from './components/general/general'
-import { McpDeploy } from './components/mcp/mcp'
 
 const logger = createLogger('DeployModal')
 

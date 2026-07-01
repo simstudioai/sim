@@ -1,6 +1,9 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { createDragPreview, type DragItemInfo } from '../components/drag-preview'
+import {
+  createDragPreview,
+  type DragItemInfo,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
 
 const logger = createLogger('ToolbarItemInteractions')
 

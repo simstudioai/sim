@@ -38,19 +38,6 @@ import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
-  CMDK_ITEM_GAP_CLASS,
-  CMDK_SECTION_GAP_CLASS,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useSearchModalStore } from '@/stores/modals/search/store'
-import type {
-  SearchBlockItem,
-  SearchDocItem,
-  SearchToolOperationItem,
-} from '@/stores/modals/search/types'
-import {
   ActionsGroup,
   BlocksGroup,
   ChatsGroup,
@@ -66,7 +53,20 @@ import {
   TriggersGroup,
   WorkflowsGroup,
   WorkspacesGroup,
-} from './components/search-groups/search-groups'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups'
+import {
+  CMDK_ITEM_GAP_CLASS,
+  CMDK_SECTION_GAP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useSearchModalStore } from '@/stores/modals/search/store'
+import type {
+  SearchBlockItem,
+  SearchDocItem,
+  SearchToolOperationItem,
+} from '@/stores/modals/search/types'
 import type {
   ActionItem,
   FileItem,

@@ -24,6 +24,7 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
+import { useIdentifierValidation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/chat/hooks'
 import {
   type AuthType,
   type ChatFormData,
@@ -32,7 +33,6 @@ import {
   useUpdateChat,
 } from '@/hooks/queries/chats'
 import type { ChatDetail } from '@/hooks/queries/deployments'
-import { useIdentifierValidation } from './hooks/use-identifier-validation'
 import {
   getPasswordHelperText,
   getPasswordPlaceholder,

@@ -11,6 +11,7 @@ import {
 import { ChevronUp } from 'lucide-react'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import { ConnectionBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks'
 import {
   formatDisplayText,
   getValidWorkflowSearchRange,
@@ -21,7 +22,6 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
-import { ConnectionBlocks } from '../connection-blocks/connection-blocks'
 import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
 
 const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
