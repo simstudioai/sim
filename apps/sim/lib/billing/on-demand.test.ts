@@ -9,6 +9,7 @@ import {
   getIsOnDemandActive,
   getOnDemandOffLimit,
   getPooledCreditsRemaining,
+  isOnDemandOffDisabled,
 } from '@/lib/billing/on-demand'
 
 describe('getPooledCreditsRemaining', () => {
@@ -128,5 +129,29 @@ describe('getOnDemandOffLimit', () => {
 
   it('lands on covered when usage equals it', () => {
     expect(getOnDemandOffLimit(120, 120)).toBe(120)
+  })
+})
+
+describe('isOnDemandOffDisabled', () => {
+  it('disables the toggle when on-demand is on and usage is above covered', () => {
+    // Turning off here would re-cap at usage (150) and bounce back on, so lock it.
+    expect(
+      isOnDemandOffDisabled({ isOnDemandActive: true, effectiveCurrentUsage: 150, covered: 120 })
+    ).toBe(true)
+  })
+
+  it('allows turning off when usage is at or below covered', () => {
+    expect(
+      isOnDemandOffDisabled({ isOnDemandActive: true, effectiveCurrentUsage: 120, covered: 120 })
+    ).toBe(false)
+    expect(
+      isOnDemandOffDisabled({ isOnDemandActive: true, effectiveCurrentUsage: 62, covered: 120 })
+    ).toBe(false)
+  })
+
+  it('never disables when on-demand is already off (turning on stays allowed)', () => {
+    expect(
+      isOnDemandOffDisabled({ isOnDemandActive: false, effectiveCurrentUsage: 150, covered: 120 })
+    ).toBe(false)
   })
 })

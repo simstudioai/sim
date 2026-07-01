@@ -63,3 +63,20 @@ export function getIsOnDemandActive(params: {
 export function getOnDemandOffLimit(currentUsage: number, covered: number): number {
   return Math.max(currentUsage, covered)
 }
+
+/**
+ * Whether the on-demand toggle should render disabled: it is on, but usage has
+ * already passed the covered ceiling, so turning it off would only re-cap the
+ * limit at current usage ({@link getOnDemandOffLimit}) and the control would
+ * spring straight back on. The UI disables it with an explanatory tooltip rather
+ * than accepting a no-op click. The state clears on its own once usage drops back
+ * to or below covered (e.g. at the next billing reset).
+ */
+export function isOnDemandOffDisabled(params: {
+  isOnDemandActive: boolean
+  effectiveCurrentUsage: number
+  covered: number
+}): boolean {
+  const { isOnDemandActive, effectiveCurrentUsage, covered } = params
+  return isOnDemandActive && effectiveCurrentUsage > covered
+}

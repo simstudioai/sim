@@ -9,6 +9,7 @@ import {
   cn,
   Switch,
   toast,
+  Tooltip,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
@@ -18,7 +19,12 @@ import { useParams, useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
-import { getCoveredUsage, getIsOnDemandActive, getOnDemandOffLimit } from '@/lib/billing/on-demand'
+import {
+  getCoveredUsage,
+  getIsOnDemandActive,
+  getOnDemandOffLimit,
+  isOnDemandOffDisabled,
+} from '@/lib/billing/on-demand'
 import {
   getDisplayPlanName,
   getPlanTierCredits,
@@ -220,6 +226,19 @@ export function Billing() {
     isPaid: subscription.isPaid,
     planIncludedAmount,
     effectiveUsageLimit,
+    covered,
+  })
+
+  /**
+   * When usage already sits above `covered`, turning on-demand off would re-cap
+   * the limit at current usage and the switch would bounce straight back on
+   * (see `getOnDemandOffLimit`). Disable it and explain why via tooltip instead
+   * of accepting a no-op click; it re-enables once usage drops back to/below
+   * covered (e.g. the next billing reset).
+   */
+  const onDemandLockedOn = isOnDemandOffDisabled({
+    isOnDemandActive,
+    effectiveCurrentUsage,
     covered,
   })
 
@@ -452,11 +471,28 @@ export function Billing() {
             <span className='text-[var(--text-body)] text-small'>
               Allow usage to go past included usage
             </span>
-            <Switch
-              checked={isOnDemandActive}
-              disabled={isTogglingOnDemand || !canManageBilling}
-              onCheckedChange={handleToggleOnDemand}
-            />
+            {onDemandLockedOn ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span className='inline-flex'>
+                    <Switch checked disabled onCheckedChange={handleToggleOnDemand} />
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content className='max-w-[260px]'>
+                  <p>
+                    {
+                      "Your usage is above your plan's included amount, so on-demand can't be turned off yet. It turns off once usage drops below it — at the latest when your billing period resets."
+                    }
+                  </p>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            ) : (
+              <Switch
+                checked={isOnDemandActive}
+                disabled={isTogglingOnDemand || !canManageBilling}
+                onCheckedChange={handleToggleOnDemand}
+              />
+            )}
           </div>
         </SettingsSection>
       )}
