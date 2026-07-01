@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Loader,
   Modal,
@@ -85,13 +85,21 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const effectiveView: AuthView =
     view === 'signup' && providerStatus?.registrationDisabled ? 'login' : view
 
-  const redirectTarget = defaultView === 'login' ? '/login' : '/signup'
+  /**
+   * Tracks whether the visitor still wants the modal open. Cleared on dismiss so a
+   * provider-status fetch that resolves afterwards can't reopen it or re-fire the
+   * opened event.
+   */
+  const openRequestedRef = useRef(false)
 
   function openWithStatus(status: ProviderStatus) {
     const hasModalContent =
       status.githubAvailable || status.googleAvailable || status.microsoftAvailable || ssoEnabled
     if (!hasModalContent) {
-      router.push(redirectTarget)
+      // Close the loading state (no-op if never opened) and route out. Registration
+      // being disabled sends signup requests to login, since signup is unavailable.
+      setOpen(false)
+      router.push(status.registrationDisabled || defaultView === 'login' ? '/login' : '/signup')
       return
     }
     const initialView: AuthView =
@@ -103,6 +111,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
+      openRequestedRef.current = false
       setOpen(false)
       return
     }
@@ -110,8 +119,13 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
       openWithStatus(providerStatus)
       return
     }
+    // Status not loaded yet: open immediately (the loader shows) so the click feels
+    // responsive, then resolve - unless the visitor has since dismissed the modal.
+    openRequestedRef.current = true
+    setOpen(true)
     fetchProviderStatus().then((status) => {
       setProviderStatus(status)
+      if (!openRequestedRef.current) return
       openWithStatus(status)
     })
   }
