@@ -7,6 +7,25 @@ describe('getEmbedInfo', () => {
     expect(getEmbedInfo('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual(expected)
     expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ')).toEqual(expected)
     expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ')).toEqual(expected)
+    // Extra query params around v= still resolve.
+    expect(getEmbedInfo('https://www.youtube.com/watch?list=RD&v=dQw4w9WgXcQ&t=5')).toEqual(
+      expected
+    )
+  })
+
+  it('maps Facebook and fb.watch video links to the video plugin', () => {
+    expect(getEmbedInfo('https://www.facebook.com/some.page/videos/1234567890')).toEqual({
+      url: 'https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fsome.page%2Fvideos%2F1234567890&show_text=false',
+      type: 'iframe',
+    })
+    expect(getEmbedInfo('https://fb.watch/abc123')?.type).toBe('iframe')
+    expect(getEmbedInfo('https://www.facebook.com/some.page/about')).toBeNull()
+  })
+
+  it('extracts the Giphy id from the trailing slug token', () => {
+    const expected = { url: 'https://giphy.com/embed/abc123', type: 'iframe', aspectRatio: '1/1' }
+    expect(getEmbedInfo('https://giphy.com/gifs/funny-cat-abc123')).toEqual(expected)
+    expect(getEmbedInfo('https://giphy.com/embed/abc123')).toEqual(expected)
   })
 
   it('maps Vimeo and Spotify URLs with their aspect ratios', () => {
