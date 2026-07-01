@@ -47,7 +47,8 @@ export const colors = buildColors()
 
 /** Typography settings */
 export const typography = {
-  fontFamily: "-apple-system, 'SF Pro Display', 'SF Pro Text', 'Helvetica', sans-serif",
+  fontFamily:
+    "'Season Sans', -apple-system, 'SF Pro Display', 'SF Pro Text', 'Helvetica', sans-serif",
   fontSize: {
     body: '16px',
     small: '14px',
