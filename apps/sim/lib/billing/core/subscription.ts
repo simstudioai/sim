@@ -518,30 +518,54 @@ export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<
   }
 }
 
+const MAX_PLAN_CREDITS = 25000
+
 /**
- * Check if user has access to inbox (Sim Mailer) feature
- * Returns true if:
- * - INBOX_ENABLED env var is set, OR
- * - Non-production environment, OR
- * - User has a Max plan (credits >= 25000) or enterprise plan
+ * Whether a resolved subscription entitles the inbox (Sim Mailer) feature: a Max
+ * tier (credits >= 25000, covering `pro_25000` and `team_25000`) or any
+ * enterprise plan.
  */
-export async function hasInboxAccess(userId: string): Promise<boolean> {
+function isInboxEntitledPlan(sub: { plan: string }): boolean {
+  return getPlanTierCredits(sub.plan) >= MAX_PLAN_CREDITS || checkEnterprisePlan(sub)
+}
+
+/**
+ * Check whether a workspace is entitled to the inbox (Sim Mailer) feature.
+ * Entitlement follows the workspace's billing entity — not the acting user — so
+ * any workspace admin (including an external member) can manage the inbox when
+ * the workspace's organization, or its billed account for personal workspaces,
+ * is on a Max or enterprise plan.
+ *
+ * Returns true if:
+ * - INBOX_ENABLED env var is set (self-hosted override), OR
+ * - billing is disabled, OR
+ * - the workspace belongs to an organization on a Max/enterprise plan (org-mode), OR
+ * - the billed user has an individual Max/enterprise subscription (personal workspace).
+ */
+export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<boolean> {
   try {
-    if (isInboxEnabled) {
-      return true
+    if (isInboxEnabled) return true
+    if (!isBillingEnabled) return true
+
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+    if (!ws) return false
+
+    if (ws.organizationId) {
+      if (await isOrganizationBillingBlocked(ws.organizationId)) return false
+      const orgSub = await getOrganizationSubscriptionUsable(ws.organizationId)
+      return !!orgSub && isInboxEntitledPlan(orgSub)
     }
-    if (!isBillingEnabled) {
-      return true
-    }
-    const [sub, billingStatus] = await Promise.all([
-      getHighestPrioritySubscription(userId),
-      getEffectiveBillingStatus(userId),
+
+    const [billedSub, billingStatus] = await Promise.all([
+      getHighestPrioritySubscription(ws.billedAccountUserId),
+      getEffectiveBillingStatus(ws.billedAccountUserId),
     ])
-    if (!sub) return false
-    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
-    return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
+    if (!billedSub) return false
+    if (!hasUsableSubscriptionAccess(billedSub.status, billingStatus.billingBlocked)) return false
+    return isInboxEntitledPlan(billedSub)
   } catch (error) {
-    logger.error('Error checking inbox access', { error, userId })
+    logger.error('Error checking workspace inbox access', { error, workspaceId })
     return false
   }
 }
