@@ -337,8 +337,10 @@ export class MothershipHandoffStorage {
   }
 
   /**
-   * Retrieve and consume the stored handoff. Always clears the entry, so a
-   * handoff fires at most once even when it has expired.
+   * Retrieve and consume the stored handoff. Clears the entry as soon as one
+   * exists — before the validity and expiry checks — so a malformed or expired
+   * handoff is tombstoned rather than lingering across future mounts, and a
+   * valid handoff fires exactly once.
    * @param maxAge - Maximum age in milliseconds (default: 60 seconds)
    */
   static consume(maxAge: number = 60 * 1000): MothershipHandoff | null {
@@ -352,8 +354,6 @@ export class MothershipHandoffStorage {
       return null
     }
 
-    // Clear unconditionally once any entry exists, so a malformed or expired
-    // handoff is tombstoned rather than lingering across future mounts.
     MothershipHandoffStorage.clear()
 
     if (!data.message || !data.timestamp || Date.now() - data.timestamp > maxAge) {

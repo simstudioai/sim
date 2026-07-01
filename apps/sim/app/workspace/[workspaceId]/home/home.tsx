@@ -314,13 +314,16 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     [workspaceId, chatId, sendMessage]
   )
 
+  /**
+   * Handles cross-surface send requests (terminal/console "Fix in Chat", the
+   * log "Troubleshoot in Chat" action). `preventDefault` claims the event so a
+   * producer that dispatched it while this chat is mounted knows a live chat
+   * consumed the message and skips its navigate-and-persist fallback.
+   */
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
-      // Claim the event so a cross-surface producer (e.g. "Troubleshoot in
-      // Chat", fired while this chat is already mounted) knows a live chat
-      // consumed it and skips its navigate-and-persist fallback.
       e.preventDefault()
       sendMessage(detail.message, undefined, detail.contexts)
     }

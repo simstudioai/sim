@@ -397,6 +397,13 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
    */
   const canTroubleshoot = log.status === 'failed' && isLikelyExecution
 
+  /**
+   * Hands the failed run to Chat. When a chat is already mounted (e.g. the run
+   * is being viewed inside Chat's resource panel) it consumes the tagged
+   * message directly; otherwise a one-shot handoff is persisted and we navigate
+   * to a fresh chat that picks it up on mount. Navigation is gated on a
+   * successful store, so a failed write never strands the user on an empty chat.
+   */
   const handleTroubleshoot = useCallback(() => {
     if (!log.executionId) return
     const workflowName = log.workflow?.name?.trim() || null
@@ -408,11 +415,6 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     const message = workflowName
       ? `The "${workflowName}" workflow run failed. Investigate the error in this run and help me fix it.`
       : 'This workflow run failed. Investigate the error in this run and help me fix it.'
-    // If a chat is already mounted (e.g. the run is being viewed inside Chat's
-    // resource panel) it consumes the message directly. Otherwise persist a
-    // one-shot handoff and navigate so the fresh home mount picks it up — only
-    // navigating when the handoff actually stored, so a failed write never
-    // strands the user on an empty chat.
     if (sendMothershipMessage(message, [context])) return
     if (MothershipHandoffStorage.store({ message, contexts: [context] })) {
       router.push(`/workspace/${workspaceId}/home`)
@@ -578,7 +580,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 </div>
               )}
 
-              {/* Troubleshoot — hand the failed run off to Chat to diagnose */}
+              {/* Troubleshoot */}
               {canTroubleshoot && (
                 <Button
                   variant='default'
