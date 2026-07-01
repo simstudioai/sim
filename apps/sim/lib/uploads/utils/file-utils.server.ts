@@ -12,7 +12,6 @@ import {
   consumeOrCancelBody,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import type { StorageContext } from '@/lib/uploads'
 import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import {
@@ -90,7 +89,7 @@ export async function resolveFileInputToUrl(
 
     // Generate presigned URL if we have a key but no URL
     if (!fileUrl && userFile.key) {
-      const context = (userFile.context as StorageContext) || inferContextFromKey(userFile.key)
+      const context = inferContextFromKey(userFile.key)
       const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context, false)
 
       if (!hasAccess) {
@@ -281,10 +280,8 @@ export async function downloadFileFromStorage(
     )
     buffer = await downloadExecutionFile(userFile, { maxBytes: options.maxBytes })
   } else if (userFile.key) {
-    const context = (userFile.context as StorageContext) || inferContextFromKey(userFile.key)
-    logger.info(
-      `[${requestId}] Downloading from ${context} storage (${userFile.context ? 'explicit' : 'inferred'}): ${userFile.key}`
-    )
+    const context = inferContextFromKey(userFile.key)
+    logger.info(`[${requestId}] Downloading from ${context} storage: ${userFile.key}`)
 
     const { downloadFile } = await import('@/lib/uploads/core/storage-service')
     buffer = await downloadFile({
