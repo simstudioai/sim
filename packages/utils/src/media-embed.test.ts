@@ -7,6 +7,29 @@ describe('getEmbedInfo', () => {
     expect(getEmbedInfo('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual(expected)
     expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ')).toEqual(expected)
     expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ')).toEqual(expected)
+    expect(getEmbedInfo('https://www.youtube.com/watch?list=RD&v=dQw4w9WgXcQ&t=5')).toEqual(
+      expected
+    )
+    expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ?si=abc')).toEqual(expected)
+    expect(getEmbedInfo('https://youtu.be/dQw4w9WgXcQ/')).toEqual(expected)
+    expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0')).toEqual(expected)
+    expect(getEmbedInfo('https://www.youtube.com/embed/dQw4w9WgXcQ?v=notAnId')).toEqual(expected)
+    expect(getEmbedInfo('https://www.youtube.com/watch?v=short')).toBeNull()
+  })
+
+  it('maps Facebook and fb.watch video links to the video plugin', () => {
+    expect(getEmbedInfo('https://www.facebook.com/some.page/videos/1234567890')).toEqual({
+      url: 'https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fsome.page%2Fvideos%2F1234567890&show_text=false',
+      type: 'iframe',
+    })
+    expect(getEmbedInfo('https://fb.watch/abc123')?.type).toBe('iframe')
+    expect(getEmbedInfo('https://www.facebook.com/some.page/about')).toBeNull()
+  })
+
+  it('extracts the Giphy id from the trailing slug token', () => {
+    const expected = { url: 'https://giphy.com/embed/abc123', type: 'iframe', aspectRatio: '1/1' }
+    expect(getEmbedInfo('https://giphy.com/gifs/funny-cat-abc123')).toEqual(expected)
+    expect(getEmbedInfo('https://giphy.com/embed/abc123')).toEqual(expected)
   })
 
   it('maps Vimeo and Spotify URLs with their aspect ratios', () => {
@@ -38,13 +61,10 @@ describe('getEmbedInfo', () => {
   })
 
   it('only embeds when the parsed host belongs to the provider', () => {
-    // A provider domain in the path or as a subdomain prefix of an attacker host
-    // must not be treated as that provider.
     expect(getEmbedInfo('https://evil.com/youtube.com/watch?v=dQw4w9WgXcQ')).toBeNull()
     expect(getEmbedInfo('https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ')).toBeNull()
     expect(getEmbedInfo('https://evil.com/open.spotify.com/track/abc123')).toBeNull()
     expect(getEmbedInfo('https://vimeo.com.evil.com/123456')).toBeNull()
-    // Legitimate subdomains of a provider still embed.
     expect(getEmbedInfo('https://m.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual({
       url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
       type: 'iframe',
@@ -71,8 +91,6 @@ describe('getEmbedInfo', () => {
     })
 
     it('does not apply the Dropbox direct-link rewrite to look-alike hosts', () => {
-      // Look-alike hosts fall through to the generic video handler with their
-      // original (untrusted) host intact — never rewritten as if trusted Dropbox.
       expect(getEmbedInfo('https://dropbox.com.evil.com/clip.mp4')?.url).not.toContain(
         'dropboxusercontent.com'
       )

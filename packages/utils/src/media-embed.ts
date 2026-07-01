@@ -64,12 +64,14 @@ function toDropboxDirectVideoUrl(parsed: URL): string | null {
 export function getEmbedInfo(url: string): EmbedInfo | null {
   const parsed = parseUrl(url)
   const host = parsed?.hostname.toLowerCase() ?? null
-  if (hostMatches(host, 'youtube.com', 'youtu.be')) {
-    const youtubeMatch = url.match(
-      /(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
-    )
-    if (youtubeMatch) {
-      return { url: `https://www.youtube.com/embed/${youtubeMatch[1]}`, type: 'iframe' }
+  if (parsed && hostMatches(host, 'youtube.com', 'youtu.be')) {
+    const segments = parsed.pathname.split('/')
+    let id: string | null | undefined
+    if (hostMatches(host, 'youtu.be')) id = segments[1]
+    else if (segments[1] === 'embed') id = segments[2]
+    else id = parsed.searchParams.get('v')
+    if (id && /^[a-zA-Z0-9_-]{11}$/.test(id)) {
+      return { url: `https://www.youtube.com/embed/${id}`, type: 'iframe' }
     }
   }
 
@@ -209,10 +211,11 @@ export function getEmbedInfo(url: string): EmbedInfo | null {
     }
   }
 
-  if (hostMatches(host, 'facebook.com', 'fb.watch')) {
-    const facebookVideoMatch =
-      url.match(/facebook\.com\/.*\/videos\/(\d+)/) || url.match(/fb\.watch\/([a-zA-Z0-9_-]+)/)
-    if (facebookVideoMatch) {
+  if (parsed && hostMatches(host, 'facebook.com', 'fb.watch')) {
+    const isFacebookVideo = hostMatches(host, 'fb.watch')
+      ? /^\/[a-zA-Z0-9_-]+/.test(parsed.pathname)
+      : /\/videos\/\d+/.test(parsed.pathname)
+    if (isFacebookVideo) {
       return {
         url: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,
         type: 'iframe',
@@ -320,10 +323,11 @@ export function getEmbedInfo(url: string): EmbedInfo | null {
     }
   }
 
-  if (hostMatches(host, 'giphy.com')) {
-    const giphyMatch = url.match(/giphy\.com\/(?:gifs|embed)\/(?:.*-)?([a-zA-Z0-9]+)/)
-    if (giphyMatch) {
-      return { url: `https://giphy.com/embed/${giphyMatch[1]}`, type: 'iframe', aspectRatio: '1/1' }
+  if (parsed && hostMatches(host, 'giphy.com')) {
+    const segment = parsed.pathname.match(/^\/(?:gifs|embed)\/([^/]+)/)?.[1]
+    const giphyId = segment?.split('-').pop()
+    if (giphyId && /^[a-zA-Z0-9]+$/.test(giphyId)) {
+      return { url: `https://giphy.com/embed/${giphyId}`, type: 'iframe', aspectRatio: '1/1' }
     }
   }
 
