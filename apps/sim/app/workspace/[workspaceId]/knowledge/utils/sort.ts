@@ -13,7 +13,7 @@ export function sortKnowledgeBases(
   sortBy: SortOption,
   sortOrder: SortOrder
 ): KnowledgeBaseData[] {
-  return [...knowledgeBases].sort((a, b) => {
+  return knowledgeBases.toSorted((a, b) => {
     let comparison = 0
 
     switch (sortBy) {

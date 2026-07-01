@@ -219,15 +219,19 @@ export function Document({
       ? Math.max(1, Math.min(currentPageFromURL, maxSearchPages))
       : 1
   const searchTotalPages = Math.max(1, maxSearchPages)
-  const searchStartIndex = (searchCurrentPage - 1) * SEARCH_PAGE_SIZE
-  const paginatedSearchResults = searchResults.slice(
-    searchStartIndex,
-    searchStartIndex + SEARCH_PAGE_SIZE
-  )
 
-  const rawDisplayChunks = showingSearch ? paginatedSearchResults : initialChunks
-
-  const displayChunks = rawDisplayChunks ?? []
+  /**
+   * Stable chunk list for the current view. Memoized so the many downstream
+   * `useMemo`/`useCallback` hooks that depend on it don't recompute every render
+   * (search pagination `.slice()` otherwise yields a fresh array each time).
+   */
+  const displayChunks = useMemo<ChunkData[]>(() => {
+    if (showingSearch) {
+      const start = (searchCurrentPage - 1) * SEARCH_PAGE_SIZE
+      return searchResults.slice(start, start + SEARCH_PAGE_SIZE)
+    }
+    return initialChunks ?? []
+  }, [showingSearch, searchResults, searchCurrentPage, initialChunks])
 
   const currentPage = showingSearch ? searchCurrentPage : initialPage
   const totalPages = showingSearch ? searchTotalPages : initialTotalPages
@@ -672,7 +676,7 @@ export function Document({
         { onError: () => updateChunk(chunkId, { enabled: chunk.enabled }) }
       )
     },
-    [displayChunks, knowledgeBaseId, documentId, updateChunk]
+    [displayChunks, knowledgeBaseId, documentId, updateChunk, updateChunkMutation]
   )
 
   const handleDeleteChunk = useCallback(
@@ -983,7 +987,7 @@ export function Document({
       ...editorBreadcrumbBase,
       { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '', terminal: true },
     ],
-    [editorBreadcrumbBase, selectedChunk?.chunkIndex]
+    [editorBreadcrumbBase, selectedChunk]
   )
 
   const loadingBreadcrumbs = useMemo<BreadcrumbItem[]>(
