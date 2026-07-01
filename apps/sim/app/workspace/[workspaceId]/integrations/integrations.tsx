@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useCallback, useMemo } from 'react'
+import { type ComponentType, useCallback, useMemo, useRef } from 'react'
 import {
   ArrowRight,
   ChevronDown,
@@ -26,6 +26,7 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
+import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import {
   ALL_CATEGORY,
   CONNECTED_LABEL,
@@ -135,6 +136,7 @@ function ConnectedItem({ href, blockType, name, description, icon: Icon }: Conne
 }
 
 export function Integrations() {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -162,6 +164,8 @@ export function Integrations() {
     workspaceId,
     enabled: Boolean(workspaceId),
   })
+
+  useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
   const oauthCredentials = useMemo(
     () => credentials.filter((c) => c.type === 'oauth' || c.type === 'service_account'),
@@ -289,7 +293,10 @@ export function Integrations() {
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <IntegrationTabsHeader active='integrations' workspaceId={workspaceId} />
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+      <div
+        ref={scrollContainerRef}
+        className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
+      >
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <ShowcaseWithExplore prompt='Explain the integrations in Sim and what I should connect.' />
           <div className='flex items-center gap-2'>
