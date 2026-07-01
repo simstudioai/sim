@@ -18,9 +18,7 @@ export async function createPostgresConnection(config: PostgresConnectionConfig)
         : { rejectUnauthorized: false, servername: config.host }
 
   const sql = postgres({
-    // Always connect to the validated, pinned IP to prevent DNS rebinding between
-    // host validation and connection. For SSL modes that verify, the original
-    // hostname is preserved as the TLS servername (SNI) above.
+    // Pin the validated IP (never the hostname) to prevent DNS rebinding; SNI stays the hostname above.
     host: resolvedHost,
     port: config.port,
     database: config.database,

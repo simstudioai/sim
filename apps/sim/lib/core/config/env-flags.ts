@@ -82,7 +82,7 @@ if (isTruthy(env.DISABLE_AUTH)) {
  * their database lives on the same private network. Blocked on the hosted platform
  * regardless of the env var, mirroring {@link isAuthDisabled}.
  */
-export const allowPrivateDatabaseHosts = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS) && !isHosted
+export const isPrivateDatabaseHostsAllowed = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS) && !isHosted
 
 if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
   import('@sim/logger')

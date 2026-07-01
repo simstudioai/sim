@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
-import { allowPrivateDatabaseHosts, isHosted } from '@/lib/core/config/env-flags'
+import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
@@ -156,7 +156,7 @@ export async function validateUrlWithDNS(
  * on their private network (e.g. a Docker/Swarm service name that resolves to an
  * internal IP). The opt-in only bypasses the private/reserved/loopback block; DNS
  * is still resolved so the caller can pin the connection to the resolved IP. The
- * bypass is never honored on the hosted platform (see {@link allowPrivateDatabaseHosts}).
+ * bypass is never honored on the hosted platform (see {@link isPrivateDatabaseHostsAllowed}).
  *
  * @param host - The database hostname to validate
  * @param paramName - Name of the parameter for error messages
@@ -174,18 +174,22 @@ export async function validateDatabaseHost(
   const cleanHost =
     lowerHost.startsWith('[') && lowerHost.endsWith(']') ? lowerHost.slice(1, -1) : lowerHost
 
-  if (cleanHost === 'localhost' && !allowPrivateDatabaseHosts) {
+  if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be localhost` }
   }
 
-  if (ipaddr.isValid(cleanHost) && isPrivateOrReservedIP(cleanHost) && !allowPrivateDatabaseHosts) {
+  if (
+    ipaddr.isValid(cleanHost) &&
+    isPrivateOrReservedIP(cleanHost) &&
+    !isPrivateDatabaseHostsAllowed
+  ) {
     return { isValid: false, error: `${paramName} cannot be a private IP address` }
   }
 
   try {
     const { address } = await dns.lookup(cleanHost, { verbatim: true })
 
-    if (isPrivateOrReservedIP(address) && !allowPrivateDatabaseHosts) {
+    if (isPrivateOrReservedIP(address) && !isPrivateDatabaseHostsAllowed) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,

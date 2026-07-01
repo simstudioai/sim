@@ -765,7 +765,7 @@ describe('validateUrlWithDNS', () => {
 
 describe('validateDatabaseHost', () => {
   afterEach(() => {
-    envFlagsMock.allowPrivateDatabaseHosts = false
+    envFlagsMock.isPrivateDatabaseHostsAllowed = false
   })
 
   describe('default (SSRF guard on)', () => {
@@ -808,7 +808,7 @@ describe('validateDatabaseHost', () => {
 
   describe('self-host opt-in (ALLOW_PRIVATE_DATABASE_HOSTS)', () => {
     beforeEach(() => {
-      envFlagsMock.allowPrivateDatabaseHosts = true
+      envFlagsMock.isPrivateDatabaseHostsAllowed = true
     })
 
     it('allows localhost and still resolves an IP to pin', async () => {
