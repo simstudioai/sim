@@ -111,7 +111,7 @@ function truncateForPreview(text: string): { text: string; truncated: boolean } 
 }
 
 function renderStructuredValuePreview(value: unknown) {
-  if (value === null || value === undefined) {
+  if (value === null || value === undefined || value === '') {
     return <span className='text-[12px] text-[var(--text-muted)]'>—</span>
   }
 
