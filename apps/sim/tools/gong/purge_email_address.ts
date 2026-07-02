@@ -28,7 +28,7 @@ export const purgeEmailAddressTool: ToolConfig<
     emailAddress: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Email address whose associated data should be permanently erased from Gong',
     },
   },

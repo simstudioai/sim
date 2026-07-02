@@ -28,7 +28,7 @@ export const purgePhoneNumberTool: ToolConfig<
     phoneNumber: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description:
         'Phone number whose associated data should be permanently erased from Gong. Must include a leading "+" and country code (e.g., +14255552671)',
     },
