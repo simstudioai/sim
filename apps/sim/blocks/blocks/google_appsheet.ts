@@ -52,6 +52,19 @@ export const GoogleAppsheetBlock: BlockConfig<GoogleAppsheetResponse> = {
         'Optional expression, e.g. Filter(Orders, [Status] = "Open") or Top(OrderBy(Filter(Orders, true), [Date], true), 10)',
       condition: { field: 'operation', value: 'google_appsheet_find_rows' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an AppSheet Selector expression based on the user's description. The table name in the expression is a placeholder - use the literal word matching the table being queried.
+
+Format examples:
+- Filter(TableName, [Status] = "Open")
+- Filter(TableName, AND([Age] >= 21, [State] = "CA"))
+- OrderBy(Filter(TableName, true), [LastName], true)
+- Top(OrderBy(Filter(TableName, true), [Date], true), 10)
+
+Return ONLY the Selector expression - no explanations, no quotes around the entire expression.`,
+        placeholder: 'Describe the filter/sort criteria (e.g., "open orders sorted by date")...',
+      },
     },
     // Add/Edit/Delete Rows operation inputs (shared JSON array field)
     {
@@ -155,8 +168,11 @@ Return ONLY the valid JSON array - no explanations, no markdown.`,
   },
 
   outputs: {
-    rows: { type: 'json', description: 'Rows returned by the AppSheet operation' },
-    metadata: { type: 'json', description: 'Operation metadata, including row count' },
+    rows: {
+      type: 'json',
+      description: 'Rows returned by the AppSheet operation: [{ columnName: value, ... }]',
+    },
+    metadata: { type: 'json', description: 'Operation metadata: { rowCount: number }' },
   },
 }
 
@@ -230,6 +246,28 @@ export const GoogleAppsheetBlockMeta = {
       modules: ['agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['automation', 'analysis'],
+    },
+  ],
+  skills: [
+    {
+      name: 'add-appsheet-row',
+      description: 'Add a new row to an AppSheet table in response to an external event.',
+      content:
+        '# Add AppSheet Row\n\nCreate a new row in an AppSheet table, e.g. when a form is submitted or an external event fires.\n\n## Steps\n1. Set App ID and Table Name for the target table.\n2. Provide the Rows JSON array with one object per new row, e.g. `[{ "FirstName": "Jan", "LastName": "Jones" }]`.\n3. Give the key column an explicit value, or omit it if its Initial value expression (e.g. UNIQUEID()) generates it automatically.\n4. Run the Add Rows operation and confirm the returned row includes the generated key.\n\n## Output\nThe newly created row(s), including any generated key values, plus a row count.',
+    },
+    {
+      name: 'find-appsheet-rows',
+      description:
+        'Query an AppSheet table with a Selector expression to filter, sort, or limit rows.',
+      content:
+        '# Find AppSheet Rows\n\nRead rows from an AppSheet table, optionally filtered and sorted with a Selector expression.\n\n## Steps\n1. Set App ID and Table Name for the target table.\n2. Leave Selector blank to return every row, or provide an expression such as `Filter(TableName, [Status] = "Open")`.\n3. Combine `OrderBy()` and `Top()` to sort and limit results, e.g. `Top(OrderBy(Filter(TableName, true), [Date], true), 10)`.\n4. Run the Find Rows operation.\n\n## Output\nThe matching rows and a row count, ready to feed into an agent or a downstream integration.',
+    },
+    {
+      name: 'sync-appsheet-updates-to-sheet',
+      description:
+        'Mirror updated AppSheet rows into a Google Sheet to maintain a real-time audit trail.',
+      content:
+        '# Sync AppSheet Updates to a Sheet\n\nKeep a Google Sheet in sync with changes to an AppSheet table, mirroring the pattern used in AppSheet-Zapier integrations for audit trails.\n\n## Steps\n1. Use Find Rows with a Selector expression that isolates recently changed rows (e.g. filtered by a LastModified column).\n2. For each row, append or update the corresponding row in a Google Sheet.\n3. Schedule the workflow to run on an interval so the sheet stays current.\n\n## Output\nA Google Sheet that reflects the latest AppSheet row data, useful as a shareable audit trail or reporting source.',
     },
   ],
 } as const satisfies BlockMeta
