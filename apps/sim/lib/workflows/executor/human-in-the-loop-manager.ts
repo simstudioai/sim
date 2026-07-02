@@ -2048,8 +2048,18 @@ export class PauseResumeManager {
         entry.contextId === contextId && (entry.status === 'claimed' || entry.status === 'pending')
     )
 
+    // The selected pause point's full `response.data` is already returned via
+    // `pausePoint` below; strip it from `execution.pausePoints` so a large
+    // HITL display payload isn't duplicated in full within the same response.
+    const execution: PausedExecutionDetail = {
+      ...detail,
+      pausePoints: detail.pausePoints.map((point) =>
+        point.response ? { ...point, response: { ...point.response, data: undefined } } : point
+      ),
+    }
+
     return {
-      execution: detail,
+      execution,
       pausePoint,
       queue: detail.queue,
       activeResumeEntry,

@@ -10,5 +10,5 @@ interface InviteLayoutProps {
  * so the invite-to-workspace flow is visually aligned with the rest of auth.
  */
 export default function InviteLayout({ children }: InviteLayoutProps) {
-  return <AuthShell footer={<SupportFooter position='absolute' />}>{children}</AuthShell>
+  return <AuthShell footer={<SupportFooter position='static' />}>{children}</AuthShell>
 }
