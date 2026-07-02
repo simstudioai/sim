@@ -928,7 +928,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               ...baseParams,
               name: params.categoryName,
               description: params.categoryDescription,
-              parent: params.categoryParent ? Number(params.categoryParent) : undefined,
+              parent:
+                params.categoryParent !== undefined && params.categoryParent !== ''
+                  ? Number(params.categoryParent)
+                  : undefined,
               slug: params.categorySlug,
             }
           case 'wordpress_list_categories':
@@ -950,7 +953,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               categoryId: Number(params.categoryId),
               name: params.categoryName,
               description: params.categoryDescription,
-              parent: params.categoryParent ? Number(params.categoryParent) : undefined,
+              parent:
+                params.categoryParent !== undefined && params.categoryParent !== ''
+                  ? Number(params.categoryParent)
+                  : undefined,
               slug: params.categorySlug,
             }
           case 'wordpress_delete_category':
