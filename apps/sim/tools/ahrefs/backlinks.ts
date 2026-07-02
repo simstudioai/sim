@@ -53,7 +53,7 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
       url.searchParams.set('target', params.target)
       url.searchParams.set('select', SELECT_FIELDS)
       if (params.mode) url.searchParams.set('mode', params.mode)
-      if (params.history) url.searchParams.set('history', params.history)
+      url.searchParams.set('history', params.history || 'all_time')
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       return url.toString()
     },
