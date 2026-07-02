@@ -61,7 +61,7 @@ export const updateTagTool: ToolConfig<WordPressUpdateTagParams, WordPressUpdate
       const body: Record<string, any> = {}
 
       if (params.name) body.name = params.name
-      if (params.description !== undefined) body.description = params.description
+      if (params.description) body.description = params.description
       if (params.slug) body.slug = params.slug
 
       return body

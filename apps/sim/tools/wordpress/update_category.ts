@@ -70,7 +70,7 @@ export const updateCategoryTool: ToolConfig<
       const body: Record<string, any> = {}
 
       if (params.name) body.name = params.name
-      if (params.description !== undefined) body.description = params.description
+      if (params.description) body.description = params.description
       if (params.parent !== undefined) body.parent = params.parent
       if (params.slug) body.slug = params.slug
 
