@@ -84,7 +84,7 @@ export const vercelListProjectsTool: ToolConfig<
         projects,
         count: projects.length,
         hasMore: data.pagination?.next != null,
-        nextFrom: data.pagination?.next ?? null,
+        nextFrom: data.pagination?.next != null ? String(data.pagination.next) : null,
       },
     }
   },

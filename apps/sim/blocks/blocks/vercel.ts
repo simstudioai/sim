@@ -787,7 +787,8 @@ export const VercelBlock: BlockConfig = {
       id: 'updateRecordValue',
       title: 'Value',
       type: 'short-input',
-      placeholder: 'New record value — leave blank to keep',
+      placeholder:
+        'New record value — leave blank to keep. Has no effect if the existing record is SRV or HTTPS; explicitly set Record Type to update those.',
       condition: {
         field: 'operation',
         value: 'update_dns_record',
