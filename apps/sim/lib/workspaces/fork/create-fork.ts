@@ -202,12 +202,19 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
 
     // Source -> child folder id map: remaps folder references in the copied workflows below and
     // feeds the post-commit content-ref rewrite (`sim:folder/<id>` mentions in skill/file bodies).
+    // Scoped to the folders that will actually receive a copied workflow (plus ancestors): a
+    // fork copies only DEPLOYED workflows, so folders holding none would be created empty in
+    // the child and are pruned instead. Copied files don't extend this set - they use the
+    // separate workspace-file-folder entity and land at the child's root.
     const folderIdMap = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId: source.id,
       targetWorkspaceId: childWorkspaceId,
       userId,
       now,
+      contentFolderIds: deployedWorkflows
+        .filter((wf) => workflowIdMap.has(wf.id))
+        .map((wf) => wf.folderId),
     })
 
     const resourceResult = await copyForkResourceContainers({
