@@ -24,7 +24,13 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of templates to return per page (default: 20)',
+      description: 'Number of templates to return per page (default: 20, max: 200)',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Page token from a previous response (nextPageToken) to fetch the next page',
     },
   },
 
@@ -36,6 +42,9 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
       }
       if (params.pageSize) {
         url.searchParams.append('page_size', params.pageSize.toString())
+      }
+      if (params.pageToken) {
+        url.searchParams.append('page_token', params.pageToken)
       }
       return url.toString()
     },
@@ -53,18 +62,33 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
 
     const data = (await response.json()) as {
       result?: SendGridTemplate[]
-      templates?: SendGridTemplate[]
+      _metadata?: { next?: string }
+    }
+
+    let nextPageToken: string | null = null
+    if (data._metadata?.next) {
+      try {
+        nextPageToken = new URL(data._metadata.next).searchParams.get('page_token')
+      } catch {
+        nextPageToken = null
+      }
     }
 
     return {
       success: true,
       output: {
-        templates: data.result || data.templates || [],
+        templates: data.result || [],
+        nextPageToken,
       },
     }
   },
 
   outputs: {
     templates: { type: 'json', description: 'Array of templates' },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token to pass as pageToken to fetch the next page, if more results exist',
+      optional: true,
+    },
   },
 }

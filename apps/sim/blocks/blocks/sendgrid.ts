@@ -1,6 +1,6 @@
 import { SendgridIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SendMailResult } from '@/tools/sendgrid/types'
 
@@ -13,6 +13,7 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
   docsLink: 'https://docs.sim.ai/integrations/sendgrid',
   category: 'tools',
   integrationType: IntegrationType.Email,
+  authMode: AuthMode.ApiKey,
   bgColor: '#1A82E2',
   icon: SendgridIcon,
 
@@ -387,6 +388,14 @@ Return ONLY the JSON array.`,
       condition: { field: 'operation', value: 'list_all_lists' },
       mode: 'advanced',
     },
+    {
+      id: 'listPageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Page token from a previous response',
+      condition: { field: 'operation', value: 'list_all_lists' },
+      mode: 'advanced',
+    },
     // Template fields
     {
       id: 'templateName',
@@ -431,6 +440,14 @@ Return ONLY the JSON array.`,
       title: 'Page Size',
       type: 'short-input',
       placeholder: '20',
+      condition: { field: 'operation', value: 'list_templates' },
+      mode: 'advanced',
+    },
+    {
+      id: 'templatePageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Page token from a previous response',
       condition: { field: 'operation', value: 'list_templates' },
       mode: 'advanced',
     },
@@ -579,7 +596,10 @@ Return ONLY the HTML content.`,
           templateGenerations,
           listPageSize,
           templatePageSize,
+          listPageToken,
+          templatePageToken,
           attachments,
+          active,
           ...rest
         } = params
 
@@ -599,7 +619,10 @@ Return ONLY the HTML content.`,
           ...(templateGenerations && { generations: templateGenerations }),
           ...(listPageSize && { pageSize: listPageSize }),
           ...(templatePageSize && { pageSize: templatePageSize }),
+          ...(listPageToken && { pageToken: listPageToken }),
+          ...(templatePageToken && { pageToken: templatePageToken }),
           ...(normalizedAttachments && { attachments: normalizedAttachments }),
+          ...(active !== undefined && { active: active === 'true' ? 1 : 0 }),
         }
       },
     },
@@ -637,12 +660,14 @@ Return ONLY the HTML content.`,
     listName: { type: 'string', description: 'List name' },
     listId: { type: 'string', description: 'List ID' },
     listPageSize: { type: 'number', description: 'Page size for listing lists' },
+    listPageToken: { type: 'string', description: 'Page token for listing lists' },
     // Template inputs
     templateName: { type: 'string', description: 'Template name' },
     templateId: { type: 'string', description: 'Template ID' },
     generation: { type: 'string', description: 'Template generation' },
     templateGenerations: { type: 'string', description: 'Filter templates by generation' },
     templatePageSize: { type: 'number', description: 'Page size for listing templates' },
+    templatePageToken: { type: 'string', description: 'Page token for listing templates' },
     versionName: { type: 'string', description: 'Template version name' },
     templateSubject: { type: 'string', description: 'Template subject' },
     htmlContent: { type: 'string', description: 'HTML content' },
@@ -677,6 +702,10 @@ Return ONLY the HTML content.`,
     templates: { type: 'json', description: 'Array of templates' },
     generation: { type: 'string', description: 'Template generation' },
     versions: { type: 'json', description: 'Array of template versions' },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for the next page of results (list_all_lists, list_templates)',
+    },
     // Template version outputs
     templateId: { type: 'string', description: 'Template ID' },
     active: { type: 'boolean', description: 'Whether template version is active' },

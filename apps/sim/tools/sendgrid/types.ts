@@ -127,15 +127,6 @@ export interface AddContactParams extends SendGridBaseParams {
   listIds?: string // Comma-separated list IDs
 }
 
-interface UpdateContactParams extends SendGridBaseParams {
-  contactId?: string
-  email: string
-  firstName?: string
-  lastName?: string
-  customFields?: string // JSON string
-  listIds?: string // Comma-separated list IDs
-}
-
 export interface SearchContactsParams extends SendGridBaseParams {
   query: string
 }
@@ -151,14 +142,14 @@ export interface DeleteContactParams extends SendGridBaseParams {
 export interface ContactResult extends ToolResponse {
   output: {
     id?: string
-    jobId?: string
+    jobId?: string | null
     email: string
     firstName?: string
     lastName?: string
     createdAt?: string
     updatedAt?: string
     listIds?: string[]
-    customFields?: Record<string, unknown>
+    customFields?: Record<string, unknown> | null
     message?: string
   }
 }
@@ -166,7 +157,7 @@ export interface ContactResult extends ToolResponse {
 export interface ContactsResult extends ToolResponse {
   output: {
     contacts: SendGridContact[]
-    contactCount?: number
+    contactCount: number | null
   }
 }
 
@@ -179,17 +170,13 @@ export interface GetListParams extends SendGridBaseParams {
   listId: string
 }
 
-interface UpdateListParams extends SendGridBaseParams {
-  listId: string
-  name: string
-}
-
 export interface DeleteListParams extends SendGridBaseParams {
   listId: string
 }
 
 export interface ListAllListsParams extends SendGridBaseParams {
   pageSize?: number
+  pageToken?: string
 }
 
 export interface AddContactsToListParams extends SendGridBaseParams {
@@ -213,22 +200,18 @@ export interface ListResult extends ToolResponse {
 export interface ListsResult extends ToolResponse {
   output: {
     lists: SendGridList[]
+    nextPageToken: string | null
   }
 }
 
 // Template types
 export interface CreateTemplateParams extends SendGridBaseParams {
   name: string
-  generation: 'legacy' | 'dynamic'
+  generation?: 'legacy' | 'dynamic'
 }
 
 export interface GetTemplateParams extends SendGridBaseParams {
   templateId: string
-}
-
-interface UpdateTemplateParams extends SendGridBaseParams {
-  templateId: string
-  name: string
 }
 
 export interface DeleteTemplateParams extends SendGridBaseParams {
@@ -238,6 +221,7 @@ export interface DeleteTemplateParams extends SendGridBaseParams {
 export interface ListTemplatesParams extends SendGridBaseParams {
   generations?: string // 'legacy' or 'dynamic' or both
   pageSize?: number
+  pageToken?: string
 }
 
 export interface CreateTemplateVersionParams extends SendGridBaseParams {
@@ -262,6 +246,7 @@ export interface TemplateResult extends ToolResponse {
 export interface TemplatesResult extends ToolResponse {
   output: {
     templates: SendGridTemplate[]
+    nextPageToken: string | null
   }
 }
 
@@ -272,8 +257,8 @@ export interface TemplateVersionResult extends ToolResponse {
     name: string
     subject: string
     active: boolean
-    htmlContent?: string
-    plainContent?: string
-    updatedAt?: string
+    htmlContent: string | null
+    plainContent: string | null
+    updatedAt: string | null
   }
 }
