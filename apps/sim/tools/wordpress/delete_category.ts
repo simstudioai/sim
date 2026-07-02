@@ -60,14 +60,14 @@ export const deleteCategoryTool: ToolConfig<
       output: {
         deleted: data.deleted ?? true,
         category: {
-          id: data.id || data.previous?.id,
-          count: data.count || data.previous?.count,
+          id: data.id ?? data.previous?.id,
+          count: data.count ?? data.previous?.count,
           description: data.description || data.previous?.description,
           link: data.link || data.previous?.link,
           name: data.name || data.previous?.name,
           slug: data.slug || data.previous?.slug,
           taxonomy: data.taxonomy || data.previous?.taxonomy,
-          parent: data.parent || data.previous?.parent,
+          parent: data.parent ?? data.previous?.parent,
         },
       },
     }
