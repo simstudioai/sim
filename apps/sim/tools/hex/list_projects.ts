@@ -104,7 +104,7 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       if (params.statusFilter) searchParams.append('statuses[]', params.statusFilter)
       if (params.creatorEmail) searchParams.set('creatorEmail', params.creatorEmail)
       if (params.ownerEmail) searchParams.set('ownerEmail', params.ownerEmail)
-      if (params.collectionId) searchParams.set('collectionId', params.collectionId)
+      if (params.collectionId) searchParams.set('collectionId', params.collectionId.trim())
       if (params.categories) {
         let categories: string[]
         try {

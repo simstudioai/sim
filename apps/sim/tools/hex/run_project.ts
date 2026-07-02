@@ -93,7 +93,7 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
         body.updatePublishedResults = params.updatePublishedResults
       if (params.useCachedSqlResults !== undefined)
         body.useCachedSqlResults = params.useCachedSqlResults
-      if (params.viewId) body.viewId = params.viewId
+      if (params.viewId) body.viewId = params.viewId.trim()
       if (params.notifications) {
         try {
           body.notifications =

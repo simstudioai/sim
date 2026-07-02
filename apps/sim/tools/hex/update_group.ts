@@ -64,10 +64,12 @@ export const updateGroupTool: ToolConfig<HexUpdateGroupParams, HexUpdateGroupRes
       if (params.addUserIds || params.removeUserIds) {
         const members: Record<string, unknown> = {}
         if (params.addUserIds) {
-          members.add = { users: parseIds(params.addUserIds).map((id) => ({ id })) }
+          members.add = { users: parseIds(params.addUserIds).map((id) => ({ id: id.trim() })) }
         }
         if (params.removeUserIds) {
-          members.remove = { users: parseIds(params.removeUserIds).map((id) => ({ id })) }
+          members.remove = {
+            users: parseIds(params.removeUserIds).map((id) => ({ id: id.trim() })),
+          }
         }
         body.members = members
       }
