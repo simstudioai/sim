@@ -71,12 +71,19 @@ export const vercelUpdateEnvVarTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
     url: (params: VercelUpdateEnvVarParams) => {
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v9/projects/${params.projectId.trim()}/env/${params.envId.trim()}${qs ? `?${qs}` : ''}`
     },

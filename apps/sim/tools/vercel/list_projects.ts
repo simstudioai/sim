@@ -29,11 +29,24 @@ export const vercelListProjectsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of projects to return',
     },
+    from: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Continuation token for pagination, taken from the previous response's pagination.next value. Query only projects updated after this timestamp or continuation token.",
+    },
     teamId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
+    },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
     },
   },
 
@@ -42,7 +55,9 @@ export const vercelListProjectsTool: ToolConfig<
       const query = new URLSearchParams()
       if (params.search) query.set('search', params.search)
       if (params.limit) query.set('limit', String(params.limit))
+      if (params.from) query.set('from', params.from.trim())
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v10/projects${qs ? `?${qs}` : ''}`
     },
@@ -69,6 +84,7 @@ export const vercelListProjectsTool: ToolConfig<
         projects,
         count: projects.length,
         hasMore: data.pagination?.next != null,
+        nextFrom: data.pagination?.next ?? null,
       },
     }
   },
@@ -95,6 +111,11 @@ export const vercelListProjectsTool: ToolConfig<
     hasMore: {
       type: 'boolean',
       description: 'Whether more projects are available',
+    },
+    nextFrom: {
+      type: 'string',
+      description: 'Continuation token to pass as `from` to fetch the next page',
+      optional: true,
     },
   },
 }

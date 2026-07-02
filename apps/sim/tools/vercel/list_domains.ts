@@ -65,6 +65,10 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
               email: d.creator.email ?? null,
             }
           : null,
+        customNameservers: d.customNameservers ?? [],
+        userId: d.userId ?? null,
+        teamId: d.teamId ?? null,
+        transferStartedAt: d.transferStartedAt ?? null,
       }))
 
       return {
@@ -116,6 +120,18 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
                 username: { type: 'string', description: 'Creator username' },
                 email: { type: 'string', description: 'Creator email' },
               },
+            },
+            customNameservers: {
+              type: 'array',
+              description: 'Custom nameservers',
+              items: { type: 'string' },
+            },
+            userId: { type: 'string', description: 'Owner user ID', optional: true },
+            teamId: { type: 'string', description: 'Owner team ID', optional: true },
+            transferStartedAt: {
+              type: 'number',
+              description: 'Transfer start timestamp',
+              optional: true,
             },
           },
         },

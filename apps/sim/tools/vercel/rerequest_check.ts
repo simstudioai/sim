@@ -35,12 +35,26 @@ export const vercelRerequestCheckTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
+    autoUpdate: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to mark the check as running immediately on rerequest',
+    },
   },
 
   request: {
     url: (params: VercelRerequestCheckParams) => {
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
+      if (params.autoUpdate !== undefined) query.set('autoUpdate', String(params.autoUpdate))
       const qs = query.toString()
       return `https://api.vercel.com/v1/deployments/${params.deploymentId.trim()}/checks/${params.checkId.trim()}/rerequest${qs ? `?${qs}` : ''}`
     },

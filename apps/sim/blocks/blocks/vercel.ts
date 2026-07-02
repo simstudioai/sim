@@ -103,7 +103,7 @@ export const VercelBlock: BlockConfig = {
     },
 
     {
-      id: 'projectId',
+      id: 'deploymentsProjectId',
       title: 'Project ID',
       type: 'short-input',
       placeholder: 'Filter by project ID or name (optional)',
@@ -138,6 +138,38 @@ export const VercelBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'deploymentsApp',
+      title: 'App Name',
+      type: 'short-input',
+      placeholder: 'Filter by deployment name (optional)',
+      condition: { field: 'operation', value: 'list_deployments' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deploymentsSince',
+      title: 'Since',
+      type: 'short-input',
+      placeholder: 'Only deployments created after this timestamp, in ms (optional)',
+      condition: { field: 'operation', value: 'list_deployments' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deploymentsUntil',
+      title: 'Until',
+      type: 'short-input',
+      placeholder: 'Only deployments created before this timestamp, in ms (optional)',
+      condition: { field: 'operation', value: 'list_deployments' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deploymentsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Maximum number of deployments to return (optional)',
+      condition: { field: 'operation', value: 'list_deployments' },
+      mode: 'advanced',
+    },
+    {
       id: 'deploymentId',
       title: 'Deployment ID',
       type: 'short-input',
@@ -164,6 +196,64 @@ export const VercelBlock: BlockConfig = {
           'promote_deployment',
         ],
       },
+    },
+    {
+      id: 'withGitRepoInfo',
+      title: 'Include Git Repo Info',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      condition: { field: 'operation', value: 'get_deployment' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsDirection',
+      title: 'Direction',
+      type: 'dropdown',
+      options: [
+        { label: 'Forward (default)', id: '' },
+        { label: 'Forward', id: 'forward' },
+        { label: 'Backward', id: 'backward' },
+      ],
+      condition: { field: 'operation', value: 'get_deployment_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsFollow',
+      title: 'Follow Live Events',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: '' },
+        { label: 'Yes', id: '1' },
+      ],
+      condition: { field: 'operation', value: 'get_deployment_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Maximum number of events to return, -1 for all (optional)',
+      condition: { field: 'operation', value: 'get_deployment_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsSince',
+      title: 'Since',
+      type: 'short-input',
+      placeholder: 'Timestamp to start pulling build logs from (optional)',
+      condition: { field: 'operation', value: 'get_deployment_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsUntil',
+      title: 'Until',
+      type: 'short-input',
+      placeholder: 'Timestamp to stop pulling build logs at (optional)',
+      condition: { field: 'operation', value: 'get_deployment_events' },
+      mode: 'advanced',
     },
     {
       id: 'name',
@@ -201,12 +291,39 @@ export const VercelBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_deployment' },
       mode: 'advanced',
     },
+    {
+      id: 'deploymentGitSource',
+      title: 'Git Source',
+      type: 'code',
+      placeholder: '{"type":"github","repo":"owner/repo","ref":"main"}',
+      condition: { field: 'operation', value: 'create_deployment' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deploymentForceNew',
+      title: 'Force New Deployment',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: '' },
+        { label: 'Yes', id: '1' },
+      ],
+      condition: { field: 'operation', value: 'create_deployment' },
+      mode: 'advanced',
+    },
 
     {
       id: 'search',
       title: 'Search',
       type: 'short-input',
       placeholder: 'Search projects by name (optional)',
+      condition: { field: 'operation', value: 'list_projects' },
+      mode: 'advanced',
+    },
+    {
+      id: 'projectsFrom',
+      title: 'From',
+      type: 'short-input',
+      placeholder: "Continuation token from the previous response's nextFrom output (optional)",
       condition: { field: 'operation', value: 'list_projects' },
       mode: 'advanced',
     },
@@ -308,6 +425,14 @@ export const VercelBlock: BlockConfig = {
     },
 
     {
+      id: 'projectDomainsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Maximum number of domains to return (optional)',
+      condition: { field: 'operation', value: 'list_project_domains' },
+      mode: 'advanced',
+    },
+    {
       id: 'domainName',
       title: 'Domain',
       type: 'short-input',
@@ -351,7 +476,7 @@ export const VercelBlock: BlockConfig = {
       title: 'Redirect To',
       type: 'short-input',
       placeholder: 'Target domain to redirect to (optional)',
-      condition: { field: 'operation', value: 'update_project_domain' },
+      condition: { field: 'operation', value: ['update_project_domain', 'add_project_domain'] },
       mode: 'advanced',
     },
     {
@@ -365,7 +490,7 @@ export const VercelBlock: BlockConfig = {
         { label: '307 (Temporary)', id: '307' },
         { label: '308 (Permanent)', id: '308' },
       ],
-      condition: { field: 'operation', value: 'update_project_domain' },
+      condition: { field: 'operation', value: ['update_project_domain', 'add_project_domain'] },
       mode: 'advanced',
     },
     {
@@ -373,7 +498,15 @@ export const VercelBlock: BlockConfig = {
       title: 'Git Branch',
       type: 'short-input',
       placeholder: 'Git branch to link the domain to (optional)',
-      condition: { field: 'operation', value: 'update_project_domain' },
+      condition: { field: 'operation', value: ['update_project_domain', 'add_project_domain'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'dnsRecordsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Maximum number of records to return (optional)',
+      condition: { field: 'operation', value: 'list_dns_records' },
       mode: 'advanced',
     },
 
@@ -422,6 +555,41 @@ export const VercelBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_env_var', 'update_env_var'] },
       mode: 'advanced',
     },
+    {
+      id: 'envGitBranch',
+      title: 'Git Branch',
+      type: 'short-input',
+      placeholder: 'Git branch to associate with the variable (requires preview target)',
+      condition: { field: 'operation', value: ['create_env_var', 'update_env_var'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'envComment',
+      title: 'Comment',
+      type: 'short-input',
+      placeholder: 'Context for this variable (max 500 chars)',
+      condition: { field: 'operation', value: ['create_env_var', 'update_env_var'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'envVarsDecrypt',
+      title: 'Decrypt Values',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      condition: { field: 'operation', value: 'get_env_vars' },
+      mode: 'advanced',
+    },
+    {
+      id: 'envVarsGitBranch',
+      title: 'Git Branch',
+      type: 'short-input',
+      placeholder: 'Filter by git branch (requires preview target)',
+      condition: { field: 'operation', value: 'get_env_vars' },
+      mode: 'advanced',
+    },
 
     {
       id: 'recordName',
@@ -445,6 +613,7 @@ export const VercelBlock: BlockConfig = {
         { label: 'ALIAS', id: 'ALIAS' },
         { label: 'SRV', id: 'SRV' },
         { label: 'CAA', id: 'CAA' },
+        { label: 'HTTPS', id: 'HTTPS' },
       ],
       condition: { field: 'operation', value: 'create_dns_record' },
       required: { field: 'operation', value: 'create_dns_record' },
@@ -454,8 +623,132 @@ export const VercelBlock: BlockConfig = {
       title: 'Value',
       type: 'short-input',
       placeholder: 'Record value (e.g., IP address)',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: ['SRV', 'HTTPS'], not: true },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: ['SRV', 'HTTPS'], not: true },
+      },
+    },
+    {
+      id: 'srvTarget',
+      title: 'SRV Target',
+      type: 'short-input',
+      placeholder: 'Target hostname for the SRV record',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'SRV' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'SRV' },
+      },
+    },
+    {
+      id: 'srvWeight',
+      title: 'SRV Weight',
+      type: 'short-input',
+      placeholder: 'Weight for the SRV record',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'SRV' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'SRV' },
+      },
+    },
+    {
+      id: 'srvPort',
+      title: 'SRV Port',
+      type: 'short-input',
+      placeholder: 'Port for the SRV record',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'SRV' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'SRV' },
+      },
+    },
+    {
+      id: 'srvPriority',
+      title: 'SRV Priority',
+      type: 'short-input',
+      placeholder: 'Priority for the SRV record',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'SRV' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'SRV' },
+      },
+    },
+    {
+      id: 'httpsTarget',
+      title: 'HTTPS Target',
+      type: 'short-input',
+      placeholder: 'Target hostname for the HTTPS record',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'HTTPS' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'HTTPS' },
+      },
+    },
+    {
+      id: 'httpsPriority',
+      title: 'HTTPS Priority',
+      type: 'short-input',
+      placeholder: 'Priority for the HTTPS record',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'HTTPS' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'HTTPS' },
+      },
+    },
+    {
+      id: 'httpsParams',
+      title: 'HTTPS Params',
+      type: 'short-input',
+      placeholder: 'Optional service parameters (e.g., "alpn=h2,h3")',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'HTTPS' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'recordComment',
+      title: 'Comment',
+      type: 'short-input',
+      placeholder: 'Context for this DNS record (max 500 chars)',
       condition: { field: 'operation', value: 'create_dns_record' },
-      required: { field: 'operation', value: 'create_dns_record' },
+      mode: 'advanced',
     },
     {
       id: 'recordId',
@@ -496,7 +789,11 @@ export const VercelBlock: BlockConfig = {
       title: 'Value',
       type: 'short-input',
       placeholder: 'New record value — leave blank to keep',
-      condition: { field: 'operation', value: 'update_dns_record' },
+      condition: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: ['SRV', 'HTTPS'], not: true },
+      },
     },
     {
       id: 'updateRecordTtl',
@@ -512,6 +809,114 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Priority for MX records',
       condition: { field: 'operation', value: 'update_dns_record' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateSrvTarget',
+      title: 'SRV Target',
+      type: 'short-input',
+      placeholder: 'Target hostname for the SRV record',
+      condition: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'SRV' },
+      },
+      required: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'SRV' },
+      },
+    },
+    {
+      id: 'updateSrvWeight',
+      title: 'SRV Weight',
+      type: 'short-input',
+      placeholder: 'Weight for the SRV record',
+      condition: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'SRV' },
+      },
+      required: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'SRV' },
+      },
+    },
+    {
+      id: 'updateSrvPort',
+      title: 'SRV Port',
+      type: 'short-input',
+      placeholder: 'Port for the SRV record',
+      condition: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'SRV' },
+      },
+      required: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'SRV' },
+      },
+    },
+    {
+      id: 'updateSrvPriority',
+      title: 'SRV Priority',
+      type: 'short-input',
+      placeholder: 'Priority for the SRV record',
+      condition: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'SRV' },
+      },
+      required: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'SRV' },
+      },
+    },
+    {
+      id: 'updateHttpsTarget',
+      title: 'HTTPS Target',
+      type: 'short-input',
+      placeholder: 'Target hostname for the HTTPS record',
+      condition: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'HTTPS' },
+      },
+      required: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'HTTPS' },
+      },
+    },
+    {
+      id: 'updateHttpsPriority',
+      title: 'HTTPS Priority',
+      type: 'short-input',
+      placeholder: 'Priority for the HTTPS record',
+      condition: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'HTTPS' },
+      },
+      required: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'HTTPS' },
+      },
+    },
+    {
+      id: 'updateHttpsParams',
+      title: 'HTTPS Params',
+      type: 'short-input',
+      placeholder: 'Optional service parameters (e.g., "alpn=h2,h3")',
+      condition: {
+        field: 'operation',
+        value: 'update_dns_record',
+        and: { field: 'updateRecordType', value: 'HTTPS' },
+      },
       mode: 'advanced',
     },
     {
@@ -546,6 +951,14 @@ export const VercelBlock: BlockConfig = {
       placeholder: 'Domain or subdomain to assign (e.g., my-app.vercel.app)',
       condition: { field: 'operation', value: 'create_alias' },
       required: { field: 'operation', value: 'create_alias' },
+    },
+    {
+      id: 'aliasRedirect',
+      title: 'Redirect To',
+      type: 'short-input',
+      placeholder: 'Hostname to 307-redirect the alias to (optional)',
+      condition: { field: 'operation', value: 'create_alias' },
+      mode: 'advanced',
     },
 
     {
@@ -708,6 +1121,44 @@ export const VercelBlock: BlockConfig = {
       ],
       condition: { field: 'operation', value: 'update_check' },
     },
+    {
+      id: 'checkExternalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'External identifier for the check (optional)',
+      condition: { field: 'operation', value: ['create_check', 'update_check'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'checkRerequestable',
+      title: 'Rerequestable',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      condition: { field: 'operation', value: 'create_check' },
+      mode: 'advanced',
+    },
+    {
+      id: 'checkOutput',
+      title: 'Output',
+      type: 'code',
+      placeholder: '{"metrics":{"FCP":{"value":1200,"source":"web-vitals"}}}',
+      condition: { field: 'operation', value: 'update_check' },
+      mode: 'advanced',
+    },
+    {
+      id: 'checkAutoUpdate',
+      title: 'Auto Update',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      condition: { field: 'operation', value: 'rerequest_check' },
+      mode: 'advanced',
+    },
 
     {
       id: 'teamIdParam',
@@ -732,6 +1183,62 @@ export const VercelBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_team_members' },
       mode: 'advanced',
     },
+    {
+      id: 'teamMembersLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Maximum number of members to return (optional)',
+      condition: { field: 'operation', value: 'list_team_members' },
+      mode: 'advanced',
+    },
+    {
+      id: 'teamMembersSince',
+      title: 'Since',
+      type: 'short-input',
+      placeholder: 'Only members added since this timestamp, in ms (optional)',
+      condition: { field: 'operation', value: 'list_team_members' },
+      mode: 'advanced',
+    },
+    {
+      id: 'teamMembersUntil',
+      title: 'Until',
+      type: 'short-input',
+      placeholder: 'Only members added until this timestamp, in ms (optional)',
+      condition: { field: 'operation', value: 'list_team_members' },
+      mode: 'advanced',
+    },
+    {
+      id: 'teamMembersSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search members by name, username, or email (optional)',
+      condition: { field: 'operation', value: 'list_team_members' },
+      mode: 'advanced',
+    },
+    {
+      id: 'teamsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Maximum number of teams to return (optional)',
+      condition: { field: 'operation', value: 'list_teams' },
+      mode: 'advanced',
+    },
+    {
+      id: 'teamsSince',
+      title: 'Since',
+      type: 'short-input',
+      placeholder: 'Only teams created since this timestamp, in ms (optional)',
+      condition: { field: 'operation', value: 'list_teams' },
+      mode: 'advanced',
+    },
+    {
+      id: 'teamsUntil',
+      title: 'Until',
+      type: 'short-input',
+      placeholder: 'Only teams created until this timestamp, in ms (optional)',
+      condition: { field: 'operation', value: 'list_teams' },
+      mode: 'advanced',
+    },
 
     {
       id: 'teamId',
@@ -740,17 +1247,49 @@ export const VercelBlock: BlockConfig = {
       placeholder: 'Team ID to scope request (optional)',
       condition: {
         field: 'operation',
+        value: ['get_team', 'list_team_members', 'get_user', 'list_teams'],
+        not: true,
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'teamSlug',
+      title: 'Team Slug (Scope)',
+      type: 'short-input',
+      placeholder: 'Team slug to scope request, alternative to Team ID (optional)',
+      condition: {
+        field: 'operation',
         value: [
-          'get_team',
-          'list_team_members',
-          'get_user',
+          'add_project_domain',
+          'create_env_var',
+          'create_project',
+          'delete_env_var',
+          'delete_project',
+          'get_env_vars',
+          'get_project',
+          'list_project_domains',
+          'list_projects',
+          'pause_project',
+          'remove_project_domain',
+          'unpause_project',
+          'update_env_var',
+          'update_project_domain',
+          'update_project',
+          'verify_project_domain',
+          'create_deployment',
+          'get_deployment',
+          'list_deployments',
+          'cancel_deployment',
+          'delete_deployment',
+          'promote_deployment',
+          'get_deployment_events',
+          'list_deployment_files',
           'create_check',
           'get_check',
           'list_checks',
           'update_check',
           'rerequest_check',
         ],
-        not: true,
       },
       mode: 'advanced',
     },
@@ -829,23 +1368,59 @@ export const VercelBlock: BlockConfig = {
         const {
           apiKey,
           operation,
+          deploymentsProjectId,
+          deploymentsApp,
+          deploymentsSince,
+          deploymentsUntil,
+          deploymentsLimit,
           redeployId,
           deployTarget,
+          deploymentGitSource,
+          deploymentForceNew,
+          withGitRepoInfo,
+          eventsDirection,
+          eventsFollow,
+          eventsLimit,
+          eventsSince,
+          eventsUntil,
           projectName,
           domainName,
+          dnsRecordsLimit,
+          projectDomainsLimit,
           envKey,
           envValue,
           envTarget,
           envType,
+          envGitBranch,
+          envComment,
+          envVarsDecrypt,
+          envVarsGitBranch,
+          projectsFrom,
+          teamSlug,
           recordName,
           recordType,
           recordValue,
           recordId,
+          srvTarget,
+          srvWeight,
+          srvPort,
+          srvPriority,
+          httpsTarget,
+          httpsPriority,
+          httpsParams,
+          recordComment,
           updateRecordName,
           updateRecordType,
           updateRecordValue,
           updateRecordTtl,
           updateRecordMxPriority,
+          updateSrvTarget,
+          updateSrvWeight,
+          updateSrvPort,
+          updateSrvPriority,
+          updateHttpsTarget,
+          updateHttpsPriority,
+          updateHttpsParams,
           updateRecordComment,
           updateDomainRedirect,
           updateDomainRedirectStatusCode,
@@ -853,6 +1428,7 @@ export const VercelBlock: BlockConfig = {
           aliasId,
           aliasDeploymentId,
           aliasName,
+          aliasRedirect,
           edgeConfigId,
           edgeConfigSlug,
           edgeConfigItems,
@@ -868,25 +1444,69 @@ export const VercelBlock: BlockConfig = {
           checkDetailsUrl,
           checkStatus,
           checkConclusion,
+          checkExternalId,
+          checkRerequestable,
+          checkOutput,
+          checkAutoUpdate,
           teamIdParam,
           memberRole,
+          teamMembersLimit,
+          teamMembersSince,
+          teamMembersUntil,
+          teamMembersSearch,
+          teamsLimit,
+          teamsSince,
+          teamsUntil,
           ...rest
         } = params
 
-        const base = { ...rest, apiKey }
+        const base = { ...rest, apiKey, ...(teamSlug ? { slug: teamSlug } : {}) }
 
         switch (operation) {
+          case 'list_deployments':
+            return {
+              ...base,
+              ...(deploymentsProjectId ? { projectId: deploymentsProjectId } : {}),
+              ...(deploymentsApp ? { app: deploymentsApp } : {}),
+              ...(deploymentsSince ? { since: Number(deploymentsSince) } : {}),
+              ...(deploymentsUntil ? { until: Number(deploymentsUntil) } : {}),
+              ...(deploymentsLimit ? { limit: Number(deploymentsLimit) } : {}),
+            }
+          case 'get_deployment':
+            return { ...base, ...(withGitRepoInfo ? { withGitRepoInfo } : {}) }
+          case 'get_deployment_events':
+            return {
+              ...base,
+              ...(eventsDirection ? { direction: eventsDirection } : {}),
+              ...(eventsFollow ? { follow: Number(eventsFollow) } : {}),
+              ...(eventsLimit ? { limit: Number(eventsLimit) } : {}),
+              ...(eventsSince ? { since: Number(eventsSince) } : {}),
+              ...(eventsUntil ? { until: Number(eventsUntil) } : {}),
+            }
           case 'create_deployment':
             return {
               ...base,
               ...(redeployId ? { deploymentId: redeployId } : {}),
               ...(deployTarget ? { target: deployTarget } : {}),
+              ...(deploymentGitSource ? { gitSource: deploymentGitSource } : {}),
+              ...(deploymentForceNew ? { forceNew: deploymentForceNew } : {}),
             }
           case 'create_project':
             return { ...base, name: projectName }
           case 'update_project':
             return base
+          case 'list_projects':
+            return { ...base, ...(projectsFrom ? { from: projectsFrom } : {}) }
           case 'add_project_domain':
+            return {
+              ...base,
+              domain: domainName,
+              ...(updateDomainRedirect ? { redirect: updateDomainRedirect } : {}),
+              ...(updateDomainRedirectStatusCode
+                ? { redirectStatusCode: Number(updateDomainRedirectStatusCode) }
+                : {}),
+              ...(updateDomainGitBranch ? { gitBranch: updateDomainGitBranch } : {}),
+            }
           case 'remove_project_domain':
           case 'verify_project_domain':
             return { ...base, domain: domainName }
@@ -896,7 +1516,7 @@ export const VercelBlock: BlockConfig = {
               domain: domainName,
               ...(updateDomainRedirect ? { redirect: updateDomainRedirect } : {}),
               ...(updateDomainRedirectStatusCode
-                ? { redirectStatusCode: updateDomainRedirectStatusCode }
+                ? { redirectStatusCode: Number(updateDomainRedirectStatusCode) }
                 : {}),
               ...(updateDomainGitBranch ? { gitBranch: updateDomainGitBranch } : {}),
             }
@@ -907,9 +1527,32 @@ export const VercelBlock: BlockConfig = {
           case 'add_domain':
             return { ...base, name: domainName }
           case 'list_dns_records':
-            return { ...base, domain: domainName }
+            return {
+              ...base,
+              domain: domainName,
+              ...(dnsRecordsLimit ? { limit: Number(dnsRecordsLimit) } : {}),
+            }
+          case 'list_project_domains':
+            return {
+              ...base,
+              ...(projectDomainsLimit ? { limit: Number(projectDomainsLimit) } : {}),
+            }
           case 'create_dns_record':
-            return { ...base, domain: domainName, recordName, recordType, value: recordValue }
+            return {
+              ...base,
+              domain: domainName,
+              recordName,
+              recordType,
+              ...(recordValue ? { value: recordValue } : {}),
+              ...(srvTarget ? { srvTarget } : {}),
+              ...(srvWeight ? { srvWeight: Number(srvWeight) } : {}),
+              ...(srvPort ? { srvPort: Number(srvPort) } : {}),
+              ...(srvPriority ? { srvPriority: Number(srvPriority) } : {}),
+              ...(httpsTarget ? { httpsTarget } : {}),
+              ...(httpsPriority ? { httpsPriority: Number(httpsPriority) } : {}),
+              ...(httpsParams ? { httpsParams } : {}),
+              ...(recordComment ? { comment: recordComment } : {}),
+            }
           case 'delete_dns_record':
             return { ...base, domain: domainName, recordId }
           case 'update_dns_record':
@@ -921,10 +1564,31 @@ export const VercelBlock: BlockConfig = {
               ...(updateRecordValue ? { value: updateRecordValue } : {}),
               ...(updateRecordTtl ? { ttl: updateRecordTtl } : {}),
               ...(updateRecordMxPriority ? { mxPriority: updateRecordMxPriority } : {}),
+              ...(updateSrvTarget ? { srvTarget: updateSrvTarget } : {}),
+              ...(updateSrvWeight ? { srvWeight: Number(updateSrvWeight) } : {}),
+              ...(updateSrvPort ? { srvPort: Number(updateSrvPort) } : {}),
+              ...(updateSrvPriority ? { srvPriority: Number(updateSrvPriority) } : {}),
+              ...(updateHttpsTarget ? { httpsTarget: updateHttpsTarget } : {}),
+              ...(updateHttpsPriority ? { httpsPriority: Number(updateHttpsPriority) } : {}),
+              ...(updateHttpsParams ? { httpsParams: updateHttpsParams } : {}),
               ...(updateRecordComment ? { comment: updateRecordComment } : {}),
             }
+          case 'get_env_vars':
+            return {
+              ...base,
+              ...(envVarsDecrypt ? { decrypt: envVarsDecrypt === 'true' } : {}),
+              ...(envVarsGitBranch ? { gitBranch: envVarsGitBranch } : {}),
+            }
           case 'create_env_var':
-            return { ...base, key: envKey, value: envValue, target: envTarget, type: envType }
+            return {
+              ...base,
+              key: envKey,
+              value: envValue,
+              target: envTarget,
+              type: envType,
+              ...(envGitBranch ? { gitBranch: envGitBranch } : {}),
+              ...(envComment ? { comment: envComment } : {}),
+            }
           case 'update_env_var':
             return {
               ...base,
@@ -932,12 +1596,19 @@ export const VercelBlock: BlockConfig = {
               ...(envValue ? { value: envValue } : {}),
               ...(envTarget ? { target: envTarget } : {}),
               ...(envType ? { type: envType } : {}),
+              ...(envGitBranch ? { gitBranch: envGitBranch } : {}),
+              ...(envComment ? { comment: envComment } : {}),
             }
           case 'get_alias':
           case 'delete_alias':
             return { ...base, aliasId }
           case 'create_alias':
-            return { ...base, deploymentId: aliasDeploymentId, alias: aliasName }
+            return {
+              ...base,
+              deploymentId: aliasDeploymentId,
+              alias: aliasName,
+              ...(aliasRedirect ? { redirect: aliasRedirect } : {}),
+            }
           case 'get_edge_config':
           case 'get_edge_config_items':
           case 'delete_edge_config':
@@ -964,10 +1635,18 @@ export const VercelBlock: BlockConfig = {
               blocking: checkBlocking === 'true',
               ...(checkPath ? { path: checkPath } : {}),
               ...(checkDetailsUrl ? { detailsUrl: checkDetailsUrl } : {}),
+              ...(checkExternalId ? { externalId: checkExternalId } : {}),
+              ...(checkRerequestable ? { rerequestable: checkRerequestable === 'true' } : {}),
             }
           case 'get_check':
-          case 'rerequest_check':
             return { ...base, deploymentId: checkDeploymentId, checkId }
+          case 'rerequest_check':
+            return {
+              ...base,
+              deploymentId: checkDeploymentId,
+              checkId,
+              ...(checkAutoUpdate ? { autoUpdate: checkAutoUpdate === 'true' } : {}),
+            }
           case 'list_checks':
             return { ...base, deploymentId: checkDeploymentId }
           case 'update_check':
@@ -980,11 +1659,28 @@ export const VercelBlock: BlockConfig = {
               ...(checkConclusion ? { conclusion: checkConclusion } : {}),
               ...(checkPath ? { path: checkPath } : {}),
               ...(checkDetailsUrl ? { detailsUrl: checkDetailsUrl } : {}),
+              ...(checkExternalId ? { externalId: checkExternalId } : {}),
+              ...(checkOutput ? { output: checkOutput } : {}),
             }
           case 'get_team':
             return { ...base, teamId: teamIdParam }
           case 'list_team_members':
-            return { ...base, teamId: teamIdParam, ...(memberRole ? { role: memberRole } : {}) }
+            return {
+              ...base,
+              teamId: teamIdParam,
+              ...(memberRole ? { role: memberRole } : {}),
+              ...(teamMembersLimit ? { limit: Number(teamMembersLimit) } : {}),
+              ...(teamMembersSince ? { since: Number(teamMembersSince) } : {}),
+              ...(teamMembersUntil ? { until: Number(teamMembersUntil) } : {}),
+              ...(teamMembersSearch ? { search: teamMembersSearch } : {}),
+            }
+          case 'list_teams':
+            return {
+              ...base,
+              ...(teamsLimit ? { limit: Number(teamsLimit) } : {}),
+              ...(teamsSince ? { since: Number(teamsSince) } : {}),
+              ...(teamsUntil ? { until: Number(teamsUntil) } : {}),
+            }
           default:
             return base
         }
@@ -995,6 +1691,10 @@ export const VercelBlock: BlockConfig = {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Vercel access token' },
     projectId: { type: 'string', description: 'Project ID or name' },
+    deploymentsProjectId: {
+      type: 'string',
+      description: 'Filter deployments by project ID or name',
+    },
     deploymentId: { type: 'string', description: 'Deployment ID or hostname' },
     name: { type: 'string', description: 'Project name' },
     projectName: { type: 'string', description: 'New project name' },
@@ -1002,27 +1702,67 @@ export const VercelBlock: BlockConfig = {
     redeployId: { type: 'string', description: 'Deployment ID to redeploy' },
     target: { type: 'string', description: 'Target environment filter' },
     deployTarget: { type: 'string', description: 'Deployment target environment' },
+    deploymentGitSource: { type: 'string', description: 'JSON git source for the deployment' },
+    deploymentForceNew: { type: 'string', description: 'Whether to force a new deployment' },
+    withGitRepoInfo: { type: 'string', description: 'Whether to include git repo info' },
+    eventsDirection: { type: 'string', description: 'Order of deployment events' },
+    eventsFollow: { type: 'string', description: 'Whether to follow live deployment events' },
+    eventsLimit: { type: 'string', description: 'Maximum number of deployment events to return' },
+    eventsSince: { type: 'string', description: 'Only events after this timestamp' },
+    eventsUntil: { type: 'string', description: 'Only events before this timestamp' },
     state: { type: 'string', description: 'Deployment state filter' },
     search: { type: 'string', description: 'Project search query' },
+    projectsFrom: { type: 'string', description: 'Pagination continuation token' },
+    deploymentsApp: { type: 'string', description: 'Filter deployments by deployment name' },
+    deploymentsSince: { type: 'string', description: 'Only deployments after this timestamp' },
+    deploymentsUntil: { type: 'string', description: 'Only deployments before this timestamp' },
+    deploymentsLimit: { type: 'string', description: 'Maximum number of deployments to return' },
     framework: { type: 'string', description: 'Project framework' },
     buildCommand: { type: 'string', description: 'Build command' },
     outputDirectory: { type: 'string', description: 'Output directory' },
     installCommand: { type: 'string', description: 'Install command' },
     domainName: { type: 'string', description: 'Domain name' },
+    dnsRecordsLimit: { type: 'string', description: 'Maximum number of DNS records to return' },
+    projectDomainsLimit: {
+      type: 'string',
+      description: 'Maximum number of project domains to return',
+    },
     envId: { type: 'string', description: 'Environment variable ID' },
     envKey: { type: 'string', description: 'Environment variable key' },
     envValue: { type: 'string', description: 'Environment variable value' },
     envTarget: { type: 'string', description: 'Target environments' },
     envType: { type: 'string', description: 'Variable type' },
+    envGitBranch: { type: 'string', description: 'Git branch for the environment variable' },
+    envComment: { type: 'string', description: 'Comment for the environment variable' },
+    envVarsDecrypt: { type: 'string', description: 'Whether to return decrypted values' },
+    envVarsGitBranch: { type: 'string', description: 'Filter environment variables by git branch' },
     recordName: { type: 'string', description: 'DNS record name' },
     recordType: { type: 'string', description: 'DNS record type' },
     recordValue: { type: 'string', description: 'DNS record value' },
     recordId: { type: 'string', description: 'DNS record ID' },
+    srvTarget: { type: 'string', description: 'Target hostname for SRV records' },
+    srvWeight: { type: 'string', description: 'Weight for SRV records' },
+    srvPort: { type: 'string', description: 'Port for SRV records' },
+    srvPriority: { type: 'string', description: 'Priority for SRV records' },
+    httpsTarget: { type: 'string', description: 'Target hostname for HTTPS records' },
+    httpsPriority: { type: 'string', description: 'Priority for HTTPS records' },
+    httpsParams: { type: 'string', description: 'Optional service parameters for HTTPS records' },
+    recordComment: { type: 'string', description: 'Comment for the new DNS record' },
     updateRecordName: { type: 'string', description: 'Updated DNS record name' },
     updateRecordType: { type: 'string', description: 'Updated DNS record type' },
     updateRecordValue: { type: 'string', description: 'Updated DNS record value' },
     updateRecordTtl: { type: 'string', description: 'Updated DNS record TTL' },
     updateRecordMxPriority: { type: 'string', description: 'Updated MX record priority' },
+    updateSrvTarget: { type: 'string', description: 'Updated target hostname for SRV records' },
+    updateSrvWeight: { type: 'string', description: 'Updated weight for SRV records' },
+    updateSrvPort: { type: 'string', description: 'Updated port for SRV records' },
+    updateSrvPriority: { type: 'string', description: 'Updated priority for SRV records' },
+    updateHttpsTarget: { type: 'string', description: 'Updated target hostname for HTTPS records' },
+    updateHttpsPriority: { type: 'string', description: 'Updated priority for HTTPS records' },
+    updateHttpsParams: {
+      type: 'string',
+      description: 'Updated service parameters for HTTPS records',
+    },
     updateRecordComment: { type: 'string', description: 'Updated DNS record comment' },
     updateDomainRedirect: { type: 'string', description: 'Project domain redirect target' },
     updateDomainRedirectStatusCode: {
@@ -1033,12 +1773,24 @@ export const VercelBlock: BlockConfig = {
     aliasId: { type: 'string', description: 'Alias ID' },
     aliasDeploymentId: { type: 'string', description: 'Deployment ID for alias' },
     aliasName: { type: 'string', description: 'Alias domain' },
+    aliasRedirect: { type: 'string', description: 'Hostname to 307-redirect the alias to' },
     edgeConfigId: { type: 'string', description: 'Edge Config ID' },
     edgeConfigSlug: { type: 'string', description: 'Edge Config slug' },
     edgeConfigItems: { type: 'string', description: 'Edge Config items JSON' },
     teamId: { type: 'string', description: 'Team ID for scoping' },
+    teamSlug: { type: 'string', description: 'Team slug for scoping (alternative to Team ID)' },
     teamIdParam: { type: 'string', description: 'Team ID parameter' },
     memberRole: { type: 'string', description: 'Team member role filter' },
+    teamMembersLimit: { type: 'string', description: 'Maximum number of team members to return' },
+    teamMembersSince: { type: 'string', description: 'Only members added since this timestamp' },
+    teamMembersUntil: { type: 'string', description: 'Only members added until this timestamp' },
+    teamMembersSearch: {
+      type: 'string',
+      description: 'Search team members by name, username, or email',
+    },
+    teamsLimit: { type: 'string', description: 'Maximum number of teams to return' },
+    teamsSince: { type: 'string', description: 'Only teams created since this timestamp' },
+    teamsUntil: { type: 'string', description: 'Only teams created until this timestamp' },
     webhookId: { type: 'string', description: 'Webhook ID' },
     webhookUrl: { type: 'string', description: 'Webhook URL' },
     webhookEvents: { type: 'string', description: 'Comma-separated event names' },
@@ -1051,6 +1803,13 @@ export const VercelBlock: BlockConfig = {
     checkDetailsUrl: { type: 'string', description: 'URL for check details' },
     checkStatus: { type: 'string', description: 'Check status' },
     checkConclusion: { type: 'string', description: 'Check conclusion' },
+    checkExternalId: { type: 'string', description: 'External identifier for the check' },
+    checkRerequestable: { type: 'string', description: 'Whether the check can be rerequested' },
+    checkOutput: { type: 'string', description: 'JSON check output metrics' },
+    checkAutoUpdate: {
+      type: 'string',
+      description: 'Whether to mark the check as running immediately on rerequest',
+    },
   },
   outputs: {
     deployments: {
@@ -1188,6 +1947,11 @@ export const VercelBlock: BlockConfig = {
     hasMore: {
       type: 'boolean',
       description: 'Whether more results are available',
+    },
+    nextFrom: {
+      type: 'string',
+      description: 'Continuation token to pass as From to fetch the next page of projects',
+      condition: { field: 'operation', value: 'list_projects' },
     },
   },
 }
