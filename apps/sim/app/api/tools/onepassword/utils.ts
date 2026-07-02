@@ -483,15 +483,19 @@ export function findItemFileAttributes(item: Item, fileId: string): FileAttribut
 /**
  * Best-effort SCIM `eq` filter matcher for Service Account mode, which has no
  * server-side filtering (unlike Connect, whose `filter` query param is forwarded
- * verbatim and evaluated by the Connect server). Recognizes `field eq "value"`
- * (quotes optional) as an exact, case-insensitive match; anything else falls back
- * to a case-insensitive substring match against the name/id so the field remains
- * useful for free-text search.
+ * verbatim and evaluated by the Connect server). Recognizes `attribute eq "value"`
+ * (quotes optional) as an exact, case-insensitive match against the named attribute
+ * — `id` compares against the id, anything else (name/title/etc.) against the
+ * display value; anything that doesn't parse as `eq` falls back to a
+ * case-insensitive substring match against both so the field remains useful for
+ * free-text search.
  */
 export function matchesFilter(value: string, id: string, filter: string): boolean {
-  const eqMatch = filter.match(/^\s*\S+\s+eq\s+"?([^"]*)"?\s*$/i)
+  const eqMatch = filter.match(/^\s*(\S+)\s+eq\s+"?([^"]*)"?\s*$/i)
   if (eqMatch) {
-    return value.toLowerCase() === eqMatch[1].toLowerCase()
+    const [, attribute, needle] = eqMatch
+    const target = attribute.toLowerCase() === 'id' ? id : value
+    return target.toLowerCase() === needle.toLowerCase()
   }
   const needle = filter.toLowerCase()
   return value.toLowerCase().includes(needle) || id.toLowerCase().includes(needle)
