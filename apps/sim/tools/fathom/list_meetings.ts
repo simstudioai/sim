@@ -196,7 +196,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
           title: { type: 'string', description: 'Meeting title' },
           meeting_title: { type: 'string', description: 'Calendar event title', optional: true },
           meeting_type: { type: 'string', description: 'Meeting type name', optional: true },
-          recording_id: { type: 'number', description: 'Unique recording ID' },
+          recording_id: { type: 'number', description: 'Unique recording ID', optional: true },
           url: { type: 'string', description: 'URL to view the meeting' },
           meeting_url: {
             type: 'string',
