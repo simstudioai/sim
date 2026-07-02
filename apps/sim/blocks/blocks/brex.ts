@@ -215,6 +215,12 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'Comma-separated user IDs to filter by',
       mode: 'advanced',
       condition: { field: 'operation', value: ['list_expenses', 'list_card_transactions'] },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex user IDs to filter by based on the description.\n\nReturn ONLY the comma-separated user IDs - no explanations, no extra text.',
+        placeholder: 'Describe which users to include...',
+      },
     },
     {
       id: 'statuses',
@@ -223,6 +229,12 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'e.g., APPROVED, SETTLED (comma-separated)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_expenses' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex expense statuses to filter by.\n\nValid statuses: DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\n\nExamples:\n- "only settled expenses" -> SETTLED\n- "approved or settled" -> APPROVED,SETTLED\n- "expenses awaiting review" -> DRAFT,SUBMITTED\n\nReturn ONLY the comma-separated status values - no explanations, no extra text.',
+        placeholder: 'Describe which expense statuses to include...',
+      },
     },
     {
       id: 'paymentStatuses',
@@ -231,6 +243,12 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'e.g., CLEARED, REFUNDED (comma-separated)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_expenses' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex expense payment statuses to filter by.\n\nValid statuses: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\n\nExamples:\n- "only cleared payments" -> CLEARED\n- "refunded or refunding" -> REFUNDED,REFUNDING\n\nReturn ONLY the comma-separated status values - no explanations, no extra text.',
+        placeholder: 'Describe which payment statuses to include...',
+      },
     },
     {
       id: 'purchasedAtStart',
@@ -284,6 +302,12 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       placeholder: 'Comma-separated user IDs to filter spend limits by member',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_spend_limits' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Brex user IDs to filter spend limits by member based on the description.\n\nReturn ONLY the comma-separated user IDs - no explanations, no extra text.',
+        placeholder: 'Describe which spend limit members to include...',
+      },
     },
     {
       id: 'cursor',

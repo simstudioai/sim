@@ -143,9 +143,12 @@ export interface BrexSpendLimit {
   status: string
   period_recurrence_type: string
   spend_type: string
+  start_date: string | null
+  end_date: string | null
   owner_user_ids: string[]
   member_user_ids: string[]
   current_period_balance: BrexSpendLimitPeriodBalance | null
+  authorization_settings: Record<string, unknown> | null
 }
 
 export interface BrexVendor {
@@ -171,6 +174,7 @@ export interface BrexTransfer {
   created_at: string | null
   display_name: string | null
   external_memo: string | null
+  is_ppro_enabled: boolean | null
 }
 
 export interface BrexCard {
@@ -551,6 +555,7 @@ export interface BrexGetTransferResponse extends ToolResponse {
     createdAt: string | null
     displayName: string | null
     externalMemo: string | null
+    isPproEnabled: boolean | null
   }
 }
 
