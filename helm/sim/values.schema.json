@@ -709,12 +709,12 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable the Presidio PII redaction sidecar"
+          "description": "Enable the Presidio PII redaction service"
         },
         "replicaCount": {
           "type": "integer",
           "minimum": 1,
-          "description": "Number of PII sidecar replicas"
+          "description": "Number of PII service replicas"
         },
         "image": {
           "type": "object",

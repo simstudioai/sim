@@ -108,19 +108,20 @@ export function DeployIcon(props: IconProps) {
   )
 }
 
+const MONITOR_BARS = [
+  { x: 44, ground: 86, h: 18 },
+  { x: 55, ground: 80.5, h: 30 },
+  { x: 66, ground: 75, h: 22 },
+  { x: 77, ground: 69.5, h: 38 },
+  { x: 88, ground: 64, h: 28 },
+] as const
+
 /** Monitor - a run of metric bars receding into the distance, like a live chart. */
 export function MonitorIcon(props: IconProps) {
-  const bars = [
-    { x: 44, ground: 86, h: 18 },
-    { x: 55, ground: 80.5, h: 30 },
-    { x: 66, ground: 75, h: 22 },
-    { x: 77, ground: 69.5, h: 38 },
-    { x: 88, ground: 64, h: 28 },
-  ]
   return (
     <IconFrame {...props}>
       {/* Far → near so nearer bars occlude the ones behind them. */}
-      {[...bars].reverse().map((bar) => (
+      {[...MONITOR_BARS].reverse().map((bar) => (
         <IsoBox key={bar.x} cx={bar.x} topY={bar.ground - bar.h} w={5} h={bar.h} />
       ))}
     </IconFrame>

@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
+import { BlockHandles } from '@/app/(landing)/components/hero/components/hero-visual/block-handles'
 import {
   type HomeMode,
   StageHome,
@@ -17,10 +18,7 @@ import {
   type KbStage,
   KnowledgeBasePanel,
 } from '@/app/(landing)/components/hero/components/hero-visual/stage-kb'
-import {
-  BlockHandles,
-  WorkflowBlock,
-} from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
+import { WorkflowBlock } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
   ANSWER_MS_PER_CHAR,
   ANSWER_TEXT,

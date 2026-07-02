@@ -38,6 +38,7 @@ export function ShareButton({ url, title }: ShareButtonProps) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
+          type='button'
           className='flex items-center gap-1.5 text-[var(--text-muted)] text-sm hover:text-[var(--text-primary)]'
           aria-label='Share this post'
         >

@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { Avatar, AvatarFallback, AvatarImage, Chip, cn } from '@sim/emcn'
@@ -63,15 +63,15 @@ function formatDate(value: string): string {
 
 export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
   const [entries, setEntries] = useState<ChangelogEntry[]>(initialEntries)
-  const [page, setPage] = useState<number>(1)
   const [loading, setLoading] = useState<boolean>(false)
   const [done, setDone] = useState<boolean>(false)
+  const pageRef = useRef(1)
 
   const loadMore = async () => {
     if (loading || done) return
     setLoading(true)
     try {
-      const nextPage = page + 1
+      const nextPage = pageRef.current + 1
       // boundary-raw-fetch: external GitHub Releases API (cross-origin), not a same-origin contract
       const res = await fetch(releasesEndpoint(nextPage), {
         headers: { Accept: 'application/vnd.github+json' },
@@ -83,7 +83,7 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
         setDone(true)
       } else {
         setEntries((prev) => [...prev, ...mapped])
-        setPage(nextPage)
+        pageRef.current = nextPage
       }
     } catch {
       setDone(true)

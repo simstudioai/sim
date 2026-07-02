@@ -293,16 +293,16 @@ function NoteMarkdown({ content }: { content: string }) {
     <div className='flex flex-col gap-1'>
       {lines.map((line, i) => {
         const trimmed = line.trim()
-        if (!trimmed) return <div key={i} className='h-[4px]' />
+        if (!trimmed) return <div key={`${line}-${i}`} className='h-[4px]' />
 
         if (trimmed === '---') {
-          return <hr key={i} className='my-1 border-[var(--border)] border-t' />
+          return <hr key={`${line}-${i}`} className='my-1 border-[var(--border)] border-t' />
         }
 
         if (trimmed.startsWith('### ')) {
           return (
             <p
-              key={i}
+              key={`${line}-${i}`}
               className='font-semibold text-[16px] text-[var(--text-primary)] leading-[1.3]'
             >
               {trimmed.slice(4)}
@@ -312,7 +312,7 @@ function NoteMarkdown({ content }: { content: string }) {
 
         return (
           <p
-            key={i}
+            key={`${line}-${i}`}
             className='font-medium text-[13px] text-[var(--text-primary)] leading-[1.5]'
             dangerouslySetInnerHTML={{
               __html: trimmed

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { maskPIIBatchViaHttp } from '@/lib/guardrails/mask-client'
 
 const logger = createLogger('PiiRedaction')
@@ -8,17 +10,29 @@ const logger = createLogger('PiiRedaction')
 export const REDACTION_FAILED_MARKER = '[REDACTION_FAILED]'
 
 /**
- * Upper bound on total text masked for one execution. Beyond this we scrub the
- * whole payload rather than spend minutes in NER (never leave it unmasked).
- * Typical inline logs (≤3MB) stay well under. Individual strings are never
- * skipped by size — they would otherwise persist unredacted.
+ * How to handle a masking failure (Presidio error or over-ceiling payload):
+ * - `'scrub'` (default): replace eligible strings with {@link REDACTION_FAILED_MARKER}.
+ *   Safe for the log stage — execution already succeeded.
+ * - `'throw'`: throw {@link PiiRedactionError}. Used for the execution-altering
+ *   stages (input/block outputs) where a marker would corrupt computed data and
+ *   fail-open would leak — so the run aborts instead.
  */
-const PII_MAX_TOTAL_BYTES = 16 * 1024 * 1024
+export type PiiRedactionFailureMode = 'scrub' | 'throw'
 
 export interface PiiRedactionOptions {
   /** Presidio entity types to mask. Empty = redact all detected PII. */
   entityTypes: string[]
   language?: string
+  /** Failure handling. Defaults to `'scrub'`. */
+  onFailure?: PiiRedactionFailureMode
+}
+
+/** Thrown when in-flight redaction (`onFailure: 'throw'`) cannot mask safely. */
+export class PiiRedactionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'PiiRedactionError'
+  }
 }
 
 export interface RedactablePayload {
@@ -71,6 +85,12 @@ function transformStrings(value: unknown, handle: (s: string) => string): unknow
   if (typeof value === 'string') {
     return isEligibleString(value) ? handle(value) : value
   }
+  // Treat offloaded large-value refs as opaque: masking their internal `key`/`id`
+  // strings would corrupt the reference. Their content is handled separately
+  // (hydrate → mask → re-store) before this runs.
+  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
+    return value
+  }
   if (Array.isArray(value)) {
     return value.map((item) => transformStrings(item, handle))
   }
@@ -116,6 +136,61 @@ function transformUnit(
 }
 
 /**
+ * Mask a batch of collected strings via Presidio. On a hard failure, either scrub
+ * to {@link REDACTION_FAILED_MARKER} or throw {@link PiiRedactionError}, per
+ * `options.onFailure`. Returns masked values aligned 1:1 with `collected`.
+ *
+ * There is no total-size ceiling — the batching layer chunks the request and
+ * fans out with bounded concurrency, so payloads of any size are masked properly
+ * rather than scrubbed. The per-chunk request timeout is the real backstop.
+ */
+async function maskCollected(
+  collected: string[],
+  options: PiiRedactionOptions
+): Promise<{ masked: string[]; scrubbed: boolean }> {
+  const onFailure = options.onFailure ?? 'scrub'
+  const language = options.language ?? 'en'
+
+  try {
+    // Presidio runs only in the app container; the persist + execution paths also
+    // run in the trigger.dev runtime, so masking always goes over HTTP to the app.
+    const masked = await maskPIIBatchViaHttp(collected, options.entityTypes, language)
+    return { masked, scrubbed: false }
+  } catch (error) {
+    logger.error('PII masking failed', {
+      error: getErrorMessage(error),
+      stringCount: collected.length,
+      onFailure,
+    })
+    if (onFailure === 'throw') {
+      throw new PiiRedactionError(`PII redaction failed: ${getErrorMessage(error)}`)
+    }
+    return { masked: collected.map(() => REDACTION_FAILED_MARKER), scrubbed: true }
+  }
+}
+
+/**
+ * Mask every eligible string leaf of an arbitrary object in place-preserving
+ * fashion: collect all leaves in one deterministic pass, mask in a single batched
+ * Presidio call, then rebuild from the masked slice (the identical traversal
+ * order makes the two passes line up). Used for the execution-altering input and
+ * block-output stages, so it defaults callers toward `onFailure: 'throw'`.
+ */
+export async function redactObjectStrings<T>(value: T, options: PiiRedactionOptions): Promise<T> {
+  const collected: string[] = []
+  transformStrings(value, (s) => {
+    collected.push(s)
+    return s
+  })
+
+  if (collected.length === 0) return value
+
+  const { masked } = await maskCollected(collected, options)
+  let index = 0
+  return transformStrings(value, () => masked[index++]) as T
+}
+
+/**
  * Mask PII across an execution's `traceSpans` / `finalOutput` / `workflowInput`.
  *
  * All eligible string leaves are collected in one deterministic pass and masked
@@ -123,15 +198,14 @@ function transformUnit(
  * with payload size, not block count. Each unit is then rebuilt independently
  * from the masked slice, preserving the JSON structure (Presidio never sees the
  * envelope). On a hard masking failure or when the payload exceeds the ceiling,
- * eligible strings are replaced with {@link REDACTION_FAILED_MARKER} rather than
- * left unredacted — PII is never persisted on the failure path.
+ * eligible strings are replaced with {@link REDACTION_FAILED_MARKER} (the default
+ * `onFailure: 'scrub'`) rather than left unredacted — PII is never persisted on
+ * the failure path.
  */
 export async function redactPIIFromExecution(
   payload: RedactablePayload,
   options: PiiRedactionOptions
 ): Promise<RedactablePayload> {
-  const { entityTypes } = options
-  const language = options.language ?? 'en'
   const startedAt = performance.now()
 
   const units = REDACTABLE_KEYS.filter((key) => payload[key] !== undefined).map((key) => ({
@@ -151,29 +225,7 @@ export async function redactPIIFromExecution(
 
   if (collected.length === 0) return payload
 
-  let masked: string[]
-  let scrubbed = false
-  if (totalBytes > PII_MAX_TOTAL_BYTES) {
-    logger.warn('Execution exceeds PII redaction ceiling; scrubbing text', {
-      totalBytes,
-      ceiling: PII_MAX_TOTAL_BYTES,
-    })
-    masked = collected.map(() => REDACTION_FAILED_MARKER)
-    scrubbed = true
-  } else {
-    try {
-      // Presidio runs only in the app container; the persist path also runs in
-      // the trigger.dev runtime, so masking always goes over HTTP to the app.
-      masked = await maskPIIBatchViaHttp(collected, entityTypes, language)
-    } catch (error) {
-      logger.error('PII masking failed; scrubbing text to avoid leaking PII', {
-        error: getErrorMessage(error),
-        stringCount: collected.length,
-      })
-      masked = collected.map(() => REDACTION_FAILED_MARKER)
-      scrubbed = true
-    }
-  }
+  const { masked, scrubbed } = await maskCollected(collected, options)
 
   let index = 0
   const result: RedactablePayload = { ...payload }

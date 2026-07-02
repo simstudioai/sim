@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-30",
+  "updatedAt": "2026-07-01",
   "integrations": [
     {
       "type": "onepassword",
@@ -11269,7 +11269,8 @@
       "triggerCount": 0,
       "authType": "none",
       "category": "tools",
-      "integrationType": "databases"
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "neo4j",
@@ -12365,7 +12366,8 @@
       "triggerCount": 0,
       "authType": "none",
       "category": "tools",
-      "integrationType": "databases"
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "posthog",
@@ -15252,7 +15254,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "documents"
+      "integrationType": "documents",
+      "tags": ["document-processing", "automation"]
     },
     {
       "type": "sharepoint_v2",
@@ -15722,7 +15725,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "email"
+      "integrationType": "email",
+      "tags": ["messaging", "automation"]
     },
     {
       "type": "sportmonks",
@@ -16850,7 +16854,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "devops"
+      "integrationType": "devops",
+      "tags": ["automation"]
     },
     {
       "type": "stagehand",

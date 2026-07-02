@@ -1,6 +1,80 @@
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { COMPARISON_SECTIONS } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
+
+const PAGE_URL = `${SITE_URL}/pricing`
+
+/** Feature list derived from the comparison data the cards render, so it can't drift. */
+const FEATURE_LIST = Array.from(
+  new Set(COMPARISON_SECTIONS.flatMap((section) => section.rows.map((row) => row.label)))
+)
+
+const PRICING_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      '@id': `${PAGE_URL}#webpage`,
+      url: PAGE_URL,
+      name: 'Pricing | Sim, the AI Workspace',
+      description:
+        'Pricing for Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Compare the Free, Pro, Max, and Enterprise plans.',
+      isPartOf: { '@id': `${SITE_URL}#website` },
+      about: { '@id': `${PAGE_URL}#application` },
+      breadcrumb: { '@id': `${PAGE_URL}#breadcrumb` },
+      inLanguage: 'en-US',
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${PAGE_URL}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+        { '@type': 'ListItem', position: 2, name: 'Pricing', item: PAGE_URL },
+      ],
+    },
+    {
+      '@type': 'WebApplication',
+      '@id': `${PAGE_URL}#application`,
+      name: 'Sim',
+      description:
+        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting 1,000+ integrations and every major LLM.',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: SITE_URL,
+      featureList: FEATURE_LIST,
+      offers: [
+        {
+          '@type': 'Offer',
+          name: 'Free',
+          price: '0',
+          priceCurrency: 'USD',
+          description: 'Start building AI agents for free.',
+        },
+        {
+          '@type': 'Offer',
+          name: 'Pro',
+          price: String(CREDIT_TIERS[0].dollars),
+          priceCurrency: 'USD',
+          description: 'For growing teams. Billed per user/month.',
+        },
+        {
+          '@type': 'Offer',
+          name: 'Max',
+          price: String(CREDIT_TIERS[1].dollars),
+          priceCurrency: 'USD',
+          description: 'For scaling businesses. Billed per user/month.',
+        },
+        {
+          '@type': 'Offer',
+          name: 'Enterprise',
+          priceCurrency: 'USD',
+          description: 'Custom limits and infrastructure for large organizations.',
+        },
+      ],
+    },
+  ],
+}
 
 /**
  * JSON-LD for the public pricing page - a `WebPage` (about a `WebApplication`),
@@ -16,85 +90,6 @@ import { COMPARISON_SECTIONS } from '@/app/workspace/[workspaceId]/upgrade/compo
  *
  * Server Component; no client cost.
  */
-
-const PAGE_URL = `${SITE_URL}/pricing`
-
-/** Feature list derived from the comparison data the cards render, so it can't drift. */
-const FEATURE_LIST = Array.from(
-  new Set(COMPARISON_SECTIONS.flatMap((section) => section.rows.map((row) => row.label)))
-)
-
 export function PricingStructuredData() {
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'WebPage',
-        '@id': `${PAGE_URL}#webpage`,
-        url: PAGE_URL,
-        name: 'Pricing | Sim, the AI Workspace',
-        description:
-          'Pricing for Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Compare the Free, Pro, Max, and Enterprise plans.',
-        isPartOf: { '@id': `${SITE_URL}#website` },
-        about: { '@id': `${PAGE_URL}#application` },
-        breadcrumb: { '@id': `${PAGE_URL}#breadcrumb` },
-        inLanguage: 'en-US',
-      },
-      {
-        '@type': 'BreadcrumbList',
-        '@id': `${PAGE_URL}#breadcrumb`,
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-          { '@type': 'ListItem', position: 2, name: 'Pricing', item: PAGE_URL },
-        ],
-      },
-      {
-        '@type': 'WebApplication',
-        '@id': `${PAGE_URL}#application`,
-        name: 'Sim',
-        description:
-          'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting 1,000+ integrations and every major LLM.',
-        applicationCategory: 'BusinessApplication',
-        operatingSystem: 'Web',
-        url: SITE_URL,
-        featureList: FEATURE_LIST,
-        offers: [
-          {
-            '@type': 'Offer',
-            name: 'Free',
-            price: '0',
-            priceCurrency: 'USD',
-            description: 'Start building AI agents for free.',
-          },
-          {
-            '@type': 'Offer',
-            name: 'Pro',
-            price: String(CREDIT_TIERS[0].dollars),
-            priceCurrency: 'USD',
-            description: 'For growing teams. Billed per user/month.',
-          },
-          {
-            '@type': 'Offer',
-            name: 'Max',
-            price: String(CREDIT_TIERS[1].dollars),
-            priceCurrency: 'USD',
-            description: 'For scaling businesses. Billed per user/month.',
-          },
-          {
-            '@type': 'Offer',
-            name: 'Enterprise',
-            priceCurrency: 'USD',
-            description: 'Custom limits and infrastructure for large organizations.',
-          },
-        ],
-      },
-    ],
-  }
-
-  return (
-    <script
-      type='application/ld+json'
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-    />
-  )
+  return <JsonLd data={PRICING_JSON_LD} />
 }

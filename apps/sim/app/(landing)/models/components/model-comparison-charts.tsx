@@ -10,7 +10,7 @@ import {
 
 /** Providers that host other providers' models - deprioritized to avoid duplicates. */
 const RESELLER_PROVIDERS = new Set(
-  MODEL_CATALOG_PROVIDERS.filter((p) => p.isReseller).map((p) => p.id)
+  MODEL_CATALOG_PROVIDERS.flatMap((p) => (p.isReseller ? [p.id] : []))
 )
 
 const PROVIDER_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = (() => {
@@ -71,13 +71,16 @@ interface ChartProps {
 
 function StackedCostChart({ models }: ChartProps) {
   const entries = models
-    .map((model) => ({
-      model,
-      input: model.pricing.input,
-      output: model.pricing.output,
-      total: model.pricing.input + model.pricing.output,
-    }))
-    .filter((e) => e.total > 0)
+    .reduce<Array<{ model: CatalogModel; input: number; output: number; total: number }>>(
+      (acc, model) => {
+        const total = model.pricing.input + model.pricing.output
+        if (total > 0) {
+          acc.push({ model, input: model.pricing.input, output: model.pricing.output, total })
+        }
+        return acc
+      },
+      []
+    )
     .sort((a, b) => a.total - b.total)
 
   const maxTotal = entries.length > 0 ? Math.max(...entries.map((e) => e.total)) : 0

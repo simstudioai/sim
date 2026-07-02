@@ -157,7 +157,7 @@ app:
     ANTHROPIC_API_KEY_2: ""                               # Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
-    PII_URL: ""                                           # Presidio PII sidecar URL; auto-computed when pii.enabled, override here otherwise
+    PII_URL: ""                                           # Presidio PII service URL; auto-computed when pii.enabled, override here otherwise
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
 
     # UI Branding & Whitelabeling Configuration
@@ -805,14 +805,14 @@ ollama:
   extraVolumes: []
   extraVolumeMounts: []
 
-# Presidio PII redaction sidecar (analyzer + anonymizer combined, port 5001).
+# Presidio PII redaction service (analyzer + anonymizer combined, port 5001).
 # When enabled, the app's PII_URL is auto-wired to this in-cluster service so the
 # Guardrails PII block and on-demand masking work. To additionally enable automatic
 # log redaction, set app.env.PII_REDACTION="true" AND app.env.INTERNAL_API_BASE_URL
 # to the in-cluster app service URL (the redaction path calls the app's own
 # /api/guardrails/mask-batch, which must be reachable from inside the cluster).
 pii:
-  # Enable/disable the PII redaction sidecar
+  # Enable/disable the PII redaction service
   enabled: false
 
   # Image configuration. repository resolves to ghcr.io/simstudioai/pii — the
@@ -844,10 +844,10 @@ pii:
   podSecurityContext: {}
   securityContext: {}
 
-  # Environment variables for the sidecar container
+  # Environment variables for the service container
   env: {}
 
-  # Node scheduling. nodeSelector pins the (memory-heavy, ~4Gi) sidecar to a
+  # Node scheduling. nodeSelector pins the (memory-heavy, ~4Gi) service to a
   # node pool; tolerations are inherited from the top-level `tolerations` key
   # (shared with app/realtime), and topologySpreadConstraints spreads replicas.
   nodeSelector: {}

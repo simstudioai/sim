@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 export const revalidate = 3600
 
@@ -82,10 +83,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
   }
   return (
     <main className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }}
-      />
+      <JsonLd data={graphJsonLd} />
       <div className='mb-6 flex items-center gap-3'>
         {author.avatarUrl ? (
           <Image

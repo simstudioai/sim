@@ -143,6 +143,7 @@ export function CreateApiKeyModal({
             type='text'
             name='fakeusernameremembered'
             autoComplete='username'
+            aria-hidden='true'
             style={{
               position: 'absolute',
               left: '-9999px',

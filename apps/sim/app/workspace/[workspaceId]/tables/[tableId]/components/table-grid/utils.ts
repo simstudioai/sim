@@ -116,10 +116,18 @@ export function expandToDisplayColumns(
         size++
       }
       const group = groupById.get(gid)
+      // Pre-index outputs by column name for O(1) lookup. First output wins on a
+      // duplicate columnName, exactly matching the previous `Array.find()` behavior.
+      const outputByColumnName = new Map<string, WorkflowGroup['outputs'][number]>()
+      if (group) {
+        for (const o of group.outputs) {
+          if (!outputByColumnName.has(o.columnName)) outputByColumnName.set(o.columnName, o)
+        }
+      }
       const startIdx = out.length
       for (let k = 0; k < size; k++) {
         const child = columns[i + k]
-        const output = group?.outputs.find((o) => o.columnName === getColumnId(child))
+        const output = outputByColumnName.get(getColumnId(child))
         out.push({
           ...child,
           key: getColumnId(child),

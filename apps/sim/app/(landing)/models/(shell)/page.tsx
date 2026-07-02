@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
 import { ModelDirectory } from '@/app/(landing)/models/components/model-directory'
@@ -19,6 +20,17 @@ import {
 } from '@/app/(landing)/models/utils'
 
 const baseUrl = SITE_URL
+
+const FEATURED_PROVIDER_ORDER = ['anthropic', 'openai', 'google']
+
+const MODELS_BREADCRUMB_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+    { '@type': 'ListItem', position: 2, name: 'Models', item: `${baseUrl}/models` },
+  ],
+}
 
 const faqItems = [
   {
@@ -92,24 +104,14 @@ export default async function ModelsPage({
   const flatModels = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
     provider.models.map((model) => ({ provider, model }))
   )
-  const featuredProviderOrder = ['anthropic', 'openai', 'google']
-  const featuredProviders = featuredProviderOrder
-    .map((id) => MODEL_PROVIDERS_WITH_CATALOGS.find((p) => p.id === id))
-    .filter((p): p is (typeof MODEL_PROVIDERS_WITH_CATALOGS)[number] => p !== undefined)
+  const featuredProviders = FEATURED_PROVIDER_ORDER.map((id) =>
+    MODEL_PROVIDERS_WITH_CATALOGS.find((p) => p.id === id)
+  ).filter((p): p is (typeof MODEL_PROVIDERS_WITH_CATALOGS)[number] => p !== undefined)
   const featuredModels = featuredProviders
     .map((provider) =>
       provider.featuredModels[0] ? { provider, model: provider.featuredModels[0] } : null
     )
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-
-  const breadcrumbJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
-      { '@type': 'ListItem', position: 2, name: 'Models', item: `${baseUrl}/models` },
-    ],
-  }
 
   const itemListJsonLd = {
     '@context': 'https://schema.org',
@@ -156,18 +158,9 @@ export default async function ModelsPage({
 
   return (
     <>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
+      <JsonLd data={MODELS_BREADCRUMB_JSON_LD} />
+      <JsonLd data={itemListJsonLd} />
+      <JsonLd data={faqJsonLd} />
 
       <section className='bg-[var(--bg)]'>
         <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>

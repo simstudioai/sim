@@ -325,19 +325,18 @@ export function BYOK() {
   const workspaceId = (params?.workspaceId as string) || ''
 
   const { data, isLoading } = useBYOKKeys(workspaceId)
-  const keys = data?.keys ?? []
   const upsertKey = useUpsertBYOKKey()
   const deleteKey = useDeleteBYOKKey()
 
   const keysByProvider = useMemo(() => {
     const grouped = new Map<string, BYOKManagerKey[]>()
-    for (const key of keys) {
+    for (const key of data?.keys ?? []) {
       const providerKeys = grouped.get(key.providerId) ?? []
       providerKeys.push({ id: key.id, name: key.name, maskedKey: key.maskedKey })
       grouped.set(key.providerId, providerKeys)
     }
     return grouped
-  }, [keys])
+  }, [data?.keys])
 
   return (
     <SettingsPanel>

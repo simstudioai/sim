@@ -42,10 +42,9 @@ function clampToReadable(hex: string): string {
 }
 
 const colorMap = new Map(
-  MODEL_CATALOG_PROVIDERS.filter((p) => p.color).map((p) => [
-    p.id,
-    clampToReadable(p.color as string),
-  ])
+  MODEL_CATALOG_PROVIDERS.flatMap(
+    (p): Array<[string, string]> => (p.color ? [[p.id, clampToReadable(p.color)]] : [])
+  )
 )
 
 /** Provider brand color, darkened when too light to read on the light background. */

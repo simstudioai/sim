@@ -66,12 +66,15 @@ function copyToClipboard(text: string) {
   void navigator.clipboard.writeText(text)
 }
 
+function buildActionsMenu(actions: RowAction[]) {
+  return <RowActionsMenu label='Member actions' actions={actions} />
+}
+
 interface OrganizationMemberListsProps {
   organizationId: string
   roster: OrganizationRoster | null | undefined
   isLoadingRoster: boolean
   currentUserId: string
-  currentUserEmail: string
   onRemoveMember: (member: Member) => void
   onTransferOwnership?: () => void
 }
@@ -87,7 +90,6 @@ export function OrganizationMemberLists({
   roster,
   isLoadingRoster,
   currentUserId,
-  currentUserEmail,
   onRemoveMember,
   onTransferOwnership,
 }: OrganizationMemberListsProps) {
@@ -110,10 +112,6 @@ export function OrganizationMemberLists({
     !q || name.toLowerCase().includes(q) || email.toLowerCase().includes(q)
 
   const isActiveSearch = q.length > 0
-
-  const buildActionsMenu = (actions: RowAction[]) => (
-    <RowActionsMenu label='Member actions' actions={actions} />
-  )
 
   const renderOrgMemberRow = (member: RosterMember) => {
     const isSelf = member.userId === currentUserId
@@ -376,6 +374,38 @@ export function OrganizationMemberLists({
   const hasOrgMatches = filteredOrgMembers.length + filteredOrgPending.length > 0
   const showMembersSection = !isActiveSearch || hasOrgMatches
 
+  /**
+   * Group each workspace's members and pending invites once per roster change.
+   * This is O(workspaces × members) and independent of the search query, so
+   * hoisting it out of render keeps keystroke filtering cheap on large orgs.
+   */
+  const workspaceGroups = useMemo(
+    () =>
+      workspaces.map((workspace) => {
+        const workspaceMembers = members
+          .map((member) => ({
+            member,
+            access: member.workspaces.find((w) => w.workspaceId === workspace.id),
+          }))
+          .filter((entry): entry is { member: RosterMember; access: RosterWorkspaceAccess } =>
+            Boolean(entry.access)
+          )
+        const workspaceInvites = pendingInvitations
+          .map((invitation) => ({
+            invitation,
+            access: invitation.workspaces.find((w) => w.workspaceId === workspace.id),
+          }))
+          .filter(
+            (
+              entry
+            ): entry is { invitation: RosterPendingInvitation; access: RosterWorkspaceAccess } =>
+              Boolean(entry.access)
+          )
+        return { workspace, workspaceMembers, workspaceInvites }
+      }),
+    [workspaces, members, pendingInvitations]
+  )
+
   return (
     <>
       <div className='flex items-center gap-2'>
@@ -399,27 +429,7 @@ export function OrganizationMemberLists({
         </MemberSection>
       )}
 
-      {workspaces.map((workspace) => {
-        const workspaceMembers = members
-          .map((member) => ({
-            member,
-            access: member.workspaces.find((w) => w.workspaceId === workspace.id),
-          }))
-          .filter((entry): entry is { member: RosterMember; access: RosterWorkspaceAccess } =>
-            Boolean(entry.access)
-          )
-        const workspaceInvites = pendingInvitations
-          .map((invitation) => ({
-            invitation,
-            access: invitation.workspaces.find((w) => w.workspaceId === workspace.id),
-          }))
-          .filter(
-            (
-              entry
-            ): entry is { invitation: RosterPendingInvitation; access: RosterWorkspaceAccess } =>
-              Boolean(entry.access)
-          )
-
+      {workspaceGroups.map(({ workspace, workspaceMembers, workspaceInvites }) => {
         const visibleMembers = workspaceMembers.filter(({ member }) =>
           matches(member.name, member.email)
         )

@@ -422,7 +422,7 @@ function MiniTablePanel() {
           <tbody>
             {MINI_TABLE_ROWS.map((row, i) => (
               <m.tr
-                key={i}
+                key={row.name}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2, delay: i * 0.04, ease: EASE_OUT }}

@@ -1,5 +1,6 @@
 'use client'
 
+import { cn } from '@sim/emcn'
 import { GooDefs } from '@/app/(landing)/components/mothership/components/iso-marks/goo-defs'
 import {
   type Edge,
@@ -123,8 +124,11 @@ export function IsoCubeRow({ size = 110, className, forceHover = false }: IsoCub
       height={size}
       role='img'
       aria-label='Cube row'
-      className={className}
-      style={{ display: 'block', outline: 'none' }}
+      className={cn(
+        'focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-[var(--brand-agent)]',
+        className
+      )}
+      style={{ display: 'block' }}
       {...bind}
     >
       <GooDefs gradId={gradId} gooId={gooId} gooFusion={GOO_FUSION} from={from} to={to} />

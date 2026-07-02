@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Loader,
   Modal,
@@ -75,38 +75,59 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     fetchProviderStatus().then(setProviderStatus)
   }, [])
 
-  const hasSocial =
-    providerStatus?.githubAvailable ||
-    providerStatus?.googleAvailable ||
-    providerStatus?.microsoftAvailable
   const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
   const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
-  const hasModalContent = hasSocial || ssoEnabled
 
-  useEffect(() => {
-    if (!open || !providerStatus) return
+  /**
+   * Signup is unavailable when registration is disabled, so the shown view is
+   * clamped to login rather than mirrored into state through an effect.
+   */
+  const effectiveView: AuthView =
+    view === 'signup' && providerStatus?.registrationDisabled ? 'login' : view
+
+  /**
+   * Tracks whether the visitor still wants the modal open. Cleared on dismiss so a
+   * provider-status fetch that resolves afterwards can't reopen it or re-fire the
+   * opened event.
+   */
+  const openRequestedRef = useRef(false)
+
+  function openWithStatus(status: ProviderStatus) {
+    const hasModalContent =
+      status.githubAvailable || status.googleAvailable || status.microsoftAvailable || ssoEnabled
     if (!hasModalContent) {
+      /** Close the loader (no-op if never opened) and route out; disabled registration sends signup to login. */
       setOpen(false)
-      router.push(defaultView === 'login' ? '/login' : '/signup')
+      router.push(status.registrationDisabled || defaultView === 'login' ? '/login' : '/signup')
       return
     }
-    if (providerStatus.registrationDisabled && view === 'signup') {
-      setView('login')
-    }
-  }, [open, providerStatus, hasModalContent, defaultView, router, view])
+    const initialView: AuthView =
+      defaultView === 'signup' && status.registrationDisabled ? 'login' : defaultView
+    setOpen(true)
+    setView(initialView)
+    captureClientEvent('auth_modal_opened', { view: initialView, source })
+  }
 
   function handleOpenChange(nextOpen: boolean) {
-    if (nextOpen && providerStatus && !hasModalContent) {
-      router.push(defaultView === 'login' ? '/login' : '/signup')
+    if (!nextOpen) {
+      openRequestedRef.current = false
+      setOpen(false)
       return
     }
-    setOpen(nextOpen)
-    if (nextOpen) {
-      const initialView =
-        defaultView === 'signup' && providerStatus?.registrationDisabled ? 'login' : defaultView
-      setView(initialView)
-      captureClientEvent('auth_modal_opened', { view: initialView, source })
+    if (providerStatus) {
+      openWithStatus(providerStatus)
+      return
     }
+    /** Status not loaded yet: open the loader immediately for responsiveness, then resolve. */
+    openRequestedRef.current = true
+    setOpen(true)
+    fetchProviderStatus().then((status) => {
+      setProviderStatus(status)
+      if (!openRequestedRef.current) return
+      /** Consume the request so a queued double-click can't open twice (no duplicate event). */
+      openRequestedRef.current = false
+      openWithStatus(status)
+    })
   }
 
   async function handleSocialLogin(provider: 'github' | 'google' | 'microsoft') {
@@ -127,7 +148,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
   function handleEmailContinue() {
     setOpen(false)
-    router.push(view === 'login' ? '/login' : '/signup')
+    router.push(effectiveView === 'login' ? '/login' : '/signup')
   }
 
   return (
@@ -135,10 +156,10 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
       <ModalTrigger asChild>{children}</ModalTrigger>
       <ModalContent size='sm' className='dark bg-[var(--bg)] text-[var(--text-primary)]'>
         <ModalTitle className='sr-only'>
-          {view === 'login' ? 'Log in' : 'Create account'}
+          {effectiveView === 'login' ? 'Log in' : 'Create account'}
         </ModalTitle>
         <ModalDescription className='sr-only'>
-          {view === 'login' ? 'Sign in to your account' : 'Create a new account'}
+          {effectiveView === 'login' ? 'Sign in to your account' : 'Create a new account'}
         </ModalDescription>
 
         <div className='relative px-6 pt-6 pb-6'>
@@ -167,7 +188,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     Start building.
                   </p>
                   <h2 className='text-[22px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-                    {view === 'login' ? 'Log in to continue' : 'Create free account'}
+                    {effectiveView === 'login' ? 'Log in to continue' : 'Create free account'}
                   </h2>
                 </div>
               </div>
@@ -242,17 +263,19 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
               <div className='mt-4 text-center text-[13.5px]'>
                 <span className='text-[var(--text-muted)]'>
-                  {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
+                  {effectiveView === 'login'
+                    ? "Don't have an account? "
+                    : 'Already have an account? '}
                 </span>
-                {view === 'login' && providerStatus.registrationDisabled ? (
+                {effectiveView === 'login' && providerStatus.registrationDisabled ? (
                   <span className='text-[var(--text-muted)]'>Registration is disabled</span>
                 ) : (
                   <button
                     type='button'
-                    onClick={() => setView(view === 'login' ? 'signup' : 'login')}
+                    onClick={() => setView(effectiveView === 'login' ? 'signup' : 'login')}
                     className='text-[var(--text-primary)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
                   >
-                    {view === 'login' ? 'Sign up' : 'Sign in'}
+                    {effectiveView === 'login' ? 'Sign up' : 'Sign in'}
                   </button>
                 )}
               </div>

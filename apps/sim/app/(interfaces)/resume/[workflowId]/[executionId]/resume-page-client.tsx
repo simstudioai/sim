@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
+  ChipInput,
+  ChipSelect,
+  ChipTextarea,
   Code,
-  Input,
+  cn,
   Label,
   Table,
   TableBody,
@@ -13,21 +16,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Textarea,
   Tooltip,
 } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Navbar } from '@/app/(landing)/components/navbar/navbar'
-import { useBrandConfig } from '@/ee/whitelabeling'
 import {
   type PauseContextDetail,
   type PausedExecutionDetail,
@@ -112,12 +105,12 @@ function getBlockNameFromSnapshot(
 
 function renderStructuredValuePreview(value: unknown) {
   if (value === null || value === undefined) {
-    return <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>—</span>
+    return <span className='text-[12px] text-[var(--text-muted)]'>—</span>
   }
 
   if (typeof value === 'object') {
     return (
-      <div style={{ minWidth: '220px' }}>
+      <div className='min-w-[220px]'>
         <Code.Viewer
           code={JSON.stringify(value, null, 2)}
           language='json'
@@ -143,7 +136,6 @@ export default function ResumeExecutionPage({
 }: ResumeExecutionPageProps) {
   const { workflowId, executionId } = params
   const router = useRouter()
-  const brandConfig = useBrandConfig()
   const queryClient = useQueryClient()
 
   const {
@@ -333,63 +325,64 @@ export default function ResumeExecutionPage({
         case 'boolean': {
           const selectValue = value === 'true' || value === 'false' ? value : '__unset__'
           return (
-            <Select
+            <ChipSelect
               value={selectValue}
-              onValueChange={(val) => handleFormFieldChange(field.name, val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={field.required ? 'Select true or false' : 'Select...'} />
-              </SelectTrigger>
-              <SelectContent>
-                {!field.required && <SelectItem value='__unset__'>Not set</SelectItem>}
-                <SelectItem value='true'>True</SelectItem>
-                <SelectItem value='false'>False</SelectItem>
-              </SelectContent>
-            </Select>
+              onChange={(val) => handleFormFieldChange(field.name, val)}
+              placeholder={field.required ? 'Select true or false' : 'Select...'}
+              options={[
+                ...(field.required ? [] : [{ label: 'Not set', value: '__unset__' }]),
+                { label: 'True', value: 'true' },
+                { label: 'False', value: 'false' },
+              ]}
+            />
           )
         }
         case 'number':
           return (
-            <Input
+            <ChipInput
               type='number'
               value={value}
               onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
               placeholder={field.placeholder ?? 'Enter a number...'}
+              error={Boolean(formErrors[field.name])}
             />
           )
         case 'array':
         case 'object':
         case 'files':
           return (
-            <Textarea
+            <ChipTextarea
               value={value}
               onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
               placeholder={field.placeholder ?? (field.type === 'array' ? '[...]' : '{...}')}
               rows={5}
+              error={Boolean(formErrors[field.name])}
             />
           )
         default: {
           if (field.rows !== undefined && field.rows > 3) {
             return (
-              <Textarea
+              <ChipTextarea
                 value={value}
                 onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
                 placeholder={field.placeholder ?? 'Enter value...'}
                 rows={5}
+                error={Boolean(formErrors[field.name])}
               />
             )
           }
           return (
-            <Input
+            <ChipInput
               value={value}
               onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
               placeholder={field.placeholder ?? 'Enter value...'}
+              error={Boolean(formErrors[field.name])}
             />
           )
         }
       }
     },
-    [formValues, handleFormFieldChange]
+    [formValues, formErrors, handleFormFieldChange]
   )
 
   const renderDisabledFieldInput = useCallback(
@@ -404,19 +397,19 @@ export default function ResumeExecutionPage({
       switch (field.type) {
         case 'boolean': {
           const displayValue = rawValue === true ? 'True' : rawValue === false ? 'False' : 'Not set'
-          return <Input value={displayValue} disabled />
+          return <ChipInput value={displayValue} disabled />
         }
         case 'number':
-          return <Input type='number' value={value} disabled />
+          return <ChipInput type='number' value={value} disabled />
         case 'array':
         case 'object':
         case 'files':
-          return <Textarea value={value} disabled rows={5} />
+          return <ChipTextarea value={value} viewOnly rows={5} />
         default: {
           if (field.rows !== undefined && field.rows > 3) {
-            return <Textarea value={value} disabled rows={5} />
+            return <ChipTextarea value={value} viewOnly rows={5} />
           }
-          return <Input value={value} disabled />
+          return <ChipInput value={value} disabled />
         }
       }
     },
@@ -676,37 +669,17 @@ export default function ResumeExecutionPage({
   if (!executionDetail) {
     return (
       <Tooltip.Provider>
-        <div className='font-season' style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-          <header>
-            <Navbar />
-          </header>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: 'calc(100vh - 80px)',
-              padding: '24px',
-            }}
-          >
-            <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-              <h1
-                style={{
-                  fontSize: '20px',
-                  fontWeight: 500,
-                  color: 'var(--text-primary)',
-                  marginBottom: '8px',
-                }}
-              >
-                Execution Not Found
-              </h1>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                This execution could not be located or has already completed.
-              </p>
-              <Button variant='outline' onClick={() => router.push('/')}>
-                Return Home
-              </Button>
-            </div>
+        <div className='flex flex-1 items-center justify-center p-6'>
+          <div className='max-w-[400px] text-center'>
+            <h1 className='mb-2 font-medium text-[20px] text-[var(--text-primary)]'>
+              Execution Not Found
+            </h1>
+            <p className='mb-6 text-[14px] text-[var(--text-secondary)]'>
+              This execution could not be located or has already completed.
+            </p>
+            <Button variant='outline' onClick={() => router.push('/')}>
+              Return Home
+            </Button>
           </div>
         </div>
       </Tooltip.Provider>
@@ -715,438 +688,263 @@ export default function ResumeExecutionPage({
 
   return (
     <Tooltip.Provider>
-      <div className='font-season' style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-        <header>
-          <Navbar />
-        </header>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }}>
-          {/* Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '32px',
-            }}
-          >
-            <div>
-              <h1 style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                Paused Execution
-              </h1>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Select a pause point to review and resume
-              </p>
-            </div>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={handleRefreshExecution}
-                  disabled={refreshingExecution}
-                  className='gap-1.5 px-2.5'
-                  aria-label='Refresh execution details'
-                >
-                  <RefreshCw
-                    style={{
-                      width: '14px',
-                      height: '14px',
-                      animation: refreshingExecution ? 'spin 1s linear infinite' : undefined,
-                    }}
-                  />
-                  Refresh
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>Refresh</Tooltip.Content>
-            </Tooltip.Root>
+      <div className='mx-auto w-full max-w-[1200px] px-6 py-8'>
+        {/* Header */}
+        <div className='mb-8 flex items-center justify-between'>
+          <div>
+            <h1 className='font-medium text-[20px] text-[var(--text-primary)]'>Paused Execution</h1>
+            <p className='mt-1 text-[14px] text-[var(--text-secondary)]'>
+              Select a pause point to review and resume
+            </p>
           </div>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={handleRefreshExecution}
+                disabled={refreshingExecution}
+                className='gap-1.5 px-2.5'
+                aria-label='Refresh execution details'
+              >
+                <RefreshCw className={cn('size-[14px]', refreshingExecution && 'animate-spin')} />
+                Refresh
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Refresh</Tooltip.Content>
+          </Tooltip.Root>
+        </div>
 
-          {/* Main Layout */}
-          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '24px' }}>
-            {/* Pause Points List */}
-            <div
-              style={{
-                background: 'var(--surface-1)',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                <Label>Pause Points</Label>
-              </div>
-              <div>
-                {pausePoints.length === 0 ? (
-                  <div
-                    style={{
-                      padding: '32px 16px',
-                      textAlign: 'center',
-                      color: 'var(--text-secondary)',
-                      fontSize: '13px',
-                    }}
-                  >
-                    No pause points
-                  </div>
-                ) : (
-                  pausePoints.map((pause) => (
-                    <Button
-                      key={pause.contextId}
-                      variant={pause.contextId === selectedContextId ? 'active' : 'ghost'}
-                      onClick={() => {
-                        setSelectedContextId(pause.contextId)
-                        setError(null)
-                        setMessage(null)
-                      }}
-                      style={{
-                        width: '100%',
-                        justifyContent: 'space-between',
-                        borderRadius: 0,
-                        padding: '12px 16px',
-                      }}
-                    >
-                      <span style={{ fontSize: '13px' }}>{getBlockName(pause)}</span>
-                      <StatusBadge status={pause.resumeStatus} />
-                    </Button>
-                  ))
-                )}
-              </div>
+        {/* Main Layout */}
+        <div className='grid grid-cols-[280px_1fr] gap-6'>
+          {/* Pause Points List */}
+          <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+            <div className='border-[var(--border)] border-b px-4 py-3'>
+              <Label>Pause Points</Label>
             </div>
-
-            {/* Detail Panel */}
             <div>
-              {loadingDetail && !selectedDetail ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '200px',
-                    background: 'var(--surface-1)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                  }}
-                >
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Loading…</span>
-                </div>
-              ) : !selectedContextId ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '200px',
-                    background: 'var(--surface-1)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                  }}
-                >
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                    Select a pause point
-                  </span>
-                </div>
-              ) : !selectedDetail ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '200px',
-                    background: 'var(--surface-1)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                  }}
-                >
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                    Could not load details
-                  </span>
+              {pausePoints.length === 0 ? (
+                <div className='px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]'>
+                  No pause points
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {/* Status Header */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'var(--surface-1)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      padding: '12px 16px',
+                pausePoints.map((pause) => (
+                  <Button
+                    key={pause.contextId}
+                    variant={pause.contextId === selectedContextId ? 'active' : 'ghost'}
+                    onClick={() => {
+                      setSelectedContextId(pause.contextId)
+                      setError(null)
+                      setMessage(null)
                     }}
+                    className='w-full justify-between rounded-none px-4 py-3'
                   >
-                    <div>
-                      <Label>{getBlockName(selectedDetail.pausePoint)}</Label>
-                      <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        Paused at {formatDate(selectedDetail.pausePoint.registeredAt)}
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <StatusBadge status={selectedStatus} />
-                      {queuePosition && queuePosition > 0 && (
-                        <Badge variant='gray' size='sm'>
-                          Queue #{queuePosition}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Already resolved - show form fields with submitted values */}
-                  {selectedStatus === 'resumed' || selectedStatus === 'failed' ? (
-                    <div
-                      style={{
-                        background: 'var(--surface-1)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}
-                      >
-                        <Label>Resume Form</Label>
-                      </div>
-                      <div
-                        style={{
-                          padding: '16px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '16px',
-                        }}
-                      >
-                        {selectedStatus === 'failed' &&
-                          selectedDetail.pausePoint.latestResumeEntry?.failureReason && (
-                            <Badge variant='red' size='sm'>
-                              {selectedDetail.pausePoint.latestResumeEntry.failureReason}
-                            </Badge>
-                          )}
-                        {inputFormatFields.length > 0 &&
-                        selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
-                          inputFormatFields.map((field) => (
-                            <div
-                              key={field.id}
-                              style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
-                            >
-                              <Label>{field.label}</Label>
-                              {field.description && (
-                                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                  {field.description}
-                                </p>
-                              )}
-                              {renderDisabledFieldInput(
-                                field,
-                                selectedDetail.pausePoint.latestResumeEntry?.resumeInput
-                                  ?.submission ??
-                                  selectedDetail.pausePoint.latestResumeEntry?.resumeInput ??
-                                  {}
-                              )}
-                            </div>
-                          ))
-                        ) : selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
-                          <Textarea
-                            value={JSON.stringify(
-                              selectedDetail.pausePoint.latestResumeEntry.resumeInput,
-                              null,
-                              2
-                            )}
-                            disabled
-                            rows={6}
-                          />
-                        ) : (
-                          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                            No input data provided
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Display Data */}
-                      {responseStructureRows.length > 0 ? (
-                        <div
-                          style={{
-                            background: 'var(--surface-1)',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          <div
-                            style={{
-                              padding: '12px 16px',
-                              borderBottom: '1px solid var(--border)',
-                            }}
-                          >
-                            <Label>Display Data</Label>
-                          </div>
-                          <div style={{ padding: '16px' }}>
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Field</TableHead>
-                                  <TableHead>Type</TableHead>
-                                  <TableHead>Value</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {responseStructureRows.map((row) => (
-                                  <TableRow key={row.id}>
-                                    <TableCell>{row.name}</TableCell>
-                                    <TableCell>{row.type}</TableCell>
-                                    <TableCell>{renderStructuredValuePreview(row.value)}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            background: 'var(--surface-1)',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          <div
-                            style={{
-                              padding: '12px 16px',
-                              borderBottom: '1px solid var(--border)',
-                            }}
-                          >
-                            <Label>Display Data</Label>
-                          </div>
-                          <div style={{ padding: '16px' }}>
-                            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                              No display data configured
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Resume Form */}
-                      {isHumanMode && hasInputFormat ? (
-                        <div
-                          style={{
-                            background: 'var(--surface-1)',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          <div
-                            style={{
-                              padding: '12px 16px',
-                              borderBottom: '1px solid var(--border)',
-                            }}
-                          >
-                            <Label>Resume Form</Label>
-                          </div>
-                          <div
-                            style={{
-                              padding: '16px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '16px',
-                            }}
-                          >
-                            {inputFormatFields.map((field) => (
-                              <div
-                                key={field.id}
-                                style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
-                              >
-                                <Label>
-                                  {field.label}
-                                  {field.required && (
-                                    <span style={{ color: 'var(--text-error)', marginLeft: '4px' }}>
-                                      *
-                                    </span>
-                                  )}
-                                </Label>
-                                {field.description && (
-                                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                    {field.description}
-                                  </p>
-                                )}
-                                {renderFieldInput(field)}
-                                {formErrors[field.name] && (
-                                  <Badge variant='red' size='sm'>
-                                    {formErrors[field.name]}
-                                  </Badge>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            background: 'var(--surface-1)',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          <div
-                            style={{
-                              padding: '12px 16px',
-                              borderBottom: '1px solid var(--border)',
-                            }}
-                          >
-                            <Label>Resume Input (JSON)</Label>
-                          </div>
-                          <div style={{ padding: '16px' }}>
-                            <Textarea
-                              value={resumeInput}
-                              onChange={(e) => {
-                                setResumeInput(e.target.value)
-                                if (selectedContextId) {
-                                  resumeInputsRef.current = {
-                                    ...resumeInputsRef.current,
-                                    [selectedContextId]: e.target.value,
-                                  }
-                                }
-                              }}
-                              placeholder='{"example": "value"}'
-                              rows={6}
-                              spellCheck={false}
-                              className='min-h-[180px] border-[var(--border-1)] bg-[var(--surface-3)] font-mono text-[12px] leading-5'
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Messages */}
-                      {error && <Badge variant='red'>{error}</Badge>}
-                      {message && <Badge variant='green'>{message}</Badge>}
-
-                      {/* Action */}
-                      <Button variant='primary' onClick={handleResume} disabled={resumeDisabled}>
-                        {loadingAction ? 'Resuming...' : 'Resume Execution'}
-                      </Button>
-                    </>
-                  )}
-                </div>
+                    <span className='text-[13px]'>{getBlockName(pause)}</span>
+                    <StatusBadge status={pause.resumeStatus} />
+                  </Button>
+                ))
               )}
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            maxWidth: '1200px',
-            margin: '24px auto 0',
-            padding: '0 24px 24px',
-            textAlign: 'center',
-            fontSize: '13px',
-            color: 'var(--text-muted)',
-          }}
-        >
-          Need help?{' '}
-          <a href={`mailto:${brandConfig.supportEmail}`} style={{ color: 'var(--text-secondary)' }}>
-            Contact support
-          </a>
+          {/* Detail Panel */}
+          <div>
+            {loadingDetail && !selectedDetail ? (
+              <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                <span className='text-[13px] text-[var(--text-secondary)]'>Loading…</span>
+              </div>
+            ) : !selectedContextId ? (
+              <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                <span className='text-[13px] text-[var(--text-secondary)]'>
+                  Select a pause point
+                </span>
+              </div>
+            ) : !selectedDetail ? (
+              <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                <span className='text-[13px] text-[var(--text-secondary)]'>
+                  Could not load details
+                </span>
+              </div>
+            ) : (
+              <div className='flex flex-col gap-4'>
+                {/* Status Header */}
+                <div className='flex items-center justify-between rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
+                  <div>
+                    <Label>{getBlockName(selectedDetail.pausePoint)}</Label>
+                    <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
+                      Paused at {formatDate(selectedDetail.pausePoint.registeredAt)}
+                    </p>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <StatusBadge status={selectedStatus} />
+                    {queuePosition && queuePosition > 0 && (
+                      <Badge variant='gray' size='sm'>
+                        Queue #{queuePosition}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Already resolved - show form fields with submitted values */}
+                {selectedStatus === 'resumed' || selectedStatus === 'failed' ? (
+                  <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                    <div className='border-[var(--border)] border-b px-4 py-3'>
+                      <Label>Resume Form</Label>
+                    </div>
+                    <div className='flex flex-col gap-4 p-4'>
+                      {selectedStatus === 'failed' &&
+                        selectedDetail.pausePoint.latestResumeEntry?.failureReason && (
+                          <Badge variant='red' size='sm'>
+                            {selectedDetail.pausePoint.latestResumeEntry.failureReason}
+                          </Badge>
+                        )}
+                      {inputFormatFields.length > 0 &&
+                      selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
+                        inputFormatFields.map((field) => (
+                          <div key={field.id} className='flex flex-col gap-[9px]'>
+                            <Label>{field.label}</Label>
+                            {field.description && (
+                              <p className='text-[12px] text-[var(--text-muted)]'>
+                                {field.description}
+                              </p>
+                            )}
+                            {renderDisabledFieldInput(
+                              field,
+                              selectedDetail.pausePoint.latestResumeEntry?.resumeInput
+                                ?.submission ??
+                                selectedDetail.pausePoint.latestResumeEntry?.resumeInput ??
+                                {}
+                            )}
+                          </div>
+                        ))
+                      ) : selectedDetail.pausePoint.latestResumeEntry?.resumeInput ? (
+                        <ChipTextarea
+                          value={JSON.stringify(
+                            selectedDetail.pausePoint.latestResumeEntry.resumeInput,
+                            null,
+                            2
+                          )}
+                          viewOnly
+                          rows={6}
+                        />
+                      ) : (
+                        <p className='text-[13px] text-[var(--text-muted)]'>
+                          No input data provided
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Display Data */}
+                    {responseStructureRows.length > 0 ? (
+                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                        <div className='border-[var(--border)] border-b px-4 py-3'>
+                          <Label>Display Data</Label>
+                        </div>
+                        <div className='p-4'>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Field</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Value</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {responseStructureRows.map((row) => (
+                                <TableRow key={row.id}>
+                                  <TableCell>{row.name}</TableCell>
+                                  <TableCell>{row.type}</TableCell>
+                                  <TableCell>{renderStructuredValuePreview(row.value)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                        <div className='border-[var(--border)] border-b px-4 py-3'>
+                          <Label>Display Data</Label>
+                        </div>
+                        <div className='p-4'>
+                          <p className='text-[13px] text-[var(--text-muted)]'>
+                            No display data configured
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Resume Form */}
+                    {isHumanMode && hasInputFormat ? (
+                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                        <div className='border-[var(--border)] border-b px-4 py-3'>
+                          <Label>Resume Form</Label>
+                        </div>
+                        <div className='flex flex-col gap-4 p-4'>
+                          {inputFormatFields.map((field) => (
+                            <div key={field.id} className='flex flex-col gap-[9px]'>
+                              <Label>
+                                {field.label}
+                                {field.required && (
+                                  <span className='ml-1 text-[var(--text-error)]'>*</span>
+                                )}
+                              </Label>
+                              {field.description && (
+                                <p className='text-[12px] text-[var(--text-muted)]'>
+                                  {field.description}
+                                </p>
+                              )}
+                              {renderFieldInput(field)}
+                              {formErrors[field.name] && (
+                                <Badge variant='red' size='sm'>
+                                  {formErrors[field.name]}
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                        <div className='border-[var(--border)] border-b px-4 py-3'>
+                          <Label>Resume Input (JSON)</Label>
+                        </div>
+                        <div className='p-4'>
+                          <ChipTextarea
+                            value={resumeInput}
+                            onChange={(e) => {
+                              setResumeInput(e.target.value)
+                              if (selectedContextId) {
+                                resumeInputsRef.current = {
+                                  ...resumeInputsRef.current,
+                                  [selectedContextId]: e.target.value,
+                                }
+                              }
+                            }}
+                            placeholder='{"example": "value"}'
+                            rows={6}
+                            spellCheck={false}
+                            className='min-h-[180px] font-mono'
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Messages */}
+                    {error && <Badge variant='red'>{error}</Badge>}
+                    {message && <Badge variant='green'>{message}</Badge>}
+
+                    {/* Action */}
+                    <Button variant='primary' onClick={handleResume} disabled={resumeDisabled}>
+                      {loadingAction ? 'Resuming...' : 'Resume Execution'}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Tooltip.Provider>

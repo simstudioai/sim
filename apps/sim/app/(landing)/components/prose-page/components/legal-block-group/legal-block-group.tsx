@@ -19,7 +19,7 @@ export function LegalBlockGroup({ blocks }: LegalBlockGroupProps) {
   return (
     <div className={cn('flex flex-col', PROSE_SPACING.blockStack)}>
       {blocks.map((block, index) => (
-        <LegalBlockView key={index} block={block} />
+        <LegalBlockView key={`${block.kind}-${index}`} block={block} />
       ))}
     </div>
   )

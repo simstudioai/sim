@@ -53,6 +53,21 @@ function sectionsForColumn(col: number): PricingCardSection[] {
 }
 
 /**
+ * Resolve a card's canonical label and variant from the free-tier matrix; the
+ * CTA always funnels logged-out visitors to sign-up.
+ */
+function resolveCta(card: UpgradeCardId): PricingCardCta {
+  const cta = getUpgradeCardCta(VISITOR_TIER, card)
+  return { label: cta.label, variant: cta.variant, href: SIGNUP_HREF }
+}
+
+const FREE_CTA: PricingCardCta = {
+  label: 'Get started',
+  variant: 'border-shadow',
+  href: SIGNUP_HREF,
+}
+
+/**
  * The single interactive island of the public pricing page. It owns the lone
  * piece of state - `isAnnual`, defaulting to monthly - which the billing-period
  * toggle (centered under the heading) and the Pro/Max card prices read from one
@@ -82,20 +97,6 @@ export function PricingPlans({ heading }: PricingPlansProps) {
     : 'per user/month, billed monthly'
   const discountLabel = isAnnual ? `${discountPct}% off` : undefined
 
-  /**
-   * Resolve a card's canonical label and variant from the free-tier matrix; the
-   * CTA always funnels logged-out visitors to sign-up.
-   */
-  const resolveCta = (card: UpgradeCardId): PricingCardCta => {
-    const cta = getUpgradeCardCta(VISITOR_TIER, card)
-    return { label: cta.label, variant: cta.variant, href: SIGNUP_HREF }
-  }
-
-  const freeCta: PricingCardCta = {
-    label: 'Get started',
-    variant: 'border-shadow',
-    href: SIGNUP_HREF,
-  }
   const proCta = resolveCta('pro')
   const maxCta = resolveCta('max')
   const enterpriseCta = resolveCta('enterprise')
@@ -112,7 +113,7 @@ export function PricingPlans({ heading }: PricingPlansProps) {
           name='Free'
           price='$0'
           priceSubtext='Free forever'
-          cta={freeCta}
+          cta={FREE_CTA}
           sections={sectionsForColumn(0)}
         />
         <PricingCard

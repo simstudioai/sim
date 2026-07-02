@@ -3,12 +3,12 @@
 import { ChipSelect, type ChipSelectOption } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import type { CareerPosting } from '@/lib/ashby/jobs'
+import { JobGroups } from '@/app/(landing)/careers/components/job-board/job-groups'
 import {
   filterPostings,
   groupByDepartment,
   hasActiveFilters,
-  JobGroups,
-} from '@/app/(landing)/careers/components/job-board/job-groups'
+} from '@/app/(landing)/careers/components/job-board/utils'
 import {
   ALL_FILTER_VALUE,
   careersParsers,
@@ -46,7 +46,7 @@ export function JobBoard({ postings }: JobBoardProps) {
 
   const teamOptions = toFilterOptions(uniqueSorted(postings.map((p) => p.department)), 'All teams')
   const locationOptions = toFilterOptions(
-    uniqueSorted(postings.map((p) => p.location).filter(Boolean)),
+    uniqueSorted(postings.flatMap((p) => (p.location ? [p.location] : []))),
     'All locations'
   )
   const groups = groupByDepartment(filterPostings(postings, team, location))

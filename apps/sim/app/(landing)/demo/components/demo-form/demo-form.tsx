@@ -6,6 +6,7 @@ import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestBody,
 } from '@/lib/api/contracts/demo-requests'
+import { isFreeEmailDomain } from '@/lib/messaging/email/free-email'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useSubmitDemoRequest } from '@/hooks/queries/demo-requests'
 
@@ -175,7 +176,9 @@ export function DemoForm({ onComplete }: DemoFormProps) {
   }, [])
 
   const trimmedEmail = form.email.trim()
-  const emailIsValid = trimmedEmail.length > 0 && quickValidateEmail(trimmedEmail).isValid
+  const emailFormatValid = trimmedEmail.length > 0 && quickValidateEmail(trimmedEmail).isValid
+  const emailIsFreeDomain = isFreeEmailDomain(trimmedEmail)
+  const emailIsValid = emailFormatValid && !emailIsFreeDomain
   const canSubmit =
     emailIsValid &&
     form.firstName.trim().length > 0 &&
@@ -184,20 +187,23 @@ export function DemoForm({ onComplete }: DemoFormProps) {
     form.companySize.length > 0
 
   /**
-   * Only surface a format error once the value looks like an address attempt
-   * (contains `@`) so the field doesn't flash an error on the first keystroke.
+   * Surface an error only once the value looks like an address attempt (contains
+   * `@`) so the field doesn't flash on the first keystroke, and distinguish a
+   * malformed address from a personal one so the visitor knows to switch to a
+   * work email — matching the server's work-email requirement.
    */
-  const emailError =
-    form.email.includes('@') && !emailIsValid ? 'Enter a valid work email address.' : undefined
+  const emailError = !form.email.includes('@')
+    ? undefined
+    : !emailFormatValid
+      ? 'Enter a valid work email address.'
+      : emailIsFreeDomain
+        ? 'Please use your work email address.'
+        : undefined
 
   const handleSubmit = () => {
     if (!canSubmit) return
 
-    // Notify sales of the inbound demo (route emails the sales inbox, replying to
-    // the visitor - no email is sent to the visitor). Fire-and-forget so a failed
-    // or rate-limited notification never blocks the visitor from scheduling; the
-    // company-size value originates from the contract's own options, so it is a
-    // valid payload value.
+    // Best-effort sales notification — fire-and-forget so it never blocks scheduling.
     submitDemoRequest.mutate({
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),

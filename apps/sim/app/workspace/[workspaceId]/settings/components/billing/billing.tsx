@@ -90,12 +90,23 @@ function formatInvoiceDate(createdSeconds: number): string {
   })
 }
 
+/** Cached currency formatters, keyed by upper-cased ISO currency code. */
+const invoiceAmountFormatters = new Map<string, Intl.NumberFormat>()
+
+/** Resolve (and memoize) an `Intl.NumberFormat` for a currency code. */
+function getInvoiceAmountFormatter(currency: string): Intl.NumberFormat {
+  const code = currency.toUpperCase()
+  let formatter = invoiceAmountFormatters.get(code)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency: code })
+    invoiceAmountFormatters.set(code, formatter)
+  }
+  return formatter
+}
+
 /** Format a minor-unit (e.g. cents) amount as a localized currency string. */
 function formatInvoiceAmount(amountMinor: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-  }).format(amountMinor / 100)
+  return getInvoiceAmountFormatter(currency).format(amountMinor / 100)
 }
 
 export function Billing() {

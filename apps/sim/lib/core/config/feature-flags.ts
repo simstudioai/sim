@@ -90,6 +90,15 @@ const FEATURE_FLAGS = {
       'agree.',
     fallback: 'PII_REDACTION',
   },
+  'pii-granular-redaction': {
+    description:
+      'Expose the execution-altering PII redaction stages (redact the workflow input and every ' +
+      'block output in-flight) in the Data Retention config, layered on top of pii-redaction. ' +
+      'Global on/off only — gates the config surfaces (route write + UI). Because stored rules ' +
+      'are the source of truth for the executor, a granular stage can only run once it was ' +
+      'writable, so the executor is never flag-gated at runtime (avoiding a fail-open leak).',
+    fallback: 'PII_GRANULAR_REDACTION',
+  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +

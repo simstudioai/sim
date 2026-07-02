@@ -423,8 +423,7 @@ export function ThinkingLoader({
   if (!displayLabel) return loader
 
   return (
-    <span
-      role='status'
+    <output
       className={cn(styles.labelRow, className)}
       style={
         {
@@ -444,6 +443,6 @@ export function ThinkingLoader({
           <span className={shimmer ? styles.label : styles.labelStatic}>{shownLabel}</span>
         </span>
       </span>
-    </span>
+    </output>
   )
 }

@@ -15,6 +15,7 @@ import {
   type Integration,
 } from '@/lib/integrations'
 import { BackLink } from '@/app/(landing)/components'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-cta-button'
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
@@ -62,8 +63,8 @@ function getRelatedSlugs(
   )
 
   return allIntegrations
-    .filter((i) => i.slug !== slug)
-    .map((i) => {
+    .reduce<Array<{ slug: string; score: number }>>((scored, i) => {
+      if (i.slug === slug) return scored
       const sharedNames = i.operations.filter((o) =>
         currentOpNames.has(o.name.toLowerCase())
       ).length
@@ -75,8 +76,12 @@ function getRelatedSlugs(
       ).length
       const sameCategory = i.integrationType === integrationType ? 2 : 0
       const sameAuth = i.authType === authType ? 1 : 0
-      return { slug: i.slug, score: sharedNames * 3 + sharedWords * 2 + sameCategory + sameAuth }
-    })
+      scored.push({
+        slug: i.slug,
+        score: sharedNames * 3 + sharedWords * 2 + sameCategory + sameAuth,
+      })
+      return scored
+    }, [])
     .sort((a, b) => b.score - a.score || a.slug.localeCompare(b.slug))
     .slice(0, limit)
     .map(({ slug: s }) => s)
@@ -124,7 +129,7 @@ function escapeRegex(value: string): string {
  * names.
  */
 function mentionifyPromptForNames(prompt: string, names: readonly string[]): string {
-  const unique = [...new Set(names.filter((n) => n.trim().length >= 2))].sort(
+  const unique = Array.from(new Set(names.filter((n) => n.trim().length >= 2))).sort(
     (a, b) => b.length - a.length
   )
   if (unique.length === 0) return prompt
@@ -138,6 +143,48 @@ function mentionifyPromptForNames(prompt: string, names: readonly string[]): str
 /** Lowercases only the first character so acronyms in tool names survive. */
 function lowercaseFirst(value: string): string {
   return value.charAt(0).toLowerCase() + value.slice(1)
+}
+
+/**
+ * The ordered integration-icon chain for a template card - one tile per block
+ * type in flow order, separated by arrows. Resolves each type through its
+ * versioned aliases so v2/v3 blocks reuse the base icon and name.
+ */
+function TemplateIconRow({ allTypes }: { allTypes: string[] }) {
+  return (
+    <>
+      {allTypes.map((bt, idx) => {
+        const resolvedBt = byType.get(bt)
+          ? bt
+          : byType.get(`${bt}_v2`)
+            ? `${bt}_v2`
+            : byType.get(`${bt}_v3`)
+              ? `${bt}_v3`
+              : bt
+        const int = byType.get(resolvedBt)
+        const ToolIcon = blockTypeToIconMap[resolvedBt]
+        return (
+          <span key={bt} className='inline-flex items-center gap-1.5'>
+            {idx > 0 && (
+              <span className='text-[11px] text-[var(--text-subtle)]' aria-hidden='true'>
+                →
+              </span>
+            )}
+            <IntegrationIcon
+              bgColor={int?.bgColor ?? 'var(--surface-active)'}
+              name={int?.name ?? bt}
+              Icon={ToolIcon}
+              as='span'
+              className='size-6 rounded-[4px]'
+              iconClassName='size-3.5'
+              fallbackClassName='text-[10px]'
+              aria-hidden='true'
+            />
+          </span>
+        )
+      })}
+    </>
+  )
 }
 
 /** Joins items into readable prose: "a", "a and b", or "a, b, and c". */
@@ -377,18 +424,9 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
   return (
     <section className='bg-[var(--bg)]'>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
+      <JsonLd data={breadcrumbJsonLd} />
+      <JsonLd data={softwareAppJsonLd} />
+      <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
       <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
@@ -721,38 +759,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                     .filter((n): n is string => n !== null)
                 )
 
-              const renderIcons = (allTypes: string[]) =>
-                allTypes.map((bt, idx) => {
-                  const resolvedBt = byType.get(bt)
-                    ? bt
-                    : byType.get(`${bt}_v2`)
-                      ? `${bt}_v2`
-                      : byType.get(`${bt}_v3`)
-                        ? `${bt}_v3`
-                        : bt
-                  const int = byType.get(resolvedBt)
-                  const ToolIcon = blockTypeToIconMap[resolvedBt]
-                  return (
-                    <span key={bt} className='inline-flex items-center gap-1.5'>
-                      {idx > 0 && (
-                        <span className='text-[11px] text-[var(--text-subtle)]' aria-hidden='true'>
-                          →
-                        </span>
-                      )}
-                      <IntegrationIcon
-                        bgColor={int?.bgColor ?? 'var(--surface-active)'}
-                        name={int?.name ?? bt}
-                        Icon={ToolIcon}
-                        as='span'
-                        className='size-6 rounded-[4px]'
-                        iconClassName='size-3.5'
-                        fallbackClassName='text-[10px]'
-                        aria-hidden='true'
-                      />
-                    </span>
-                  )
-                })
-
               return (
                 <>
                   {/* Paired rows of 2 */}
@@ -771,7 +777,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                               className='group flex flex-1 flex-col gap-4 border-[var(--border)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--surface-hover)] sm:border-t-0 sm:border-l sm:first:border-l-0'
                             >
                               <div className='flex items-center gap-1.5'>
-                                {renderIcons(resolveTypes(template))}
+                                <TemplateIconRow allTypes={resolveTypes(template)} />
                               </div>
                               <div className='flex flex-col gap-2'>
                                 <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
@@ -797,7 +803,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                         className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--surface-hover)]'
                       >
                         <div className='flex items-center gap-1.5'>
-                          {renderIcons(resolveTypes(lastTemplate))}
+                          <TemplateIconRow allTypes={resolveTypes(lastTemplate)} />
                         </div>
                         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
                           <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>

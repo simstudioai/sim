@@ -299,6 +299,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               strokeWidth={2}
             />
             <input
+              aria-label='Search providers'
               placeholder='Search providers...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -380,6 +381,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               type='text'
               name='fakeusernameremembered'
               autoComplete='username'
+              aria-hidden='true'
               style={{
                 position: 'absolute',
                 left: '-9999px',
@@ -391,6 +393,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
             />
             <div className={CHIP_FIELD_SHELL}>
               <input
+                aria-label='API Key'
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => {

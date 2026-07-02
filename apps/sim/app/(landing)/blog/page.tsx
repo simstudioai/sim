@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { buildCollectionPageJsonLd } from '@/lib/blog/seo'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 export async function generateMetadata({
   searchParams,
@@ -91,10 +92,7 @@ export default async function BlogIndex({
 
   return (
     <section className='bg-[var(--bg)]'>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
-      />
+      <JsonLd data={collectionJsonLd} />
 
       {/* Section header */}
       <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>

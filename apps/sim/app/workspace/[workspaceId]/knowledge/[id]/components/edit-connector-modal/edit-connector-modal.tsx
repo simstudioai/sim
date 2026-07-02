@@ -79,10 +79,10 @@ function valuesEqual(a: unknown, b: unknown): boolean {
   const toArray = (v: unknown): string[] | null => {
     if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string')
     if (typeof v === 'string') {
-      return v
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+      return v.split(',').flatMap((s) => {
+        const t = s.trim()
+        return t ? [t] : []
+      })
     }
     return null
   }
@@ -159,10 +159,10 @@ export function EditConnectorModal({
         if (Array.isArray(rawValue)) {
           config[field.id] = rawValue.filter((v): v is string => typeof v === 'string')
         } else if (typeof rawValue === 'string') {
-          config[field.id] = rawValue
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
+          config[field.id] = rawValue.split(',').flatMap((s) => {
+            const t = s.trim()
+            return t ? [t] : []
+          })
         } else {
           config[field.id] = []
         }

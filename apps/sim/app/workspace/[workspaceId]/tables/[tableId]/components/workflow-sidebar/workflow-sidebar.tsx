@@ -121,6 +121,12 @@ interface WorkflowSidebarProps {
 
 const OUTPUT_VALUE_SEPARATOR = '::'
 
+const TITLE_BY_MODE = {
+  create: 'Add workflow',
+  'edit-group': 'Configure workflow',
+  'edit-output': 'Configure output column',
+} as const
+
 const encodeOutputValue = (blockId: string, path: string) =>
   `${blockId}${OUTPUT_VALUE_SEPARATOR}${path}`
 
@@ -772,15 +778,10 @@ export function WorkflowSidebarBody({
     updateWorkflowGroup.isPending ||
     updateColumn.isPending ||
     !depsValid
-  const titleByMode = {
-    create: 'Add workflow',
-    'edit-group': 'Configure workflow',
-    'edit-output': 'Configure output column',
-  } as const
   const title =
     config.mode === 'create' && config.kind === 'enrichment' && config.enrichmentName
       ? config.enrichmentName
-      : titleByMode[config.mode]
+      : TITLE_BY_MODE[config.mode]
   const showBackButton = isEnrichment && Boolean(onBack)
 
   // edit-output mode is single-select on the output picker; everywhere else

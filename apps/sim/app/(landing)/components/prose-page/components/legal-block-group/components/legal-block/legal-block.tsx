@@ -23,11 +23,14 @@ export function LegalBlockView({ block }: LegalBlockViewProps) {
     case 'list':
       return (
         <ul className={cn('list-disc', PROSE_SPACING.listIndent, PROSE_SPACING.listStack)}>
-          {block.items.map((item, index) => (
-            <li key={index} className={PROSE_TYPE.list}>
-              {item}
-            </li>
-          ))}
+          {block.items.map((item, index) => {
+            const itemKey = `item-${index}`
+            return (
+              <li key={itemKey} className={PROSE_TYPE.list}>
+                {item}
+              </li>
+            )
+          })}
         </ul>
       )
     case 'callout':

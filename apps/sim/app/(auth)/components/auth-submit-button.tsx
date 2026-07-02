@@ -14,9 +14,8 @@ interface AuthSubmitButtonProps {
 
 /**
  * The canonical full-width primary auth action — a `primary`-variant {@link Chip}
- * with the shared in-flight spinner. Replaces the legacy dark
- * `AUTH_SUBMIT_BTN` class string for every in-scope auth submit (login, signup,
- * verify, reset), so the primary CTA chrome lives in exactly one place.
+ * with the shared in-flight spinner, so the primary CTA chrome lives in
+ * exactly one place.
  */
 export function AuthSubmitButton({
   children,

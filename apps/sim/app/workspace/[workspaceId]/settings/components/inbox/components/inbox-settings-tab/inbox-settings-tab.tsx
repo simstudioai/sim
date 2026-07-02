@@ -65,7 +65,7 @@ export function InboxSettingsTab() {
     } catch (error) {
       setEditAddressError(getErrorMessage(error, 'Failed to update address'))
     }
-  }, [workspaceId, newUsername])
+  }, [workspaceId, newUsername, updateAddress.mutateAsync])
 
   const handleAddSender = useCallback(async () => {
     if (!newSenderEmail.trim()) return
@@ -82,7 +82,7 @@ export function InboxSettingsTab() {
     } catch (error) {
       setAddSenderError(getErrorMessage(error, 'Failed to add sender'))
     }
-  }, [workspaceId, newSenderEmail, newSenderLabel])
+  }, [workspaceId, newSenderEmail, newSenderLabel, addSender.mutateAsync])
 
   const handleRemoveSender = useCallback(
     async (senderId: string) => {
@@ -93,7 +93,7 @@ export function InboxSettingsTab() {
         setRemoveSenderError(getErrorMessage(error, 'Failed to remove sender'))
       }
     },
-    [workspaceId]
+    [workspaceId, removeSender.mutateAsync]
   )
 
   return (

@@ -57,6 +57,11 @@ import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('EmailPolling')
 
+function getProviderIcon(providerId: string | null) {
+  if (providerId === 'outlook') return <OutlookIcon className='size-4' />
+  return <GmailIcon className='size-4' />
+}
+
 export function CredentialSets() {
   const { data: session } = useSession()
   const { data: organizationsData } = useOrganizations()
@@ -240,10 +245,13 @@ export function CredentialSets() {
     }
   }, [newSetName, newSetDescription, newSetProvider, activeOrganization?.id, createCredentialSet])
 
-  const validEmails = useMemo(
-    () => emailItems.filter((item) => item.isValid).map((item) => item.value),
-    [emailItems]
-  )
+  const validEmails = useMemo(() => {
+    const result: string[] = []
+    for (const item of emailItems) {
+      if (item.isValid) result.push(item.value)
+    }
+    return result
+  }, [emailItems])
 
   const handleInviteMembers = useCallback(async () => {
     if (!viewingSet?.id) return
@@ -366,11 +374,6 @@ export function CredentialSets() {
       })
     }
   }, [deletingSet, activeOrganization?.id, deleteCredentialSet])
-
-  const getProviderIcon = (providerId: string | null) => {
-    if (providerId === 'outlook') return <OutlookIcon className='size-4' />
-    return <GmailIcon className='size-4' />
-  }
 
   const activeMemberships = useMemo(
     () => memberships.filter((m) => m.status === 'active'),

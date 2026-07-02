@@ -5,6 +5,7 @@ import { ChipDropdown, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryState } from 'nuqs'
 import {
   RoleLockTooltip,
   type WorkspaceRoleSource,
@@ -18,6 +19,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  teammatesSearchParam,
+  teammatesUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/teammates/search-params'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
@@ -71,7 +76,11 @@ export function Teammates() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useQueryState(teammatesSearchParam.key, {
+    ...teammatesSearchParam.parser,
+    ...teammatesUrlKeys,
+    limitUrlUpdates: debounce(300),
+  })
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
   const { data: permissions, isPending: permissionsLoading } =
@@ -167,7 +176,7 @@ export function Teammates() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          onChange: (value) => void setSearchTerm(value),
           placeholder: 'Search teammates...',
         }}
         actions={[

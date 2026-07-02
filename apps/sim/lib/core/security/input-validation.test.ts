@@ -28,6 +28,7 @@ import {
 } from '@/lib/core/security/input-validation'
 import {
   isPrivateOrReservedIP,
+  validateDatabaseHost,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
@@ -758,6 +759,86 @@ describe('validateUrlWithDNS', () => {
     it('should reject empty string', async () => {
       const result = await validateUrlWithDNS('')
       expect(result.isValid).toBe(false)
+    })
+  })
+})
+
+describe('validateDatabaseHost', () => {
+  afterEach(() => {
+    envFlagsMock.isPrivateDatabaseHostsAllowed = false
+  })
+
+  describe('default (SSRF guard on)', () => {
+    it('rejects a missing host', async () => {
+      const result = await validateDatabaseHost(undefined)
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('required')
+    })
+
+    it('rejects localhost', async () => {
+      const result = await validateDatabaseHost('localhost')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('localhost')
+    })
+
+    it('rejects a literal private IP', async () => {
+      const result = await validateDatabaseHost('10.0.0.5')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it('rejects a literal loopback IP', async () => {
+      const result = await validateDatabaseHost('127.0.0.1')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it('rejects a bracketed IPv6 loopback as a private IP (not unresolvable)', async () => {
+      const result = await validateDatabaseHost('[::1]')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it('accepts a public IP and pins the resolved address', async () => {
+      const result = await validateDatabaseHost('1.1.1.1')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('1.1.1.1')
+    })
+  })
+
+  describe('self-host opt-in (ALLOW_PRIVATE_DATABASE_HOSTS)', () => {
+    beforeEach(() => {
+      envFlagsMock.isPrivateDatabaseHostsAllowed = true
+    })
+
+    it('allows localhost and still resolves an IP to pin', async () => {
+      const result = await validateDatabaseHost('localhost')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBeDefined()
+    })
+
+    it('allows a literal private IP and pins it', async () => {
+      const result = await validateDatabaseHost('10.0.0.5')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('10.0.0.5')
+    })
+
+    it('allows a literal loopback IP and pins it', async () => {
+      const result = await validateDatabaseHost('127.0.0.1')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('127.0.0.1')
+    })
+
+    it('allows a bracketed IPv6 loopback and pins the unbracketed address', async () => {
+      const result = await validateDatabaseHost('[::1]')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBe('::1')
+    })
+
+    it('still surfaces unresolvable hostnames', async () => {
+      const result = await validateDatabaseHost('this-host-does-not-exist.invalid')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('could not be resolved')
     })
   })
 })

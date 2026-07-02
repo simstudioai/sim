@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label, Loader } from '@sim/emcn'
+import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AUTH_SUBMIT_BTN, AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
+import { AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileOtpRequest, usePublicFileOtpVerify } from '@/hooks/queries/public-shares'
 
@@ -107,20 +108,13 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
             {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
           </div>
 
-          <button
-            type='submit'
-            disabled={!email.trim() || requestOtp.isPending}
-            className={AUTH_SUBMIT_BTN}
+          <AuthSubmitButton
+            disabled={!email.trim()}
+            loading={requestOtp.isPending}
+            loadingLabel='Sending Code…'
           >
-            {requestOtp.isPending ? (
-              <span className='flex items-center gap-2'>
-                <Loader className='size-4' animate />
-                Sending Code…
-              </span>
-            ) : (
-              'Continue'
-            )}
-          </button>
+            Continue
+          </AuthSubmitButton>
         </form>
       </PublicFileAuthShell>
     )
@@ -132,7 +126,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
       subtitle={`A verification code has been sent to ${email}`}
     >
       <div className='space-y-6'>
-        <p className='text-center text-[var(--landing-text-muted)] text-sm'>
+        <p className='text-center text-[var(--text-muted)] text-sm'>
           Enter the 6-digit code to verify your access. If you don't see it in your inbox, check
           your spam folder.
         </p>
@@ -163,28 +157,23 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
 
         {error ? <p className='text-center text-[var(--text-error)] text-xs'>{error}</p> : null}
 
-        <button
+        <AuthSubmitButton
+          type='button'
           onClick={() => verifyCode(otp)}
-          disabled={otp.length !== 6 || verifyOtp.isPending}
-          className={AUTH_SUBMIT_BTN}
+          disabled={otp.length !== 6}
+          loading={verifyOtp.isPending}
+          loadingLabel='Verifying…'
         >
-          {verifyOtp.isPending ? (
-            <span className='flex items-center gap-2'>
-              <Loader className='size-4' animate />
-              Verifying…
-            </span>
-          ) : (
-            'Verify Email'
-          )}
-        </button>
+          Verify Email
+        </AuthSubmitButton>
 
         <div className='text-center'>
-          <p className='text-[var(--landing-text-muted)] text-sm'>
+          <p className='text-[var(--text-muted)] text-sm'>
             Didn't receive a code?{' '}
             {countdown > 0 ? (
               <span>
                 Resend in{' '}
-                <span className='font-medium text-[var(--landing-text)]'>{countdown}s</span>
+                <span className='font-medium text-[var(--text-primary)]'>{countdown}s</span>
               </span>
             ) : (
               <button

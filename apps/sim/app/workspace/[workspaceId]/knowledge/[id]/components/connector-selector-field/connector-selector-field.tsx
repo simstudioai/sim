@@ -40,8 +40,9 @@ export function ConnectorSelectorField({
     if (credentialId) ctx.oauthCredential = credentialId
     if (field.mimeType) ctx.mimeType = field.mimeType
 
+    const fieldsById = new Map(configFields.map((f) => [f.id, f]))
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
-      const depField = configFields.find((f) => f.id === depFieldId)
+      const depField = fieldsById.get(depFieldId)
       const canonicalId = depField?.canonicalParamId ?? depFieldId
       const depValue = resolveDepValue(depFieldId, configFields, canonicalModes, sourceConfig)
       if (depValue && SELECTOR_CONTEXT_FIELDS.has(canonicalId as keyof SelectorContext)) {

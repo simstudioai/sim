@@ -33,9 +33,7 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
   useEffect(() => {
     getCalApi({ namespace: CAL_NAMESPACE }).then((cal) => {
       cal('ui', {
-        theme: 'light',
         hideEventTypeDetails: true,
-        layout: 'month_view',
         styles: { branding: { brandColor: CAL_BRAND_COLOR } },
       })
     })
@@ -58,6 +56,8 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
             name: lead.name,
             email: lead.email,
             notes: lead.notes,
+            theme: 'light',
+            'ui.color-scheme': 'light',
             layout: 'month_view',
             useSlotsViewOnSmallScreen: 'true',
           }}

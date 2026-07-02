@@ -25,6 +25,8 @@ const ROLE_OPTIONS = [
   { value: 'read', label: 'Read' },
 ] as const
 
+const EMPTY_EMAILS: string[] = []
+
 interface OrganizationInviteModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -54,8 +56,8 @@ export function OrganizationInviteModal({
   onOpenChange,
   organizationId,
   workspaces,
-  externalEmails = [],
-  pendingEmails = [],
+  externalEmails = EMPTY_EMAILS,
+  pendingEmails = EMPTY_EMAILS,
 }: OrganizationInviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])

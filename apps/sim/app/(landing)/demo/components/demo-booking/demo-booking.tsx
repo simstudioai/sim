@@ -24,34 +24,22 @@ interface DemoBookingProps {
 }
 
 /**
- * The demo page's right column - a two-step booking card and the only client
- * island on the page. It owns the card chrome (`rounded-lg`, `--surface-2`,
- * {@link chipBorderShadowRing}) and the step.
+ * The demo page's right column: a two-step booking card and the only client
+ * island on the page. Owns the card chrome and the step transition.
  *
- * Both steps live side by side in a sliding track: the form is panel 1, the
- * scheduler panel 2. Submitting slides one-way to the scheduler
- * (`translateX(-100%)`) at the platform's `duration-200 ease-out` (a refresh
- * restarts the flow). The form stays mounted (it drives the card height); the
- * off-screen panel is `inert` so it's out of tab/AT order.
+ * The form (panel 1) and scheduler (panel 2) sit side by side in a sliding
+ * track; submitting slides one-way to the scheduler at `duration-200 ease-out`.
+ * The form stays mounted and drives the card height, so the card never resizes
+ * across the transition; a `ResizeObserver` keeps the pinned height in sync as
+ * the form grows (inline error, phone breakpoint). The off-screen panel is
+ * `inert` (out of tab/AT order) and the scheduler lazy-mounts on submit,
+ * preloaded on first form focus.
  *
- * The card is pinned to the form's measured height so it never resizes across
- * the form→calendar transition (the Cal embed self-sizes its own iframe via
- * postMessage, so this is purely to keep the card's height stable). A
- * `ResizeObserver` keeps it in sync as the form grows (an inline error, a phone
- * breakpoint). The scheduler fills its panel and lazy-mounts on submit (preloaded
- * on first form focus).
- *
- * Exception on phones (`max-sm`): once the scheduler is showing, the form-height
- * pin is overridden to `80svh` so the Cal booker gets a real viewport instead of
- * being crammed into the short form height - which caged the self-sizing iframe
- * behind `overflow:auto` and made its day/time slots tiny and hard to tap. The
- * pin is published as the `--demo-card-h` CSS var rather than an inline `height`
- * so the `max-sm` class can win (a media-query class can't override an inline
- * style height). `svh` keeps the height steady as the mobile URL bar shows/hides,
- * so the tap targets never shift.
- *
- * (Wiring the lead to a backend on submit slots in here - capture it before or
- * alongside `setLead`.)
+ * The pin is published as the `--demo-card-h` CSS var (not an inline `height`)
+ * so a `max-sm:h-[80svh]` class can override it once the scheduler shows — the
+ * Cal booker needs a real viewport on phones instead of being crammed into the
+ * short form height. `svh` keeps tap targets from shifting as the mobile URL bar
+ * hides/shows.
  */
 export function DemoBooking({ className }: DemoBookingProps) {
   const [lead, setLead] = useState<DemoLead | null>(null)

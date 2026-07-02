@@ -1,5 +1,14 @@
+import {
+  ClipboardList,
+  Download,
+  File,
+  Search,
+  Server,
+  TerminalWindow,
+  Wrench,
+} from '@sim/emcn/icons'
 import { SshIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SSHResponse } from '@/tools/ssh/types'
 
@@ -601,3 +610,106 @@ Examples:
     message: { type: 'string', description: 'Operation status message' },
   },
 }
+
+export const SSHBlockMeta = {
+  tags: ['automation'],
+  url: 'https://www.openssh.com',
+  templates: [
+    {
+      icon: TerminalWindow,
+      title: 'Scheduled server health check to Slack',
+      prompt:
+        'Every morning, SSH into the production server and run a health check command (uptime, load average, and free memory). Summarize stdout with an agent and post the result to the #ops Slack channel so the team starts the day knowing the box is healthy.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'automation', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Server,
+      title: 'Disk-usage alert with SSH',
+      prompt:
+        "On a schedule, SSH into the server and execute 'df -h /' to read disk usage. Parse the stdout, and if the used percentage crosses 85%, send an alert to Slack with the current usage; otherwise stay silent.",
+      modules: ['scheduled', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring', 'alerts'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Wrench,
+      title: 'Run a deploy script over SSH',
+      prompt:
+        'Trigger a deployment by SSHing into the app server and executing a maintenance script that pulls the latest code, installs dependencies, rebuilds, and restarts the service. Check the exitCode and success outputs, then report stdout and stderr back so failures are visible.',
+      modules: ['workflows', 'agent'],
+      category: 'engineering',
+      tags: ['devops', 'deployment', 'automation'],
+    },
+    {
+      icon: ClipboardList,
+      title: 'Tail and summarize a remote log',
+      prompt:
+        'SSH into the server and read the last 200 lines of /var/log/app.log, then hand the content to an agent that summarizes recent errors and warnings into a short digest. Post the digest so on-call engineers can scan incidents at a glance.',
+      modules: ['workflows', 'agent'],
+      category: 'engineering',
+      tags: ['devops', 'logs', 'observability'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Download,
+      title: 'Fetch a remote report file into the workflow',
+      prompt:
+        'Download a generated report file from the remote server via SSH and pass the resulting file output into the next step for processing or storage, so a nightly export on the box flows straight into the workflow.',
+      modules: ['scheduled', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'files', 'automation'],
+    },
+    {
+      icon: Search,
+      title: 'Verify a command exists before running it',
+      prompt:
+        'Before executing a maintenance step, use Check Command Exists over SSH to confirm a tool like docker or git is installed on the remote host. If the exists output is true, run the command; if not, report a clear message that the dependency is missing.',
+      modules: ['workflows'],
+      category: 'engineering',
+      tags: ['devops', 'validation', 'automation'],
+    },
+    {
+      icon: File,
+      title: 'Push a config file and restart a service',
+      prompt:
+        'Upload a rendered configuration file to the remote server via SSH, write it to the target path, then execute a command to restart the affected service. Confirm success from the exitCode and stderr outputs before finishing.',
+      modules: ['workflows', 'agent'],
+      category: 'operations',
+      tags: ['devops', 'configuration', 'automation'],
+    },
+  ],
+  skills: [
+    {
+      name: 'remote-health-check',
+      description:
+        'Run a lightweight health check over SSH and turn the output into a readable status line.',
+      content:
+        '# Remote Health Check\n\nRun a quick SSH health probe and summarize the result.\n\n## Steps\n1. Use the Execute Command operation with `uptime && free -m && df -h /`.\n2. Read `stdout` for load, memory, and disk figures.\n3. Confirm `exitCode` is 0 and `success` is true before trusting the output.\n4. Summarize into one status line (healthy / degraded) for posting downstream.\n\n## Output\nA short human-readable status derived from `stdout`, gated on `success`.',
+    },
+    {
+      name: 'guarded-command-run',
+      description:
+        'Check a command exists over SSH before executing it, so missing dependencies fail loudly.',
+      content:
+        '# Guarded Command Run\n\nAvoid silent failures by verifying a dependency first.\n\n## Steps\n1. Use Check Command Exists with the target `commandName` (e.g. `docker`).\n2. Branch on the `exists` output.\n3. When `exists` is true, run the real command with Execute Command.\n4. When false, stop and report a clear "dependency missing" message.\n\n## Output\nEither the command `stdout`/`exitCode`, or an explicit missing-dependency message.',
+    },
+    {
+      name: 'remote-log-digest',
+      description:
+        'Pull the tail of a remote log over SSH and summarize errors and warnings into a digest.',
+      content:
+        '# Remote Log Digest\n\nTurn a noisy remote log into a scannable summary.\n\n## Steps\n1. Use Read File Content on the log path (e.g. `/var/log/app.log`) with a sensible max size.\n2. Take the returned `content` and pass it to an agent.\n3. Ask the agent to extract recent errors, warnings, and their counts.\n4. Emit a short digest for Slack or a report.\n\n## Output\nA concise digest of notable log lines derived from the file `content`.',
+    },
+    {
+      name: 'safe-config-deploy',
+      description:
+        'Upload a config file over SSH, then restart the service and verify the exit code.',
+      content:
+        '# Safe Config Deploy\n\nShip a config change and confirm the service came back healthy.\n\n## Steps\n1. Use Upload File (or Write File Content) to place the config at its target path.\n2. Execute the restart command for the affected service.\n3. Inspect `exitCode` and `stderr` to detect a failed restart.\n4. Report `success` plus any `stderr` so a bad deploy is visible immediately.\n\n## Output\nA pass/fail result built from `exitCode`, `success`, and `stderr`.',
+    },
+  ],
+} as const satisfies BlockMeta

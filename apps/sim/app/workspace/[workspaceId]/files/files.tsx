@@ -78,7 +78,7 @@ import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-op
 import { filesParsers, filesUrlKeys } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
+import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
   useCreateWorkspaceFileFolder,
@@ -197,6 +197,11 @@ export function Files() {
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
+  const membersById = useMemo(() => {
+    const map = new Map<string, WorkspaceMember>()
+    for (const member of members ?? []) map.set(member.userId, member)
+    return map
+  }, [members])
   const uploadFile = useUploadWorkspaceFile()
   const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
@@ -416,8 +421,8 @@ export function Files() {
           cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
           break
         case 'owner':
-          cmp = (members?.find((m) => m.userId === a.uploadedBy)?.name ?? '').localeCompare(
-            members?.find((m) => m.userId === b.uploadedBy)?.name ?? ''
+          cmp = (membersById.get(a.uploadedBy)?.name ?? '').localeCompare(
+            membersById.get(b.uploadedBy)?.name ?? ''
           )
           break
       }
@@ -431,7 +436,7 @@ export function Files() {
     sizeFilter,
     uploadedByFilter,
     activeSort,
-    members,
+    membersById,
   ])
 
   const baseRows: ResourceRow[] = useMemo(() => {
@@ -453,7 +458,7 @@ export function Files() {
           label: 'Folder',
         },
         created: timeCell(folder.createdAt),
-        owner: ownerCell(folder.userId, members),
+        owner: ownerCell(folder.userId, membersById),
         updated: timeCell(folder.updatedAt),
       },
     }))
@@ -475,7 +480,7 @@ export function Files() {
             label: formatFileType(file.type, file.name),
           },
           created: timeCell(file.uploadedAt),
-          owner: ownerCell(file.uploadedBy, members),
+          owner: ownerCell(file.uploadedBy, membersById),
           updated: timeCell(file.updatedAt),
         },
       }
@@ -483,7 +488,7 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, members, folderSizeMap])
+  }, [visibleFolders, filteredFiles, membersById, folderSizeMap])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -525,22 +530,16 @@ export function Files() {
 
   const isAllSelected =
     visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
-  const selectedFileIds = useMemo(
-    () =>
-      Array.from(selectedRowIds)
-        .map(parseRowId)
-        .filter((item) => item.kind === 'file')
-        .map((item) => item.id),
-    [selectedRowIds]
-  )
-  const selectedFolderIds = useMemo(
-    () =>
-      Array.from(selectedRowIds)
-        .map(parseRowId)
-        .filter((item) => item.kind === 'folder')
-        .map((item) => item.id),
-    [selectedRowIds]
-  )
+  const { selectedFileIds, selectedFolderIds } = useMemo(() => {
+    const fileIds: string[] = []
+    const folderIds: string[] = []
+    for (const rowId of selectedRowIds) {
+      const item = parseRowId(rowId)
+      if (item.kind === 'file') fileIds.push(item.id)
+      else folderIds.push(item.id)
+    }
+    return { selectedFileIds: fileIds, selectedFolderIds: folderIds }
+  }, [selectedRowIds])
 
   const selectableConfig = useMemo(
     () => ({
@@ -1749,7 +1748,7 @@ export function Files() {
       uploadedByFilter.length === 0
         ? 'All'
         : uploadedByFilter.length === 1
-          ? (members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member')
+          ? (membersById.get(uploadedByFilter[0])?.name ?? '1 member')
           : `${uploadedByFilter.length} members`
 
     return (
@@ -1831,7 +1830,7 @@ export function Files() {
         )}
       </div>
     )
-  }, [typeFilter, sizeFilter, uploadedByFilter, memberOptions, members, hasActiveFilters])
+  }, [typeFilter, sizeFilter, uploadedByFilter, memberOptions, membersById, hasActiveFilters])
 
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
@@ -1863,12 +1862,12 @@ export function Files() {
     if (uploadedByFilter.length > 0) {
       const label =
         uploadedByFilter.length === 1
-          ? `Uploaded by: ${members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member'}`
+          ? `Uploaded by: ${membersById.get(uploadedByFilter[0])?.name ?? '1 member'}`
           : `Uploaded by: ${uploadedByFilter.length} members`
       tags.push({ label, onRemove: () => setUploadedByFilter([]) })
     }
     return tags
-  }, [typeFilter, sizeFilter, uploadedByFilter, members])
+  }, [typeFilter, sizeFilter, uploadedByFilter, membersById])
 
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (

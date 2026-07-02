@@ -1,5 +1,6 @@
 'use client'
 
+import { Button } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
 
 interface ChatErrorStateProps {
@@ -16,12 +17,13 @@ export function ChatErrorState({ error }: ChatErrorStateProps) {
           Chat Unavailable
         </h1>
         <p className='text-[var(--text-muted)] text-lg'>{error}</p>
-        <button
+        <Button
+          variant='primary'
           onClick={() => router.push('/workspace')}
-          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-[var(--text-primary)] bg-[var(--text-primary)] px-2.5 text-[var(--bg)] text-sm transition-colors hover:border-[var(--text-body)] hover:bg-[var(--text-body)] disabled:cursor-not-allowed disabled:opacity-50'
+          className='h-[32px] w-full gap-2 px-2.5 text-sm'
         >
           Return to Workspace
-        </button>
+        </Button>
       </div>
     </div>
   )

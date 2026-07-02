@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
-import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { trackLandingCta } from '@/app/(landing)/track-landing-cta'
 
 /**
  * Stores the typed prompt in browser storage and routes to `/signup`, so a

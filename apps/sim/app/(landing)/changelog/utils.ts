@@ -27,17 +27,20 @@ export function extractMentions(body: string): string[] {
 
 /** Maps non-prerelease GitHub releases to normalized {@link ChangelogEntry} items. */
 export function mapReleases(releases: GitHubRelease[]): ChangelogEntry[] {
-  return releases
-    .filter((release) => !release.prerelease)
-    .map((release) => {
-      const body = String(release.body ?? '')
-      return {
-        tag: release.tag_name,
-        title: release.name || release.tag_name,
-        content: sanitizeContent(body),
-        date: release.published_at,
-        url: release.html_url,
-        contributors: extractMentions(body),
-      }
+  return releases.reduce<ChangelogEntry[]>((acc, release) => {
+    if (release.prerelease) {
+      return acc
+    }
+
+    const body = String(release.body ?? '')
+    acc.push({
+      tag: release.tag_name,
+      title: release.name || release.tag_name,
+      content: sanitizeContent(body),
+      date: release.published_at,
+      url: release.html_url,
+      contributors: extractMentions(body),
     })
+    return acc
+  }, [])
 }

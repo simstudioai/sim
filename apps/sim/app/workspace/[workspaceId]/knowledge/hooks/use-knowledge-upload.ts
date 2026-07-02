@@ -203,6 +203,36 @@ const uploadFileThroughAPI = async (
 const toAbsoluteUrl = (path: string): string =>
   path.startsWith('http') ? path : `${window.location.origin}${path}`
 
+/**
+ * Build the {@link UploadedFile} payload from a `File`, carrying through any
+ * `tagN` fields the caller attached to it. Pure — kept at module scope so it
+ * isn't rebuilt on every render of the hook.
+ */
+const buildUploadedFile = (file: File, fileUrl: string): UploadedFile => {
+  const f = file as File & {
+    tag1?: string
+    tag2?: string
+    tag3?: string
+    tag4?: string
+    tag5?: string
+    tag6?: string
+    tag7?: string
+  }
+  return {
+    filename: file.name,
+    fileUrl,
+    fileSize: file.size,
+    mimeType: getFileContentType(file),
+    tag1: f.tag1,
+    tag2: f.tag2,
+    tag3: f.tag3,
+    tag4: f.tag4,
+    tag5: f.tag5,
+    tag6: f.tag6,
+    tag7: f.tag7,
+  }
+}
+
 export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   const queryClient = useQueryClient()
   const [isUploading, setIsUploading] = useState(false)
@@ -212,31 +242,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     totalFiles: 0,
   })
   const [uploadError, setUploadError] = useState<UploadError | null>(null)
-
-  const buildUploadedFile = (file: File, fileUrl: string): UploadedFile => {
-    const f = file as File & {
-      tag1?: string
-      tag2?: string
-      tag3?: string
-      tag4?: string
-      tag5?: string
-      tag6?: string
-      tag7?: string
-    }
-    return {
-      filename: file.name,
-      fileUrl,
-      fileSize: file.size,
-      mimeType: getFileContentType(file),
-      tag1: f.tag1,
-      tag2: f.tag2,
-      tag3: f.tag3,
-      tag4: f.tag4,
-      tag5: f.tag5,
-      tag6: f.tag6,
-      tag7: f.tag7,
-    }
-  }
 
   const updateFileStatus = (fileIndex: number, patch: Partial<FileUploadStatus>) => {
     setUploadProgress((prev) => ({

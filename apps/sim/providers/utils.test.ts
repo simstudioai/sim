@@ -214,6 +214,7 @@ describe('Model Capabilities', () => {
     it.concurrent('should return false for models that do not support temperature', () => {
       const unsupportedModels = [
         'unsupported-model',
+        'claude-sonnet-5',
         'cerebras/llama-3.3-70b',
         'o1',
         'o3',
