@@ -7,7 +7,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   id: 'supabase_insert',
   name: 'Supabase Insert',
   description: 'Insert data into a Supabase table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -30,7 +30,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
         'Database schema to insert into (default: public). Use this to access tables in other schemas.',
     },
     data: {
-      type: 'array',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description: 'The data to insert (array of objects or a single object)',

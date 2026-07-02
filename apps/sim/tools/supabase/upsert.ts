@@ -7,7 +7,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
   id: 'supabase_upsert',
   name: 'Supabase Upsert',
   description: 'Insert or update data in a Supabase table (upsert operation)',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -30,7 +30,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
         'Database schema to upsert into (default: public). Use this to access tables in other schemas.',
     },
     data: {
-      type: 'array',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description: 'The data to upsert (insert or update) - array of objects or a single object',

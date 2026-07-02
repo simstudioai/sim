@@ -1,18 +1,18 @@
 import {
-  STORAGE_CREATE_BUCKET_OUTPUT_PROPERTIES,
-  type SupabaseStorageCreateBucketParams,
-  type SupabaseStorageCreateBucketResponse,
+  STORAGE_MESSAGE_OUTPUT_PROPERTIES,
+  type SupabaseStorageUpdateBucketParams,
+  type SupabaseStorageUpdateBucketResponse,
 } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const storageCreateBucketTool: ToolConfig<
-  SupabaseStorageCreateBucketParams,
-  SupabaseStorageCreateBucketResponse
+export const storageUpdateBucketTool: ToolConfig<
+  SupabaseStorageUpdateBucketParams,
+  SupabaseStorageUpdateBucketResponse
 > = {
-  id: 'supabase_storage_create_bucket',
-  name: 'Supabase Storage Create Bucket',
-  description: 'Create a new storage bucket in Supabase',
+  id: 'supabase_storage_update_bucket',
+  name: 'Supabase Storage Update Bucket',
+  description: 'Update the configuration of an existing Supabase storage bucket',
   version: '1.0.0',
 
   params: {
@@ -26,7 +26,7 @@ export const storageCreateBucketTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the bucket to create',
+      description: 'The name of the bucket to update',
     },
     isPublic: {
       type: 'boolean',
@@ -56,9 +56,10 @@ export const storageCreateBucketTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket`
+      const bucket = encodeStorageSegment(params.bucket)
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket/${bucket}`
     },
-    method: 'POST',
+    method: 'PUT',
     headers: (params) => ({
       apikey: params.apiKey,
       Authorization: `Bearer ${params.apiKey}`,
@@ -88,13 +89,13 @@ export const storageCreateBucketTool: ToolConfig<
     try {
       data = await response.json()
     } catch (parseError) {
-      throw new Error(`Failed to parse Supabase storage create bucket response: ${parseError}`)
+      throw new Error(`Failed to parse Supabase storage update bucket response: ${parseError}`)
     }
 
     return {
       success: true,
       output: {
-        message: 'Successfully created storage bucket',
+        message: 'Successfully updated storage bucket',
         results: data,
       },
       error: undefined,
@@ -105,8 +106,8 @@ export const storageCreateBucketTool: ToolConfig<
     message: { type: 'string', description: 'Operation status message' },
     results: {
       type: 'object',
-      description: 'Created bucket result (name)',
-      properties: STORAGE_CREATE_BUCKET_OUTPUT_PROPERTIES,
+      description: 'Update operation result',
+      properties: STORAGE_MESSAGE_OUTPUT_PROPERTIES,
     },
   },
 }

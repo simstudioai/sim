@@ -2,7 +2,7 @@ import type {
   SupabaseStorageCreateSignedUrlParams,
   SupabaseStorageCreateSignedUrlResponse,
 } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { encodeStoragePath, encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageCreateSignedUrlTool: ToolConfig<
@@ -12,7 +12,7 @@ export const storageCreateSignedUrlTool: ToolConfig<
   id: 'supabase_storage_create_signed_url',
   name: 'Supabase Storage Create Signed URL',
   description: 'Create a temporary signed URL for a file in a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -55,7 +55,9 @@ export const storageCreateSignedUrlTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/sign/${params.bucket}/${params.path}`
+      const bucket = encodeStorageSegment(params.bucket)
+      const path = encodeStoragePath(params.path)
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/sign/${bucket}/${path}`
     },
     method: 'POST',
     headers: (params) => ({
@@ -85,6 +87,9 @@ export const storageCreateSignedUrlTool: ToolConfig<
     }
 
     const relativePath = data.signedURL || data.signedUrl
+    if (!relativePath) {
+      throw new Error('Supabase did not return a signed URL path in its response')
+    }
     if (!params?.projectId) {
       throw new Error('projectId is required to construct the signed URL')
     }

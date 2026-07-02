@@ -13,7 +13,7 @@ export const storageListBucketsTool: ToolConfig<
   id: 'supabase_storage_list_buckets',
   name: 'Supabase Storage List Buckets',
   description: 'List all storage buckets in Supabase',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
