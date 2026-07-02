@@ -18,6 +18,8 @@ const {
   mockGetUsersWithPermissions,
   mockGetMcpServerMeta,
   mockCreateTransform,
+  mockSumForkCopyBytes,
+  mockAssertForkStorageHeadroom,
 } = vi.hoisted(() => ({
   mockComputePlan: vi.fn(),
   mockBuildCopySelection: vi.fn(),
@@ -32,6 +34,8 @@ const {
   mockGetUsersWithPermissions: vi.fn(),
   mockGetMcpServerMeta: vi.fn(),
   mockCreateTransform: vi.fn(),
+  mockSumForkCopyBytes: vi.fn(),
+  mockAssertForkStorageHeadroom: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
@@ -56,6 +60,10 @@ vi.mock('@/lib/workspaces/fork/copy/copy-workflows', () => ({
   loadTargetDraftSubBlocks: vi.fn(async () => new Map()),
   loadWorkflowNameRegistry: vi.fn(async () => new Map()),
   resolveForkFolderMapping: mockResolveFolderMapping,
+}))
+vi.mock('@/lib/workspaces/fork/copy/storage-quota', () => ({
+  sumForkCopyBytes: mockSumForkCopyBytes,
+  assertForkStorageHeadroom: mockAssertForkStorageHeadroom,
 }))
 vi.mock('@/lib/workspaces/fork/copy/deploy-bridge', () => ({
   getActiveDeploymentVersionNumbers: vi.fn(async () => new Map()),
@@ -192,6 +200,47 @@ describe('promoteFork gates', () => {
     mockUpsertPromoteRun.mockResolvedValue('run-1')
     mockGetMcpServerMeta.mockResolvedValue(new Map())
     mockCreateTransform.mockReturnValue((subBlocks: unknown) => subBlocks)
+    mockSumForkCopyBytes.mockResolvedValue(0)
+    mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
+  })
+
+  it('blocks an over-quota copy selection before any lock, read, or write', async () => {
+    mockSumForkCopyBytes.mockResolvedValue(999_999)
+    mockAssertForkStorageHeadroom.mockRejectedValue(
+      new Error(
+        'Not enough storage to copy the selected resources. Storage limit exceeded. Used: 10.50GB, Limit: 10GB'
+      )
+    )
+
+    await expect(
+      promoteFork({
+        ...promoteParams(),
+        copyResources: { files: ['workspace/src-ws/key-1'], knowledgeBases: ['kb-1'] },
+      })
+    ).rejects.toThrow('Not enough storage to copy the selected resources')
+
+    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({ userId: 'user-1', bytes: 999_999 })
+    // Fails fast: no source-state loads, no locked transaction, no writes of any kind.
+    expect(mockLoadSourceDeployedStates).not.toHaveBeenCalled()
+    expect(db.transaction).not.toHaveBeenCalled()
+    expect(mockUpsertPromoteRun).not.toHaveBeenCalled()
+  })
+
+  it('sums the requested copy selection bytes against the SOURCE workspace (files by key, KBs by id)', async () => {
+    await promoteFork({
+      ...promoteParams(),
+      copyResources: {
+        files: ['workspace/src-ws/key-1'],
+        knowledgeBases: ['kb-1'],
+        tables: ['tbl-1'],
+      },
+    })
+
+    expect(mockSumForkCopyBytes).toHaveBeenCalledTimes(1)
+    expect(mockSumForkCopyBytes).toHaveBeenCalledWith(expect.anything(), 'src-ws', {
+      fileKeys: ['workspace/src-ws/key-1'],
+      knowledgeBaseIds: ['kb-1'],
+    })
   })
 
   it('blocks on unmapped required credentials/secrets BEFORE the cleared-refs gate runs', async () => {

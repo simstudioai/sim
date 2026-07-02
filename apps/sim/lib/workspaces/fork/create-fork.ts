@@ -29,6 +29,10 @@ import {
   resolveForkFolderMapping,
 } from '@/lib/workspaces/fork/copy/copy-workflows'
 import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
+import {
+  assertForkStorageHeadroom,
+  sumForkCopyBytes,
+} from '@/lib/workspaces/fork/copy/storage-quota'
 import { buildForkWorkflowIdMap } from '@/lib/workspaces/fork/copy/workflow-id-map'
 import { setForkLockTimeout } from '@/lib/workspaces/fork/lineage/lineage'
 import {
@@ -110,6 +114,16 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   const { source, policy, userId, requestId = 'unknown' } = params
   const selection = params.selection ?? EMPTY_SELECTION
   const childName = params.name?.trim() || `${source.name} (fork)`
+
+  // Copied blob bytes (workspace files + KB document blobs) are charged to the initiating
+  // user's storage scope exactly as if uploaded to the child workspace, so enforce
+  // headroom BEFORE any fork work. Sizes come from the metadata rows the fork tx would
+  // load anyway; over quota fails the fork here with the upload path's error shape.
+  const copyBytes = await sumForkCopyBytes(db, source.id, {
+    fileIds: selection.files,
+    knowledgeBaseIds: selection.knowledgeBases,
+  })
+  await assertForkStorageHeadroom({ userId, bytes: copyBytes })
 
   // Read the source's deployed workflows + states BEFORE the transaction so these
   // global-pool reads don't check out a second pooled connection from inside the

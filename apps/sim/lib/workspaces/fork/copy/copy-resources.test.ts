@@ -10,8 +10,15 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockIncrementStorageUsage } = vi.hoisted(() => ({
+  mockIncrementStorageUsage: vi.fn(),
+}))
+
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/billing/storage', () => ({
+  incrementStorageUsage: mockIncrementStorageUsage,
+}))
 
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -113,6 +120,24 @@ describe('copyForkResourceContent', () => {
       workspaceId: 'child-ws',
       originalName: 'report.pdf',
     })
+  })
+
+  it('#1 never touches storage accounting for copied KB document blobs (mirrors the KB upload path)', async () => {
+    // The normal KB upload path never increments `storage_used_bytes` (and embeddings are
+    // uncounted DB rows), so a fork-copied KB blob must not be charged either - copied KB
+    // bytes are only headroom-checked pre-fork, exactly like the multipart-initiate check.
+    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result.copied).toBe(1)
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
+    expect(mockIncrementStorageUsage).not.toHaveBeenCalled()
   })
 
   it('#4 re-reads a copied skill body post-commit and rewrites it via db.update (never from payload)', async () => {

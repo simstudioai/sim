@@ -3,9 +3,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { incrementStorageUsage } from '@/lib/billing/storage'
 import type { DbOrTx } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import {
@@ -30,6 +31,13 @@ export interface BlobCopyTask {
   context: StorageContext
   fileName: string
   contentType: string
+  /**
+   * Byte size from the source metadata row - the child `workspace_files` row was inserted
+   * with this same size, so the storage-usage increment after a successful blob copy
+   * charges exactly the bytes the row advertises (matching the upload path, where the
+   * incremented bytes always equal the row's `size`).
+   */
+  size: number
   userId: string
   workspaceId: string
 }
@@ -127,6 +135,7 @@ export async function planForkFileCopies(params: {
       context: meta.context as StorageContext,
       fileName: meta.originalName,
       contentType: meta.contentType,
+      size: meta.size,
       userId,
       workspaceId: childWorkspaceId,
     })
@@ -145,6 +154,14 @@ export async function planForkFileCopies(params: {
  * blob's child storage key is returned in `failedTargetKeys` so the caller can clear the
  * `file-upload` references pointing at the now-missing object (the metadata row is left in
  * place, so the user can still re-upload the blob).
+ *
+ * Storage accounting: each blob that actually lands increments the initiating user's
+ * storage usage by the metadata row's size - the copied bytes are charged exactly as if
+ * the file had been uploaded to the target workspace. The increment cannot double-count:
+ * the content-copy job is at-most-once by config (`maxAttempts: 1`), each task increments
+ * only after its own successful upload, and the target-existence skip below means a
+ * manually replayed run neither re-copies nor re-charges a blob a prior attempt landed.
+ * Like the upload path, a tracking failure is logged and never fails the copy.
  */
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
@@ -155,6 +172,15 @@ export async function executeForkFileBlobCopies(
   const failedTargetKeys: string[] = []
   for (const task of blobTasks) {
     try {
+      // Replay guard: target keys are freshly generated per fork/sync, so an existing
+      // object can only mean an earlier attempt already completed this exact copy (and
+      // charged it). Skip without incrementing. `headObject` returns null on local
+      // storage, where the copy is simply repeated (same bytes to the same key).
+      const existing = await headObject(task.targetKey, task.context)
+      if (existing) {
+        copied += 1
+        continue
+      }
       const buffer = await downloadFile({
         key: task.sourceKey,
         context: task.context,
@@ -187,6 +213,17 @@ export async function executeForkFileBlobCopies(
         },
       })
       copied += 1
+      // The typeof guard covers payloads enqueued before `size` existed (rolling deploy).
+      if (typeof task.size === 'number' && task.size > 0) {
+        try {
+          await incrementStorageUsage(task.userId, task.size, task.workspaceId)
+        } catch (storageError) {
+          logger.error(`[${requestId}] Failed to update storage tracking for copied file blob`, {
+            targetKey: task.targetKey,
+            error: getErrorMessage(storageError),
+          })
+        }
+      }
     } catch (error) {
       failedTargetKeys.push(task.targetKey)
       logger.warn(`[${requestId}] Failed to copy file blob during fork`, {

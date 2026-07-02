@@ -983,17 +983,7 @@ export function PromoteWorkspaceModal({
                     ? takenTargetOwners(currentGroup.items, targets, entry)
                     : EMPTY_TARGET_OWNERS
                 return (
-                  <SettingsSection
-                    key={entryKey(entry)}
-                    label={entry.sourceLabel}
-                    headerAccessory={
-                      entry.required ? (
-                        <span className='text-[var(--text-error)]' title='Required to sync'>
-                          *
-                        </span>
-                      ) : undefined
-                    }
-                  >
+                  <SettingsSection key={entryKey(entry)} label={entry.sourceLabel}>
                     <ChipCombobox
                       className='w-full'
                       options={[
