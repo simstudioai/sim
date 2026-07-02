@@ -343,9 +343,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    */
   useEffect(() => {
     if (chatId) return
-    const handoff = MothershipHandoffStorage.consume()
+    const handoff = MothershipHandoffStorage.consume(workspaceId)
     if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
-  }, [chatId, sendMessage])
+  }, [chatId, workspaceId, sendMessage])
 
   function resolveResourceFromContext(
     context: ChatContext
