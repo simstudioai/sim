@@ -126,17 +126,24 @@ export function remapVariableIdsInSubBlocks(
 }
 
 /**
- * Rewrite cross-workflow references through a workflow id map: single
- * `workflow-selector` / `manualWorkflowId` values, multi-workflow lists
- * (`workflowSelector` multi-select + comma-separated `manualWorkflowIds`, as used
- * by the logs block), and `workflow_input` sub-workflow tools nested in a
- * `tool-input` array (an agent calling another workflow as a tool).
+ * Rewrite cross-workflow references through a workflow id map. Only SELECTOR-sourced (structured)
+ * references are remapped/cleared: the basic `workflow-selector` value, the multi-select
+ * `workflowSelector` list (logs block), the workspace-event trigger's multi-select `workflowIds`
+ * dropdown (its options are workspace workflow ids), and `workflow_input` sub-workflow tools
+ * nested in a `tool-input` array (an agent picking another workflow as a tool - its
+ * `params.workflowId` comes from the workflow picker, never free-form input).
  *
- * `clearUnmapped` controls the cross-workspace case: fork/promote pass `true` so a
- * reference to a workflow that wasn't copied is cleared/dropped rather than left
- * pointing at the source workspace (a silent cross-workspace execution). Same-
- * workspace duplication leaves it `false` to preserve references to untouched
- * sibling workflows.
+ * The advanced, free-form MANUAL fields (`manualWorkflowId`, comma-separated `manualWorkflowIds`)
+ * are user-owned and pass through VERBATIM - mirroring `manualCredential` in the fork remap - so a
+ * hand-typed value (an env ref `{{VAR}}`, a `<block.output>` tag, a literal id, or arbitrary text)
+ * is never rewritten or cleared. The `workflowIds` handling is gated on subblock TYPE `dropdown`
+ * for the same reason: the legacy logs block's `workflowIds` is a free-form `short-input`
+ * (user-owned, verbatim), and only the workspace-event trigger uses a `workflowIds` dropdown.
+ *
+ * `clearUnmapped` controls the cross-workspace case for those selector references: fork/promote pass
+ * `true` so a selector pointing at a workflow that wasn't copied is cleared/dropped rather than left
+ * pointing at the source workspace (a silent cross-workspace execution). Same-workspace duplication
+ * leaves it `false` to preserve references to untouched sibling workflows.
  */
 export function remapWorkflowReferencesInSubBlocks(
   subBlocks: SubBlockRecord,
@@ -152,7 +159,8 @@ export function remapWorkflowReferencesInSubBlocks(
   }
   // The `workflowId` canonical pair: basic `workflow-selector` + advanced `manualWorkflowId`. Capture
   // each key (by type/baseKey, regardless of value) and its ORIGINAL value so the inputMapping wipe
-  // below can decide on the ACTIVE mode's disposition via `resolveCanonicalMode`.
+  // below can decide on the ACTIVE mode's disposition via `resolveCanonicalMode`. Only the basic
+  // selector is ever remapped; the advanced manual member is captured for mode resolution only.
   let basicId: string | undefined
   let basicValue = ''
   let advancedId: string | undefined
@@ -168,15 +176,23 @@ export function remapWorkflowReferencesInSubBlocks(
         advancedId = key
         advancedValue = typeof subBlock.value === 'string' ? subBlock.value : ''
       }
+      // Remap only the SELECTOR member; the manual `manualWorkflowId` passes through verbatim.
       if (
-        (subBlock.type === 'workflow-selector' || baseKey === 'manualWorkflowId') &&
+        subBlock.type === 'workflow-selector' &&
         typeof subBlock.value === 'string' &&
         subBlock.value
       ) {
         updated[key] = { ...subBlock, value: remapScalar(subBlock.value) }
         continue
       }
-      if (baseKey === 'manualWorkflowIds' || baseKey === 'workflowSelector') {
+      // Remap only the STRUCTURED multi-workflow lists: the logs block's `workflowSelector` and
+      // the workspace-event trigger's `workflowIds` dropdown. The latter is gated on TYPE
+      // `dropdown` so the legacy logs block's `workflowIds` short-input (manual, user-owned)
+      // passes through verbatim, as does the manual comma-separated `manualWorkflowIds`.
+      if (
+        baseKey === 'workflowSelector' ||
+        (subBlock.type === 'dropdown' && baseKey === 'workflowIds')
+      ) {
         const remapped = remapWorkflowIdList(subBlock.value, workflowIdMap, clearUnmapped)
         if (remapped !== subBlock.value) {
           updated[key] = { ...subBlock, value: remapped }

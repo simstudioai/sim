@@ -17,7 +17,7 @@ import { and, count, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import type { ForkCopyableKind } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import type { ForkResourceType } from '@/lib/workspaces/fork/mapping/mapping-store'
-import type { ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references'
+import type { ForkMcpServerMeta, ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references'
 
 export interface ForkResourceCandidate {
   id: string
@@ -330,6 +330,32 @@ export async function filterExistingForkTargets(
 }
 
 /**
+ * Identity metadata (`name`/`url`) for the given MCP server ids in a workspace, looked up by
+ * exact id (no candidate cap, same deleted filter as the candidates). Promote uses it for the
+ * MAPPED TARGET servers so remapped tool-input entries rewrite their embedded server metadata
+ * from the target row (see {@link ForkMcpServerMeta}) - one bounded `inArray` read per sync,
+ * never per-entry. An id absent from the map no longer exists; its entries are left as-is.
+ */
+export async function getMcpServerMetaByIds(
+  executor: DbOrTx,
+  workspaceId: string,
+  ids: string[]
+): Promise<Map<string, ForkMcpServerMeta>> {
+  if (ids.length === 0) return new Map()
+  const rows = await executor
+    .select({ id: mcpServers.id, name: mcpServers.name, url: mcpServers.url })
+    .from(mcpServers)
+    .where(
+      and(
+        eq(mcpServers.workspaceId, workspaceId),
+        isNull(mcpServers.deletedAt),
+        inArray(mcpServers.id, ids)
+      )
+    )
+  return new Map(rows.map((row) => [row.id, { name: row.name, url: row.url ?? null }]))
+}
+
+/**
  * Provider id for each given credential id in a workspace, looked up by exact id (no
  * candidate cap). Presence in the returned map means the credential exists in the
  * workspace, so this doubles as a cap-free existence + provider check for validation.
@@ -449,6 +475,66 @@ export interface ForkCopyableLabel {
   label: string
   parentId: string | null
   parentLabel: string | null
+}
+
+/**
+ * One copyable resource in the sync SOURCE workspace, keyed the way the promote copy addresses
+ * it: files by STORAGE KEY (matching `file-upload` references + `planForkFileCopies`), every
+ * other kind by row id. `parentId`/`parentLabel` carry a file's folder grouping (null for
+ * non-file kinds and root files).
+ */
+export interface ForkCopyableSourceResource {
+  kind: ForkCopyableKind
+  sourceId: string
+  label: string
+  parentId: string | null
+  parentLabel: string | null
+}
+
+/**
+ * Every copyable-kind resource in the sync source workspace (same archived/deleted filters and
+ * per-kind {@link CANDIDATE_LIMIT} cap as the copy picker), as sync-copy candidate entries. The
+ * promote plan filters these down to the UNREFERENCED-and-unmapped set it offers for copy
+ * alongside the referenced candidates. Covers exactly the sync-copyable kinds
+ * (`forkCopyableKindSchema`): workflow-publishing MCP servers are fork-copy-only (their copies
+ * are not recorded in the fork resource map, so a sync copy could never be idempotent) and
+ * external MCP servers / credentials / env vars are never copied.
+ */
+export async function listForkCopyableSourceResources(
+  executor: DbOrTx,
+  sourceWorkspaceId: string
+): Promise<ForkCopyableSourceResource[]> {
+  const [files, tables, kbs, tools, skills] = await Promise.all([
+    fileCandidatesWithFolderQuery(executor, sourceWorkspaceId),
+    tableCandidatesQuery(executor, sourceWorkspaceId),
+    knowledgeBaseCandidatesQuery(executor, sourceWorkspaceId),
+    customToolCandidatesQuery(executor, sourceWorkspaceId),
+    skillCandidatesQuery(executor, sourceWorkspaceId),
+  ])
+  const flat = (
+    kind: ForkCopyableKind,
+    rows: Array<{ id: string; label: string }>
+  ): ForkCopyableSourceResource[] =>
+    rows.map((row) => ({
+      kind,
+      sourceId: row.id,
+      label: row.label,
+      parentId: null,
+      parentLabel: null,
+    }))
+  return [
+    ...files.map((row) => ({
+      kind: 'file' as const,
+      sourceId: row.key,
+      label: row.label,
+      parentId: row.folderId,
+      parentLabel: row.folderName,
+    })),
+    ...flat('table', tables),
+    ...flat('knowledge-base', kbs),
+    ...flat('custom-tool', tools),
+    ...flat('skill', skills),
+  ]
 }
 
 /**

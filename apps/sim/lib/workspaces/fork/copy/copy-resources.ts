@@ -4,6 +4,7 @@ import {
   document,
   embedding,
   knowledgeBase,
+  knowledgeBaseTagDefinitions,
   skill,
   userTableDefinitions,
   userTableRows,
@@ -24,6 +25,7 @@ import type {
   ForkMappingUpsert,
   ForkResourceType,
 } from '@/lib/workspaces/fork/mapping/mapping-store'
+import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import {
   type ForkContentRefMaps,
   rewriteForkContentRefs,
@@ -83,6 +85,13 @@ export interface CopyResourcesParams {
    * plan resolver); omitted by fork-create, which preserves env names verbatim (no rewrite).
    */
   resolveEnvName?: (key: string) => string | null | undefined
+  /**
+   * Resolve a source block id to its target block id for copied tables' workflow-group
+   * `outputs[].blockId`. Promote passes the SAME persisted-pair resolver its workflow writes
+   * use (on push the parent keeps its ORIGINAL block ids, never the derive); fork-create
+   * omits it, defaulting to the deterministic derive (a fresh child has no pairs).
+   */
+  resolveBlockId?: ForkBlockIdResolver
 }
 
 export interface ForkContentPlanEntry {
@@ -199,8 +208,9 @@ type SkillSkeletonInsert = Omit<typeof skill.$inferInsert, 'content'> & { conten
 /**
  * Copy the selected resources' **container rows** into the child workspace inside
  * the fork transaction: custom tools, skills, and MCP server configs (each a
- * single row), plus table definitions and knowledge-base rows (without their bulk
- * rows / documents / embeddings). This keeps the fork transaction bounded to
+ * single row), plus table definitions and knowledge-base rows with their tag
+ * definitions (bounded per KB) but without their bulk rows / documents /
+ * embeddings. This keeps the fork transaction bounded to
  * O(selected resources) single-row writes. The heavy content (table rows, KB
  * documents + embeddings) is returned as a {@link ForkContentPlan} for
  * {@link copyForkResourceContent} to copy best-effort after commit. Secrets are
@@ -359,7 +369,8 @@ export async function copyForkResourceContainers(
       const childTableId = generateId()
       const remappedSchema = remapForkTableWorkflowGroups(
         definition.schema as TableSchema,
-        workflowIdMap
+        workflowIdMap,
+        params.resolveBlockId
       )
       inserts.push({
         ...definition,
@@ -413,6 +424,34 @@ export async function copyForkResourceContainers(
       names.knowledgeBases.push(base.name)
     }
     if (inserts.length > 0) await tx.insert(knowledgeBase).values(inserts)
+
+    // Copy each source KB's tag definitions to its child so tagged documents keep a working tag
+    // schema: the copied documents carry tag VALUES in their slot columns, and both tag-filter
+    // search and documentTags writes resolve display names through these definition rows (a copy
+    // without them 400s / throws on every defined tag). Fresh ids, child KB id, all other columns
+    // verbatim - nothing persists a tag-definition id (workflow state, documents, and fork
+    // mappings all reference tags by display name / slot), so no id map is recorded.
+    if (kbEntryBySourceId.size > 0) {
+      const tagDefinitions = await tx
+        .select()
+        .from(knowledgeBaseTagDefinitions)
+        .where(
+          inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, Array.from(kbEntryBySourceId.keys()))
+        )
+      const tagDefinitionInserts: (typeof knowledgeBaseTagDefinitions.$inferInsert)[] = []
+      for (const definition of tagDefinitions) {
+        const childKbId = kbEntryBySourceId.get(definition.knowledgeBaseId)?.childId
+        if (!childKbId) continue
+        tagDefinitionInserts.push({
+          ...definition,
+          id: generateId(),
+          knowledgeBaseId: childKbId,
+        })
+      }
+      if (tagDefinitionInserts.length > 0) {
+        await tx.insert(knowledgeBaseTagDefinitions).values(tagDefinitionInserts)
+      }
+    }
 
     // Pre-create placeholder document rows for the documents the copied workflows
     // reference, at child ids generated inside the transaction, so each

@@ -35,6 +35,20 @@ export function forkVisibleCopyables(
   return copyableUnmapped.filter((candidate) => !mappedKeys.has(forkRefKey(candidate)))
 }
 
+/**
+ * The copy selection seeded once the diff settles: every REFERENCED candidate (deselecting one
+ * clears its references, so the common case needs no clicks). Unreferenced candidates - used by
+ * no synced workflow - start unselected: copying them is opt-in, so scratch data created in the
+ * source is never pushed by surprise.
+ */
+export function forkDefaultCopySelection(copyableUnmapped: ForkCopyableUnmapped[]): Set<string> {
+  const keys = new Set<string>()
+  for (const candidate of copyableUnmapped) {
+    if (candidate.referenced) keys.add(forkRefKey(candidate))
+  }
+  return keys
+}
+
 /** Keys of the visible copy candidates actually selected for copy. */
 export function forkCopyingKeys(
   visibleCopyables: ForkCopyableUnmapped[],

@@ -1,4 +1,11 @@
-import type { ForkClearedRef } from '@/lib/api/contracts/workspace-fork'
+import { mcpServers, workflow } from '@sim/db/schema'
+import { and, eq, inArray } from 'drizzle-orm'
+import type {
+  ForkClearedRef,
+  ForkCopyableKind,
+  ForkSyncBlocker,
+} from '@/lib/api/contracts/workspace-fork'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   coerceObjectArray,
   isRecord,
@@ -12,8 +19,18 @@ import {
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { collectForkDependentReconfigs } from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
+import {
+  filterExistingForkTargets,
+  loadForkCopyableResourceLabels,
+} from '@/lib/workspaces/fork/mapping/resources'
+import { isForkCopyableKind } from '@/lib/workspaces/fork/promote/promote-plan'
+import {
+  selectForkSyncBlockingRefs,
+  toForkSyncBlockers,
+} from '@/lib/workspaces/fork/promote/sync-blockers'
 import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import {
+  type ForkReference,
   type ForkReferenceResolver,
   type ForkRemapKind,
   REQUIRED_KINDS,
@@ -24,10 +41,12 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
  * Remappable kinds excluded from the `reference` cleared-ref list. REQUIRED kinds (credential,
- * env-var) are BLOCKERS - they gate Sync and are resolved by mapping, never silently cleared - so
- * they must not read as "will be cleared" (a credential is also preserved by name once mapped, an
- * env-var always). `knowledge-document` follows its parent KB - a document under an unmapped KB is
- * implied by the KB's own cleared-ref entry, and under a mapped/copied KB it is auto-copied.
+ * env-var) gate Sync through the kind-level required gate with their own messaging, so they must
+ * not double-report here (a credential is also preserved by name once mapped, an env-var always).
+ * `knowledge-document` follows its parent KB - a document under an unmapped KB is implied by the
+ * KB's own cleared-ref entry, and under a mapped/copied KB it is auto-copied. Every other kind's
+ * entry IS a sync blocker (cause `reference`/`workflow`): a sync proceeds only when zero
+ * references would clear.
  */
 const CLEARED_REF_EXCLUDED_KINDS = new Set<ForkRemapKind>([...REQUIRED_KINDS, 'knowledge-document'])
 
@@ -59,10 +78,14 @@ function baseSubBlockId(key: string): string {
 }
 
 /**
- * Cross-workflow references (`workflow-selector`, advanced `manualWorkflowId(s)`, multi-select
- * `workflowSelector`, nested `workflow_input` tools) in a block's subBlocks. Mirrors the detection
- * in {@link remapWorkflowReferencesInSubBlocks} so the cleared-ref list flags exactly the refs that
- * remap would clear. Returns one entry per referenced workflow id with its owning subblock key.
+ * Cross-workflow references (`workflow-selector`, multi-select `workflowSelector`, the
+ * workspace-event trigger's multi-select `workflowIds` dropdown, nested `workflow_input` tools)
+ * in a block's subBlocks. Mirrors the detection in
+ * {@link remapWorkflowReferencesInSubBlocks} so the cleared-ref list flags exactly the refs that
+ * remap would clear - the free-form manual fields (`manualWorkflowId`, `manualWorkflowIds`) are
+ * user-owned and never remapped/cleared, so they are intentionally excluded (the `workflowIds`
+ * branch is gated on TYPE `dropdown` because the legacy logs block's `workflowIds` is a manual
+ * `short-input`). Returns one entry per referenced workflow id with its owning subblock key.
  */
 function collectForkWorkflowReferences(
   subBlocks: SubBlockRecord,
@@ -70,29 +93,42 @@ function collectForkWorkflowReferences(
   canonicalModes: CanonicalModeOverrides | undefined
 ): Array<{ workflowId: string; subBlockKey: string }> {
   const out: Array<{ workflowId: string; subBlockKey: string }> = []
-  // Collapse the `workflowId` canonical pair (basic `workflow-selector` + advanced `manualWorkflowId`)
-  // to its ACTIVE member: only the active mode is serialized, so a dormant stale member is not a ref
-  // that would be cleared (mirrors remap-internal-ids.ts). Undefined mode -> emit both (legacy/no-pair).
-  const workflowGroup = config
-    ? buildCanonicalIndex(config.subBlocks).groupsById.workflowId
-    : undefined
-  const workflowMode =
-    workflowGroup && isCanonicalPair(workflowGroup)
-      ? resolveCanonicalMode(workflowGroup, buildSubBlockValues(subBlocks), canonicalModes)
-      : undefined
+  // Collapse each canonical pair to its ACTIVE member: only the selector members are
+  // remapped/cleared (the advanced `manualWorkflowId`/`manualWorkflowIds` are user-owned and
+  // preserved verbatim), so a DORMANT member's stale value is not a ref that would be cleared -
+  // it must not become an unresolvable sync blocker. Mirrors `isDormantCanonicalMember` in
+  // remap-references.ts: the lookup is per subblock key, so the scalar `workflowId` pair, the
+  // deployments block's scalar `workflowSelector` pair, and the logs block's multi-select
+  // `workflowSelector` (`workflowIds` group) all resolve through their OWN group. A missing
+  // config or a non-pair member is never skipped (legacy/no-pair states keep emitting).
+  const canonicalIndex = config ? buildCanonicalIndex(config.subBlocks) : undefined
+  const values = canonicalIndex ? buildSubBlockValues(subBlocks) : {}
+  const isDormantCanonicalMember = (key: string): boolean => {
+    if (!canonicalIndex) return false
+    const baseKey = baseSubBlockId(key)
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[baseKey]
+    const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+    if (!group || !isCanonicalPair(group)) return false
+    const activeMode = resolveCanonicalMode(group, values, canonicalModes)
+    return (activeMode === 'advanced') !== group.advancedIds.includes(baseKey)
+  }
   for (const [key, subBlock] of Object.entries(subBlocks)) {
     if (!subBlock || typeof subBlock !== 'object') continue
     const baseKey = baseSubBlockId(key)
     if (
-      (subBlock.type === 'workflow-selector' || baseKey === 'manualWorkflowId') &&
+      subBlock.type === 'workflow-selector' &&
       typeof subBlock.value === 'string' &&
       subBlock.value
     ) {
-      // Skip the dormant member of the pair (the active mode owns the reference).
-      const isAdvancedMember = baseKey === 'manualWorkflowId'
-      if (workflowMode && (workflowMode === 'advanced') !== isAdvancedMember) continue
+      // Only the SELECTOR is remapped/cleared; the manual member is user-owned and preserved
+      // verbatim, so skip the dormant selector when advanced/manual mode is active.
+      if (isDormantCanonicalMember(key)) continue
       out.push({ workflowId: subBlock.value, subBlockKey: key })
-    } else if (baseKey === 'manualWorkflowIds' || baseKey === 'workflowSelector') {
+    } else if (
+      baseKey === 'workflowSelector' ||
+      (subBlock.type === 'dropdown' && baseKey === 'workflowIds')
+    ) {
+      if (isDormantCanonicalMember(key)) continue
       const ids = Array.isArray(subBlock.value)
         ? subBlock.value
         : typeof subBlock.value === 'string'
@@ -158,10 +194,16 @@ export function collectForkClearedRefCandidates(
         config?.subBlocks.find((cfg) => cfg.id === baseSubBlockId(subBlockKey))?.title ??
         subBlockKey
 
-      // Cause `reference`: unmapped remappable resource refs (per block/field).
+      // Cause `reference`: unmapped remappable resource refs (per block/field). `blockType` +
+      // `canonicalModes` gate detection to the ACTIVE canonical member, matching the plan's
+      // reference scan - a dormant member's stale value is not a real reference, so it must not
+      // become a blocker with no mapping entry to resolve it. `sourceDeleted` starts false; the
+      // caller annotates it via {@link annotateForkClearedRefSourceLiveness} (DB check).
       const scan = remapForkSubBlocks(subBlocks, resolver, 'promote', {
         blockId: targetBlockId,
         blockName: blockLabel,
+        blockType: block.type,
+        canonicalModes: block.data?.canonicalModes,
       })
       for (const ref of scan.unmapped) {
         if (CLEARED_REF_EXCLUDED_KINDS.has(ref.kind)) continue
@@ -175,6 +217,7 @@ export function collectForkClearedRefCandidates(
           sourceId: ref.sourceId,
           sourceLabel: labelFor(ref.kind, ref.sourceId),
           cause: 'reference',
+          sourceDeleted: false,
         })
       }
 
@@ -230,4 +273,170 @@ export function collectForkClearedRefCandidates(
   }
 
   return out
+}
+
+/**
+ * Fill each `reference`-cause entry's `sourceDeleted` flag by checking whether its resource still
+ * exists (not deleted/archived) in the SOURCE workspace. Reuses {@link filterExistingForkTargets}
+ * - a per-kind, exact-id (cap-free) liveness check with the canonical archived/deleted filters -
+ * pointed at the source workspace instead of a target. One batched round per kind present; a
+ * no-op (zero queries) when no reference-cause entries exist. Files check by storage key, matching
+ * how `file` references are recorded.
+ */
+export async function annotateForkClearedRefSourceLiveness(
+  executor: DbOrTx,
+  sourceWorkspaceId: string,
+  clearedRefs: ForkClearedRef[]
+): Promise<ForkClearedRef[]> {
+  const idsByKind: Partial<Record<ForkRemapKind, Set<string>>> = {}
+  for (const ref of clearedRefs) {
+    if (ref.cause !== 'reference') continue
+    ;(idsByKind[ref.kind] ??= new Set()).add(ref.sourceId)
+  }
+  if (Object.keys(idsByKind).length === 0) return clearedRefs
+  const liveByKind = await filterExistingForkTargets(executor, sourceWorkspaceId, idsByKind)
+  return clearedRefs.map((ref) =>
+    ref.cause === 'reference'
+      ? { ...ref, sourceDeleted: !(liveByKind[ref.kind]?.has(ref.sourceId) ?? false) }
+      : ref
+  )
+}
+
+/** Upper bound on the blockers a gate failure reports, so the error body stays sane. */
+const FORK_SYNC_BLOCKER_LIMIT = 100
+
+/**
+ * Cheap existence check for blocking gate candidates, reusing the plan's already-computed scan
+ * output instead of re-running the full per-block reference scan:
+ *  - `reference` cause: the collector detects references with the same per-block scan
+ *    ({@link remapForkSubBlocks}) over the same source states the plan already ran, so a
+ *    candidate exists iff some plan-unmapped reference of a non-excluded kind still resolves to
+ *    null through the gate resolver. The gate resolver only ADDS resolutions on top of the plan
+ *    resolver (promote's copy-selection overlay), so filtering the plan's unmapped set through it
+ *    yields exactly the gate's unmapped set. The plan's cascade-only additions (env-var /
+ *    credential) are excluded kinds and never contribute.
+ *  - `workflow` cause: cross-workflow refs are not part of the plan's scan, so walk the blocks
+ *    with the (much lighter) workflow-reference detection only, against the same workflowIdMap
+ *    predicate the collector applies.
+ * `dependent`-cause candidates never block (see {@link forkSyncBlockerReasonFor}), so they are
+ * not checked.
+ */
+function hasForkSyncBlockerCandidates(
+  planUnmapped: ReadonlyArray<Pick<ForkReference, 'kind' | 'sourceId'>>,
+  params: Pick<
+    CollectForkClearedRefsParams,
+    'items' | 'sourceStates' | 'resolver' | 'workflowIdMap'
+  >
+): boolean {
+  const { items, sourceStates, resolver, workflowIdMap } = params
+  const hasReferenceCandidate = planUnmapped.some(
+    (reference) =>
+      !CLEARED_REF_EXCLUDED_KINDS.has(reference.kind) &&
+      resolver(reference.kind, reference.sourceId) == null
+  )
+  if (hasReferenceCandidate) return true
+  for (const item of items) {
+    const state = sourceStates.get(item.sourceWorkflowId)
+    if (!state) continue
+    for (const block of Object.values(state.blocks)) {
+      // double-cast-allowed: a WorkflowState block's SubBlockState entries are structurally
+      // SubBlockRecord entries but lack the open index signature SubBlockRecord declares
+      const subBlocks = (block.subBlocks ?? {}) as unknown as SubBlockRecord
+      const workflowRefs = collectForkWorkflowReferences(
+        subBlocks,
+        getBlock(block.type),
+        block.data?.canonicalModes
+      )
+      if (workflowRefs.some((ref) => !workflowIdMap.has(ref.workflowId))) return true
+    }
+  }
+  return false
+}
+
+/**
+ * The authoritative would-clear gate input for a promote: collect the cleared-ref candidates for
+ * the sync (against the caller's resolver, which must already account for the copy selection),
+ * keep the blocking causes (`reference` / `workflow` - dependents stay with the reconfigure
+ * flow), annotate source liveness, and return them as wire {@link ForkSyncBlocker}s with
+ * best-effort labels. The happy path (nothing would clear) costs ZERO queries - the collection is
+ * pure over the pre-read source states - and, when `planUnmapped` is supplied, ZERO re-scans of
+ * the blocks the plan already scanned; liveness + label reads (and the full candidate collection,
+ * for identical per-block/field blocker rows) run only when something blocks. Truncated to
+ * {@link FORK_SYNC_BLOCKER_LIMIT} entries.
+ */
+export async function collectForkSyncBlockers(
+  params: Omit<CollectForkClearedRefsParams, 'sourceLabels' | 'sourceWorkflowNames'> & {
+    executor: DbOrTx
+    sourceWorkspaceId: string
+    /**
+     * The plan's unmapped references (`unmappedRequired` + `unmappedOptional`), when the caller
+     * computed the plan over the SAME `items`/`sourceStates` inside the same transaction AND the
+     * gate `resolver` only augments the plan's resolver (never un-resolves a plan-mapped ref) -
+     * promote's copy-selection overlay satisfies both. Enables the happy-path shortcut via
+     * {@link hasForkSyncBlockerCandidates}: the full per-block reference scan the plan already
+     * ran is skipped when no blocking candidate can exist, and re-run (for byte-identical blocker
+     * rows) when one does. Omit to always collect from scratch.
+     */
+    planUnmapped?: ReadonlyArray<Pick<ForkReference, 'kind' | 'sourceId'>>
+  }
+): Promise<ForkSyncBlocker[]> {
+  const { executor, sourceWorkspaceId, planUnmapped, ...collectParams } = params
+  if (planUnmapped && !hasForkSyncBlockerCandidates(planUnmapped, collectParams)) return []
+  const candidates = collectForkClearedRefCandidates({
+    ...collectParams,
+    sourceLabels: new Map(),
+    sourceWorkflowNames: new Map(),
+  })
+  if (!candidates.some((ref) => ref.cause === 'reference' || ref.cause === 'workflow')) return []
+
+  const annotated = await annotateForkClearedRefSourceLiveness(
+    executor,
+    sourceWorkspaceId,
+    candidates
+  )
+  const blocking = selectForkSyncBlockingRefs(annotated).slice(0, FORK_SYNC_BLOCKER_LIMIT)
+  if (blocking.length === 0) return []
+
+  // Best-effort display labels (failure path only). Copyable kinds go through the shared label
+  // loader (live rows only - a deleted source keeps its id label); MCP servers are read without
+  // the deleted filter so a source-deleted server still names itself; workflow names label the
+  // `workflow`-cause entries.
+  const copyableIdsByKind: Partial<Record<ForkCopyableKind, string[]>> = {}
+  const mcpIds: string[] = []
+  const workflowIds: string[] = []
+  for (const { ref } of blocking) {
+    if (ref.cause === 'workflow') workflowIds.push(ref.sourceId)
+    else if (ref.kind === 'mcp-server') mcpIds.push(ref.sourceId)
+    else if (isForkCopyableKind(ref.kind)) (copyableIdsByKind[ref.kind] ??= []).push(ref.sourceId)
+  }
+  const [copyableLabels, mcpRows, workflowRows] = await Promise.all([
+    loadForkCopyableResourceLabels(executor, sourceWorkspaceId, copyableIdsByKind),
+    mcpIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string; name: string }>)
+      : executor
+          .select({ id: mcpServers.id, name: mcpServers.name })
+          .from(mcpServers)
+          .where(
+            and(eq(mcpServers.workspaceId, sourceWorkspaceId), inArray(mcpServers.id, mcpIds))
+          ),
+    workflowIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string; name: string }>)
+      : executor
+          .select({ id: workflow.id, name: workflow.name })
+          .from(workflow)
+          .where(
+            and(eq(workflow.workspaceId, sourceWorkspaceId), inArray(workflow.id, workflowIds))
+          ),
+  ])
+  const mcpNames = new Map(mcpRows.map((row) => [row.id, row.name]))
+  const workflowNames = new Map(workflowRows.map((row) => [row.id, row.name]))
+  const labelFor = (ref: ForkClearedRef): string => {
+    if (ref.cause === 'workflow') return workflowNames.get(ref.sourceId) ?? ref.sourceLabel
+    if (ref.kind === 'mcp-server') return mcpNames.get(ref.sourceId) ?? ref.sourceLabel
+    return copyableLabels.get(`${ref.kind}:${ref.sourceId}`)?.label ?? ref.sourceLabel
+  }
+
+  return toForkSyncBlockers(
+    blocking.map(({ ref, reason }) => ({ ref: { ...ref, sourceLabel: labelFor(ref) }, reason }))
+  )
 }

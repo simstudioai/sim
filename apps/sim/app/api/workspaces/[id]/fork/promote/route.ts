@@ -48,6 +48,7 @@ export const POST = withRouteHandler(
       redeployed: result.redeployed,
       deployFailed: result.deployFailed,
       unmappedRequired: result.unmappedRequired,
+      blockers: result.blockers,
       needsConfiguration: result.needsConfiguration,
       clearedOptional: result.clearedOptional,
     }

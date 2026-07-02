@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
@@ -343,6 +344,13 @@ export const executeWorkflowBodySchema = z.object({
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),
   runFromBlock: executeWorkflowRunFromBlockSchema.optional(),
+  /**
+   * Workspace of the parent execution when this call is a workflow-in-workflow
+   * invocation (e.g. the agent `workflow_executor` tool). When present, the
+   * route rejects execution of a workflow that lives in a different workspace.
+   * Direct API callers omit it and are unaffected.
+   */
+  parentWorkspaceId: workspaceIdSchema.optional(),
 })
 export type ExecuteWorkflowBody = z.input<typeof executeWorkflowBodySchema>
 

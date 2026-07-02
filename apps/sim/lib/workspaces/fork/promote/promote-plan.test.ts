@@ -2,11 +2,15 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { ForkCopyableLabel } from '@/lib/workspaces/fork/mapping/resources'
+import type {
+  ForkCopyableLabel,
+  ForkCopyableSourceResource,
+} from '@/lib/workspaces/fork/mapping/resources'
 import {
   assembleForkCopyableUnmapped,
   buildPromoteWorkflowIdMap,
   collectForkCopyableIdsByKind,
+  collectForkUnreferencedCopyables,
 } from '@/lib/workspaces/fork/promote/promote-plan'
 import type { ForkReference } from '@/lib/workspaces/fork/remap/remap-references'
 
@@ -135,8 +139,16 @@ describe('assembleForkCopyableUnmapped', () => {
         label: 'Docs KB',
         parentId: null,
         parentLabel: null,
+        referenced: true,
       },
-      { kind: 'file', sourceId: 'fk-1', label: 'a.png', parentId: 'fld-1', parentLabel: 'Folder' },
+      {
+        kind: 'file',
+        sourceId: 'fk-1',
+        label: 'a.png',
+        parentId: 'fld-1',
+        parentLabel: 'Folder',
+        referenced: true,
+      },
     ])
   })
 
@@ -150,5 +162,95 @@ describe('assembleForkCopyableUnmapped', () => {
       new Map([['credential:cred-1', flat('X')]])
     )
     expect(result).toEqual([])
+  })
+})
+
+describe('collectForkUnreferencedCopyables', () => {
+  const source = (
+    kind: ForkCopyableSourceResource['kind'],
+    sourceId: string,
+    label = sourceId
+  ): ForkCopyableSourceResource => ({ kind, sourceId, label, parentId: null, parentLabel: null })
+
+  const referencedCandidate = (kind: ForkCopyableSourceResource['kind'], sourceId: string) => ({
+    kind,
+    sourceId,
+    label: sourceId,
+    parentId: null,
+    parentLabel: null,
+    referenced: true,
+  })
+
+  it('emits an unmapped source resource no synced workflow references, flagged referenced: false', () => {
+    const result = collectForkUnreferencedCopyables(
+      [source('table', 'tbl-new', 'Scratch table')],
+      [],
+      () => null
+    )
+    expect(result).toEqual([
+      {
+        kind: 'table',
+        sourceId: 'tbl-new',
+        label: 'Scratch table',
+        parentId: null,
+        parentLabel: null,
+        referenced: false,
+      },
+    ])
+  })
+
+  it('dedupes against the referenced candidate set (a referenced resource is never double-listed)', () => {
+    const result = collectForkUnreferencedCopyables(
+      [source('knowledge-base', 'kb-1'), source('knowledge-base', 'kb-new')],
+      [referencedCandidate('knowledge-base', 'kb-1')],
+      () => null
+    )
+    expect(result.map((candidate) => candidate.sourceId)).toEqual(['kb-new'])
+  })
+
+  it('excludes a resource with a persisted mapping (idempotency: a prior copy is never re-offered)', () => {
+    // A resource copied by a prior sync resolves through its workspace_fork_resource_map row.
+    const result = collectForkUnreferencedCopyables(
+      [source('skill', 'sk-copied'), source('skill', 'sk-new')],
+      [],
+      (kind, sourceId) => (kind === 'skill' && sourceId === 'sk-copied' ? 'sk-target' : null)
+    )
+    expect(result.map((candidate) => candidate.sourceId)).toEqual(['sk-new'])
+  })
+
+  it('does not confuse the same id across kinds when deduping or resolving', () => {
+    const result = collectForkUnreferencedCopyables(
+      [source('table', 'shared-id'), source('skill', 'shared-id')],
+      [referencedCandidate('table', 'shared-id')],
+      () => null
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({ kind: 'skill', sourceId: 'shared-id', referenced: false })
+  })
+
+  it('carries a file candidate keyed by storage key with its folder grouping', () => {
+    const result = collectForkUnreferencedCopyables(
+      [
+        {
+          kind: 'file',
+          sourceId: 'workspace/SRC/new.png',
+          label: 'new.png',
+          parentId: 'fld-1',
+          parentLabel: 'Images',
+        },
+      ],
+      [],
+      () => null
+    )
+    expect(result).toEqual([
+      {
+        kind: 'file',
+        sourceId: 'workspace/SRC/new.png',
+        label: 'new.png',
+        parentId: 'fld-1',
+        parentLabel: 'Images',
+        referenced: false,
+      },
+    ])
   })
 })

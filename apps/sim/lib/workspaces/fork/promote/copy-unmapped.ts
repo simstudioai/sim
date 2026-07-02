@@ -21,16 +21,20 @@ import {
   resourceTypeToForkKind,
   upsertEdgeMappings,
 } from '@/lib/workspaces/fork/mapping/mapping-store'
+import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import type {
   ForkReferenceResolver,
   ForkRemapKind,
 } from '@/lib/workspaces/fork/remap/remap-references'
 
-/** The source ids selected for copy at promote, validated against the plan's copyable candidates. */
+/**
+ * The source ids selected for copy at promote, validated against the plan's copyable
+ * candidates. Exactly the sync-copyable kinds (`forkCopyableKindSchema`): workflow-publishing
+ * MCP servers are fork-create-only (never a promote copy candidate), so they have no slot here.
+ */
 export interface PromoteCopySelection {
   customTools: string[]
   skills: string[]
-  workflowMcpServers: string[]
   tables: string[]
   knowledgeBases: string[]
   /** Workspace files to copy, identified by storage key (not `workspace_files.id`). */
@@ -54,10 +58,11 @@ export const FORK_COPYABLE_KIND_TO_SELECTION_KEY: Record<
 }
 
 /**
- * Intersect the user's requested copy with the plan's actual copyable candidates, so a sync can
- * only copy resources that are genuinely referenced-but-unmapped + still exist in the source (a
- * crafted request can never copy an arbitrary resource). Returns the validated selection plus the
- * set of `${kind}:${sourceId}` references the copy will resolve, for the pre-copy sync gate.
+ * Intersect the user's requested copy with the plan's actual copyable candidates (referenced or
+ * not, always unmapped + still existing in the source), so a crafted request can never copy an
+ * arbitrary resource. Returns the validated selection plus the set of `${kind}:${sourceId}`
+ * references the copy will resolve, for the pre-copy sync gate - an unreferenced candidate's key
+ * simply matches no reference there, which is harmless.
  */
 export function buildPromoteCopySelection(
   requested: PromoteCopyResources | undefined,
@@ -72,7 +77,6 @@ export function buildPromoteCopySelection(
   const selection: PromoteCopySelection = {
     customTools: [],
     skills: [],
-    workflowMcpServers: [],
     tables: [],
     knowledgeBases: [],
     files: [],
@@ -140,8 +144,8 @@ export interface PromoteCopyResult {
 }
 
 /**
- * Copy the referenced-but-unmapped resources a sync brings into the target (reusing the fork copy
- * pipeline), then persist the source<->target id map in the direction the edge expects: a pull
+ * Copy the selected unmapped resources (referenced or not) a sync brings into the target (reusing
+ * the fork copy pipeline), then persist the source<->target id map in the direction the edge expects: a pull
  * fills the existing `(parent, child=null)` row (fill-null), a push replaces any prior
  * `(parent, child)` row keyed on the source child resource (delete-then-insert). This covers:
  *  - the user-selected copyable containers (KB / table / custom-tool / skill) and workspace files,
@@ -169,6 +173,12 @@ export async function copyPromoteUnmappedResources(params: {
   /** Base resolver (persisted mappings + env identity), used to detect already-mapped KBs (U-docs). */
   resolver: ForkReferenceResolver
   /**
+   * The SAME block-id resolver the sync's workflow writes use (persisted pairs preferred over
+   * derive), so copied tables' workflow-group `outputs[].blockId` point at the blocks the sync
+   * actually writes - on push the parent keeps its ORIGINAL block ids, never the derive.
+   */
+  resolveBlockId: ForkBlockIdResolver
+  /**
    * Knowledge-document ids the synced workflows reference, already scanned once in the promote
    * plan and threaded in so the copy doesn't re-scan every source state inside the locked tx.
    * `copyForkResourceContainers` / `planForkMappedKbDocumentCopies` place only those whose parent
@@ -188,6 +198,7 @@ export async function copyPromoteUnmappedResources(params: {
     workflowIdMap,
     folderIdMap,
     resolver,
+    resolveBlockId,
     referencedDocumentIds,
   } = params
 
@@ -200,7 +211,9 @@ export async function copyPromoteUnmappedResources(params: {
     selection: {
       customTools: selection.customTools,
       skills: selection.skills,
-      workflowMcpServers: selection.workflowMcpServers,
+      // Workflow-publishing MCP servers are fork-create-only (never a sync-copy candidate);
+      // the shared copy pipeline still takes the slot, so pass it empty.
+      workflowMcpServers: [],
       tables: selection.tables,
       knowledgeBases: selection.knowledgeBases,
     },
@@ -209,6 +222,7 @@ export async function copyPromoteUnmappedResources(params: {
     // A sync can rename env vars, so a copied custom tool's `code` must have its `{{ENV}}` refs
     // rewritten through the same plan resolver that remaps subblock-value env refs.
     resolveEnvName: (key) => resolver('env-var', key),
+    resolveBlockId,
   })
 
   // Copy the selected workspace files (keyed by storage key) - metadata inserts in the tx, blob

@@ -53,16 +53,55 @@ import { isForkCopyableKind } from '@/lib/workspaces/fork/promote/promote-plan'
 import type { ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references'
 
 const candidates: ForkCopyableUnmapped[] = [
-  { kind: 'knowledge-base', sourceId: 'kb-1', label: 'KB One', parentId: null, parentLabel: null },
-  { kind: 'table', sourceId: 'tbl-1', label: 'Table One', parentId: null, parentLabel: null },
-  { kind: 'custom-tool', sourceId: 'ct-1', label: 'Tool One', parentId: null, parentLabel: null },
-  { kind: 'skill', sourceId: 'sk-1', label: 'Skill One', parentId: null, parentLabel: null },
+  {
+    kind: 'knowledge-base',
+    sourceId: 'kb-1',
+    label: 'KB One',
+    parentId: null,
+    parentLabel: null,
+    referenced: true,
+  },
+  {
+    kind: 'table',
+    sourceId: 'tbl-1',
+    label: 'Table One',
+    parentId: null,
+    parentLabel: null,
+    referenced: true,
+  },
+  {
+    kind: 'custom-tool',
+    sourceId: 'ct-1',
+    label: 'Tool One',
+    parentId: null,
+    parentLabel: null,
+    referenced: true,
+  },
+  {
+    kind: 'skill',
+    sourceId: 'sk-1',
+    label: 'Skill One',
+    parentId: null,
+    parentLabel: null,
+    referenced: true,
+  },
   {
     kind: 'file',
     sourceId: 'workspace/SRC/a.png',
     label: 'a.png',
     parentId: 'fld-1',
     parentLabel: 'Images',
+    referenced: true,
+  },
+  // An UNREFERENCED candidate (new in the source, used by no synced workflow): selectable for
+  // copy exactly like a referenced one - the server treats the two identically.
+  {
+    kind: 'table',
+    sourceId: 'tbl-unref',
+    label: 'Scratch table',
+    parentId: null,
+    parentLabel: null,
+    referenced: false,
   },
 ]
 
@@ -76,7 +115,6 @@ describe('buildPromoteCopySelection', () => {
     expect(selection.tables).toEqual(['tbl-1'])
     expect(selection.customTools).toEqual(['ct-1'])
     expect(selection.skills).toEqual(['sk-1'])
-    expect(selection.workflowMcpServers).toEqual([])
     expect(willResolve.has('knowledge-base:kb-1')).toBe(true)
     expect(willResolve.has('skill:sk-1')).toBe(true)
   })
@@ -106,12 +144,31 @@ describe('buildPromoteCopySelection', () => {
     expect(willResolve.size).toBe(0)
   })
 
+  it('accepts an UNREFERENCED candidate exactly like a referenced one', () => {
+    // The client keeps unreferenced candidates default-unselected, but once the user opts in the
+    // server validates + copies them through the same path. Its willResolve key matches no
+    // unmapped reference (nothing references it), so the pre-copy gate is unaffected.
+    const { selection, willResolve } = buildPromoteCopySelection(
+      { tables: ['tbl-unref'] },
+      candidates
+    )
+    expect(selection.tables).toEqual(['tbl-unref'])
+    expect(willResolve.has('table:tbl-unref')).toBe(true)
+  })
+
   it('copy-vs-map: maps win - a mapped resource is absent from the candidates, so a copy request for it is dropped', () => {
     // Reconciliation precedence at the server boundary: a resource the user mapped resolves to a
     // target, so the plan never lists it in `copyableUnmapped`. Even if a (stale) client still
     // requests it for copy, only the genuinely-unmapped candidates survive - the map wins.
     const onlyTableUnmapped: ForkCopyableUnmapped[] = [
-      { kind: 'table', sourceId: 'tbl-1', label: 'Table One', parentId: null, parentLabel: null },
+      {
+        kind: 'table',
+        sourceId: 'tbl-1',
+        label: 'Table One',
+        parentId: null,
+        parentLabel: null,
+        referenced: true,
+      },
     ]
     const { selection, willResolve } = buildPromoteCopySelection(
       // kb-1 + the file were mapped (so absent from candidates); only the table remains copyable.
@@ -137,7 +194,6 @@ describe('hasPromoteCopySelection', () => {
       hasPromoteCopySelection({
         customTools: [],
         skills: [],
-        workflowMcpServers: [],
         tables: [],
         knowledgeBases: ['kb-1'],
         files: [],
@@ -147,7 +203,6 @@ describe('hasPromoteCopySelection', () => {
       hasPromoteCopySelection({
         customTools: [],
         skills: [],
-        workflowMcpServers: [],
         tables: [],
         knowledgeBases: [],
         files: [],
@@ -157,7 +212,6 @@ describe('hasPromoteCopySelection', () => {
       hasPromoteCopySelection({
         customTools: [],
         skills: [],
-        workflowMcpServers: [],
         tables: [],
         knowledgeBases: [],
         files: ['workspace/SRC/file.png'],
@@ -229,6 +283,9 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
   const tx = {} as DbOrTx
   // Only edge.childWorkspaceId is read by the copy path.
   const edge = { childWorkspaceId: 'edge-child' } as unknown as ForkEdge
+  // The promote-built persisted-pair resolver; the copy must forward it verbatim so copied
+  // tables' workflow-group outputs land on the same block ids the workflow writes assign.
+  const resolveBlockId = (workflowId: string, blockId: string) => `${workflowId}:${blockId}`
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -287,7 +344,6 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
       selection: {
         customTools: [],
         skills: [],
-        workflowMcpServers: [],
         tables: [],
         knowledgeBases: [],
         files: ['workspace/SRC/a.png'],
@@ -295,6 +351,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
       workflowIdMap: new Map(),
       folderIdMap: new Map([['fld-src', 'fld-dst']]),
       resolver: () => null,
+      resolveBlockId,
       referencedDocumentIds: [],
     })
 
@@ -323,6 +380,64 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     expect(result.contentRefMaps.fileIds).toEqual({ 'file-src': 'file-dst' })
   })
 
+  it('persists container mapping entries for copied resources (idempotency for unreferenced copies)', async () => {
+    // An UNREFERENCED table selected for copy flows through the same container pipeline; its
+    // mapping row is what makes the next sync resolve the copy instead of re-offering it.
+    mockCopyForkResourceContainers.mockResolvedValue({
+      idMap: new Map([['table', new Map([['tbl-unref', 'tbl-copy']])]]),
+      mappingEntries: [
+        { resourceType: 'table', parentResourceId: 'tbl-unref', childResourceId: 'tbl-copy' },
+      ],
+      contentPlan: {
+        sourceWorkspaceId: 'src-ws',
+        childWorkspaceId: 'target-ws',
+        userId: 'user-1',
+        tables: [{ sourceId: 'tbl-unref', childId: 'tbl-copy' }],
+        knowledgeBases: [],
+        skills: [],
+        documents: [],
+      },
+      names: {
+        tables: ['Scratch table'],
+        knowledgeBases: [],
+        customTools: [],
+        skills: [],
+        workflowMcpServers: [],
+      },
+    })
+    mockPlanForkFileCopies.mockResolvedValue({
+      keyMap: new Map<string, string>(),
+      idMap: new Map<string, string>(),
+      blobTasks: [],
+    })
+
+    await copyPromoteUnmappedResources({
+      tx,
+      edge,
+      sourceWorkspaceId: 'src-ws',
+      targetWorkspaceId: 'target-ws',
+      direction: 'pull',
+      userId: 'user-1',
+      now: new Date(),
+      selection: {
+        customTools: [],
+        skills: [],
+        tables: ['tbl-unref'],
+        knowledgeBases: [],
+        files: [],
+      },
+      workflowIdMap: new Map(),
+      folderIdMap: new Map(),
+      resolver: () => null,
+      resolveBlockId,
+      referencedDocumentIds: [],
+    })
+
+    expect(mockUpsertEdgeMappings).toHaveBeenCalledWith(tx, 'edge-child', 'user-1', [
+      { resourceType: 'table', parentResourceId: 'tbl-unref', childResourceId: 'tbl-copy' },
+    ])
+  })
+
   it('threads the plan-provided referencedDocumentIds into both doc-copy paths (no in-tx re-scan)', async () => {
     await copyPromoteUnmappedResources({
       tx,
@@ -335,7 +450,6 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
       selection: {
         customTools: [],
         skills: [],
-        workflowMcpServers: [],
         tables: [],
         knowledgeBases: ['kb-1'],
         files: [],
@@ -343,13 +457,22 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
       workflowIdMap: new Map(),
       folderIdMap: new Map(),
       resolver: () => null,
+      resolveBlockId,
       // The doc ids come straight from the promote plan's references; the copy must forward them,
       // not re-scan every source workflow state inside the locked tx.
       referencedDocumentIds: ['doc-1', 'doc-2'],
     })
 
     expect(mockCopyForkResourceContainers).toHaveBeenCalledWith(
-      expect.objectContaining({ referencedDocumentIds: ['doc-1', 'doc-2'] })
+      expect.objectContaining({
+        referencedDocumentIds: ['doc-1', 'doc-2'],
+        // Workflow-publishing MCP servers are fork-create-only; a sync always passes the
+        // shared pipeline's slot empty (PromoteCopySelection has no such field).
+        selection: expect.objectContaining({ workflowMcpServers: [] }),
+        // The promote-built block-id resolver reaches the table remap unchanged, so copied
+        // tables' workflow-group outputs use the persisted-pair ids, not the derive.
+        resolveBlockId,
+      })
     )
     expect(mockPlanForkMappedKbDocumentCopies).toHaveBeenCalledWith(
       expect.objectContaining({ referencedDocumentIds: ['doc-1', 'doc-2'] })

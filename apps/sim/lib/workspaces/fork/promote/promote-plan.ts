@@ -13,8 +13,10 @@ import {
 } from '@/lib/workspaces/fork/mapping/mapping-store'
 import {
   type ForkCopyableLabel,
+  type ForkCopyableSourceResource,
   filterExistingForkTargets,
   getWorkspaceEnvKeys,
+  listForkCopyableSourceResources,
   loadForkCopyableResourceLabels,
 } from '@/lib/workspaces/fork/mapping/resources'
 import { toScannerBlocks } from '@/lib/workspaces/fork/remap/reference-scan'
@@ -61,10 +63,13 @@ export interface ForkPromotePlan {
   /** Review-only descriptions of inline secrets that cannot be id-mapped. */
   inlineSecretSources: string[]
   /**
-   * Referenced-but-unmapped resources of copyable kinds that still exist in the source, so a
-   * sync can copy them into the target instead of requiring a manual mapping (U15). Documents
-   * are auto-copied with their parent KB and are not listed here. `parentId`/`parentLabel` carry
-   * a file's folder grouping (null for non-file kinds and root files), for the nested picker.
+   * Unmapped resources of copyable kinds that still exist in the source, so a sync can copy
+   * them into the target instead of requiring a manual mapping (U15). `referenced: true`
+   * entries are referenced by the synced workflows (default-selected in the modal - skipping
+   * one clears its references); `referenced: false` entries are used by no synced workflow
+   * (default-unselected - skipping one breaks nothing). Documents are auto-copied with their
+   * parent KB and are not listed here. `parentId`/`parentLabel` carry a file's folder grouping
+   * (null for non-file kinds and root files), for the nested picker.
    */
   copyableUnmapped: Array<{
     kind: ForkCopyableKind
@@ -72,6 +77,7 @@ export interface ForkPromotePlan {
     label: string
     parentId: string | null
     parentLabel: string | null
+    referenced: boolean
   }>
   willUpdate: number
   willCreate: number
@@ -136,10 +142,10 @@ export function collectForkCopyableIdsByKind(
 }
 
 /**
- * Assemble {@link ForkPromotePlan.copyableUnmapped} from the unmapped references and the loaded
- * source labels: each copyable reference whose label resolved becomes a copy candidate; one whose
- * label is missing (the resource no longer exists in the source) is dropped. Pure - split from the
- * DB label load so it is unit-testable.
+ * Assemble the REFERENCED slice of {@link ForkPromotePlan.copyableUnmapped} from the unmapped
+ * references and the loaded source labels: each copyable reference whose label resolved becomes a
+ * copy candidate; one whose label is missing (the resource no longer exists in the source) is
+ * dropped. Pure - split from the DB label load so it is unit-testable.
  */
 export function assembleForkCopyableUnmapped(
   unmappedReferences: ForkReference[],
@@ -156,9 +162,33 @@ export function assembleForkCopyableUnmapped(
             label: entry.label,
             parentId: entry.parentId,
             parentLabel: entry.parentLabel,
+            referenced: true,
           },
         ]
       : []
+  })
+}
+
+/**
+ * Assemble the UNREFERENCED slice of {@link ForkPromotePlan.copyableUnmapped}: every copyable
+ * resource in the source workspace that no synced workflow references (not in the referenced
+ * candidate set) and that has no target mapping for this edge (the resolver returns null). A
+ * previously-copied resource resolves through its persisted `workspace_fork_resource_map` row,
+ * so a re-sync never re-offers it (idempotency). Pure - split from the DB source listing so it
+ * is unit-testable.
+ */
+export function collectForkUnreferencedCopyables(
+  sourceResources: ForkCopyableSourceResource[],
+  referencedCopyables: ForkPromotePlan['copyableUnmapped'],
+  resolver: ForkReferenceResolver
+): ForkPromotePlan['copyableUnmapped'] {
+  const referencedKeys = new Set(
+    referencedCopyables.map((candidate) => `${candidate.kind}:${candidate.sourceId}`)
+  )
+  return sourceResources.flatMap((resource) => {
+    if (referencedKeys.has(`${resource.kind}:${resource.sourceId}`)) return []
+    if (resolver(resource.kind, resource.sourceId) != null) return []
+    return [{ ...resource, referenced: false }]
   })
 }
 
@@ -330,7 +360,15 @@ export async function computeForkPromotePlan(params: {
     sourceWorkspaceId,
     collectForkCopyableIdsByKind(allUnmapped)
   )
-  const copyableUnmapped = assembleForkCopyableUnmapped(allUnmapped, copyableLabels)
+  const referencedCopyables = assembleForkCopyableUnmapped(allUnmapped, copyableLabels)
+  // Also offer the source's UNREFERENCED copyable resources with no target mapping (e.g. newly
+  // created since the fork), default-unselected in the modal. Mapped ones (including everything
+  // a prior sync copied) resolve non-null and drop out, so a re-sync never re-offers a copy.
+  const sourceCopyables = await listForkCopyableSourceResources(executor, sourceWorkspaceId)
+  const copyableUnmapped = [
+    ...referencedCopyables,
+    ...collectForkUnreferencedCopyables(sourceCopyables, referencedCopyables, resolver),
+  ]
 
   const willUpdate = items.filter((i) => i.mode === 'replace').length
   const willCreate = items.filter((i) => i.mode === 'create').length

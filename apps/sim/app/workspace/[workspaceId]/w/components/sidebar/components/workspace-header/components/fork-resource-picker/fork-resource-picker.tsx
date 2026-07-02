@@ -1,8 +1,7 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
-import { Checkbox, ChevronDown, ChipInput, cn } from '@sim/emcn'
-import { Search } from 'lucide-react'
+import { Checkbox, ChevronDown, cn } from '@sim/emcn'
 import {
   ForkFileTree,
   type ForkFlatFile,
@@ -15,14 +14,11 @@ export interface ForkResourcePickerItem {
   label: string
 }
 
-/** Show the inline search once a kind has more entries than fit comfortably. */
-const SEARCH_THRESHOLD = 8
-
 interface ResourceKindRowProps {
   label: string
   items: ForkResourcePickerItem[]
   selected: Set<string>
-  /** Toggle the given ids on/off. Used for select-all over the currently-VISIBLE (filtered) subset. */
+  /** Toggle the given ids on/off. Used by the select-all header checkbox. */
   onToggleMany: (ids: string[], checked: boolean) => void
   onToggleItem: (id: string, checked: boolean) => void
   disabled?: boolean
@@ -30,10 +26,10 @@ interface ResourceKindRowProps {
 
 /**
  * One expandable resource kind in the fork / sync copy picker: a tri-state "select all" header
- * (count of selected / total) plus, when expanded, a searchable scrollable list of individual
- * resources so the user can copy a specific subset. Shared by the fork modal's "Copy resources"
- * and the sync modal's "Copy resources" so the two surfaces stay identical. Files nest in a
- * folder tree instead - use {@link FileKindRow}.
+ * (count of selected / total) plus, when expanded, a scrollable list of individual resources so
+ * the user can copy a specific subset. Shared by the fork modal's "Copy resources" and the sync
+ * modal's "Copy resources" so the two surfaces stay identical. Files nest in a folder tree
+ * instead - use {@link FileKindRow}.
  */
 export function ResourceKindRow({
   label,
@@ -44,19 +40,10 @@ export function ResourceKindRow({
   disabled = false,
 }: ResourceKindRowProps) {
   const [expanded, setExpanded] = useState(false)
-  const [query, setQuery] = useState('')
   const fieldId = useId()
 
-  const filtered = useMemo(() => {
-    const trimmed = query.trim().toLowerCase()
-    if (!trimmed) return items
-    return items.filter((item) => item.label.toLowerCase().includes(trimmed))
-  }, [items, query])
-
-  // Count + header state + select-all are scoped to the VISIBLE (filtered) items so a search never
-  // selects or counts hidden ones. With no filter, `filtered === items`, so behavior is unchanged.
-  const total = filtered.length
-  const selectedCount = filtered.reduce((count, item) => count + (selected.has(item.id) ? 1 : 0), 0)
+  const total = items.length
+  const selectedCount = items.reduce((count, item) => count + (selected.has(item.id) ? 1 : 0), 0)
   const headerState = selectedCount === 0 ? false : selectedCount === total ? true : 'indeterminate'
 
   return (
@@ -68,7 +55,7 @@ export function ResourceKindRow({
           checked={headerState}
           onCheckedChange={() =>
             onToggleMany(
-              filtered.map((item) => item.id),
+              items.map((item) => item.id),
               headerState !== true
             )
           }
@@ -92,46 +79,32 @@ export function ResourceKindRow({
       </div>
 
       {expanded ? (
-        <div className='ml-6 flex flex-col gap-1'>
-          {total > SEARCH_THRESHOLD ? (
-            <ChipInput
-              icon={Search}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={`Search ${label.toLowerCase()}`}
-              disabled={disabled}
-            />
-          ) : null}
-          <div className='flex max-h-44 flex-col gap-0.5 overflow-y-auto'>
-            {filtered.map((item) => {
-              const isChecked = selected.has(item.id)
-              const itemId = `${fieldId}-${item.id}`
-              return (
-                <label
-                  key={item.id}
-                  htmlFor={itemId}
-                  className={cn(
-                    'flex min-w-0 items-center gap-2 rounded-md py-0.5 text-[var(--text-body)] text-sm',
-                    disabled
-                      ? 'cursor-not-allowed opacity-60'
-                      : 'cursor-pointer hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  <Checkbox
-                    id={itemId}
-                    size='sm'
-                    checked={isChecked}
-                    onCheckedChange={(checked) => onToggleItem(item.id, checked === true)}
-                    disabled={disabled}
-                  />
-                  <span className='truncate'>{item.label}</span>
-                </label>
-              )
-            })}
-            {filtered.length === 0 ? (
-              <p className='py-1 text-[var(--text-secondary)] text-xs'>No matches</p>
-            ) : null}
-          </div>
+        <div className='ml-6 flex max-h-44 flex-col gap-0.5 overflow-y-auto'>
+          {items.map((item) => {
+            const isChecked = selected.has(item.id)
+            const itemId = `${fieldId}-${item.id}`
+            return (
+              <label
+                key={item.id}
+                htmlFor={itemId}
+                className={cn(
+                  'flex min-w-0 items-center gap-2 rounded-md py-0.5 text-[var(--text-body)] text-sm',
+                  disabled
+                    ? 'cursor-not-allowed opacity-60'
+                    : 'cursor-pointer hover:text-[var(--text-primary)]'
+                )}
+              >
+                <Checkbox
+                  id={itemId}
+                  size='sm'
+                  checked={isChecked}
+                  onCheckedChange={(checked) => onToggleItem(item.id, checked === true)}
+                  disabled={disabled}
+                />
+                <span className='truncate'>{item.label}</span>
+              </label>
+            )
+          })}
         </div>
       ) : null}
     </div>

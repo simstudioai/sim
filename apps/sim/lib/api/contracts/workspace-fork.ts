@@ -331,24 +331,33 @@ const forkClearedRefBaseSchema = z.object({
 })
 
 /**
- * A reference in a synced source workflow that WILL be blanked in the target by this sync, with the
+ * A reference in a synced source workflow that this sync would blank in the target, with the
  * labels to phrase it as "{blockLabel} will lose {fieldLabel} in workflow {workflowName}". A
  * discriminated union on `cause` so clients narrow exhaustively (only `dependent` carries the parent
  * fields):
- *  - `reference`: an unmapped remappable resource (`kind`) - drops off the list once the user maps
- *    OR copies it (matched to a mapping entry by `${kind}:${sourceId}`).
- *  - `workflow`: a `workflow-selector`/`workflow_input` ref to a workflow not in the target -
- *    always cleared (cannot be fixed in the modal).
- *  - `dependent`: a create-target dependent selector a remapped parent clears. Carries the parent
- *    (`parentKind`/`parentSourceId`); when the child follows its parent (a document under a knowledge
- *    base) the client drops it once that parent is mapped/copied, else it stays (credential label /
- *    table column).
+ *  - `reference`: an unmapped remappable resource (`kind`). BLOCKS the sync until the user maps it
+ *    OR selects it for copy (matched to a mapping entry by `${kind}:${sourceId}`); the entry drops
+ *    off the blocker list once resolved.
+ *  - `workflow`: a `workflow-selector`/`workflow_input` ref to a workflow not carried into the
+ *    target. BLOCKS the sync; resolved outside the modal (deploy the referenced workflow in the
+ *    source, or remove/fix the reference).
+ *  - `dependent`: a create-target dependent selector a remapped parent clears. NOT a blocker (the
+ *    reconfigure flow owns dependents). Carries the parent (`parentKind`/`parentSourceId`); when the
+ *    child follows its parent (a document under a knowledge base) the client drops it once that
+ *    parent is mapped/copied, else it stays (credential label / table column).
  */
 export const forkClearedRefSchema = z.discriminatedUnion('cause', [
   forkClearedRefBaseSchema.extend({
     cause: z.literal('reference'),
     /** The unmapped remappable resource (never `workflow`). */
     kind: forkRemapKindSchema,
+    /**
+     * True when the referenced resource no longer exists (deleted/archived) in the SOURCE
+     * workspace, so it cannot be offered for copy - the resolution is mapping the dead source id
+     * to a live target resource, or fixing the source workflow. Collected as `false` and
+     * annotated post-collection by the source-liveness check (`annotateForkClearedRefSourceLiveness`).
+     */
+    sourceDeleted: z.boolean(),
   }),
   forkClearedRefBaseSchema.extend({
     cause: z.literal('workflow'),
@@ -364,6 +373,42 @@ export const forkClearedRefSchema = z.discriminatedUnion('cause', [
   }),
 ])
 export type ForkClearedRef = z.output<typeof forkClearedRefSchema>
+
+/**
+ * Why a would-clear reference blocks the sync, so clients can phrase the resolution:
+ *  - `unmapped-copyable`: a live copyable-kind resource (table / KB / file / custom tool / skill)
+ *    with no target mapping - resolve by mapping it or selecting it for copy.
+ *  - `unmapped-mcp-server`: a live external MCP server with no target mapping - resolve by mapping
+ *    (MCP servers are never copied; create one in the target first if none exists).
+ *  - `source-deleted`: the referenced resource was deleted in the source - resolve by mapping the
+ *    dead id to an existing live target resource, or by fixing/archiving the source workflow.
+ *  - `workflow-missing`: a cross-workflow reference to a workflow not carried into the target -
+ *    resolve by deploying the referenced workflow in the source, or removing the reference.
+ */
+export const forkSyncBlockerReasonSchema = z.enum([
+  'unmapped-copyable',
+  'unmapped-mcp-server',
+  'source-deleted',
+  'workflow-missing',
+])
+export type ForkSyncBlockerReason = z.output<typeof forkSyncBlockerReasonSchema>
+
+/**
+ * One reference that blocked a promote at the server gate (the authoritative in-tx re-check of
+ * the would-clear set). Mirrors the cleared-ref labels so the client can phrase each blocker;
+ * `kind` is `workflow` for cross-workflow references. `sourceLabel` may fall back to `sourceId`
+ * (the gate skips display-label loading); the modal's refreshed diff carries the labeled list.
+ */
+export const forkSyncBlockerSchema = z.object({
+  workflowName: z.string(),
+  blockLabel: z.string(),
+  fieldLabel: z.string(),
+  kind: z.union([forkRemapKindSchema, z.literal('workflow')]),
+  sourceId: z.string(),
+  sourceLabel: z.string(),
+  reason: forkSyncBlockerReasonSchema,
+})
+export type ForkSyncBlocker = z.output<typeof forkSyncBlockerSchema>
 
 export const getForkDiffQuerySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
@@ -395,11 +440,13 @@ export const getForkDiffContract = defineRouteContract({
       /** Every workflow each mapped resource is used in, for the always-on reconfigure listing. */
       resourceUsages: z.array(forkResourceUsageSchema),
       /**
-       * Referenced resources with no target mapping that the sync can copy into the target
-       * (fork-style), so the user can copy instead of mapping each one by hand. Default-selected
-       * in the modal; documents under a selected knowledge base are copied automatically.
-       * `parentId`/`parentLabel` carry the folder grouping for file entries (id + name); they
-       * are null for non-file kinds and for files at the workspace root.
+       * Copyable resources with no target mapping that the sync can copy into the target
+       * (fork-style). `referenced: true` entries are referenced by the synced workflows and
+       * default-selected in the modal (deselecting one clears its references); `referenced: false`
+       * entries exist in the source but are used by no synced workflow and default-unselected
+       * (skipping one breaks nothing). Documents under a selected knowledge base are copied
+       * automatically. `parentId`/`parentLabel` carry the folder grouping for file entries
+       * (id + name); they are null for non-file kinds and for files at the workspace root.
        */
       copyableUnmapped: z.array(
         z.object({
@@ -408,6 +455,8 @@ export const getForkDiffContract = defineRouteContract({
           label: z.string(),
           parentId: z.string().nullable(),
           parentLabel: z.string().nullable(),
+          /** Whether any synced workflow references this resource (drives the copy default). */
+          referenced: z.boolean(),
         })
       ),
       /**
@@ -453,9 +502,10 @@ export const forkDependentValueEntrySchema = z.object({
 export type ForkDependentValueEntry = z.input<typeof forkDependentValueEntrySchema>
 
 /**
- * Source resource ids (by kind) the user chose to copy into the target before the sync gate,
- * for referenced-but-unmapped resources. Each kind's documents under a copied knowledge base
- * are discovered + copied automatically (the user selects only the parent resources).
+ * Source resource ids (by kind) the user chose to copy into the target before the sync gate -
+ * unmapped resources, whether referenced by the synced workflows or not. Each kind's documents
+ * under a copied knowledge base are discovered + copied automatically (the user selects only
+ * the parent resources).
  */
 export const promoteCopyResourcesSchema = z.object({
   knowledgeBases: forkResourceIdList,
@@ -495,6 +545,12 @@ export const promoteForkContract = defineRouteContract({
       redeployed: z.number().int(),
       deployFailed: z.number().int(),
       unmappedRequired: z.array(forkUnmappedReferenceSchema),
+      /**
+       * References the sync would have cleared, so it was blocked without writing (the
+       * authoritative in-tx gate; non-empty only when `promoteRunId` is empty). Normally the
+       * client blocks first - this fires only when the state changed between preview and Sync.
+       */
+      blockers: z.array(forkSyncBlockerSchema),
       /** Workflows whose required dependent fields the target must re-pick post-sync. */
       needsConfiguration: z.array(forkNeedsConfigurationSchema),
       /** Workflows whose optional dependent fields a swap cleared (surfaced, not gated). */

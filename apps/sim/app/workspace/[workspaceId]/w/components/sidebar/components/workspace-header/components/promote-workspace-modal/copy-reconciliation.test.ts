@@ -6,6 +6,7 @@ import type { ForkCopyableUnmapped, ForkMappingEntry } from '@/lib/api/contracts
 import {
   effectiveForkTarget,
   forkCopyingKeys,
+  forkDefaultCopySelection,
   forkMappedCopyableKeys,
   forkRefKey,
   forkRequiredPending,
@@ -32,6 +33,7 @@ const copyable = (overrides: Partial<ForkCopyableUnmapped>): ForkCopyableUnmappe
   label: 'KB',
   parentId: null,
   parentLabel: null,
+  referenced: true,
   ...overrides,
 })
 
@@ -82,6 +84,23 @@ describe('copy-vs-map reconciliation', () => {
   })
 })
 
+describe('forkDefaultCopySelection', () => {
+  it('seeds every referenced candidate and leaves unreferenced ones unselected', () => {
+    const selection = forkDefaultCopySelection([
+      copyable({ kind: 'knowledge-base', sourceId: 'kb-1', referenced: true }),
+      copyable({ kind: 'table', sourceId: 'tbl-new', referenced: false }),
+      copyable({ kind: 'file', sourceId: 'workspace/SRC/new.png', referenced: false }),
+    ])
+    expect(selection).toEqual(new Set(['knowledge-base:kb-1']))
+  })
+
+  it('seeds nothing when every candidate is unreferenced', () => {
+    expect(
+      forkDefaultCopySelection([copyable({ kind: 'skill', sourceId: 'sk-new', referenced: false })])
+    ).toEqual(new Set())
+  })
+})
+
 describe('isForkRequiredComplete', () => {
   it('a required ref is satisfied by a mapping target', () => {
     const entries = [
@@ -98,6 +117,26 @@ describe('isForkRequiredComplete', () => {
   it('a required ref neither mapped nor copied blocks', () => {
     const entries = [entry({ kind: 'credential', sourceId: 'c1', required: true })]
     expect(isForkRequiredComplete(entries, {}, new Set())).toBe(false)
+  })
+
+  it('a referenced MCP server (map-only, required) blocks until mapped - copy cannot satisfy it', () => {
+    const entries = [
+      entry({ kind: 'mcp-server', resourceType: 'mcp_server', sourceId: 'srv-1', required: true }),
+    ]
+    // MCP servers are never copy candidates, so the copy set can't contain them; only a
+    // mapping target resolves the entry.
+    expect(isForkRequiredComplete(entries, {}, new Set())).toBe(false)
+    expect(isForkRequiredComplete(entries, { 'mcp-server:srv-1': 'srv-tgt' }, new Set())).toBe(true)
+  })
+
+  it('a source-deleted referenced resource (required, no copy candidate) blocks until mapped', () => {
+    // A deleted source is dropped from the copy candidates (its label lookup fails), so the
+    // only resolution is mapping the dead id to a live target resource.
+    const entries = [
+      entry({ kind: 'table', resourceType: 'table', sourceId: 'tbl-gone', required: true }),
+    ]
+    expect(isForkRequiredComplete(entries, {}, new Set())).toBe(false)
+    expect(isForkRequiredComplete(entries, { 'table:tbl-gone': 'tbl-live' }, new Set())).toBe(true)
   })
 
   it('optional refs never block', () => {
