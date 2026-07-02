@@ -50,6 +50,7 @@ export const brexGetTransferTool: ToolConfig<BrexGetTransferParams, BrexGetTrans
         createdAt: data.created_at ?? null,
         displayName: data.display_name ?? null,
         externalMemo: data.external_memo ?? null,
+        isPproEnabled: data.is_ppro_enabled ?? null,
       },
     }
   },
@@ -97,5 +98,10 @@ export const brexGetTransferTool: ToolConfig<BrexGetTransferParams, BrexGetTrans
     createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
     displayName: { type: 'string', description: 'Transfer display name', optional: true },
     externalMemo: { type: 'string', description: 'External memo', optional: true },
+    isPproEnabled: {
+      type: 'boolean',
+      description: 'Whether Principal Protection (PPRO) is enabled',
+      optional: true,
+    },
   },
 }
