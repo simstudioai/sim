@@ -1,21 +1,21 @@
 import { createLogger } from '@sim/logger'
 import type {
   ClerkApiError,
-  ClerkGetOrganizationParams,
-  ClerkGetOrganizationResponse,
   ClerkOrganization,
+  ClerkUpdateOrganizationParams,
+  ClerkUpdateOrganizationResponse,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('ClerkGetOrganization')
+const logger = createLogger('ClerkUpdateOrganization')
 
-export const clerkGetOrganizationTool: ToolConfig<
-  ClerkGetOrganizationParams,
-  ClerkGetOrganizationResponse
+export const clerkUpdateOrganizationTool: ToolConfig<
+  ClerkUpdateOrganizationParams,
+  ClerkUpdateOrganizationResponse
 > = {
-  id: 'clerk_get_organization',
-  name: 'Get Organization from Clerk',
-  description: 'Retrieve a single organization by ID or slug from Clerk',
+  id: 'clerk_update_organization',
+  name: 'Update Organization in Clerk',
+  description: 'Update an existing organization in your Clerk application',
   version: '1.0.0',
 
   params: {
@@ -29,14 +29,37 @@ export const clerkGetOrganizationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'The ID or slug of the organization to retrieve (e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC or my-org-slug)',
+      description: 'The ID of the organization to update (e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC)',
+    },
+    name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Name of the organization',
+    },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Slug identifier for the organization',
+    },
+    maxAllowedMemberships: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum member capacity (0 for unlimited)',
+    },
+    adminDeleteEnabled: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether admins can delete the organization',
     },
   },
 
   request: {
     url: (params) => `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}`,
-    method: 'GET',
+    method: 'PATCH',
     headers: (params) => {
       if (!params.secretKey) {
         throw new Error('Clerk Secret Key is required')
@@ -46,6 +69,18 @@ export const clerkGetOrganizationTool: ToolConfig<
         'Content-Type': 'application/json',
       }
     },
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+
+      if (params.name !== undefined) body.name = params.name
+      if (params.slug !== undefined) body.slug = params.slug
+      if (params.maxAllowedMemberships !== undefined)
+        body.max_allowed_memberships = params.maxAllowedMemberships
+      if (params.adminDeleteEnabled !== undefined)
+        body.admin_delete_enabled = params.adminDeleteEnabled
+
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
@@ -54,7 +89,7 @@ export const clerkGetOrganizationTool: ToolConfig<
     if (!response.ok) {
       logger.error('Clerk API request failed', { data, status: response.status })
       throw new Error(
-        (data as ClerkApiError).errors?.[0]?.message || 'Failed to get organization from Clerk'
+        (data as ClerkApiError).errors?.[0]?.message || 'Failed to update organization in Clerk'
       )
     }
 
