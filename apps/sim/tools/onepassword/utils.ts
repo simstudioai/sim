@@ -89,7 +89,11 @@ export const FULL_ITEM_OUTPUTS: Record<
   favorite: { type: 'boolean', description: 'Whether the item is favorited' },
   tags: { type: 'array', description: 'Item tags' },
   version: { type: 'number', description: 'Item version number' },
-  state: { type: 'string', description: 'Item state (ARCHIVED or DELETED)', optional: true },
+  state: {
+    type: 'string',
+    description: 'Item state (ARCHIVED, or absent/null when active)',
+    optional: true,
+  },
   fields: {
     type: 'array',
     description: 'Item fields including secrets',

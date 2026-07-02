@@ -57,8 +57,16 @@ export const OnePasswordBlock: BlockConfig = {
       title: 'Server URL',
       type: 'short-input',
       placeholder: 'http://localhost:8080',
-      required: { field: 'connectionMode', value: 'connect' },
-      condition: { field: 'connectionMode', value: 'connect' },
+      required: {
+        field: 'connectionMode',
+        value: 'connect',
+        and: { field: 'operation', value: 'resolve_secret', not: true },
+      },
+      condition: {
+        field: 'connectionMode',
+        value: 'connect',
+        and: { field: 'operation', value: 'resolve_secret', not: true },
+      },
     },
     {
       id: 'apiKey',
@@ -66,8 +74,16 @@ export const OnePasswordBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Enter your 1Password Connect token',
       password: true,
-      required: { field: 'connectionMode', value: 'connect' },
-      condition: { field: 'connectionMode', value: 'connect' },
+      required: {
+        field: 'connectionMode',
+        value: 'connect',
+        and: { field: 'operation', value: 'resolve_secret', not: true },
+      },
+      condition: {
+        field: 'connectionMode',
+        value: 'connect',
+        and: { field: 'operation', value: 'resolve_secret', not: true },
+      },
     },
     {
       id: 'secretReference',
@@ -294,6 +310,11 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
   },
 
   outputs: {
+    response: {
+      type: 'json',
+      description:
+        'Deprecated — kept for backward compatibility with workflows saved before per-operation outputs were added below. Never populated; use the operation-specific outputs instead.',
+    },
     vaults: {
       type: 'json',
       description:
@@ -326,7 +347,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     },
     type: {
       type: 'string',
-      description: 'Vault type (USER_CREATED, PERSONAL, EVERYONE, TRANSFER)',
+      description: 'Vault type (USER_CREATED, PERSONAL, or EVERYONE)',
       condition: { field: 'operation', value: 'get_vault' },
     },
     title: {
@@ -381,6 +402,46 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     tags: {
       type: 'json',
       description: 'Item tags',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    urls: {
+      type: 'json',
+      description: 'URLs associated with the item [{href, label, primary}]',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    favorite: {
+      type: 'boolean',
+      description: 'Whether the item is favorited',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    version: {
+      type: 'number',
+      description: 'Item version number',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    state: {
+      type: 'string',
+      description: 'Item state (ARCHIVED, or absent/null when active)',
+      condition: {
+        field: 'operation',
+        value: ['get_item', 'create_item', 'replace_item', 'update_item'],
+      },
+    },
+    lastEditedBy: {
+      type: 'string',
+      description: 'ID of the last editor',
       condition: {
         field: 'operation',
         value: ['get_item', 'create_item', 'replace_item', 'update_item'],
