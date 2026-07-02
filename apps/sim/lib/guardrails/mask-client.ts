@@ -1,26 +1,30 @@
 import type { GuardrailsMaskBatchResult } from '@/lib/api/contracts'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { env } from '@/lib/core/config/env'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 
 /**
- * Per-request limits. A chunk is flushed when it hits either bound, keeping each
- * request small enough for one short Presidio pass under a tight timeout and far
- * below the contract's 100k-entry cap — so large executions split across
- * requests instead of failing validation.
+ * Max in-flight mask-batch requests per call. Each request is a CPU-heavy NER
+ * batch, so a single Presidio instance is easily saturated — default 4, raise it
+ * via `PII_MASK_CHUNK_CONCURRENCY` for a scaled-out/load-balanced service, or set
+ * 1 for a single instance. No request timeout: masking a large batch is slow and
+ * the (scaled) Presidio service is expected to eventually respond; an unreachable
+ * service still rejects fast (connection refused) so the caller scrubs.
  */
-const REQUEST_MAX_BYTES = 256 * 1024
-const REQUEST_MAX_COUNT = 2_000
-/** Bounds one mask-batch request; an unreachable/stuck Presidio sidecar aborts so the caller scrubs. */
-const REQUEST_TIMEOUT_MS = 45_000
+const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 4
 
 /**
  * Mask PII across many strings via the internal app-container endpoint.
  *
- * The Presidio sidecars run only in the app task, but the log-redaction persist
- * path also runs inside the trigger.dev runtime — so redaction always routes
- * through HTTP, the same way the guardrails tool does.
- * Strings are grouped into byte/count-budgeted chunks; order is preserved, so
- * the returned array matches `texts` length.
+ * Only the app task reaches the Presidio service (it holds `PII_URL`), but the
+ * log-redaction persist path also runs inside the trigger.dev runtime — so
+ * redaction always routes through HTTP, the same way the guardrails tool does.
+ * Strings are grouped into byte/count-budgeted chunks (keeping each request far
+ * under the 10MB Next body limit) and the chunks are sent with bounded
+ * concurrency, so a large payload fans out rather than serializing; order is
+ * preserved, so the returned array matches `texts` length.
  *
  * Rejects on any non-2xx, timeout, or shape mismatch so the caller can apply
  * its own fail-safe (scrubbing rather than leaking).
@@ -33,34 +37,18 @@ export async function maskPIIBatchViaHttp(
   if (texts.length === 0) return []
 
   const url = `${getInternalApiBaseUrl()}/api/guardrails/mask-batch`
+  const masked = new Array<string>(texts.length)
 
-  const masked: string[] = []
-  let batch: string[] = []
-  let batchBytes = 0
-
-  const flush = async () => {
-    if (batch.length === 0) return
-    const out = await postChunk(url, batch, entityTypes, language)
-    if (out.length !== batch.length) {
+  await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
+    const chunk = indices.map((i) => texts[i])
+    const out = await postChunk(url, chunk, entityTypes, language)
+    if (out.length !== chunk.length) {
       throw new Error('PII mask-batch returned an unexpected result')
     }
-    for (const item of out) masked.push(item)
-    batch = []
-    batchBytes = 0
-  }
-
-  for (const text of texts) {
-    const bytes = Buffer.byteLength(text, 'utf8')
-    if (
-      batch.length > 0 &&
-      (batch.length >= REQUEST_MAX_COUNT || batchBytes + bytes > REQUEST_MAX_BYTES)
-    ) {
-      await flush()
-    }
-    batch.push(text)
-    batchBytes += bytes
-  }
-  await flush()
+    indices.forEach((originalIndex, k) => {
+      masked[originalIndex] = out[k]
+    })
+  })
 
   return masked
 }
@@ -83,7 +71,6 @@ async function postChunk(
       authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ texts, entityTypes, language }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
 
   if (!response.ok) {

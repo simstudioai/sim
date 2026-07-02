@@ -16,10 +16,8 @@ import type {
   PreviewColumn,
   PreviewRow,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
-import {
-  LandingPreviewResource,
-  ownerCell,
-} from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
+import { LandingPreviewResource } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
+import { ownerCell } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/utils'
 import { EASE_OUT } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
@@ -462,7 +460,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
           </colgroup>
           <thead className='sticky top-0 z-10'>
             <tr>
-              <th className={CELL_HEADER_CHECKBOX} />
+              <th className={CELL_HEADER_CHECKBOX} aria-label='Row number' />
               {data.columns.map((col) => {
                 const Icon = COLUMN_TYPE_ICONS[col.type] ?? TypeText
                 return (
@@ -507,6 +505,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
                             <Checkbox
                               size='sm'
                               checked={cellValue === 'true'}
+                              aria-label={col.label}
                               className='pointer-events-none'
                             />
                           </div>

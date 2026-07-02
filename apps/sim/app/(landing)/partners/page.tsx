@@ -1,6 +1,7 @@
 import { ChipLink } from '@sim/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 const PAGE_URL = `${SITE_URL}/partners`
 const TITLE = 'Partner Program | Sim'
@@ -140,14 +141,8 @@ const BENEFITS = [
 export default function PartnersPage() {
   return (
     <main id='main-content'>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(partnersJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <JsonLd data={partnersJsonLd} />
+      <JsonLd data={breadcrumbJsonLd} />
 
       {/* Hero */}
       <section
@@ -180,7 +175,7 @@ export default function PartnersPage() {
               href='#how-it-works'
               className='inline-flex h-[44px] items-center rounded-[5px] border border-[var(--border-1)] px-6 text-[15px] text-[var(--text-primary)] transition-colors hover:border-[var(--border-1)]'
             >
-              Learn more
+              See how the partner program works
             </a>
           </div>
         </div>

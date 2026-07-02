@@ -35,8 +35,10 @@ interface CareersProps {
  * never flashes unfiltered before the client board hydrates.
  */
 export default async function Careers({ searchParams }: CareersProps) {
-  const { team, location } = await careersSearchParamsCache.parse(searchParams)
-  const postings = await getAshbyJobs()
+  const [{ team, location }, postings] = await Promise.all([
+    careersSearchParamsCache.parse(searchParams),
+    getAshbyJobs(),
+  ])
   const fallbackGroups = groupByDepartment(filterPostings(postings, team, location))
 
   return (

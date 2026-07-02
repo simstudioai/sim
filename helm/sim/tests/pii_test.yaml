@@ -1,4 +1,4 @@
-suite: pii — optional Presidio sidecar + PII_URL wiring
+suite: pii — optional Presidio service + PII_URL wiring
 release:
   name: t
   namespace: sim
@@ -42,7 +42,7 @@ tests:
             name: PII_URL
             value: "http://t-sim-pii:5001"
 
-  - it: app pod gets the localhost PII_URL fallback when sidecar disabled
+  - it: app pod gets the localhost PII_URL fallback when service disabled
     template: deployment-app.yaml
     asserts:
       - contains:
@@ -72,7 +72,7 @@ tests:
             name: PII_URL
             value: "http://evil-pii:5001"
 
-  - it: app NetworkPolicy allows egress to the PII sidecar
+  - it: app NetworkPolicy allows egress to the PII service
     template: networkpolicy.yaml
     set:
       networkPolicy.enabled: true
@@ -94,7 +94,7 @@ tests:
               - protocol: TCP
                 port: 5001
 
-  - it: renders a dedicated NetworkPolicy for the PII sidecar
+  - it: renders a dedicated NetworkPolicy for the PII service
     template: networkpolicy.yaml
     set:
       networkPolicy.enabled: true

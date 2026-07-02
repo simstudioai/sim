@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button, cn, Input, Label, Loader } from '@sim/emcn'
+import { Button, cn, Input, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -9,7 +9,7 @@ import { client } from '@/lib/auth/auth-client'
 import { env, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
 
 const logger = createLogger('SSOForm')
 
@@ -179,16 +179,9 @@ export default function SSOForm() {
           </div>
         </div>
 
-        <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
-          {isLoading ? (
-            <span className='flex items-center gap-2'>
-              <Loader className='size-4' animate />
-              Redirecting to SSO provider…
-            </span>
-          ) : (
-            'Continue with SSO'
-          )}
-        </button>
+        <AuthSubmitButton loading={isLoading} loadingLabel='Redirecting to SSO provider…'>
+          Continue with SSO
+        </AuthSubmitButton>
       </form>
 
       {/* Only show divider and email signin button if email/password is enabled */}

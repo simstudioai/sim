@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
+import { Button } from '@sim/emcn'
 import { ArrowDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
   type ChatMessage,
   ClientChatMessage,
@@ -42,10 +42,10 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
           {messages.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-10'>
               <div className='space-y-2 text-center'>
-                <h3 className='font-medium text-[var(--landing-text)] text-lg'>
+                <h3 className='font-medium text-[var(--text-primary)] text-lg'>
                   How can I help you today?
                 </h3>
-                <p className='text-[var(--landing-text-muted)] text-sm'>
+                <p className='text-[var(--text-muted)] text-sm'>
                   {chatConfig?.description || 'Ask me anything.'}
                 </p>
               </div>
@@ -61,7 +61,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
                 <div className='flex'>
                   <div className='max-w-[80%]'>
                     <div className='flex h-6 items-center'>
-                      <div className='loading-dot size-3 rounded-full bg-[var(--landing-text)]' />
+                      <div className='loading-dot size-3 rounded-full bg-[var(--text-primary)]' />
                     </div>
                   </div>
                 </div>
@@ -80,8 +80,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
           <Button
             onClick={scrollToBottom}
             size='sm'
-            variant='outline'
-            className='flex items-center gap-1 rounded-full border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] px-3 py-1 shadow-lg transition-all hover:opacity-80'
+            className='gap-1 rounded-full px-3 py-1 shadow-lg'
           >
             <ArrowDown className='size-3.5' />
             <span className='sr-only'>Scroll to bottom</span>

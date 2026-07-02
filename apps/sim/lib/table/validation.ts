@@ -7,7 +7,7 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { withSeqscanOff } from '@/lib/table/planner'
 import type {
   ColumnDefinition,
@@ -356,11 +356,12 @@ export function coerceRowToSchema(data: RowData, schema: TableSchema): Validatio
 
 /** Validates row data size is within limits. */
 export function validateRowSize(data: RowData): ValidationResult {
+  const maxRowSizeBytes = getMaxRowSizeBytes()
   const size = JSON.stringify(data).length
-  if (size > TABLE_LIMITS.MAX_ROW_SIZE_BYTES) {
+  if (size > maxRowSizeBytes) {
     return {
       valid: false,
-      errors: [`Row size exceeds limit (${size} bytes > ${TABLE_LIMITS.MAX_ROW_SIZE_BYTES} bytes)`],
+      errors: [`Row size exceeds limit (${size} bytes > ${maxRowSizeBytes} bytes)`],
     }
   }
   return { valid: true, errors: [] }

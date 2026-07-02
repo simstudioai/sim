@@ -19,6 +19,15 @@ interface InlineEditorProps {
   onCancel: () => void
 }
 
+/** Redirect wheel gestures over an inline editor to the surrounding table scroll container. */
+function handleEditorWheel(e: React.WheelEvent<HTMLInputElement>) {
+  e.preventDefault()
+  const container = e.currentTarget.closest('[data-table-scroll]') as HTMLElement | null
+  if (container) {
+    container.scrollBy(e.deltaX, e.deltaY)
+  }
+}
+
 /** Inline editor for `date` columns — text input + popover calendar. */
 function InlineDateEditor({
   value,
@@ -152,14 +161,6 @@ function InlineTextEditor({
     }
   }, [])
 
-  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    const container = e.currentTarget.closest('[data-table-scroll]') as HTMLElement | null
-    if (container) {
-      container.scrollBy(e.deltaX, e.deltaY)
-    }
-  }
-
   const doSave = (reason: SaveReason) => {
     if (doneRef.current) return
     doneRef.current = true
@@ -194,7 +195,7 @@ function InlineTextEditor({
       value={draft ?? ''}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={handleKeyDown}
-      onWheel={handleWheel}
+      onWheel={handleEditorWheel}
       onBlur={() => doSave('blur')}
       className='w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
     />
