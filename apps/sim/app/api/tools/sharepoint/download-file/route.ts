@@ -10,6 +10,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -122,6 +123,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         headers: { Authorization: authHeader },
         // The content endpoint 302s to a preauthenticated URL on a different origin that needs no auth.
         stripAuthOnRedirect: true,
+        maxResponseBytes: MAX_FILE_SIZE,
       }
     )
 
