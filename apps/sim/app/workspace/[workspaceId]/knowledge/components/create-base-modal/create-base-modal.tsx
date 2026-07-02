@@ -142,14 +142,11 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     onOpenChange(open)
   }
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<FormInputValues, unknown, FormValues>({
+  const { register, handleSubmit, reset, watch, setValue } = useForm<
+    FormInputValues,
+    unknown,
+    FormValues
+  >({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       name: '',
@@ -228,7 +225,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       (fieldError) => typeof fieldError?.message === 'string'
     )?.message
     toast.error(
-      typeof firstMessage === 'string' ? firstMessage : 'Please fix the highlighted fields'
+      typeof firstMessage === 'string' ? firstMessage : 'Please fix the errors and try again'
     )
   }
 
@@ -312,7 +309,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             <ChipInput
               placeholder='Enter knowledge base name'
               {...register('name')}
-              error={Boolean(errors.name)}
               autoComplete='off'
               autoCorrect='off'
               autoCapitalize='off'
@@ -326,7 +322,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               placeholder='Describe this knowledge base (optional)'
               rows={4}
               {...register('description')}
-              error={Boolean(errors.description)}
             />
           </ChipModalField>
 
@@ -339,7 +334,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 step={1}
                 placeholder='100'
                 {...register('minChunkSize', { valueAsNumber: true })}
-                error={Boolean(errors.minChunkSize)}
                 autoComplete='off'
                 data-form-type='other'
               />
@@ -353,7 +347,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 step={1}
                 placeholder='1024'
                 {...register('maxChunkSize', { valueAsNumber: true })}
-                error={Boolean(errors.maxChunkSize)}
                 autoComplete='off'
                 data-form-type='other'
               />
@@ -372,7 +365,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               step={1}
               placeholder='200'
               {...register('overlapSize', { valueAsNumber: true })}
-              error={Boolean(errors.overlapSize)}
               autoComplete='off'
               data-form-type='other'
             />
@@ -402,7 +394,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 <ChipInput
                   placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
                   {...register('regexPattern')}
-                  error={Boolean(errors.regexPattern)}
                   autoComplete='off'
                   data-form-type='other'
                 />
