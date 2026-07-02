@@ -111,7 +111,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
       if (params.meetingType) url.searchParams.append('meeting_type', params.meetingType)
       if (params.calendarInviteesDomains)
         url.searchParams.append('calendar_invitees_domains[]', params.calendarInviteesDomains)
-      if (params.calendarInviteesDomainsType)
+      if (params.calendarInviteesDomainsType && params.calendarInviteesDomainsType !== 'all')
         url.searchParams.append(
           'calendar_invitees_domains_type',
           params.calendarInviteesDomainsType
