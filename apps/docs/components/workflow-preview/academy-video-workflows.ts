@@ -269,9 +269,10 @@ export const AV_SUPPORT_DESK_WORKFLOW: PreviewWorkflow = {
       id: 'condition',
       name: 'Urgent?',
       type: 'condition',
-      bgColor: '#FF972B',
+      bgColor: '#FF752F',
       position: { x: 660, y: 60 },
-      conditions: [
+      rows: [],
+      branches: [
         { id: 'condition-if', label: 'If', value: '<triage.urgent>' },
         { id: 'condition-else', label: 'else' },
       ],
