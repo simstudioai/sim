@@ -77,6 +77,12 @@ export const storageCreateSignedUploadUrlTool: ToolConfig<
       )
     }
 
+    if (!response.ok) {
+      throw new Error(
+        `Failed to create signed upload URL: ${data.message || data.error || response.statusText}`
+      )
+    }
+
     const relativeUrl = data.url
     if (!relativeUrl) {
       throw new Error('Supabase did not return a signed upload URL path in its response')

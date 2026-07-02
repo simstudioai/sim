@@ -51,7 +51,7 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
   },
 
   request: {
-    url: (params) => `${supabaseBaseUrl(params.projectId)}/rest/v1/?select=*`,
+    url: (params) => `${supabaseBaseUrl(params.projectId)}/rest/v1/`,
     method: 'GET',
     headers: (params) => ({
       apikey: params.apiKey,

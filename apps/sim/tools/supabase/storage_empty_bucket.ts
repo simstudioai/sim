@@ -59,6 +59,12 @@ export const storageEmptyBucketTool: ToolConfig<
       throw new Error(`Failed to parse Supabase storage empty bucket response: ${parseError}`)
     }
 
+    if (!response.ok) {
+      throw new Error(
+        `Failed to empty storage bucket: ${data.message || data.error || response.statusText}`
+      )
+    }
+
     return {
       success: true,
       output: {

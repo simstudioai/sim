@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   STORAGE_MESSAGE_OUTPUT_PROPERTIES,
   type SupabaseStorageUpdateBucketParams,
@@ -32,19 +33,21 @@ export const storageUpdateBucketTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether the bucket should be publicly accessible (default: false)',
+      description:
+        'Whether the bucket should be publicly accessible (leave unset to keep the current value)',
     },
     fileSizeLimit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum file size in bytes (optional)',
+      description: 'Maximum file size in bytes (leave unset to keep the current value)',
     },
     allowedMimeTypes: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Array of allowed MIME types (e.g., ["image/png", "image/jpeg"])',
+      description:
+        'Array of allowed MIME types (e.g., ["image/png", "image/jpeg"]) — leave unset to keep the current value',
     },
     apiKey: {
       type: 'string',
@@ -54,51 +57,100 @@ export const storageUpdateBucketTool: ToolConfig<
     },
   },
 
+  /**
+   * Unreachable: `directExecution` below always handles this tool because
+   * the update must first read the bucket's current configuration (the
+   * Storage API's update-bucket endpoint is a full-replace PUT, not a
+   * partial patch). Declared only to satisfy `ToolConfig`'s required
+   * `request` field.
+   */
   request: {
-    url: (params) => {
-      const bucket = encodeStorageSegment(params.bucket)
-      return `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket/${bucket}`
-    },
+    url: (params) =>
+      `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket/${encodeStorageSegment(params.bucket)}`,
     method: 'PUT',
     headers: (params) => ({
       apikey: params.apiKey,
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
+  },
+
+  /**
+   * The Storage API's update-bucket endpoint is a full-replace PUT
+   * (`{id, name, public, file_size_limit?, allowed_mime_types?}`), not a
+   * partial patch. Fetching the bucket's current configuration first lets
+   * unset params fall back to their existing value instead of silently
+   * resetting to a default (e.g. flipping a public bucket private just
+   * because `isPublic` wasn't provided).
+   */
+  directExecution: async (
+    params: SupabaseStorageUpdateBucketParams
+  ): Promise<SupabaseStorageUpdateBucketResponse> => {
+    const baseUrl = supabaseBaseUrl(params.projectId)
+    const bucket = encodeStorageSegment(params.bucket)
+    const headers = {
+      apikey: params.apiKey,
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+    }
+
+    try {
+      const currentResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
+        method: 'GET',
+        headers,
+      })
+
+      if (!currentResponse.ok) {
+        const errorText = await currentResponse.text()
+        throw new Error(`Failed to read current bucket configuration: ${errorText}`)
+      }
+
+      const current = await currentResponse.json()
+
       const payload: any = {
         id: params.bucket,
         name: params.bucket,
-        public: params.isPublic || false,
+        public: params.isPublic !== undefined ? params.isPublic : Boolean(current.public),
+        file_size_limit:
+          params.fileSizeLimit !== undefined
+            ? Number(params.fileSizeLimit)
+            : (current.file_size_limit ?? null),
+        allowed_mime_types:
+          params.allowedMimeTypes !== undefined
+            ? params.allowedMimeTypes
+            : (current.allowed_mime_types ?? null),
       }
 
-      if (params.fileSizeLimit) {
-        payload.file_size_limit = Number(params.fileSizeLimit)
+      const updateResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload),
+      })
+
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text()
+        throw new Error(`Failed to update bucket: ${errorText}`)
       }
 
-      if (params.allowedMimeTypes && params.allowedMimeTypes.length > 0) {
-        payload.allowed_mime_types = params.allowedMimeTypes
+      const data = await updateResponse.json()
+
+      return {
+        success: true,
+        output: {
+          message: 'Successfully updated storage bucket',
+          results: data,
+        },
+        error: undefined,
       }
-
-      return payload
-    },
-  },
-
-  transformResponse: async (response: Response) => {
-    let data
-    try {
-      data = await response.json()
-    } catch (parseError) {
-      throw new Error(`Failed to parse Supabase storage update bucket response: ${parseError}`)
-    }
-
-    return {
-      success: true,
-      output: {
-        message: 'Successfully updated storage bucket',
-        results: data,
-      },
-      error: undefined,
+    } catch (error) {
+      return {
+        success: false,
+        output: {
+          message: 'Failed to update storage bucket',
+          results: {},
+        },
+        error: getErrorMessage(error, 'Unknown error occurred'),
+      }
     }
   },
 
