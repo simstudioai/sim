@@ -7,6 +7,7 @@ import type {
   TrelloBoard,
   TrelloCard,
   TrelloChecklist,
+  TrelloChecklistItem,
   TrelloComment,
   TrelloLabel,
   TrelloList,
@@ -84,7 +85,7 @@ function mapTrelloLabel(value: unknown): TrelloLabel | null {
   }
 }
 
-function mapTrelloMember(value: unknown): TrelloMember | null {
+export function mapTrelloMember(value: unknown): TrelloMember | null {
   if (!isRecordLike(value) || typeof value.id !== 'string') {
     return null
   }
@@ -203,6 +204,20 @@ export function mapTrelloChecklist(value: unknown): TrelloChecklist {
     idCard: getRequiredString(value.idCard, 'idCard'),
     idBoard: getOptionalString(value.idBoard),
     pos: getNumber(value.pos),
+  }
+}
+
+export function mapTrelloChecklistItem(value: unknown): TrelloChecklistItem {
+  if (!isRecordLike(value)) {
+    throw new Error('Trello returned an invalid checklist item object')
+  }
+
+  return {
+    id: getRequiredString(value.id, 'id'),
+    name: getRequiredString(value.name, 'name'),
+    state: getRequiredString(value.state, 'state'),
+    pos: getNumber(value.pos),
+    idChecklist: getRequiredString(value.idChecklist, 'idChecklist'),
   }
 }
 
