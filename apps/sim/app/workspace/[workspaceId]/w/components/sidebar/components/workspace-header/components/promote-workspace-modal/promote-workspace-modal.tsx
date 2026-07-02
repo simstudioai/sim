@@ -41,6 +41,7 @@ import {
   forkDefaultCopySelection,
   forkMappedCopyableKeys,
   forkRefKey,
+  forkRequiredKindsLabel,
   forkRequiredPending,
   forkVisibleCopyables,
   isForkRequiredComplete,
@@ -478,6 +479,14 @@ export function PromoteWorkspaceModal({
     }
   })
 
+  // Kinds whose required gate is still failing, so the Sync tooltip can name the actual
+  // obstacle. An unmapped credential/secret is NEVER a cleared-ref blocker (the collector
+  // excludes required kinds), so the required gate must not borrow the blocker message -
+  // it would point at a "Blocking sync" section that isn't rendered.
+  const pendingRequiredKinds = new Set<string>(
+    kindSummaries.filter((summary) => summary.requiredPending).map((summary) => summary.kind)
+  )
+
   // Step 0 is the overview; each subsequent step edits one resource kind, entered via
   // "Edit mappings". Reconfigure cards render inline under the changed mapping (not as
   // their own steps) so the credential/KB context stays visible. `safeStep` guards
@@ -595,15 +604,7 @@ export function PromoteWorkspaceModal({
           // blocks on required REFERENCES (credentials and/or secrets); required dependents are
           // gated client-side before this runs (see the Sync button's disabled tooltip).
           const kinds = new Set(result.unmappedRequired.map((reference) => reference.kind))
-          const what =
-            kinds.has('credential') && kinds.has('env-var')
-              ? 'credentials and secrets'
-              : kinds.has('credential')
-                ? 'credentials'
-                : kinds.has('env-var')
-                  ? 'secrets'
-                  : 'references'
-          toast.error(`Map all required ${what} first`)
+          toast.error(`Map all required ${forkRequiredKindsLabel(kinds)} first`)
           return
         }
         toast.error('Sync did not complete')
@@ -1053,9 +1054,14 @@ export function PromoteWorkspaceModal({
                   label: submitting ? 'Working...' : 'Sync',
                   onClick: () => setConfirmSyncOpen(true),
                   disabled: syncDisabled,
-                  disabledTooltip:
-                    syncBlocked || !requiredComplete
-                      ? 'Resolve every blocking reference first — map it, copy it, or fix it in the source'
+                  // Priority mirrors the resolution flow: clear the blockers, map the required
+                  // resources, reconfigure their dependents - each failing gate names ITS
+                  // obstacle (an unmapped credential/secret is a required-mapping failure, not
+                  // a cleared-ref blocker; see `pendingRequiredKinds`).
+                  disabledTooltip: syncBlocked
+                    ? 'Resolve every blocking reference first — map it, copy it, or fix it in the source'
+                    : !requiredComplete
+                      ? `Map all required ${forkRequiredKindsLabel(pendingRequiredKinds)} first`
                       : !reconfigComplete
                         ? 'Reconfigure all required fields first'
                         : dataPending

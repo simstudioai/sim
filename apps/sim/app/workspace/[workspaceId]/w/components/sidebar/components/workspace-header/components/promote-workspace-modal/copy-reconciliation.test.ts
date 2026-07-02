@@ -9,6 +9,7 @@ import {
   forkDefaultCopySelection,
   forkMappedCopyableKeys,
   forkRefKey,
+  forkRequiredKindsLabel,
   forkRequiredPending,
   forkVisibleCopyables,
   isForkRequiredComplete,
@@ -142,6 +143,21 @@ describe('isForkRequiredComplete', () => {
   it('optional refs never block', () => {
     const entries = [entry({ kind: 'table', sourceId: 't1', required: false })]
     expect(isForkRequiredComplete(entries, {}, new Set())).toBe(true)
+  })
+})
+
+describe('forkRequiredKindsLabel', () => {
+  it('names credentials and secrets by kind, together or alone', () => {
+    expect(forkRequiredKindsLabel(new Set(['credential', 'env-var']))).toBe(
+      'credentials and secrets'
+    )
+    expect(forkRequiredKindsLabel(new Set(['credential']))).toBe('credentials')
+    expect(forkRequiredKindsLabel(new Set(['env-var']))).toBe('secrets')
+  })
+
+  it('falls back to "references" for any other (or empty) kind set', () => {
+    expect(forkRequiredKindsLabel(new Set(['table']))).toBe('references')
+    expect(forkRequiredKindsLabel(new Set())).toBe('references')
   })
 })
 

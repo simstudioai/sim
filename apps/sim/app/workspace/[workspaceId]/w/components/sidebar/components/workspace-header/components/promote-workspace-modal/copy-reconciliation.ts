@@ -97,3 +97,20 @@ export function forkRequiredPending(
       !copyingKeys.has(forkRefKey(entry))
   )
 }
+
+/**
+ * Human label for the kinds still failing the required gate, for "Map all required {label} first"
+ * messaging - shared by the Sync button's disabled tooltip (client gate) and the server gate's
+ * failure toast so both name the obstacle identically. Credentials and secrets are named
+ * explicitly: they are the map-only kinds that fail the required gate WITHOUT also appearing in
+ * the cleared-ref blockers (the collector excludes them), so they need their own wording. Any
+ * other kind falls back to "references".
+ */
+export function forkRequiredKindsLabel(kinds: ReadonlySet<string>): string {
+  const credentials = kinds.has('credential')
+  const secrets = kinds.has('env-var')
+  if (credentials && secrets) return 'credentials and secrets'
+  if (credentials) return 'credentials'
+  if (secrets) return 'secrets'
+  return 'references'
+}

@@ -161,7 +161,10 @@ export async function planForkFileCopies(params: {
  * the content-copy job is at-most-once by config (`maxAttempts: 1`), each task increments
  * only after its own successful upload, and the target-existence skip below means a
  * manually replayed run neither re-copies nor re-charges a blob a prior attempt landed.
- * Like the upload path, a tracking failure is logged and never fails the copy.
+ * Like the upload path, a tracking failure is logged and never fails the copy - and is
+ * never retried, so a landed blob whose increment failed stays uncounted (a manual replay
+ * skips it without charging). Accepted trade-off, matching the platform's upload paths:
+ * storage may undercount, but a user is never charged twice or for bytes that didn't land.
  */
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
@@ -173,9 +176,12 @@ export async function executeForkFileBlobCopies(
   for (const task of blobTasks) {
     try {
       // Replay guard: target keys are freshly generated per fork/sync, so an existing
-      // object can only mean an earlier attempt already completed this exact copy (and
-      // charged it). Skip without incrementing. `headObject` returns null on local
-      // storage, where the copy is simply repeated (same bytes to the same key).
+      // object can only mean an earlier attempt already landed this exact copy. Skip
+      // without incrementing - a replay must never double-charge, so if the prior
+      // attempt's best-effort increment failed those bytes stay uncounted (the same
+      // accepted undercount as a tracking failure on the upload path). `headObject`
+      // returns null on local storage, where the copy is simply repeated (same bytes
+      // to the same key).
       const existing = await headObject(task.targetKey, task.context)
       if (existing) {
         copied += 1
