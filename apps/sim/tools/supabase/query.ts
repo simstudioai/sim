@@ -7,7 +7,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   id: 'supabase_query',
   name: 'Supabase Query',
   description: 'Query data from a Supabase table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

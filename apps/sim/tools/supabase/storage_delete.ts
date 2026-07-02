@@ -3,7 +3,7 @@ import {
   type SupabaseStorageDeleteParams,
   type SupabaseStorageDeleteResponse,
 } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageDeleteTool: ToolConfig<
@@ -13,7 +13,7 @@ export const storageDeleteTool: ToolConfig<
   id: 'supabase_storage_delete',
   name: 'Supabase Storage Delete',
   description: 'Delete files from a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -44,7 +44,7 @@ export const storageDeleteTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/${params.bucket}`
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/${encodeStorageSegment(params.bucket)}`
     },
     method: 'DELETE',
     headers: (params) => ({

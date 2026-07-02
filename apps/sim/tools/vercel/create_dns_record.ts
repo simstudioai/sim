@@ -40,9 +40,9 @@ export const vercelCreateDnsRecordTool: ToolConfig<
     },
     value: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The value of the DNS record',
+      description: 'The value of the DNS record (not used for SRV/HTTPS records)',
     },
     ttl: {
       type: 'number',
@@ -56,11 +56,65 @@ export const vercelCreateDnsRecordTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Priority for MX records',
     },
+    srvTarget: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Target hostname for SRV records (required when recordType is SRV)',
+    },
+    srvWeight: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Weight for SRV records (required when recordType is SRV)',
+    },
+    srvPort: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Port for SRV records (required when recordType is SRV)',
+    },
+    srvPriority: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Priority for SRV records (required when recordType is SRV)',
+    },
+    httpsTarget: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Target hostname for HTTPS records (required when recordType is HTTPS)',
+    },
+    httpsPriority: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Priority for HTTPS records (required when recordType is HTTPS)',
+    },
+    httpsParams: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional service parameters for HTTPS records (e.g. "alpn=h2,h3")',
+    },
+    comment: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'A comment to add context on what this DNS record is for (max 500 characters)',
+    },
     teamId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
+    },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
     },
   },
 
@@ -68,6 +122,7 @@ export const vercelCreateDnsRecordTool: ToolConfig<
     url: (params: VercelCreateDnsRecordParams) => {
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v2/domains/${params.domain.trim()}/records${qs ? `?${qs}` : ''}`
     },
@@ -77,13 +132,32 @@ export const vercelCreateDnsRecordTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params: VercelCreateDnsRecordParams) => {
+      const type = params.recordType.trim().toUpperCase()
       const body: Record<string, unknown> = {
         name: params.recordName.trim(),
-        type: params.recordType.trim(),
-        value: params.value.trim(),
+        type,
       }
       if (params.ttl != null) body.ttl = params.ttl
-      if (params.mxPriority != null) body.mxPriority = params.mxPriority
+
+      if (type === 'SRV') {
+        body.srv = {
+          target: params.srvTarget?.trim(),
+          weight: params.srvWeight,
+          port: params.srvPort,
+          priority: params.srvPriority,
+        }
+      } else if (type === 'HTTPS') {
+        body.https = {
+          target: params.httpsTarget?.trim(),
+          priority: params.httpsPriority,
+          ...(params.httpsParams ? { params: params.httpsParams.trim() } : {}),
+        }
+      } else {
+        if (params.value != null) body.value = params.value.trim()
+        if (type === 'MX' && params.mxPriority != null) body.mxPriority = params.mxPriority
+      }
+
+      if (params.comment != null && params.comment !== '') body.comment = params.comment
       return body
     },
   },

@@ -5,6 +5,16 @@ import type {
 } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
+const INACTIVE_VALUES: unknown[] = [false, 'false', 0, '0']
+
+/** Coerces any dynamic-reference form of SendGrid's active flag (boolean, string, or
+ *  number) to the 0/1 integer the API requires. Shared with the block's own
+ *  pre-coercion in blocks/blocks/sendgrid.ts so both layers stay in sync. */
+export function toActiveFlag(active: unknown): 0 | 1 {
+  if (active === undefined) return 1
+  return INACTIVE_VALUES.includes(active) ? 0 : 1
+}
+
 export const sendGridCreateTemplateVersionTool: ToolConfig<
   CreateTemplateVersionParams,
   TemplateVersionResult
@@ -70,7 +80,7 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
       const body: SendGridTemplateVersionRequest = {
         name: params.name,
         subject: params.subject,
-        active: params.active !== undefined ? params.active : 1,
+        active: toActiveFlag(params.active),
       }
 
       if (params.htmlContent) {
@@ -101,9 +111,9 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
         name: data.name,
         subject: data.subject,
         active: data.active === 1,
-        htmlContent: data.html_content,
-        plainContent: data.plain_content,
-        updatedAt: data.updated_at,
+        htmlContent: data.html_content ?? null,
+        plainContent: data.plain_content ?? null,
+        updatedAt: data.updated_at ?? null,
       },
     }
   },
@@ -114,8 +124,8 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
     name: { type: 'string', description: 'Version name' },
     subject: { type: 'string', description: 'Email subject' },
     active: { type: 'boolean', description: 'Whether this version is active' },
-    htmlContent: { type: 'string', description: 'HTML content' },
-    plainContent: { type: 'string', description: 'Plain text content' },
-    updatedAt: { type: 'string', description: 'Last update timestamp' },
+    htmlContent: { type: 'string', description: 'HTML content', optional: true },
+    plainContent: { type: 'string', description: 'Plain text content', optional: true },
+    updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },
   },
 }

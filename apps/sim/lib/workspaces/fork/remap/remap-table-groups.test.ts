@@ -3,7 +3,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { TableSchema } from '@/lib/table/types'
-import { deriveForkBlockId } from '@/lib/workspaces/fork/remap/block-identity'
+import {
+  buildForkBlockIdResolver,
+  deriveForkBlockId,
+} from '@/lib/workspaces/fork/remap/block-identity'
 import { remapForkTableWorkflowGroups } from '@/lib/workspaces/fork/remap/remap-table-groups'
 
 describe('remapForkTableWorkflowGroups', () => {
@@ -26,6 +29,36 @@ describe('remapForkTableWorkflowGroups', () => {
     expect(group?.outputs[0].columnName).toBe('col_1')
     expect(result.columns[0].id).toBe('col_1')
     expect(result.columns[0].workflowGroupId).toBe('g1')
+  })
+
+  // Promote threads its persisted-pair resolver: a paired block resolves to the pair's target id
+  // (on push, the parent's ORIGINAL id - never the derive); an unpaired block falls back to the
+  // derive, matching the workflow write path.
+  it('prefers a provided block-id resolver (persisted pair) over the derive, deriving unpaired blocks', () => {
+    const map = new Map([['src-wf', 'child-wf']])
+    const schema: TableSchema = {
+      columns: [],
+      workflowGroups: [
+        {
+          id: 'g1',
+          workflowId: 'src-wf',
+          outputs: [
+            { blockId: 'src-block', path: 'out', columnName: 'col_1' },
+            { blockId: 'src-unpaired', path: 'out2', columnName: 'col_2' },
+          ],
+        },
+      ],
+    }
+    const resolver = buildForkBlockIdResolver(true, {
+      parentToChild: new Map([
+        ['src-block', { targetBlockId: 'original-parent-block', targetWorkflowId: 'child-wf' }],
+      ]),
+      childToParent: new Map(),
+    })
+    const result = remapForkTableWorkflowGroups(schema, map, resolver)
+    const outputs = result.workflowGroups?.[0].outputs
+    expect(outputs?.[0].blockId).toBe('original-parent-block')
+    expect(outputs?.[1].blockId).toBe(deriveForkBlockId('child-wf', 'src-unpaired'))
   })
 
   it('drops a group whose backing workflow was not copied and clears its column wiring', () => {

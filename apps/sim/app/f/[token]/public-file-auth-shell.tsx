@@ -15,7 +15,7 @@ interface PublicFileAuthShellProps {
  */
 export function PublicFileAuthShell({ title, subtitle, children }: PublicFileAuthShellProps) {
   return (
-    <LogoShell center footer={<SupportFooter position='absolute' />}>
+    <LogoShell center footer={<SupportFooter position='static' />}>
       <div className='flex w-full max-w-lg flex-col items-center justify-center px-4'>
         <div className='space-y-1 text-center'>
           <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>

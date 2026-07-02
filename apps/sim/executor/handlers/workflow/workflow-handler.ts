@@ -109,6 +109,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Child workflow ${workflowId} not found`)
       }
 
+      this.assertChildWorkflowInWorkspace(workflowId, childWorkflow.workspaceId, ctx.workspaceId)
+
       childWorkflowName = childWorkflow.name || 'Unknown Workflow'
 
       logger.info(
@@ -324,6 +326,34 @@ export class WorkflowBlockHandler implements BlockHandler {
     return { chain, rootError: rootError.trim() || 'Unknown error' }
   }
 
+  /**
+   * Ensures the child workflow belongs to the same workspace as the executing
+   * context before any child execution starts. Blocks silent cross-workspace
+   * execution (e.g. a manual workflow id still pointing at the source
+   * workspace after a fork), which would otherwise run the foreign workflow
+   * with the parent workspace's environment and billing. Fails closed when the
+   * executing context carries no workspace id: every server execution path
+   * populates it via execution-core, so a missing value indicates a context
+   * that must not silently bypass the check. The error message intentionally
+   * omits the foreign workspace id.
+   */
+  private assertChildWorkflowInWorkspace(
+    childWorkflowId: string,
+    childWorkspaceId: string | null | undefined,
+    parentWorkspaceId: string | undefined
+  ): void {
+    if (!parentWorkspaceId) {
+      throw new Error(
+        `Cannot execute child workflow ${childWorkflowId}: executing context has no workspace`
+      )
+    }
+    if (childWorkspaceId !== parentWorkspaceId) {
+      throw new Error(
+        `Child workflow ${childWorkflowId} belongs to a different workspace and cannot be executed`
+      )
+    }
+  }
+
   private async loadChildWorkflow(workflowId: string, userId?: string) {
     const headers = await buildAuthHeaders(userId)
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
@@ -378,6 +408,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     return {
       name: workflowData.name,
+      workspaceId: (workflowData.workspaceId ?? null) as string | null,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,
@@ -461,6 +492,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     return {
       name: childName,
+      workspaceId: (wfData?.workspaceId ?? null) as string | null,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,

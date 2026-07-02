@@ -3,7 +3,6 @@
 import { type Dispatch, type SetStateAction, useMemo, useState } from 'react'
 import { ChevronDown, cn } from '@sim/emcn'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { DependentFieldSelector } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/components/dependent-field-selector'
 import {
   dependentKey,
@@ -57,8 +56,8 @@ interface ResourceReconfigureProps {
  * Always-on per-resource reconfigure listing: every workflow the resource is used in, each a
  * chevron row that expands to its blocks + dependent selectors so the user can (re)configure
  * them at any time - not only right after a target swap. A workflow with nothing configurable
- * (a secret/file, or a credential with no dependent selector here) renders greyed and
- * non-expandable with a tooltip, so the usage is still visible.
+ * (a secret/file, or a credential with no dependent selector here) renders as a plain
+ * non-interactive row without a chevron, with a tooltip, so the usage is still visible.
  */
 export function ResourceReconfigure({
   workflows,
@@ -88,24 +87,26 @@ export function ResourceReconfigure({
   }, [workflows, dependents])
 
   if (workflows.length === 0) return null
+  // Muted caption label over the list (no divider) so this reads as subordinate to the
+  // resource-name section header above, mirroring the "Recent runs" listing in
+  // mothership-view's resource-content.
   return (
-    <div className='mt-4'>
-      <SettingsSection label='Workflows'>
-        <div className='flex flex-col gap-1.5'>
-          {workflowBlocks.map((workflow) => (
-            <ReconfigWorkflowRow
-              key={workflow.workflowId}
-              workflowName={workflow.workflowName}
-              blocks={workflow.blocks}
-              parentTargetValue={parentTargetValue}
-              parentChanged={parentChanged}
-              workspaceId={workspaceId}
-              reconfig={reconfig}
-              setReconfig={setReconfig}
-            />
-          ))}
-        </div>
-      </SettingsSection>
+    <div className='mt-4 flex flex-col gap-2'>
+      <span className='text-[var(--text-muted)] text-caption'>Workflows</span>
+      <div className='flex flex-col gap-1.5'>
+        {workflowBlocks.map((workflow) => (
+          <ReconfigWorkflowRow
+            key={workflow.workflowId}
+            workflowName={workflow.workflowName}
+            blocks={workflow.blocks}
+            parentTargetValue={parentTargetValue}
+            parentChanged={parentChanged}
+            workspaceId={workspaceId}
+            reconfig={reconfig}
+            setReconfig={setReconfig}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -120,7 +121,7 @@ interface ReconfigWorkflowRowProps {
   setReconfig: Dispatch<SetStateAction<Record<string, string>>>
 }
 
-/** One workflow row: a chevron header (greyed + non-expandable when nothing to configure). */
+/** One workflow row: a chevron header (a plain non-interactive row when nothing to configure). */
 function ReconfigWorkflowRow({
   workflowName,
   blocks,
@@ -141,28 +142,31 @@ function ReconfigWorkflowRow({
 
   return (
     <div className={cn('flex flex-col gap-1', configurable && open && 'pb-2')}>
-      {/* Chevron styling mirrors the Activity panel's collapsible rows exactly. A greyed,
-          non-expandable row uses a native title tooltip to explain why. */}
-      <button
-        type='button'
-        disabled={!configurable}
-        onClick={() => setOpen((value) => !value)}
-        title={configurable ? undefined : 'Used here, but nothing to configure for this resource'}
-        className={cn(
-          'flex w-full items-center gap-2 text-left text-sm transition-colors',
-          configurable
-            ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            : 'cursor-default text-[var(--text-muted)]'
-        )}
-      >
-        <span className='min-w-0 flex-1 truncate'>{workflowName}</span>
-        <ChevronDown
-          className={cn(
-            'h-[6px] w-[10px] shrink-0 text-[var(--text-icon)] transition-transform',
-            configurable ? open && 'rotate-180' : 'opacity-40'
-          )}
-        />
-      </button>
+      {/* Chevron styling mirrors the Activity panel's collapsible rows exactly. A row with
+          nothing to configure renders as muted plain text (no chevron, not a button) with a
+          native title tooltip explaining why it isn't expandable. */}
+      {configurable ? (
+        <button
+          type='button'
+          onClick={() => setOpen((value) => !value)}
+          className='flex w-full items-center gap-2 text-left text-[var(--text-secondary)] text-sm transition-colors hover:text-[var(--text-primary)]'
+        >
+          <span className='min-w-0 flex-1 truncate'>{workflowName}</span>
+          <ChevronDown
+            className={cn(
+              'h-[6px] w-[10px] shrink-0 text-[var(--text-icon)] transition-transform',
+              open && 'rotate-180'
+            )}
+          />
+        </button>
+      ) : (
+        <div
+          className='truncate text-[var(--text-muted)] text-sm'
+          title='Used here, but nothing to configure for this resource'
+        >
+          {workflowName}
+        </div>
+      )}
       {configurable && open
         ? blocks.map((block) => (
             <BlockReconfig

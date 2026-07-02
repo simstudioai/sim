@@ -1,4 +1,5 @@
 import type { AmplitudeSendEventParams, AmplitudeSendEventResponse } from '@/tools/amplitude/types'
+import { getIngestionHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendEventTool: ToolConfig<AmplitudeSendEventParams, AmplitudeSendEventResponse> = {
@@ -123,10 +124,16 @@ export const sendEventTool: ToolConfig<AmplitudeSendEventParams, AmplitudeSendEv
       visibility: 'user-or-llm',
       description: 'Revenue type (e.g., "purchase", "refund")',
     },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
-    url: 'https://api2.amplitude.com/2/httpapi',
+    url: (params) => `${getIngestionHost(params.dataResidency)}/2/httpapi`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -149,8 +156,8 @@ export const sendEventTool: ToolConfig<AmplitudeSendEventParams, AmplitudeSendEv
       if (params.price) event.price = Number(params.price)
       if (params.quantity) event.quantity = Number(params.quantity)
       if (params.revenue) event.revenue = Number(params.revenue)
-      if (params.productId) event.product_id = params.productId
-      if (params.revenueType) event.revenue_type = params.revenueType
+      if (params.productId) event.productId = params.productId
+      if (params.revenueType) event.revenueType = params.revenueType
 
       if (params.eventProperties) {
         try {
