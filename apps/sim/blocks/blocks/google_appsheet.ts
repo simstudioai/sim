@@ -107,7 +107,6 @@ For Delete, include only the key column:
 
 Return ONLY the valid JSON array - no explanations, no markdown.`,
         placeholder: 'Describe the rows to add, edit, or delete...',
-        generationType: 'json-object',
       },
     },
     {
@@ -146,11 +145,16 @@ Return ONLY the valid JSON array - no explanations, no markdown.`,
         const { rows, ...rest } = params
         const result: Record<string, unknown> = { ...rest }
         if (params.operation !== 'google_appsheet_find_rows' && rows) {
+          let parsedRows: unknown
           try {
-            result.rows = typeof rows === 'string' ? JSON.parse(rows) : rows
+            parsedRows = typeof rows === 'string' ? JSON.parse(rows) : rows
           } catch (error: any) {
             throw new Error(`Invalid JSON in Rows field: ${error.message}`)
           }
+          if (!Array.isArray(parsedRows)) {
+            throw new Error('Rows must be a JSON array of row objects, e.g. [{ "RowID": "123" }]')
+          }
+          result.rows = parsedRows
         }
         return result
       },

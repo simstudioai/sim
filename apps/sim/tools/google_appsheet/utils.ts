@@ -1,12 +1,22 @@
 const DEFAULT_REGION = 'www'
+const ALLOWED_REGIONS = new Set(['www', 'eu', 'asia-southeast'])
 
 /**
  * Builds the AppSheet API Action endpoint URL for a given app/table/region.
- * Region defaults to the global `www.appsheet.com` domain when unset.
+ * Region defaults to the global `www.appsheet.com` domain when unset, and is
+ * validated against the known AppSheet regions since it is interpolated into
+ * the request host — an unvalidated value would let a caller redirect the
+ * Application Access Key to an arbitrary host.
  */
 export function buildAppsheetActionUrl(appId: string, tableName: string, region?: string): string {
-  const host = `${(region || DEFAULT_REGION).trim()}.appsheet.com`
-  return `https://${host}/api/v2/apps/${appId.trim()}/tables/${encodeURIComponent(tableName.trim())}/Action`
+  const trimmedRegion = (region || DEFAULT_REGION).trim()
+  if (!ALLOWED_REGIONS.has(trimmedRegion)) {
+    throw new Error(
+      `Invalid AppSheet region "${trimmedRegion}". Must be one of: ${Array.from(ALLOWED_REGIONS).join(', ')}.`
+    )
+  }
+  const host = `${trimmedRegion}.appsheet.com`
+  return `https://${host}/api/v2/apps/${encodeURIComponent(appId.trim())}/tables/${encodeURIComponent(tableName.trim())}/Action`
 }
 
 /**
