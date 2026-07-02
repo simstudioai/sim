@@ -197,6 +197,11 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
           meeting_type: { type: 'string', description: 'Meeting type name', optional: true },
           recording_id: { type: 'number', description: 'Unique recording ID' },
           url: { type: 'string', description: 'URL to view the meeting' },
+          meeting_url: {
+            type: 'string',
+            description: 'URL of the underlying video call (Zoom, Meet, Teams, etc.)',
+            optional: true,
+          },
           share_url: { type: 'string', description: 'Shareable URL' },
           created_at: { type: 'string', description: 'Creation timestamp' },
           transcript_language: { type: 'string', description: 'Transcript language' },
@@ -204,6 +209,21 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
             type: 'string',
             description: 'Sharing scope: no_teams, single_team, multiple_teams, or all_teams',
             optional: true,
+          },
+          highlights: {
+            type: 'array',
+            description: 'Meeting highlights with type, summary, text, and start/end time',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', description: 'Highlight type' },
+                summary: { type: 'string', description: 'Highlight summary', optional: true },
+                text: { type: 'string', description: 'Highlight text' },
+                start_time: { type: 'number', description: 'Start time in seconds' },
+                end_time: { type: 'number', description: 'End time in seconds' },
+              },
+            },
           },
         },
       },

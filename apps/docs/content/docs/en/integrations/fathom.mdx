@@ -65,10 +65,17 @@ List recent meetings recorded by the user or shared to their team.
 |   ↳ `meeting_type` | string | Meeting type name |
 |   ↳ `recording_id` | number | Unique recording ID |
 |   ↳ `url` | string | URL to view the meeting |
+|   ↳ `meeting_url` | string | URL of the underlying video call \(Zoom, Meet, Teams, etc.\) |
 |   ↳ `share_url` | string | Shareable URL |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `transcript_language` | string | Transcript language |
 |   ↳ `shared_with` | string | Sharing scope: no_teams, single_team, multiple_teams, or all_teams |
+|   ↳ `highlights` | array | Meeting highlights with type, summary, text, and start/end time |
+|     ↳ `type` | string | Highlight type |
+|     ↳ `summary` | string | Highlight summary |
+|     ↳ `text` | string | Highlight text |
+|     ↳ `start_time` | number | Start time in seconds |
+|     ↳ `end_time` | number | End time in seconds |
 | `next_cursor` | string | Pagination cursor for next page |
 
 ### `fathom_list_meeting_types`

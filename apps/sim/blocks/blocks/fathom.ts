@@ -165,7 +165,6 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
         { label: 'Only Internal', id: 'only_internal' },
         { label: 'One or More External', id: 'one_or_more_external' },
       ],
-      value: () => 'all',
       condition: { field: 'operation', value: 'fathom_list_meetings' },
       mode: 'advanced',
     },
