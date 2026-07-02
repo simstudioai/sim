@@ -23,6 +23,9 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       options: [
         { label: 'Create Run', id: 'langsmith_create_run' },
         { label: 'Create Runs Batch', id: 'langsmith_create_runs_batch' },
+        { label: 'Update Run', id: 'langsmith_update_run' },
+        { label: 'Get Run', id: 'langsmith_get_run' },
+        { label: 'Create Feedback', id: 'langsmith_create_feedback' },
       ],
       value: () => 'langsmith_create_run',
     },
@@ -42,12 +45,26 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       condition: { field: 'operation', value: 'langsmith_create_run' },
     },
     {
+      id: 'runId',
+      title: 'Run ID',
+      type: 'short-input',
+      placeholder: 'ID of the run to update, retrieve, or attach feedback to',
+      required: {
+        field: 'operation',
+        value: ['langsmith_update_run', 'langsmith_get_run', 'langsmith_create_feedback'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['langsmith_update_run', 'langsmith_get_run', 'langsmith_create_feedback'],
+      },
+    },
+    {
       id: 'name',
       title: 'Name',
       type: 'short-input',
       placeholder: 'Run name',
       required: { field: 'operation', value: 'langsmith_create_run' },
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: ['langsmith_create_run', 'langsmith_update_run'] },
     },
     {
       id: 'run_type',
@@ -78,7 +95,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'End Time',
       type: 'short-input',
       placeholder: '2025-01-01T12:00:30Z',
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: ['langsmith_create_run', 'langsmith_update_run'] },
       mode: 'advanced',
     },
     {
@@ -94,7 +111,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Outputs',
       type: 'code',
       placeholder: '{"output":"value"}',
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: ['langsmith_create_run', 'langsmith_update_run'] },
       mode: 'advanced',
     },
     {
@@ -102,7 +119,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Metadata',
       type: 'code',
       placeholder: '{"ls_model":"gpt-4"}',
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: ['langsmith_create_run', 'langsmith_update_run'] },
       mode: 'advanced',
     },
     {
@@ -110,7 +127,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Tags',
       type: 'code',
       placeholder: '["production","workflow"]',
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: ['langsmith_create_run', 'langsmith_update_run'] },
       mode: 'advanced',
     },
     {
@@ -150,7 +167,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Status',
       type: 'short-input',
       placeholder: 'success',
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: ['langsmith_create_run', 'langsmith_update_run'] },
       mode: 'advanced',
     },
     {
@@ -158,7 +175,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Error',
       type: 'long-input',
       placeholder: 'Error message',
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: ['langsmith_create_run', 'langsmith_update_run'] },
       mode: 'advanced',
     },
     {
@@ -174,7 +191,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Events',
       type: 'code',
       placeholder: '[{"event":"token","value":1}]',
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: { field: 'operation', value: ['langsmith_create_run', 'langsmith_update_run'] },
       mode: 'advanced',
     },
     {
@@ -207,9 +224,66 @@ Required: id (existing run UUID), name, run_type ("tool"|"chain"|"llm"|"retrieve
 Common patch fields: outputs, end_time, status, error`,
       },
     },
+    {
+      id: 'key',
+      title: 'Feedback Key',
+      type: 'short-input',
+      placeholder: 'e.g. correctness, user_score',
+      required: { field: 'operation', value: 'langsmith_create_feedback' },
+      condition: { field: 'operation', value: 'langsmith_create_feedback' },
+    },
+    {
+      id: 'score',
+      title: 'Score',
+      type: 'short-input',
+      placeholder: 'e.g. 1, 0.5, 0',
+      condition: { field: 'operation', value: 'langsmith_create_feedback' },
+    },
+    {
+      id: 'value',
+      title: 'Value',
+      type: 'short-input',
+      placeholder: 'e.g. good, bad',
+      condition: { field: 'operation', value: 'langsmith_create_feedback' },
+      mode: 'advanced',
+    },
+    {
+      id: 'comment',
+      title: 'Comment',
+      type: 'long-input',
+      placeholder: 'Explanation for the feedback',
+      condition: { field: 'operation', value: 'langsmith_create_feedback' },
+      mode: 'advanced',
+    },
+    {
+      id: 'correction',
+      title: 'Correction',
+      type: 'code',
+      placeholder: '{"output":"the corrected value"}',
+      condition: { field: 'operation', value: 'langsmith_create_feedback' },
+      mode: 'advanced',
+    },
+    {
+      id: 'feedbackSourceType',
+      title: 'Feedback Source',
+      type: 'dropdown',
+      options: [
+        { label: 'API', id: 'api' },
+        { label: 'App', id: 'app' },
+        { label: 'Model', id: 'model' },
+      ],
+      condition: { field: 'operation', value: 'langsmith_create_feedback' },
+      mode: 'advanced',
+    },
   ],
   tools: {
-    access: ['langsmith_create_run', 'langsmith_create_runs_batch'],
+    access: [
+      'langsmith_create_run',
+      'langsmith_create_runs_batch',
+      'langsmith_update_run',
+      'langsmith_get_run',
+      'langsmith_create_feedback',
+    ],
     config: {
       tool: (params) => params.operation,
       params: (params) => {
@@ -242,6 +316,42 @@ Common patch fields: outputs, end_time, status, error`,
           }
         }
 
+        if (params.operation === 'langsmith_update_run') {
+          return {
+            apiKey: params.apiKey,
+            runId: params.runId,
+            name: params.name,
+            end_time: params.end_time,
+            outputs: parseJsonValue(params.outputs, 'outputs'),
+            extra: parseJsonValue(params.extra, 'metadata'),
+            tags: parseJsonValue(params.tags, 'tags'),
+            status: params.status,
+            error: params.error,
+            events: parseJsonValue(params.events, 'events'),
+          }
+        }
+
+        if (params.operation === 'langsmith_get_run') {
+          return {
+            apiKey: params.apiKey,
+            runId: params.runId,
+          }
+        }
+
+        if (params.operation === 'langsmith_create_feedback') {
+          return {
+            apiKey: params.apiKey,
+            runId: params.runId,
+            key: params.key,
+            score:
+              params.score === '' || params.score === undefined ? undefined : Number(params.score),
+            value: params.value,
+            comment: params.comment,
+            correction: parseJsonValue(params.correction, 'correction'),
+            feedbackSourceType: params.feedbackSourceType || undefined,
+          }
+        }
+
         return {
           apiKey: params.apiKey,
           id: params.id,
@@ -269,6 +379,10 @@ Common patch fields: outputs, end_time, status, error`,
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'LangSmith API key' },
     id: { type: 'string', description: 'Run identifier' },
+    runId: {
+      type: 'string',
+      description: 'ID of the run to update, retrieve, or attach feedback to',
+    },
     name: { type: 'string', description: 'Run name' },
     run_type: { type: 'string', description: 'Run type' },
     start_time: { type: 'string', description: 'Run start time (ISO)' },
@@ -287,13 +401,43 @@ Common patch fields: outputs, end_time, status, error`,
     events: { type: 'json', description: 'Events array' },
     post: { type: 'json', description: 'Runs to ingest in batch' },
     patch: { type: 'json', description: 'Runs to update in batch' },
+    key: { type: 'string', description: 'Feedback metric name' },
+    score: { type: 'string', description: 'Numeric score for the feedback metric' },
+    value: { type: 'string', description: 'Categorical value for the feedback metric' },
+    comment: { type: 'string', description: 'Comment explaining the feedback' },
+    correction: { type: 'json', description: 'Corrected output for the run' },
+    feedbackSourceType: {
+      type: 'string',
+      description: 'Origin of the feedback (api, app, or model)',
+    },
   },
   outputs: {
-    accepted: { type: 'boolean', description: 'Whether ingestion was accepted' },
-    runId: { type: 'string', description: 'Run ID for single run' },
+    accepted: { type: 'boolean', description: 'Whether ingestion or the update was accepted' },
+    runId: { type: 'string', description: 'Run ID for single-run operations' },
     runIds: { type: 'array', description: 'Run IDs for batch ingest' },
     message: { type: 'string', description: 'LangSmith response message' },
     messages: { type: 'array', description: 'Per-run response messages' },
+    id: { type: 'string', description: 'Run ID (get run) or feedback ID (create feedback)' },
+    name: { type: 'string', description: 'Run name (get run)' },
+    runType: { type: 'string', description: 'Run type (get run)' },
+    status: { type: 'string', description: 'Run status (get run)' },
+    startTime: { type: 'string', description: 'Run start time (get run)' },
+    endTime: { type: 'string', description: 'Run end time (get run)' },
+    error: { type: 'string', description: 'Error details (get run)' },
+    tags: { type: 'array', description: 'Tags attached to the run (get run)' },
+    sessionId: { type: 'string', description: 'Project (session) ID the run belongs to (get run)' },
+    traceId: { type: 'string', description: 'Trace ID (get run)' },
+    parentRunId: { type: 'string', description: 'Parent run ID (get run)' },
+    totalTokens: { type: 'number', description: 'Total tokens consumed by the run (get run)' },
+    totalCost: { type: 'string', description: 'Total cost of the run (get run)' },
+    key: { type: 'string', description: 'Feedback metric name (create feedback)' },
+    score: { type: 'number', description: 'Score recorded for the feedback (create feedback)' },
+    value: {
+      type: 'string',
+      description: 'Categorical value recorded for the feedback (create feedback)',
+    },
+    comment: { type: 'string', description: 'Comment recorded for the feedback (create feedback)' },
+    createdAt: { type: 'string', description: 'When the feedback was created (create feedback)' },
   },
 }
 
@@ -324,10 +468,19 @@ export const LangsmithBlockMeta = {
       icon: LangsmithIcon,
       title: 'LangSmith feedback capture',
       prompt:
-        'Build a workflow that collects user-reported agent failures from a table and forwards each as a tagged LangSmith run with the inputs and expected output for later review.',
+        'Build a workflow that collects user-reported agent failures from a table and attaches each as scored LangSmith feedback on the originating run for later review.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'automation'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith run completion',
+      prompt:
+        'Build a workflow that creates a LangSmith run when an agent step starts, then updates it with outputs, status, and end time once the step finishes so traces always show the full lifecycle.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
     },
     {
       icon: LangsmithIcon,
@@ -380,6 +533,13 @@ export const LangsmithBlockMeta = {
         'Send a batch of completed workflow runs to LangSmith in one call for observability.',
       content:
         '# Batch Export Runs\n\nShip multiple completed runs to LangSmith at once instead of one by one.\n\n## Steps\n1. Collect the runs to export, each with name, type, inputs, outputs, and timing.\n2. Assign a shared project so the runs land together.\n3. Submit them as a single batch.\n\n## Output\nReturn how many runs were exported, the project they landed in, and any runs that failed validation.',
+    },
+    {
+      name: 'attach-feedback-to-run',
+      description:
+        'Attach a score, categorical value, or correction to an existing LangSmith run for evaluation.',
+      content:
+        '# Attach Feedback to a Run\n\nRecord a human or automated judgment on a run that already exists in LangSmith.\n\n## Steps\n1. Identify the run ID the feedback applies to.\n2. Choose a feedback key (e.g. "correctness", "user_score") and a score, value, or comment.\n3. Include a correction if the expected output is known.\n4. Submit the feedback.\n\n## Output\nConfirm the feedback ID and the run it was attached to.',
     },
   ],
 } as const satisfies BlockMeta

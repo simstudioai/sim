@@ -57,4 +57,79 @@ export interface LangsmithCreateRunsBatchResponse extends ToolResponse {
   }
 }
 
-export type LangsmithResponse = LangsmithCreateRunResponse | LangsmithCreateRunsBatchResponse
+export interface LangsmithUpdateRunParams {
+  apiKey: string
+  runId: string
+  name?: string
+  end_time?: string
+  outputs?: Record<string, unknown>
+  extra?: Record<string, unknown>
+  tags?: string[]
+  status?: string
+  error?: string
+  events?: Record<string, unknown>[]
+}
+
+export interface LangsmithUpdateRunResponse extends ToolResponse {
+  output: {
+    accepted: boolean
+    runId: string
+  }
+}
+
+export interface LangsmithGetRunParams {
+  apiKey: string
+  runId: string
+}
+
+export interface LangsmithGetRunResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    runType: string
+    status: string | null
+    startTime: string | null
+    endTime: string | null
+    inputs: Record<string, unknown> | null
+    outputs: Record<string, unknown> | null
+    error: string | null
+    tags: string[]
+    sessionId: string | null
+    traceId: string | null
+    parentRunId: string | null
+    totalTokens: number | null
+    totalCost: string | null
+  }
+}
+
+export type LangsmithFeedbackSourceType = 'api' | 'app' | 'model'
+
+export interface LangsmithCreateFeedbackParams {
+  apiKey: string
+  runId: string
+  key: string
+  score?: number | boolean
+  value?: string
+  comment?: string
+  correction?: Record<string, unknown>
+  feedbackSourceType?: LangsmithFeedbackSourceType
+}
+
+export interface LangsmithCreateFeedbackResponse extends ToolResponse {
+  output: {
+    id: string
+    key: string
+    runId: string | null
+    score: number | boolean | null
+    value: string | number | boolean | null
+    comment: string | null
+    createdAt: string | null
+  }
+}
+
+export type LangsmithResponse =
+  | LangsmithCreateRunResponse
+  | LangsmithCreateRunsBatchResponse
+  | LangsmithUpdateRunResponse
+  | LangsmithGetRunResponse
+  | LangsmithCreateFeedbackResponse
