@@ -115,7 +115,7 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
         } catch {
           throw new Error('categories must be a valid JSON array of category name strings')
         }
-        if (!Array.isArray(categories)) {
+        if (!Array.isArray(categories) || !categories.every((c) => typeof c === 'string')) {
           throw new Error('categories must be a valid JSON array of category name strings')
         }
         for (const category of categories) {

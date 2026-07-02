@@ -60,7 +60,7 @@ export const updateGroupTool: ToolConfig<HexUpdateGroupParams, HexUpdateGroupRes
             'addUserIds/removeUserIds must be a valid JSON array of user UUID strings'
           )
         }
-        if (!Array.isArray(parsed)) {
+        if (!Array.isArray(parsed) || !parsed.every((id) => typeof id === 'string')) {
           throw new Error(
             'addUserIds/removeUserIds must be a valid JSON array of user UUID strings'
           )

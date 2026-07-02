@@ -48,7 +48,7 @@ export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupRes
         } catch {
           throw new Error('memberUserIds must be a valid JSON array of user UUID strings')
         }
-        if (!Array.isArray(userIds)) {
+        if (!Array.isArray(userIds) || !userIds.every((id) => typeof id === 'string')) {
           throw new Error('memberUserIds must be a valid JSON array of user UUID strings')
         }
         body.members = { users: userIds.map((id: string) => ({ id: id.trim() })) }

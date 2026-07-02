@@ -95,14 +95,19 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
         body.useCachedSqlResults = params.useCachedSqlResults
       if (params.viewId) body.viewId = params.viewId.trim()
       if (params.notifications) {
+        let notifications: unknown
         try {
-          body.notifications =
+          notifications =
             typeof params.notifications === 'string'
               ? JSON.parse(params.notifications)
               : params.notifications
         } catch {
           throw new Error('notifications must be a valid JSON array')
         }
+        if (!Array.isArray(notifications)) {
+          throw new Error('notifications must be a valid JSON array')
+        }
+        body.notifications = notifications
       }
 
       return body
