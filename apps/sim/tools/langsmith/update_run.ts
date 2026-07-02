@@ -100,11 +100,23 @@ export const langsmithUpdateRunTool: ToolConfig<
       throw new Error(`LangSmith update run failed (${response.status}): ${errorText}`)
     }
 
+    const responseText = await response.text()
+    let message: string | null = null
+    if (responseText) {
+      try {
+        const data = JSON.parse(responseText) as Record<string, unknown>
+        message = typeof data.message === 'string' ? data.message : null
+      } catch {
+        // Response body isn't JSON (e.g. empty object or plain text) — no message to surface
+      }
+    }
+
     return {
       success: true,
       output: {
         accepted: true,
         runId: params?.runId.trim() ?? '',
+        message,
       },
     }
   },
@@ -116,6 +128,11 @@ export const langsmithUpdateRunTool: ToolConfig<
     runId: {
       type: 'string',
       description: 'ID of the run that was updated',
+    },
+    message: {
+      type: 'string',
+      description: 'Response message from LangSmith, if provided',
+      optional: true,
     },
   },
 }

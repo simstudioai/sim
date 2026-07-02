@@ -39,6 +39,7 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
       success: true,
       output: {
         id: data.id as string,
+        runId: data.id as string,
         name: data.name as string,
         runType: data.run_type as string,
         status: (data.status as string) ?? null,
@@ -58,6 +59,10 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
   },
   outputs: {
     id: { type: 'string', description: 'Run ID' },
+    runId: {
+      type: 'string',
+      description: 'Run ID (alias of id, for consistency with other operations)',
+    },
     name: { type: 'string', description: 'Run name' },
     runType: {
       type: 'string',

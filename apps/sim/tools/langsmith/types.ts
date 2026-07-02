@@ -74,6 +74,7 @@ export interface LangsmithUpdateRunResponse extends ToolResponse {
   output: {
     accepted: boolean
     runId: string
+    message: string | null
   }
 }
 
@@ -85,6 +86,7 @@ export interface LangsmithGetRunParams {
 export interface LangsmithGetRunResponse extends ToolResponse {
   output: {
     id: string
+    runId: string
     name: string
     runType: string
     status: string | null
@@ -108,7 +110,7 @@ export interface LangsmithCreateFeedbackParams {
   apiKey: string
   runId: string
   key: string
-  score?: number | boolean
+  score?: number
   value?: string
   comment?: string
   correction?: Record<string, unknown>
@@ -120,7 +122,7 @@ export interface LangsmithCreateFeedbackResponse extends ToolResponse {
     id: string
     key: string
     runId: string | null
-    score: number | boolean | null
+    score: number | null
     value: string | number | boolean | null
     comment: string | null
     createdAt: string | null

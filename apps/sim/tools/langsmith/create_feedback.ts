@@ -37,7 +37,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Numeric or boolean score for the feedback metric',
+      description: 'Numeric score for the feedback metric',
     },
     value: {
       type: 'string',
@@ -102,7 +102,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
         id: data.id as string,
         key: data.key as string,
         runId: (data.run_id as string) ?? null,
-        score: (data.score as number | boolean) ?? null,
+        score: (data.score as number) ?? null,
         value: (data.value as string | number | boolean) ?? null,
         comment: (data.comment as string) ?? null,
         createdAt: (data.created_at as string) ?? null,
