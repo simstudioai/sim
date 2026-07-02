@@ -62,20 +62,69 @@ List recent meetings recorded by the user or shared to their team.
 | --------- | ---- | ----------- |
 | `meetings` | array | List of meetings |
 |   ↳ `title` | string | Meeting title |
+|   ↳ `meeting_title` | string | Calendar event title |
 |   ↳ `meeting_type` | string | Meeting type name |
 |   ↳ `recording_id` | number | Unique recording ID |
 |   ↳ `url` | string | URL to view the meeting |
 |   ↳ `meeting_url` | string | URL of the underlying video call \(Zoom, Meet, Teams, etc.\) |
 |   ↳ `share_url` | string | Shareable URL |
 |   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `scheduled_start_time` | string | Scheduled start time |
+|   ↳ `scheduled_end_time` | string | Scheduled end time |
+|   ↳ `recording_start_time` | string | Recording start time |
+|   ↳ `recording_end_time` | string | Recording end time |
 |   ↳ `transcript_language` | string | Transcript language |
+|   ↳ `calendar_invitees_domains_type` | string | Invitee domain type: only_internal or one_or_more_external |
 |   ↳ `shared_with` | string | Sharing scope: no_teams, single_team, multiple_teams, or all_teams |
+|   ↳ `recorded_by` | object | Recorder details |
+|     ↳ `name` | string | Name of the recorder |
+|     ↳ `email` | string | Email of the recorder |
+|     ↳ `email_domain` | string | Email domain of the recorder |
+|     ↳ `team` | string | Recorder team name |
+|   ↳ `calendar_invitees` | array | Calendar invitees for the meeting |
+|     ↳ `name` | string | Invitee name |
+|     ↳ `email` | string | Invitee email |
+|     ↳ `email_domain` | string | Invitee email domain |
+|     ↳ `is_external` | boolean | Whether the invitee is external |
+|     ↳ `matched_speaker_display_name` | string | Matched transcript speaker display name |
+|   ↳ `default_summary` | object | Meeting summary |
+|     ↳ `template_name` | string | Summary template name |
+|     ↳ `markdown_formatted` | string | Markdown-formatted summary |
+|   ↳ `transcript` | array | Transcript entries with speaker, text, and timestamp |
+|     ↳ `speaker` | object | Speaker information |
+|       ↳ `display_name` | string | Speaker display name |
+|       ↳ `matched_calendar_invitee_email` | string | Matched calendar invitee email |
+|     ↳ `text` | string | Transcript text |
+|     ↳ `timestamp` | string | Timestamp \(HH:MM:SS\) |
+|   ↳ `action_items` | array | Action items extracted from the meeting |
+|     ↳ `description` | string | Action item description |
+|     ↳ `user_generated` | boolean | Whether the action item was user-generated |
+|     ↳ `completed` | boolean | Whether the action item is completed |
+|     ↳ `recording_timestamp` | string | Timestamp in the recording \(HH:MM:SS\) |
+|     ↳ `recording_playback_url` | string | Playback URL for the action item moment |
+|     ↳ `assignee` | object | Assignee details |
+|       ↳ `name` | string | Assignee name |
+|       ↳ `email` | string | Assignee email |
+|       ↳ `team` | string | Assignee team |
 |   ↳ `highlights` | array | Meeting highlights with type, summary, text, and start/end time |
 |     ↳ `type` | string | Highlight type |
 |     ↳ `summary` | string | Highlight summary |
 |     ↳ `text` | string | Highlight text |
 |     ↳ `start_time` | number | Start time in seconds |
 |     ↳ `end_time` | number | End time in seconds |
+|   ↳ `crm_matches` | object | Matched CRM contacts, companies, and deals |
+|     ↳ `contacts` | array | Matched CRM contacts |
+|       ↳ `name` | string | Contact name |
+|       ↳ `email` | string | Contact email |
+|       ↳ `record_url` | string | CRM record URL |
+|     ↳ `companies` | array | Matched CRM companies |
+|       ↳ `name` | string | Company name |
+|       ↳ `record_url` | string | CRM record URL |
+|     ↳ `deals` | array | Matched CRM deals |
+|       ↳ `name` | string | Deal name |
+|       ↳ `amount` | number | Deal amount |
+|       ↳ `record_url` | string | CRM record URL |
+|     ↳ `error` | string | CRM match error, if any |
 | `next_cursor` | string | Pagination cursor for next page |
 
 ### `fathom_list_meeting_types`

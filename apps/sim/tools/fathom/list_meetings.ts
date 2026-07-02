@@ -194,6 +194,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
         type: 'object',
         properties: {
           title: { type: 'string', description: 'Meeting title' },
+          meeting_title: { type: 'string', description: 'Calendar event title', optional: true },
           meeting_type: { type: 'string', description: 'Meeting type name', optional: true },
           recording_id: { type: 'number', description: 'Unique recording ID' },
           url: { type: 'string', description: 'URL to view the meeting' },
@@ -204,11 +205,143 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
           },
           share_url: { type: 'string', description: 'Shareable URL' },
           created_at: { type: 'string', description: 'Creation timestamp' },
+          scheduled_start_time: {
+            type: 'string',
+            description: 'Scheduled start time',
+            optional: true,
+          },
+          scheduled_end_time: {
+            type: 'string',
+            description: 'Scheduled end time',
+            optional: true,
+          },
+          recording_start_time: {
+            type: 'string',
+            description: 'Recording start time',
+            optional: true,
+          },
+          recording_end_time: {
+            type: 'string',
+            description: 'Recording end time',
+            optional: true,
+          },
           transcript_language: { type: 'string', description: 'Transcript language' },
+          calendar_invitees_domains_type: {
+            type: 'string',
+            description: 'Invitee domain type: only_internal or one_or_more_external',
+            optional: true,
+          },
           shared_with: {
             type: 'string',
             description: 'Sharing scope: no_teams, single_team, multiple_teams, or all_teams',
             optional: true,
+          },
+          recorded_by: {
+            type: 'object',
+            description: 'Recorder details',
+            optional: true,
+            properties: {
+              name: { type: 'string', description: 'Name of the recorder' },
+              email: { type: 'string', description: 'Email of the recorder' },
+              email_domain: { type: 'string', description: 'Email domain of the recorder' },
+              team: { type: 'string', description: 'Recorder team name', optional: true },
+            },
+          },
+          calendar_invitees: {
+            type: 'array',
+            description: 'Calendar invitees for the meeting',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Invitee name', optional: true },
+                email: { type: 'string', description: 'Invitee email' },
+                email_domain: {
+                  type: 'string',
+                  description: 'Invitee email domain',
+                  optional: true,
+                },
+                is_external: { type: 'boolean', description: 'Whether the invitee is external' },
+                matched_speaker_display_name: {
+                  type: 'string',
+                  description: 'Matched transcript speaker display name',
+                  optional: true,
+                },
+              },
+            },
+          },
+          default_summary: {
+            type: 'object',
+            description: 'Meeting summary',
+            optional: true,
+            properties: {
+              template_name: {
+                type: 'string',
+                description: 'Summary template name',
+                optional: true,
+              },
+              markdown_formatted: {
+                type: 'string',
+                description: 'Markdown-formatted summary',
+                optional: true,
+              },
+            },
+          },
+          transcript: {
+            type: 'array',
+            description: 'Transcript entries with speaker, text, and timestamp',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                speaker: {
+                  type: 'object',
+                  description: 'Speaker information',
+                  properties: {
+                    display_name: { type: 'string', description: 'Speaker display name' },
+                    matched_calendar_invitee_email: {
+                      type: 'string',
+                      description: 'Matched calendar invitee email',
+                      optional: true,
+                    },
+                  },
+                },
+                text: { type: 'string', description: 'Transcript text' },
+                timestamp: { type: 'string', description: 'Timestamp (HH:MM:SS)' },
+              },
+            },
+          },
+          action_items: {
+            type: 'array',
+            description: 'Action items extracted from the meeting',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string', description: 'Action item description' },
+                user_generated: {
+                  type: 'boolean',
+                  description: 'Whether the action item was user-generated',
+                },
+                completed: { type: 'boolean', description: 'Whether the action item is completed' },
+                recording_timestamp: {
+                  type: 'string',
+                  description: 'Timestamp in the recording (HH:MM:SS)',
+                },
+                recording_playback_url: {
+                  type: 'string',
+                  description: 'Playback URL for the action item moment',
+                },
+                assignee: {
+                  type: 'object',
+                  description: 'Assignee details',
+                  properties: {
+                    name: { type: 'string', description: 'Assignee name', optional: true },
+                    email: { type: 'string', description: 'Assignee email', optional: true },
+                    team: { type: 'string', description: 'Assignee team', optional: true },
+                  },
+                },
+              },
+            },
           },
           highlights: {
             type: 'array',
@@ -223,6 +356,49 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
                 start_time: { type: 'number', description: 'Start time in seconds' },
                 end_time: { type: 'number', description: 'End time in seconds' },
               },
+            },
+          },
+          crm_matches: {
+            type: 'object',
+            description: 'Matched CRM contacts, companies, and deals',
+            optional: true,
+            properties: {
+              contacts: {
+                type: 'array',
+                description: 'Matched CRM contacts',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string', description: 'Contact name' },
+                    email: { type: 'string', description: 'Contact email' },
+                    record_url: { type: 'string', description: 'CRM record URL' },
+                  },
+                },
+              },
+              companies: {
+                type: 'array',
+                description: 'Matched CRM companies',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string', description: 'Company name' },
+                    record_url: { type: 'string', description: 'CRM record URL' },
+                  },
+                },
+              },
+              deals: {
+                type: 'array',
+                description: 'Matched CRM deals',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string', description: 'Deal name' },
+                    amount: { type: 'number', description: 'Deal amount' },
+                    record_url: { type: 'string', description: 'CRM record URL' },
+                  },
+                },
+              },
+              error: { type: 'string', description: 'CRM match error, if any', optional: true },
             },
           },
         },
