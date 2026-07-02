@@ -24,7 +24,10 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of templates to return per page (default: 20, max: 200)',
+      description:
+        'Number of templates to return per page (default: 20, max: 200). ' +
+        'When paginating with pageToken, pass the same pageSize used on the first request ' +
+        'to keep page boundaries consistent.',
     },
     pageToken: {
       type: 'string',
