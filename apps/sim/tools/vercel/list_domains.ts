@@ -27,6 +27,12 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
         visibility: 'user-or-llm',
         description: 'Team ID to scope the request',
       },
+      slug: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Team slug to scope the request (alternative to teamId)',
+      },
     },
 
     request: {
@@ -34,6 +40,7 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
         const query = new URLSearchParams()
         if (params.limit) query.set('limit', String(params.limit))
         if (params.teamId) query.set('teamId', params.teamId.trim())
+        if (params.slug) query.set('slug', params.slug.trim())
         const qs = query.toString()
         return `https://api.vercel.com/v5/domains${qs ? `?${qs}` : ''}`
       },
@@ -65,6 +72,10 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
               email: d.creator.email ?? null,
             }
           : null,
+        customNameservers: d.customNameservers ?? [],
+        userId: d.userId ?? null,
+        teamId: d.teamId ?? null,
+        transferStartedAt: d.transferStartedAt ?? null,
       }))
 
       return {
@@ -116,6 +127,18 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
                 username: { type: 'string', description: 'Creator username' },
                 email: { type: 'string', description: 'Creator email' },
               },
+            },
+            customNameservers: {
+              type: 'array',
+              description: 'Custom nameservers',
+              items: { type: 'string' },
+            },
+            userId: { type: 'string', description: 'Owner user ID', optional: true },
+            teamId: { type: 'string', description: 'Owner team ID', optional: true },
+            transferStartedAt: {
+              type: 'number',
+              description: 'Transfer start timestamp',
+              optional: true,
             },
           },
         },
