@@ -91,7 +91,12 @@ export const langsmithUpdateRunTool: ToolConfig<
         events: params.events,
       }
 
-      return filterUndefined(payload)
+      const filtered = filterUndefined(payload)
+      if (Object.keys(filtered).length === 0) {
+        throw new Error('Provide at least one field to update')
+      }
+
+      return filtered
     },
   },
   transformResponse: async (response, params) => {

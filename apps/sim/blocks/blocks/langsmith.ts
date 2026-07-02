@@ -301,6 +301,8 @@ Common patch fields: outputs, end_time, status, error`,
           return value
         }
 
+        const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
+
         if (params.operation === 'langsmith_create_runs_batch') {
           const post = parseJsonValue(params.post, 'post runs')
           const patch = parseJsonValue(params.patch, 'patch runs')
@@ -317,13 +319,13 @@ Common patch fields: outputs, end_time, status, error`,
         }
 
         if (params.operation === 'langsmith_update_run') {
-          const name = params.name
-          const end_time = params.end_time
+          const name = emptyToUndefined(params.name)
+          const end_time = emptyToUndefined(params.end_time)
           const outputs = parseJsonValue(params.outputs, 'outputs')
           const extra = parseJsonValue(params.extra, 'metadata')
           const tags = parseJsonValue(params.tags, 'tags')
-          const status = params.status
-          const error = params.error
+          const status = emptyToUndefined(params.status)
+          const error = emptyToUndefined(params.error)
           const events = parseJsonValue(params.events, 'events')
 
           if (
