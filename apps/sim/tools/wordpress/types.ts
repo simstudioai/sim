@@ -650,7 +650,7 @@ export interface WordPressSearchContentParams extends WordPressBaseParams {
   query: string
   perPage?: number
   page?: number
-  type?: 'post' | 'page' | 'attachment'
+  type?: 'post' | 'term' | 'post-format'
   subtype?: string
 }
 

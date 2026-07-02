@@ -49,13 +49,14 @@ export const searchContentTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Filter by content type: post, page, attachment',
+      description: 'Filter by search index type: post, term, or post-format',
     },
     subtype: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Filter by post type slug (e.g., post, page)',
+      description:
+        'Filter by subtype within the selected type (e.g., post or page when type is post)',
     },
   },
 
@@ -114,8 +115,11 @@ export const searchContentTool: ToolConfig<
           id: { type: 'number', description: 'Content ID' },
           title: { type: 'string', description: 'Content title' },
           url: { type: 'string', description: 'Content URL' },
-          type: { type: 'string', description: 'Content type (post, page, attachment)' },
-          subtype: { type: 'string', description: 'Post type slug' },
+          type: { type: 'string', description: 'Content type (post, term, or post-format)' },
+          subtype: {
+            type: 'string',
+            description: 'Subtype within the content type (e.g., post, page)',
+          },
         },
       },
     },

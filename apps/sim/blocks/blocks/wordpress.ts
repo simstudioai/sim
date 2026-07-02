@@ -214,7 +214,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Categories (for posts only)
+    // Categories (for posts)
     {
       id: 'categories',
       title: 'Categories',
@@ -223,11 +223,11 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['wordpress_create_post', 'wordpress_update_post'],
+        value: ['wordpress_create_post', 'wordpress_update_post', 'wordpress_list_posts'],
       },
     },
 
-    // Tags (for posts only)
+    // Tags (for posts)
     {
       id: 'tags',
       title: 'Tags',
@@ -236,8 +236,18 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['wordpress_create_post', 'wordpress_update_post'],
+        value: ['wordpress_create_post', 'wordpress_update_post', 'wordpress_list_posts'],
       },
+    },
+
+    // List Posts: Author filter
+    {
+      id: 'listAuthor',
+      title: 'Author ID',
+      type: 'short-input',
+      placeholder: 'Filter by author ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'wordpress_list_posts' },
     },
 
     // Featured Media ID
@@ -283,7 +293,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['wordpress_create_page', 'wordpress_update_page'],
+        value: ['wordpress_create_page', 'wordpress_update_page', 'wordpress_list_pages'],
       },
     },
 
@@ -356,6 +366,14 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       condition: { field: 'operation', value: 'wordpress_upload_media' },
     },
     {
+      id: 'mediaDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Media description',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'wordpress_upload_media' },
+    },
+    {
       id: 'mediaId',
       title: 'Media ID',
       type: 'short-input',
@@ -391,7 +409,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       title: 'Post ID',
       type: 'short-input',
       placeholder: 'Post ID to comment on',
-      condition: { field: 'operation', value: 'wordpress_create_comment' },
+      condition: {
+        field: 'operation',
+        value: ['wordpress_create_comment', 'wordpress_list_comments'],
+      },
       required: { field: 'operation', value: 'wordpress_create_comment' },
     },
     {
@@ -404,6 +425,38 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         value: ['wordpress_create_comment', 'wordpress_update_comment'],
       },
       required: { field: 'operation', value: 'wordpress_create_comment' },
+    },
+    {
+      id: 'commentParent',
+      title: 'Parent Comment ID',
+      type: 'short-input',
+      placeholder: 'Parent comment ID (for replies)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'wordpress_create_comment' },
+    },
+    {
+      id: 'commentAuthorName',
+      title: 'Author Name',
+      type: 'short-input',
+      placeholder: 'Comment author display name',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'wordpress_create_comment' },
+    },
+    {
+      id: 'commentAuthorEmail',
+      title: 'Author Email',
+      type: 'short-input',
+      placeholder: 'Comment author email',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'wordpress_create_comment' },
+    },
+    {
+      id: 'commentAuthorUrl',
+      title: 'Author URL',
+      type: 'short-input',
+      placeholder: 'Comment author URL',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'wordpress_create_comment' },
     },
     {
       id: 'commentId',
@@ -571,7 +624,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       required: { field: 'operation', value: 'wordpress_search_content' },
     },
     {
-      id: 'searchType',
+      id: 'searchSubtype',
       title: 'Content Type',
       type: 'dropdown',
       options: [
@@ -779,7 +832,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               slug: params.slug,
               categories: params.categories,
               tags: params.tags,
-              featuredMedia: params.featuredMedia ? Number(params.featuredMedia) : undefined,
+              featuredMedia:
+                params.featuredMedia !== undefined && params.featuredMedia !== ''
+                  ? Number(params.featuredMedia)
+                  : undefined,
             }
           case 'wordpress_update_post':
             return {
@@ -792,7 +848,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               slug: params.slug,
               categories: params.categories,
               tags: params.tags,
-              featuredMedia: params.featuredMedia ? Number(params.featuredMedia) : undefined,
+              featuredMedia:
+                params.featuredMedia !== undefined && params.featuredMedia !== ''
+                  ? Number(params.featuredMedia)
+                  : undefined,
             }
           case 'wordpress_delete_post':
             return {
@@ -816,6 +875,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               order: params.order,
               categories: params.categories,
               tags: params.tags,
+              author:
+                params.listAuthor !== undefined && params.listAuthor !== ''
+                  ? Number(params.listAuthor)
+                  : undefined,
             }
           case 'wordpress_create_page':
             return {
@@ -825,9 +888,18 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               status: params.status,
               excerpt: params.excerpt,
               slug: params.slug,
-              parent: params.parent ? Number(params.parent) : undefined,
-              menuOrder: params.menuOrder ? Number(params.menuOrder) : undefined,
-              featuredMedia: params.featuredMedia ? Number(params.featuredMedia) : undefined,
+              parent:
+                params.parent !== undefined && params.parent !== ''
+                  ? Number(params.parent)
+                  : undefined,
+              menuOrder:
+                params.menuOrder !== undefined && params.menuOrder !== ''
+                  ? Number(params.menuOrder)
+                  : undefined,
+              featuredMedia:
+                params.featuredMedia !== undefined && params.featuredMedia !== ''
+                  ? Number(params.featuredMedia)
+                  : undefined,
             }
           case 'wordpress_update_page':
             return {
@@ -838,9 +910,18 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               status: params.status,
               excerpt: params.excerpt,
               slug: params.slug,
-              parent: params.parent ? Number(params.parent) : undefined,
-              menuOrder: params.menuOrder ? Number(params.menuOrder) : undefined,
-              featuredMedia: params.featuredMedia ? Number(params.featuredMedia) : undefined,
+              parent:
+                params.parent !== undefined && params.parent !== ''
+                  ? Number(params.parent)
+                  : undefined,
+              menuOrder:
+                params.menuOrder !== undefined && params.menuOrder !== ''
+                  ? Number(params.menuOrder)
+                  : undefined,
+              featuredMedia:
+                params.featuredMedia !== undefined && params.featuredMedia !== ''
+                  ? Number(params.featuredMedia)
+                  : undefined,
             }
           case 'wordpress_delete_page':
             return {
@@ -862,7 +943,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               search: params.search,
               orderBy: params.orderBy,
               order: params.order,
-              parent: params.parent ? Number(params.parent) : undefined,
+              parent:
+                params.parent !== undefined && params.parent !== ''
+                  ? Number(params.parent)
+                  : undefined,
             }
           case 'wordpress_upload_media':
             // file is the canonical param for both basic (fileUpload) and advanced modes
@@ -873,6 +957,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               title: params.mediaTitle,
               caption: params.caption,
               altText: params.altText,
+              description: params.mediaDescription || undefined,
             }
           case 'wordpress_get_media':
             return {
@@ -899,6 +984,13 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               ...baseParams,
               postId: Number(params.commentPostId),
               content: params.commentContent,
+              parent:
+                params.commentParent !== undefined && params.commentParent !== ''
+                  ? Number(params.commentParent)
+                  : undefined,
+              authorName: params.commentAuthorName || undefined,
+              authorEmail: params.commentAuthorEmail || undefined,
+              authorUrl: params.commentAuthorUrl || undefined,
             }
           case 'wordpress_list_comments':
             return {
@@ -1019,7 +1111,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               query: params.query,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
-              type: params.searchType || undefined,
+              subtype: params.searchSubtype || undefined,
             }
           default:
             return baseParams
@@ -1040,6 +1132,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     slug: { type: 'string', description: 'URL slug' },
     categories: { type: 'string', description: 'Category IDs (comma-separated)' },
     tags: { type: 'string', description: 'Tag IDs (comma-separated)' },
+    listAuthor: { type: 'string', description: 'Filter posts by author ID' },
     featuredMedia: { type: 'number', description: 'Featured media ID' },
     // Page inputs
     pageId: { type: 'number', description: 'Page ID' },
@@ -1051,11 +1144,16 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     mediaTitle: { type: 'string', description: 'Media title' },
     caption: { type: 'string', description: 'Media caption' },
     altText: { type: 'string', description: 'Alt text' },
+    mediaDescription: { type: 'string', description: 'Media description' },
     mediaId: { type: 'number', description: 'Media ID' },
     mediaType: { type: 'string', description: 'Media type filter' },
     // Comment inputs
     commentPostId: { type: 'number', description: 'Post ID for comment' },
     commentContent: { type: 'string', description: 'Comment content' },
+    commentParent: { type: 'number', description: 'Parent comment ID for replies' },
+    commentAuthorName: { type: 'string', description: 'Comment author display name' },
+    commentAuthorEmail: { type: 'string', description: 'Comment author email' },
+    commentAuthorUrl: { type: 'string', description: 'Comment author URL' },
     commentId: { type: 'number', description: 'Comment ID' },
     commentStatus: { type: 'string', description: 'Comment status' },
     // Category inputs
@@ -1074,7 +1172,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     roles: { type: 'string', description: 'User roles filter' },
     // Search inputs
     query: { type: 'string', description: 'Search query' },
-    searchType: { type: 'string', description: 'Content type filter' },
+    searchSubtype: {
+      type: 'string',
+      description: 'Content subtype filter (post, page, attachment)',
+    },
     // List inputs
     perPage: { type: 'number', description: 'Results per page' },
     page: { type: 'number', description: 'Page number' },
