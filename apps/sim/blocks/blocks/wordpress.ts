@@ -624,7 +624,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       required: { field: 'operation', value: 'wordpress_search_content' },
     },
     {
-      id: 'searchSubtype',
+      id: 'searchType',
       title: 'Content Type',
       type: 'dropdown',
       options: [
@@ -1111,7 +1111,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               query: params.query,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
-              subtype: params.searchSubtype || undefined,
+              subtype: params.searchType || undefined,
             }
           default:
             return baseParams
@@ -1172,9 +1172,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     roles: { type: 'string', description: 'User roles filter' },
     // Search inputs
     query: { type: 'string', description: 'Search query' },
-    searchSubtype: {
+    searchType: {
       type: 'string',
-      description: 'Content subtype filter (post, page, attachment)',
+      description:
+        'Content subtype filter (post, page, attachment) — maps to the API subtype param',
     },
     // List inputs
     perPage: { type: 'number', description: 'Results per page' },
