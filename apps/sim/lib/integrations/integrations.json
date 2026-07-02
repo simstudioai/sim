@@ -6182,6 +6182,41 @@
       "tags": ["marketing", "google-workspace", "data-analytics"]
     },
     {
+      "type": "google_appsheet",
+      "slug": "google-appsheet",
+      "name": "Google AppSheet",
+      "description": "Read, add, edit, and delete rows in a Google AppSheet table",
+      "longDescription": "Integrate Google AppSheet into your workflow. Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.",
+      "bgColor": "#FFFFFF",
+      "iconName": "GoogleAppsheetIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/google_appsheet",
+      "operations": [
+        {
+          "name": "Find Rows",
+          "description": "Read rows from an AppSheet table. Omit the selector to return every row, or provide a Selector expression (Filter/Select/OrderBy/Top) to narrow and shape the results."
+        },
+        {
+          "name": "Add Rows",
+          "description": "Add new rows to an AppSheet table. The key column value must be provided explicitly, or omitted when its Initial value expression generates it automatically (e.g. UNIQUEID())."
+        },
+        {
+          "name": "Edit Rows",
+          "description": "Update existing rows in an AppSheet table. Each row must explicitly include the key column name and value, plus any columns to change."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows from an AppSheet table. Each row only needs to include the key column name and value."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["spreadsheet", "automation", "google-workspace"]
+    },
+    {
       "type": "google_bigquery",
       "slug": "google-bigquery",
       "name": "Google BigQuery",

@@ -1258,6 +1258,12 @@ import {
   googleAdsSearchTool,
 } from '@/tools/google_ads'
 import {
+  googleAppsheetAddRowsTool,
+  googleAppsheetDeleteRowsTool,
+  googleAppsheetEditRowsTool,
+  googleAppsheetFindRowsTool,
+} from '@/tools/google_appsheet'
+import {
   googleBigQueryGetTableTool,
   googleBigQueryInsertRowsTool,
   googleBigQueryListDatasetsTool,
@@ -7560,6 +7566,10 @@ export const tools: Record<string, ToolConfig> = {
   google_ads_campaign_performance: googleAdsCampaignPerformanceTool,
   google_ads_list_ad_groups: googleAdsListAdGroupsTool,
   google_ads_ad_performance: googleAdsAdPerformanceTool,
+  google_appsheet_find_rows: googleAppsheetFindRowsTool,
+  google_appsheet_add_rows: googleAppsheetAddRowsTool,
+  google_appsheet_edit_rows: googleAppsheetEditRowsTool,
+  google_appsheet_delete_rows: googleAppsheetDeleteRowsTool,
   google_bigquery_query: googleBigQueryQueryTool,
   google_bigquery_list_datasets: googleBigQueryListDatasetsTool,
   google_bigquery_list_tables: googleBigQueryListTablesTool,
