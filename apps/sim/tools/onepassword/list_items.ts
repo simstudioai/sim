@@ -128,7 +128,7 @@ export const listItemsTool: ToolConfig<OnePasswordListItemsParams, OnePasswordLi
           version: { type: 'number', description: 'Item version number' },
           state: {
             type: 'string',
-            description: 'Item state (ARCHIVED or DELETED)',
+            description: 'Item state (ARCHIVED, or absent/null when active)',
             optional: true,
           },
           createdAt: { type: 'string', description: 'Creation timestamp', optional: true },

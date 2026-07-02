@@ -9,6 +9,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   connectRequest,
   createOnePasswordClient,
+  matchesFilter,
   normalizeSdkVault,
   resolveCredentials,
 } from '../utils'
@@ -45,11 +46,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const normalized = vaults.map(normalizeSdkVault)
 
       if (params.filter) {
-        const filterLower = params.filter.toLowerCase()
-        const filtered = normalized.filter(
-          (v) =>
-            v.name?.toLowerCase().includes(filterLower) || v.id?.toLowerCase().includes(filterLower)
-        )
+        const filter = params.filter
+        const filtered = normalized.filter((v) => matchesFilter(v.name ?? '', v.id ?? '', filter))
         return NextResponse.json(filtered)
       }
 

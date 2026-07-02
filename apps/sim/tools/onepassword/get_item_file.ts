@@ -1,17 +1,16 @@
 import type {
-  OnePasswordCreateItemParams,
-  OnePasswordCreateItemResponse,
+  OnePasswordGetItemFileParams,
+  OnePasswordGetItemFileResponse,
 } from '@/tools/onepassword/types'
-import { FULL_ITEM_OUTPUTS, transformFullItem } from '@/tools/onepassword/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const createItemTool: ToolConfig<
-  OnePasswordCreateItemParams,
-  OnePasswordCreateItemResponse
+export const getItemFileTool: ToolConfig<
+  OnePasswordGetItemFileParams,
+  OnePasswordGetItemFileResponse
 > = {
-  id: 'onepassword_create_item',
-  name: '1Password Create Item',
-  description: 'Create a new item in a vault',
+  id: 'onepassword_get_item_file',
+  name: '1Password Get Item File',
+  description: 'Download the content of a file attached to an item',
   version: '1.0.0',
 
   params: {
@@ -42,38 +41,24 @@ export const createItemTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The vault UUID to create the item in',
+      description: 'The vault UUID',
     },
-    category: {
+    itemId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Item category (e.g., LOGIN, PASSWORD, API_CREDENTIAL, SECURE_NOTE, SERVER, DATABASE)',
+      description: 'The item UUID the file is attached to',
     },
-    title: {
+    fileId: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Item title',
-    },
-    tags: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Comma-separated list of tags',
-    },
-    fields: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'JSON array of field objects (e.g., [{"label":"username","value":"admin","type":"STRING","purpose":"USERNAME"}]). "purpose" is honored in Connect Server mode; in Service Account mode 1Password infers it from the field label/type instead.',
+      description: 'The file ID (from the item\'s "files" array, e.g. via Get Item)',
     },
   },
 
   request: {
-    url: '/api/tools/onepassword/create-item',
+    url: '/api/tools/onepassword/get-item-file',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
@@ -82,23 +67,37 @@ export const createItemTool: ToolConfig<
       serverUrl: params.serverUrl,
       apiKey: params.apiKey,
       vaultId: params.vaultId,
-      category: params.category,
-      title: params.title,
-      tags: params.tags,
-      fields: params.fields,
+      itemId: params.itemId,
+      fileId: params.fileId,
     }),
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
     if (data.error) {
-      return { success: false, output: transformFullItem({}), error: data.error }
+      return {
+        success: false,
+        output: { file: { name: '', mimeType: '', data: '', size: 0 } },
+        error: data.error,
+      }
     }
     return {
       success: true,
-      output: transformFullItem(data),
+      output: {
+        file: {
+          name: data.file.name,
+          mimeType: data.file.mimeType,
+          data: data.file.data,
+          size: data.file.size,
+        },
+      },
     }
   },
 
-  outputs: FULL_ITEM_OUTPUTS,
+  outputs: {
+    file: {
+      type: 'file',
+      description: 'Downloaded file attachment',
+    },
+  },
 }
