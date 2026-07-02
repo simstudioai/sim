@@ -86,7 +86,11 @@ describe('rewriteMessageFileRefs', () => {
       maps
     )
     expect(result.contexts?.[0].fileId).toBe(NEW_ID)
-    expect(result.contexts?.[1]).toEqual({ kind: 'workflow', label: 'My flow', workflowId: 'wflow-1' })
+    expect(result.contexts?.[1]).toEqual({
+      kind: 'workflow',
+      label: 'My flow',
+      workflowId: 'wflow-1',
+    })
   })
 
   it('leaves unmapped references unchanged (graceful broken link, never corrupted)', () => {

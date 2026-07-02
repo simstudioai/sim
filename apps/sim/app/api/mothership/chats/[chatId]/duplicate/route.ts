@@ -192,7 +192,10 @@ export const POST = withRouteHandler(
         })
         if (!copilotRes.ok) {
           const text = await copilotRes.text().catch(() => '')
-          logger.warn('Copilot duplicate returned non-OK', { status: copilotRes.status, body: text })
+          logger.warn('Copilot duplicate returned non-OK', {
+            status: copilotRes.status,
+            body: text,
+          })
         }
       } catch (err) {
         logger.warn('Failed to duplicate copilot-service conversation, skipping', { err })

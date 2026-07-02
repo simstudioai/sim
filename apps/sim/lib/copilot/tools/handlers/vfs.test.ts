@@ -341,7 +341,7 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
     const result = await executeVfsGrep({ pattern: 'x', path: 'uploads/' }, GREP_CTX_CHAT)
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('single upload')
+    expect(result.error).toContain('single file')
     expect(grepChatUpload).not.toHaveBeenCalled()
   })
 

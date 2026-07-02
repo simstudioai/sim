@@ -10,11 +10,11 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { getPreviewableWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
   performDeleteWorkspaceFileItems,
   performRenameWorkspaceFile,
 } from '@/lib/workspace-files/orchestration'
-import { getPreviewableWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
