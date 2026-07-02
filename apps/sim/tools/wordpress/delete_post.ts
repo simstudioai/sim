@@ -61,7 +61,7 @@ export const deletePostTool: ToolConfig<WordPressDeletePostParams, WordPressDele
     return {
       success: true,
       output: {
-        deleted: data.deleted || true,
+        deleted: data.deleted ?? true,
         post: {
           id: data.id || data.previous?.id,
           date: data.date || data.previous?.date,

@@ -36,13 +36,13 @@ export const searchContentTool: ToolConfig<
     perPage: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of results per request (default: 10, max: 100)',
     },
     page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Page number for pagination',
     },
     type: {

@@ -61,7 +61,7 @@ export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDele
     return {
       success: true,
       output: {
-        deleted: data.deleted || true,
+        deleted: data.deleted ?? true,
         page: {
           id: data.id || data.previous?.id,
           date: data.date || data.previous?.date,
