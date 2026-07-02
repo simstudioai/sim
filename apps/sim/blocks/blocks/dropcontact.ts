@@ -11,6 +11,7 @@ export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
   docsLink: 'https://docs.sim.ai/tools/dropcontact',
   category: 'tools',
   bgColor: '#0ABA9F',
+  iconColor: '#0ABA9F',
   icon: DropcontactIcon,
   authMode: AuthMode.ApiKey,
   integrationType: IntegrationType.Sales,

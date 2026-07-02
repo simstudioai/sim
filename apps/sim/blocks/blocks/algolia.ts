@@ -541,14 +541,20 @@ Return ONLY the JSON array.`,
           result[key] = value
         }
 
+        const toBool = (value: unknown, defaultValue: boolean) => {
+          if (typeof value === 'boolean') return value
+          if (typeof value === 'string') return value === 'true'
+          return defaultValue
+        }
+
         if (operation === 'partial_update_record') {
-          result.createIfNotExists = result.createIfNotExists !== 'false'
+          result.createIfNotExists = toBool(result.createIfNotExists, true)
         }
         if (operation === 'update_settings') {
-          result.forwardToReplicas = result.forwardToReplicas === 'true'
+          result.forwardToReplicas = toBool(result.forwardToReplicas, false)
         }
         if (operation === 'search' && result.getRankingInfo !== undefined) {
-          result.getRankingInfo = result.getRankingInfo === 'true'
+          result.getRankingInfo = toBool(result.getRankingInfo, false)
         }
         if (operation === 'copy_move_index') {
           result.operation = result.copyMoveOperation
