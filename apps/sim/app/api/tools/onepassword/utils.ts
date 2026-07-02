@@ -13,6 +13,7 @@ import type {
 } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
@@ -478,6 +479,60 @@ export function normalizeSdkItem(item: Item): NormalizedItem {
 export function findItemFileAttributes(item: Item, fileId: string): FileAttributes | undefined {
   if (item.document?.id === fileId) return item.document
   return item.files?.find((file) => file.attributes.id === fileId)?.attributes
+}
+
+/**
+ * Convert a Connect-shaped item (the vocabulary `normalizeSdkItem` produces and
+ * this integration's tools document — `label`/`type`/`section: {id}`) back into
+ * an SDK-compatible {@link Item} for `client.items.put()`. Falls back to `existing`
+ * for any array the caller didn't provide, so partial input (e.g. Replace Item's
+ * optional fields) is preserved.
+ *
+ * Service Account mode must always convert through this function before calling
+ * `put()` — never apply a Connect-shaped JSON Patch directly onto a raw SDK
+ * {@link Item}, since SDK field/category vocabulary differs from Connect's
+ * (`title` vs `label`, `fieldType` vs `type`, `sectionId` vs `section.id`, SDK
+ * category enum strings vs Connect's SCREAMING_SNAKE_CASE) and silently no-ops or
+ * corrupts the write otherwise.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function connectItemToSdkItem(connectItem: Record<string, any>, existing: Item): Item {
+  return {
+    ...existing,
+    id: existing.id,
+    vaultId: existing.vaultId,
+    title: connectItem.title ?? existing.title,
+    category: connectItem.category ? toSdkCategory(connectItem.category) : existing.category,
+    fields: Array.isArray(connectItem.fields)
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        connectItem.fields.map((f: Record<string, any>) => ({
+          id: f.id || generateId().slice(0, 8),
+          title: f.label || f.title || '',
+          fieldType: toSdkFieldType(f.type || 'STRING'),
+          value: f.value || '',
+          sectionId: f.section?.id ?? f.sectionId,
+        }))
+      : existing.fields,
+    sections: Array.isArray(connectItem.sections)
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        connectItem.sections.map((s: Record<string, any>) => ({
+          id: s.id || '',
+          title: s.label || s.title || '',
+        }))
+      : existing.sections,
+    notes: connectItem.notes ?? existing.notes,
+    tags: connectItem.tags ?? existing.tags,
+    websites: Array.isArray(connectItem.urls ?? connectItem.websites)
+      ? (connectItem.urls ?? connectItem.websites).map(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (u: Record<string, any>) => ({
+            url: u.href || u.url || '',
+            label: u.label || '',
+            autofillBehavior: 'AnywhereOnWebsite' as const,
+          })
+        )
+      : existing.websites,
+  } as Item
 }
 
 /**

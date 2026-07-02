@@ -7,6 +7,7 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  connectItemToSdkItem,
   connectRequest,
   createOnePasswordClient,
   normalizeSdkItem,
@@ -45,13 +46,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (creds.mode === 'service_account') {
       const client = await createOnePasswordClient(creds.serviceAccountToken!)
 
-      const item = await client.items.get(params.vaultId, params.itemId)
+      const existing = await client.items.get(params.vaultId, params.itemId)
 
+      // Patch operations are documented and typed against the Connect-shaped
+      // vocabulary (label/type/section.id) that get_item/create_item/replace_item
+      // return — apply them to that normalized view, then convert back to the
+      // SDK's vocabulary (title/fieldType/sectionId) before writing. Patching the
+      // raw SDK item directly would silently no-op most field/category writes.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const connectItem = normalizeSdkItem(existing) as Record<string, any>
       for (const op of ops) {
-        applyPatch(item, op)
+        applyPatch(connectItem, op)
       }
 
-      const result = await client.items.put(item)
+      const sdkItem = connectItemToSdkItem(connectItem, existing)
+      const result = await client.items.put(sdkItem)
       return NextResponse.json(normalizeSdkItem(result))
     }
 
