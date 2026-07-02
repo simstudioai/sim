@@ -71,6 +71,7 @@ export interface SendGridContactObject {
   email: string
   first_name?: string
   last_name?: string
+  custom_fields?: Record<string, unknown>
   [key: string]: unknown
 }
 

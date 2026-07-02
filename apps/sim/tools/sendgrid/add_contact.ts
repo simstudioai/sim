@@ -1,4 +1,3 @@
-import { safeAssign } from '@/tools/safe-assign'
 import type {
   AddContactParams,
   ContactResult,
@@ -73,7 +72,7 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
           typeof params.customFields === 'string'
             ? JSON.parse(params.customFields)
             : params.customFields
-        safeAssign(contact, customFields as Record<string, unknown>)
+        contact.custom_fields = customFields as Record<string, unknown>
       }
 
       const body: SendGridContactRequest = {
