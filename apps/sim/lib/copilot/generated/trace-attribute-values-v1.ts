@@ -34,6 +34,17 @@ export const AuthKeyMatch = {
 export type AuthKeyMatchKey = keyof typeof AuthKeyMatch
 export type AuthKeyMatchValue = (typeof AuthKeyMatch)[AuthKeyMatchKey]
 
+export const AuthRejectReason = {
+  Forbidden: 'forbidden',
+  InvalidKey: 'invalid_key',
+  Other: 'other',
+  RateLimited: 'rate_limited',
+  UsageLimit: 'usage_limit',
+} as const
+
+export type AuthRejectReasonKey = keyof typeof AuthRejectReason
+export type AuthRejectReasonValue = (typeof AuthRejectReason)[AuthRejectReasonKey]
+
 export const BillingAnalyticsOutcome = {
   Duplicate: 'duplicate',
   RetriesExhausted: 'retries_exhausted',

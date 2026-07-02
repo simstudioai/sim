@@ -2,7 +2,7 @@ import { type Context, context as otelContextApi } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { chatPubSub } from '@/lib/copilot/chat-status'
@@ -203,8 +203,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               provider: (requestPayload.provider as string | undefined) || null,
               requestContext: { requestId },
             }).catch((error) => {
+              // Drizzle's "Failed query" message drops the Postgres error —
+              // the violated constraint / detail lives on `cause`.
+              const cause = toError(error).cause
               logger.warn(`[${requestId}] Failed to create copilot run segment`, {
                 error: getErrorMessage(error),
+                cause: cause === undefined ? undefined : getErrorMessage(cause),
               })
             })
           }

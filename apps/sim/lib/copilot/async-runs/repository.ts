@@ -87,7 +87,12 @@ export async function createRunSegment(input: CreateRunSegmentInput) {
       [TraceAttr.CopilotRunStatus]: input.status ?? 'active',
     },
     async () => {
-      const [run] = await db
+      // stream_id is UNIQUE and the headless path derives it from the
+      // message id with a fresh run id per attempt, so a client retry of
+      // the same message replays this insert. Treat the replay as "this
+      // segment already exists": hand back the original row so the retry
+      // continues under the same run identity instead of failing.
+      const [inserted] = await db
         .insert(copilotRuns)
         .values({
           ...(input.id ? { id: input.id } : {}),
@@ -104,8 +109,15 @@ export async function createRunSegment(input: CreateRunSegmentInput) {
           requestContext: input.requestContext ?? {},
           status: input.status ?? 'active',
         })
+        .onConflictDoNothing({ target: copilotRuns.streamId })
         .returning()
-      return run
+      if (inserted) return inserted
+      const [existing] = await db
+        .select()
+        .from(copilotRuns)
+        .where(eq(copilotRuns.streamId, input.streamId))
+        .limit(1)
+      return existing
     }
   )
 }

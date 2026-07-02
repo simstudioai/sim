@@ -1,6 +1,6 @@
 import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
@@ -949,7 +949,7 @@ async function ensureHeadlessRunIdentity(input: {
   const runId = generateId()
 
   try {
-    await createRunSegment({
+    const run = await createRunSegment({
       id: runId,
       executionId,
       chatId: input.chatId,
@@ -964,12 +964,18 @@ async function ensureHeadlessRunIdentity(input: {
         source: 'headless_lifecycle',
       },
     })
-    return { executionId, runId }
+    // A retried message resolves to the pre-existing segment (stream_id is
+    // unique per message) — continue under ITS identity, not the fresh ids.
+    return { executionId: run?.executionId ?? executionId, runId: run?.id ?? runId }
   } catch (error) {
+    // Drizzle's "Failed query" message drops the Postgres error — the
+    // violated constraint / detail lives on `cause`.
+    const cause = toError(error).cause
     logger.warn('Failed to create headless run identity', {
       chatId: input.chatId,
       messageId: input.messageId,
       error: toError(error).message,
+      cause: cause === undefined ? undefined : getErrorMessage(cause),
     })
     return {}
   }

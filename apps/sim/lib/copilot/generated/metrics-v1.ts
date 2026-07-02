@@ -14,6 +14,7 @@
 // union is queryable as one series set.
 
 export const Metric = {
+  CopilotAuthRejections: 'copilot.auth.rejections',
   CopilotCacheAttempted: 'copilot.cache.attempted',
   CopilotCacheHit: 'copilot.cache.hit',
   CopilotCacheWrite: 'copilot.cache.write',
@@ -39,6 +40,7 @@ export type MetricValue = (typeof Metric)[MetricKey]
 
 /** Readonly sorted list of every canonical mothership metric name. */
 export const MetricValues: readonly MetricValue[] = [
+  'copilot.auth.rejections',
   'copilot.cache.attempted',
   'copilot.cache.hit',
   'copilot.cache.write',
