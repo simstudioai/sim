@@ -514,6 +514,82 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
     )
     expect(result.documentId.value).toBe('')
   })
+
+  it('clearDependentsOnRemap: preserve holds when a SECOND remapped key also reaches the tool selector', () => {
+    // Synthetic config (no registry block wires this today): the tool selector hangs off BOTH a
+    // remapped mcp-server parent (preserve) and another remapped parent (no preserve). The
+    // selector-keyed preserve must win over the other key's clear, in either key order, while
+    // the other key's own non-exempt dependent still clears.
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'server', title: 'MCP Server', type: 'mcp-server-selector' },
+        { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+        {
+          id: 'tool',
+          title: 'Tool',
+          type: 'mcp-tool-selector',
+          dependsOn: ['server', 'knowledgeBaseId'],
+        },
+        { id: 'arguments', title: '', type: 'mcp-dynamic-args', dependsOn: ['tool'] },
+        {
+          id: 'documentId',
+          title: 'Doc',
+          type: 'document-selector',
+          dependsOn: ['knowledgeBaseId'],
+        },
+      ])
+    )
+    const subBlocks = (): SubBlockRecord => ({
+      server: { id: 'server', type: 'mcp-server-selector', value: 'mcp-tgt9' },
+      knowledgeBaseId: { id: 'knowledgeBaseId', type: 'knowledge-base-selector', value: 'kb-dst' },
+      tool: { id: 'tool', type: 'mcp-tool-selector', value: 'mcp-tgt9-search_docs' },
+      arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"hello"}' },
+      documentId: { id: 'documentId', type: 'document-selector', value: 'doc-src' },
+    })
+    for (const keys of [
+      ['server', 'knowledgeBaseId'],
+      ['knowledgeBaseId', 'server'],
+    ]) {
+      const result = clearDependentsOnRemap(subBlocks(), 'mcp', new Set(keys))
+      expect(result.tool.value).toBe('mcp-tgt9-search_docs')
+      expect(result.arguments.value).toBe('{"query":"hello"}')
+      expect(result.documentId.value).toBe('')
+    }
+  })
+
+  it('clearDependentsOnRemap: a CLEARED server alongside another remapped key still clears the tool', () => {
+    // Same two-key config, but the server was cleared (unmapped): no preserve applies anywhere,
+    // so the tool and its arguments clear as ordinary dependents.
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'server', title: 'MCP Server', type: 'mcp-server-selector' },
+        { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+        {
+          id: 'tool',
+          title: 'Tool',
+          type: 'mcp-tool-selector',
+          dependsOn: ['server', 'knowledgeBaseId'],
+        },
+        { id: 'arguments', title: '', type: 'mcp-dynamic-args', dependsOn: ['tool'] },
+      ])
+    )
+    const result = clearDependentsOnRemap(
+      {
+        server: { id: 'server', type: 'mcp-server-selector', value: '' },
+        knowledgeBaseId: {
+          id: 'knowledgeBaseId',
+          type: 'knowledge-base-selector',
+          value: 'kb-dst',
+        },
+        tool: { id: 'tool', type: 'mcp-tool-selector', value: 'mcp-src1-search_docs' },
+        arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"hello"}' },
+      },
+      'mcp',
+      new Set(['server', 'knowledgeBaseId'])
+    )
+    expect(result.tool.value).toBe('')
+    expect(result.arguments.value).toBe('')
+  })
 })
 
 describe('tool-input MCP entry server remap rewrites embedded server metadata', () => {

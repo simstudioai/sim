@@ -747,12 +747,27 @@ export function clearDependentsOnRemap(
     return parent && typeof parent === 'object' ? isNonEmptyValue(parent.value) : false
   }
 
+  // The preserve decision is hoisted out of the per-key walk and keyed on the SELECTOR (not on
+  // which remapped key reaches it): `toClear` is a union across per-key BFS passes (each with its
+  // own `visited`), so an in-loop exemption holds only against the exempting key - a second
+  // remapped key (or a longer dependsOn path) reaching the same tool selector would re-add it.
+  // Unreachable with today's registry (the tool selector's only dependsOn parent is its server),
+  // but this makes the exemption independent of key order and path by construction.
+  const preservedMcpToolSelectors = new Set<string>()
+  for (const key of remappedKeys) {
+    if (isDormantCanonicalMember(key) || !isRemappedMcpServerParent(key)) continue
+    for (const dependent of getSubBlocksDependingOnChange(config.subBlocks, key)) {
+      if (dependent.id && dependent.type === 'mcp-tool-selector') {
+        preservedMcpToolSelectors.add(dependent.id)
+      }
+    }
+  }
+
   // Same BFS as `getWorkflowSearchDependentClears`, with the preserved tool selector's subtree
   // pruned (skipping it keeps its own dependents - the arguments - out of the clear set too).
   const toClear = new Set<string>()
   for (const key of remappedKeys) {
     if (isDormantCanonicalMember(key)) continue
-    const preserveMcpToolDependents = isRemappedMcpServerParent(key)
     const visited = new Set<string>([key])
     const queue = [key]
     while (queue.length > 0) {
@@ -760,13 +775,7 @@ export function clearDependentsOnRemap(
       if (!current) continue
       for (const dependent of getSubBlocksDependingOnChange(config.subBlocks, current)) {
         if (!dependent.id || visited.has(dependent.id)) continue
-        if (
-          preserveMcpToolDependents &&
-          current === key &&
-          dependent.type === 'mcp-tool-selector'
-        ) {
-          continue
-        }
+        if (preservedMcpToolSelectors.has(dependent.id)) continue
         visited.add(dependent.id)
         if (!remappedKeys.has(dependent.id)) toClear.add(dependent.id)
         queue.push(dependent.id)
