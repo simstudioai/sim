@@ -183,7 +183,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         field: 'operation',
         value: ['update_list', 'get_list_item', 'delete_list_item'],
       },
-      required: { field: 'operation', value: ['get_list_item', 'delete_list_item'] },
+      required: { field: 'operation', value: ['update_list', 'get_list_item', 'delete_list_item'] },
     },
 
     {
@@ -348,6 +348,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         'Enter list item fields as JSON (e.g., {"Title": "My Item", "Status": "Active"})',
       canonicalParamId: 'listItemFields',
       condition: { field: 'operation', value: ['update_list', 'add_list_items'] },
+      required: { field: 'operation', value: ['update_list', 'add_list_items'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a JSON object for SharePoint list item fields based on the user's description.
@@ -388,6 +389,58 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         placeholder: 'Describe the fields and values you want to set...',
         generationType: 'json-object',
       },
+    },
+
+    {
+      id: 'maxPages',
+      title: 'Max Pages',
+      type: 'short-input',
+      placeholder: 'Default 10, maximum 50',
+      condition: { field: 'operation', value: 'read_page' },
+      mode: 'advanced',
+    },
+    {
+      id: 'groupId',
+      title: 'Group ID',
+      type: 'short-input',
+      placeholder: 'Optional Microsoft 365 group ID',
+      condition: { field: 'operation', value: 'list_sites' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeColumns',
+      title: 'Include Columns',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'read_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeItems',
+      title: 'Include Items',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'read_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'nextPageUrl',
+      title: 'Next Page URL',
+      type: 'short-input',
+      placeholder: 'Paste the @odata.nextLink URL from a previous result',
+      condition: {
+        field: 'operation',
+        value: ['read_page', 'list_sites', 'read_list'],
+      },
+      mode: 'advanced',
     },
 
     // Upload / Download / Delete File / Get Drive Item operation fields
@@ -624,6 +677,12 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     folderPath: { type: 'string', description: 'Folder path for file upload' },
     fileName: { type: 'string', description: 'File name override' },
     files: { type: 'array', description: 'Files to upload' },
+    maxPages: { type: 'number', description: 'Maximum pages to return when reading all pages' },
+    groupId: { type: 'string', description: 'Microsoft 365 group ID for group-owned sites' },
+    nextPageUrl: {
+      type: 'string',
+      description: 'Full Microsoft Graph @odata.nextLink URL from a previous result',
+    },
   },
   outputs: {
     sites: {
@@ -631,15 +690,39 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       description:
         'An array of SharePoint site objects, each containing details such as id, name, and more.',
     },
+    site: {
+      type: 'json',
+      description: 'Single SharePoint site object (id, name, displayName, webUrl)',
+    },
     page: {
       type: 'json',
       description: 'SharePoint page object (id, name, title, webUrl, pageLayout)',
+    },
+    pages: {
+      type: 'json',
+      description: 'Array of SharePoint pages with content ([{page, content}])',
+    },
+    content: {
+      type: 'json',
+      description: 'Content of the SharePoint page (content, canvasLayout)',
+    },
+    totalPages: {
+      type: 'number',
+      description: 'Total number of pages found when listing all pages',
+    },
+    nextPageUrl: {
+      type: 'string',
+      description: 'Full Microsoft Graph @odata.nextLink URL for the next page of results',
     },
     published: { type: 'boolean', description: 'Whether the page was published' },
     deleted: { type: 'boolean', description: 'Whether the item/page/file was deleted' },
     list: {
       type: 'json',
       description: 'SharePoint list object (id, displayName, name, webUrl, etc.)',
+    },
+    lists: {
+      type: 'json',
+      description: 'Array of SharePoint list objects when no specific list is requested',
     },
     item: {
       type: 'json',
@@ -664,6 +747,19 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     fileCount: {
       type: 'number',
       description: 'Number of files uploaded',
+    },
+    skippedFiles: {
+      type: 'json',
+      description:
+        'Files skipped during upload for exceeding the size limit (name, size, limit, reason)',
+    },
+    skippedCount: {
+      type: 'number',
+      description: 'Number of files skipped during upload',
+    },
+    errors: {
+      type: 'json',
+      description: 'Per-file upload errors ([{name, error, status}])',
     },
     itemId: { type: 'string', description: 'ID of the deleted list item or file' },
     pageId: { type: 'string', description: 'ID of the deleted or published page' },

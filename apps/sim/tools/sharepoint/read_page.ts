@@ -181,7 +181,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     if (!data.value || data.value.length === 0) {
       logger.info('No pages found', {
         searchName: params?.pageName,
-        siteId: params?.siteId || params?.siteSelector || 'root',
+        siteId: optionalTrim(params?.siteId) || optionalTrim(params?.siteSelector) || 'root',
         totalResults: data.value?.length || 0,
       })
       const message = params?.pageName
@@ -206,7 +206,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
 
     if (params?.pageName) {
       const pageData = data.value[0]
-      const siteId = params?.siteId || params?.siteSelector || 'root'
+      const siteId = optionalTrim(params?.siteId) || optionalTrim(params?.siteSelector) || 'root'
       const contentUrl = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages/${encodeURIComponent(pageData.id)}/microsoft.graph.sitePage?$expand=canvasLayout`
 
       logger.info('Making API call to get page content for searched page', {
@@ -254,7 +254,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       }
     }
 
-    const siteId = params?.siteId || params?.siteSelector || 'root'
+    const siteId = optionalTrim(params?.siteId) || optionalTrim(params?.siteSelector) || 'root'
     const pagesWithContent = []
     const nextPageUrl = getGraphNextPageUrl(data)
 
