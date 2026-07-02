@@ -339,12 +339,22 @@ Common patch fields: outputs, end_time, status, error`,
         }
 
         if (params.operation === 'langsmith_create_feedback') {
+          const parseScore = (value: unknown) => {
+            if (value === undefined || value === null || value === '') {
+              return undefined
+            }
+            const parsed = Number(value)
+            if (Number.isNaN(parsed)) {
+              throw new Error(`Invalid score: "${value}" is not a number`)
+            }
+            return parsed
+          }
+
           return {
             apiKey: params.apiKey,
             runId: params.runId,
             key: params.key,
-            score:
-              params.score === '' || params.score === undefined ? undefined : Number(params.score),
+            score: parseScore(params.score),
             value: params.value,
             comment: params.comment,
             correction: parseJsonValue(params.correction, 'correction'),
