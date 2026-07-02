@@ -537,6 +537,541 @@ export interface ClerkRevokeSessionResponse extends ToolResponse {
   }
 }
 
+// Update Organization
+export interface ClerkUpdateOrganizationParams {
+  secretKey: string
+  organizationId: string
+  name?: string
+  slug?: string
+  maxAllowedMemberships?: number
+  adminDeleteEnabled?: boolean
+}
+
+export interface ClerkUpdateOrganizationResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    slug: string | null
+    imageUrl: string | null
+    hasImage: boolean
+    membersCount: number | null
+    pendingInvitationsCount: number | null
+    maxAllowedMemberships: number
+    adminDeleteEnabled: boolean
+    createdBy: string | null
+    createdAt: number
+    updatedAt: number
+    publicMetadata: Record<string, unknown>
+    success: boolean
+  }
+}
+
+// Delete Organization
+export interface ClerkDeleteOrganizationParams {
+  secretKey: string
+  organizationId: string
+}
+
+export interface ClerkDeleteOrganizationResponse extends ToolResponse {
+  output: {
+    id: string
+    object: string
+    deleted: boolean
+    success: boolean
+  }
+}
+
+/**
+ * Clerk Organization Membership object.
+ * `public_user_data` mirrors the OpenAPI spec (richer than the @clerk/backend SDK's
+ * resource class, which omits `username`/`banned`/the deprecated `profile_image_url`).
+ */
+export interface ClerkOrganizationMembershipPublicUserData {
+  user_id: string
+  first_name: string | null
+  last_name: string | null
+  image_url: string
+  has_image: boolean
+  identifier: string | null
+  username?: string | null
+  banned?: boolean
+}
+
+export interface ClerkOrganizationMembership {
+  id: string
+  object: 'organization_membership'
+  role: string
+  role_name?: string
+  permissions: string[]
+  public_metadata: Record<string, unknown>
+  private_metadata?: Record<string, unknown>
+  organization: ClerkOrganization
+  public_user_data: ClerkOrganizationMembershipPublicUserData
+  created_at: number
+  updated_at: number
+}
+
+interface ClerkOrganizationMembershipOutput {
+  id: string
+  role: string
+  roleName: string | null
+  permissions: string[]
+  organizationId: string
+  userId: string
+  firstName: string | null
+  lastName: string | null
+  imageUrl: string | null
+  identifier: string | null
+  username: string | null
+  banned: boolean
+  publicMetadata: Record<string, unknown>
+  createdAt: number
+  updatedAt: number
+}
+
+// List Organization Memberships
+export interface ClerkListOrganizationMembershipsParams {
+  secretKey: string
+  organizationId: string
+  limit?: number
+  offset?: number
+  orderBy?: string
+  role?: string
+}
+
+export interface ClerkListOrganizationMembershipsResponse extends ToolResponse {
+  output: {
+    memberships: ClerkOrganizationMembershipOutput[]
+    totalCount: number
+    success: boolean
+  }
+}
+
+// Add Organization Member (create membership)
+export interface ClerkAddOrganizationMemberParams {
+  secretKey: string
+  organizationId: string
+  userId: string
+  role: string
+}
+
+export interface ClerkAddOrganizationMemberResponse extends ToolResponse {
+  output: ClerkOrganizationMembershipOutput & { success: boolean }
+}
+
+// Update Organization Membership (change role)
+export interface ClerkUpdateOrganizationMembershipParams {
+  secretKey: string
+  organizationId: string
+  userId: string
+  role: string
+}
+
+export interface ClerkUpdateOrganizationMembershipResponse extends ToolResponse {
+  output: ClerkOrganizationMembershipOutput & { success: boolean }
+}
+
+// Remove Organization Member (delete membership)
+export interface ClerkRemoveOrganizationMemberParams {
+  secretKey: string
+  organizationId: string
+  userId: string
+}
+
+export interface ClerkRemoveOrganizationMemberResponse extends ToolResponse {
+  output: ClerkOrganizationMembershipOutput & { success: boolean }
+}
+
+/**
+ * Clerk Organization Invitation object.
+ */
+export interface ClerkOrganizationInvitationPublicUserData {
+  user_id: string
+  first_name: string | null
+  last_name: string | null
+  image_url: string
+  has_image: boolean
+  identifier: string
+}
+
+export interface ClerkOrganizationInvitation {
+  id: string
+  object: 'organization_invitation'
+  email_address: string
+  role: string
+  role_name?: string
+  organization_id: string
+  inviter_id: string | null
+  public_inviter_data: ClerkOrganizationInvitationPublicUserData | null
+  status: 'pending' | 'accepted' | 'revoked' | 'expired'
+  public_metadata: Record<string, unknown>
+  private_metadata?: Record<string, unknown>
+  url: string | null
+  expires_at: number | null
+  created_at: number
+  updated_at: number
+}
+
+interface ClerkOrganizationInvitationOutput {
+  id: string
+  emailAddress: string
+  role: string
+  roleName: string | null
+  organizationId: string
+  inviterId: string | null
+  status: string
+  url: string | null
+  expiresAt: number | null
+  publicMetadata: Record<string, unknown>
+  createdAt: number
+  updatedAt: number
+}
+
+// Create Organization Invitation
+export interface ClerkCreateOrganizationInvitationParams {
+  secretKey: string
+  organizationId: string
+  emailAddress: string
+  role: string
+  inviterUserId?: string
+  redirectUrl?: string
+  expiresInDays?: number
+  publicMetadata?: Record<string, unknown>
+  privateMetadata?: Record<string, unknown>
+  notify?: boolean
+}
+
+export interface ClerkCreateOrganizationInvitationResponse extends ToolResponse {
+  output: ClerkOrganizationInvitationOutput & { success: boolean }
+}
+
+// List Organization Invitations
+export interface ClerkListOrganizationInvitationsParams {
+  secretKey: string
+  organizationId: string
+  status?: 'pending' | 'accepted' | 'revoked' | 'expired'
+  emailAddress?: string
+  limit?: number
+  offset?: number
+}
+
+export interface ClerkListOrganizationInvitationsResponse extends ToolResponse {
+  output: {
+    invitations: ClerkOrganizationInvitationOutput[]
+    totalCount: number
+    success: boolean
+  }
+}
+
+interface ClerkUserModerationOutput {
+  id: string
+  username: string | null
+  firstName: string | null
+  lastName: string | null
+  banned: boolean
+  locked: boolean
+  lockoutExpiresInSeconds: number | null
+  updatedAt: number
+}
+
+// Ban User
+export interface ClerkBanUserParams {
+  secretKey: string
+  userId: string
+}
+
+export interface ClerkBanUserResponse extends ToolResponse {
+  output: ClerkUserModerationOutput & { success: boolean }
+}
+
+// Unban User
+export interface ClerkUnbanUserParams {
+  secretKey: string
+  userId: string
+}
+
+export interface ClerkUnbanUserResponse extends ToolResponse {
+  output: ClerkUserModerationOutput & { success: boolean }
+}
+
+// Lock User
+export interface ClerkLockUserParams {
+  secretKey: string
+  userId: string
+}
+
+export interface ClerkLockUserResponse extends ToolResponse {
+  output: ClerkUserModerationOutput & { success: boolean }
+}
+
+// Unlock User
+export interface ClerkUnlockUserParams {
+  secretKey: string
+  userId: string
+}
+
+export interface ClerkUnlockUserResponse extends ToolResponse {
+  output: ClerkUserModerationOutput & { success: boolean }
+}
+
+/**
+ * Clerk OAuth Access Token object.
+ */
+export interface ClerkOAuthAccessToken {
+  object: 'oauth_access_token'
+  external_account_id: string
+  token: string
+  expires_at: number | null
+  provider: string
+  public_metadata: Record<string, unknown>
+  label: string | null
+  scopes?: string[]
+}
+
+// Get User OAuth Access Token
+export interface ClerkGetUserOauthTokenParams {
+  secretKey: string
+  userId: string
+  provider: string
+}
+
+export interface ClerkGetUserOauthTokenResponse extends ToolResponse {
+  output: {
+    accessTokens: {
+      externalAccountId: string
+      token: string
+      expiresAt: number | null
+      provider: string
+      label: string | null
+      scopes: string[]
+    }[]
+    success: boolean
+  }
+}
+
+/**
+ * Clerk Allowlist/Blocklist Identifier objects.
+ */
+export interface ClerkAllowlistIdentifier {
+  id: string
+  object: 'allowlist_identifier'
+  identifier: string
+  identifier_type: string
+  invitation_id?: string | null
+  instance_id?: string
+  created_at: number
+  updated_at: number
+}
+
+export interface ClerkBlocklistIdentifier {
+  id: string
+  object: 'blocklist_identifier'
+  identifier: string
+  identifier_type: string
+  instance_id?: string
+  created_at: number
+  updated_at: number
+}
+
+interface ClerkAllowlistIdentifierOutput {
+  id: string
+  identifier: string
+  identifierType: string
+  invitationId: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+interface ClerkBlocklistIdentifierOutput {
+  id: string
+  identifier: string
+  identifierType: string
+  createdAt: number
+  updatedAt: number
+}
+
+// List Allowlist Identifiers
+export interface ClerkListAllowlistIdentifiersParams {
+  secretKey: string
+  limit?: number
+  offset?: number
+}
+
+export interface ClerkListAllowlistIdentifiersResponse extends ToolResponse {
+  output: {
+    identifiers: ClerkAllowlistIdentifierOutput[]
+    totalCount: number
+    success: boolean
+  }
+}
+
+// Create Allowlist Identifier
+export interface ClerkCreateAllowlistIdentifierParams {
+  secretKey: string
+  identifier: string
+  notify?: boolean
+}
+
+export interface ClerkCreateAllowlistIdentifierResponse extends ToolResponse {
+  output: ClerkAllowlistIdentifierOutput & { success: boolean }
+}
+
+// Delete Allowlist Identifier
+export interface ClerkDeleteAllowlistIdentifierParams {
+  secretKey: string
+  identifierId: string
+}
+
+export interface ClerkDeleteAllowlistIdentifierResponse extends ToolResponse {
+  output: {
+    id: string
+    object: string
+    deleted: boolean
+    success: boolean
+  }
+}
+
+// List Blocklist Identifiers
+export interface ClerkListBlocklistIdentifiersParams {
+  secretKey: string
+  limit?: number
+  offset?: number
+}
+
+export interface ClerkListBlocklistIdentifiersResponse extends ToolResponse {
+  output: {
+    identifiers: ClerkBlocklistIdentifierOutput[]
+    totalCount: number
+    success: boolean
+  }
+}
+
+// Create Blocklist Identifier
+export interface ClerkCreateBlocklistIdentifierParams {
+  secretKey: string
+  identifier: string
+}
+
+export interface ClerkCreateBlocklistIdentifierResponse extends ToolResponse {
+  output: ClerkBlocklistIdentifierOutput & { success: boolean }
+}
+
+// Delete Blocklist Identifier
+export interface ClerkDeleteBlocklistIdentifierParams {
+  secretKey: string
+  identifierId: string
+}
+
+export interface ClerkDeleteBlocklistIdentifierResponse extends ToolResponse {
+  output: {
+    id: string
+    object: string
+    deleted: boolean
+    success: boolean
+  }
+}
+
+/**
+ * Clerk JWT Template object. The signing key is write-only and never echoed back.
+ */
+export interface ClerkJwtTemplate {
+  id: string
+  object: 'jwt_template'
+  name: string
+  claims: Record<string, unknown>
+  lifetime: number
+  allowed_clock_skew: number
+  custom_signing_key: boolean
+  signing_algorithm: string
+  created_at: number
+  updated_at: number
+}
+
+interface ClerkJwtTemplateOutput {
+  id: string
+  name: string
+  claims: Record<string, unknown>
+  lifetime: number
+  allowedClockSkew: number
+  customSigningKey: boolean
+  signingAlgorithm: string
+  createdAt: number
+  updatedAt: number
+}
+
+// List JWT Templates
+export interface ClerkListJwtTemplatesParams {
+  secretKey: string
+}
+
+export interface ClerkListJwtTemplatesResponse extends ToolResponse {
+  output: {
+    templates: ClerkJwtTemplateOutput[]
+    totalCount: number
+    success: boolean
+  }
+}
+
+// Get JWT Template
+export interface ClerkGetJwtTemplateParams {
+  secretKey: string
+  templateId: string
+}
+
+export interface ClerkGetJwtTemplateResponse extends ToolResponse {
+  output: ClerkJwtTemplateOutput & { success: boolean }
+}
+
+/**
+ * Clerk Actor Token object. `token`/`url` are only present on creation,
+ * not once the token has been consumed or revoked.
+ */
+export interface ClerkActorToken {
+  id: string
+  object: 'actor_token'
+  status: 'pending' | 'accepted' | 'revoked'
+  user_id: string
+  actor: Record<string, unknown>
+  token?: string | null
+  url?: string | null
+  created_at: number
+  updated_at: number
+}
+
+interface ClerkActorTokenOutput {
+  id: string
+  status: string
+  userId: string
+  actor: Record<string, unknown>
+  token: string | null
+  url: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+// Create Actor Token
+export interface ClerkCreateActorTokenParams {
+  secretKey: string
+  userId: string
+  actor: Record<string, unknown>
+  expiresInSeconds?: number
+  sessionMaxDurationInSeconds?: number
+}
+
+export interface ClerkCreateActorTokenResponse extends ToolResponse {
+  output: ClerkActorTokenOutput & { success: boolean }
+}
+
+// Revoke Actor Token
+export interface ClerkRevokeActorTokenParams {
+  secretKey: string
+  actorTokenId: string
+}
+
+export interface ClerkRevokeActorTokenResponse extends ToolResponse {
+  output: ClerkActorTokenOutput & { success: boolean }
+}
+
 // Generic response type for the block
 export type ClerkResponse =
   | ClerkListUsersResponse
@@ -547,6 +1082,29 @@ export type ClerkResponse =
   | ClerkListOrganizationsResponse
   | ClerkGetOrganizationResponse
   | ClerkCreateOrganizationResponse
+  | ClerkUpdateOrganizationResponse
+  | ClerkDeleteOrganizationResponse
   | ClerkListSessionsResponse
   | ClerkGetSessionResponse
   | ClerkRevokeSessionResponse
+  | ClerkListOrganizationMembershipsResponse
+  | ClerkAddOrganizationMemberResponse
+  | ClerkUpdateOrganizationMembershipResponse
+  | ClerkRemoveOrganizationMemberResponse
+  | ClerkCreateOrganizationInvitationResponse
+  | ClerkListOrganizationInvitationsResponse
+  | ClerkBanUserResponse
+  | ClerkUnbanUserResponse
+  | ClerkLockUserResponse
+  | ClerkUnlockUserResponse
+  | ClerkGetUserOauthTokenResponse
+  | ClerkListAllowlistIdentifiersResponse
+  | ClerkCreateAllowlistIdentifierResponse
+  | ClerkDeleteAllowlistIdentifierResponse
+  | ClerkListBlocklistIdentifiersResponse
+  | ClerkCreateBlocklistIdentifierResponse
+  | ClerkDeleteBlocklistIdentifierResponse
+  | ClerkListJwtTemplatesResponse
+  | ClerkGetJwtTemplateResponse
+  | ClerkCreateActorTokenResponse
+  | ClerkRevokeActorTokenResponse
