@@ -923,7 +923,19 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
         { label: 'True (Public)', id: 'true' },
       ],
       value: () => 'false',
-      condition: { field: 'operation', value: ['storage_create_bucket', 'storage_update_bucket'] },
+      condition: { field: 'operation', value: 'storage_create_bucket' },
+    },
+    {
+      id: 'updateIsPublic',
+      title: 'Public Bucket',
+      type: 'dropdown',
+      options: [
+        { label: 'Keep Current', id: '' },
+        { label: 'False (Private)', id: 'false' },
+        { label: 'True (Public)', id: 'true' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'storage_update_bucket' },
     },
     {
       id: 'fileSizeLimit',
@@ -1065,6 +1077,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           functionBody,
           functionHeaders,
           method,
+          updateIsPublic,
           ...rest
         } = params
 
@@ -1237,6 +1250,16 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           result.isPublic = parsedIsPublic
         }
 
+        // "Keep Current" (empty string) means the caller didn't choose to
+        // override visibility — omit `isPublic` entirely so the update
+        // tool preserves the bucket's existing public/private setting
+        // instead of defaulting to false.
+        if (operation === 'storage_update_bucket' && updateIsPublic !== undefined) {
+          if (updateIsPublic === 'true' || updateIsPublic === 'false') {
+            result.isPublic = updateIsPublic === 'true'
+          }
+        }
+
         if (normalizedFileData !== undefined) {
           result.fileData = normalizedFileData
         }
@@ -1291,6 +1314,11 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     search: { type: 'string', description: 'Search term for filtering' },
     expiresIn: { type: 'number', description: 'Expiration time in seconds for signed URL' },
     isPublic: { type: 'boolean', description: 'Whether bucket should be public' },
+    updateIsPublic: {
+      type: 'string',
+      description:
+        'Visibility override for bucket update: "" keeps the current value, "true"/"false" overrides it',
+    },
     fileSizeLimit: { type: 'number', description: 'Maximum file size in bytes' },
     allowedMimeTypes: { type: 'array', description: 'Array of allowed MIME types' },
   },

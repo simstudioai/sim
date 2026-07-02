@@ -107,18 +107,23 @@ export const storageUpdateBucketTool: ToolConfig<
 
       const current = await currentResponse.json()
 
+      // Block subBlocks for a shared field can forward an empty string
+      // (e.g. an untouched short-input) rather than omitting the key
+      // entirely — treat that the same as "not provided" so it falls
+      // back to the bucket's current value instead of coercing to 0/false.
+      const hasValue = (value: unknown): boolean =>
+        value !== undefined && value !== null && value !== ''
+
       const payload: any = {
         id: params.bucket,
         name: params.bucket,
-        public: params.isPublic !== undefined ? params.isPublic : Boolean(current.public),
-        file_size_limit:
-          params.fileSizeLimit !== undefined
-            ? Number(params.fileSizeLimit)
-            : (current.file_size_limit ?? null),
-        allowed_mime_types:
-          params.allowedMimeTypes !== undefined
-            ? params.allowedMimeTypes
-            : (current.allowed_mime_types ?? null),
+        public: hasValue(params.isPublic) ? params.isPublic : Boolean(current.public),
+        file_size_limit: hasValue(params.fileSizeLimit)
+          ? Number(params.fileSizeLimit)
+          : (current.file_size_limit ?? null),
+        allowed_mime_types: hasValue(params.allowedMimeTypes)
+          ? params.allowedMimeTypes
+          : (current.allowed_mime_types ?? null),
       }
 
       const updateResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {

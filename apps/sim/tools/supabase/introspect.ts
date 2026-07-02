@@ -57,6 +57,7 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
       apikey: params.apiKey,
       Authorization: `Bearer ${params.apiKey}`,
       Accept: 'application/openapi+json',
+      ...(params.schema ? { 'Accept-Profile': params.schema } : {}),
     }),
   },
 
