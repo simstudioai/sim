@@ -509,10 +509,9 @@ Do not include any explanations, markdown formatting, or other text outside the 
         if (op === 'list_users' && params.groupId) result.groupId = params.groupId
         if ((op === 'create_collection' || op === 'update_collection') && params.collectionName)
           result.name = params.collectionName
-        if (
-          (op === 'create_collection' || op === 'update_collection') &&
-          params.collectionDescription
-        )
+        if (op === 'create_collection' && params.collectionDescription)
+          result.description = params.collectionDescription
+        if (op === 'update_collection' && params.collectionDescription != null)
           result.description = params.collectionDescription
         if ((op === 'create_group' || op === 'update_group') && params.groupName)
           result.name = params.groupName
