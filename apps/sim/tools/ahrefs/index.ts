@@ -3,6 +3,8 @@ import { backlinksStatsTool } from '@/tools/ahrefs/backlinks_stats'
 import { brokenBacklinksTool } from '@/tools/ahrefs/broken_backlinks'
 import { domainRatingTool } from '@/tools/ahrefs/domain_rating'
 import { keywordOverviewTool } from '@/tools/ahrefs/keyword_overview'
+import { metricsTool } from '@/tools/ahrefs/metrics'
+import { organicCompetitorsTool } from '@/tools/ahrefs/organic_competitors'
 import { organicKeywordsTool } from '@/tools/ahrefs/organic_keywords'
 import { referringDomainsTool } from '@/tools/ahrefs/referring_domains'
 import { topPagesTool } from '@/tools/ahrefs/top_pages'
@@ -15,3 +17,7 @@ export const ahrefsOrganicKeywordsTool = organicKeywordsTool
 export const ahrefsTopPagesTool = topPagesTool
 export const ahrefsKeywordOverviewTool = keywordOverviewTool
 export const ahrefsBrokenBacklinksTool = brokenBacklinksTool
+export const ahrefsMetricsTool = metricsTool
+export const ahrefsOrganicCompetitorsTool = organicCompetitorsTool
+
+export * from '@/tools/ahrefs/types'

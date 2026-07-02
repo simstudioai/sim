@@ -1,6 +1,9 @@
 import type { AhrefsBacklinksParams, AhrefsBacklinksResponse } from '@/tools/ahrefs/types'
 import type { ToolConfig } from '@/tools/types'
 
+const SELECT_FIELDS =
+  'url_from,url_to,anchor,domain_rating_source,is_dofollow,first_seen,last_visited'
+
 export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksResponse> = {
   id: 'ahrefs_backlinks',
   name: 'Ahrefs Backlinks',
@@ -21,25 +24,20 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match). Example: "domain"',
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains, default), exact (exact URL match). Example: "domain"',
     },
-    date: {
+    history: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+      visibility: 'user-or-llm',
+      description:
+        'Historical scope: "live" (currently live backlinks), "all_time" (default, includes lost backlinks), or "since:YYYY-MM-DD" (backlinks found since a date).',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return. Example: 50 (default: 100)',
-    },
-    offset: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of results to skip for pagination. Example: 100',
+      description: 'Maximum number of results to return. Example: 50 (default: 1000)',
     },
     apiKey: {
       type: 'string',
@@ -51,14 +49,12 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
 
   request: {
     url: (params) => {
-      const url = new URL('https://api.ahrefs.com/v3/site-explorer/backlinks')
+      const url = new URL('https://api.ahrefs.com/v3/site-explorer/all-backlinks')
       url.searchParams.set('target', params.target)
-      // Date is required - default to today if not provided
-      const date = params.date || new Date().toISOString().split('T')[0]
-      url.searchParams.set('date', date)
+      url.searchParams.set('select', SELECT_FIELDS)
       if (params.mode) url.searchParams.set('mode', params.mode)
+      if (params.history) url.searchParams.set('history', params.history)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
-      if (params.offset) url.searchParams.set('offset', String(params.offset))
       return url.toString()
     },
     method: 'GET',
@@ -79,8 +75,8 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
       urlFrom: link.url_from || '',
       urlTo: link.url_to || '',
       anchor: link.anchor || '',
-      domainRatingSource: link.domain_rating_source ?? link.domain_rating ?? 0,
-      isDofollow: link.is_dofollow ?? link.dofollow ?? false,
+      domainRatingSource: link.domain_rating_source ?? 0,
+      isDofollow: link.is_dofollow ?? false,
       firstSeen: link.first_seen || '',
       lastVisited: link.last_visited || '',
     }))
