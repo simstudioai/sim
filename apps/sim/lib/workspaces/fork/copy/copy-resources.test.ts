@@ -10,8 +10,15 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockIncrementStorageUsage } = vi.hoisted(() => ({
+  mockIncrementStorageUsage: vi.fn(),
+}))
+
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/billing/storage', () => ({
+  incrementStorageUsage: mockIncrementStorageUsage,
+}))
 
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -113,6 +120,24 @@ describe('copyForkResourceContent', () => {
       workspaceId: 'child-ws',
       originalName: 'report.pdf',
     })
+  })
+
+  it('#1 never touches storage accounting for copied KB document blobs (mirrors the KB upload path)', async () => {
+    // The normal KB upload path never increments `storage_used_bytes` (and embeddings are
+    // uncounted DB rows), so a fork-copied KB blob must not be charged either - copied KB
+    // bytes are only headroom-checked pre-fork, exactly like the multipart-initiate check.
+    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result.copied).toBe(1)
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
+    expect(mockIncrementStorageUsage).not.toHaveBeenCalled()
   })
 
   it('#4 re-reads a copied skill body post-commit and rewrites it via db.update (never from payload)', async () => {
@@ -352,6 +377,101 @@ describe('copyForkResourceContainers skill copy', () => {
     // The content plan carries ONLY the child id - no skill body text crosses the job payload.
     expect(result.contentPlan.skills).toEqual([{ childId }])
     expect(result.names.skills).toEqual(['My Skill'])
+  })
+})
+
+describe('copyForkResourceContainers knowledge-base tag definitions', () => {
+  /** Sequential tx mock: each select resolves the next queued row set; inserts are captured per call. */
+  function makeKbTx(selects: Array<Array<Record<string, unknown>>>) {
+    let call = 0
+    const inserts: Array<Array<Record<string, unknown>>> = []
+    const tx = {
+      select: () => ({
+        from: () => ({ where: () => Promise.resolve(selects[call++] ?? []) }),
+      }),
+      insert: () => ({
+        values: (rows: Array<Record<string, unknown>>) => {
+          inserts.push(rows)
+          return Promise.resolve()
+        },
+      }),
+    }
+    return { tx: tx as unknown as DbOrTx, inserts }
+  }
+
+  const kbSelection = {
+    customTools: [],
+    skills: [],
+    workflowMcpServers: [],
+    tables: [],
+    knowledgeBases: ['kb-1'],
+  }
+
+  const sourceBase = { id: 'kb-1', name: 'Docs KB', workspaceId: 'src-ws', deletedAt: null }
+
+  it('copies the source KB tag definitions to the child KB with fresh ids (other columns verbatim)', async () => {
+    const { tx, inserts } = makeKbTx([
+      [sourceBase],
+      [
+        {
+          id: 'tag-1',
+          knowledgeBaseId: 'kb-1',
+          tagSlot: 'tag1',
+          displayName: 'Category',
+          fieldType: 'text',
+        },
+        {
+          id: 'tag-2',
+          knowledgeBaseId: 'kb-1',
+          tagSlot: 'boolean1',
+          displayName: 'Reviewed',
+          fieldType: 'boolean',
+        },
+      ],
+    ])
+
+    const result = await copyForkResourceContainers({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now: new Date(),
+      selection: kbSelection,
+      workflowIdMap: new Map(),
+    })
+
+    const childKbId = result.idMap.get('knowledge_base')?.get('kb-1')
+    expect(childKbId).toBeTruthy()
+    // insert #0 is the KB row; insert #1 is the tag-definition batch.
+    expect(inserts).toHaveLength(2)
+    const tagRows = inserts[1]
+    expect(tagRows).toHaveLength(2)
+    for (const row of tagRows) {
+      expect(row.knowledgeBaseId).toBe(childKbId)
+      expect(row.id).not.toBe('tag-1')
+      expect(row.id).not.toBe('tag-2')
+    }
+    expect(tagRows.map((row) => [row.tagSlot, row.displayName, row.fieldType])).toEqual([
+      ['tag1', 'Category', 'text'],
+      ['boolean1', 'Reviewed', 'boolean'],
+    ])
+  })
+
+  it('no-ops the tag-definition copy for a KB with zero definitions', async () => {
+    const { tx, inserts } = makeKbTx([[sourceBase], []])
+
+    await copyForkResourceContainers({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now: new Date(),
+      selection: kbSelection,
+      workflowIdMap: new Map(),
+    })
+
+    // Only the KB row itself is inserted - no empty tag-definition insert.
+    expect(inserts).toHaveLength(1)
   })
 })
 

@@ -75,6 +75,14 @@ function clearFailedSubBlockReferences(
  * when a reference-clear phase threw - placeholders were then NOT dropped - and `cleared` is 0 in
  * that case, so the report never claims references it did not actually clear. On success `cleared`
  * is the count of failed resources whose references were cleared.
+ *
+ * Storage accounting: this cleanup never decrements storage usage because it never removes
+ * anything that was counted. Copied file blobs are the only counted copies (incremented in
+ * `executeForkFileBlobCopies` only after the blob lands), and a failed file's blob never
+ * landed - its metadata row is intentionally left re-uploadable, and nothing was charged. The
+ * dropped table/KB/document placeholders are DB rows the upload path never counts, and any KB
+ * blobs copied before their KB failed are left in storage (rows only are dropped here) but
+ * uncounted - mirroring the KB upload path, which never counts KB blobs.
  */
 export async function clearFailedForkResourceReferences(params: {
   childWorkspaceId: string
