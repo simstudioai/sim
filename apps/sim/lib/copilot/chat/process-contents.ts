@@ -6,6 +6,7 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
   buildVfsFolderPathMap,
@@ -584,7 +585,6 @@ async function processExecutionLogFromDb(
         startedAt: workflowExecutionLogs.startedAt,
         endedAt: workflowExecutionLogs.endedAt,
         totalDurationMs: workflowExecutionLogs.totalDurationMs,
-        executionData: workflowExecutionLogs.executionData,
         costTotal: workflowExecutionLogs.costTotal,
         workflowName: workflow.name,
       })
@@ -610,13 +610,12 @@ async function processExecutionLogFromDb(
       }
     }
 
-    // Heavy execution data may live in object storage; resolve the pointer.
-    const { materializeExecutionData } = await import('@/lib/logs/execution/trace-store')
-    const executionData = (await materializeExecutionData(
-      log.executionData as Record<string, unknown> | null,
-      { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
-    )) as any
-
+    // Deliberately no execution-data materialization here: a run's full trace
+    // (every block's input/output, nested tool-call spans) can be huge and
+    // would inline directly into the prompt, repeatedly blowing the context
+    // window. Send a compact summary instead and point the model at
+    // `query_logs`, which already supports incremental disclosure (overview →
+    // full → grep) for exactly this case.
     const summary = {
       id: log.id,
       workflowId: log.workflowId,
@@ -627,13 +626,8 @@ async function processExecutionLogFromDb(
       endedAt: log.endedAt?.toISOString?.() || (log.endedAt ? String(log.endedAt) : null),
       totalDurationMs: log.totalDurationMs ?? null,
       workflowName: log.workflowName || '',
-      executionData: executionData
-        ? {
-            traceSpans: executionData.traceSpans || undefined,
-            errorDetails: executionData.errorDetails || undefined,
-          }
-        : undefined,
       cost: log.costTotal != null ? { total: Number(log.costTotal) } : undefined,
+      note: `Trace not included here. Call ${QueryLogs.id} with executionId: '${log.executionId}' to inspect this run — view: 'overview' for the timing/cost tree, view: 'full' for a block's input/output (scope with blockId or blockName), or pattern to grep the trace for an error.`,
     }
 
     const content = JSON.stringify(summary)
