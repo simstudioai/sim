@@ -564,7 +564,10 @@ Return ONLY the JSON object - no explanations, no extra text.`,
   },
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
-    id: { type: 'string', description: 'Contact ID (create/update operations)' },
+    id: {
+      type: 'string',
+      description: 'Contact ID (create/update operations) or template ID (get transactional email)',
+    },
     contacts: {
       type: 'json',
       description:
