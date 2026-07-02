@@ -5,9 +5,11 @@ import type {
 } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
+const INACTIVE_VALUES: unknown[] = [false, 'false', 0, '0']
+
 function toActiveFlag(active: CreateTemplateVersionParams['active']): 0 | 1 {
   if (active === undefined) return 1
-  return active === false || (active as unknown) === 'false' ? 0 : 1
+  return INACTIVE_VALUES.includes(active) ? 0 : 1
 }
 
 export const sendGridCreateTemplateVersionTool: ToolConfig<
