@@ -53,6 +53,24 @@ describe('MothershipHandoffStorage', () => {
     expect(localStorage.getItem(STORAGE_KEYS.MOTHERSHIP_HANDOFF)).toBeNull()
   })
 
+  it('tombstones a legacy entry (message + timestamp, no workspaceId) rather than firing it', () => {
+    // The old pre-scoping format could be sitting in storage across a deploy —
+    // it must be discarded, not attributed to the current workspace.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      localStorage.setItem(
+        STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+        JSON.stringify({ message: 'fix it', timestamp: Date.now() })
+      )
+
+      expect(MothershipHandoffStorage.consume(WS)).toBeNull()
+      expect(localStorage.getItem(STORAGE_KEYS.MOTHERSHIP_HANDOFF)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('drops and clears a handoff older than maxAge', () => {
     vi.useFakeTimers()
     try {
