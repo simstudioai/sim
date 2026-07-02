@@ -336,13 +336,16 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    * Chat" on an errored log viewed from a different route) and auto-sends it
    * into this fresh chat, tagging the run so Sim can inspect the failure. Only
    * the cross-route path lands here — when a chat is already mounted the event
-   * above delivers directly. `consume` clears the entry atomically, so it fires
-   * at most once even across a StrictMode remount or reload.
+   * above delivers directly. Gated to the new-chat surface (`!chatId`): a
+   * handoff always targets a fresh chat, so an existing `/chat/[chatId]` mount
+   * must never claim it if navigation races. `consume` clears the entry
+   * atomically, so it fires at most once even across a StrictMode remount.
    */
   useEffect(() => {
+    if (chatId) return
     const handoff = MothershipHandoffStorage.consume()
     if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
-  }, [sendMessage])
+  }, [chatId, sendMessage])
 
   function resolveResourceFromContext(
     context: ChatContext
