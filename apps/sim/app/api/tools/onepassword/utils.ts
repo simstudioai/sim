@@ -497,15 +497,21 @@ export function findItemFileAttributes(item: Item, fileId: string): FileAttribut
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function connectItemToSdkItem(connectItem: Record<string, any>, existing: Item): Item {
+  const existingFieldsById = new Map((existing.fields ?? []).map((f) => [f.id, f]))
+  const existingSectionsById = new Map((existing.sections ?? []).map((s) => [s.id, s]))
+
   return {
     ...existing,
     id: existing.id,
     vaultId: existing.vaultId,
-    title: connectItem.title ?? existing.title,
+    title: connectItem.title || existing.title,
     category: connectItem.category ? toSdkCategory(connectItem.category) : existing.category,
     fields: Array.isArray(connectItem.fields)
       ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
         connectItem.fields.map((f: Record<string, any>) => ({
+          // Preserve any SDK-only metadata (e.g. password-generation `details`)
+          // on fields that already existed — only brand-new fields start bare.
+          ...(f.id ? existingFieldsById.get(f.id) : undefined),
           id: f.id || generateId().slice(0, 8),
           title: f.label || f.title || '',
           fieldType: toSdkFieldType(f.type || 'STRING'),
@@ -516,6 +522,7 @@ export function connectItemToSdkItem(connectItem: Record<string, any>, existing:
     sections: Array.isArray(connectItem.sections)
       ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
         connectItem.sections.map((s: Record<string, any>) => ({
+          ...(s.id ? existingSectionsById.get(s.id) : undefined),
           id: s.id || '',
           title: s.label || s.title || '',
         }))
