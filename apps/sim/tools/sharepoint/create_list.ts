@@ -71,7 +71,7 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
   request: {
     url: (params) => {
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`
+      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists`
     },
     method: 'POST',
     headers: (params) => ({

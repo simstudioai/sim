@@ -62,7 +62,7 @@ export const deleteListItemTool: ToolConfig<
       if (!itemId) throw new Error('itemId must be provided')
       const listSegment = encodeURIComponent(listId)
       const itemSegment = encodeURIComponent(itemId)
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items/${itemSegment}`
+      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items/${itemSegment}`
     },
     method: 'DELETE',
     headers: (params) => ({

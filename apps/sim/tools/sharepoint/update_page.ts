@@ -63,10 +63,10 @@ export const updatePageTool: ToolConfig<SharepointToolParams, SharepointUpdatePa
 
   request: {
     url: (params) => {
-      const siteId = optionalTrim(params.siteSelector) || optionalTrim(params.siteId) || 'root'
+      const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
       const pageId = optionalTrim(params.pageId)
       if (!pageId) throw new Error('pageId must be provided')
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${encodeURIComponent(pageId)}/microsoft.graph.sitePage`
+      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages/${encodeURIComponent(pageId)}/microsoft.graph.sitePage`
     },
     method: 'PATCH',
     headers: (params) => ({

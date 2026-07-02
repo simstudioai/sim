@@ -62,9 +62,9 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector)
 
       if (groupId) {
-        baseUrl = `https://graph.microsoft.com/v1.0/groups/${groupId}/sites/root`
+        baseUrl = `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}/sites/root`
       } else if (siteId) {
-        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}`
+        baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}`
       } else {
         baseUrl = 'https://graph.microsoft.com/v1.0/sites?search=*'
       }

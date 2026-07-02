@@ -73,10 +73,11 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       }
 
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
+      const encodedSiteId = encodeURIComponent(siteId)
       const listId = optionalTrim(params.listId)
 
       if (!listId) {
-        const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`
+        const baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/lists`
         const url = new URL(baseUrl)
         const finalUrl = url.toString()
         logger.info('SharePoint List All Lists URL', {
@@ -91,7 +92,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
 
       if (wantsItems && !params.includeColumns) {
         const itemsUrl = new URL(
-          `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items`
+          `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/lists/${listSegment}/items`
         )
         itemsUrl.searchParams.set('$expand', 'fields')
         const finalItemsUrl = itemsUrl.toString()
@@ -103,7 +104,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         return finalItemsUrl
       }
 
-      const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}`
+      const baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/lists/${listSegment}`
       const url = new URL(baseUrl)
       const expandParts: string[] = []
       if (params.includeColumns) expandParts.push('columns')

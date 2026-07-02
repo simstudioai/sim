@@ -57,7 +57,7 @@ export const getListItemTool: ToolConfig<SharepointToolParams, SharepointGetList
       const listSegment = encodeURIComponent(listId)
       const itemSegment = encodeURIComponent(itemId)
       const url = new URL(
-        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items/${itemSegment}`
+        `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items/${itemSegment}`
       )
       url.searchParams.set('$expand', 'fields')
       return url.toString()

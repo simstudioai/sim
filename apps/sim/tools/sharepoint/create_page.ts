@@ -61,8 +61,8 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
 
   request: {
     url: (params) => {
-      const siteId = optionalTrim(params.siteSelector) || optionalTrim(params.siteId) || 'root'
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/pages`
+      const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
+      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages`
     },
     method: 'POST',
     headers: (params) => ({

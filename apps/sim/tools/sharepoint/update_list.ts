@@ -69,7 +69,7 @@ export const updateListItemTool: ToolConfig<
         throw new Error('listId must be provided')
       }
       const listSegment = encodeURIComponent(listId)
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items/${encodeURIComponent(itemId)}/fields`
+      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items/${encodeURIComponent(itemId)}/fields`
     },
     method: 'PATCH',
     headers: (params) => ({

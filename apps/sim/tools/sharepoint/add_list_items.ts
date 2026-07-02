@@ -77,7 +77,7 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
         throw new Error('listId must be provided')
       }
       const listSegment = encodeURIComponent(listId)
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items`
+      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items`
     },
     method: 'POST',
     headers: (params) => ({
