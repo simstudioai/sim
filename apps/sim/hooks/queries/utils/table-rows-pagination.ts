@@ -20,8 +20,11 @@ export function countLoadedTableRows(pages: readonly TableRowsPageLike[]): numbe
  * Whether more rows may exist past the fetched pages. A page is terminal only when it is
  * empty or when page 0's `COUNT(*)` is already covered — never when it is merely shorter
  * than the requested page size, so a short server page can never be misread as end-of-table.
- * `totalCount` is advisory (computed in a separate transaction from the page read); the
- * empty-page rule is the correctness backstop, costing at most one extra request.
+ *
+ * `totalCount` is advisory (computed in a separate transaction from the page read). A
+ * stale-high count self-corrects via the empty-page rule at the cost of one extra request;
+ * a stale-low count (rows deleted after page 0's COUNT) stops the drain early — accepted,
+ * since the view is already stale and the run-stream/interval invalidations refetch it.
  */
 export function hasMoreTableRows(pages: readonly TableRowsPageLike[]): boolean {
   const lastPage = pages[pages.length - 1]
