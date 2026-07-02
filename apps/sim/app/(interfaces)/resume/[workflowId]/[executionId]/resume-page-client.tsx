@@ -103,28 +103,50 @@ function getBlockNameFromSnapshot(
   }
 }
 
+const DISPLAY_VALUE_PREVIEW_MAX_CHARS = 5000
+
+function truncateForPreview(text: string): { text: string; truncated: boolean } {
+  if (text.length <= DISPLAY_VALUE_PREVIEW_MAX_CHARS) return { text, truncated: false }
+  return { text: text.slice(0, DISPLAY_VALUE_PREVIEW_MAX_CHARS), truncated: true }
+}
+
 function renderStructuredValuePreview(value: unknown) {
   if (value === null || value === undefined) {
     return <span className='text-[12px] text-[var(--text-muted)]'>—</span>
   }
 
   if (typeof value === 'object') {
+    const { text, truncated } = truncateForPreview(JSON.stringify(value, null, 2))
     return (
       <div className='min-w-[220px]'>
         <Code.Viewer
-          code={JSON.stringify(value, null, 2)}
+          code={truncated ? `${text}\n…` : text}
           language='json'
           wrapText
           className='max-h-[220px]'
         />
+        {truncated && (
+          <p className='mt-1 text-[11px] text-[var(--text-muted)]'>
+            Value truncated for preview ({DISPLAY_VALUE_PREVIEW_MAX_CHARS.toLocaleString()} of{' '}
+            {JSON.stringify(value).length.toLocaleString()} characters shown).
+          </p>
+        )}
       </div>
     )
   }
 
-  const stringValue = String(value)
+  const { text: stringValue, truncated } = truncateForPreview(String(value))
   return (
-    <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] leading-4 [white-space:pre-wrap] [word-break:break-word]'>
-      {stringValue}
+    <div className='max-w-full'>
+      <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] leading-4 [white-space:pre-wrap] [word-break:break-word]'>
+        {truncated ? `${stringValue}…` : stringValue}
+      </div>
+      {truncated && (
+        <p className='mt-1 text-[11px] text-[var(--text-muted)]'>
+          Value truncated for preview ({DISPLAY_VALUE_PREVIEW_MAX_CHARS.toLocaleString()} of{' '}
+          {String(value).length.toLocaleString()} characters shown).
+        </p>
+      )}
     </div>
   )
 }
@@ -516,50 +538,60 @@ export default function ResumeExecutionPage({
 
   const handleResume = useCallback(
     async () => {
-      if (!selectedContextId || !selectedDetail) return
+      if (!selectedContextId || !selectedDetail) {
+        setError('No pause point is selected. Refresh and try again.')
+        return
+      }
       setLoadingAction(true)
       setError(null)
       setMessage(null)
       let resumePayload: any
-      if (isHumanMode && hasInputFormat) {
-        const errors: Record<string, string> = {}
-        const submission: Record<string, any> = {}
-        for (const field of inputFormatFields) {
-          const rawValue = formValues[field.name] ?? ''
-          const hasValue =
-            field.type === 'boolean'
-              ? rawValue === 'true' || rawValue === 'false'
-              : rawValue.trim().length > 0 && rawValue !== '__unset__'
-          if (!hasValue || rawValue === '__unset__') {
-            if (field.required) errors[field.name] = 'This field is required.'
-            continue
+      try {
+        if (isHumanMode && hasInputFormat) {
+          const errors: Record<string, string> = {}
+          const submission: Record<string, any> = {}
+          for (const field of inputFormatFields) {
+            const rawValue = formValues[field.name] ?? ''
+            const hasValue =
+              field.type === 'boolean'
+                ? rawValue === 'true' || rawValue === 'false'
+                : rawValue.trim().length > 0 && rawValue !== '__unset__'
+            if (!hasValue || rawValue === '__unset__') {
+              if (field.required) errors[field.name] = 'This field is required.'
+              continue
+            }
+            const { value, error: parseError } = parseFormValue(field, rawValue)
+            if (parseError) {
+              errors[field.name] = parseError
+              continue
+            }
+            if (value !== undefined) submission[field.name] = value
           }
-          const { value, error: parseError } = parseFormValue(field, rawValue)
-          if (parseError) {
-            errors[field.name] = parseError
-            continue
-          }
-          if (value !== undefined) submission[field.name] = value
-        }
-        if (Object.keys(errors).length > 0) {
-          setFormErrors(errors)
-          setLoadingAction(false)
-          return
-        }
-        setFormErrors({})
-        resumePayload = { submission }
-      } else {
-        let parsedInput: any
-        if (resumeInput && resumeInput.trim().length > 0) {
-          try {
-            parsedInput = JSON.parse(resumeInput)
-          } catch {
-            setError('Resume input must be valid JSON.')
+          if (Object.keys(errors).length > 0) {
+            setFormErrors(errors)
+            setError('Fix the highlighted fields before resuming.')
             setLoadingAction(false)
             return
           }
+          setFormErrors({})
+          resumePayload = { submission }
+        } else {
+          let parsedInput: any
+          if (resumeInput && resumeInput.trim().length > 0) {
+            try {
+              parsedInput = JSON.parse(resumeInput)
+            } catch {
+              setError('Resume input must be valid JSON.')
+              setLoadingAction(false)
+              return
+            }
+          }
+          resumePayload = parsedInput
         }
-        resumePayload = parsedInput
+      } catch (err: any) {
+        setError(err?.message || 'Failed to prepare resume payload.')
+        setLoadingAction(false)
+        return
       }
       try {
         const { ok, payload } = await resumeMutation.mutateAsync({
