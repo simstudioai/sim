@@ -156,3 +156,186 @@ export function coercePiiLanguage(value: string | undefined): PIILanguage | unde
     ? (value as PIILanguage)
     : undefined
 }
+
+/**
+ * Entity types every served language recognizes: Presidio's global pattern
+ * recognizers, the spaCy NER entities (PERSON/LOCATION/NRP), and the native VIN
+ * recognizer (registered under every language in `apps/pii/server.py`).
+ */
+const GLOBAL_PII_ENTITIES: readonly PIIEntityType[] = [
+  'PERSON',
+  'LOCATION',
+  'NRP',
+  'CREDIT_CARD',
+  'CRYPTO',
+  'DATE_TIME',
+  'EMAIL_ADDRESS',
+  'IBAN_CODE',
+  'IP_ADDRESS',
+  'PHONE_NUMBER',
+  'URL',
+  'MEDICAL_LICENSE',
+  'VIN',
+]
+
+/**
+ * Entity types each language recognizes, mirroring the recognizer registration in
+ * `apps/pii/server.py`: globals + NER + VIN everywhere, plus the locale-specific
+ * id recognizers under the language they're registered for (US/UK/AU/IN/SG ids
+ * are English; es/it/pl/fi carry only their own national ids). Keep in sync with
+ * the image — a stale entry only no-ops (redaction fails safe), it never leaks.
+ * `/supportedentities` is the authoritative source if this ever needs to go live.
+ */
+export const PII_ENTITIES_BY_LANGUAGE: Record<PIILanguage, ReadonlySet<PIIEntityType>> = {
+  en: new Set<PIIEntityType>([
+    ...GLOBAL_PII_ENTITIES,
+    'US_SSN',
+    'US_PASSPORT',
+    'US_DRIVER_LICENSE',
+    'US_BANK_NUMBER',
+    'US_ITIN',
+    'UK_NHS',
+    'UK_NINO',
+    'AU_ABN',
+    'AU_ACN',
+    'AU_TFN',
+    'AU_MEDICARE',
+    'IN_PAN',
+    'IN_AADHAAR',
+    'IN_VEHICLE_REGISTRATION',
+    'IN_VOTER',
+    'IN_PASSPORT',
+    'SG_NRIC_FIN',
+    'SG_UEN',
+  ]),
+  es: new Set<PIIEntityType>([...GLOBAL_PII_ENTITIES, 'ES_NIF', 'ES_NIE']),
+  it: new Set<PIIEntityType>([
+    ...GLOBAL_PII_ENTITIES,
+    'IT_FISCAL_CODE',
+    'IT_DRIVER_LICENSE',
+    'IT_VAT_CODE',
+    'IT_PASSPORT',
+    'IT_IDENTITY_CARD',
+  ]),
+  pl: new Set<PIIEntityType>([...GLOBAL_PII_ENTITIES, 'PL_PESEL']),
+  fi: new Set<PIIEntityType>([...GLOBAL_PII_ENTITIES, 'FI_PERSONAL_IDENTITY_CODE']),
+}
+
+/** True when the entity has a recognizer for the given language. */
+export function isEntitySupportedForLanguage(
+  entity: PIIEntityType,
+  language: PIILanguage
+): boolean {
+  return PII_ENTITIES_BY_LANGUAGE[language].has(entity)
+}
+
+/** {@link PII_ENTITY_GROUPS} filtered to entities the language recognizes (empty groups dropped). */
+export function getEntityGroupsForLanguage(language: PIILanguage) {
+  return PII_ENTITY_GROUPS.map((group) => ({
+    label: group.label,
+    entities: group.entities.filter((e) => isEntitySupportedForLanguage(e.value, language)),
+  })).filter((group) => group.entities.length > 0)
+}
+
+/** The PII redaction stages, in execution order. */
+export const PII_STAGES = ['input', 'blockOutputs', 'logs'] as const
+export type PiiStageKey = (typeof PII_STAGES)[number]
+
+/** Per-stage redaction policy. `enabled: false` makes the stage a no-op. */
+export interface PiiStagePolicy {
+  enabled: boolean
+  entityTypes: string[]
+  language: PIILanguage
+}
+
+export type PiiStages = Record<PiiStageKey, PiiStagePolicy>
+
+/**
+ * Stage catalog driving the settings UI, in display order (Logs first — the
+ * safe, observability-only default). The execution-altering caveat for the
+ * input/blockOutputs stages is folded into their descriptions.
+ */
+export const PII_STAGE_META: ReadonlyArray<{
+  key: PiiStageKey
+  label: string
+  description: string
+}> = [
+  {
+    key: 'logs',
+    label: 'Logs',
+    description: 'Redact workflow logs when they are persisted.',
+  },
+  {
+    key: 'input',
+    label: 'Workflow input',
+    description:
+      'Redact the workflow input before execution. Data is redacted during runtime and may affect workflow output.',
+  },
+  {
+    key: 'blockOutputs',
+    label: 'Block outputs',
+    description:
+      'Mask every block output before the next block reads it. Data is redacted during runtime and may affect workflow output and execution performance.',
+  },
+]
+
+/** Recognizers that over-redact (loose, no checksum); surfaced as UI guidance. */
+export const RISKY_PII_ENTITIES: ReadonlySet<PIIEntityType> = new Set<PIIEntityType>([
+  'US_SSN',
+  'US_BANK_NUMBER',
+  'DATE_TIME',
+])
+
+/** A fully-disabled stage policy for new drafts. */
+export function emptyStagePolicy(): PiiStagePolicy {
+  return { enabled: false, entityTypes: [], language: DEFAULT_PII_LANGUAGE }
+}
+
+/** A fully-disabled stage set for new drafts. */
+export function emptyPiiStages(): PiiStages {
+  return {
+    input: emptyStagePolicy(),
+    blockOutputs: emptyStagePolicy(),
+    logs: emptyStagePolicy(),
+  }
+}
+
+/**
+ * Hydrate a stored rule into the per-stage shape. A legacy flat rule (no
+ * `stages`) becomes `logs` enabled with its entity types, the two new stages
+ * disabled — exactly its pre-stages behavior.
+ */
+export function normalizeRuleStages(rule: {
+  stages?: Partial<Record<PiiStageKey, Partial<PiiStagePolicy> | undefined>>
+  entityTypes?: string[]
+  language?: string
+}): PiiStages {
+  const sanitize = (policy: Partial<PiiStagePolicy> | undefined): PiiStagePolicy => ({
+    enabled: Boolean(policy?.enabled),
+    entityTypes: Array.isArray(policy?.entityTypes)
+      ? policy.entityTypes.filter((t): t is string => typeof t === 'string')
+      : [],
+    language: coercePiiLanguage(policy?.language) ?? DEFAULT_PII_LANGUAGE,
+  })
+
+  if (rule.stages) {
+    return {
+      input: sanitize(rule.stages.input),
+      blockOutputs: sanitize(rule.stages.blockOutputs),
+      logs: sanitize(rule.stages.logs),
+    }
+  }
+
+  const entityTypes = Array.isArray(rule.entityTypes)
+    ? rule.entityTypes.filter((t): t is string => typeof t === 'string')
+    : []
+  return {
+    input: emptyStagePolicy(),
+    blockOutputs: emptyStagePolicy(),
+    logs: {
+      enabled: entityTypes.length > 0,
+      entityTypes,
+      language: coercePiiLanguage(rule.language) ?? DEFAULT_PII_LANGUAGE,
+    },
+  }
+}
