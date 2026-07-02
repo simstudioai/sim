@@ -8,7 +8,7 @@ export const HexBlock: BlockConfig<HexResponse> = {
   name: 'Hex',
   description: 'Run and manage Hex projects',
   longDescription:
-    'Integrate Hex into your workflow. Run projects, check run status, manage collections and groups, list users, and view data connections. Requires a Hex API token.',
+    'Integrate Hex into your workflow. Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.',
   docsLink: 'https://docs.sim.ai/integrations/hex',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
@@ -36,8 +36,13 @@ export const HexBlock: BlockConfig<HexResponse> = {
         { label: 'List Collections', id: 'list_collections' },
         { label: 'Get Collection', id: 'get_collection' },
         { label: 'Create Collection', id: 'create_collection' },
+        { label: 'Update Collection', id: 'update_collection' },
         { label: 'List Data Connections', id: 'list_data_connections' },
         { label: 'Get Data Connection', id: 'get_data_connection' },
+        { label: 'Create Group', id: 'create_group' },
+        { label: 'Update Group', id: 'update_group' },
+        { label: 'Delete Group', id: 'delete_group' },
+        { label: 'Deactivate User', id: 'deactivate_user' },
       ],
       value: () => 'run_project',
     },
@@ -108,6 +113,39 @@ Example:
       },
     },
     {
+      id: 'viewId',
+      title: 'Saved View ID',
+      type: 'short-input',
+      placeholder: 'Enter a SavedView UUID (optional)',
+      condition: { field: 'operation', value: 'run_project' },
+      mode: 'advanced',
+    },
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      type: 'code',
+      placeholder: '[{"type": "FAILURE", "slackChannelIds": ["C0123456789"]}]',
+      condition: { field: 'operation', value: 'run_project' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert at creating Hex run notification configs.
+Generate ONLY the raw JSON array based on the user's request.
+The output MUST be a single, valid JSON array, starting with [ and ending with ].
+
+Current value: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON array.
+Each item's "type" must be one of ALL, SUCCESS, or FAILURE. Optional fields: includeSuccessScreenshot (boolean), slackChannelIds, userIds, groupIds (arrays of strings).
+
+Example:
+[{"type": "FAILURE", "slackChannelIds": ["C0123456789"], "includeSuccessScreenshot": false}]`,
+        placeholder: 'Describe who should be notified and when...',
+        generationType: 'json-object',
+      },
+    },
+    {
       id: 'projectStatus',
       title: 'Status',
       type: 'short-input',
@@ -131,27 +169,115 @@ Example:
       condition: { field: 'operation', value: 'get_project_runs' },
     },
     {
+      id: 'runTriggerFilter',
+      title: 'Trigger Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'API', id: 'API' },
+        { label: 'Scheduled', id: 'SCHEDULED' },
+        { label: 'App Refresh', id: 'APP_REFRESH' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'get_project_runs' },
+      mode: 'advanced',
+    },
+    {
       id: 'groupIdInput',
       title: 'Group ID',
       type: 'short-input',
       placeholder: 'Enter group UUID',
-      condition: { field: 'operation', value: 'get_group' },
-      required: { field: 'operation', value: 'get_group' },
+      condition: { field: 'operation', value: ['get_group', 'update_group', 'delete_group'] },
+      required: { field: 'operation', value: ['get_group', 'update_group', 'delete_group'] },
+    },
+    {
+      id: 'groupName',
+      title: 'Group Name',
+      type: 'short-input',
+      placeholder: 'Enter group name',
+      condition: { field: 'operation', value: ['create_group', 'update_group'] },
+      required: { field: 'operation', value: 'create_group' },
+    },
+    {
+      id: 'groupMemberUserIds',
+      title: 'Initial Member User IDs',
+      type: 'code',
+      placeholder: '["uuid1", "uuid2"]',
+      condition: { field: 'operation', value: 'create_group' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert at creating JSON arrays of user UUIDs.
+Generate ONLY the raw JSON array of user ID strings based on the user's request.
+The output MUST be a single, valid JSON array of strings, starting with [ and ending with ].
+
+Current value: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON array.
+
+Example:
+["a1b2c3d4-0000-0000-0000-000000000000", "e5f6a7b8-0000-0000-0000-000000000000"]`,
+        placeholder: 'Describe which users to add...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'groupAddUserIds',
+      title: 'Add Member User IDs',
+      type: 'code',
+      placeholder: '["uuid1", "uuid2"]',
+      condition: { field: 'operation', value: 'update_group' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert at creating JSON arrays of user UUIDs.
+Generate ONLY the raw JSON array of user ID strings to add based on the user's request.
+The output MUST be a single, valid JSON array of strings, starting with [ and ending with ].
+
+Current value: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON array.`,
+        placeholder: 'Describe which users to add...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'groupRemoveUserIds',
+      title: 'Remove Member User IDs',
+      type: 'code',
+      placeholder: '["uuid1", "uuid2"]',
+      condition: { field: 'operation', value: 'update_group' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert at creating JSON arrays of user UUIDs.
+Generate ONLY the raw JSON array of user ID strings to remove based on the user's request.
+The output MUST be a single, valid JSON array of strings, starting with [ and ending with ].
+
+Current value: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON array.`,
+        placeholder: 'Describe which users to remove...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'collectionId',
       title: 'Collection ID',
       type: 'short-input',
       placeholder: 'Enter collection UUID',
-      condition: { field: 'operation', value: 'get_collection' },
-      required: { field: 'operation', value: 'get_collection' },
+      condition: { field: 'operation', value: ['get_collection', 'update_collection'] },
+      required: { field: 'operation', value: ['get_collection', 'update_collection'] },
     },
     {
       id: 'collectionName',
       title: 'Collection Name',
       type: 'short-input',
       placeholder: 'Enter collection name',
-      condition: { field: 'operation', value: 'create_collection' },
+      condition: { field: 'operation', value: ['create_collection', 'update_collection'] },
       required: { field: 'operation', value: 'create_collection' },
     },
     {
@@ -159,7 +285,7 @@ Example:
       title: 'Description',
       type: 'long-input',
       placeholder: 'Optional description for the collection',
-      condition: { field: 'operation', value: 'create_collection' },
+      condition: { field: 'operation', value: ['create_collection', 'update_collection'] },
     },
     {
       id: 'dataConnectionId',
@@ -168,6 +294,14 @@ Example:
       placeholder: 'Enter data connection UUID',
       condition: { field: 'operation', value: 'get_data_connection' },
       required: { field: 'operation', value: 'get_data_connection' },
+    },
+    {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Enter user UUID',
+      condition: { field: 'operation', value: 'deactivate_user' },
+      required: { field: 'operation', value: 'deactivate_user' },
     },
     {
       id: 'apiKey',
@@ -261,12 +395,37 @@ Example:
       condition: { field: 'operation', value: 'list_users' },
       mode: 'advanced',
     },
+    {
+      id: 'after',
+      title: 'After Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor for the next page',
+      condition: {
+        field: 'operation',
+        value: ['list_projects', 'list_groups', 'list_collections', 'list_data_connections'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'before',
+      title: 'Before Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor for the previous page',
+      condition: {
+        field: 'operation',
+        value: ['list_projects', 'list_groups', 'list_collections', 'list_data_connections'],
+      },
+      mode: 'advanced',
+    },
   ],
 
   tools: {
     access: [
       'hex_cancel_run',
       'hex_create_collection',
+      'hex_create_group',
+      'hex_deactivate_user',
+      'hex_delete_group',
       'hex_get_collection',
       'hex_get_data_connection',
       'hex_get_group',
@@ -280,6 +439,8 @@ Example:
       'hex_list_projects',
       'hex_list_users',
       'hex_run_project',
+      'hex_update_collection',
+      'hex_update_group',
       'hex_update_project',
     ],
     config: {
@@ -313,10 +474,20 @@ Example:
             return 'hex_get_collection'
           case 'create_collection':
             return 'hex_create_collection'
+          case 'update_collection':
+            return 'hex_update_collection'
           case 'list_data_connections':
             return 'hex_list_data_connections'
           case 'get_data_connection':
             return 'hex_get_data_connection'
+          case 'create_group':
+            return 'hex_create_group'
+          case 'update_group':
+            return 'hex_update_group'
+          case 'delete_group':
+            return 'hex_delete_group'
+          case 'deactivate_user':
+            return 'hex_deactivate_user'
           default:
             return 'hex_run_project'
         }
@@ -330,11 +501,27 @@ Example:
         if (op === 'update_project' && params.projectStatus) result.status = params.projectStatus
         if (op === 'get_project_runs' && params.runStatusFilter)
           result.statusFilter = params.runStatusFilter
-        if (op === 'get_group' && params.groupIdInput) result.groupId = params.groupIdInput
+        if (
+          (op === 'get_group' || op === 'update_group' || op === 'delete_group') &&
+          params.groupIdInput
+        )
+          result.groupId = params.groupIdInput
         if (op === 'list_users' && params.groupId) result.groupId = params.groupId
-        if (op === 'create_collection' && params.collectionName) result.name = params.collectionName
-        if (op === 'create_collection' && params.collectionDescription)
+        if ((op === 'create_collection' || op === 'update_collection') && params.collectionName)
+          result.name = params.collectionName
+        if (
+          (op === 'create_collection' || op === 'update_collection') &&
+          params.collectionDescription
+        )
           result.description = params.collectionDescription
+        if ((op === 'create_group' || op === 'update_group') && params.groupName)
+          result.name = params.groupName
+        if (op === 'create_group' && params.groupMemberUserIds)
+          result.memberUserIds = params.groupMemberUserIds
+        if (op === 'update_group' && params.groupAddUserIds)
+          result.addUserIds = params.groupAddUserIds
+        if (op === 'update_group' && params.groupRemoveUserIds)
+          result.removeUserIds = params.groupRemoveUserIds
 
         return result
       },
@@ -360,21 +547,34 @@ Example:
       type: 'boolean',
       description: 'Use cached SQL results instead of re-running queries',
     },
+    viewId: { type: 'string', description: 'SavedView UUID to use for the project run' },
+    notifications: {
+      type: 'json',
+      description: 'Notification details to deliver once the run completes',
+    },
     projectStatus: {
       type: 'string',
       description: 'New project status name (custom workspace status label)',
     },
     limit: { type: 'number', description: 'Max number of results to return' },
     offset: { type: 'number', description: 'Offset for paginated results' },
+    after: { type: 'string', description: 'Cursor to fetch results after' },
+    before: { type: 'string', description: 'Cursor to fetch results before' },
     includeArchived: { type: 'boolean', description: 'Include archived projects' },
     statusFilter: { type: 'string', description: 'Filter projects by status' },
     runStatusFilter: { type: 'string', description: 'Filter runs by status' },
+    runTriggerFilter: { type: 'string', description: 'Filter runs by trigger source' },
     groupId: { type: 'string', description: 'Filter users by group UUID' },
-    groupIdInput: { type: 'string', description: 'Group UUID for get group' },
+    groupIdInput: { type: 'string', description: 'Group UUID for get/update/delete group' },
+    groupName: { type: 'string', description: 'Group name' },
+    groupMemberUserIds: { type: 'json', description: 'Initial member user UUIDs for new group' },
+    groupAddUserIds: { type: 'json', description: 'User UUIDs to add to the group' },
+    groupRemoveUserIds: { type: 'json', description: 'User UUIDs to remove from the group' },
     collectionId: { type: 'string', description: 'Collection UUID' },
     collectionName: { type: 'string', description: 'Collection name' },
     collectionDescription: { type: 'string', description: 'Collection description' },
     dataConnectionId: { type: 'string', description: 'Data connection UUID' },
+    userId: { type: 'string', description: 'User UUID' },
   },
 
   outputs: {
@@ -437,8 +637,15 @@ Example:
     creator: { type: 'json', description: 'Creator details ({ email, id })' },
     owner: { type: 'json', description: 'Owner details ({ email })' },
     total: { type: 'number', description: 'Total results returned' },
-    // Cancel output
+    // Cancel / delete / deactivate output
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
+    groupId: { type: 'string', description: 'Group UUID' },
+    userId: { type: 'string', description: 'User UUID' },
+    // Pagination
+    nextPage: { type: 'string', description: 'Cursor for the next page of runs' },
+    previousPage: { type: 'string', description: 'Cursor for the previous page of runs' },
+    after: { type: 'string', description: 'Cursor for the next page of results' },
+    before: { type: 'string', description: 'Cursor for the previous page of results' },
     // Data connection flags
     connectViaSsh: { type: 'boolean', description: 'SSH tunneling enabled' },
     includeMagic: { type: 'boolean', description: 'Magic AI features enabled' },
@@ -545,6 +752,13 @@ export const HexBlockMeta = {
       description: 'List Hex projects, collections, and data connections to map analytics assets.',
       content:
         '# Inventory Projects\n\nMap what projects and data sources exist in the workspace.\n\n## Steps\n1. List projects and capture IDs, names, and owners.\n2. List collections and get details to see how projects are grouped.\n3. List data connections to map which sources power the projects.\n4. Cross-reference projects to their collections and data connections.\n\n## Output\nReturn an inventory of projects grouped by collection, each annotated with its data connections. Useful for governance and cleanup.',
+    },
+    {
+      name: 'onboard-offboard-teammate',
+      description:
+        'Add a new teammate to the right Hex groups on hire, or deactivate and remove them on departure.',
+      content:
+        '# Onboard/Offboard Teammate\n\nManage workspace access as people join or leave the team.\n\n## Steps\n1. List users to resolve the target user by name or email, and list groups to resolve the relevant group by name.\n2. For onboarding: add the user to the appropriate group(s) via group update.\n3. For offboarding: remove the user from their groups via group update, then deactivate the user account.\n4. Confirm the change by getting the group or listing users filtered by group.\n\n## Output\nReturn the user and group IDs affected and the action taken (added, removed, deactivated). Flag if the user or group could not be resolved.',
     },
   ],
 } as const satisfies BlockMeta

@@ -32,6 +32,18 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       visibility: 'user-or-llm',
       description: 'Filter by status: PUBLISHED, DRAFT, or ALL',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor to fetch the page of results after this value',
+    },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor to fetch the page of results before this value',
+    },
   },
 
   request: {
@@ -40,6 +52,8 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       if (params.limit) searchParams.set('limit', String(params.limit))
       if (params.includeArchived) searchParams.set('includeArchived', 'true')
       if (params.statusFilter) searchParams.append('statuses[]', params.statusFilter)
+      if (params.after) searchParams.set('after', params.after)
+      if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
       return `https://app.hex.tech/api/v1/projects${qs ? `?${qs}` : ''}`
     },
@@ -80,6 +94,8 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
           trashedAt: (p.trashedAt as string) ?? null,
         })),
         total: projects.length,
+        after: data.pagination?.after ?? null,
+        before: data.pagination?.before ?? null,
       },
     }
   },
@@ -134,5 +150,11 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       },
     },
     total: { type: 'number', description: 'Total number of projects returned' },
+    after: { type: 'string', description: 'Cursor for the next page of results', optional: true },
+    before: {
+      type: 'string',
+      description: 'Cursor for the previous page of results',
+      optional: true,
+    },
   },
 }

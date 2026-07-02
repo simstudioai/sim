@@ -32,6 +32,18 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
       visibility: 'user-only',
       description: 'Sort direction: ASC or DESC',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor to fetch the page of results after this value',
+    },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor to fetch the page of results before this value',
+    },
   },
 
   request: {
@@ -40,6 +52,8 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
       if (params.limit) searchParams.set('limit', String(params.limit))
       if (params.sortBy) searchParams.set('sortBy', params.sortBy)
       if (params.sortDirection) searchParams.set('sortDirection', params.sortDirection)
+      if (params.after) searchParams.set('after', params.after)
+      if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
       return `https://app.hex.tech/api/v1/groups${qs ? `?${qs}` : ''}`
     },
@@ -63,6 +77,8 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
           createdAt: (g.createdAt as string) ?? null,
         })),
         total: groups.length,
+        after: data.pagination?.after ?? null,
+        before: data.pagination?.before ?? null,
       },
     }
   },
@@ -81,5 +97,11 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
       },
     },
     total: { type: 'number', description: 'Total number of groups returned' },
+    after: { type: 'string', description: 'Cursor for the next page of results', optional: true },
+    before: {
+      type: 'string',
+      description: 'Cursor for the previous page of results',
+      optional: true,
+    },
   },
 }

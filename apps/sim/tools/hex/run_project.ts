@@ -52,10 +52,23 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
       visibility: 'user-only',
       description: 'If true, use cached SQL results instead of re-running queries',
     },
+    viewId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional SavedView ID to use for the project run',
+    },
+    notifications: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of notification details to deliver once the run completes (e.g., [{"type": "FAILURE", "slackChannelIds": ["C0123456789"], "userIds": [], "groupIds": [], "includeSuccessScreenshot": false}]). type is ALL, SUCCESS, or FAILURE.',
+    },
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId}/runs`,
+    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}/runs`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -76,6 +89,13 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
         body.updatePublishedResults = params.updatePublishedResults
       if (params.useCachedSqlResults !== undefined)
         body.useCachedSqlResults = params.useCachedSqlResults
+      if (params.viewId) body.viewId = params.viewId
+      if (params.notifications) {
+        body.notifications =
+          typeof params.notifications === 'string'
+            ? JSON.parse(params.notifications)
+            : params.notifications
+      }
 
       return body
     },

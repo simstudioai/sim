@@ -105,6 +105,8 @@ export interface HexListProjectsParams {
   limit?: number
   includeArchived?: boolean
   statusFilter?: string
+  after?: string
+  before?: string
 }
 
 export interface HexListProjectsResponse extends ToolResponse {
@@ -125,6 +127,8 @@ export interface HexListProjectsResponse extends ToolResponse {
       trashedAt: string | null
     }>
     total: number
+    after: string | null
+    before: string | null
   }
 }
 
@@ -159,6 +163,8 @@ export interface HexRunProjectParams {
   updateCache?: boolean
   updatePublishedResults?: boolean
   useCachedSqlResults?: boolean
+  viewId?: string
+  notifications?: string
 }
 
 export interface HexRunProjectResponse extends ToolResponse {
@@ -212,6 +218,7 @@ export interface HexGetProjectRunsParams {
   limit?: number
   offset?: number
   statusFilter?: string
+  runTriggerFilter?: string
 }
 
 export interface HexGetProjectRunsResponse extends ToolResponse {
@@ -229,6 +236,8 @@ export interface HexGetProjectRunsResponse extends ToolResponse {
     }>
     total: number
     traceId: string | null
+    nextPage: string | null
+    previousPage: string | null
   }
 }
 
@@ -280,6 +289,8 @@ export interface HexListCollectionsParams {
   apiKey: string
   limit?: number
   sortBy?: string
+  after?: string
+  before?: string
 }
 
 export interface HexListCollectionsResponse extends ToolResponse {
@@ -291,6 +302,8 @@ export interface HexListCollectionsResponse extends ToolResponse {
       creator: { email: string; id: string } | null
     }>
     total: number
+    after: string | null
+    before: string | null
   }
 }
 
@@ -299,6 +312,8 @@ export interface HexListDataConnectionsParams {
   limit?: number
   sortBy?: string
   sortDirection?: string
+  after?: string
+  before?: string
 }
 
 export interface HexListDataConnectionsResponse extends ToolResponse {
@@ -313,6 +328,8 @@ export interface HexListDataConnectionsResponse extends ToolResponse {
       allowWritebackCells: boolean | null
     }>
     total: number
+    after: string | null
+    before: string | null
   }
 }
 
@@ -338,6 +355,8 @@ export interface HexListGroupsParams {
   limit?: number
   sortBy?: string
   sortDirection?: string
+  after?: string
+  before?: string
 }
 
 export interface HexListGroupsResponse extends ToolResponse {
@@ -348,6 +367,8 @@ export interface HexListGroupsResponse extends ToolResponse {
       createdAt: string | null
     }>
     total: number
+    after: string | null
+    before: string | null
   }
 }
 
@@ -410,6 +431,76 @@ export interface HexCreateCollectionResponse extends ToolResponse {
   }
 }
 
+export interface HexUpdateCollectionParams {
+  apiKey: string
+  collectionId: string
+  name?: string
+  description?: string
+}
+
+export interface HexUpdateCollectionResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    description: string | null
+    creator: { email: string; id: string } | null
+  }
+}
+
+export interface HexCreateGroupParams {
+  apiKey: string
+  name: string
+  memberUserIds?: string
+}
+
+export interface HexCreateGroupResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    createdAt: string | null
+  }
+}
+
+export interface HexUpdateGroupParams {
+  apiKey: string
+  groupId: string
+  name?: string
+  addUserIds?: string
+  removeUserIds?: string
+}
+
+export interface HexUpdateGroupResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    createdAt: string | null
+  }
+}
+
+export interface HexDeleteGroupParams {
+  apiKey: string
+  groupId: string
+}
+
+export interface HexDeleteGroupResponse extends ToolResponse {
+  output: {
+    success: boolean
+    groupId: string
+  }
+}
+
+export interface HexDeactivateUserParams {
+  apiKey: string
+  userId: string
+}
+
+export interface HexDeactivateUserResponse extends ToolResponse {
+  output: {
+    success: boolean
+    userId: string
+  }
+}
+
 export type HexResponse =
   | HexListProjectsResponse
   | HexGetProjectResponse
@@ -427,3 +518,8 @@ export type HexResponse =
   | HexGetDataConnectionResponse
   | HexGetCollectionResponse
   | HexCreateCollectionResponse
+  | HexUpdateCollectionResponse
+  | HexCreateGroupResponse
+  | HexUpdateGroupResponse
+  | HexDeleteGroupResponse
+  | HexDeactivateUserResponse
