@@ -239,6 +239,12 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       type: 'short-input',
       placeholder: 'Comma-separated call IDs (optional)',
       condition: { field: 'operation', value: ['get_call_transcript', 'get_extensive_calls'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong call IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the call IDs (e.g., "calls 123456 and 789012")...',
+      },
     },
     {
       id: 'transcriptFromDateTime',
@@ -289,6 +295,12 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       placeholder: 'Comma-separated user IDs (optional)',
       condition: { field: 'operation', value: 'get_extensive_calls' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong user IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the user IDs...',
+      },
     },
 
     // List Users inputs
@@ -405,6 +417,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         ],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong user IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the user IDs...',
+      },
     },
 
     // Aggregate by Period inputs
@@ -499,6 +517,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Comma-separated scorecard IDs (optional)',
       condition: { field: 'operation', value: 'answered_scorecards' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong scorecard IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the scorecard IDs...',
+      },
     },
     {
       id: 'reviewedUserIds',
@@ -507,6 +531,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Comma-separated user IDs (optional)',
       condition: { field: 'operation', value: 'answered_scorecards' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong user IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the reviewed user IDs...',
+      },
     },
 
     // Get Folder Content inputs
