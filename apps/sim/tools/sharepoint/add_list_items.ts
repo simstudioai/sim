@@ -99,9 +99,14 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
     }
 
     const itemId = data?.id as string | undefined
-    const fields =
-      (data?.fields as Record<string, unknown> | undefined) ||
-      (params ? resolveSanitizedFields(params.listItemFields) : undefined)
+    let fields = data?.fields as Record<string, unknown> | undefined
+    if (!fields && params) {
+      try {
+        fields = resolveSanitizedFields(params.listItemFields)
+      } catch {
+        // Item was already created successfully; a malformed fallback input must not fail the response.
+      }
+    }
 
     return {
       success: true,

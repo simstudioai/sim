@@ -4,7 +4,7 @@ import type {
   SharepointToolParams,
   SharepointUpdatePageResponse,
 } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { escapeHtml, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointUpdatePage')
@@ -105,7 +105,7 @@ export const updatePageTool: ToolConfig<SharepointToolParams, SharepointUpdatePa
                   webparts: [
                     {
                       id: '6f9230af-2a98-4952-b205-9ede4f9ef548',
-                      innerHtml: `<p>${pageContent.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</p>`,
+                      innerHtml: `<p>${escapeHtml(pageContent)}</p>`,
                     },
                   ],
                 },

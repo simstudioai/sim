@@ -13,6 +13,15 @@ export function escapeODataString(value: string): string {
   return value.replace(/'/g, "''")
 }
 
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export function getGraphNextPageUrl(data: object): string | undefined {
   const nextLink = (data as Record<string, unknown>)['@odata.nextLink']
   return typeof nextLink === 'string' ? nextLink : undefined
