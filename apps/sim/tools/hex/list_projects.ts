@@ -106,13 +106,16 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       if (params.ownerEmail) searchParams.set('ownerEmail', params.ownerEmail)
       if (params.collectionId) searchParams.set('collectionId', params.collectionId.trim())
       if (params.categories) {
-        let categories: string[]
+        let categories: unknown
         try {
           categories =
             typeof params.categories === 'string'
               ? JSON.parse(params.categories)
-              : (params.categories as string[])
+              : params.categories
         } catch {
+          throw new Error('categories must be a valid JSON array of category name strings')
+        }
+        if (!Array.isArray(categories)) {
           throw new Error('categories must be a valid JSON array of category name strings')
         }
         for (const category of categories) {

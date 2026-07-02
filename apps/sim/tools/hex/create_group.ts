@@ -39,16 +39,19 @@ export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupRes
     body: (params) => {
       const body: Record<string, unknown> = { name: params.name }
       if (params.memberUserIds) {
-        let userIds: string[]
+        let userIds: unknown
         try {
           userIds =
             typeof params.memberUserIds === 'string'
               ? JSON.parse(params.memberUserIds)
-              : (params.memberUserIds as string[])
+              : params.memberUserIds
         } catch {
           throw new Error('memberUserIds must be a valid JSON array of user UUID strings')
         }
-        body.members = { users: userIds.map((id) => ({ id: id.trim() })) }
+        if (!Array.isArray(userIds)) {
+          throw new Error('memberUserIds must be a valid JSON array of user UUID strings')
+        }
+        body.members = { users: userIds.map((id: string) => ({ id: id.trim() })) }
       }
       return body
     },
