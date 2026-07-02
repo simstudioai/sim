@@ -70,7 +70,7 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
       const body: SendGridTemplateVersionRequest = {
         name: params.name,
         subject: params.subject,
-        active: params.active !== undefined ? params.active : 1,
+        active: params.active !== undefined ? (params.active ? 1 : 0) : 1,
       }
 
       if (params.htmlContent) {

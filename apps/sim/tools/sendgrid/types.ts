@@ -82,7 +82,7 @@ export interface SendGridContactRequest {
 export interface SendGridTemplateVersionRequest {
   name: string
   subject: string
-  active: number | boolean
+  active: number
   html_content?: string
   plain_content?: string
 }
