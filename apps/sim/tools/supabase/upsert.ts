@@ -30,7 +30,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
         'Database schema to upsert into (default: public). Use this to access tables in other schemas.',
     },
     data: {
-      type: 'json',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
       description: 'The data to upsert (insert or update) - array of objects or a single object',

@@ -30,7 +30,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
         'Database schema to insert into (default: public). Use this to access tables in other schemas.',
     },
     data: {
-      type: 'json',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
       description: 'The data to insert (array of objects or a single object)',

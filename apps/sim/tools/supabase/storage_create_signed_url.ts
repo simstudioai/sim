@@ -65,17 +65,9 @@ export const storageCreateSignedUrlTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      const payload: any = {
-        expiresIn: Number(params.expiresIn),
-      }
-
-      if (params.download !== undefined) {
-        payload.download = params.download
-      }
-
-      return payload
-    },
+    body: (params) => ({
+      expiresIn: Number(params.expiresIn),
+    }),
   },
 
   transformResponse: async (response: Response, params?: SupabaseStorageCreateSignedUrlParams) => {
@@ -99,7 +91,15 @@ export const storageCreateSignedUrlTool: ToolConfig<
     if (!params?.projectId) {
       throw new Error('projectId is required to construct the signed URL')
     }
-    const fullUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1${relativePath}`
+    let fullUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1${relativePath}`
+
+    // The Storage API ignores a `download` field in the sign request body —
+    // forcing download is a client-side query param on the resulting URL.
+    // An empty value preserves the original filename; a non-empty value
+    // would override it, so a boolean "true" must never be sent literally.
+    if (params.download) {
+      fullUrl += fullUrl.includes('?') ? '&download=' : '?download='
+    }
 
     return {
       success: true,

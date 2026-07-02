@@ -232,7 +232,11 @@ export const INTROSPECT_REFERENCE_OUTPUT_PROPERTIES = {
 export const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Column name' },
   type: { type: 'string', description: 'Column data type' },
-  nullable: { type: 'boolean', description: 'Whether the column allows null values' },
+  nullable: {
+    type: 'boolean',
+    description:
+      'Whether the column allows null values — a NOT NULL column that has a default value is misreported as nullable, since the OpenAPI spec this is derived from omits it from the required list in that case',
+  },
   default: { type: 'string', description: 'Default value for the column', optional: true },
   isPrimaryKey: {
     type: 'boolean',

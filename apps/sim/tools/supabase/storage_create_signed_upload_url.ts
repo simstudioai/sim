@@ -96,7 +96,10 @@ export const storageCreateSignedUploadUrlTool: ToolConfig<
       output: {
         message: 'Successfully created signed upload URL',
         signedUrl: `${supabaseBaseUrl(params.projectId)}/storage/v1${relativeUrl}`,
-        path: data.path,
+        // The API response has no `path` field — it's the caller-supplied
+        // destination path, echoed back the same way the official
+        // storage-js client does.
+        path: params.path,
         token: data.token,
       },
       error: undefined,

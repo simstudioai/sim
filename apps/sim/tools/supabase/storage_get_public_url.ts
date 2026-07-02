@@ -53,7 +53,11 @@ export const storageGetPublicUrlTool: ToolConfig<
     let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${bucket}/${path}`
 
     if (params.download) {
-      publicUrl += '?download=true'
+      // Supabase's `download` query param is a filename override, not a
+      // boolean flag — an empty value forces a download while preserving
+      // the original filename. Sending the literal string "true" would
+      // instead rename the downloaded file to "true".
+      publicUrl += '?download='
     }
 
     return {

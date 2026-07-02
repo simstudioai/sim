@@ -19,7 +19,9 @@ import type { ToolConfig } from '@/tools/types'
  * foreign-key detection only succeeds if the table owner has added a
  * matching `references table.column` SQL comment — the OpenAPI spec does
  * not expose constraint metadata directly. Index information is not
- * available via this API at all.
+ * available via this API at all. `nullable` is also best-effort: PostgREST
+ * only lists a column under `required` when it's NOT NULL *and* has no
+ * default, so a NOT NULL column with a default is reported as nullable.
  */
 export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntrospectResponse> = {
   id: 'supabase_introspect',
@@ -152,18 +154,18 @@ function parseOpenApiSpec(spec: any, filterSchema?: string): SupabaseTableSchema
       columns.push(column)
     }
 
-    const schemaName = filterSchema || 'public'
-
-    if (!filterSchema || schemaName === filterSchema) {
-      tables.push({
-        name: tableName,
-        schema: schemaName,
-        columns,
-        primaryKey,
-        foreignKeys,
-        indexes: [],
-      })
-    }
+    tables.push({
+      name: tableName,
+      // The OpenAPI spec doesn't map tables to schemas, so this can only
+      // reflect the schema that was actually requested (or "public" when
+      // introspecting the default schema) — not necessarily the table's
+      // true schema in a multi-schema database.
+      schema: filterSchema || 'public',
+      columns,
+      primaryKey,
+      foreignKeys,
+      indexes: [],
+    })
   }
 
   return tables
