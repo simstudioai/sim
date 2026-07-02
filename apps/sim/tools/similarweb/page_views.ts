@@ -101,11 +101,16 @@ export const similarwebPageViewsTool: ToolConfig<
         country: request.country ?? null,
         granularity: request.granularity ?? null,
         lastUpdated: meta.last_updated ?? null,
+        // SimilarWeb's own docs example response uses "pages_views" (with the extra "s") for
+        // this endpoint, unlike its sibling total-traffic-and-engagement endpoints; fall back
+        // to "page_views" too in case that spelling changes or varies by account.
         pageViews:
-          data.pages_views?.map((p: { date: string; pages_views: number }) => ({
-            date: p.date,
-            pageViews: p.pages_views,
-          })) ?? [],
+          (data.pages_views ?? data.page_views)?.map(
+            (p: { date: string; pages_views?: number; page_views?: number }) => ({
+              date: p.date,
+              pageViews: p.pages_views ?? p.page_views ?? 0,
+            })
+          ) ?? [],
       },
     }
   },
