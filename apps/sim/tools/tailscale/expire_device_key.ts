@@ -1,13 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { TailscaleDeviceParams } from './types'
 
-interface TailscaleExpireDeviceKeyResponse {
-  success: boolean
+interface TailscaleExpireDeviceKeyResponse extends ToolResponse {
   output: {
     success: boolean
     deviceId: string
   }
-  error?: string
 }
 
 export const tailscaleExpireDeviceKeyTool: ToolConfig<
