@@ -86,6 +86,12 @@ export const storageCreateSignedUrlTool: ToolConfig<
       throw new Error(`Failed to parse Supabase storage create signed URL response: ${parseError}`)
     }
 
+    if (!response.ok) {
+      throw new Error(
+        `Failed to create signed URL: ${data.message || data.error || response.statusText}`
+      )
+    }
+
     const relativePath = data.signedURL || data.signedUrl
     if (!relativePath) {
       throw new Error('Supabase did not return a signed URL path in its response')
