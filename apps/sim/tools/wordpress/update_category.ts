@@ -1,17 +1,17 @@
 import type { ToolConfig } from '@/tools/types'
 import {
   WORDPRESS_COM_API_BASE,
-  type WordPressCreateCategoryParams,
-  type WordPressCreateCategoryResponse,
+  type WordPressUpdateCategoryParams,
+  type WordPressUpdateCategoryResponse,
 } from '@/tools/wordpress/types'
 
-export const createCategoryTool: ToolConfig<
-  WordPressCreateCategoryParams,
-  WordPressCreateCategoryResponse
+export const updateCategoryTool: ToolConfig<
+  WordPressUpdateCategoryParams,
+  WordPressUpdateCategoryResponse
 > = {
-  id: 'wordpress_create_category',
-  name: 'WordPress Create Category',
-  description: 'Create a new category in WordPress.com',
+  id: 'wordpress_update_category',
+  name: 'WordPress Update Category',
+  description: 'Update an existing category in WordPress.com',
   version: '1.0.0',
 
   oauth: {
@@ -27,9 +27,15 @@ export const createCategoryTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
+    categoryId: {
+      type: 'number',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The ID of the category to update',
+    },
     name: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Category name',
     },
@@ -54,17 +60,16 @@ export const createCategoryTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories`,
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories/${params.categoryId}`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.accessToken}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
-        name: params.name,
-      }
+      const body: Record<string, any> = {}
 
+      if (params.name) body.name = params.name
       if (params.description) body.description = params.description
       if (params.parent !== undefined) body.parent = params.parent
       if (params.slug) body.slug = params.slug
@@ -101,7 +106,7 @@ export const createCategoryTool: ToolConfig<
   outputs: {
     category: {
       type: 'object',
-      description: 'The created category',
+      description: 'The updated category',
       properties: {
         id: { type: 'number', description: 'Category ID' },
         count: { type: 'number', description: 'Number of posts in this category' },

@@ -1,17 +1,14 @@
 import type { ToolConfig } from '@/tools/types'
 import {
   WORDPRESS_COM_API_BASE,
-  type WordPressCreateCategoryParams,
-  type WordPressCreateCategoryResponse,
+  type WordPressUpdateTagParams,
+  type WordPressUpdateTagResponse,
 } from '@/tools/wordpress/types'
 
-export const createCategoryTool: ToolConfig<
-  WordPressCreateCategoryParams,
-  WordPressCreateCategoryResponse
-> = {
-  id: 'wordpress_create_category',
-  name: 'WordPress Create Category',
-  description: 'Create a new category in WordPress.com',
+export const updateTagTool: ToolConfig<WordPressUpdateTagParams, WordPressUpdateTagResponse> = {
+  id: 'wordpress_update_tag',
+  name: 'WordPress Update Tag',
+  description: 'Update an existing tag in WordPress.com',
   version: '1.0.0',
 
   oauth: {
@@ -27,46 +24,44 @@ export const createCategoryTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
-    name: {
-      type: 'string',
+    tagId: {
+      type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Category name',
+      description: 'The ID of the tag to update',
+    },
+    name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Tag name',
     },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Category description',
-    },
-    parent: {
-      type: 'number',
-      required: false,
-      visibility: 'user-only',
-      description: 'Parent category ID for hierarchical categories',
+      description: 'Tag description',
     },
     slug: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'URL slug for the category',
+      description: 'URL slug for the tag',
     },
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories`,
+    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/tags/${params.tagId}`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.accessToken}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
-        name: params.name,
-      }
+      const body: Record<string, any> = {}
 
+      if (params.name) body.name = params.name
       if (params.description) body.description = params.description
-      if (params.parent !== undefined) body.parent = params.parent
       if (params.slug) body.slug = params.slug
 
       return body
@@ -84,7 +79,7 @@ export const createCategoryTool: ToolConfig<
     return {
       success: true,
       output: {
-        category: {
+        tag: {
           id: data.id,
           count: data.count,
           description: data.description,
@@ -92,25 +87,23 @@ export const createCategoryTool: ToolConfig<
           name: data.name,
           slug: data.slug,
           taxonomy: data.taxonomy,
-          parent: data.parent,
         },
       },
     }
   },
 
   outputs: {
-    category: {
+    tag: {
       type: 'object',
-      description: 'The created category',
+      description: 'The updated tag',
       properties: {
-        id: { type: 'number', description: 'Category ID' },
-        count: { type: 'number', description: 'Number of posts in this category' },
-        description: { type: 'string', description: 'Category description' },
-        link: { type: 'string', description: 'Category archive URL' },
-        name: { type: 'string', description: 'Category name' },
-        slug: { type: 'string', description: 'Category slug' },
+        id: { type: 'number', description: 'Tag ID' },
+        count: { type: 'number', description: 'Number of posts with this tag' },
+        description: { type: 'string', description: 'Tag description' },
+        link: { type: 'string', description: 'Tag archive URL' },
+        name: { type: 'string', description: 'Tag name' },
+        slug: { type: 'string', description: 'Tag slug' },
         taxonomy: { type: 'string', description: 'Taxonomy name' },
-        parent: { type: 'number', description: 'Parent category ID' },
       },
     },
   },
