@@ -1,9 +1,11 @@
 import dns from 'dns/promises'
 import type {
+  FileAttributes,
   Item,
   ItemCategory,
   ItemField,
   ItemFieldType,
+  ItemFile,
   ItemOverview,
   ItemSection,
   VaultOverview,
@@ -102,10 +104,19 @@ interface NormalizedField {
   entropy: null
 }
 
+/** Normalized attached-file metadata shape matching the Connect API response. */
+export interface NormalizedItemFile {
+  id: string
+  name: string
+  size: number
+  section: { id: string } | null
+}
+
 /** Normalized full item shape matching the Connect API response. */
 export interface NormalizedItem extends NormalizedItemOverview {
   fields: NormalizedField[]
   sections: Array<{ id: string; label: string }>
+  files: NormalizedItemFile[]
 }
 
 /**
@@ -323,9 +334,11 @@ export interface ConnectResponse {
   ok: boolean
   status: number
   statusText: string
+  headers: { get: (name: string) => string | null }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: () => Promise<any>
   text: () => Promise<string>
+  arrayBuffer: () => Promise<ArrayBuffer>
 }
 
 /** Proxy a request to the 1Password Connect Server. */
@@ -431,12 +444,57 @@ export function normalizeSdkItem(item: Item): NormalizedItem {
       id: section.id,
       label: section.title,
     })),
+    files: [
+      ...(item.files ?? []).map((file: ItemFile) => ({
+        id: file.attributes.id,
+        name: file.attributes.name,
+        size: file.attributes.size,
+        section: file.sectionId ? { id: file.sectionId } : null,
+      })),
+      ...(item.document
+        ? [
+            {
+              id: item.document.id,
+              name: item.document.name,
+              size: item.document.size,
+              section: null,
+            },
+          ]
+        : []),
+    ],
     createdAt:
       item.createdAt instanceof Date ? item.createdAt.toISOString() : (item.createdAt ?? null),
     updatedAt:
       item.updatedAt instanceof Date ? item.updatedAt.toISOString() : (item.updatedAt ?? null),
     lastEditedBy: null,
   }
+}
+
+/**
+ * Find an attached file's SDK {@link FileAttributes} on an item by file ID.
+ * Checks both the `files` array and the single `document` attribute that
+ * Document-category items carry instead of a `files` entry.
+ */
+export function findItemFileAttributes(item: Item, fileId: string): FileAttributes | undefined {
+  if (item.document?.id === fileId) return item.document
+  return item.files?.find((file) => file.attributes.id === fileId)?.attributes
+}
+
+/**
+ * Best-effort SCIM `eq` filter matcher for Service Account mode, which has no
+ * server-side filtering (unlike Connect, whose `filter` query param is forwarded
+ * verbatim and evaluated by the Connect server). Recognizes `field eq "value"`
+ * (quotes optional) as an exact, case-insensitive match; anything else falls back
+ * to a case-insensitive substring match against the name/id so the field remains
+ * useful for free-text search.
+ */
+export function matchesFilter(value: string, id: string, filter: string): boolean {
+  const eqMatch = filter.match(/^\s*\S+\s+eq\s+"?([^"]*)"?\s*$/i)
+  if (eqMatch) {
+    return value.toLowerCase() === eqMatch[1].toLowerCase()
+  }
+  const needle = filter.toLowerCase()
+  return value.toLowerCase().includes(needle) || id.toLowerCase().includes(needle)
 }
 
 /** Convert a Connect-style category string to the SDK category string. */

@@ -2394,6 +2394,7 @@ import {
 import {
   onepasswordCreateItemTool,
   onepasswordDeleteItemTool,
+  onepasswordGetItemFileTool,
   onepasswordGetItemTool,
   onepasswordGetVaultTool,
   onepasswordListItemsTool,
@@ -5333,6 +5334,7 @@ export const tools: Record<string, ToolConfig> = {
   onepassword_get_vault: onepasswordGetVaultTool,
   onepassword_list_items: onepasswordListItemsTool,
   onepassword_get_item: onepasswordGetItemTool,
+  onepassword_get_item_file: onepasswordGetItemFileTool,
   onepassword_create_item: onepasswordCreateItemTool,
   onepassword_replace_item: onepasswordReplaceItemTool,
   onepassword_update_item: onepasswordUpdateItemTool,

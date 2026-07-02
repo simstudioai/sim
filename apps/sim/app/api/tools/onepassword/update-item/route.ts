@@ -104,7 +104,7 @@ function applyPatch(item: Record<string, any>, op: JsonPatchOperation) {
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i]
     if (Array.isArray(target)) {
-      target = target[Number(seg)]
+      target = arrayElementForSegment(target, seg)
     } else {
       target = target[seg]
     }
@@ -117,15 +117,37 @@ function applyPatch(item: Record<string, any>, op: JsonPatchOperation) {
     if (Array.isArray(target) && lastSeg === '-') {
       target.push(op.value)
     } else if (Array.isArray(target)) {
-      target[Number(lastSeg)] = op.value
+      const index = arrayIndexForSegment(target, lastSeg)
+      if (index !== -1) target[index] = op.value
     } else {
       target[lastSeg] = op.value
     }
   } else if (op.op === 'remove') {
     if (Array.isArray(target)) {
-      target.splice(Number(lastSeg), 1)
+      const index = arrayIndexForSegment(target, lastSeg)
+      if (index !== -1) target.splice(index, 1)
     } else {
       delete target[lastSeg]
     }
   }
+}
+
+/**
+ * Resolves an array element for a JSON Patch path segment. 1Password's PATCH API
+ * addresses items in the `fields`/`sections` arrays by their `id`, not by numeric
+ * array index (e.g. `/fields/{fieldId}/value`), so a numeric-looking segment is
+ * only treated as a literal index when no element's `id` matches it.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function arrayIndexForSegment(target: any[], segment: string): number {
+  const byId = target.findIndex((el) => el && typeof el === 'object' && el.id === segment)
+  if (byId !== -1) return byId
+  const index = Number(segment)
+  return Number.isInteger(index) && index >= 0 && index < target.length ? index : -1
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function arrayElementForSegment(target: any[], segment: string): any {
+  const index = arrayIndexForSegment(target, segment)
+  return index === -1 ? undefined : target[index]
 }
