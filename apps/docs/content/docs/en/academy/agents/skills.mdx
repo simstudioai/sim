@@ -1,0 +1,70 @@
+---
+title: Skills
+description: A skill is a written method the agent reads when it decides it's relevant — turning a vague guess into a sourced, repeatable procedure without crowding the prompt.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Agents" title="Skills" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-skills-light-with-intro.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+An agent with tools but no guidance does the minimum: one quick search, then a hedged guess. A **skill** fixes that — a written method the agent can read, like a manual you look up when the situation calls for it. Attach one, and the same run follows the procedure: every claim sourced, every gap flagged.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'A skill is a written method',
+      body: 'Markdown with a name, a description of when it applies, and the steps — a repeatable procedure, not a saved prompt.',
+    },
+    {
+      title: 'Loaded on demand, mid-run',
+      body: "Only the skill's name and description sit in the agent's context. The full method loads like a tool call, exactly when the agent decides it's relevant — no context crowding.",
+    },
+    {
+      title: 'The effect on behavior',
+      body: 'The same question, same tools: without the skill, a vague unsourced guess; with it, three targeted queries and an answer where every claim carries its source.',
+    },
+    {
+      title: 'Every integration ships skills',
+      body: 'You don\'t have to write them — integrations come with ready, battle-tested skills, and you can add your own to share across the workspace.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'Without a skill: a guess', time: '0:32' },
+    { title: 'A skill is a method', time: '0:47' },
+    { title: 'Attach it to the agent', time: '0:56' },
+    { title: 'It reaches for it mid-run', time: '1:05' },
+    { title: 'Every claim sourced', time: '1:15' },
+    { title: 'On-demand context', time: '1:35' },
+    { title: 'Skills for every integration', time: '1:45' },
+  ]}
+/>
+
+</div>
+
+## The before and after
+
+The video runs the same lead-qualification task twice. Without a skill, the agent searches once and guesses — "probably Series B, maybe a hundred people." With Exa's `answer-with-citations` skill attached, it loads the method mid-run, turns each claim into a specific factual question, pulls a sourced answer for every one, and returns a verdict where each figure carries its citation.
+
+## Why not just a longer prompt?
+
+Skills keep procedure out of the prompt. Only the name and one-line description stay in view; the full method loads only when the agent judges it relevant — so you can attach many skills without bloating context, and the agent picks the right manual for the moment.
+
+## Ready to use
+
+Adding a skill is the same motion as adding a tool: pick it in the block's Skills section and it shows on the block. Integrations ship curated skills out of the box, and skills you write are shared across your workspace.
+
+## Related documentation
+
+- [Tool Calling](/academy/agents/tool-calling)
+- [Knowledge Bases](/academy/knowledge-bases/intro)
