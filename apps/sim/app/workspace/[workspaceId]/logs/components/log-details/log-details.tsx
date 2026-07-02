@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
+  Badge,
   Button,
   Chip,
   ChipInput,
@@ -528,9 +529,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       Version
                     </span>
                     <div className='flex w-0 flex-1 justify-end'>
-                      <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-[9px] py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
+                      <Badge variant='green' size='md' className='max-w-full truncate'>
                         {log.deploymentVersionName || `v${log.deploymentVersion}`}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 )}
