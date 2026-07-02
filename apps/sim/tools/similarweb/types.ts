@@ -118,6 +118,27 @@ export interface SimilarwebPagesPerVisitResponse extends ToolResponse {
 }
 
 /**
+ * Page Views parameters
+ */
+export interface SimilarwebPageViewsParams extends SimilarwebTimeSeriesParams {}
+
+/**
+ * Page Views response
+ */
+export interface SimilarwebPageViewsResponse extends ToolResponse {
+  output: {
+    domain: string
+    country: string
+    granularity: string
+    lastUpdated: string | null
+    pageViews: Array<{
+      date: string
+      pageViews: number
+    }>
+  }
+}
+
+/**
  * Average Visit Duration parameters
  */
 export interface SimilarwebVisitDurationParams extends SimilarwebTimeSeriesParams {}

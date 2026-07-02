@@ -3197,6 +3197,7 @@ import {
 import {
   similarwebBounceRateTool,
   similarwebPagesPerVisitTool,
+  similarwebPageViewsTool,
   similarwebTrafficVisitsTool,
   similarwebVisitDurationTool,
   similarwebWebsiteOverviewTool,
@@ -5165,6 +5166,7 @@ export const tools: Record<string, ToolConfig> = {
   similarweb_bounce_rate: similarwebBounceRateTool,
   similarweb_pages_per_visit: similarwebPagesPerVisitTool,
   similarweb_visit_duration: similarwebVisitDurationTool,
+  similarweb_page_views: similarwebPageViewsTool,
   servicenow_create_record: servicenowCreateRecordTool,
   servicenow_read_record: servicenowReadRecordTool,
   servicenow_update_record: servicenowUpdateRecordTool,
