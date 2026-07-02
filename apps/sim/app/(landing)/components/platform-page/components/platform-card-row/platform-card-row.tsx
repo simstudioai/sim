@@ -61,7 +61,7 @@ export function PlatformCardRow({ row }: PlatformCardRowProps) {
       >
         {row.cards.map((card, index) => (
           <PlatformCard
-            key={`${row.id}-${index}`}
+            key={`${row.id}-${card.title}`}
             card={card}
             headingId={`platform-row-${row.id}-card-${index}-heading`}
           />

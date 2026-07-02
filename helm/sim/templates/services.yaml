@@ -103,7 +103,7 @@ spec:
 
 {{- if .Values.pii.enabled }}
 ---
-# Service for the Presidio PII redaction sidecar
+# Service fronting the Presidio PII redaction deployment
 apiVersion: v1
 kind: Service
 metadata:

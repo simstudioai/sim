@@ -1,14 +1,14 @@
 'use client'
 
 import { type KeyboardEvent, useState } from 'react'
-import { cn, Input, Label, Loader } from '@sim/emcn'
+import { cn, Input, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { chatSSOContract } from '@/lib/api/contracts/chats'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
 
 const logger = createLogger('SSOAuth')
 
@@ -145,16 +145,9 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
               )}
             </div>
 
-            <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
-              {isLoading ? (
-                <span className='flex items-center gap-2'>
-                  <Loader className='size-4' animate />
-                  Redirecting to SSO…
-                </span>
-              ) : (
-                'Continue with SSO'
-              )}
-            </button>
+            <AuthSubmitButton loading={isLoading} loadingLabel='Redirecting to SSO…'>
+              Continue with SSO
+            </AuthSubmitButton>
           </form>
         </div>
       </div>

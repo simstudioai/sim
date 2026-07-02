@@ -35,7 +35,7 @@ export const clerkGetOrganizationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/organizations/${params.organizationId}`,
+    url: (params) => `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}`,
     method: 'GET',
     headers: (params) => {
       if (!params.secretKey) {

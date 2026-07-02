@@ -181,6 +181,9 @@ export class WorkflowBlockHandler implements BlockHandler {
           userId: ctx.userId,
           executionId: ctx.executionId,
           abortSignal: ctx.abortSignal,
+          // Propagate in-flight block-output redaction into child workflows so
+          // nested blocks mask outputs too (recurses: each child forwards it).
+          piiBlockOutputRedaction: ctx.piiBlockOutputRedaction,
           callChain: childCallChain,
           ...(shouldPropagateCallbacks && {
             onBlockStart: ctx.onBlockStart,

@@ -73,7 +73,7 @@ export function LandingPreviewMount({ autoplay, view, workflowId }: LandingPrevi
   return (
     <div ref={ref}>
       {inView ? (
-        <LandingPreview autoplay={autoplay} view={view} workflowId={workflowId} />
+        <LandingPreview autoplay={autoplay} initialView={view} initialWorkflowId={workflowId} />
       ) : (
         <div className={PLACEHOLDER_CLASS} />
       )}

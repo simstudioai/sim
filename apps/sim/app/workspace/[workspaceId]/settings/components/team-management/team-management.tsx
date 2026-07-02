@@ -96,13 +96,13 @@ export function TeamManagement() {
       }
     : null
 
-  const externalEmails = useMemo(
-    () =>
-      (roster?.members ?? [])
-        .filter((member) => member.role === 'external')
-        .map((member) => member.email),
-    [roster]
-  )
+  const externalEmails = useMemo(() => {
+    const emails: string[] = []
+    for (const member of roster?.members ?? []) {
+      if (member.role === 'external') emails.push(member.email)
+    }
+    return emails
+  }, [roster])
 
   /**
    * Pending invitations for emails that already belong to a member are
@@ -111,14 +111,15 @@ export function TeamManagement() {
    * blocked in the invite modal.
    */
   const pendingEmails = useMemo(() => {
-    const memberEmailSet = new Set(
-      (roster?.members ?? [])
-        .filter((member) => member.role !== 'external')
-        .map((member) => member.email.toLowerCase())
-    )
-    return (roster?.pendingInvitations ?? [])
-      .map((invitation) => invitation.email)
-      .filter((email) => !memberEmailSet.has(email.toLowerCase()))
+    const memberEmailSet = new Set<string>()
+    for (const member of roster?.members ?? []) {
+      if (member.role !== 'external') memberEmailSet.add(member.email.toLowerCase())
+    }
+    const emails: string[] = []
+    for (const invitation of roster?.pendingInvitations ?? []) {
+      if (!memberEmailSet.has(invitation.email.toLowerCase())) emails.push(invitation.email)
+    }
+    return emails
   }, [roster])
 
   useEffect(() => {
@@ -150,7 +151,7 @@ export function TeamManagement() {
     } catch (error) {
       logger.error('Failed to create organization', error)
     }
-  }, [orgName, orgSlug, createOrgMutation])
+  }, [orgName, orgSlug, createOrgMutation, session?.user])
 
   const handleRemoveMember = useCallback(
     async (member: Member) => {

@@ -38,8 +38,8 @@ RUN groupadd -g 1001 pii && \
     chown -R pii:pii /app
 USER pii
 
-# Listen on 5001. In the ECS task all containers share one network namespace
-# (awsvpc) and the app owns 3000, so this sidecar must not use 3000.
+# Listen on 5001. Runs as its own ECS service (separate task), reached via PII_URL;
+# 5001 avoids colliding with the app's 3000 in local/compose runs on one host.
 EXPOSE 5001
 
 # start-period is generous: five large spaCy models load at import before

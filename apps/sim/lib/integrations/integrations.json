@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-30",
+  "updatedAt": "2026-07-02",
   "integrations": [
     {
       "type": "onepassword",
@@ -541,9 +541,13 @@
         {
           "name": "Delete By Filter",
           "description": "Delete all records matching a filter from an Algolia index"
+        },
+        {
+          "name": "Get Task Status",
+          "description": "Check whether an Algolia indexing task has finished publishing"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4418,7 +4422,7 @@
       "name": "Dropcontact",
       "description": "Enrich B2B contacts with verified email, phone, and company data",
       "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
-      "bgColor": "#0066FF",
+      "bgColor": "#0ABA9F",
       "iconName": "DropcontactIcon",
       "docsUrl": "https://docs.sim.ai/tools/dropcontact",
       "operations": [
@@ -5083,6 +5087,10 @@
           "description": "List recent meetings recorded by the user or shared to their team."
         },
         {
+          "name": "List Meeting Types",
+          "description": "List meeting types configured in your Fathom organization."
+        },
+        {
           "name": "Get Summary",
           "description": "Get the call summary for a specific meeting recording."
         },
@@ -5099,7 +5107,7 @@
           "description": "List teams in your Fathom organization."
         }
       ],
-      "operationCount": 5,
+      "operationCount": 6,
       "triggers": [
         {
           "id": "fathom_new_meeting",
@@ -7312,7 +7320,7 @@
       "name": "Grafana",
       "description": "Interact with Grafana dashboards, alerts, and annotations",
       "longDescription": "Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.",
-      "bgColor": "#F46800",
+      "bgColor": "#FFFFFF",
       "iconName": "GrafanaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/grafana",
       "operations": [
@@ -11269,7 +11277,8 @@
       "triggerCount": 0,
       "authType": "none",
       "category": "tools",
-      "integrationType": "databases"
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "neo4j",
@@ -12365,7 +12374,8 @@
       "triggerCount": 0,
       "authType": "none",
       "category": "tools",
-      "integrationType": "databases"
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "posthog",
@@ -15252,7 +15262,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "documents"
+      "integrationType": "documents",
+      "tags": ["document-processing", "automation"]
     },
     {
       "type": "sharepoint_v2",
@@ -15722,7 +15733,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "email"
+      "integrationType": "email",
+      "tags": ["messaging", "automation"]
     },
     {
       "type": "sportmonks",
@@ -16850,7 +16862,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "devops"
+      "integrationType": "devops",
+      "tags": ["automation"]
     },
     {
       "type": "stagehand",

@@ -447,7 +447,7 @@ Ollama URL
 {{- end }}
 
 {{/*
-PII (Presidio) sidecar URL
+PII (Presidio) service URL
 */}}
 {{- define "sim.piiUrl" -}}
 {{- if .Values.pii.enabled }}

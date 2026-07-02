@@ -27,11 +27,24 @@ export const vercelCreateAliasTool: ToolConfig<VercelCreateAliasParams, VercelCr
         visibility: 'user-or-llm',
         description: 'The domain or subdomain to assign as an alias',
       },
+      redirect: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Hostname to 307-redirect the alias to instead of serving the deployment directly',
+      },
       teamId: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
         description: 'Team ID to scope the request',
+      },
+      slug: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Team slug to scope the request (alternative to teamId)',
       },
     },
 
@@ -39,6 +52,7 @@ export const vercelCreateAliasTool: ToolConfig<VercelCreateAliasParams, VercelCr
       url: (params: VercelCreateAliasParams) => {
         const query = new URLSearchParams()
         if (params.teamId) query.set('teamId', params.teamId.trim())
+        if (params.slug) query.set('slug', params.slug.trim())
         const qs = query.toString()
         return `https://api.vercel.com/v2/deployments/${params.deploymentId.trim()}/aliases${qs ? `?${qs}` : ''}`
       },
@@ -47,9 +61,13 @@ export const vercelCreateAliasTool: ToolConfig<VercelCreateAliasParams, VercelCr
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }),
-      body: (params: VercelCreateAliasParams) => ({
-        alias: params.alias.trim(),
-      }),
+      body: (params: VercelCreateAliasParams) => {
+        const body: Record<string, unknown> = { alias: params.alias.trim() }
+        if (params.redirect != null && params.redirect !== '') {
+          body.redirect = params.redirect.trim()
+        }
+        return body
+      },
     },
 
     transformResponse: async (response: Response) => {

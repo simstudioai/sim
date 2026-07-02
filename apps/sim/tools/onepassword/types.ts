@@ -51,6 +51,12 @@ export interface OnePasswordDeleteItemParams extends OnePasswordBaseParams {
   itemId: string
 }
 
+export interface OnePasswordGetItemFileParams extends OnePasswordBaseParams {
+  vaultId: string
+  itemId: string
+  fileId: string
+}
+
 export interface OnePasswordResolveSecretParams extends OnePasswordBaseParams {
   secretReference: string
 }
@@ -134,6 +140,12 @@ interface OnePasswordFullItemResponse extends ToolResponse {
       id: string
       label: string | null
     }>
+    files: Array<{
+      id: string | null
+      name: string | null
+      size: number
+      section: { id: string } | null
+    }>
     createdAt: string | null
     updatedAt: string | null
     lastEditedBy: string | null
@@ -148,6 +160,17 @@ export type OnePasswordReplaceItemResponse = OnePasswordFullItemResponse
 export interface OnePasswordDeleteItemResponse extends ToolResponse {
   output: {
     success: boolean
+  }
+}
+
+export interface OnePasswordGetItemFileResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }
   }
 }
 

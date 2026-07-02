@@ -2,6 +2,7 @@ import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { getAllTags } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 export const metadata: Metadata = {
   title: 'Tags',
@@ -37,10 +38,7 @@ export default async function TagsIndex() {
   const tags = await getAllTags()
   return (
     <section className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <JsonLd data={breadcrumbJsonLd} />
       <h1 className='mb-6 text-[32px] text-[var(--text-primary)] leading-tight'>Browse by tag</h1>
       <div className='flex flex-wrap gap-3'>
         <ChipLink href='/blog' className='border border-[var(--border-1)]'>

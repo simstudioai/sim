@@ -65,6 +65,8 @@ export function NoOrganizationView({
               style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
               tabIndex={-1}
               readOnly
+              aria-hidden='true'
+              aria-label='Ignore this field'
             />
             <div>
               <Label htmlFor='team-name-field' className='font-medium text-small'>
@@ -137,6 +139,8 @@ export function NoOrganizationView({
               style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
               tabIndex={-1}
               readOnly
+              aria-hidden='true'
+              aria-label='Ignore this field'
             />
             <ChipModalField
               type='input'

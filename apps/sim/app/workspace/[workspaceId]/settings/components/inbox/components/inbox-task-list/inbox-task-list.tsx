@@ -133,25 +133,13 @@ export function InboxTaskList() {
               const statusBadge = STATUS_BADGES[task.status] || STATUS_BADGES.received
               const isClickable =
                 task.chatId && (task.status === 'completed' || task.status === 'failed')
-              return (
-                <div
-                  key={task.id}
-                  className={`flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
-                    isClickable
-                      ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]'
-                      : 'cursor-default'
-                  }`}
-                  role='button'
-                  aria-disabled={!isClickable}
-                  tabIndex={isClickable ? 0 : undefined}
-                  onClick={() => handleTaskClick(task)}
-                  onKeyDown={(e) => {
-                    if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault()
-                      handleTaskClick(task)
-                    }
-                  }}
-                >
+              const rowClassName = `flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
+                isClickable
+                  ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]'
+                  : 'cursor-default'
+              }`
+              const rowContent = (
+                <>
                   <div className='flex min-w-0 flex-1 flex-col'>
                     <div className='flex min-w-0 items-center gap-1.5'>
                       <span className='truncate text-[14px] text-[var(--text-body)]'>
@@ -202,6 +190,21 @@ export function InboxTaskList() {
                       <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                     )}
                   </div>
+                </>
+              )
+
+              return isClickable ? (
+                <button
+                  key={task.id}
+                  type='button'
+                  className={rowClassName}
+                  onClick={() => handleTaskClick(task)}
+                >
+                  {rowContent}
+                </button>
+              ) : (
+                <div key={task.id} className={rowClassName}>
+                  {rowContent}
                 </div>
               )
             })}

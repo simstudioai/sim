@@ -55,8 +55,8 @@ export const domainRatingTool: ToolConfig<AhrefsDomainRatingParams, AhrefsDomain
     return {
       success: true,
       output: {
-        domainRating: data.domain_rating ?? 0,
-        ahrefsRank: data.ahrefs_rank ?? 0,
+        domainRating: data.domain_rating?.domain_rating ?? 0,
+        ahrefsRank: data.domain_rating?.ahrefs_rank ?? null,
       },
     }
   },
@@ -69,6 +69,7 @@ export const domainRatingTool: ToolConfig<AhrefsDomainRatingParams, AhrefsDomain
     ahrefsRank: {
       type: 'number',
       description: 'Ahrefs Rank - global ranking based on backlink profile strength',
+      optional: true,
     },
   },
 }

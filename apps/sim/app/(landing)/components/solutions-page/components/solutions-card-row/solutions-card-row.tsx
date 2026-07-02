@@ -61,7 +61,7 @@ export function SolutionsCardRow({ row }: SolutionsCardRowProps) {
       >
         {row.cards.map((card, index) => (
           <SolutionsCard
-            key={`${row.id}-${index}`}
+            key={`${row.id}-${card.title}`}
             card={card}
             headingId={`solutions-row-${row.id}-card-${index}-heading`}
           />

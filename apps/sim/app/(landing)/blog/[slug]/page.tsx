@@ -8,6 +8,7 @@ import { buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { ShareButton } from '@/app/(landing)/blog/[slug]/share-button'
 import { BackLink } from '@/app/(landing)/components'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 export const dynamicParams = false
 
@@ -37,10 +38,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
   return (
     <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/TechArticle'>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }}
-      />
+      <JsonLd data={graphJsonLd} />
       <header className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
         <div className='mb-6'>
           <BackLink href='/blog' label='Back to Blog' />

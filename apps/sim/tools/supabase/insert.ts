@@ -7,7 +7,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   id: 'supabase_insert',
   name: 'Supabase Insert',
   description: 'Insert data into a Supabase table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

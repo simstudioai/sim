@@ -113,17 +113,56 @@ export const userFileSchema = z
   })
   .passthrough()
 
-/** A single PII redaction rule targeting one scope (all workspaces, or one). */
-export const piiRedactionRuleSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().max(100).optional(),
-  /** Presidio entity types to mask. Empty = redact nothing for this scope. */
-  entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
-  /** null = all workspaces; otherwise the single targeted workspace. */
-  workspaceId: z.string().min(1).nullable(),
-  /** Language whose Presidio recognizers apply; defaults to English. */
-  language: z.enum(PII_LANGUAGE_CODES).optional(),
+/**
+ * Per-stage redaction policy: which entity types to mask, in which language. An
+ * enabled stage must name at least one entity type — "redact all" is not an
+ * expressible policy, so `enabled: true` with an empty list (which would resolve
+ * to off and silently skip masking) is rejected at the boundary.
+ */
+export const piiStagePolicySchema = z
+  .object({
+    enabled: z.boolean(),
+    /** Presidio entity types to mask. Disabled stages may be empty. */
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
+    /** Language whose Presidio recognizers apply; defaults to English. */
+    language: z.enum(PII_LANGUAGE_CODES).optional(),
+  })
+  .refine((stage) => !stage.enabled || stage.entityTypes.length > 0, {
+    message: 'An enabled redaction stage must select at least one entity type.',
+    path: ['entityTypes'],
+  })
+
+export type PiiStagePolicy = z.output<typeof piiStagePolicySchema>
+
+/** The three redaction stages, each independently configured. */
+export const piiStagesSchema = z.object({
+  input: piiStagePolicySchema,
+  blockOutputs: piiStagePolicySchema,
+  logs: piiStagePolicySchema,
 })
+
+export type PiiStages = z.output<typeof piiStagesSchema>
+
+/**
+ * A single PII redaction rule targeting one scope (all workspaces, or one).
+ * New rules carry per-stage `stages`; legacy rows carry only the flat
+ * `entityTypes`/`language` (resolved as logs-only). At least one must be present.
+ */
+export const piiRedactionRuleSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().max(100).optional(),
+    /** null = all workspaces; otherwise the single targeted workspace. */
+    workspaceId: z.string().min(1).nullable(),
+    /** Per-stage policy (input / blockOutputs / logs). */
+    stages: piiStagesSchema.optional(),
+    /** Legacy flat policy (pre-stages). Retained for back-compat parse + migration. */
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100).optional(),
+    language: z.enum(PII_LANGUAGE_CODES).optional(),
+  })
+  .refine((rule) => rule.stages !== undefined || rule.entityTypes !== undefined, {
+    message: 'A PII redaction rule must define either stages or entityTypes.',
+  })
 
 export type PiiRedactionRule = z.output<typeof piiRedactionRuleSchema>
 

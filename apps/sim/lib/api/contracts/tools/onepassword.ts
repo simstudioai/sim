@@ -43,6 +43,10 @@ export const onePasswordResolveSecretBodySchema = onePasswordCredentialsBodySche
   secretReference: z.string().min(1, 'Secret reference is required'),
 })
 
+export const onePasswordGetItemFileBodySchema = onePasswordGetItemBodySchema.extend({
+  fileId: z.string().min(1, 'File ID is required'),
+})
+
 export const onePasswordListVaultsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/onepassword/list-vaults',
@@ -146,5 +150,24 @@ export const onePasswordResolveSecretContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: onePasswordResolveSecretResponseSchema,
+  },
+})
+
+const onePasswordGetItemFileResponseSchema = z.object({
+  file: z.object({
+    name: z.string(),
+    mimeType: z.string(),
+    data: z.string(),
+    size: z.number(),
+  }),
+})
+
+export const onePasswordGetItemFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/onepassword/get-item-file',
+  body: onePasswordGetItemFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: onePasswordGetItemFileResponseSchema,
   },
 })

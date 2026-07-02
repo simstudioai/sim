@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -44,12 +44,14 @@ export function CreateWorkflowMcpServerModal({
 
   const isFormValid = formData.name.trim().length > 0
 
-  useEffect(() => {
-    if (open) {
-      setFormData({ ...INITIAL_FORM_DATA })
-      setSelectedWorkflowIds([])
-    }
-  }, [open])
+  const [prevOpen, setPrevOpen] = useState(false)
+  if (open && !prevOpen) {
+    setFormData({ ...INITIAL_FORM_DATA })
+    setSelectedWorkflowIds([])
+  }
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+  }
 
   const handleCreateServer = useCallback(async () => {
     if (!formData.name.trim()) return
@@ -66,7 +68,7 @@ export function CreateWorkflowMcpServerModal({
     } catch (err) {
       logger.error('Failed to create server:', err)
     }
-  }, [formData, selectedWorkflowIds, workspaceId, onOpenChange])
+  }, [formData, selectedWorkflowIds, workspaceId, onOpenChange, createServerMutation.mutateAsync])
 
   const showWorkflows = workflowOptions !== undefined
 

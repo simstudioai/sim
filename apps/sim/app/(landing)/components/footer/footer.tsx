@@ -130,10 +130,7 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
 
 export function Footer() {
   return (
-    <footer
-      role='contentinfo'
-      className='mt-[120px] w-full border-[var(--border)] border-t max-sm:mt-16 max-lg:mt-[88px]'
-    >
+    <footer className='mt-[120px] w-full border-[var(--border)] border-t max-sm:mt-16 max-lg:mt-[88px]'>
       <div className='mx-auto w-full max-w-[1446px] px-12 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
         <nav
           aria-label='Footer navigation'
