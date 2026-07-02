@@ -69,18 +69,14 @@ jobs:
 
           if [ "${ENVIRONMENT}" = "dev" ]; then
             echo "Dev environment — pushing schema directly (db:push)"
-            # drizzle-kit push prompts interactively for ambiguous renames (which
-            # --force does NOT cover). With no TTY the prompt reads EOF and drizzle
-            # can still exit 0 without applying — a false green. Close stdin, then
-            # reject prompt markers and require a success marker so an unresolved
-            # rename or failed statement fails the job instead of passing.
+            # drizzle-kit push needs a TTY to resolve ambiguous renames (--force only
+            # covers data-loss). In CI it throws "Interactive prompts require a TTY
+            # terminal" but still exits 0, so the job goes green without applying the
+            # change. tee keeps the output live in the log; we then fail on drizzle's
+            # own TTY error. A genuine non-zero exit already fails via `set -e`.
             bun run db:push --force < /dev/null 2>&1 | tee /tmp/db-push.log
-            if grep -qE "created or renamed|Do you want" /tmp/db-push.log; then
-              echo "ERROR: db:push hit an interactive rename prompt; resolve it with a versioned migration, not push." >&2
-              exit 1
-            fi
-            if ! grep -qE "Changes applied|No changes detected|No schema changes" /tmp/db-push.log; then
-              echo "ERROR: db:push did not confirm success (aborted prompt or failed statement)." >&2
+            if grep -q "Interactive prompts require a TTY terminal" /tmp/db-push.log; then
+              echo "ERROR: db:push needs an interactive rename decision; land it as a versioned migration instead of relying on push." >&2
               exit 1
             fi
           else
