@@ -588,7 +588,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           baseParams.files = normalizedFiles
         }
 
-        if (columnDefinitions) {
+        if (columnDefinitions && others.operation === 'create_list') {
           baseParams.pageContent = columnDefinitions
         }
 
@@ -1154,7 +1154,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           maxPages: maxPages ? Number.parseInt(String(maxPages), 10) : undefined,
         }
 
-        if (columnDefinitions) {
+        if (columnDefinitions && rest.operation === 'sharepoint_create_list') {
           result.pageContent = columnDefinitions
         }
         if (normalizedFiles) {
