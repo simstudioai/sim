@@ -1742,6 +1742,21 @@ export function AmplitudeIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function GoogleAppsheetIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 35 36' fill='none'>
+      <path
+        fill='#0060d9'
+        d='m29.0098 6.30417h-7.6818l-3.0989 4.40413-1.8448 4.3641 4.9437.5578 5.1352-.5377 3.8117-6.59901c.5596-.97344-.1422-2.18932-1.2651-2.18932z'
+      />
+      <g fill='#4285f4'>
+        <path d='m3.10253 8.49714 3.19192 5.47426c.39193.6708 1.10834 1.0846 1.8849 1.0846l8.20315.0164 4.9455-8.76823h-16.96584c-1.12656 0-1.82656 1.22135-1.25963 2.19297z' />
+        <path d='m18.0122 29.8453c-.556.9662-1.9469.9789-2.5175.0201l-3.1791-5.3375c-.4011-.6745-.412-1.5112-.0256-2.1948l4.0943-7.2625 10.0771.02z' />
+      </g>
+    </svg>
+  )
+}
+
 export function GoogleBooksIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 478.63 540.07'>

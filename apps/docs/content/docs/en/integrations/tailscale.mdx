@@ -67,7 +67,8 @@ List all devices in the tailnet
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `devices` | array | List of devices in the tailnet |
-|   ↳ `id` | string | Device ID |
+|   ↳ `id` | string | Legacy device ID |
+|   ↳ `nodeId` | string | Preferred device ID |
 |   ↳ `name` | string | Device name |
 |   ↳ `hostname` | string | Device hostname |
 |   ↳ `user` | string | Associated user |
@@ -77,6 +78,8 @@ List all devices in the tailnet
 |   ↳ `tags` | array | Device tags |
 |   ↳ `authorized` | boolean | Whether the device is authorized |
 |   ↳ `blocksIncomingConnections` | boolean | Whether the device blocks incoming connections |
+|   ↳ `keyExpiryDisabled` | boolean | Whether the device key is exempt from expiring |
+|   ↳ `expires` | string | The device's auth key expiration timestamp |
 |   ↳ `lastSeen` | string | Last seen timestamp |
 |   ↳ `created` | string | Creation timestamp |
 | `count` | number | Total number of devices |
@@ -97,7 +100,8 @@ Get details of a specific device by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Device ID |
+| `id` | string | Legacy device ID |
+| `nodeId` | string | Preferred device ID |
 | `name` | string | Device name |
 | `hostname` | string | Device hostname |
 | `user` | string | Associated user |
@@ -107,6 +111,8 @@ Get details of a specific device by ID
 | `tags` | array | Device tags |
 | `authorized` | boolean | Whether the device is authorized |
 | `blocksIncomingConnections` | boolean | Whether the device blocks incoming connections |
+| `keyExpiryDisabled` | boolean | Whether the device key is exempt from expiring |
+| `expires` | string | The device's auth key expiration timestamp |
 | `lastSeen` | string | Last seen timestamp |
 | `created` | string | Creation timestamp |
 | `isExternal` | boolean | Whether the device is external |
@@ -235,6 +241,25 @@ Enable or disable key expiry on a device
 | `deviceId` | string | Device ID |
 | `keyExpiryDisabled` | boolean | Whether key expiry is now disabled |
 
+### `tailscale_expire_device_key`
+
+Immediately expire a device's node key, requiring it to re-authenticate before it can reconnect to the tailnet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Tailscale API key |
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+| `deviceId` | string | Yes | Device ID to expire the key for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the device's key was successfully expired |
+| `deviceId` | string | Device ID |
+
 ### `tailscale_list_dns_nameservers`
 
 Get the DNS nameservers configured for the tailnet
@@ -251,7 +276,6 @@ Get the DNS nameservers configured for the tailnet
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `dns` | array | List of DNS nameserver addresses |
-| `magicDNS` | boolean | Whether MagicDNS is enabled |
 
 ### `tailscale_set_dns_nameservers`
 
@@ -369,6 +393,44 @@ List all users in the tailnet
 |   ↳ `lastSeen` | string | Last seen timestamp |
 |   ↳ `deviceCount` | number | Number of devices owned by user |
 | `count` | number | Total number of users |
+
+### `tailscale_suspend_user`
+
+Suspend a user's access to the tailnet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Tailscale API key |
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+| `userId` | string | Yes | User ID to suspend |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the user was successfully suspended |
+| `userId` | string | ID of the suspended user |
+
+### `tailscale_delete_user`
+
+Delete a user from the tailnet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Tailscale API key |
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+| `userId` | string | Yes | User ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the user was successfully deleted |
+| `userId` | string | ID of the deleted user |
 
 ### `tailscale_create_auth_key`
 
@@ -494,5 +556,25 @@ Get the current ACL policy for the tailnet
 | --------- | ---- | ----------- |
 | `acl` | string | ACL policy as JSON string |
 | `etag` | string | ETag for the current ACL version \(use with If-Match header for updates\) |
+
+### `tailscale_set_acl`
+
+Replace the ACL policy file for the tailnet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Tailscale API key |
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+| `acl` | string | Yes | The new ACL policy file, as a JSON string |
+| `ifMatch` | string | No | ETag from a prior Get ACL call to avoid overwriting concurrent updates. Use "ts-default" to only replace an untouched default policy file. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `acl` | string | Updated ACL policy as JSON string |
+| `etag` | string | ETag for the new ACL version \(use with If-Match header for future updates\) |
 
 

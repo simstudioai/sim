@@ -29,7 +29,7 @@ In Sim, the WordPress integration enables your agents to automate content publis
 
 ## Usage Instructions
 
-Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.
+Integrate with WordPress.com to create, update, and manage posts, pages, media, comments, categories, tags, and users. Connects to WordPress.com sites via OAuth.
 
 
 
@@ -507,7 +507,6 @@ Delete a media item from WordPress.com
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `mediaId` | number | Yes | The ID of the media item to delete |
-| `force` | boolean | No | Force delete \(media has no trash, so deletion is permanent\) |
 
 #### Output
 
@@ -715,6 +714,86 @@ List categories from WordPress.com
 | `total` | number | Total number of categories |
 | `totalPages` | number | Total number of result pages |
 
+### `wordpress_get_category`
+
+Get a single category from WordPress.com by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+| `categoryId` | number | Yes | The ID of the category to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `category` | object | The retrieved category |
+|   ↳ `id` | number | Category ID |
+|   ↳ `count` | number | Number of posts in this category |
+|   ↳ `description` | string | Category description |
+|   ↳ `link` | string | Category archive URL |
+|   ↳ `name` | string | Category name |
+|   ↳ `slug` | string | Category slug |
+|   ↳ `taxonomy` | string | Taxonomy name |
+|   ↳ `parent` | number | Parent category ID |
+
+### `wordpress_update_category`
+
+Update an existing category in WordPress.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+| `categoryId` | number | Yes | The ID of the category to update |
+| `name` | string | No | Category name |
+| `description` | string | No | Category description |
+| `parent` | number | No | Parent category ID for hierarchical categories |
+| `slug` | string | No | URL slug for the category |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `category` | object | The updated category |
+|   ↳ `id` | number | Category ID |
+|   ↳ `count` | number | Number of posts in this category |
+|   ↳ `description` | string | Category description |
+|   ↳ `link` | string | Category archive URL |
+|   ↳ `name` | string | Category name |
+|   ↳ `slug` | string | Category slug |
+|   ↳ `taxonomy` | string | Taxonomy name |
+|   ↳ `parent` | number | Parent category ID |
+
+### `wordpress_delete_category`
+
+Delete a category from WordPress.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+| `categoryId` | number | Yes | The ID of the category to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the category was deleted |
+| `category` | object | The deleted category |
+|   ↳ `id` | number | Category ID |
+|   ↳ `count` | number | Number of posts in this category |
+|   ↳ `description` | string | Category description |
+|   ↳ `link` | string | Category archive URL |
+|   ↳ `name` | string | Category name |
+|   ↳ `slug` | string | Category slug |
+|   ↳ `taxonomy` | string | Taxonomy name |
+|   ↳ `parent` | number | Parent category ID |
+
 ### `wordpress_create_tag`
 
 Create a new tag in WordPress.com
@@ -769,6 +848,82 @@ List tags from WordPress.com
 |   ↳ `taxonomy` | string | Taxonomy name |
 | `total` | number | Total number of tags |
 | `totalPages` | number | Total number of result pages |
+
+### `wordpress_get_tag`
+
+Get a single tag from WordPress.com by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+| `tagId` | number | Yes | The ID of the tag to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tag` | object | The retrieved tag |
+|   ↳ `id` | number | Tag ID |
+|   ↳ `count` | number | Number of posts with this tag |
+|   ↳ `description` | string | Tag description |
+|   ↳ `link` | string | Tag archive URL |
+|   ↳ `name` | string | Tag name |
+|   ↳ `slug` | string | Tag slug |
+|   ↳ `taxonomy` | string | Taxonomy name |
+
+### `wordpress_update_tag`
+
+Update an existing tag in WordPress.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+| `tagId` | number | Yes | The ID of the tag to update |
+| `name` | string | No | Tag name |
+| `description` | string | No | Tag description |
+| `slug` | string | No | URL slug for the tag |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tag` | object | The updated tag |
+|   ↳ `id` | number | Tag ID |
+|   ↳ `count` | number | Number of posts with this tag |
+|   ↳ `description` | string | Tag description |
+|   ↳ `link` | string | Tag archive URL |
+|   ↳ `name` | string | Tag name |
+|   ↳ `slug` | string | Tag slug |
+|   ↳ `taxonomy` | string | Taxonomy name |
+
+### `wordpress_delete_tag`
+
+Delete a tag from WordPress.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+| `tagId` | number | Yes | The ID of the tag to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the tag was deleted |
+| `tag` | object | The deleted tag |
+|   ↳ `id` | number | Tag ID |
+|   ↳ `count` | number | Number of posts with this tag |
+|   ↳ `description` | string | Tag description |
+|   ↳ `link` | string | Tag archive URL |
+|   ↳ `name` | string | Tag name |
+|   ↳ `slug` | string | Tag slug |
+|   ↳ `taxonomy` | string | Taxonomy name |
 
 ### `wordpress_get_current_user`
 
@@ -874,8 +1029,8 @@ Search across all content types in WordPress.com (posts, pages, media)
 | `query` | string | Yes | Search query |
 | `perPage` | number | No | Number of results per request \(default: 10, max: 100\) |
 | `page` | number | No | Page number for pagination |
-| `type` | string | No | Filter by content type: post, page, attachment |
-| `subtype` | string | No | Filter by post type slug \(e.g., post, page\) |
+| `type` | string | No | Filter by search index type: post, term, or post-format |
+| `subtype` | string | No | Filter by subtype within the selected type \(e.g., post or page when type is post\) |
 
 #### Output
 
@@ -885,8 +1040,8 @@ Search across all content types in WordPress.com (posts, pages, media)
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `url` | string | Content URL |
-|   ↳ `type` | string | Content type \(post, page, attachment\) |
-|   ↳ `subtype` | string | Post type slug |
+|   ↳ `type` | string | Content type \(post, term, or post-format\) |
+|   ↳ `subtype` | string | Subtype within the content type \(e.g., post, page\) |
 | `total` | number | Total number of results |
 | `totalPages` | number | Total number of result pages |
 
