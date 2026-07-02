@@ -116,7 +116,8 @@ function renderStructuredValuePreview(value: unknown) {
   }
 
   if (typeof value === 'object') {
-    const { text, truncated } = truncateForPreview(JSON.stringify(value, null, 2))
+    const prettyPrinted = JSON.stringify(value, null, 2)
+    const { text, truncated } = truncateForPreview(prettyPrinted)
     return (
       <div className='min-w-[220px]'>
         <Code.Viewer
@@ -128,7 +129,7 @@ function renderStructuredValuePreview(value: unknown) {
         {truncated && (
           <p className='mt-1 text-[11px] text-[var(--text-muted)]'>
             Value truncated for preview ({DISPLAY_VALUE_PREVIEW_MAX_CHARS.toLocaleString()} of{' '}
-            {JSON.stringify(value).length.toLocaleString()} characters shown).
+            {prettyPrinted.length.toLocaleString()} characters shown).
           </p>
         )}
       </div>
