@@ -631,7 +631,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
         { label: 'All Types', id: '' },
         { label: 'Post', id: 'post' },
         { label: 'Page', id: 'page' },
-        { label: 'Attachment', id: 'attachment' },
       ],
       value: () => '',
       mode: 'advanced',
@@ -1132,7 +1131,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     slug: { type: 'string', description: 'URL slug' },
     categories: { type: 'string', description: 'Category IDs (comma-separated)' },
     tags: { type: 'string', description: 'Tag IDs (comma-separated)' },
-    listAuthor: { type: 'string', description: 'Filter posts by author ID' },
+    listAuthor: { type: 'number', description: 'Filter posts by author ID' },
     featuredMedia: { type: 'number', description: 'Featured media ID' },
     // Page inputs
     pageId: { type: 'number', description: 'Page ID' },
@@ -1174,8 +1173,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     query: { type: 'string', description: 'Search query' },
     searchType: {
       type: 'string',
-      description:
-        'Content subtype filter (post, page, attachment) — maps to the API subtype param',
+      description: 'Content subtype filter (post, page) — maps to the API subtype param',
     },
     // List inputs
     perPage: { type: 'number', description: 'Results per page' },
