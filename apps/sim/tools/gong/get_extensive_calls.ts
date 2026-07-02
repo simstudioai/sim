@@ -82,6 +82,8 @@ export const getExtensiveCallsTool: ToolConfig<
       const body: Record<string, unknown> = {
         filter,
         contentSelector: {
+          context: 'Extended',
+          contextTiming: ['Now', 'TimeOfCall'],
           exposedFields: {
             parties: true,
             content: {
