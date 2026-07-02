@@ -1,20 +1,20 @@
 import type {
-  AhrefsOrganicKeywordsParams,
-  AhrefsOrganicKeywordsResponse,
+  AhrefsOrganicCompetitorsParams,
+  AhrefsOrganicCompetitorsResponse,
 } from '@/tools/ahrefs/types'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
-  'keyword,volume,best_position,best_position_url,sum_traffic,keyword_difficulty'
+  'competitor_domain,domain_rating,keywords_common,keywords_target,keywords_competitor,traffic'
 
-export const organicKeywordsTool: ToolConfig<
-  AhrefsOrganicKeywordsParams,
-  AhrefsOrganicKeywordsResponse
+export const organicCompetitorsTool: ToolConfig<
+  AhrefsOrganicCompetitorsParams,
+  AhrefsOrganicCompetitorsResponse
 > = {
-  id: 'ahrefs_organic_keywords',
-  name: 'Ahrefs Organic Keywords',
+  id: 'ahrefs_organic_competitors',
+  name: 'Ahrefs Organic Competitors',
   description:
-    'Get organic keywords that a target domain or URL ranks for in Google search results. Returns keyword details including search volume, ranking position, and estimated traffic.',
+    'Get domains that compete with a target domain or URL for the same organic keywords, ranked by keyword overlap.',
   version: '1.0.0',
 
   params: {
@@ -22,8 +22,7 @@ export const organicKeywordsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'The target domain or URL to analyze. Example: "example.com" or "https://example.com/page"',
+      description: 'The target domain or URL to analyze. Example: "example.com"',
     },
     country: {
       type: 'string',
@@ -60,7 +59,7 @@ export const organicKeywordsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL('https://api.ahrefs.com/v3/site-explorer/organic-keywords')
+      const url = new URL('https://api.ahrefs.com/v3/site-explorer/organic-competitors')
       url.searchParams.set('target', params.target)
       url.searchParams.set('country', params.country || 'us')
       url.searchParams.set('select', SELECT_FIELDS)
@@ -82,49 +81,54 @@ export const organicKeywordsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || data.error || 'Failed to get organic keywords')
+      throw new Error(data.error?.message || data.error || 'Failed to get organic competitors')
     }
 
-    const keywords = (data.keywords || []).map((kw: any) => ({
-      keyword: kw.keyword || '',
-      volume: kw.volume ?? 0,
-      position: kw.best_position ?? null,
-      url: kw.best_position_url ?? null,
-      traffic: kw.sum_traffic ?? 0,
-      keywordDifficulty: kw.keyword_difficulty ?? null,
+    const competitors = (data.competitors || []).map((competitor: any) => ({
+      domain: competitor.competitor_domain ?? null,
+      domainRating: competitor.domain_rating ?? 0,
+      commonKeywords: competitor.keywords_common ?? 0,
+      targetKeywords: competitor.keywords_target ?? 0,
+      competitorKeywords: competitor.keywords_competitor ?? 0,
+      traffic: competitor.traffic ?? null,
     }))
 
     return {
       success: true,
       output: {
-        keywords,
+        competitors,
       },
     }
   },
 
   outputs: {
-    keywords: {
+    competitors: {
       type: 'array',
-      description: 'List of organic keywords the target ranks for',
+      description: 'List of organic search competitors ranked by keyword overlap',
       items: {
         type: 'object',
         properties: {
-          keyword: { type: 'string', description: 'The keyword' },
-          volume: { type: 'number', description: 'Monthly search volume' },
-          position: {
-            type: 'number',
-            description: 'Best ranking position for this keyword',
-            optional: true,
-          },
-          url: {
+          domain: {
             type: 'string',
-            description: 'The URL that ranks at the best position for this keyword',
+            description: 'The competitor domain',
             optional: true,
           },
-          traffic: { type: 'number', description: 'Estimated monthly organic traffic' },
-          keywordDifficulty: {
+          domainRating: { type: 'number', description: 'Domain Rating of the competitor' },
+          commonKeywords: {
             type: 'number',
-            description: 'Keyword difficulty score (0-100)',
+            description: 'Number of keywords the competitor and target both rank for',
+          },
+          targetKeywords: {
+            type: 'number',
+            description: 'Number of keywords the target ranks for',
+          },
+          competitorKeywords: {
+            type: 'number',
+            description: 'Number of keywords the competitor ranks for',
+          },
+          traffic: {
+            type: 'number',
+            description: 'Estimated monthly organic traffic for the competitor',
             optional: true,
           },
         },
