@@ -1910,7 +1910,13 @@ import {
   knowledgeUploadChunkTool,
   knowledgeUpsertDocumentTool,
 } from '@/tools/knowledge'
-import { langsmithCreateRunsBatchTool, langsmithCreateRunTool } from '@/tools/langsmith'
+import {
+  langsmithCreateFeedbackTool,
+  langsmithCreateRunsBatchTool,
+  langsmithCreateRunTool,
+  langsmithGetRunTool,
+  langsmithUpdateRunTool,
+} from '@/tools/langsmith'
 import {
   latexCompileTool,
   latexGetPackageTool,
@@ -7250,6 +7256,9 @@ export const tools: Record<string, ToolConfig> = {
   linear_list_project_statuses: linearListProjectStatusesTool,
   langsmith_create_run: langsmithCreateRunTool,
   langsmith_create_runs_batch: langsmithCreateRunsBatchTool,
+  langsmith_update_run: langsmithUpdateRunTool,
+  langsmith_get_run: langsmithGetRunTool,
+  langsmith_create_feedback: langsmithCreateFeedbackTool,
   latex_compile: latexCompileTool,
   latex_get_package: latexGetPackageTool,
   latex_list_fonts: latexListFontsTool,
