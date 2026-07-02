@@ -4,14 +4,12 @@ import { memo, useRef, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
-  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 
@@ -41,10 +39,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
 }: EditKnowledgeBaseModalProps) {
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
-  const [nameError, setNameError] = useState<string | null>(null)
-  const [descriptionError, setDescriptionError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   /**
    * Seed the fields only on the closed → open transition (render-phase reset),
@@ -56,34 +51,16 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
     if (open) {
       setName(initialName)
       setDescription(initialDescription)
-      setNameError(null)
-      setDescriptionError(null)
-      setError(null)
     }
   }
 
   const validate = (): string | null => {
-    let firstError: string | null = null
-
-    if (!name.trim()) {
-      setNameError('Name is required')
-      firstError ??= 'Name is required'
-    } else if (name.trim().length > 100) {
-      setNameError('Name must be less than 100 characters')
-      firstError ??= 'Name must be less than 100 characters'
-    } else {
-      setNameError(null)
-    }
-
+    if (!name.trim()) return 'Name is required'
+    if (name.trim().length > 100) return 'Name must be less than 100 characters'
     if (description.length > KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH) {
-      const message = `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
-      setDescriptionError(message)
-      firstError ??= message
-    } else {
-      setDescriptionError(null)
+      return `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
     }
-
-    return firstError
+    return null
   }
 
   const handleSubmit = async () => {
@@ -94,14 +71,12 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
     }
 
     setIsSubmitting(true)
-    setError(null)
 
     try {
       await onSave(knowledgeBaseId, name.trim(), description.trim())
       onOpenChange(false)
     } catch (err) {
       logger.error('Error updating knowledge base:', err)
-      setError(getErrorMessage(err, 'Failed to update knowledge base'))
     } finally {
       setIsSubmitting(false)
     }
@@ -121,7 +96,6 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
           onChange={setName}
           placeholder='Enter knowledge base name'
           required
-          error={nameError ?? undefined}
           autoComplete='off'
         />
         <ChipModalField
@@ -131,7 +105,6 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
           onChange={setDescription}
           placeholder='Describe this knowledge base (optional)'
           rows={4}
-          error={descriptionError ?? undefined}
         />
         {chunkingConfig && (
           <ChipModalField type='custom' title='Chunking Configuration'>
@@ -166,7 +139,6 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
             </div>
           </ChipModalField>
         )}
-        <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}

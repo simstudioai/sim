@@ -9,7 +9,6 @@ import {
   ChipInput,
   ChipModal,
   ChipModalBody,
-  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
@@ -119,11 +118,6 @@ const FormSchema = z
 type FormInputValues = z.input<typeof FormSchema>
 type FormValues = z.output<typeof FormSchema>
 
-interface SubmitStatus {
-  type: 'success' | 'error'
-  message: string
-}
-
 export const CreateBaseModal = memo(function CreateBaseModal({
   open,
   onOpenChange,
@@ -134,11 +128,10 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   const createKnowledgeBaseMutation = useCreateKnowledgeBase(workspaceId)
   const deleteKnowledgeBaseMutation = useDeleteKnowledgeBase(workspaceId)
 
-  const [submitStatus, setSubmitStatus] = useState<SubmitStatus | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
 
-  const { uploadFiles, isUploading, uploadProgress, uploadError, clearError } = useKnowledgeUpload({
+  const { uploadFiles, isUploading, uploadProgress, clearError } = useKnowledgeUpload({
     workspaceId,
   })
 
@@ -178,7 +171,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
   useEffect(() => {
     if (open) {
-      setSubmitStatus(null)
       setFileError(null)
       setFiles([])
       reset({
@@ -241,8 +233,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   }
 
   const onSubmit = async (data: FormValues) => {
-    setSubmitStatus(null)
-
     try {
       const strategyOptions: StrategyOptions | undefined =
         data.strategy === 'regex' && data.regexPattern
@@ -289,7 +279,8 @@ export const CreateBaseModal = memo(function CreateBaseModal({
           } catch (deleteError) {
             logger.error('Failed to delete orphaned knowledge base:', deleteError)
           }
-          throw uploadError
+          toast.error(getErrorMessage(uploadError, 'Failed to upload files'))
+          return
         }
       }
 
@@ -298,10 +289,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       handleClose(false)
     } catch (error) {
       logger.error('Error creating knowledge base:', error)
-      setSubmitStatus({
-        type: 'error',
-        message: getErrorMessage(error, 'An unknown error occurred'),
-      })
     }
   }
 
@@ -334,7 +321,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             />
           </ChipModalField>
 
-          <ChipModalField type='custom' title='Description' error={errors.description?.message}>
+          <ChipModalField type='custom' title='Description'>
             <ChipTextarea
               placeholder='Describe this knowledge base (optional)'
               rows={4}
@@ -410,7 +397,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               <ChipModalField
                 type='custom'
                 title='Regex Pattern'
-                error={errors.regexPattern?.message}
                 hint='Text will be split at each match of this regex pattern.'
               >
                 <ChipInput
@@ -520,8 +506,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               </div>
             </ChipModalField>
           )}
-
-          <ChipModalError>{uploadError?.message || submitStatus?.message}</ChipModalError>
         </ChipModalBody>
 
         <ChipModalFooter

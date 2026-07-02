@@ -619,6 +619,9 @@ export function useCreateKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: createKnowledgeBase,
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
