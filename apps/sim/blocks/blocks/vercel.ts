@@ -1483,7 +1483,7 @@ export const VercelBlock: BlockConfig = {
           case 'list_deployments':
             return {
               ...base,
-              ...(deploymentsProjectId ? { projectId: deploymentsProjectId } : {}),
+              projectId: deploymentsProjectId || undefined,
               ...(deploymentsApp ? { app: deploymentsApp } : {}),
               ...(deploymentsSince ? { since: Number(deploymentsSince) } : {}),
               ...(deploymentsUntil ? { until: Number(deploymentsUntil) } : {}),
@@ -1503,8 +1503,8 @@ export const VercelBlock: BlockConfig = {
           case 'create_deployment':
             return {
               ...base,
-              ...(redeployId ? { deploymentId: redeployId } : {}),
-              ...(deployTarget ? { target: deployTarget } : {}),
+              deploymentId: redeployId || undefined,
+              target: deployTarget || undefined,
               ...(deploymentGitSource ? { gitSource: deploymentGitSource } : {}),
               ...(deploymentForceNew ? { forceNew: deploymentForceNew } : {}),
             }
@@ -1583,7 +1583,7 @@ export const VercelBlock: BlockConfig = {
             return {
               ...base,
               recordId,
-              ...(updateRecordName ? { name: updateRecordName } : {}),
+              name: updateRecordName || undefined,
               ...(updateRecordType ? { type: updateRecordType } : {}),
               ...(updateRecordValue ? { value: updateRecordValue } : {}),
               ...(updateRecordTtl ? { ttl: updateRecordTtl } : {}),
@@ -1628,7 +1628,7 @@ export const VercelBlock: BlockConfig = {
               ...base,
               ...(envKey ? { key: envKey } : {}),
               ...(envValue ? { value: envValue } : {}),
-              ...(envTarget ? { target: envTarget } : {}),
+              target: envTarget || undefined,
               ...(envType ? { type: envType } : {}),
               ...(envGitBranch ? { gitBranch: envGitBranch } : {}),
               ...(envComment ? { comment: envComment } : {}),
@@ -1688,7 +1688,7 @@ export const VercelBlock: BlockConfig = {
               ...base,
               deploymentId: checkDeploymentId,
               checkId,
-              ...(checkName ? { name: checkName } : {}),
+              name: checkName || undefined,
               ...(checkStatus ? { status: checkStatus } : {}),
               ...(checkConclusion ? { conclusion: checkConclusion } : {}),
               ...(checkPath ? { path: checkPath } : {}),
@@ -1706,7 +1706,7 @@ export const VercelBlock: BlockConfig = {
               ...(teamMembersLimit ? { limit: Number(teamMembersLimit) } : {}),
               ...(teamMembersSince ? { since: Number(teamMembersSince) } : {}),
               ...(teamMembersUntil ? { until: Number(teamMembersUntil) } : {}),
-              ...(teamMembersSearch ? { search: teamMembersSearch } : {}),
+              search: teamMembersSearch || undefined,
             }
           case 'list_teams':
             return {
