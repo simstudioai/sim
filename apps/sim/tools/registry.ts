@@ -916,6 +916,7 @@ import {
   fathomGetSummaryTool,
   fathomGetTranscriptTool,
   fathomListMeetingsTool,
+  fathomListMeetingTypesTool,
   fathomListTeamMembersTool,
   fathomListTeamsTool,
 } from '@/tools/fathom'
@@ -6963,6 +6964,7 @@ export const tools: Record<string, ToolConfig> = {
   elevenlabs_speech_to_speech: elevenLabsSpeechToSpeechTool,
   elevenlabs_audio_isolation: elevenLabsAudioIsolationTool,
   fathom_list_meetings: fathomListMeetingsTool,
+  fathom_list_meeting_types: fathomListMeetingTypesTool,
   fathom_get_summary: fathomGetSummaryTool,
   fathom_get_transcript: fathomGetTranscriptTool,
   fathom_list_team_members: fathomListTeamMembersTool,

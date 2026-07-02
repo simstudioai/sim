@@ -5087,6 +5087,10 @@
           "description": "List recent meetings recorded by the user or shared to their team."
         },
         {
+          "name": "List Meeting Types",
+          "description": "List meeting types configured in your Fathom organization."
+        },
+        {
           "name": "Get Summary",
           "description": "Get the call summary for a specific meeting recording."
         },
@@ -5103,7 +5107,7 @@
           "description": "List teams in your Fathom organization."
         }
       ],
-      "operationCount": 5,
+      "operationCount": 6,
       "triggers": [
         {
           "id": "fathom_new_meeting",
