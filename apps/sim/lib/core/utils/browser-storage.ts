@@ -320,33 +320,37 @@ export class MothershipHandoffStorage {
   private static readonly KEY = STORAGE_KEYS.MOTHERSHIP_HANDOFF
 
   /**
-   * Store a handoff to be auto-sent on the next home-surface mount.
-   * @returns True if stored, false when the message is empty.
+   * Store a handoff to be auto-sent on the next home-surface mount, scoped to
+   * the workspace it targets so a different workspace never claims it.
+   * @returns True if stored, false when the message or workspace is empty.
    */
-  static store(handoff: MothershipHandoff): boolean {
+  static store(handoff: MothershipHandoff, workspaceId: string): boolean {
     const message = handoff.message.trim()
-    if (!message) {
+    if (!message || !workspaceId) {
       return false
     }
 
     return BrowserStorage.setItem(MothershipHandoffStorage.KEY, {
       message,
       contexts: handoff.contexts,
+      workspaceId,
       timestamp: Date.now(),
     })
   }
 
   /**
-   * Retrieve and consume the stored handoff. Clears the entry as soon as one
-   * exists — before the validity and expiry checks — so a malformed or expired
-   * handoff is tombstoned rather than lingering across future mounts, and a
-   * valid handoff fires exactly once.
+   * Retrieve and consume the stored handoff for `workspaceId`. A handoff owned
+   * by a different workspace is left untouched for its owner — its tagged run
+   * only resolves in its own workspace, so misfiring it elsewhere would drop the
+   * context. The owner (and any legacy/corrupt entry) is tombstoned via `clear`
+   * before the validity/expiry checks so it fires at most once and never lingers.
    * @param maxAge - Maximum age in milliseconds (default: 60 seconds)
    */
-  static consume(maxAge: number = 60 * 1000): MothershipHandoff | null {
+  static consume(workspaceId: string, maxAge: number = 60 * 1000): MothershipHandoff | null {
     const data = BrowserStorage.getItem<{
       message?: string
       contexts?: ChatContext[]
+      workspaceId?: string
       timestamp?: number
     } | null>(MothershipHandoffStorage.KEY, null)
 
@@ -354,9 +358,18 @@ export class MothershipHandoffStorage {
       return null
     }
 
+    if (data.workspaceId && data.workspaceId !== workspaceId) {
+      return null
+    }
+
     MothershipHandoffStorage.clear()
 
-    if (!data.message || !data.timestamp || Date.now() - data.timestamp > maxAge) {
+    if (
+      !data.workspaceId ||
+      !data.message ||
+      !data.timestamp ||
+      Date.now() - data.timestamp > maxAge
+    ) {
       return null
     }
 
