@@ -381,6 +381,14 @@ export const VercelBlock: BlockConfig = {
       required: { field: 'operation', value: 'create_project' },
     },
     {
+      id: 'updateProjectName',
+      title: 'New Project Name',
+      type: 'short-input',
+      placeholder: 'Rename the project (optional — leave blank to keep)',
+      condition: { field: 'operation', value: 'update_project' },
+      mode: 'advanced',
+    },
+    {
       id: 'framework',
       title: 'Framework',
       type: 'dropdown',
@@ -1437,6 +1445,7 @@ export const VercelBlock: BlockConfig = {
           eventsSince,
           eventsUntil,
           projectName,
+          updateProjectName,
           domainName,
           dnsRecordsLimit,
           projectDomainsLimit,
@@ -1548,7 +1557,7 @@ export const VercelBlock: BlockConfig = {
           case 'create_project':
             return { ...base, name: projectName }
           case 'update_project':
-            return base
+            return { ...base, name: updateProjectName || undefined }
           case 'list_projects':
             return { ...base, ...(projectsFrom ? { from: projectsFrom } : {}) }
           case 'add_project_domain':
@@ -1769,6 +1778,7 @@ export const VercelBlock: BlockConfig = {
     deploymentId: { type: 'string', description: 'Deployment ID or hostname' },
     name: { type: 'string', description: 'Project name' },
     projectName: { type: 'string', description: 'New project name' },
+    updateProjectName: { type: 'string', description: 'Renamed project name for update_project' },
     project: { type: 'string', description: 'Project ID override' },
     redeployId: { type: 'string', description: 'Deployment ID to redeploy' },
     target: { type: 'string', description: 'Target environment filter' },
