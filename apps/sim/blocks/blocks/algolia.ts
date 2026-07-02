@@ -672,7 +672,6 @@ Return ONLY the JSON array.`,
       type: 'string',
       description: 'Task status: "published" once applied, "notPublished" while still pending',
     },
-    pendingTask: { type: 'boolean', description: 'Whether the task is still pending' },
   },
 }
 

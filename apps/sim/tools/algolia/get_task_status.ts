@@ -56,7 +56,6 @@ export const getTaskStatusTool: ToolConfig<
       success: true,
       output: {
         status: data.status ?? '',
-        pendingTask: data.pendingTask ?? false,
       },
     }
   },
@@ -66,10 +65,6 @@ export const getTaskStatusTool: ToolConfig<
       type: 'string',
       description:
         'Task status: "published" once the operation has been applied, "notPublished" while still pending',
-    },
-    pendingTask: {
-      type: 'boolean',
-      description: 'Whether the task is still pending',
     },
   },
 }

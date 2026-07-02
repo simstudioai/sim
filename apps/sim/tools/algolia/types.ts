@@ -286,6 +286,5 @@ export interface AlgoliaGetTaskStatusParams extends AlgoliaBaseParams {
 export interface AlgoliaGetTaskStatusResponse extends ToolResponse {
   output: {
     status: string
-    pendingTask: boolean
   }
 }
