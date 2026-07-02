@@ -83,8 +83,8 @@ function JobRow({ posting }: JobRowProps) {
       target='_blank'
       rel='noopener noreferrer'
       className={cn(
-        'group flex items-center justify-between gap-6 border-[var(--border)] border-t py-5',
-        'transition-colors hover:bg-[var(--surface-hover)]'
+        '-mx-3 group flex items-center justify-between gap-6 rounded-lg border-[var(--border)]',
+        'border-t px-3 py-5 transition-colors hover:bg-[var(--surface-hover)]'
       )}
     >
       <div className='flex min-w-0 flex-col gap-1.5'>
