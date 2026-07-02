@@ -54,13 +54,17 @@ export const sendGridSearchContactsTool: ToolConfig<SearchContactsParams, Contac
       success: true,
       output: {
         contacts: data.result || [],
-        contactCount: data.contact_count,
+        contactCount: data.contact_count ?? null,
       },
     }
   },
 
   outputs: {
     contacts: { type: 'json', description: 'Array of matching contacts' },
-    contactCount: { type: 'number', description: 'Total number of contacts found' },
+    contactCount: {
+      type: 'number',
+      description: 'Total number of contacts found',
+      optional: true,
+    },
   },
 }
