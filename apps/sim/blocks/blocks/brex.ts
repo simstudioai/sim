@@ -591,6 +591,10 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
     createdAt: { type: 'string', description: 'Creation timestamp of the transfer' },
     displayName: { type: 'string', description: 'Display name of the transfer' },
     externalMemo: { type: 'string', description: 'External memo of the transfer' },
+    isPproEnabled: {
+      type: 'boolean',
+      description: 'Whether Principal Protection (PPRO) is enabled for the transfer',
+    },
   },
 }
 
