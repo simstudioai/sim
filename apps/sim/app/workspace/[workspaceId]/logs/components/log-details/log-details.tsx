@@ -474,7 +474,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     role='button'
                     tabIndex={0}
                     aria-label='Copy run ID'
-                    className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
+                    className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
                     onClick={() => copyRunId(log.executionId!)}
                     onKeyDown={(event) =>
                       handleKeyboardActivation(event, () => copyRunId(log.executionId!))
@@ -490,7 +490,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 )}
 
                 {/* Level */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     Level
                   </span>
@@ -498,7 +498,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 </div>
 
                 {/* Trigger */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     Trigger
                   </span>
@@ -512,7 +512,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 </div>
 
                 {/* Duration */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     Duration
                   </span>
@@ -523,7 +523,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
                 {/* Version */}
                 {log.deploymentVersion && (
-                  <div className='flex h-10 items-center gap-2 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center gap-2 px-3'>
                     <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                       Version
                     </span>
@@ -537,7 +537,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
                 {/* Snapshot */}
                 {showWorkflowState && (
-                  <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center justify-between px-3'>
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Snapshot
                     </span>
@@ -600,10 +600,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               {hasCostInfo && costBreakdown && (
                 <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
                   {costBreakdown.rows.map((row) => (
-                    <div
-                      key={row.key}
-                      className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
-                    >
+                    <div key={row.key} className='flex h-10 items-center justify-between px-3'>
                       <span className='min-w-0 truncate font-medium text-[var(--text-tertiary)] text-caption'>
                         {row.label}
                       </span>
@@ -612,7 +609,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       </span>
                     </div>
                   ))}
-                  <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center justify-between px-3'>
                     <span className='font-medium text-[var(--text-secondary)] text-caption'>
                       Total
                     </span>
@@ -621,7 +618,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     </span>
                   </div>
                   {(costBreakdown.tokens.input > 0 || costBreakdown.tokens.output > 0) && (
-                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                    <div className='flex h-10 items-center justify-between px-3'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Tokens
                       </span>
