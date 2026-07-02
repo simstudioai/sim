@@ -2,6 +2,7 @@ import type {
   AmplitudeListEventsParams,
   AmplitudeListEventsResponse,
 } from '@/tools/amplitude/types'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventsTool: ToolConfig<AmplitudeListEventsParams, AmplitudeListEventsResponse> = {
@@ -24,10 +25,16 @@ export const listEventsTool: ToolConfig<AmplitudeListEventsParams, AmplitudeList
       visibility: 'user-only',
       description: 'Amplitude Secret Key',
     },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
-    url: 'https://amplitude.com/api/2/events/list',
+    url: (params) => `${getDashboardHost(params.dataResidency)}/api/2/events/list`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Basic ${btoa(`${params.apiKey}:${params.secretKey}`)}`,
@@ -49,6 +56,8 @@ export const listEventsTool: ToolConfig<AmplitudeListEventsParams, AmplitudeList
           totals: (e.totals as number) ?? 0,
           hidden: (e.hidden as boolean) ?? false,
           deleted: (e.deleted as boolean) ?? false,
+          nonActive: (e.non_active as boolean) ?? false,
+          flowHidden: (e.flow_hidden as boolean) ?? false,
         }) as const
     )
 
@@ -72,6 +81,14 @@ export const listEventsTool: ToolConfig<AmplitudeListEventsParams, AmplitudeList
           totals: { type: 'number', description: 'Weekly total count' },
           hidden: { type: 'boolean', description: 'Whether the event is hidden' },
           deleted: { type: 'boolean', description: 'Whether the event is deleted' },
+          nonActive: {
+            type: 'boolean',
+            description: 'Whether the event is excluded from active user calculations',
+          },
+          flowHidden: {
+            type: 'boolean',
+            description: 'Whether the event is hidden from user flow charts',
+          },
         },
       },
     },

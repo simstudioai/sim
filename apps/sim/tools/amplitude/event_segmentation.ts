@@ -2,6 +2,7 @@ import type {
   AmplitudeEventSegmentationParams,
   AmplitudeEventSegmentationResponse,
 } from '@/tools/amplitude/types'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const eventSegmentationTool: ToolConfig<
@@ -70,19 +71,62 @@ export const eventSegmentationTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of group-by values (max 1000)',
     },
+    filters: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of filter objects applied to the event, e.g. [{"subprop_type":"event","subprop_key":"city","subprop_op":"is","subprop_value":["San Francisco"]}]',
+    },
+    formula: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Required when metric is "formula", e.g. "UNIQUES(A)/UNIQUES(B)"',
+    },
+    segment: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON segment definition(s) applied to the query',
+    },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
     url: (params) => {
-      const url = new URL('https://amplitude.com/api/2/events/segmentation')
-      const eventObj = JSON.stringify({ event_type: params.eventType })
-      url.searchParams.set('e', eventObj)
+      const url = new URL(`${getDashboardHost(params.dataResidency)}/api/2/events/segmentation`)
+      const event: Record<string, unknown> = { event_type: params.eventType }
+
+      if (params.filters) {
+        let parsedFilters: unknown
+        try {
+          parsedFilters = JSON.parse(params.filters)
+        } catch {
+          parsedFilters = undefined
+        }
+        if (!Array.isArray(parsedFilters)) {
+          throw new Error(
+            'Amplitude Event Segmentation: "filters" must be a valid JSON array of filter objects'
+          )
+        }
+        event.filters = parsedFilters
+      }
+
+      url.searchParams.set('e', JSON.stringify(event))
       url.searchParams.set('start', params.start)
       url.searchParams.set('end', params.end)
       if (params.metric) url.searchParams.set('m', params.metric)
       if (params.interval) url.searchParams.set('i', params.interval)
       if (params.groupBy) url.searchParams.set('g', params.groupBy)
       if (params.limit) url.searchParams.set('limit', params.limit)
+      if (params.formula) url.searchParams.set('formula', params.formula)
+      if (params.segment) url.searchParams.set('s', params.segment)
       return url.toString()
     },
     method: 'GET',

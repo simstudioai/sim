@@ -2,6 +2,7 @@ import type {
   AmplitudeUserActivityParams,
   AmplitudeUserActivityResponse,
 } from '@/tools/amplitude/types'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const userActivityTool: ToolConfig<
@@ -50,11 +51,17 @@ export const userActivityTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Sort direction: "latest" or "earliest" (default: latest)',
     },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
     url: (params) => {
-      const url = new URL('https://amplitude.com/api/2/useractivity')
+      const url = new URL(`${getDashboardHost(params.dataResidency)}/api/2/useractivity`)
       url.searchParams.set('user', params.amplitudeId.trim())
       if (params.offset) url.searchParams.set('offset', params.offset)
       if (params.limit) url.searchParams.set('limit', params.limit)
@@ -97,6 +104,8 @@ export const userActivityTool: ToolConfig<
           numSessions: (ud.num_sessions as number) ?? null,
           platform: (ud.platform as string) ?? null,
           country: (ud.country as string) ?? null,
+          firstUsed: (ud.first_used as string) ?? null,
+          lastUsed: (ud.last_used as string) ?? null,
         }
       : null
 
@@ -138,6 +147,8 @@ export const userActivityTool: ToolConfig<
         numSessions: { type: 'number', description: 'Total session count' },
         platform: { type: 'string', description: 'Primary platform' },
         country: { type: 'string', description: 'Country' },
+        firstUsed: { type: 'string', description: 'Date the user first appeared' },
+        lastUsed: { type: 'string', description: 'Date of most recent user activity' },
       },
     },
   },

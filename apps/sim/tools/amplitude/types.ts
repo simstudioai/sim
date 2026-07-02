@@ -5,6 +5,8 @@ import type { ToolResponse } from '@/tools/types'
  */
 interface AmplitudeApiKeyParams {
   apiKey: string
+  /** Data residency region: "us" (default) or "eu". */
+  dataResidency?: string
 }
 
 /**
@@ -13,6 +15,8 @@ interface AmplitudeApiKeyParams {
 interface AmplitudeBasicAuthParams {
   apiKey: string
   secretKey: string
+  /** Data residency region: "us" (default) or "eu". */
+  dataResidency?: string
 }
 
 /**
@@ -126,6 +130,8 @@ export interface AmplitudeUserActivityResponse extends ToolResponse {
       numSessions: number | null
       platform: string | null
       country: string | null
+      firstUsed: string | null
+      lastUsed: string | null
     } | null
   }
 }
@@ -163,6 +169,12 @@ export interface AmplitudeEventSegmentationParams extends AmplitudeBasicAuthPara
   interval?: string
   groupBy?: string
   limit?: string
+  /** JSON array of filter objects applied to the event (subprop_type, subprop_key, subprop_op, subprop_value). */
+  filters?: string
+  /** Required when metric is "formula", e.g. "UNIQUES(A)/UNIQUES(B)". */
+  formula?: string
+  /** JSON segment definition(s) applied to the query. */
+  segment?: string
 }
 
 export interface AmplitudeEventSegmentationResponse extends ToolResponse {
@@ -182,6 +194,10 @@ export interface AmplitudeGetActiveUsersParams extends AmplitudeBasicAuthParams 
   end: string
   metric?: string
   interval?: string
+  /** Property to group by (up to two). */
+  groupBy?: string
+  /** JSON segment definition(s) applied to the query. */
+  segment?: string
 }
 
 export interface AmplitudeGetActiveUsersResponse extends ToolResponse {
@@ -218,6 +234,8 @@ export interface AmplitudeListEventsResponse extends ToolResponse {
       totals: number
       hidden: boolean
       deleted: boolean
+      nonActive: boolean
+      flowHidden: boolean
     }>
   }
 }
@@ -230,12 +248,88 @@ export interface AmplitudeGetRevenueParams extends AmplitudeBasicAuthParams {
   end: string
   metric?: string
   interval?: string
+  /** Property to group by (limit: one). */
+  groupBy?: string
+  /** JSON segment definition(s) applied to the query. */
+  segment?: string
 }
 
 export interface AmplitudeGetRevenueResponse extends ToolResponse {
   output: {
-    series: unknown[]
+    series: Array<{
+      dates: string[]
+      values: Record<
+        string,
+        {
+          count: number
+          paid: number
+          total_amount: number
+          [dayKey: string]: number
+        }
+      >
+    }>
     seriesLabels: string[]
-    xValues: string[]
+  }
+}
+
+/**
+ * Funnel Analysis params (Dashboard REST API).
+ */
+export interface AmplitudeFunnelsParams extends AmplitudeBasicAuthParams {
+  /** JSON array of event objects, one per funnel step, in order. */
+  events: string
+  start: string
+  end: string
+  mode?: string
+  userType?: string
+  interval?: string
+  conversionWindowSeconds?: string
+  groupBy?: string
+  limit?: string
+  segment?: string
+}
+
+export interface AmplitudeFunnelsResponse extends ToolResponse {
+  output: {
+    funnels: Array<{
+      stepByStep: number[]
+      cumulative: number[]
+      cumulativeRaw: number[]
+      medianTransTimes: number[]
+      avgTransTimes: number[]
+      events: string[]
+      dayFunnels: {
+        series: number[][]
+        xValues: string[]
+      } | null
+    }>
+  }
+}
+
+/**
+ * Retention Analysis params (Dashboard REST API).
+ */
+export interface AmplitudeRetentionParams extends AmplitudeBasicAuthParams {
+  /** Starting event JSON object. Use event_type "_new" or "_active". */
+  startEvent: string
+  /** Returning event JSON object. Use event_type "_all" or "_active". */
+  returnEvent: string
+  start: string
+  end: string
+  retentionMode?: string
+  retentionBrackets?: string
+  interval?: string
+  groupBy?: string
+  segment?: string
+}
+
+export interface AmplitudeRetentionResponse extends ToolResponse {
+  output: {
+    series: Array<{
+      dates: string[]
+      values: Record<string, Array<{ count: number; outof: number; incomplete: boolean }>>
+      combined: Array<{ count: number; outof: number; incomplete: boolean }>
+    }>
+    seriesMeta: Array<{ segmentIndex: number; eventIndex: number }>
   }
 }

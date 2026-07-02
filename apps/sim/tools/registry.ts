@@ -110,12 +110,14 @@ import {
 } from '@/tools/algolia'
 import {
   amplitudeEventSegmentationTool,
+  amplitudeFunnelsTool,
   amplitudeGetActiveUsersTool,
   amplitudeGetRevenueTool,
   amplitudeGroupIdentifyTool,
   amplitudeIdentifyUserTool,
   amplitudeListEventsTool,
   amplitudeRealtimeActiveUsersTool,
+  amplitudeRetentionTool,
   amplitudeSendEventTool,
   amplitudeUserActivityTool,
   amplitudeUserProfileTool,
@@ -4329,6 +4331,8 @@ export const tools: Record<string, ToolConfig> = {
   amplitude_realtime_active_users: amplitudeRealtimeActiveUsersTool,
   amplitude_list_events: amplitudeListEventsTool,
   amplitude_get_revenue: amplitudeGetRevenueTool,
+  amplitude_funnels: amplitudeFunnelsTool,
+  amplitude_retention: amplitudeRetentionTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_search: arxivSearchTool,
