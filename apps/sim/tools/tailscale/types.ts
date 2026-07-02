@@ -32,6 +32,7 @@ export interface TailscaleCreateAuthKeyParams extends TailscaleBaseParams {
 
 interface TailscaleDeviceOutput {
   id: string
+  nodeId: string
   name: string
   hostname: string
   user: string
@@ -41,6 +42,8 @@ interface TailscaleDeviceOutput {
   tags: string[]
   authorized: boolean
   blocksIncomingConnections: boolean
+  keyExpiryDisabled: boolean
+  expires: string
   lastSeen: string
   created: string
 }
