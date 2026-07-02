@@ -32,6 +32,54 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       visibility: 'user-or-llm',
       description: 'Filter by status: PUBLISHED, DRAFT, or ALL',
     },
+    includeComponents: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include components in results',
+    },
+    includeTrashed: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Include trashed projects in results',
+    },
+    creatorEmail: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by creator email',
+    },
+    ownerEmail: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by owner email',
+    },
+    collectionId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by collection UUID',
+    },
+    categories: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON array of category names to filter by (e.g., ["Marketing", "Finance"])',
+    },
+    sortBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Sort by field: CREATED_AT, LAST_EDITED_AT, or LAST_PUBLISHED_AT',
+    },
+    sortDirection: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Sort direction: ASC or DESC',
+    },
     after: {
       type: 'string',
       required: false,
@@ -51,7 +99,28 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       const searchParams = new URLSearchParams()
       if (params.limit) searchParams.set('limit', String(params.limit))
       if (params.includeArchived) searchParams.set('includeArchived', 'true')
+      if (params.includeComponents) searchParams.set('includeComponents', 'true')
+      if (params.includeTrashed) searchParams.set('includeTrashed', 'true')
       if (params.statusFilter) searchParams.append('statuses[]', params.statusFilter)
+      if (params.creatorEmail) searchParams.set('creatorEmail', params.creatorEmail)
+      if (params.ownerEmail) searchParams.set('ownerEmail', params.ownerEmail)
+      if (params.collectionId) searchParams.set('collectionId', params.collectionId)
+      if (params.categories) {
+        let categories: string[]
+        try {
+          categories =
+            typeof params.categories === 'string'
+              ? JSON.parse(params.categories)
+              : (params.categories as string[])
+        } catch {
+          throw new Error('categories must be a valid JSON array of category name strings')
+        }
+        for (const category of categories) {
+          searchParams.append('categories[]', category)
+        }
+      }
+      if (params.sortBy) searchParams.set('sortBy', params.sortBy)
+      if (params.sortDirection) searchParams.set('sortDirection', params.sortDirection)
       if (params.after) searchParams.set('after', params.after)
       if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()

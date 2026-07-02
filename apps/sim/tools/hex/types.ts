@@ -104,7 +104,15 @@ export interface HexListProjectsParams {
   apiKey: string
   limit?: number
   includeArchived?: boolean
+  includeComponents?: boolean
+  includeTrashed?: boolean
   statusFilter?: string
+  creatorEmail?: string
+  ownerEmail?: string
+  collectionId?: string
+  categories?: string
+  sortBy?: string
+  sortDirection?: string
   after?: string
   before?: string
 }
@@ -271,6 +279,9 @@ export interface HexListUsersParams {
   sortBy?: string
   sortDirection?: string
   groupId?: string
+  userIds?: string
+  after?: string
+  before?: string
 }
 
 export interface HexListUsersResponse extends ToolResponse {
@@ -280,8 +291,11 @@ export interface HexListUsersResponse extends ToolResponse {
       name: string
       email: string
       role: string
+      lastLoginDate: string | null
     }>
     total: number
+    after: string | null
+    before: string | null
   }
 }
 
