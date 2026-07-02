@@ -7,7 +7,7 @@ export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> =
   id: 'supabase_count',
   name: 'Supabase Count',
   description: 'Count rows in a Supabase table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
