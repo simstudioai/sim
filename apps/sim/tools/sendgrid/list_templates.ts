@@ -40,9 +40,7 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
       if (params.generations) {
         url.searchParams.append('generations', params.generations)
       }
-      if (params.pageSize) {
-        url.searchParams.append('page_size', params.pageSize.toString())
-      }
+      url.searchParams.append('page_size', (params.pageSize || 20).toString())
       if (params.pageToken) {
         url.searchParams.append('page_token', params.pageToken)
       }
