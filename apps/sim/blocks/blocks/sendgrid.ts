@@ -2,6 +2,7 @@ import { SendgridIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
+import { toActiveFlag } from '@/tools/sendgrid/create_template_version'
 import type { SendMailResult } from '@/tools/sendgrid/types'
 
 export const SendGridBlock: BlockConfig<SendMailResult> = {
@@ -623,7 +624,7 @@ Return ONLY the HTML content.`,
           ...(operation === 'list_templates' &&
             templatePageToken && { pageToken: templatePageToken }),
           ...(normalizedAttachments && { attachments: normalizedAttachments }),
-          ...(active !== undefined && { active: active === 'true' || active === true ? 1 : 0 }),
+          ...(active !== undefined && { active: toActiveFlag(active) }),
         }
       },
     },

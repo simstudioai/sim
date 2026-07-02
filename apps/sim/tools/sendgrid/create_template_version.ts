@@ -7,7 +7,10 @@ import type { ToolConfig } from '@/tools/types'
 
 const INACTIVE_VALUES: unknown[] = [false, 'false', 0, '0']
 
-function toActiveFlag(active: CreateTemplateVersionParams['active']): 0 | 1 {
+/** Coerces any dynamic-reference form of SendGrid's active flag (boolean, string, or
+ *  number) to the 0/1 integer the API requires. Shared with the block's own
+ *  pre-coercion in blocks/blocks/sendgrid.ts so both layers stay in sync. */
+export function toActiveFlag(active: unknown): 0 | 1 {
   if (active === undefined) return 1
   return INACTIVE_VALUES.includes(active) ? 0 : 1
 }
