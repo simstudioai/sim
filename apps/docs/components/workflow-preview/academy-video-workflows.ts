@@ -260,7 +260,7 @@ export const AV_SUPPORT_DESK_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 320, y: 60 },
       rows: [
-        { title: 'Messages', value: '<start.ticket>' },
+        { title: 'Messages', value: '<start.input>' },
         { title: 'Model', value: 'claude-sonnet-4-6' },
       ],
       tools: [{ type: 'knowledge', name: 'Help Center', bgColor: '#00B0B0' }],
@@ -352,7 +352,7 @@ export const AV_CONTENT_AGENT_WORKFLOW: PreviewWorkflow = {
       position: { x: 150, y: 62 },
       parentId: 'candidates',
       rows: [
-        { title: 'Messages', value: '<start.idea>' },
+        { title: 'Messages', value: '<start.input>' },
         { title: 'Model', value: 'claude-sonnet-4-6' },
       ],
     },
