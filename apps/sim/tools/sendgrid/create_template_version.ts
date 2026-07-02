@@ -5,6 +5,11 @@ import type {
 } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
+function toActiveFlag(active: CreateTemplateVersionParams['active']): 0 | 1 {
+  if (active === undefined) return 1
+  return active === false || (active as unknown) === 'false' ? 0 : 1
+}
+
 export const sendGridCreateTemplateVersionTool: ToolConfig<
   CreateTemplateVersionParams,
   TemplateVersionResult
@@ -70,7 +75,7 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
       const body: SendGridTemplateVersionRequest = {
         name: params.name,
         subject: params.subject,
-        active: params.active !== undefined ? (params.active ? 1 : 0) : 1,
+        active: toActiveFlag(params.active),
       }
 
       if (params.htmlContent) {
