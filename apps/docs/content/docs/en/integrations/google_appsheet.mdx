@@ -10,6 +10,32 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Google AppSheet](https://about.appsheet.com/) is Google's no-code app development platform that lets teams turn spreadsheets and databases into mobile and web apps, backed by data sources like Google Sheets, Excel, and cloud databases.
+
+With the Google AppSheet integration in Sim, you can:
+
+- **Find rows**: Query a table with an optional Selector expression (`Filter`, `OrderBy`, `Top`, and more) to narrow, sort, and limit the rows returned
+- **Add rows**: Insert new rows into a table, letting AppSheet generate the key column automatically or providing it explicitly
+- **Edit rows**: Update existing rows by key column, changing only the fields that need to change
+- **Delete rows**: Remove rows from a table by key column
+
+In Sim, the Google AppSheet integration enables your agents to read and write AppSheet app data as part of automated workflows — syncing order intake, routing leads, escalating tickets, or keeping a table in sync with another system, all without touching the AppSheet editor.
+
+### Getting Your Application Access Key
+
+Google AppSheet authenticates with a static Application Access Key rather than OAuth:
+
+1. Open your app in the [AppSheet editor](https://www.appsheet.com/)
+2. Go to **Settings > Integrations**
+3. Enable **IN: from cloud services to your app**
+4. Under **Application Access Keys**, create a key (or use an existing one) and copy it
+5. Use the Application Access Key, along with your App ID and table name, in the Sim block configuration
+
+The AppSheet API requires an Enterprise plan.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Google AppSheet into your workflow. Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.
