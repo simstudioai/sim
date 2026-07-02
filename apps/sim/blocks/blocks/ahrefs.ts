@@ -510,7 +510,11 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
     // Top Pages output
     pages: { type: 'json', description: 'List of top pages' },
     // Keyword Overview output
-    overview: { type: 'json', description: 'Keyword metrics overview' },
+    overview: {
+      type: 'json',
+      description:
+        'Keyword metrics overview, including search intent flags (informational, navigational, commercial, transactional, branded, local)',
+    },
   },
 }
 

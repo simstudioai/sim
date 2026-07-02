@@ -5,7 +5,7 @@ import type {
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
-  'keyword,volume,difficulty,cpc,clicks,searches_pct_clicks_organic_only,parent_topic,traffic_potential'
+  'keyword,volume,difficulty,cpc,clicks,searches_pct_clicks_organic_only,parent_topic,traffic_potential,intents'
 
 export const keywordOverviewTool: ToolConfig<
   AhrefsKeywordOverviewParams,
@@ -74,6 +74,7 @@ export const keywordOverviewTool: ToolConfig<
           clicksPercentage: result.searches_pct_clicks_organic_only ?? null,
           parentTopic: result.parent_topic ?? null,
           trafficPotential: result.traffic_potential ?? null,
+          intents: result.intents ?? null,
         },
       },
     }
@@ -107,6 +108,20 @@ export const keywordOverviewTool: ToolConfig<
           type: 'number',
           description: 'Estimated traffic potential if ranking #1',
           optional: true,
+        },
+        intents: {
+          type: 'object',
+          description:
+            'Search intent flags (informational, navigational, commercial, transactional, branded, local)',
+          optional: true,
+          properties: {
+            informational: { type: 'boolean', description: 'Query seeks information' },
+            navigational: { type: 'boolean', description: 'Query seeks a specific site or page' },
+            commercial: { type: 'boolean', description: 'Query researches a purchase decision' },
+            transactional: { type: 'boolean', description: 'Query intends to complete a purchase' },
+            branded: { type: 'boolean', description: 'Query references a specific brand' },
+            local: { type: 'boolean', description: 'Query seeks local results' },
+          },
         },
       },
     },

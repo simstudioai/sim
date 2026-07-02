@@ -145,6 +145,15 @@ export interface AhrefsKeywordOverviewParams extends AhrefsBaseParams {
   country?: string
 }
 
+interface AhrefsKeywordIntents {
+  informational: boolean
+  navigational: boolean
+  commercial: boolean
+  transactional: boolean
+  branded: boolean
+  local: boolean
+}
+
 interface AhrefsKeywordOverviewResult {
   keyword: string
   searchVolume: number
@@ -154,6 +163,7 @@ interface AhrefsKeywordOverviewResult {
   clicksPercentage: number | null
   parentTopic: string | null
   trafficPotential: number | null
+  intents: AhrefsKeywordIntents | null
 }
 
 export interface AhrefsKeywordOverviewResponse extends ToolResponse {
