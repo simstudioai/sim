@@ -107,7 +107,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       const url = new URL(baseUrl)
       const expandParts: string[] = []
       if (params.includeColumns) expandParts.push('columns')
-      if (wantsItems) expandParts.push('items($expand=fields)')
+      if (wantsItems) expandParts.push('items(expand=fields)')
       if (expandParts.length > 0) url.searchParams.append('$expand', expandParts.join(','))
 
       const finalUrl = url.toString()
@@ -128,21 +128,23 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
   },
 
   transformResponse: async (response: Response, params) => {
-    const data = await response.json()
+    const data: Record<string, unknown> = await response.json()
+    const value = data.value
 
     // If the response is a collection of items (from the items endpoint)
     if (
-      Array.isArray((data as any).value) &&
-      (data as any).value.length > 0 &&
-      (data as any).value[0] &&
-      'fields' in (data as any).value[0]
+      Array.isArray(value) &&
+      value.length > 0 &&
+      value[0] &&
+      typeof value[0] === 'object' &&
+      'fields' in value[0]
     ) {
-      const items = (data as any).value.map((i: any) => ({
-        id: i.id,
+      const items = value.map((i: Record<string, unknown>) => ({
+        id: i.id as string,
         fields: i.fields as Record<string, unknown>,
       }))
 
-      const nextPageUrl = getGraphNextPageUrl(data as Record<string, unknown>)
+      const nextPageUrl = getGraphNextPageUrl(data)
 
       return {
         success: true,
@@ -154,18 +156,18 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       }
     }
 
-    if (Array.isArray((data as any).value)) {
-      const lists: SharepointList[] = (data as any).value.map((l: any) => ({
-        id: l.id,
-        displayName: l.displayName ?? l.name,
-        name: l.name,
-        webUrl: l.webUrl,
-        createdDateTime: l.createdDateTime,
-        lastModifiedDateTime: l.lastModifiedDateTime,
-        list: l.list,
+    if (Array.isArray(value)) {
+      const lists: SharepointList[] = value.map((l: Record<string, unknown>) => ({
+        id: l.id as string,
+        displayName: (l.displayName ?? l.name) as string | undefined,
+        name: l.name as string | undefined,
+        webUrl: l.webUrl as string | undefined,
+        createdDateTime: l.createdDateTime as string | undefined,
+        lastModifiedDateTime: l.lastModifiedDateTime as string | undefined,
+        list: l.list as SharepointList['list'],
       }))
 
-      const nextPageUrl = getGraphNextPageUrl(data as Record<string, unknown>)
+      const nextPageUrl = getGraphNextPageUrl(data)
 
       return {
         success: true,
@@ -174,29 +176,32 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
     }
 
     const list: SharepointList = {
-      id: data.id,
-      displayName: data.displayName ?? data.name,
-      name: data.name,
-      webUrl: data.webUrl,
-      createdDateTime: data.createdDateTime,
-      lastModifiedDateTime: data.lastModifiedDateTime,
-      list: data.list,
+      id: data.id as string,
+      displayName: (data.displayName ?? data.name) as string | undefined,
+      name: data.name as string | undefined,
+      webUrl: data.webUrl as string | undefined,
+      createdDateTime: data.createdDateTime as string | undefined,
+      lastModifiedDateTime: data.lastModifiedDateTime as string | undefined,
+      list: data.list as SharepointList['list'],
       columns: Array.isArray(data.columns)
-        ? data.columns.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            displayName: c.displayName,
-            description: c.description,
-            indexed: c.indexed,
-            enforcedUniqueValues: c.enforcedUniqueValues,
-            hidden: c.hidden,
-            readOnly: c.readOnly,
-            required: c.required,
-            columnGroup: c.columnGroup,
+        ? data.columns.map((c: Record<string, unknown>) => ({
+            id: c.id as string | undefined,
+            name: c.name as string | undefined,
+            displayName: c.displayName as string | undefined,
+            description: c.description as string | undefined,
+            indexed: c.indexed as boolean | undefined,
+            enforcedUniqueValues: c.enforcedUniqueValues as boolean | undefined,
+            hidden: c.hidden as boolean | undefined,
+            readOnly: c.readOnly as boolean | undefined,
+            required: c.required as boolean | undefined,
+            columnGroup: c.columnGroup as string | undefined,
           }))
         : undefined,
       items: Array.isArray(data.items)
-        ? data.items.map((i: any) => ({ id: i.id, fields: i.fields as Record<string, unknown> }))
+        ? data.items.map((i: Record<string, unknown>) => ({
+            id: i.id as string,
+            fields: i.fields as Record<string, unknown>,
+          }))
         : undefined,
     }
 

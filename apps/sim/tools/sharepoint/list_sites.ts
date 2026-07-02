@@ -140,9 +140,9 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
         isPersonalSite: { type: 'boolean', description: 'Whether this is a personal site' },
         root: {
           type: 'object',
-          properties: {
-            serverRelativeUrl: { type: 'string', description: 'Server relative URL' },
-          },
+          description:
+            'Present (as an empty object) only when this site is the root of its site collection',
+          optional: true,
         },
         siteCollection: {
           type: 'object',

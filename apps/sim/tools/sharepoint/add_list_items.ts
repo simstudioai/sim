@@ -1,9 +1,28 @@
-import { createLogger } from '@sim/logger'
 import type { SharepointAddListItemResponse, SharepointToolParams } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { optionalTrim, sanitizeListItemFields } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('SharePointAddListItem')
+function resolveSanitizedFields(
+  listItemFields: SharepointToolParams['listItemFields']
+): Record<string, unknown> {
+  if (!listItemFields || Object.keys(listItemFields).length === 0) {
+    throw new Error('listItemFields must not be empty')
+  }
+
+  const providedFields =
+    typeof listItemFields === 'object' &&
+    listItemFields !== null &&
+    'fields' in (listItemFields as Record<string, unknown>) &&
+    Object.keys(listItemFields as Record<string, unknown>).length === 1
+      ? ((listItemFields as { fields: Record<string, unknown> }).fields as Record<string, unknown>)
+      : (listItemFields as Record<string, unknown>)
+
+  if (!providedFields || Object.keys(providedFields).length === 0) {
+    throw new Error('No fields provided to create the SharePoint list item')
+  }
+
+  return sanitizeListItemFields(providedFields, { action: 'create' })
+}
 
 export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddListItemResponse> = {
   id: 'sharepoint_add_list_items',
@@ -66,87 +85,23 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
       'Content-Type': 'application/json',
       Accept: 'application/json',
     }),
-    body: (params) => {
-      if (!params.listItemFields || Object.keys(params.listItemFields).length === 0) {
-        throw new Error('listItemFields must not be empty')
-      }
-
-      const providedFields =
-        typeof params.listItemFields === 'object' &&
-        params.listItemFields !== null &&
-        'fields' in (params.listItemFields as Record<string, unknown>) &&
-        Object.keys(params.listItemFields as Record<string, unknown>).length === 1
-          ? ((params.listItemFields as { fields: Record<string, unknown> }).fields as Record<
-              string,
-              unknown
-            >)
-          : (params.listItemFields as Record<string, unknown>)
-
-      if (!providedFields || Object.keys(providedFields).length === 0) {
-        throw new Error('No fields provided to create the SharePoint list item')
-      }
-
-      const readOnlyFields = new Set<string>([
-        'Id',
-        'id',
-        'UniqueId',
-        'GUID',
-        'ContentTypeId',
-        'Created',
-        'Modified',
-        'Author',
-        'Editor',
-        'CreatedBy',
-        'ModifiedBy',
-        'AuthorId',
-        'EditorId',
-        '_UIVersionString',
-        'Attachments',
-        'FileRef',
-        'FileDirRef',
-        'FileLeafRef',
-      ])
-
-      const entries = Object.entries(providedFields)
-      const creatableEntries = entries.filter(([key]) => !readOnlyFields.has(key))
-
-      if (creatableEntries.length !== entries.length) {
-        const removed = entries.filter(([key]) => readOnlyFields.has(key)).map(([key]) => key)
-        logger.warn('Removed read-only SharePoint fields from create', {
-          removed,
-        })
-      }
-
-      if (creatableEntries.length === 0) {
-        const requestedKeys = Object.keys(providedFields)
-        throw new Error(
-          `All provided fields are read-only and cannot be set: ${requestedKeys.join(', ')}`
-        )
-      }
-
-      const sanitizedFields = Object.fromEntries(creatableEntries)
-
-      logger.info('Creating SharePoint list item', {
-        listId: params.listId,
-        fieldsKeys: Object.keys(sanitizedFields),
-      })
-
-      return {
-        fields: sanitizedFields,
-      }
-    },
+    body: (params) => ({
+      fields: resolveSanitizedFields(params.listItemFields),
+    }),
   },
 
   transformResponse: async (response: Response, params) => {
-    let data: any
+    let data: Record<string, unknown> | undefined
     try {
       data = await response.json()
     } catch {
       data = undefined
     }
 
-    const itemId: string | undefined = data?.id
-    const fields: Record<string, unknown> | undefined = data?.fields || params?.listItemFields
+    const itemId = data?.id as string | undefined
+    const fields =
+      (data?.fields as Record<string, unknown> | undefined) ||
+      (params ? resolveSanitizedFields(params.listItemFields) : undefined)
 
     return {
       success: true,

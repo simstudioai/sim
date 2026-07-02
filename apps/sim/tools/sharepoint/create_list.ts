@@ -70,7 +70,7 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
 
   request: {
     url: (params) => {
-      const siteId = optionalTrim(params.siteSelector) || optionalTrim(params.siteId) || 'root'
+      const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
       return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`
     },
     method: 'POST',
