@@ -38,7 +38,7 @@ export const batchOperationsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of batch operations. Each item has "action" (addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject, delete, clear) and "body" (the record data, must include objectID for update/delete; omit body for delete/clear)',
+        'Array of batch operations. Each item has "action" (addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject, delete, clear) and "body" (the record data; must include objectID for update/delete; use an empty object {} for the index-level delete/clear actions)',
     },
   },
 
