@@ -634,6 +634,22 @@ export const VercelBlock: BlockConfig = {
       },
     },
     {
+      id: 'recordMxPriority',
+      title: 'MX Priority',
+      type: 'short-input',
+      placeholder: 'Priority for the MX record',
+      condition: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'MX' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_dns_record',
+        and: { field: 'recordType', value: 'MX' },
+      },
+    },
+    {
       id: 'srvTarget',
       title: 'SRV Target',
       type: 'short-input',
@@ -1401,6 +1417,7 @@ export const VercelBlock: BlockConfig = {
           recordType,
           recordValue,
           recordId,
+          recordMxPriority,
           srvTarget,
           srvWeight,
           srvPort,
@@ -1544,12 +1561,19 @@ export const VercelBlock: BlockConfig = {
               recordName,
               recordType,
               ...(recordValue ? { value: recordValue } : {}),
+              ...(recordMxPriority !== '' && recordMxPriority != null
+                ? { mxPriority: Number(recordMxPriority) }
+                : {}),
               ...(srvTarget ? { srvTarget } : {}),
-              ...(srvWeight ? { srvWeight: Number(srvWeight) } : {}),
-              ...(srvPort ? { srvPort: Number(srvPort) } : {}),
-              ...(srvPriority ? { srvPriority: Number(srvPriority) } : {}),
+              ...(srvWeight !== '' && srvWeight != null ? { srvWeight: Number(srvWeight) } : {}),
+              ...(srvPort !== '' && srvPort != null ? { srvPort: Number(srvPort) } : {}),
+              ...(srvPriority !== '' && srvPriority != null
+                ? { srvPriority: Number(srvPriority) }
+                : {}),
               ...(httpsTarget ? { httpsTarget } : {}),
-              ...(httpsPriority ? { httpsPriority: Number(httpsPriority) } : {}),
+              ...(httpsPriority !== '' && httpsPriority != null
+                ? { httpsPriority: Number(httpsPriority) }
+                : {}),
               ...(httpsParams ? { httpsParams } : {}),
               ...(recordComment ? { comment: recordComment } : {}),
             }
@@ -1563,13 +1587,23 @@ export const VercelBlock: BlockConfig = {
               ...(updateRecordType ? { type: updateRecordType } : {}),
               ...(updateRecordValue ? { value: updateRecordValue } : {}),
               ...(updateRecordTtl ? { ttl: updateRecordTtl } : {}),
-              ...(updateRecordMxPriority ? { mxPriority: updateRecordMxPriority } : {}),
+              ...(updateRecordMxPriority !== '' && updateRecordMxPriority != null
+                ? { mxPriority: updateRecordMxPriority }
+                : {}),
               ...(updateSrvTarget ? { srvTarget: updateSrvTarget } : {}),
-              ...(updateSrvWeight ? { srvWeight: Number(updateSrvWeight) } : {}),
-              ...(updateSrvPort ? { srvPort: Number(updateSrvPort) } : {}),
-              ...(updateSrvPriority ? { srvPriority: Number(updateSrvPriority) } : {}),
+              ...(updateSrvWeight !== '' && updateSrvWeight != null
+                ? { srvWeight: Number(updateSrvWeight) }
+                : {}),
+              ...(updateSrvPort !== '' && updateSrvPort != null
+                ? { srvPort: Number(updateSrvPort) }
+                : {}),
+              ...(updateSrvPriority !== '' && updateSrvPriority != null
+                ? { srvPriority: Number(updateSrvPriority) }
+                : {}),
               ...(updateHttpsTarget ? { httpsTarget: updateHttpsTarget } : {}),
-              ...(updateHttpsPriority ? { httpsPriority: Number(updateHttpsPriority) } : {}),
+              ...(updateHttpsPriority !== '' && updateHttpsPriority != null
+                ? { httpsPriority: Number(updateHttpsPriority) }
+                : {}),
               ...(updateHttpsParams ? { httpsParams: updateHttpsParams } : {}),
               ...(updateRecordComment ? { comment: updateRecordComment } : {}),
             }
@@ -1740,6 +1774,7 @@ export const VercelBlock: BlockConfig = {
     recordType: { type: 'string', description: 'DNS record type' },
     recordValue: { type: 'string', description: 'DNS record value' },
     recordId: { type: 'string', description: 'DNS record ID' },
+    recordMxPriority: { type: 'string', description: 'Priority for MX records' },
     srvTarget: { type: 'string', description: 'Target hostname for SRV records' },
     srvWeight: { type: 'string', description: 'Weight for SRV records' },
     srvPort: { type: 'string', description: 'Port for SRV records' },
