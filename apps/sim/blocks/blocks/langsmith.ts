@@ -317,17 +317,34 @@ Common patch fields: outputs, end_time, status, error`,
         }
 
         if (params.operation === 'langsmith_update_run') {
+          const name = params.name
+          const end_time = params.end_time
+          const outputs = parseJsonValue(params.outputs, 'outputs')
+          const extra = parseJsonValue(params.extra, 'metadata')
+          const tags = parseJsonValue(params.tags, 'tags')
+          const status = params.status
+          const error = params.error
+          const events = parseJsonValue(params.events, 'events')
+
+          if (
+            [name, end_time, outputs, extra, tags, status, error, events].every(
+              (value) => value === undefined
+            )
+          ) {
+            throw new Error('Provide at least one field to update')
+          }
+
           return {
             apiKey: params.apiKey,
             runId: params.runId,
-            name: params.name,
-            end_time: params.end_time,
-            outputs: parseJsonValue(params.outputs, 'outputs'),
-            extra: parseJsonValue(params.extra, 'metadata'),
-            tags: parseJsonValue(params.tags, 'tags'),
-            status: params.status,
-            error: params.error,
-            events: parseJsonValue(params.events, 'events'),
+            name,
+            end_time,
+            outputs,
+            extra,
+            tags,
+            status,
+            error,
+            events,
           }
         }
 
@@ -433,6 +450,8 @@ Common patch fields: outputs, end_time, status, error`,
     status: { type: 'string', description: 'Run status (get run)' },
     startTime: { type: 'string', description: 'Run start time (get run)' },
     endTime: { type: 'string', description: 'Run end time (get run)' },
+    inputs: { type: 'json', description: 'Run inputs payload (get run)' },
+    outputs: { type: 'json', description: 'Run outputs payload (get run)' },
     error: { type: 'string', description: 'Error details (get run)' },
     tags: { type: 'array', description: 'Tags attached to the run (get run)' },
     sessionId: { type: 'string', description: 'Project (session) ID the run belongs to (get run)' },

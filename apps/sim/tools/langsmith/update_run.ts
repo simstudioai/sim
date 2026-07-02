@@ -94,13 +94,20 @@ export const langsmithUpdateRunTool: ToolConfig<
       return filterUndefined(payload)
     },
   },
-  transformResponse: async (_response, params) => ({
-    success: true,
-    output: {
-      accepted: true,
-      runId: params?.runId.trim() ?? '',
-    },
-  }),
+  transformResponse: async (response, params) => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`LangSmith update run failed (${response.status}): ${errorText}`)
+    }
+
+    return {
+      success: true,
+      output: {
+        accepted: true,
+        runId: params?.runId.trim() ?? '',
+      },
+    }
+  },
   outputs: {
     accepted: {
       type: 'boolean',

@@ -28,6 +28,11 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
     }),
   },
   transformResponse: async (response) => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`LangSmith get run failed (${response.status}): ${errorText}`)
+    }
+
     const data = (await response.json()) as Record<string, unknown>
 
     return {

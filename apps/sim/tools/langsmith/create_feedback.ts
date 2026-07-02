@@ -89,6 +89,11 @@ export const langsmithCreateFeedbackTool: ToolConfig<
     },
   },
   transformResponse: async (response) => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`LangSmith create feedback failed (${response.status}): ${errorText}`)
+    }
+
     const data = (await response.json()) as Record<string, unknown>
 
     return {
