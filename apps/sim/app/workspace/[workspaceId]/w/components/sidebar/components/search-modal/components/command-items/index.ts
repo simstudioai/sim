@@ -1,7 +1,6 @@
 export {
   HighlightedText,
   MemoizedActionItem,
-  MemoizedCategoryItem,
   MemoizedCommandItem,
   MemoizedFileItem,
   MemoizedIconItem,

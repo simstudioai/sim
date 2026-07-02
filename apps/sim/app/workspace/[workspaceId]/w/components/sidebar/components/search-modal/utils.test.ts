@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { filterAndSort, fuzzyMatch } from './utils'
+import { filterAndScore, filterAndSort, fuzzyMatch } from './utils'
 
 /**
  * The matcher that shipped before fuzzy matching was introduced. Re-implemented
@@ -239,5 +239,41 @@ describe('fuzzyMatch — positions for highlighting', () => {
   it('matches multi-word tokens order-independently', () => {
     const result = fuzzyMatch('Slack Send Message', 'message slack')
     expect(result.matched).toBe(true)
+  })
+})
+
+describe('filterAndScore — per-item scores for cross-group ranking', () => {
+  const toValue = (s: string) => s
+
+  it('returns items paired with their fuzzy-match score, sorted descending', () => {
+    const scored = filterAndScore(['Slackbot', 'Send Slack Message', 'Slack'], toValue, 'slack')
+    expect(scored.map((e) => e.item)).toEqual(
+      filterAndSort(['Slackbot', 'Send Slack Message', 'Slack'], toValue, 'slack')
+    )
+    for (let i = 1; i < scored.length; i++) {
+      expect(scored[i - 1].score).toBeGreaterThanOrEqual(scored[i].score)
+    }
+  })
+
+  it('an exact match scores strictly higher than a weak scattered match', () => {
+    const scored = filterAndScore(['Slack', 'Some Long ArbitraryCkame'], toValue, 'slack')
+    const exact = scored.find((e) => e.item === 'Slack')
+    expect(exact).toBeDefined()
+    expect(exact?.score).toBeGreaterThan(0)
+    // "Some Long Arbitrary Ckame" does not scatter-match "slack" at a hard
+    // boundary, so it should not appear at all — proving score-based ranking
+    // has real signal, not just a constant across every matched item.
+    expect(scored.find((e) => e.item === 'Some Long Arbitrary Ckame')).toBeUndefined()
+  })
+
+  it('returns every item unscored (0) in original order when search is empty — the fast path other callers rely on', () => {
+    const items = ['Charlie', 'Alpha', 'Bravo']
+    const scored = filterAndScore(items, toValue, '')
+    expect(scored).toEqual(items.map((item) => ({ item, score: 0 })))
+  })
+
+  it('drops non-matches entirely, same as filterAndSort', () => {
+    const scored = filterAndScore(['Slack', 'Notion'], toValue, 'zzz')
+    expect(scored).toHaveLength(0)
   })
 })

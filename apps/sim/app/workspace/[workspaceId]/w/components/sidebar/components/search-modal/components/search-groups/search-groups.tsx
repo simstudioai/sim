@@ -1,7 +1,7 @@
 'use client'
 
-import type { ComponentType } from 'react'
-import { memo } from 'react'
+import type { ComponentType, ReactNode } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { Database, Table } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
 import {
@@ -25,7 +25,6 @@ import {
 } from 'lucide-react'
 import {
   MemoizedActionItem,
-  MemoizedCategoryItem,
   MemoizedCommandItem,
   MemoizedFileItem,
   MemoizedIconItem,
@@ -43,7 +42,10 @@ import type {
   WorkflowItem,
   WorkspaceItem,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
-import { GROUP_HEADING_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import {
+  FALLBACK_BG_COLOR,
+  GROUP_HEADING_CLASSNAME,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { IntegrationType } from '@/blocks/types'
 import type {
   SearchBlockItem,
@@ -82,32 +84,111 @@ function categoryIcon(category: SearchCategory): ComponentType<{ className?: str
   return INTEGRATION_CATEGORY_ICONS[category.id as IntegrationType] ?? Blocks
 }
 
-export const ActionsGroup = memo(function ActionsGroup({
-  items,
-  onSelect,
-  query,
-}: {
-  items: ActionItem[]
-  onSelect: (action: ActionItem) => void
-  query?: string
-}) {
-  if (items.length === 0) return null
+/**
+ * Dispatches a cmdk row selection by looking the row's `value` back up in a
+ * `Map` built from the current `items`, instead of handing each row a
+ * per-render closure. This keeps `onSelect`'s identity stable across renders
+ * (so `React.memo` on the row components actually bails out, and the row
+ * genuinely re-renders only when the row itself changes) and removes the
+ * stale-closure risk of a memo comparator that ignores `onSelect` while every
+ * call site allocates a fresh arrow function per item per render.
+ */
+function useItemDispatch<T>(
+  items: T[],
+  valueFor: (item: T) => string,
+  onSelect: (item: T) => void
+): (value: string) => void {
+  const itemByValue = useMemo(() => {
+    const map = new Map<string, T>()
+    for (const item of items) map.set(valueFor(item), item)
+    return map
+  }, [items, valueFor])
+  return useCallback(
+    (value: string) => {
+      const item = itemByValue.get(value)
+      if (item) onSelect(item)
+    },
+    [itemByValue, onSelect]
+  )
+}
+
+/**
+ * Non-interactive trailing row shown when a group's cap trimmed real matches,
+ * so truncation is communicated instead of silently dropping the tail of a
+ * broad query. Not a `Command.Item` — it isn't selectable and must never
+ * participate in keyboard navigation.
+ */
+const TruncationRow = memo(function TruncationRow({ count }: { count: number }) {
+  if (count <= 0) return null
   return (
-    <Command.Group heading='Actions' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((action) => (
-        <MemoizedActionItem
-          key={action.id}
-          value={`${action.name} ${action.keywords ?? ''} action-${action.id}`}
-          onSelect={() => onSelect(action)}
-          icon={action.icon}
-          name={action.name}
-          shortcut={action.shortcut}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+    <div className='mx-0.5 flex h-[26px] items-center px-2 text-[var(--text-subtle)] text-small'>
+      +{count} more — refine your search
+    </div>
   )
 })
+
+/**
+ * Builds a `Command.Group` component: dispatch through {@link useItemDispatch},
+ * render each item via `renderRow`, then an optional {@link TruncationRow}.
+ * Every group in this file is produced by this one factory instead of each
+ * hand-copying the "empty check → heading → rows → truncation" shell —
+ * `renderRow` is the only part that's genuinely per-group.
+ */
+function createRowGroup<T>(
+  displayName: string,
+  defaultHeading: string,
+  valueFor: (item: T) => string,
+  renderRow: (
+    item: T,
+    handleSelect: (value: string) => void,
+    query: string | undefined
+  ) => ReactNode
+) {
+  const RowGroup = memo(function RowGroup({
+    items,
+    onSelect,
+    query,
+    heading = defaultHeading,
+    truncatedCount = 0,
+  }: {
+    items: T[]
+    onSelect: (item: T) => void
+    query?: string
+    heading?: string
+    truncatedCount?: number
+  }) {
+    const handleSelect = useItemDispatch(items, valueFor, onSelect)
+    if (items.length === 0) return null
+    return (
+      <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
+        {items.map((item) => renderRow(item, handleSelect, query))}
+        <TruncationRow count={truncatedCount} />
+      </Command.Group>
+    )
+  })
+  RowGroup.displayName = displayName
+  return RowGroup
+}
+
+const actionValue = (action: ActionItem) =>
+  `${action.name} ${action.keywords ?? ''} action-${action.id}`
+
+export const ActionsGroup = createRowGroup(
+  'ActionsGroup',
+  'Actions',
+  actionValue,
+  (action, handleSelect, query) => (
+    <MemoizedActionItem
+      key={action.id}
+      value={actionValue(action)}
+      onSelect={handleSelect}
+      icon={action.icon}
+      name={action.name}
+      shortcut={action.shortcut}
+      query={query}
+    />
+  )
+)
 
 /** A recent selection resolved to a renderable row by the modal. */
 export interface RecentRenderItem {
@@ -118,396 +199,299 @@ export interface RecentRenderItem {
   onSelect: () => void
 }
 
+const recentValue = (item: RecentRenderItem) => `${item.label} recent-${item.id}`
+/** Hoisted so its identity never changes — {@link useItemDispatch}'s dispatcher stays stable. */
+const callRecentOnSelect = (item: RecentRenderItem) => item.onSelect()
+
+const RecentsRowGroup = createRowGroup(
+  'RecentsGroup',
+  'Recent',
+  recentValue,
+  (item, handleSelect) => (
+    <MemoizedCommandItem
+      key={item.id}
+      value={recentValue(item)}
+      onSelect={handleSelect}
+      icon={item.icon}
+      bgColor={item.bgColor}
+      showColoredIcon
+      label={item.label}
+    />
+  )
+)
+
+/** Recents carry their own per-item handler, so there's no top-level `onSelect` to thread. */
 export const RecentsGroup = memo(function RecentsGroup({ items }: { items: RecentRenderItem[] }) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Recent' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((item) => (
-        <MemoizedCommandItem
-          key={item.id}
-          value={`${item.label} recent-${item.id}`}
-          onSelect={item.onSelect}
-          icon={item.icon}
-          bgColor={item.bgColor}
-          showColoredIcon
-          label={item.label}
-        />
-      ))}
-    </Command.Group>
-  )
+  return <RecentsRowGroup items={items} onSelect={callRecentOnSelect} />
 })
 
-export const BrowseGroup = memo(function BrowseGroup({
-  items,
-  onSelect,
-}: {
-  items: SearchCategory[]
-  onSelect: (category: SearchCategory) => void
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Browse' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((category) => (
-        <MemoizedCategoryItem
-          key={category.id}
-          value={`${category.label} category-${category.id}`}
-          onSelect={() => onSelect(category)}
-          icon={categoryIcon(category)}
-          name={category.label}
-          count={category.count}
-        />
-      ))}
-    </Command.Group>
+const categoryValue = (category: SearchCategory) => `${category.label} category-${category.id}`
+
+export const BrowseGroup = createRowGroup(
+  'BrowseGroup',
+  'Browse',
+  categoryValue,
+  (category, handleSelect, query) => (
+    <MemoizedIconItem
+      key={category.id}
+      value={categoryValue(category)}
+      onSelect={handleSelect}
+      icon={categoryIcon(category)}
+      name={category.label}
+      count={category.count}
+      query={query}
+    />
   )
-})
+)
 
-export const BlocksGroup = memo(function BlocksGroup({
-  items,
-  onSelect,
-  query,
-  heading = 'Blocks',
-}: {
-  items: SearchBlockItem[]
-  onSelect: (block: SearchBlockItem) => void
-  query?: string
-  heading?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
-      {items.map((block) => (
-        <MemoizedCommandItem
-          key={block.id}
-          value={`${block.name} block-${block.id}`}
-          onSelect={() => onSelect(block)}
-          icon={block.icon}
-          bgColor={block.bgColor}
-          showColoredIcon
-          label={block.name}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const blockValue = (block: SearchBlockItem) => `${block.name} block-${block.id}`
+
+export const BlocksGroup = createRowGroup(
+  'BlocksGroup',
+  'Blocks',
+  blockValue,
+  (block, handleSelect, query) => (
+    <MemoizedCommandItem
+      key={block.id}
+      value={blockValue(block)}
+      onSelect={handleSelect}
+      icon={block.icon}
+      bgColor={block.bgColor}
+      showColoredIcon
+      label={block.name}
+      query={query}
+    />
   )
-})
+)
 
-export const ToolsGroup = memo(function ToolsGroup({
-  items,
-  onSelect,
-  query,
-  heading = 'Tools',
-}: {
-  items: SearchBlockItem[]
-  onSelect: (tool: SearchBlockItem) => void
-  query?: string
-  heading?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
-      {items.map((tool) => (
-        <MemoizedCommandItem
-          key={tool.id}
-          value={`${tool.name} tool-${tool.id}`}
-          onSelect={() => onSelect(tool)}
-          icon={tool.icon}
-          bgColor={tool.bgColor}
-          showColoredIcon
-          label={tool.name}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const toolValue = (tool: SearchBlockItem) => `${tool.name} tool-${tool.id}`
+
+export const ToolsGroup = createRowGroup(
+  'ToolsGroup',
+  'Tools',
+  toolValue,
+  (tool, handleSelect, query) => (
+    <MemoizedCommandItem
+      key={tool.id}
+      value={toolValue(tool)}
+      onSelect={handleSelect}
+      icon={tool.icon}
+      bgColor={tool.bgColor}
+      showColoredIcon
+      label={tool.name}
+      query={query}
+    />
   )
-})
+)
 
-export const TriggersGroup = memo(function TriggersGroup({
-  items,
-  onSelect,
-  query,
-  heading = 'Triggers',
-}: {
-  items: SearchBlockItem[]
-  onSelect: (trigger: SearchBlockItem) => void
-  query?: string
-  heading?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
-      {items.map((trigger) => (
-        <MemoizedCommandItem
-          key={trigger.id}
-          value={`${trigger.name} trigger-${trigger.id}`}
-          onSelect={() => onSelect(trigger)}
-          icon={trigger.icon}
-          bgColor={trigger.bgColor}
-          showColoredIcon
-          label={trigger.name}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const triggerValue = (trigger: SearchBlockItem) => `${trigger.name} trigger-${trigger.id}`
+
+export const TriggersGroup = createRowGroup(
+  'TriggersGroup',
+  'Triggers',
+  triggerValue,
+  (trigger, handleSelect, query) => (
+    <MemoizedCommandItem
+      key={trigger.id}
+      value={triggerValue(trigger)}
+      onSelect={handleSelect}
+      icon={trigger.icon}
+      bgColor={trigger.bgColor}
+      showColoredIcon
+      label={trigger.name}
+      query={query}
+    />
   )
-})
+)
 
-export const ToolOpsGroup = memo(function ToolOpsGroup({
-  items,
-  onSelect,
-  query,
-}: {
-  items: SearchToolOperationItem[]
-  onSelect: (op: SearchToolOperationItem) => void
-  query?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Tool operations' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((op) => (
-        <MemoizedCommandItem
-          key={op.id}
-          value={`${op.searchValue} operation-${op.id}`}
-          onSelect={() => onSelect(op)}
-          icon={op.icon}
-          bgColor={op.bgColor}
-          showColoredIcon
-          label={op.name}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const toolOpValue = (op: SearchToolOperationItem) => `${op.searchValue} operation-${op.id}`
+
+export const ToolOpsGroup = createRowGroup(
+  'ToolOpsGroup',
+  'Tool operations',
+  toolOpValue,
+  (op, handleSelect, query) => (
+    <MemoizedCommandItem
+      key={op.id}
+      value={toolOpValue(op)}
+      onSelect={handleSelect}
+      icon={op.icon}
+      bgColor={op.bgColor}
+      showColoredIcon
+      label={op.name}
+      query={query}
+    />
   )
-})
+)
 
-export const DocsGroup = memo(function DocsGroup({
-  items,
-  onSelect,
-  query,
-}: {
-  items: SearchDocItem[]
-  onSelect: (doc: SearchDocItem) => void
-  query?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Docs' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((doc) => (
-        <MemoizedCommandItem
-          key={doc.id}
-          value={`${doc.name} docs documentation doc-${doc.id}`}
-          onSelect={() => onSelect(doc)}
-          icon={doc.icon}
-          bgColor='#6B7280'
-          showColoredIcon
-          label={doc.name}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const docValue = (doc: SearchDocItem) => `${doc.name} docs documentation doc-${doc.id}`
+
+export const DocsGroup = createRowGroup(
+  'DocsGroup',
+  'Docs',
+  docValue,
+  (doc, handleSelect, query) => (
+    <MemoizedCommandItem
+      key={doc.id}
+      value={docValue(doc)}
+      onSelect={handleSelect}
+      icon={doc.icon}
+      bgColor={FALLBACK_BG_COLOR}
+      showColoredIcon
+      label={doc.name}
+      query={query}
+    />
   )
-})
+)
 
-export const WorkflowsGroup = memo(function WorkflowsGroup({
-  items,
-  onSelect,
-  query,
-}: {
-  items: WorkflowItem[]
-  onSelect: (workflow: WorkflowItem) => void
-  query?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Workflows' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((workflow) => (
-        <MemoizedWorkflowItem
-          key={workflow.id}
-          value={`${workflow.name} ${workflow.folderPath?.join(' / ') ?? ''} workflow-${workflow.id}`}
-          onSelect={() => onSelect(workflow)}
-          name={workflow.name}
-          folderPath={workflow.folderPath}
-          isCurrent={workflow.isCurrent}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const workflowValue = (workflow: WorkflowItem) =>
+  `${workflow.name} ${workflow.folderPath?.join(' / ') ?? ''} workflow-${workflow.id}`
+
+export const WorkflowsGroup = createRowGroup(
+  'WorkflowsGroup',
+  'Workflows',
+  workflowValue,
+  (workflow, handleSelect, query) => (
+    <MemoizedWorkflowItem
+      key={workflow.id}
+      value={workflowValue(workflow)}
+      onSelect={handleSelect}
+      name={workflow.name}
+      folderPath={workflow.folderPath}
+      isCurrent={workflow.isCurrent}
+      query={query}
+    />
   )
-})
+)
 
-export const ChatsGroup = memo(function ChatsGroup({
-  items,
-  onSelect,
-  query,
-}: {
-  items: TaskItem[]
-  onSelect: (task: TaskItem) => void
-  query?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Chats' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((task) => (
-        <MemoizedTaskItem
-          key={task.id}
-          value={`${task.name} task-${task.id}`}
-          onSelect={() => onSelect(task)}
-          name={task.name}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const taskValue = (task: TaskItem) => `${task.name} task-${task.id}`
+
+export const ChatsGroup = createRowGroup(
+  'ChatsGroup',
+  'Chats',
+  taskValue,
+  (task, handleSelect, query) => (
+    <MemoizedTaskItem
+      key={task.id}
+      value={taskValue(task)}
+      onSelect={handleSelect}
+      name={task.name}
+      query={query}
+    />
   )
-})
+)
 
-export const WorkspacesGroup = memo(function WorkspacesGroup({
-  items,
-  onSelect,
-  query,
-}: {
-  items: WorkspaceItem[]
-  onSelect: (workspace: WorkspaceItem) => void
-  query?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Workspaces' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((workspace) => (
-        <MemoizedWorkspaceItem
-          key={workspace.id}
-          value={`${workspace.name} workspace-${workspace.id}`}
-          onSelect={() => onSelect(workspace)}
-          name={workspace.name}
-          isCurrent={workspace.isCurrent}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const workspaceValue = (workspace: WorkspaceItem) => `${workspace.name} workspace-${workspace.id}`
+
+export const WorkspacesGroup = createRowGroup(
+  'WorkspacesGroup',
+  'Workspaces',
+  workspaceValue,
+  (workspace, handleSelect, query) => (
+    <MemoizedWorkspaceItem
+      key={workspace.id}
+      value={workspaceValue(workspace)}
+      onSelect={handleSelect}
+      name={workspace.name}
+      isCurrent={workspace.isCurrent}
+      query={query}
+    />
   )
-})
+)
 
-export const PagesGroup = memo(function PagesGroup({
-  items,
-  onSelect,
-  query,
-}: {
-  items: PageItem[]
-  onSelect: (page: PageItem) => void
-  query?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Pages' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((page) => (
-        <MemoizedPageItem
-          key={page.id}
-          value={`${page.name} page-${page.id}`}
-          onSelect={() => onSelect(page)}
-          icon={page.icon}
-          name={page.name}
-          shortcut={page.shortcut}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+const pageValue = (page: PageItem) => `${page.name} page-${page.id}`
+
+export const PagesGroup = createRowGroup(
+  'PagesGroup',
+  'Pages',
+  pageValue,
+  (page, handleSelect, query) => (
+    <MemoizedPageItem
+      key={page.id}
+      value={pageValue(page)}
+      onSelect={handleSelect}
+      icon={page.icon}
+      name={page.name}
+      shortcut={page.shortcut}
+      query={query}
+    />
   )
-})
+)
 
-export const TablesGroup = createIconGroup('Tables', 'table', Table)
-export const KnowledgeBasesGroup = createIconGroup('Knowledge bases', 'knowledge-base', Database)
+const fileValue = (file: FileItem) =>
+  `${file.name} ${file.folderPath?.join(' / ') ?? ''} file-${file.id}`
 
-export const ConnectedAccountsGroup = createColoredIconGroup('Connected', 'connected-account')
-export const IntegrationsGroup = createColoredIconGroup('Integrations', 'integration')
-
-export const FilesGroup = memo(function FilesGroup({
-  items,
-  onSelect,
-  query,
-}: {
-  items: FileItem[]
-  onSelect: (file: FileItem) => void
-  query?: string
-}) {
-  if (items.length === 0) return null
-  return (
-    <Command.Group heading='Files' className={GROUP_HEADING_CLASSNAME}>
-      {items.map((file) => (
-        <MemoizedFileItem
-          key={file.id}
-          value={`${file.name} ${file.folderPath?.join(' / ') ?? ''} file-${file.id}`}
-          onSelect={() => onSelect(file)}
-          name={file.name}
-          folderPath={file.folderPath}
-          query={query}
-        />
-      ))}
-    </Command.Group>
+export const FilesGroup = createRowGroup(
+  'FilesGroup',
+  'Files',
+  fileValue,
+  (file, handleSelect, query) => (
+    <MemoizedFileItem
+      key={file.id}
+      value={fileValue(file)}
+      onSelect={handleSelect}
+      name={file.name}
+      folderPath={file.folderPath}
+      query={query}
+    />
   )
-})
+)
 
 /**
- * Factory for groups that render each item with its own brand icon on a
- * brand-colored tile (the same `showColoredIcon` pattern used by
- * `BlocksGroup` / `ToolsGroup`). Used for integrations and connected accounts
- * where every row has a distinct per-item icon and brand color.
+ * Groups whose rows render each item with its own brand icon on a
+ * brand-colored tile (the same `showColoredIcon` pattern as `BlocksGroup` /
+ * `ToolsGroup`) — used where every row has a distinct per-item icon and color.
  */
-function createColoredIconGroup(heading: string, prefix: string) {
-  return memo(function ColoredIconGroup({
-    items,
-    onSelect,
-    query,
-  }: {
-    items: IntegrationSearchItem[]
-    onSelect: (item: IntegrationSearchItem) => void
-    query?: string
-  }) {
-    if (items.length === 0) return null
-    return (
-      <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
-        {items.map((item) => (
-          <MemoizedCommandItem
-            key={item.id}
-            value={`${item.name} ${prefix}-${item.id}`}
-            onSelect={() => onSelect(item)}
-            icon={item.icon}
-            bgColor={item.bgColor}
-            showColoredIcon
-            label={item.name}
-            query={query}
-          />
-        ))}
-      </Command.Group>
-    )
-  })
+function createColoredIconGroup(displayName: string, heading: string, prefix: string) {
+  const valueFor = (item: IntegrationSearchItem) => `${item.name} ${prefix}-${item.id}`
+  return createRowGroup(displayName, heading, valueFor, (item, handleSelect, query) => (
+    <MemoizedCommandItem
+      key={item.id}
+      value={valueFor(item)}
+      onSelect={handleSelect}
+      icon={item.icon}
+      bgColor={item.bgColor}
+      showColoredIcon
+      label={item.name}
+      query={query}
+    />
+  ))
 }
 
 function createIconGroup(
+  displayName: string,
   heading: string,
   prefix: string,
   icon: ComponentType<{ className?: string }>
 ) {
-  return memo(function IconGroup({
-    items,
-    onSelect,
-    query,
-  }: {
-    items: TaskItem[]
-    onSelect: (item: TaskItem) => void
-    query?: string
-  }) {
-    if (items.length === 0) return null
-    return (
-      <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
-        {items.map((item) => (
-          <MemoizedIconItem
-            key={item.id}
-            value={`${item.name} ${prefix}-${item.id}`}
-            onSelect={() => onSelect(item)}
-            name={item.name}
-            icon={icon}
-            query={query}
-          />
-        ))}
-      </Command.Group>
-    )
-  })
+  const valueFor = (item: TaskItem) => `${item.name} ${prefix}-${item.id}`
+  return createRowGroup(displayName, heading, valueFor, (item, handleSelect, query) => (
+    <MemoizedIconItem
+      key={item.id}
+      value={valueFor(item)}
+      onSelect={handleSelect}
+      name={item.name}
+      icon={icon}
+      query={query}
+    />
+  ))
 }
+
+export const TablesGroup = createIconGroup('TablesGroup', 'Tables', 'table', Table)
+export const KnowledgeBasesGroup = createIconGroup(
+  'KnowledgeBasesGroup',
+  'Knowledge bases',
+  'knowledge-base',
+  Database
+)
+
+export const ConnectedAccountsGroup = createColoredIconGroup(
+  'ConnectedAccountsGroup',
+  'Connected',
+  'connected-account'
+)
+export const IntegrationsGroup = createColoredIconGroup(
+  'IntegrationsGroup',
+  'Integrations',
+  'integration'
+)

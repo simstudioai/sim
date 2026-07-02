@@ -90,6 +90,7 @@ export const MemoizedCommandItem = memo(
   },
   (prev, next) =>
     prev.value === next.value &&
+    prev.onSelect === next.onSelect &&
     prev.icon === next.icon &&
     prev.bgColor === next.bgColor &&
     prev.showColoredIcon === next.showColoredIcon &&
@@ -107,7 +108,7 @@ export const MemoizedActionItem = memo(
     query,
   }: {
     value: string
-    onSelect: () => void
+    onSelect: (value: string) => void
     icon: ComponentType<{ className?: string }>
     name: string
     shortcut?: string
@@ -129,6 +130,7 @@ export const MemoizedActionItem = memo(
   },
   (prev, next) =>
     prev.value === next.value &&
+    prev.onSelect === next.onSelect &&
     prev.icon === next.icon &&
     prev.name === next.name &&
     prev.shortcut === next.shortcut &&
@@ -145,7 +147,7 @@ export const MemoizedWorkflowItem = memo(
     query,
   }: {
     value: string
-    onSelect: () => void
+    onSelect: (value: string) => void
     name: string
     folderPath?: string[]
     isCurrent?: boolean
@@ -180,6 +182,7 @@ export const MemoizedWorkflowItem = memo(
   },
   (prev, next) =>
     prev.value === next.value &&
+    prev.onSelect === next.onSelect &&
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
     prev.query === next.query &&
@@ -197,7 +200,7 @@ export const MemoizedFileItem = memo(
     query,
   }: {
     value: string
-    onSelect: () => void
+    onSelect: (value: string) => void
     name: string
     folderPath?: string[]
     query?: string
@@ -230,6 +233,7 @@ export const MemoizedFileItem = memo(
   },
   (prev, next) =>
     prev.value === next.value &&
+    prev.onSelect === next.onSelect &&
     prev.name === next.name &&
     prev.query === next.query &&
     (prev.folderPath === next.folderPath ||
@@ -245,7 +249,7 @@ export const MemoizedTaskItem = memo(
     query,
   }: {
     value: string
-    onSelect: () => void
+    onSelect: (value: string) => void
     name: string
     query?: string
   }) {
@@ -269,7 +273,7 @@ export const MemoizedWorkspaceItem = memo(
     query,
   }: {
     value: string
-    onSelect: () => void
+    onSelect: (value: string) => void
     name: string
     isCurrent?: boolean
     query?: string
@@ -287,6 +291,7 @@ export const MemoizedWorkspaceItem = memo(
   },
   (prev, next) =>
     prev.value === next.value &&
+    prev.onSelect === next.onSelect &&
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
     prev.query === next.query
@@ -302,7 +307,7 @@ export const MemoizedPageItem = memo(
     query,
   }: {
     value: string
-    onSelect: () => void
+    onSelect: (value: string) => void
     icon: ComponentType<{ className?: string }>
     name: string
     shortcut?: string
@@ -324,49 +329,18 @@ export const MemoizedPageItem = memo(
   },
   (prev, next) =>
     prev.value === next.value &&
+    prev.onSelect === next.onSelect &&
     prev.icon === next.icon &&
     prev.name === next.name &&
     prev.shortcut === next.shortcut &&
     prev.query === next.query
 )
 
-export const MemoizedCategoryItem = memo(
-  function CategoryItem({
-    value,
-    onSelect,
-    icon: Icon,
-    name,
-    count,
-    query,
-  }: {
-    value: string
-    onSelect: () => void
-    icon: ComponentType<{ className?: string }>
-    name: string
-    count: number
-    query?: string
-  }) {
-    return (
-      <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate text-[var(--text-body)]'>
-          <HighlightedText text={name} query={query} />
-        </span>
-        <span className='ml-auto flex flex-shrink-0 items-center gap-1.5 text-[var(--text-subtle)] text-small'>
-          {count}
-          <ChevronRight className='size-[14px]' />
-        </span>
-      </Command.Item>
-    )
-  },
-  (prev, next) =>
-    prev.value === next.value &&
-    prev.icon === next.icon &&
-    prev.name === next.name &&
-    prev.count === next.count &&
-    prev.query === next.query
-)
-
+/**
+ * Also used for the browse-category rows (`count` set) — those are otherwise
+ * identical to a plain icon row, so a trailing count + chevron is a prop
+ * rather than a forked component.
+ */
 export const MemoizedIconItem = memo(
   function IconItem({
     value,
@@ -374,12 +348,14 @@ export const MemoizedIconItem = memo(
     name,
     icon: Icon,
     query,
+    count,
   }: {
     value: string
-    onSelect: () => void
+    onSelect: (value: string) => void
     name: string
     icon: ComponentType<{ className?: string }>
     query?: string
+    count?: number
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
@@ -387,12 +363,20 @@ export const MemoizedIconItem = memo(
         <span className='truncate text-[var(--text-body)]'>
           <HighlightedText text={name} query={query} />
         </span>
+        {count !== undefined && (
+          <span className='ml-auto flex flex-shrink-0 items-center gap-1.5 text-[var(--text-subtle)] text-small'>
+            {count}
+            <ChevronRight className='size-[14px]' />
+          </span>
+        )}
       </Command.Item>
     )
   },
   (prev, next) =>
     prev.value === next.value &&
+    prev.onSelect === next.onSelect &&
     prev.name === next.name &&
     prev.icon === next.icon &&
-    prev.query === next.query
+    prev.query === next.query &&
+    prev.count === next.count
 )

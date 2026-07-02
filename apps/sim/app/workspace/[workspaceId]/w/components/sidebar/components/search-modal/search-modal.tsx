@@ -1,6 +1,6 @@
 'use client'
 
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { cn, Library } from '@sim/emcn'
 import {
@@ -75,7 +75,7 @@ import type {
   WorkflowItem,
   WorkspaceItem,
 } from './utils'
-import { filterAndSort } from './utils'
+import { filterAndScore, filterAndSort } from './utils'
 
 const logger = createLogger('SearchModal')
 
@@ -98,14 +98,42 @@ function toRecentRow(
   return { id: key, label: item.name, icon: item.icon, bgColor: item.bgColor }
 }
 
+/** Resolves one recent entry to a render row, or `null` when its block/tool/trigger/op no longer exists. */
+function resolveRecentRow<
+  T extends { name: string; icon: RecentRenderItem['icon']; bgColor: string },
+>(key: string, item: T | undefined, onSelect: (item: T) => void): RecentRenderItem | null {
+  if (!item) return null
+  return { ...toRecentRow(key, item), onSelect: () => onSelect(item) }
+}
+
+/**
+ * A capped, score-sorted group. `topScore` drives cross-group ordering;
+ * `truncatedCount` is how many additional matches were cut by the cap — shown
+ * as a "+N more, refine your search" row so truncation is never silent.
+ */
+interface CappedGroup<T> {
+  items: T[]
+  topScore: number
+  truncatedCount: number
+}
+
 /**
  * Score-sorts a group and caps it to {@link MAX_RESULTS_PER_GROUP} so no single
  * group can flood the DOM — neither a broad query nor a large workspace (which
  * can hold thousands of workflows/files). Results are ranked, so the cap only
- * trims the low-relevance tail.
+ * trims the long, low-relevance tail. Also surfaces the group's best score so
+ * the caller can rank *groups* against each other (see `catalogGroups` below)
+ * — without this, a highly-relevant Docs hit would always render below a
+ * weakly relevant Blocks hit purely because of fixed group order.
  */
-function filterAndCap<T>(items: T[], toValue: (item: T) => string, search: string): T[] {
-  return filterAndSort(items, toValue, search).slice(0, MAX_RESULTS_PER_GROUP)
+function filterAndCap<T>(items: T[], toValue: (item: T) => string, search: string): CappedGroup<T> {
+  const scored = filterAndScore(items, toValue, search)
+  const capped = scored.slice(0, MAX_RESULTS_PER_GROUP)
+  return {
+    items: capped.map((entry) => entry.item),
+    topScore: capped[0]?.score ?? 0,
+    truncatedCount: scored.length - capped.length,
+  }
 }
 
 /**
@@ -118,8 +146,10 @@ function cappedCatalog<T>(
   items: T[],
   toValue: (item: T) => string,
   search: string
-): T[] {
-  return enabled ? filterAndCap(items, toValue, search) : []
+): CappedGroup<T> {
+  return enabled
+    ? filterAndCap(items, toValue, search)
+    : { items: [], topScore: 0, truncatedCount: 0 }
 }
 
 export type { SearchModalProps } from './utils'
@@ -146,6 +176,7 @@ export function SearchModal({
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
@@ -401,26 +432,29 @@ export function SearchModal({
     clearInput()
   }, [clearInput])
 
-  const handleSearchChange = useCallback((value: string) => {
+  /**
+   * Not `useCallback` — only ever passed to cmdk's `Command.Input`, which is a
+   * plain `forwardRef` (not `React.memo`), and nothing else depends on either
+   * function's identity, so memoizing them would add hook overhead for zero
+   * benefit.
+   */
+  function handleSearchChange(value: string) {
     setSearch(value)
     requestAnimationFrame(() => {
-      const list = document.querySelector('[cmdk-list]')
+      const list = listRef.current
       if (list) {
         list.scrollTop = 0
       }
     })
-  }, [])
+  }
 
   /** Backspace on an empty input steps back out of a browse drill-down. */
-  const handleInputKeyDown = useCallback(
-    (e: ReactKeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Backspace' && scopeRef.current && e.currentTarget.value === '') {
-        e.preventDefault()
-        exitScope()
-      }
-    },
-    [exitScope]
-  )
+  function handleInputKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace' && scopeRef.current && e.currentTarget.value === '') {
+      e.preventDefault()
+      exitScope()
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -655,10 +689,6 @@ export function SearchModal({
     [handleBlockSelect]
   )
 
-  const handleOverlayClick = useCallback(() => {
-    onOpenChangeRef.current(false)
-  }, [])
-
   const filteredActions = useMemo(() => {
     const available = actions.filter(
       (a) =>
@@ -683,27 +713,47 @@ export function SearchModal({
    */
   const showCatalogResults = isOnWorkflowPage && isSearching && !scope
 
-  const filteredBlocks = useMemo(
+  const {
+    items: filteredBlocks,
+    topScore: blocksScore,
+    truncatedCount: blocksTruncated,
+  } = useMemo(
     () => cappedCatalog(showCatalogResults, blocks, (b) => b.searchValue ?? b.name, deferredSearch),
     [showCatalogResults, blocks, deferredSearch]
   )
 
-  const filteredTools = useMemo(
+  const {
+    items: filteredTools,
+    topScore: toolsScore,
+    truncatedCount: toolsTruncated,
+  } = useMemo(
     () => cappedCatalog(showCatalogResults, tools, (t) => t.searchValue ?? t.name, deferredSearch),
     [showCatalogResults, tools, deferredSearch]
   )
 
-  const filteredTriggers = useMemo(
+  const {
+    items: filteredTriggers,
+    topScore: triggersScore,
+    truncatedCount: triggersTruncated,
+  } = useMemo(
     () => cappedCatalog(showCatalogResults, triggers, (t) => `${t.name} ${t.id}`, deferredSearch),
     [showCatalogResults, triggers, deferredSearch]
   )
 
-  const filteredToolOps = useMemo(
+  const {
+    items: filteredToolOps,
+    topScore: toolOpsScore,
+    truncatedCount: toolOpsTruncated,
+  } = useMemo(
     () => cappedCatalog(showCatalogResults, toolOperations, (op) => op.searchValue, deferredSearch),
     [showCatalogResults, toolOperations, deferredSearch]
   )
 
-  const filteredDocs = useMemo(
+  const {
+    items: filteredDocs,
+    topScore: docsScore,
+    truncatedCount: docsTruncated,
+  } = useMemo(
     () =>
       cappedCatalog(
         showCatalogResults,
@@ -714,23 +764,26 @@ export function SearchModal({
     [showCatalogResults, docs, deferredSearch]
   )
 
-  /** Items shown while drilled into a browse category, filtered within scope. */
-  const scopedItems = useMemo(() => {
+  /**
+   * The catalog partition a browse category drills into. Split from
+   * {@link scopedItems} so switching keystrokes within a scope doesn't re-run
+   * this partition — only `scope`/`blocks`/`triggers`/`tools` changing does.
+   */
+  const scopedCatalog = useMemo(() => {
     if (!scope) return []
-    const base =
-      scope.id === 'blocks'
-        ? blocks
-        : scope.id === 'triggers'
-          ? triggers
-          : tools.filter((t) => t.integrationType === scope.id)
-    return filterAndSort(base, (b) => b.searchValue ?? b.name, deferredSearch)
-  }, [scope, blocks, triggers, tools, deferredSearch])
+    if (scope.id === 'blocks') return blocks
+    if (scope.id === 'triggers') return triggers
+    return tools.filter((t) => t.integrationType === scope.id)
+  }, [scope, blocks, triggers, tools])
+
+  /** Items shown while drilled into a browse category, filtered within scope. */
+  const scopedItems = useMemo(
+    () => filterAndSort(scopedCatalog, (b) => b.searchValue ?? b.name, deferredSearch),
+    [scopedCatalog, deferredSearch]
+  )
 
   const handleScopedSelect = useCallback(
-    (item: SearchBlockItem) => {
-      const kind = scopeRef.current?.kind ?? 'tool'
-      handleBlockSelect(item, kind === 'block' ? 'block' : kind === 'trigger' ? 'trigger' : 'tool')
-    },
+    (item: SearchBlockItem) => handleBlockSelect(item, scopeRef.current?.kind ?? 'tool'),
     [handleBlockSelect]
   )
 
@@ -759,39 +812,17 @@ export function SearchModal({
       const kind = key.slice(0, separator)
       const id = key.slice(separator + 1)
 
-      if (kind === 'block') {
-        const item = blocksByType.get(id)
-        if (item) {
-          resolved.push({
-            ...toRecentRow(key, item),
-            onSelect: () => handleBlockSelectAsBlock(item),
-          })
-        }
-      } else if (kind === 'tool') {
-        const item = toolsByType.get(id)
-        if (item) {
-          resolved.push({
-            ...toRecentRow(key, item),
-            onSelect: () => handleBlockSelectAsTool(item),
-          })
-        }
-      } else if (kind === 'trigger') {
-        const item = triggersByType.get(id)
-        if (item) {
-          resolved.push({
-            ...toRecentRow(key, item),
-            onSelect: () => handleBlockSelectAsTrigger(item),
-          })
-        }
-      } else if (kind === 'op') {
-        const item = opsById.get(id)
-        if (item) {
-          resolved.push({
-            ...toRecentRow(key, item),
-            onSelect: () => handleToolOperationSelect(item),
-          })
-        }
-      }
+      const row =
+        kind === 'block'
+          ? resolveRecentRow(key, blocksByType.get(id), handleBlockSelectAsBlock)
+          : kind === 'tool'
+            ? resolveRecentRow(key, toolsByType.get(id), handleBlockSelectAsTool)
+            : kind === 'trigger'
+              ? resolveRecentRow(key, triggersByType.get(id), handleBlockSelectAsTrigger)
+              : kind === 'op'
+                ? resolveRecentRow(key, opsById.get(id), handleToolOperationSelect)
+                : null
+      if (row) resolved.push(row)
     }
     return resolved
   }, [
@@ -807,48 +838,261 @@ export function SearchModal({
     handleToolOperationSelect,
   ])
 
-  const filteredTables = useMemo(
-    () => filterAndCap(tables, (t) => t.name, deferredSearch),
-    [tables, deferredSearch]
-  )
-  const filteredFiles = useMemo(
+  const {
+    items: filteredTables,
+    topScore: tablesScore,
+    truncatedCount: tablesTruncated,
+  } = useMemo(() => filterAndCap(tables, (t) => t.name, deferredSearch), [tables, deferredSearch])
+  const {
+    items: filteredFiles,
+    topScore: filesScore,
+    truncatedCount: filesTruncated,
+  } = useMemo(
     () => filterAndCap(files, (f) => `${f.name} ${f.folderPath?.join(' ') ?? ''}`, deferredSearch),
     [files, deferredSearch]
   )
-  const filteredKnowledgeBases = useMemo(
+  const {
+    items: filteredKnowledgeBases,
+    topScore: kbsScore,
+    truncatedCount: kbsTruncated,
+  } = useMemo(
     () => filterAndCap(knowledgeBases, (kb) => kb.name, deferredSearch),
     [knowledgeBases, deferredSearch]
   )
 
-  const filteredWorkflows = useMemo(
+  const {
+    items: filteredWorkflows,
+    topScore: workflowsScore,
+    truncatedCount: workflowsTruncated,
+  } = useMemo(
     () =>
       filterAndCap(workflows, (w) => `${w.name} ${w.folderPath?.join(' ') ?? ''}`, deferredSearch),
     [workflows, deferredSearch]
   )
-  const filteredChats = useMemo(
-    () => filterAndCap(chats, (t) => t.name, deferredSearch),
-    [chats, deferredSearch]
-  )
-  const filteredWorkspaces = useMemo(
+  const {
+    items: filteredChats,
+    topScore: chatsScore,
+    truncatedCount: chatsTruncated,
+  } = useMemo(() => filterAndCap(chats, (t) => t.name, deferredSearch), [chats, deferredSearch])
+  const {
+    items: filteredWorkspaces,
+    topScore: workspacesScore,
+    truncatedCount: workspacesTruncated,
+  } = useMemo(
     () => filterAndCap(workspaces, (w) => w.name, deferredSearch),
     [workspaces, deferredSearch]
   )
-  const filteredPages = useMemo(
-    () => filterAndSort(pages, (p) => p.name, deferredSearch),
-    [pages, deferredSearch]
-  )
+  const {
+    items: filteredPages,
+    topScore: pagesScore,
+    truncatedCount: pagesTruncated,
+  } = useMemo(() => filterAndCap(pages, (p) => p.name, deferredSearch), [pages, deferredSearch])
 
   /** Connected accounts: visible on the integrations page even with empty input. */
-  const filteredConnectedAccounts = useMemo(() => {
-    if (!isOnIntegrationsPage) return []
+  const {
+    items: filteredConnectedAccounts,
+    topScore: connectedScore,
+    truncatedCount: connectedTruncated,
+  } = useMemo(() => {
+    if (!isOnIntegrationsPage) return { items: [], topScore: 0, truncatedCount: 0 }
     return filterAndCap(connectedAccounts, (a) => a.name, deferredSearch)
   }, [isOnIntegrationsPage, connectedAccounts, deferredSearch])
 
   /** Catalog integrations: only shown once the user has typed something. */
-  const filteredIntegrations = useMemo(() => {
-    if (!isOnIntegrationsPage || !deferredSearch) return []
+  const {
+    items: filteredIntegrations,
+    topScore: integrationsScore,
+    truncatedCount: integrationsTruncated,
+  } = useMemo(() => {
+    if (!isOnIntegrationsPage || !deferredSearch)
+      return { items: [], topScore: 0, truncatedCount: 0 }
     return filterAndCap(integrations, (i) => i.name, deferredSearch)
   }, [isOnIntegrationsPage, deferredSearch, integrations])
+
+  /**
+   * The typed catalog groups, ranked by their best-matching item so the most
+   * relevant hit surfaces first regardless of type — a highly-relevant Docs
+   * result no longer sits below a weakly-relevant Blocks result purely
+   * because of a fixed group order. `Array.prototype.sort` is stable, so
+   * ties (all-zero scores when the input is empty) preserve this authored
+   * order, matching the previous fixed sequence exactly when not searching.
+   * Each element carries its own `key` so React reorders existing group
+   * instances (and their memoized rows) instead of remounting them. Skipped
+   * entirely while a browse scope is active — none of these render then (the
+   * scoped list renders those items directly), so there's nothing to sort.
+   */
+  const catalogGroups: Array<{ score: number; node: ReactNode }> = scope
+    ? []
+    : [
+        {
+          score: connectedScore,
+          node: (
+            <ConnectedAccountsGroup
+              key='connected'
+              items={filteredConnectedAccounts}
+              onSelect={handleConnectedAccountSelect}
+              query={deferredSearch}
+              truncatedCount={connectedTruncated}
+            />
+          ),
+        },
+        {
+          score: integrationsScore,
+          node: (
+            <IntegrationsGroup
+              key='integrations'
+              items={filteredIntegrations}
+              onSelect={handleIntegrationSelect}
+              query={deferredSearch}
+              truncatedCount={integrationsTruncated}
+            />
+          ),
+        },
+        {
+          score: blocksScore,
+          node: (
+            <BlocksGroup
+              key='blocks'
+              items={filteredBlocks}
+              onSelect={handleBlockSelectAsBlock}
+              query={deferredSearch}
+              truncatedCount={blocksTruncated}
+            />
+          ),
+        },
+        {
+          score: toolsScore,
+          node: (
+            <ToolsGroup
+              key='tools'
+              items={filteredTools}
+              onSelect={handleBlockSelectAsTool}
+              query={deferredSearch}
+              truncatedCount={toolsTruncated}
+            />
+          ),
+        },
+        {
+          score: triggersScore,
+          node: (
+            <TriggersGroup
+              key='triggers'
+              items={filteredTriggers}
+              onSelect={handleBlockSelectAsTrigger}
+              query={deferredSearch}
+              truncatedCount={triggersTruncated}
+            />
+          ),
+        },
+        {
+          score: chatsScore,
+          node: (
+            <ChatsGroup
+              key='chats'
+              items={filteredChats}
+              onSelect={handleChatSelect}
+              query={deferredSearch}
+              truncatedCount={chatsTruncated}
+            />
+          ),
+        },
+        {
+          score: workflowsScore,
+          node: (
+            <WorkflowsGroup
+              key='workflows'
+              items={filteredWorkflows}
+              onSelect={handleWorkflowSelect}
+              query={deferredSearch}
+              truncatedCount={workflowsTruncated}
+            />
+          ),
+        },
+        {
+          score: tablesScore,
+          node: (
+            <TablesGroup
+              key='tables'
+              items={filteredTables}
+              onSelect={handleTableSelect}
+              query={deferredSearch}
+              truncatedCount={tablesTruncated}
+            />
+          ),
+        },
+        {
+          score: filesScore,
+          node: (
+            <FilesGroup
+              key='files'
+              items={filteredFiles}
+              onSelect={handleFileSelect}
+              query={deferredSearch}
+              truncatedCount={filesTruncated}
+            />
+          ),
+        },
+        {
+          score: kbsScore,
+          node: (
+            <KnowledgeBasesGroup
+              key='kbs'
+              items={filteredKnowledgeBases}
+              onSelect={handleKbSelect}
+              query={deferredSearch}
+              truncatedCount={kbsTruncated}
+            />
+          ),
+        },
+        {
+          score: toolOpsScore,
+          node: (
+            <ToolOpsGroup
+              key='toolops'
+              items={filteredToolOps}
+              onSelect={handleToolOperationSelect}
+              query={deferredSearch}
+              truncatedCount={toolOpsTruncated}
+            />
+          ),
+        },
+        {
+          score: workspacesScore,
+          node: (
+            <WorkspacesGroup
+              key='workspaces'
+              items={filteredWorkspaces}
+              onSelect={handleWorkspaceSelect}
+              query={deferredSearch}
+              truncatedCount={workspacesTruncated}
+            />
+          ),
+        },
+        {
+          score: docsScore,
+          node: (
+            <DocsGroup
+              key='docs'
+              items={filteredDocs}
+              onSelect={handleDocSelect}
+              query={deferredSearch}
+              truncatedCount={docsTruncated}
+            />
+          ),
+        },
+        {
+          score: pagesScore,
+          node: (
+            <PagesGroup
+              key='pages'
+              items={filteredPages}
+              onSelect={handlePageSelect}
+              query={deferredSearch}
+              truncatedCount={pagesTruncated}
+            />
+          ),
+        },
+      ].sort((a, b) => b.score - a.score)
 
   if (!mounted) return null
 
@@ -856,21 +1100,26 @@ export function SearchModal({
     <>
       <div
         className={cn(
-          'fixed inset-0 z-40 transition-opacity duration-100',
+          'fixed inset-0 z-[var(--z-modal)] transition-opacity duration-150',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
-        onClick={handleOverlayClick}
+        onClick={() => onOpenChangeRef.current(false)}
         aria-hidden={!open}
       />
 
+      {/*
+       * Transitioning `visibility` alongside `opacity`/`transform` isn't a no-op: per spec
+       * it flips to visible at the START of the transition but to hidden at the END, so
+       * this animates both directions while still becoming inert once fully closed.
+       */}
       <div
         role='dialog'
         aria-modal={open}
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
-          open ? 'visible opacity-100' : 'invisible opacity-0'
+          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] transition-[visibility,opacity,transform] duration-150 ease-out dark:bg-[var(--surface-5)]',
+          open ? 'visible scale-100 opacity-100' : 'invisible scale-95 opacity-0'
         )}
         style={{
           left: isOnWorkflowPage
@@ -903,6 +1152,7 @@ export function SearchModal({
               />
             </div>
             <Command.List
+              ref={listRef}
               className={cn(
                 'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col',
                 CMDK_ITEM_GAP_CLASS,
@@ -910,7 +1160,9 @@ export function SearchModal({
               )}
             >
               <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
-                No results found.
+                {scope
+                  ? `No results in ${scope.label}. Backspace to search everywhere.`
+                  : 'No results found.'}
               </Command.Empty>
 
               {scope ? (
@@ -951,76 +1203,7 @@ export function SearchModal({
                   {!isSearching && isOnWorkflowPage && (
                     <BrowseGroup items={categories} onSelect={enterScope} />
                   )}
-                  <ConnectedAccountsGroup
-                    items={filteredConnectedAccounts}
-                    onSelect={handleConnectedAccountSelect}
-                    query={deferredSearch}
-                  />
-                  <IntegrationsGroup
-                    items={filteredIntegrations}
-                    onSelect={handleIntegrationSelect}
-                    query={deferredSearch}
-                  />
-                  <BlocksGroup
-                    items={filteredBlocks}
-                    onSelect={handleBlockSelectAsBlock}
-                    query={deferredSearch}
-                  />
-                  <ToolsGroup
-                    items={filteredTools}
-                    onSelect={handleBlockSelectAsTool}
-                    query={deferredSearch}
-                  />
-                  <TriggersGroup
-                    items={filteredTriggers}
-                    onSelect={handleBlockSelectAsTrigger}
-                    query={deferredSearch}
-                  />
-                  <ChatsGroup
-                    items={filteredChats}
-                    onSelect={handleChatSelect}
-                    query={deferredSearch}
-                  />
-                  <WorkflowsGroup
-                    items={filteredWorkflows}
-                    onSelect={handleWorkflowSelect}
-                    query={deferredSearch}
-                  />
-                  <TablesGroup
-                    items={filteredTables}
-                    onSelect={handleTableSelect}
-                    query={deferredSearch}
-                  />
-                  <FilesGroup
-                    items={filteredFiles}
-                    onSelect={handleFileSelect}
-                    query={deferredSearch}
-                  />
-                  <KnowledgeBasesGroup
-                    items={filteredKnowledgeBases}
-                    onSelect={handleKbSelect}
-                    query={deferredSearch}
-                  />
-                  <ToolOpsGroup
-                    items={filteredToolOps}
-                    onSelect={handleToolOperationSelect}
-                    query={deferredSearch}
-                  />
-                  <WorkspacesGroup
-                    items={filteredWorkspaces}
-                    onSelect={handleWorkspaceSelect}
-                    query={deferredSearch}
-                  />
-                  <DocsGroup
-                    items={filteredDocs}
-                    onSelect={handleDocSelect}
-                    query={deferredSearch}
-                  />
-                  <PagesGroup
-                    items={filteredPages}
-                    onSelect={handlePageSelect}
-                    query={deferredSearch}
-                  />
+                  {catalogGroups.map((group) => group.node)}
                 </>
               )}
             </Command.List>

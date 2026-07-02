@@ -5,11 +5,11 @@ import {
   CONNECT_MODE,
   CONNECT_QUERY_PARAM,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
-import type { IntegrationSearchItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import {
+  FALLBACK_BG_COLOR,
+  type IntegrationSearchItem,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import type { WorkspaceCredential } from '@/hooks/queries/credentials'
-
-/** Fallback brand color for credentials whose integration metadata cannot be resolved. */
-const FALLBACK_BG_COLOR = '#6B7280'
 
 /**
  * Module-level lookup of integration metadata by OAuth service display name

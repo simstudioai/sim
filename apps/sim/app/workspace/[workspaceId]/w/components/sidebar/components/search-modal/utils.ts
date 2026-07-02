@@ -87,7 +87,8 @@ export interface SearchModalProps {
 
 export interface CommandItemProps {
   value: string
-  onSelect: () => void
+  /** Receives the row's cmdk `value` — dispatch through a group-level lookup, never a per-row closure. */
+  onSelect: (value: string) => void
   icon: ComponentType<{ className?: string }>
   bgColor: string
   showColoredIcon?: boolean
@@ -100,8 +101,17 @@ export interface CommandItemProps {
 export const GROUP_HEADING_CLASSNAME =
   '[&_[cmdk-group-heading]]:flex [&_[cmdk-group-heading]]:h-[18px] [&_[cmdk-group-heading]]:items-center [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:mb-2 [&_[cmdk-group-heading]]:text-small [&_[cmdk-group-heading]]:text-[var(--text-muted)]'
 
+/**
+ * Defers layout/paint for off-screen rows without full virtualization — rows
+ * stay real DOM nodes, so cmdk's keyboard nav and `scrollIntoView` need no
+ * changes. `30px` is the placeholder size before a row's first real paint,
+ * matching its fixed height.
+ */
 export const COMMAND_ITEM_CLASSNAME =
-  'group mx-0.5 flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-active)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+  'group mx-0.5 flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-active)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [content-visibility:auto] [contain-intrinsic-size:auto_30px]'
+
+/** Neutral brand-tile color for rows with no per-item brand color (docs) or an unresolved integration (credentials). */
+export const FALLBACK_BG_COLOR = '#6B7280'
 
 /** Characters that begin a new word — a match here scores higher. */
 const SEPARATORS = new Set([' ', '-', '_', '/', '.', ':', '(', ')'])
@@ -243,17 +253,38 @@ export function fuzzyMatch(text: string, query: string): FuzzyResult {
   return tokenFallback(lowerText, lowerQuery)
 }
 
+/** An item paired with its fuzzy-match score, for ranking across groups. */
+export interface ScoredMatch<T> {
+  item: T
+  score: number
+}
+
+/**
+ * Fuzzy-matches and score-sorts items descending. When the search is empty,
+ * every item is returned unscored (score 0) in its original order — a stable
+ * sort by score then leaves order untouched, so this doubles as the no-search
+ * fast path for callers that also want a score.
+ */
+export function filterAndScore<T>(
+  items: T[],
+  toValue: (item: T) => string,
+  search: string
+): ScoredMatch<T>[] {
+  if (!search) return items.map((item) => ({ item, score: 0 }))
+  const scored: ScoredMatch<T>[] = []
+  for (const item of items) {
+    const { matched, score } = fuzzyMatch(toValue(item), search)
+    if (matched) scored.push({ item, score })
+  }
+  scored.sort((a, b) => b.score - a.score)
+  return scored
+}
+
 /**
  * Filters items whose value fuzzy-matches the search, ordered by descending
  * score. Returns the input untouched when the search is empty.
  */
 export function filterAndSort<T>(items: T[], toValue: (item: T) => string, search: string): T[] {
   if (!search) return items
-  const scored: Array<{ item: T; score: number }> = []
-  for (const item of items) {
-    const { matched, score } = fuzzyMatch(toValue(item), search)
-    if (matched) scored.push({ item, score })
-  }
-  scored.sort((a, b) => b.score - a.score)
-  return scored.map((entry) => entry.item)
+  return filterAndScore(items, toValue, search).map((entry) => entry.item)
 }
