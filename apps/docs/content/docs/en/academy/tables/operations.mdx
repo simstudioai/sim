@@ -1,0 +1,68 @@
+---
+title: Table Operations
+description: The Table block works across two surfaces — a panel where you describe the operation, and the live table that answers it — with one shape shared by query, insert, update, and delete.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Tables" title="Table Operations" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/tables-operations-light-with-intro.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Workflows work with tables through the Table block. Everything the block can do starts from its Operation dropdown, and every operation follows the same shape: you describe it in the panel, run the block, and read the result in the table.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'Filters shape a query',
+      body: 'A query is built from conditions — column, operator, value. Conditions stack, and each one narrows the match.',
+    },
+    {
+      title: 'A query only reads',
+      body: 'Running a query selects the matching rows and leaves the table untouched. Change one operator and the same run selects the opposite rows.',
+    },
+    {
+      title: 'Writes take the same shape',
+      body: 'Delete Rows by Filter uses the same filter. Insert Row swaps the filter for row data, and every key in the payload lands as a cell.',
+    },
+    {
+      title: 'Update combines both',
+      body: 'Update Rows by Filter pairs a filter with row data — the filter picks the rows, the data changes them in place.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'Two surfaces', time: '0:27' },
+    { title: 'The Operation dropdown', time: '0:35' },
+    { title: 'Building a filter', time: '0:43' },
+    { title: 'Running a query', time: '0:52' },
+    { title: 'Swapping the operator', time: '0:59' },
+    { title: 'Stacking conditions', time: '1:07' },
+    { title: 'Delete by filter', time: '1:15' },
+    { title: 'Insert a row', time: '1:23' },
+    { title: 'Update in place', time: '1:33' },
+  ]}
+/>
+
+</div>
+
+## One shape, every operation
+
+The panel describes what you mean: an operation, a table, and — depending on the operation — a filter, row data, or both. A filter is conditions stacked together (priority equals high, and status equals open), each one narrowing the match. Queries read without touching the table; Delete Rows by Filter removes what matches; Insert Row lands a payload as a new row; Update Rows by Filter picks rows and changes them in place.
+
+## Reading the result
+
+The live table answers every run: matched rows highlight, deleted rows leave, inserted rows land, and updated cells flip where they sit. The block's output carries the same result back into the workflow for the next block to use.
+
+## Related documentation
+
+- [Tables overview](/tables)
+- [Using tables in workflows](/tables/using-in-workflows)

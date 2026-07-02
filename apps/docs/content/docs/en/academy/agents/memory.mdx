@@ -1,0 +1,66 @@
+---
+title: Memory
+description: One setting gives an agent memory — a conversation ID under which every turn is kept, so the next run starts from the conversation so far.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Agents" title="Memory" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-memory-light-with-intro.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+By default, an agent keeps nothing between runs — every conversation starts completely fresh. The Memory setting changes that: choose Conversation, give it a conversation ID, and everything said under that key is kept and loaded back before the model runs.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'Runs start fresh by default',
+      body: "Without memory, a customer who explained everything yesterday has to explain it all again today — the agent has no record that yesterday happened.",
+    },
+    {
+      title: 'One setting and a key',
+      body: 'Memory is configured on the Agent block: pick Conversation, choose a conversation ID, and each turn is saved under that key as it happens.',
+    },
+    {
+      title: 'Recall happens before the model runs',
+      body: 'On the next run, everything stored under the key is loaded back into the conversation first — so the agent answers like no time has passed.',
+    },
+    {
+      title: 'Keys are separate threads',
+      body: 'Each conversation ID is its own thread, so one agent holds a different conversation with every customer. Sliding-window modes keep the most recent messages or tokens when a thread outgrows the model.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'A conversation in progress', time: '0:30' },
+    { title: 'Fresh by default', time: '0:39' },
+    { title: 'The Memory setting', time: '0:51' },
+    { title: 'Saving under a key', time: '1:03' },
+    { title: 'Warm vs cold, side by side', time: '1:11' },
+    { title: 'A thread per customer', time: '1:37' },
+    { title: 'The sliding window', time: '1:52' },
+    { title: 'Inside the stored transcript', time: '1:59' },
+  ]}
+/>
+
+</div>
+
+## The warm and cold split
+
+The video runs the same agent twice, side by side: once with no memory and once with the conversation ID. The same follow-up question arrives in both. Without the key, the agent starts from zero and has to ask for everything again; with it, everything stored under the key was loaded back before the model saw the new message, and the answer picks up exactly where yesterday stopped.
+
+## When conversations grow
+
+Memory can also be a sliding window — keeping the most recent messages, or the most recent tokens, while the oldest quietly fall away. The stored transcript keeps every turn; the window controls how much of it rides into the model on each run.
+
+## Related documentation
+
+- [Agent block](/blocks/agent)

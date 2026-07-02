@@ -1,0 +1,67 @@
+---
+title: The File Object
+description: Every file in Sim — whatever made it — travels as the same object, so producers and consumers compose without special handling.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Files" title="The File Object" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/files-object-light-with-intro.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Your workflows make files from very different places — an email attachment, a generated image, synthesized speech, a parsed document. Inside the workflow, every one of them travels as the same thing: a file object.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'Different payloads, identical package',
+      body: 'A PDF, an image, and an audio clip arrive from different blocks, each delivered exactly the same way.',
+    },
+    {
+      title: 'The fields never change',
+      body: "Every file object carries an I.D., a name, a URL where the bytes live, a size, a type, and the content — no matter which block made it.",
+    },
+    {
+      title: 'Producers are swappable',
+      body: 'Because every producer speaks the same format, you can change which one feeds an agent and the agent side never changes.',
+    },
+    {
+      title: 'Consumers compose',
+      body: 'The same object rides to any consumer — into an agent, out as an email attachment, or straight into storage.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'Four makers', time: '0:31' },
+    { title: 'One reader', time: '0:43' },
+    { title: 'Every shape arrives the same', time: '0:54' },
+    { title: 'The identical package', time: '1:02' },
+    { title: 'Freeze: inside the object', time: '1:16' },
+    { title: 'The fields', time: '1:20' },
+    { title: 'Swap the source', time: '1:40' },
+    { title: 'Any consumer', time: '1:48' },
+    { title: 'A real machine', time: '1:56' },
+  ]}
+/>
+
+</div>
+
+## The common shape
+
+Catch a file mid-run and look inside: an I.D., a name, a URL where the bytes live, a size, a type, and the content itself. A couple more fields exist under the hood, but the shape never changes — which is exactly what lets a Gmail attachment, a generated image, and a text-to-speech clip all feed the same agent without special handling.
+
+## Why one shape matters
+
+Swap which producer feeds the agent, and nothing on the agent side changes. Point the same object at a different consumer — an email, cloud storage, another agent — and it just rides. The video closes on a real template: an invoice lands in Gmail, gets parsed, an agent extracts the fields, and the result settles in the database, one object riding the whole way through.
+
+## Related documentation
+
+- [Files overview](/files)
