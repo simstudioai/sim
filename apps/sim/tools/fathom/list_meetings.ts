@@ -254,7 +254,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
               type: 'object',
               properties: {
                 name: { type: 'string', description: 'Invitee name', optional: true },
-                email: { type: 'string', description: 'Invitee email' },
+                email: { type: 'string', description: 'Invitee email', optional: true },
                 email_domain: {
                   type: 'string',
                   description: 'Invitee email domain',
