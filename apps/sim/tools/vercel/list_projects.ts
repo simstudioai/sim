@@ -74,6 +74,8 @@ export const vercelListProjectsTool: ToolConfig<
       id: p.id,
       name: p.name,
       framework: p.framework ?? null,
+      rootDirectory: p.rootDirectory ?? null,
+      nodeVersion: p.nodeVersion ?? null,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     }))
@@ -99,6 +101,12 @@ export const vercelListProjectsTool: ToolConfig<
           id: { type: 'string', description: 'Project ID' },
           name: { type: 'string', description: 'Project name' },
           framework: { type: 'string', description: 'Framework', optional: true },
+          rootDirectory: {
+            type: 'string',
+            description: 'Root directory of the project',
+            optional: true,
+          },
+          nodeVersion: { type: 'string', description: 'Node.js version', optional: true },
           createdAt: { type: 'number', description: 'Creation timestamp' },
           updatedAt: { type: 'number', description: 'Last updated timestamp' },
         },

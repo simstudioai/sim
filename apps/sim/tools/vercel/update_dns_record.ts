@@ -110,12 +110,19 @@ export const vercelUpdateDnsRecordTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
     url: (params: VercelUpdateDnsRecordParams) => {
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v1/domains/records/${params.recordId.trim()}${qs ? `?${qs}` : ''}`
     },

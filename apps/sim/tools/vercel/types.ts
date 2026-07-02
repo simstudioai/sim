@@ -66,6 +66,7 @@ export interface VercelListDomainsParams {
   apiKey: string
   limit?: number
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetEnvVarsParams {
@@ -143,6 +144,8 @@ export interface VercelListProjectsResponse extends ToolResponse {
       id: string
       name: string
       framework: string | null
+      rootDirectory: string | null
+      nodeVersion: string | null
       createdAt: number
       updatedAt: number
     }>
@@ -157,6 +160,8 @@ export interface VercelGetProjectResponse extends ToolResponse {
     id: string
     name: string
     framework: string | null
+    rootDirectory: string | null
+    nodeVersion: string | null
     createdAt: number
     updatedAt: number
     link: {
@@ -386,6 +391,9 @@ export interface VercelCreateProjectParams {
   buildCommand?: string
   outputDirectory?: string
   installCommand?: string
+  rootDirectory?: string
+  nodeVersion?: string
+  devCommand?: string
   teamId?: string
   slug?: string
 }
@@ -408,6 +416,9 @@ export interface VercelUpdateProjectParams {
   buildCommand?: string
   outputDirectory?: string
   installCommand?: string
+  rootDirectory?: string
+  nodeVersion?: string
+  devCommand?: string
   teamId?: string
   slug?: string
 }
@@ -535,6 +546,7 @@ export interface VercelGetDomainParams {
   apiKey: string
   domain: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetDomainResponse extends ToolResponse {
@@ -562,6 +574,7 @@ export interface VercelAddDomainParams {
   apiKey: string
   name: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelAddDomainResponse extends ToolResponse {
@@ -586,6 +599,7 @@ export interface VercelDeleteDomainParams {
   apiKey: string
   domain: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteDomainResponse extends ToolResponse {
@@ -599,6 +613,7 @@ export interface VercelGetDomainConfigParams {
   apiKey: string
   domain: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetDomainConfigResponse extends ToolResponse {
@@ -628,6 +643,7 @@ export interface VercelCreateDnsRecordParams {
   httpsParams?: string
   comment?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCreateDnsRecordResponse extends ToolResponse {
@@ -642,6 +658,7 @@ export interface VercelListDnsRecordsParams {
   domain: string
   limit?: number
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListDnsRecordsResponse extends ToolResponse {
@@ -670,6 +687,7 @@ export interface VercelDeleteDnsRecordParams {
   domain: string
   recordId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteDnsRecordResponse extends ToolResponse {
@@ -809,6 +827,7 @@ export interface VercelListAliasesParams {
   domain?: string
   limit?: number
   teamId?: string
+  slug?: string
 }
 
 export interface VercelListAliasesResponse extends ToolResponse {
@@ -833,6 +852,7 @@ export interface VercelGetAliasParams {
   apiKey: string
   aliasId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelGetAliasResponse extends ToolResponse {
@@ -855,6 +875,7 @@ export interface VercelCreateAliasParams {
   alias: string
   redirect?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelCreateAliasResponse extends ToolResponse {
@@ -870,6 +891,7 @@ export interface VercelDeleteAliasParams {
   apiKey: string
   aliasId: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelDeleteAliasResponse extends ToolResponse {
@@ -1145,6 +1167,7 @@ export interface VercelUpdateDnsRecordParams {
   httpsParams?: string
   comment?: string
   teamId?: string
+  slug?: string
 }
 
 export interface VercelUpdateDnsRecordResponse extends ToolResponse {

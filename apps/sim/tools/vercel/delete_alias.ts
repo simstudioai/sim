@@ -27,12 +27,19 @@ export const vercelDeleteAliasTool: ToolConfig<VercelDeleteAliasParams, VercelDe
         visibility: 'user-or-llm',
         description: 'Team ID to scope the request',
       },
+      slug: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Team slug to scope the request (alternative to teamId)',
+      },
     },
 
     request: {
       url: (params: VercelDeleteAliasParams) => {
         const query = new URLSearchParams()
         if (params.teamId) query.set('teamId', params.teamId.trim())
+        if (params.slug) query.set('slug', params.slug.trim())
         const qs = query.toString()
         return `https://api.vercel.com/v2/aliases/${params.aliasId.trim()}${qs ? `?${qs}` : ''}`
       },
