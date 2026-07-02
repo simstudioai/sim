@@ -32,7 +32,7 @@ export const clearRecordsTool: ToolConfig<AlgoliaClearRecordsParams, AlgoliaClea
 
     request: {
       url: (params) =>
-        `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/clear`,
+        `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/clear`,
       method: 'POST',
       headers: (params) => ({
         'x-algolia-application-id': params.applicationId,

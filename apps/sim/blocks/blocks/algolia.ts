@@ -37,6 +37,7 @@ export const AlgoliaBlock: BlockConfig = {
         { label: 'Copy/Move Index', id: 'copy_move_index' },
         { label: 'Clear Records', id: 'clear_records' },
         { label: 'Delete By Filter', id: 'delete_by_filter' },
+        { label: 'Get Task Status', id: 'get_task_status' },
       ],
       value: () => 'search',
     },
@@ -63,7 +64,7 @@ export const AlgoliaBlock: BlockConfig = {
       title: 'Hits Per Page',
       type: 'short-input',
       placeholder: '20',
-      condition: { field: 'operation', value: ['search', 'browse_records'] },
+      condition: { field: 'operation', value: ['search', 'browse_records', 'list_indices'] },
       mode: 'advanced',
     },
     {
@@ -71,7 +72,7 @@ export const AlgoliaBlock: BlockConfig = {
       title: 'Page',
       type: 'short-input',
       placeholder: '0',
-      condition: { field: 'operation', value: 'search' },
+      condition: { field: 'operation', value: ['search', 'list_indices'] },
       mode: 'advanced',
     },
     {
@@ -106,6 +107,26 @@ Return ONLY the filter string, no quotes or explanation.`,
       type: 'short-input',
       placeholder: 'name,description,price',
       condition: { field: 'operation', value: ['search', 'get_record', 'browse_records'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'facets',
+      title: 'Facets',
+      type: 'short-input',
+      placeholder: 'category,brand (or * for all)',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'getRankingInfo',
+      title: 'Include Ranking Info',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'search' },
       mode: 'advanced',
     },
     // Browse cursor
@@ -389,7 +410,7 @@ Return ONLY the filter string, no quotes or explanation.`,
       title: 'Around Lat/Lng',
       type: 'short-input',
       placeholder: '40.71,-74.01',
-      condition: { field: 'operation', value: 'delete_by_filter' },
+      condition: { field: 'operation', value: ['delete_by_filter', 'search', 'browse_records'] },
       mode: 'advanced',
     },
     {
@@ -397,7 +418,7 @@ Return ONLY the filter string, no quotes or explanation.`,
       title: 'Around Radius (m)',
       type: 'short-input',
       placeholder: '1000 or "all"',
-      condition: { field: 'operation', value: 'delete_by_filter' },
+      condition: { field: 'operation', value: ['delete_by_filter', 'search', 'browse_records'] },
       mode: 'advanced',
     },
     {
@@ -405,7 +426,7 @@ Return ONLY the filter string, no quotes or explanation.`,
       title: 'Inside Bounding Box',
       type: 'short-input',
       placeholder: '[[47.3165,0.757,47.3424,0.8012]]',
-      condition: { field: 'operation', value: 'delete_by_filter' },
+      condition: { field: 'operation', value: ['delete_by_filter', 'search', 'browse_records'] },
       mode: 'advanced',
     },
     {
@@ -413,7 +434,7 @@ Return ONLY the filter string, no quotes or explanation.`,
       title: 'Inside Polygon',
       type: 'short-input',
       placeholder: '[[47.3165,0.757,47.3424,0.8012,47.33,0.78]]',
-      condition: { field: 'operation', value: 'delete_by_filter' },
+      condition: { field: 'operation', value: ['delete_by_filter', 'search', 'browse_records'] },
       mode: 'advanced',
     },
     // Get records (batch) field
@@ -447,22 +468,14 @@ Return ONLY the JSON array.`,
         generationType: 'json-object',
       },
     },
-    // List indices pagination
+    // Get task status field
     {
-      id: 'listPage',
-      title: 'Page',
+      id: 'taskID',
+      title: 'Task ID',
       type: 'short-input',
-      placeholder: '0',
-      condition: { field: 'operation', value: 'list_indices' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listHitsPerPage',
-      title: 'Indices Per Page',
-      type: 'short-input',
-      placeholder: '100',
-      condition: { field: 'operation', value: 'list_indices' },
-      mode: 'advanced',
+      placeholder: '12345',
+      condition: { field: 'operation', value: 'get_task_status' },
+      required: { field: 'operation', value: 'get_task_status' },
     },
     // Object ID - for add (optional), get, partial update, delete
     {
@@ -515,32 +528,42 @@ Return ONLY the JSON array.`,
       'algolia_copy_move_index',
       'algolia_clear_records',
       'algolia_delete_by_filter',
+      'algolia_get_task_status',
     ],
     config: {
-      tool: (params: Record<string, unknown>) => {
-        const op = params.operation as string
-        if (op === 'partial_update_record') {
-          params.createIfNotExists = params.createIfNotExists !== 'false'
+      tool: (params: Record<string, unknown>) => `algolia_${params.operation}`,
+      params: (params: Record<string, unknown>) => {
+        const { operation, ...rest } = params
+        const result: Record<string, unknown> = {}
+
+        for (const [key, value] of Object.entries(rest)) {
+          if (value === undefined || value === null || value === '') continue
+          result[key] = value
         }
-        if (op === 'update_settings' && params.forwardToReplicas === 'true') {
-          params.forwardToReplicas = true
-        } else if (op === 'update_settings') {
-          params.forwardToReplicas = false
+
+        if (operation === 'partial_update_record') {
+          result.createIfNotExists = result.createIfNotExists !== 'false'
         }
-        if (op === 'copy_move_index') {
-          params.operation = params.copyMoveOperation
+        if (operation === 'update_settings') {
+          result.forwardToReplicas = result.forwardToReplicas === 'true'
         }
-        if (op === 'delete_by_filter') {
-          params.filters = params.deleteFilters
+        if (operation === 'search' && result.getRankingInfo !== undefined) {
+          result.getRankingInfo = result.getRankingInfo === 'true'
         }
-        if (op === 'get_records') {
-          params.requests = params.getRecordsRequests
+        if (operation === 'copy_move_index') {
+          result.operation = result.copyMoveOperation
+          result.copyMoveOperation = undefined
         }
-        if (op === 'list_indices') {
-          if (params.listPage !== undefined) params.page = params.listPage
-          if (params.listHitsPerPage !== undefined) params.hitsPerPage = params.listHitsPerPage
+        if (operation === 'delete_by_filter') {
+          result.filters = result.deleteFilters
+          result.deleteFilters = undefined
         }
-        return `algolia_${op}`
+        if (operation === 'get_records') {
+          result.requests = result.getRecordsRequests
+          result.getRecordsRequests = undefined
+        }
+
+        return result
       },
     },
   },
@@ -553,6 +576,8 @@ Return ONLY the JSON array.`,
     page: { type: 'string', description: 'Page number' },
     filters: { type: 'string', description: 'Algolia filter string' },
     attributesToRetrieve: { type: 'string', description: 'Attributes to retrieve' },
+    facets: { type: 'string', description: 'Comma-separated facet attribute names to count' },
+    getRankingInfo: { type: 'string', description: 'Include detailed ranking info in each hit' },
     cursor: { type: 'string', description: 'Browse cursor for pagination' },
     record: { type: 'json', description: 'Record data to add' },
     attributes: { type: 'json', description: 'Attributes to partially update' },
@@ -579,8 +604,7 @@ Return ONLY the JSON array.`,
       type: 'json',
       description: 'Array of objects with objectID to retrieve multiple records',
     },
-    listPage: { type: 'string', description: 'Page number for list indices pagination' },
-    listHitsPerPage: { type: 'string', description: 'Indices per page for list indices' },
+    taskID: { type: 'string', description: 'Task ID returned by a previous write operation' },
     applicationId: { type: 'string', description: 'Algolia Application ID' },
     apiKey: { type: 'string', description: 'Algolia API Key' },
   },
@@ -644,6 +668,11 @@ Return ONLY the JSON array.`,
       type: 'number',
       description: 'Maximum number of hits accessible via pagination (default 1000)',
     },
+    status: {
+      type: 'string',
+      description: 'Task status: "published" once applied, "notPublished" while still pending',
+    },
+    pendingTask: { type: 'boolean', description: 'Whether the task is still pending' },
   },
 }
 
@@ -738,6 +767,20 @@ export const AlgoliaBlockMeta = {
         'Run a set of test queries against an Algolia index and report which return weak or empty results.',
       content:
         '# Audit Search Relevance\n\nCheck that important queries return good results from an Algolia index.\n\n## Steps\n1. Run each query in the provided test set against the index.\n2. Record the top results, total hit count, and whether the expected record appears.\n3. Flag queries that return zero hits, too many hits, or miss the expected record.\n\n## Output\nA table of queries with result counts and pass/fail, plus suggestions for synonyms or ranking tweaks where relevance is weak.',
+    },
+    {
+      name: 'tune-index-ranking',
+      description:
+        'Read an Algolia index configuration, propose ranking and searchable-attribute changes, and apply the update.',
+      content:
+        '# Tune Index Ranking\n\nAdjust how an Algolia index ranks results without touching the underlying data.\n\n## Steps\n1. Fetch the current index settings (searchable attributes, custom ranking, ranking criteria).\n2. Compare them against the desired outcome (e.g., surface newer or more popular items first).\n3. Propose specific changes to customRanking, searchableAttributes order, or attributesForFaceting.\n4. Apply the approved settings update to the index.\n\n## Output\nA before/after summary of the settings changed and why, plus confirmation the update succeeded.',
+    },
+    {
+      name: 'snapshot-index-before-change',
+      description:
+        'Copy an Algolia index to a timestamped backup before applying a risky settings or data change.',
+      content:
+        '# Snapshot Index Before Change\n\nProtect against a bad settings or batch update by copying the index first.\n\n## Steps\n1. Copy the source index to a new destination index named with a date or version suffix.\n2. Confirm the copy completed by checking the resulting task status.\n3. Apply the intended change (settings update, batch operation, or delete-by-filter) to the original index.\n4. If the change causes problems, the snapshot index can be copied back or used for comparison.\n\n## Output\nThe name of the backup index created and confirmation the source change was applied afterward.',
     },
   ],
 } as const satisfies BlockMeta

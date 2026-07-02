@@ -10,7 +10,7 @@ export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
     'Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.',
   docsLink: 'https://docs.sim.ai/tools/dropcontact',
   category: 'tools',
-  bgColor: '#0066FF',
+  bgColor: '#0ABA9F',
   icon: DropcontactIcon,
   authMode: AuthMode.ApiKey,
   integrationType: IntegrationType.Sales,
