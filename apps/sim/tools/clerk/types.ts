@@ -719,6 +719,9 @@ interface ClerkOrganizationInvitationOutput {
   roleName: string | null
   organizationId: string
   inviterId: string | null
+  inviterEmail: string | null
+  inviterFirstName: string | null
+  inviterLastName: string | null
   status: string
   url: string | null
   expiresAt: number | null
@@ -751,6 +754,7 @@ export interface ClerkListOrganizationInvitationsParams {
   organizationId: string
   status?: 'pending' | 'accepted' | 'revoked' | 'expired'
   emailAddress?: string
+  orderBy?: string
   limit?: number
   offset?: number
 }
@@ -844,6 +848,7 @@ export interface ClerkGetUserOauthTokenResponse extends ToolResponse {
       provider: string
       label: string | null
       scopes: string[]
+      publicMetadata: Record<string, unknown>
     }[]
     success: boolean
   }
@@ -934,8 +939,6 @@ export interface ClerkDeleteAllowlistIdentifierResponse extends ToolResponse {
 // List Blocklist Identifiers
 export interface ClerkListBlocklistIdentifiersParams {
   secretKey: string
-  limit?: number
-  offset?: number
 }
 
 export interface ClerkListBlocklistIdentifiersResponse extends ToolResponse {

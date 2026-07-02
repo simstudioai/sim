@@ -80,6 +80,7 @@ export const clerkGetUserOauthTokenTool: ToolConfig<
           provider: token.provider,
           label: token.label ?? null,
           scopes: token.scopes ?? [],
+          publicMetadata: token.public_metadata ?? {},
         })),
         success: true,
       },
@@ -102,6 +103,10 @@ export const clerkGetUserOauthTokenTool: ToolConfig<
             type: 'array',
             description: 'OAuth scopes granted to the token',
             items: { type: 'string' },
+          },
+          publicMetadata: {
+            type: 'json',
+            description: 'Public metadata associated with the token',
           },
         },
       },

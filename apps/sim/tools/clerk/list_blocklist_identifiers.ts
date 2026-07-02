@@ -25,32 +25,10 @@ export const clerkListBlocklistIdentifiersTool: ToolConfig<
       visibility: 'user-only',
       description: 'The Clerk Secret Key for API authentication',
     },
-    limit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of results per page (e.g., 10, 50, 100; range: 1-500, default: 10)',
-    },
-    offset: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of results to skip for pagination (e.g., 0, 10, 20)',
-    },
   },
 
   request: {
-    url: (params) => {
-      const queryParams = new URLSearchParams()
-
-      if (params.limit) queryParams.append('limit', params.limit.toString())
-      if (params.offset) queryParams.append('offset', params.offset.toString())
-
-      const queryString = queryParams.toString()
-      return queryString
-        ? `https://api.clerk.com/v1/blocklist_identifiers?${queryString}`
-        : 'https://api.clerk.com/v1/blocklist_identifiers'
-    },
+    url: () => 'https://api.clerk.com/v1/blocklist_identifiers',
     method: 'GET',
     headers: (params) => {
       if (!params.secretKey) {

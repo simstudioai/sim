@@ -43,6 +43,12 @@ export const clerkListOrganizationInvitationsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter by invited email address',
     },
+    orderBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort field (created_at, email_address) with +/- prefix (default: -created_at)',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -63,6 +69,7 @@ export const clerkListOrganizationInvitationsTool: ToolConfig<
 
       if (params.status) queryParams.append('status', params.status)
       if (params.emailAddress) queryParams.append('email_address', params.emailAddress)
+      if (params.orderBy) queryParams.append('order_by', params.orderBy)
       if (params.limit) queryParams.append('limit', params.limit.toString())
       if (params.offset) queryParams.append('offset', params.offset.toString())
 
@@ -103,6 +110,9 @@ export const clerkListOrganizationInvitationsTool: ToolConfig<
       roleName: invitation.role_name ?? null,
       organizationId: invitation.organization_id,
       inviterId: invitation.inviter_id ?? null,
+      inviterEmail: invitation.public_inviter_data?.identifier ?? null,
+      inviterFirstName: invitation.public_inviter_data?.first_name ?? null,
+      inviterLastName: invitation.public_inviter_data?.last_name ?? null,
       status: invitation.status,
       url: invitation.url ?? null,
       expiresAt: invitation.expires_at ?? null,
@@ -134,6 +144,9 @@ export const clerkListOrganizationInvitationsTool: ToolConfig<
           roleName: { type: 'string', description: 'Human-readable role name', optional: true },
           organizationId: { type: 'string', description: 'Organization ID' },
           inviterId: { type: 'string', description: 'User ID of the inviter', optional: true },
+          inviterEmail: { type: 'string', description: "Inviter's email address", optional: true },
+          inviterFirstName: { type: 'string', description: "Inviter's first name", optional: true },
+          inviterLastName: { type: 'string', description: "Inviter's last name", optional: true },
           status: { type: 'string', description: 'Invitation status' },
           url: { type: 'string', description: 'Invitation URL', optional: true },
           expiresAt: { type: 'number', description: 'Expiration timestamp', optional: true },
