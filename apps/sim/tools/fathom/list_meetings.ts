@@ -38,6 +38,12 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
       visibility: 'user-or-llm',
       description: 'Include linked CRM matches (true/false)',
     },
+    includeHighlights: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include meeting highlights (true/false)',
+    },
     createdAfter: {
       type: 'string',
       required: false,
@@ -62,6 +68,24 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
       visibility: 'user-or-llm',
       description: 'Filter by team name',
     },
+    meetingType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by meeting type name',
+    },
+    calendarInviteesDomains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by calendar invitee company domain (exact match)',
+    },
+    calendarInviteesDomainsType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by invitee domain type: all, only_internal, or one_or_more_external',
+    },
     cursor: {
       type: 'string',
       required: false,
@@ -79,10 +103,19 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
         url.searchParams.append('include_action_items', 'true')
       if (params.includeCrmMatches === 'true')
         url.searchParams.append('include_crm_matches', 'true')
+      if (params.includeHighlights === 'true') url.searchParams.append('include_highlights', 'true')
       if (params.createdAfter) url.searchParams.append('created_after', params.createdAfter)
       if (params.createdBefore) url.searchParams.append('created_before', params.createdBefore)
       if (params.recordedBy) url.searchParams.append('recorded_by[]', params.recordedBy)
       if (params.teams) url.searchParams.append('teams[]', params.teams)
+      if (params.meetingType) url.searchParams.append('meeting_type', params.meetingType)
+      if (params.calendarInviteesDomains)
+        url.searchParams.append('calendar_invitees_domains[]', params.calendarInviteesDomains)
+      if (params.calendarInviteesDomainsType)
+        url.searchParams.append(
+          'calendar_invitees_domains_type',
+          params.calendarInviteesDomainsType
+        )
       if (params.cursor) url.searchParams.append('cursor', params.cursor)
       return url.toString()
     },
@@ -114,8 +147,10 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
       (meeting: Record<string, unknown> & { recorded_by?: Record<string, unknown> }) => ({
         title: meeting.title ?? '',
         meeting_title: meeting.meeting_title ?? null,
+        meeting_type: meeting.meeting_type ?? null,
         recording_id: meeting.recording_id ?? null,
         url: meeting.url ?? '',
+        meeting_url: meeting.meeting_url ?? null,
         share_url: meeting.share_url ?? '',
         created_at: meeting.created_at ?? '',
         scheduled_start_time: meeting.scheduled_start_time ?? null,
@@ -124,6 +159,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
         recording_end_time: meeting.recording_end_time ?? null,
         transcript_language: meeting.transcript_language ?? '',
         calendar_invitees_domains_type: meeting.calendar_invitees_domains_type ?? null,
+        shared_with: meeting.shared_with ?? null,
         recorded_by: meeting.recorded_by
           ? {
               name: meeting.recorded_by.name ?? '',
@@ -136,6 +172,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
         default_summary: meeting.default_summary ?? null,
         transcript: meeting.transcript ?? null,
         action_items: meeting.action_items ?? null,
+        highlights: meeting.highlights ?? null,
         crm_matches: meeting.crm_matches ?? null,
       })
     )
@@ -157,11 +194,17 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
         type: 'object',
         properties: {
           title: { type: 'string', description: 'Meeting title' },
+          meeting_type: { type: 'string', description: 'Meeting type name', optional: true },
           recording_id: { type: 'number', description: 'Unique recording ID' },
           url: { type: 'string', description: 'URL to view the meeting' },
           share_url: { type: 'string', description: 'Shareable URL' },
           created_at: { type: 'string', description: 'Creation timestamp' },
           transcript_language: { type: 'string', description: 'Transcript language' },
+          shared_with: {
+            type: 'string',
+            description: 'Sharing scope: no_teams, single_team, multiple_teams, or all_teams',
+            optional: true,
+          },
         },
       },
     },

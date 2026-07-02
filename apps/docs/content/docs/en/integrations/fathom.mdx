@@ -46,10 +46,14 @@ List recent meetings recorded by the user or shared to their team.
 | `includeTranscript` | string | No | Include meeting transcript \(true/false\) |
 | `includeActionItems` | string | No | Include action items \(true/false\) |
 | `includeCrmMatches` | string | No | Include linked CRM matches \(true/false\) |
+| `includeHighlights` | string | No | Include meeting highlights \(true/false\) |
 | `createdAfter` | string | No | Filter meetings created after this ISO 8601 timestamp |
 | `createdBefore` | string | No | Filter meetings created before this ISO 8601 timestamp |
 | `recordedBy` | string | No | Filter by recorder email address |
 | `teams` | string | No | Filter by team name |
+| `meetingType` | string | No | Filter by meeting type name |
+| `calendarInviteesDomains` | string | No | Filter by calendar invitee company domain \(exact match\) |
+| `calendarInviteesDomainsType` | string | No | Filter by invitee domain type: all, only_internal, or one_or_more_external |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
 #### Output
@@ -58,11 +62,34 @@ List recent meetings recorded by the user or shared to their team.
 | --------- | ---- | ----------- |
 | `meetings` | array | List of meetings |
 |   ↳ `title` | string | Meeting title |
+|   ↳ `meeting_type` | string | Meeting type name |
 |   ↳ `recording_id` | number | Unique recording ID |
 |   ↳ `url` | string | URL to view the meeting |
 |   ↳ `share_url` | string | Shareable URL |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `transcript_language` | string | Transcript language |
+|   ↳ `shared_with` | string | Sharing scope: no_teams, single_team, multiple_teams, or all_teams |
+| `next_cursor` | string | Pagination cursor for next page |
+
+### `fathom_list_meeting_types`
+
+List meeting types configured in your Fathom organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetingTypes` | array | List of meeting types |
+|   ↳ `name` | string | Meeting type name |
+|   ↳ `status` | string | Meeting type status: active or inactive |
+|   ↳ `created_at` | string | Date the meeting type was created |
 | `next_cursor` | string | Pagination cursor for next page |
 
 ### `fathom_get_summary`
