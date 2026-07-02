@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { listChatOutputsContract } from '@/lib/api/contracts/mothership-chats'
+import { parseRequest } from '@/lib/api/server'
 import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -21,14 +23,16 @@ const logger = createLogger('MothershipChatOutputsAPI')
  * shape as the workspace file list.
  */
 export const GET = withRouteHandler(
-  async (_request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
       const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
 
-      const { chatId } = await context.params
+      const parsed = await parseRequest(listChatOutputsContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { chatId } = parsed.data.params
       const chat = await getAccessibleCopilotChatAuth(chatId, userId)
       if (!chat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })

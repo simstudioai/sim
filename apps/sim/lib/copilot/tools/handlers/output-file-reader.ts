@@ -58,6 +58,7 @@ function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): Workspa
     size: row.size,
     type: row.contentType,
     uploadedBy: row.userId,
+    folderId: null,
     deletedAt: row.deletedAt,
     uploadedAt: row.uploadedAt,
     updatedAt: row.updatedAt,

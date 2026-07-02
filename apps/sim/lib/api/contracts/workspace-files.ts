@@ -65,7 +65,7 @@ export const workspaceFileRecordSchema = z.object({
   deletedAt: z.coerce.date().nullable().optional(),
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
-  storageContext: z.enum(['workspace', 'mothership']).optional(),
+  storageContext: z.enum(['workspace', 'mothership', 'output']).optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 

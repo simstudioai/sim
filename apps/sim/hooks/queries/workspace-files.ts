@@ -6,6 +6,7 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { listChatOutputsContract } from '@/lib/api/contracts/mothership-chats'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   deleteWorkspaceFileContract,
@@ -94,14 +95,15 @@ export function useChatOutputs(chatId: string | undefined) {
     queryKey: workspaceFilesKeys.chatOutputs(chatId ?? ''),
     queryFn: async ({ signal }): Promise<WorkspaceFileRecord[]> => {
       if (!chatId) return []
-      // boundary-raw-fetch: chat-scoped outputs list; no contract
-      const response = await fetch(
-        `/api/mothership/chats/${encodeURIComponent(chatId)}/outputs`,
-        { signal, cache: 'no-store' }
-      )
-      if (!response.ok) return []
-      const data = await response.json().catch(() => null)
-      return data?.success && Array.isArray(data.files) ? (data.files as WorkspaceFileRecord[]) : []
+      try {
+        const data = await requestJson(listChatOutputsContract, {
+          params: { chatId },
+          signal,
+        })
+        return data.files
+      } catch {
+        return []
+      }
     },
     enabled: !!chatId,
     staleTime: 30 * 1000,

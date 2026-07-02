@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { workspaceFileRecordSchema } from '@/lib/api/contracts/workspace-files'
 
 const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
   message: 'Expected a valid date string',
@@ -271,6 +272,32 @@ export const forkMothershipChatContract = defineRouteContract({
   path: '/api/mothership/chats/[chatId]/fork',
   params: mothershipChatParamsSchema,
   body: forkMothershipChatBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      id: z.string(),
+    }),
+  },
+})
+
+export const listChatOutputsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]/outputs',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      files: z.array(workspaceFileRecordSchema),
+    }),
+  },
+})
+
+export const duplicateMothershipChatContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chats/[chatId]/duplicate',
+  params: mothershipChatParamsSchema,
   response: {
     mode: 'json',
     schema: z.object({
