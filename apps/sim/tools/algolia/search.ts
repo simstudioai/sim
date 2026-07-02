@@ -106,7 +106,7 @@ export const searchTool: ToolConfig<AlgoliaSearchParams, AlgoliaSearchResponse> 
     }),
     body: (params) => {
       const request: Record<string, unknown> = {
-        indexName: params.indexName,
+        indexName: params.indexName.trim(),
         query: params.query,
       }
       if (params.hitsPerPage !== undefined) request.hitsPerPage = Number(params.hitsPerPage)
