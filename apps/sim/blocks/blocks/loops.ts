@@ -593,6 +593,10 @@ Return ONLY the JSON object - no explanations, no extra text.`,
       type: 'boolean',
       description: 'Whether the contact is on the suppression list (check suppression)',
     },
+    contactId: {
+      type: 'string',
+      description: 'The Loops-assigned contact ID (check suppression)',
+    },
     removalQuotaLimit: {
       type: 'number',
       description: 'Total suppression-removal quota for the team',
