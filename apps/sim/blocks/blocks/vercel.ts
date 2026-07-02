@@ -599,7 +599,7 @@ export const VercelBlock: BlockConfig = {
       title: 'Decrypt Values',
       type: 'dropdown',
       options: [
-        { label: 'No', id: 'false' },
+        { label: 'No', id: '' },
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'get_env_vars' },
@@ -1174,7 +1174,7 @@ export const VercelBlock: BlockConfig = {
       title: 'Rerequestable',
       type: 'dropdown',
       options: [
-        { label: 'No', id: 'false' },
+        { label: 'No', id: '' },
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'create_check' },
@@ -1193,7 +1193,7 @@ export const VercelBlock: BlockConfig = {
       title: 'Auto Update',
       type: 'dropdown',
       options: [
-        { label: 'No', id: 'false' },
+        { label: 'No', id: '' },
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'rerequest_check' },
