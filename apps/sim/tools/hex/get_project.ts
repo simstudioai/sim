@@ -24,7 +24,7 @@ export const getProjectTool: ToolConfig<HexGetProjectParams, HexGetProjectRespon
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId}`,
+    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

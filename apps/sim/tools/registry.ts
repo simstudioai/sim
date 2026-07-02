@@ -1556,6 +1556,9 @@ import { guardrailsValidateTool } from '@/tools/guardrails'
 import {
   hexCancelRunTool,
   hexCreateCollectionTool,
+  hexCreateGroupTool,
+  hexDeactivateUserTool,
+  hexDeleteGroupTool,
   hexGetCollectionTool,
   hexGetDataConnectionTool,
   hexGetGroupTool,
@@ -1569,6 +1572,8 @@ import {
   hexListProjectsTool,
   hexListUsersTool,
   hexRunProjectTool,
+  hexUpdateCollectionTool,
+  hexUpdateGroupTool,
   hexUpdateProjectTool,
 } from '@/tools/hex'
 import { httpRequestTool, webhookRequestTool } from '@/tools/http'
@@ -4638,6 +4643,9 @@ export const tools: Record<string, ToolConfig> = {
   guardrails_validate: guardrailsValidateTool,
   hex_cancel_run: hexCancelRunTool,
   hex_create_collection: hexCreateCollectionTool,
+  hex_create_group: hexCreateGroupTool,
+  hex_deactivate_user: hexDeactivateUserTool,
+  hex_delete_group: hexDeleteGroupTool,
   hex_get_collection: hexGetCollectionTool,
   hex_get_data_connection: hexGetDataConnectionTool,
   hex_get_group: hexGetGroupTool,
@@ -4651,6 +4659,8 @@ export const tools: Record<string, ToolConfig> = {
   hex_list_projects: hexListProjectsTool,
   hex_list_users: hexListUsersTool,
   hex_run_project: hexRunProjectTool,
+  hex_update_collection: hexUpdateCollectionTool,
+  hex_update_group: hexUpdateGroupTool,
   hex_update_project: hexUpdateProjectTool,
   instantly_activate_campaign: instantlyActivateCampaignTool,
   instantly_create_campaign: instantlyCreateCampaignTool,
