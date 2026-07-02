@@ -78,10 +78,14 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
       const body: Record<string, unknown> = {}
 
       if (params.inputParams) {
-        body.inputParams =
-          typeof params.inputParams === 'string'
-            ? JSON.parse(params.inputParams)
-            : params.inputParams
+        try {
+          body.inputParams =
+            typeof params.inputParams === 'string'
+              ? JSON.parse(params.inputParams)
+              : params.inputParams
+        } catch {
+          throw new Error('inputParams must be valid JSON')
+        }
       }
       if (params.dryRun !== undefined) body.dryRun = params.dryRun
       if (params.updateCache !== undefined) body.updateCache = params.updateCache
@@ -91,10 +95,14 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
         body.useCachedSqlResults = params.useCachedSqlResults
       if (params.viewId) body.viewId = params.viewId
       if (params.notifications) {
-        body.notifications =
-          typeof params.notifications === 'string'
-            ? JSON.parse(params.notifications)
-            : params.notifications
+        try {
+          body.notifications =
+            typeof params.notifications === 'string'
+              ? JSON.parse(params.notifications)
+              : params.notifications
+        } catch {
+          throw new Error('notifications must be a valid JSON array')
+        }
       }
 
       return body

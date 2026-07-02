@@ -51,8 +51,15 @@ export const updateGroupTool: ToolConfig<HexUpdateGroupParams, HexUpdateGroupRes
       const body: Record<string, unknown> = {}
       if (params.name) body.name = params.name
 
-      const parseIds = (value: unknown) =>
-        (typeof value === 'string' ? JSON.parse(value) : value) as string[]
+      const parseIds = (value: unknown): string[] => {
+        try {
+          return (typeof value === 'string' ? JSON.parse(value) : value) as string[]
+        } catch {
+          throw new Error(
+            'addUserIds/removeUserIds must be a valid JSON array of user UUID strings'
+          )
+        }
+      }
 
       if (params.addUserIds || params.removeUserIds) {
         const members: Record<string, unknown> = {}
