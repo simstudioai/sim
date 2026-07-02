@@ -168,7 +168,7 @@ jobs:
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
         run: |
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: DEV_TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
             exit 1
           fi
           bunx trigger.dev@4.4.3 deploy --env preview --branch dev-sim
@@ -402,7 +402,7 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          fetch-depth: 2  # Need at least 2 commits to detect changes
+          fetch-depth: 2 # Need at least 2 commits to detect changes
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         with:
