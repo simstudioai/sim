@@ -29,6 +29,7 @@ import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
+  MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
@@ -313,14 +314,38 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     [workspaceId, chatId, sendMessage]
   )
 
+  /**
+   * Handles cross-surface send requests (terminal/console "Fix in Chat", the
+   * log "Troubleshoot in Chat" action). `preventDefault` claims the event so a
+   * producer that dispatched it while this chat is mounted knows a live chat
+   * consumed the message and skips its navigate-and-persist fallback.
+   */
   useEffect(() => {
     const handler = (e: Event) => {
-      const message = (e as CustomEvent<MothershipSendMessageDetail>).detail?.message
-      if (message) sendMessage(message)
+      const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
+      if (!detail?.message) return
+      e.preventDefault()
+      sendMessage(detail.message, undefined, detail.contexts)
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
   }, [sendMessage])
+
+  /**
+   * Consumes a one-shot handoff left by another surface (e.g. "Troubleshoot in
+   * Chat" on an errored log viewed from a different route) and auto-sends it
+   * into this fresh chat, tagging the run so Sim can inspect the failure. Only
+   * the cross-route path lands here — when a chat is already mounted the event
+   * above delivers directly. Gated to the new-chat surface (`!chatId`): a
+   * handoff always targets a fresh chat, so an existing `/chat/[chatId]` mount
+   * must never claim it if navigation races. `consume` clears the entry
+   * atomically, so it fires at most once even across a StrictMode remount.
+   */
+  useEffect(() => {
+    if (chatId) return
+    const handoff = MothershipHandoffStorage.consume()
+    if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
+  }, [chatId, sendMessage])
 
   function resolveResourceFromContext(
     context: ChatContext
