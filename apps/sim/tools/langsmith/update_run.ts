@@ -80,14 +80,16 @@ export const langsmithUpdateRunTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      const emptyToUndefined = (value?: string) => (value === '' ? undefined : value)
+
       const payload: Record<string, unknown> = {
-        name: params.name,
-        end_time: params.end_time,
+        name: emptyToUndefined(params.name),
+        end_time: emptyToUndefined(params.end_time),
         outputs: params.outputs,
         extra: params.extra,
         tags: params.tags,
-        status: params.status,
-        error: params.error,
+        status: emptyToUndefined(params.status),
+        error: emptyToUndefined(params.error),
         events: params.events,
       }
 
