@@ -58,7 +58,7 @@ export const deleteMediaTool: ToolConfig<WordPressDeleteMediaParams, WordPressDe
         output: {
           deleted: data.deleted ?? true,
           media: {
-            id: data.id || data.previous?.id,
+            id: data.id ?? data.previous?.id,
             date: data.date || data.previous?.date,
             slug: data.slug || data.previous?.slug,
             type: data.type || data.previous?.type,
