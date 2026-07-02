@@ -307,7 +307,12 @@ export const AV_SUPPORT_DESK_WORKFLOW: PreviewWorkflow = {
   edges: [
     { id: 'start-triage', source: 'start', target: 'triage' },
     { id: 'triage-condition', source: 'triage', target: 'condition' },
-    { id: 'condition-escalate', source: 'condition', target: 'escalate', sourceHandle: 'condition-if' },
+    {
+      id: 'condition-escalate',
+      source: 'condition',
+      target: 'escalate',
+      sourceHandle: 'condition-if',
+    },
     { id: 'condition-reply', source: 'condition', target: 'reply', sourceHandle: 'condition-else' },
     { id: 'escalate-log', source: 'escalate', target: 'log' },
     { id: 'reply-log', source: 'reply', target: 'log' },
