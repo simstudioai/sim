@@ -354,10 +354,10 @@ export function coerceRowToSchema(data: RowData, schema: TableSchema): Validatio
   return validateRowAgainstSchema(data, schema)
 }
 
-/** Validates row data size is within limits. */
+/** Validates row data size (UTF-8 bytes of the serialized row) is within limits. */
 export function validateRowSize(data: RowData): ValidationResult {
   const maxRowSizeBytes = getMaxRowSizeBytes()
-  const size = JSON.stringify(data).length
+  const size = Buffer.byteLength(JSON.stringify(data))
   if (size > maxRowSizeBytes) {
     return {
       valid: false,

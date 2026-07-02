@@ -62,6 +62,17 @@ export const DEFAULT_TABLE_PLAN_LIMITS = {
 } as const
 
 /**
+ * Byte budget for one page of row reads, or null when disabled (the default).
+ * Dev-preview of the byte-bounded pagination follow-up: set `TABLE_MAX_PAGE_BYTES`
+ * to cut pages early once their serialized row data exceeds the budget. The
+ * production version moves the cut into SQL — see the pagination-hardening plan.
+ */
+export function getMaxPageBytes(): number | null {
+  const value = envNumber(env.TABLE_MAX_PAGE_BYTES, 0, { min: 0, integer: true })
+  return value > 0 ? value : null
+}
+
+/**
  * Maximum serialized size in bytes of a single row. Defaults to
  * `TABLE_LIMITS.MAX_ROW_SIZE_BYTES`; overridable via the
  * `TABLE_MAX_ROW_SIZE_BYTES` env var (server-only, read at call time).
