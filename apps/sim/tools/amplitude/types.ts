@@ -168,6 +168,7 @@ export interface AmplitudeEventSegmentationParams extends AmplitudeBasicAuthPara
   metric?: string
   interval?: string
   groupBy?: string
+  groupBy2?: string
   limit?: string
   /** JSON array of filter objects applied to the event (subprop_type, subprop_key, subprop_op, subprop_value). */
   filters?: string
@@ -194,7 +195,7 @@ export interface AmplitudeGetActiveUsersParams extends AmplitudeBasicAuthParams 
   end: string
   metric?: string
   interval?: string
-  /** Property to group by (up to two). */
+  /** Property to group by. */
   groupBy?: string
   /** JSON segment definition(s) applied to the query. */
   segment?: string

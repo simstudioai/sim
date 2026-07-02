@@ -499,6 +499,14 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'segmentationGroupBy2',
+      title: 'Group By (2nd Property)',
+      type: 'short-input',
+      placeholder: 'Second property name (prefix custom with "gp:")',
+      condition: { field: 'operation', value: 'event_segmentation' },
+      mode: 'advanced',
+    },
+    {
       id: 'segmentationLimit',
       title: 'Limit',
       type: 'short-input',
@@ -605,7 +613,7 @@ export const AmplitudeBlock: BlockConfig = {
       id: 'activeUsersGroupBy',
       title: 'Group By',
       type: 'short-input',
-      placeholder: 'Property name (max two)',
+      placeholder: 'Property name',
       condition: { field: 'operation', value: 'get_active_users' },
       mode: 'advanced',
     },
@@ -966,6 +974,7 @@ export const AmplitudeBlock: BlockConfig = {
             if (params.segmentationMetric) result.metric = params.segmentationMetric
             if (params.segmentationInterval) result.interval = params.segmentationInterval
             if (params.segmentationGroupBy) result.groupBy = params.segmentationGroupBy
+            if (params.segmentationGroupBy2) result.groupBy2 = params.segmentationGroupBy2
             if (params.segmentationLimit) result.limit = params.segmentationLimit
             if (params.segmentationFilters) result.filters = params.segmentationFilters
             if (params.segmentationFormula) result.formula = params.segmentationFormula
@@ -1049,6 +1058,10 @@ export const AmplitudeBlock: BlockConfig = {
     dataResidency: { type: 'string', description: 'Data residency region: "us" or "eu"' },
     segmentationFilters: { type: 'string', description: 'Event segmentation filters JSON' },
     segmentationFormula: { type: 'string', description: 'Event segmentation formula expression' },
+    segmentationGroupBy2: {
+      type: 'string',
+      description: 'Event segmentation second group-by property',
+    },
     segmentationSegment: {
       type: 'string',
       description: 'Event segmentation segment definition JSON',

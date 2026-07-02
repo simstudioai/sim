@@ -65,6 +65,12 @@ export const eventSegmentationTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Property name to group by (prefix custom user properties with "gp:")',
     },
+    groupBy2: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Second property name to group by (prefix custom user properties with "gp:")',
+    },
     limit: {
       type: 'string',
       required: false,
@@ -118,12 +124,19 @@ export const eventSegmentationTool: ToolConfig<
         event.filters = parsedFilters
       }
 
+      if (params.metric === 'formula' && !params.formula) {
+        throw new Error(
+          'Amplitude Event Segmentation: "formula" is required when metric is "formula"'
+        )
+      }
+
       url.searchParams.set('e', JSON.stringify(event))
       url.searchParams.set('start', params.start)
       url.searchParams.set('end', params.end)
       if (params.metric) url.searchParams.set('m', params.metric)
       if (params.interval) url.searchParams.set('i', params.interval)
       if (params.groupBy) url.searchParams.set('g', params.groupBy)
+      if (params.groupBy2) url.searchParams.set('g2', params.groupBy2)
       if (params.limit) url.searchParams.set('limit', params.limit)
       if (params.formula) url.searchParams.set('formula', params.formula)
       if (params.segment) url.searchParams.set('s', params.segment)

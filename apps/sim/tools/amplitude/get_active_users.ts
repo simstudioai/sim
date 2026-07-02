@@ -55,7 +55,7 @@ export const getActiveUsersTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Property name to group by (max two)',
+      description: 'Property name to group by',
     },
     segment: {
       type: 'string',

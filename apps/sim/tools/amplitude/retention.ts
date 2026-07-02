@@ -110,7 +110,27 @@ export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetent
       url.searchParams.set('start', params.start)
       url.searchParams.set('end', params.end)
       if (params.retentionMode) url.searchParams.set('rm', params.retentionMode)
-      if (params.retentionBrackets) url.searchParams.set('rb', params.retentionBrackets)
+
+      if (params.retentionMode === 'bracket') {
+        if (!params.retentionBrackets) {
+          throw new Error(
+            'Amplitude Retention: "retentionBrackets" is required when Retention Mode is "bracket"'
+          )
+        }
+        let parsedBrackets: unknown
+        try {
+          parsedBrackets = JSON.parse(params.retentionBrackets)
+        } catch {
+          parsedBrackets = undefined
+        }
+        if (!Array.isArray(parsedBrackets)) {
+          throw new Error(
+            'Amplitude Retention: "retentionBrackets" must be a valid JSON array of day ranges, e.g. [[0,4]]'
+          )
+        }
+        url.searchParams.set('rb', JSON.stringify(parsedBrackets))
+      }
+
       if (params.interval) url.searchParams.set('i', params.interval)
       if (params.groupBy) url.searchParams.set('g', params.groupBy)
       if (params.segment) url.searchParams.set('s', params.segment)
