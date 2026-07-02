@@ -202,7 +202,7 @@ export const VercelBlock: BlockConfig = {
       title: 'Include Git Repo Info',
       type: 'dropdown',
       options: [
-        { label: 'No', id: 'false' },
+        { label: 'No', id: '' },
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'get_deployment' },
@@ -214,7 +214,6 @@ export const VercelBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Forward (default)', id: '' },
-        { label: 'Forward', id: 'forward' },
         { label: 'Backward', id: 'backward' },
       ],
       condition: { field: 'operation', value: 'get_deployment_events' },

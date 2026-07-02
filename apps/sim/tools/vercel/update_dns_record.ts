@@ -150,7 +150,7 @@ export const vercelUpdateDnsRecordTool: ToolConfig<
         }
       } else {
         if (params.value != null && params.value !== '') body.value = params.value
-        if (type === 'MX' && params.mxPriority != null) {
+        if (params.mxPriority != null) {
           const mxPriority = Number(params.mxPriority)
           if (!Number.isNaN(mxPriority)) body.mxPriority = mxPriority
         }
