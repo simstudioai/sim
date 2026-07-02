@@ -154,6 +154,8 @@ export interface LoopsListTransactionalEmailsResponse extends ToolResponse {
       name: string
       createdAt: string
       updatedAt: string
+      /** @deprecated Alias of updatedAt, kept for backwards compatibility */
+      lastUpdated: string
       dataVariables: string[]
     }[]
     pagination: {

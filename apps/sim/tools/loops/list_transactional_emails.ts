@@ -80,6 +80,9 @@ export const loopsListTransactionalEmailsTool: ToolConfig<
           name: (email.name as string) ?? '',
           createdAt: (email.createdAt as string) ?? '',
           updatedAt: (email.updatedAt as string) ?? '',
+          // Deprecated alias of updatedAt, kept for backwards compatibility with the old
+          // (now-removed) /api/v1/transactional list endpoint, which returned this field.
+          lastUpdated: (email.updatedAt as string) ?? '',
           dataVariables: (email.dataVariables as string[]) ?? [],
         })),
         pagination: {
@@ -105,6 +108,10 @@ export const loopsListTransactionalEmailsTool: ToolConfig<
           name: { type: 'string', description: 'The template name' },
           createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
           updatedAt: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
+          lastUpdated: {
+            type: 'string',
+            description: 'Deprecated alias of updatedAt, kept for backwards compatibility',
+          },
           dataVariables: {
             type: 'array',
             description: 'Template data variable names',

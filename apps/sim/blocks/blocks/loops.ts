@@ -578,7 +578,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     transactionalEmails: {
       type: 'json',
       description:
-        'Array of transactional email templates (id, name, createdAt, updatedAt, dataVariables)',
+        'Array of transactional email templates (id, name, createdAt, updatedAt, lastUpdated (deprecated alias of updatedAt), dataVariables)',
     },
     pagination: {
       type: 'json',
