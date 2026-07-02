@@ -321,7 +321,7 @@ export interface TrelloChecklistItem {
   name: string
   state: string
   pos: number
-  idChecklist: string
+  idChecklist: string | null
 }
 
 export interface TrelloAddChecklistItemResponse extends ToolResponse {

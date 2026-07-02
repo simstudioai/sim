@@ -137,7 +137,11 @@ export const trelloAddChecklistItemTool: ToolConfig<
         name: { type: 'string', description: 'Checklist item name' },
         state: { type: 'string', description: 'Item state (complete or incomplete)' },
         pos: { type: 'number', description: 'Item position on the checklist' },
-        idChecklist: { type: 'string', description: 'Checklist ID containing the item' },
+        idChecklist: {
+          type: 'string',
+          description: 'Checklist ID containing the item',
+          optional: true,
+        },
       },
     },
   },

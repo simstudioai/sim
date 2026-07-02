@@ -66,6 +66,9 @@ export const trelloUpdateChecklistItemTool: ToolConfig<
       if (!params.checkItemId) {
         throw new Error('Checklist item ID is required')
       }
+      if (!params.state && !params.name) {
+        throw new Error('At least one of state or name must be provided to update')
+      }
       const apiKey = env.TRELLO_API_KEY
 
       if (!apiKey) {
@@ -80,10 +83,6 @@ export const trelloUpdateChecklistItemTool: ToolConfig<
 
       if (params.state) url.searchParams.set('state', params.state)
       if (params.name) url.searchParams.set('name', params.name.trim())
-
-      if (!params.state && !params.name) {
-        throw new Error('At least one of state or name must be provided to update')
-      }
 
       return url.toString()
     },
@@ -140,7 +139,11 @@ export const trelloUpdateChecklistItemTool: ToolConfig<
         name: { type: 'string', description: 'Checklist item name' },
         state: { type: 'string', description: 'Item state (complete or incomplete)' },
         pos: { type: 'number', description: 'Item position on the checklist' },
-        idChecklist: { type: 'string', description: 'Checklist ID containing the item' },
+        idChecklist: {
+          type: 'string',
+          description: 'Checklist ID containing the item',
+          optional: true,
+        },
       },
     },
   },

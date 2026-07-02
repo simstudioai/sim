@@ -182,6 +182,11 @@ export const trelloSearchTool: ToolConfig<TrelloSearchParams, TrelloSearchRespon
           desc: { type: 'string', description: 'Board description' },
           url: { type: 'string', description: 'Full board URL' },
           closed: { type: 'boolean', description: 'Whether the board is archived' },
+          idOrganization: {
+            type: 'string',
+            description: 'Workspace/organization ID that owns the board',
+            optional: true,
+          },
         },
       },
     },

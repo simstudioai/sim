@@ -1077,13 +1077,20 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
             }
 
             const state = getTrimmedString(params.checkItemState)
+            const normalizedState =
+              state === 'complete' || state === 'incomplete' ? state : undefined
+            const name = getTrimmedString(params.checkItemName)
+
+            if (!normalizedState && !name) {
+              throw new Error('Provide a State or a New Item Name to update.')
+            }
 
             return {
               ...baseParams,
               cardId,
               checkItemId,
-              state: state === 'complete' || state === 'incomplete' ? state : undefined,
-              name: getTrimmedString(params.checkItemName),
+              state: normalizedState,
+              name,
             }
           }
 

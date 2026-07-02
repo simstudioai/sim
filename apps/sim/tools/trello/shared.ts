@@ -217,7 +217,7 @@ export function mapTrelloChecklistItem(value: unknown): TrelloChecklistItem {
     name: getRequiredString(value.name, 'name'),
     state: getRequiredString(value.state, 'state'),
     pos: getNumber(value.pos),
-    idChecklist: getRequiredString(value.idChecklist, 'idChecklist'),
+    idChecklist: getOptionalString(value.idChecklist),
   }
 }
 
