@@ -6,6 +6,8 @@ description: Every file in Sim — whatever made it — travels as the same obje
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_INVOICE_INTAKE_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Files" title="The File Object" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/files-object-light-with-intro.mp4" className="mt-2" />
 
@@ -44,7 +46,7 @@ Your workflows make files from very different places — an email attachment, a 
     { title: 'One reader', time: '0:43' },
     { title: 'Every shape arrives the same', time: '0:54' },
     { title: 'The identical package', time: '1:02' },
-    { title: 'Freeze: inside the object', time: '1:16' },
+    { title: 'Inside the object', time: '1:16' },
     { title: 'The fields', time: '1:20' },
     { title: 'Swap the source', time: '1:40' },
     { title: 'Any consumer', time: '1:48' },
@@ -58,9 +60,13 @@ Your workflows make files from very different places — an email attachment, a 
 
 Catch a file mid-run and look inside: an I.D., a name, a URL where the bytes live, a size, a type, and the content itself. A couple more fields exist under the hood, but the shape never changes — which is exactly what lets a Gmail attachment, a generated image, and a text-to-speech clip all feed the same agent without special handling.
 
+The video closes on this machine — one file object riding the whole chain:
+
+<WorkflowPreview workflow={AV_INVOICE_INTAKE_WORKFLOW} />
+
 ## Why one shape matters
 
-Swap which producer feeds the agent, and nothing on the agent side changes. Point the same object at a different consumer — an email, cloud storage, another agent — and it just rides. The video closes on a real template: an invoice lands in Gmail, gets parsed, an agent extracts the fields, and the result settles in the database, one object riding the whole way through.
+Swap which producer feeds the agent, and nothing on the agent side changes. Point the same object at a different consumer — an email, cloud storage, another agent — and it just rides. In the closing machine, an invoice lands in Gmail, gets parsed, an agent extracts the fields, and the result settles in the database — one object carried the whole way through.
 
 ## Related documentation
 

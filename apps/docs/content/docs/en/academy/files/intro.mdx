@@ -6,7 +6,8 @@ description: Sim natively supports files — store, reference, and pass around d
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
-import { WorkflowPreview, FILE_SUMMARY_WORKFLOW } from '@/components/workflow-preview'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_INVOICE_INTAKE_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Files" title="Files" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/files-light-with-intro.mp4" className="mt-2" />
 
@@ -51,9 +52,9 @@ Sim has native support for **files** — a way to store, reference, and pass aro
 
 Most of the work you'd want to automate touches files somewhere. You receive a PDF and need to extract from it. An email needs an image attached. Audio comes in and has to be transcribed. A user uploads a document to process. These aren't edge cases — workflows reference file types as inputs and outputs all the time, so files are a first-class thing in Sim rather than something you work around.
 
-Here's the shape of it — a workflow that takes a file in and produces a result from it:
+Here is the machine the video follows — an email's attachment read as a file, an agent extracting its fields, and the result written to a table:
 
-<WorkflowPreview workflow={FILE_SUMMARY_WORKFLOW} />
+<WorkflowPreview workflow={AV_INVOICE_INTAKE_WORKFLOW} />
 
 ## Files in and out
 

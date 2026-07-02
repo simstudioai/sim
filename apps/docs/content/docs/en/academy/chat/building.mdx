@@ -6,6 +6,8 @@ description: Describe the system you want in plain language, and Sim builds it �
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_CONTENT_AGENT_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Chat" title="Building with Chat" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/chat-building-light-with-intro.mp4" className="mt-2" />
 
@@ -25,7 +27,7 @@ You can build a whole workflow without dragging a single block. Describe the sys
       body: "Before you ask, Sim runs the build to see if it holds together. When the image step fails on a missing parameter, it catches the error, fixes the block, and re-runs clean.",
     },
     {
-      title: 'You stay the judge',
+      title: 'You inspect before you trust',
       body: 'It shows you the run record — every step, every output — so you inspect before you trust. Then you hand it a real idea and watch candidates get drafted, scored, and pruned.',
     },
     {
@@ -57,17 +59,21 @@ You can build a whole workflow without dragging a single block. Describe the sys
 
 The chat turns your description into real structure: a parallel container drafting candidate posts, generation blocks for the image, the deck, and the voiceover, an evaluator scoring the results, and a table keeping every score. Nothing about the result is special — it's a normal workflow you could have built by hand, which means you can open it, read it, and change it.
 
-## The build proves itself
+Here is the shape of the workflow the chat builds in the video — candidates drafted in parallel, an evaluator scoring them, and the scores kept in a table:
+
+<WorkflowPreview workflow={AV_CONTENT_AGENT_WORKFLOW} />
+
+## It tests and fixes itself
 
 Sim doesn't hand you an untested guess. It runs the workflow immediately, and when a step fails — the image block missing an aspect ratio — it reads the error, patches the parameter, and runs again. You watch the failure and the fix happen on the canvas, in the log, and in the conversation at once.
 
-## Trust through evidence
+## Inspecting the run
 
 The run record shows every step with its timing and output: the draft, the image, the deck, the audio. When you test it on a real idea, the candidates fan out in parallel, the evaluator scores each one, and the table records what was promoted and what was pruned.
 
-## Live in one message
+## Deploying
 
-"Ship it" is a message, not a project. The workflow deploys behind a live endpoint, ready for whatever you send it — and it remains a workflow in your workspace: inspectable, schedulable, and callable from everything else you build.
+Deploying is one more message in the conversation. The workflow deploys behind a live endpoint, ready for whatever you send it — and it remains a workflow in your workspace: inspectable, schedulable, and callable from everything else you build.
 
 ## Related documentation
 

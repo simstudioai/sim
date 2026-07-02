@@ -6,6 +6,8 @@ description: Inside the Agent block, a run becomes a conversation — a message 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_QUALIFY_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Agents" title="The Agent Block" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-block-light-with-intro.mp4" className="mt-2" />
 
@@ -53,7 +55,11 @@ On the canvas, an Agent block looks like any other step: a run arrives at its in
 
 </div>
 
-## The stations inside
+Here is the workflow the video rides through — the Qualify agent between its input and its result:
+
+<WorkflowPreview workflow={AV_QUALIFY_WORKFLOW} />
+
+## What's inside the block
 
 The first station is the message stack: your **system message** (the standing instructions), any **history** you preload — worked examples or an earlier conversation — and the newest **user message**, which usually arrives from an earlier block through a connection tag. The second station is the **model**: the brain that reads the whole stack. Sim supports the frontier providers, and because the block stays the same while the model changes, swapping brains never means rebuilding the step.
 

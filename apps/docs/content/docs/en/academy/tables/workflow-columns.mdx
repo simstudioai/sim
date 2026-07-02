@@ -57,15 +57,15 @@ A workflow column doesn't hold typed-in values — it holds the **output of a wo
 
 </div>
 
-## The column that fills itself
+## How a workflow column is defined
 
 Everything that defines a workflow column lives in one panel: the workflow that runs, the column bound to its input, and the column that receives its output. On every row, the workflow reads that row's values and writes one cell back — right beside its source. Attach a second stage that reads what the first one filled, and rows flow through the pipeline in order.
 
-## Watch it work
+## Watching it run
 
 Run a single row and the cell reports the run as it moves — queued, then running, then the value. Turn on auto-run and the whole column fills in a cascade; type a new company into a blank row and the pipeline runs it end to end, the domain first, then the score, without a single click.
 
-## Every answer has a receipt
+## Every cell records its run
 
 Take one value — a lead score of 75. The cell remembers the run that wrote it: open its menu and view the execution, a real trace where every block is a span, with its timing and cost. That's true all the way down the column: every cell is its own run. When a row fails, the cell says so, its trace shows which block failed and why, and re-running the cell re-runs the workflow for just that row.
 

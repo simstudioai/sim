@@ -6,6 +6,8 @@ description: Give an agent tools and it works in a loop — deciding, calling, r
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_TOOLS_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Agents" title="Tool Calling" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-tool-calling-light-with-intro.mp4" className="mt-2" />
 
@@ -50,7 +52,11 @@ A plain Agent block is text in, one model pass, text out — it can't look anyth
 
 </div>
 
-## From one pass to a loop
+Here is the agent from the video with its tools attached:
+
+<WorkflowPreview workflow={AV_TOOLS_WORKFLOW} />
+
+## What tools change
 
 Without tools, an agent has only its prompt and its training — asked to qualify a lead, it can only say it has no way to look anything up. With tools attached, the same block plans: research the company, check the funding, read the careers page. It calls tools in parallel when the calls don't depend on each other, revises its plan as results land, and answers only when its context holds enough.
 

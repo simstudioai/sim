@@ -6,6 +6,8 @@ description: The chat in Sim is your workspace control plane — one conversatio
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_SUPPORT_DESK_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Chat" title="Chat" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/chat-intro-light-with-intro.mp4" className="mt-2" />
 
@@ -21,7 +23,7 @@ The chat lives inside your workspace, and everything in it — your workflows, t
       body: 'A single ask can query a table and search your help docs at the same time, and answer from both — you never have to know which resource holds the answer.',
     },
     {
-      title: 'It operates, not just answers',
+      title: 'It runs your workflows',
       body: 'The chat runs workflows and puts them on schedules for you — no clicks, no setup. Actions land as toasts, and each resource it touches opens as a tab.',
     },
     {
@@ -55,17 +57,21 @@ The chat lives inside your workspace, and everything in it — your workflows, t
 
 The chat isn't a help box beside your workspace — it's a control plane over it. Every resource you've built is addressable in plain language: the tickets table, the help-center knowledge base, the support-desk workflow. When you ask a question, Sim decides which resources the answer needs, touches them in parallel, and composes the reply.
 
-## Ask it to act
+Here is the workflow the chat operates in the video — the support desk that triages a ticket, escalates or replies, and logs the result:
+
+<WorkflowPreview workflow={AV_SUPPORT_DESK_WORKFLOW} />
+
+## Asking it to act
 
 Telling the chat to *do* something is the same motion as asking it something. Run the backlog through the support desk, ship the weekly digest, put it on a schedule for Friday mornings — each lands as a real operation, confirmed with a toast, with the run's log available the moment it finishes.
 
-## It reaches outside too
+## Research beyond the workspace
 
 The chat can research beyond your workspace: search X and Reddit for this week's conversations, pull the rising themes, and file them as a new document. What it learns becomes a resource like any other — ready for the next ask.
 
-## Workflows, driving workflows
+## Composing a new workflow
 
-The compounding move: one sentence can compose what the chat just touched into a new system. A watcher that reads the trends file on a schedule, matches them against your tickets, and calls your support-desk workflow when something hits. You didn't design it — you described it.
+One sentence can compose what the chat just touched into a new workflow. A watcher that reads the trends file on a schedule, matches them against your tickets, and calls your support-desk workflow when something hits. You described it, and the chat assembled it from the resources you already have.
 
 ## Related documentation
 

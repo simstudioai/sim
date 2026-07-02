@@ -6,6 +6,8 @@ description: The Table block works across two surfaces — a panel where you des
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_TABLE_OPS_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Tables" title="Table Operations" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/tables-operations-light-with-intro.mp4" className="mt-2" />
 
@@ -54,7 +56,11 @@ Workflows work with tables through the Table block. Everything the block can do 
 
 </div>
 
-## One shape, every operation
+Here is the block from the video, configured for the first query:
+
+<WorkflowPreview workflow={AV_TABLE_OPS_WORKFLOW} />
+
+## One shape for every operation
 
 The panel describes what you mean: an operation, a table, and — depending on the operation — a filter, row data, or both. A filter is conditions stacked together (priority equals high, and status equals open), each one narrowing the match. Queries read without touching the table; Delete Rows by Filter removes what matches; Insert Row lands a payload as a new row; Update Rows by Filter picks rows and changes them in place.
 

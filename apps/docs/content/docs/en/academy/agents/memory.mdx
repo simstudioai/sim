@@ -6,6 +6,8 @@ description: One setting gives an agent memory — a conversation ID under which
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_MEMORY_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Agents" title="Memory" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-memory-light-with-intro.mp4" className="mt-2" />
 
@@ -44,7 +46,7 @@ By default, an agent keeps nothing between runs — every conversation starts co
     { title: 'Fresh by default', time: '0:39' },
     { title: 'The Memory setting', time: '0:51' },
     { title: 'Saving under a key', time: '1:03' },
-    { title: 'Warm vs cold, side by side', time: '1:11' },
+    { title: 'With and without memory, side by side', time: '1:11' },
     { title: 'A thread per customer', time: '1:37' },
     { title: 'The sliding window', time: '1:52' },
     { title: 'Inside the stored transcript', time: '1:59' },
@@ -53,7 +55,11 @@ By default, an agent keeps nothing between runs — every conversation starts co
 
 </div>
 
-## The warm and cold split
+Here is the agent from the video with Memory set on the block:
+
+<WorkflowPreview workflow={AV_MEMORY_WORKFLOW} />
+
+## The same agent, with and without memory
 
 The video runs the same agent twice, side by side: once with no memory and once with the conversation ID. The same follow-up question arrives in both. Without the key, the agent starts from zero and has to ask for everything again; with it, everything stored under the key was loaded back before the model saw the new message, and the answer picks up exactly where yesterday stopped.
 
