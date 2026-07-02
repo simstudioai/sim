@@ -235,7 +235,7 @@ Perform batch add, update, partial update, or delete operations on records in an
 | `applicationId` | string | Yes | Algolia Application ID |
 | `apiKey` | string | Yes | Algolia Admin API Key |
 | `indexName` | string | Yes | Name of the Algolia index |
-| `requests` | json | Yes | Array of batch operations. Each item has "action" \(addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject, delete, clear\) and "body" \(the record data, must include objectID for update/delete; omit body for delete/clear\) |
+| `requests` | json | Yes | Array of batch operations. Each item has "action" \(addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject, delete, clear\) and "body" \(the record data; must include objectID for update/delete; use an empty object \{\} for the index-level delete/clear actions\) |
 
 #### Output
 
