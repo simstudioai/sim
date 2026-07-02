@@ -7985,18 +7985,16 @@ export function LeadMagicIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-/** Dropcontact brand icon: teal disc with the white open-"d" contact mark. */
+/** Dropcontact brand icon: the teal swirl mark from the official wordmark. */
 export function DropcontactIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-      <circle cx='12' cy='12' r='12' fill='#0ABA9F' />
+    <svg {...props} viewBox='0 0 50 50' fill='none' xmlns='http://www.w3.org/2000/svg'>
       <path
-        d='M13.87 7.9A5 5 0 1 0 13.87 16.1'
-        stroke='#FFFFFF'
-        strokeWidth='2.4'
-        strokeLinecap='round'
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M29.57 16.22a10.84 10.84 0 0 0-4.698-1.064c-6.01 0-10.88 4.872-10.88 10.88s4.872 10.88 10.88 10.88c4.09 0 7.655-2.258 9.513-5.596l-2.623-1.457a7.88 7.88 0 0 1-6.89 4.053c-4.353 0-7.88-3.528-7.88-7.88s3.528-7.88 7.88-7.88a7.85 7.85 0 0 1 3.403.77l1.295-2.707zm5.21-14.235v25.762h-3.11V.9C29.546.313 27.3 0 25 0 11.193 0 0 11.193 0 25s11.193 25 25 25 25-11.193 25-25c0-10.337-6.274-19.21-15.222-23.016z'
+        fill='currentColor'
       />
-      <path d='M15.1 6.2V17.8' stroke='#FFFFFF' strokeWidth='2.4' strokeLinecap='round' />
     </svg>
   )
 }
