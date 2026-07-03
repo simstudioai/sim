@@ -33,12 +33,12 @@ import {
   KnowledgeBase,
   MaterializeFile,
   Media,
-  Research,
   Run,
   RunBlock,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
+  Search,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -212,7 +212,7 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
   GenerateVideo.id,
   Ffmpeg.id,
   Media.id,
-  Research.id,
+  Search.id,
   CrawlWebsite.id,
   KnowledgeBase.id,
   DownloadToWorkspaceFile.id,
