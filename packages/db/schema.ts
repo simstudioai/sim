@@ -3699,6 +3699,47 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+/**
+ * The application code that read/wrote this table (Academy) was removed in
+ * the same PR that would have dropped it here — deferred to a follow-up PR
+ * once that removal has actually shipped, per the expand/contract migration
+ * safety check (`check:migrations`), since a same-deploy drop would break
+ * any pod still running the old code during a rolling deploy.
+ */
+export const academyCertStatusEnum = pgEnum('academy_cert_status', ['active', 'revoked', 'expired'])
+
+/** Partner certification records issued on course completion */
+export const academyCertificate = pgTable(
+  'academy_certificate',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** References the file-based course ID from lib/academy/content */
+    courseId: text('course_id').notNull(),
+    status: academyCertStatusEnum('status').notNull().default('active'),
+    issuedAt: timestamp('issued_at').notNull().defaultNow(),
+    /** Optional expiry for recertification requirements */
+    expiresAt: timestamp('expires_at'),
+    /** Human-readable unique certificate number, e.g. SIM-2026-00042 */
+    certificateNumber: text('certificate_number').notNull().unique(),
+    /** Snapshot of name and other metadata at time of issue */
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('academy_certificate_user_id_idx').on(table.userId),
+    courseIdIdx: index('academy_certificate_course_id_idx').on(table.courseId),
+    userCourseUnique: uniqueIndex('academy_certificate_user_course_unique').on(
+      table.userId,
+      table.courseId
+    ),
+    certNumberIdx: index('academy_certificate_number_idx').on(table.certificateNumber),
+    statusIdx: index('academy_certificate_status_idx').on(table.status),
+  })
+)
+
 export const dataDrainSourceEnum = pgEnum('data_drain_source', [
   'workflow_logs',
   'job_logs',
