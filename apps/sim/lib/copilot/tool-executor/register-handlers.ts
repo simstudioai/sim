@@ -42,6 +42,7 @@ import {
   RenameWorkflow,
   RestoreResource,
   RunBlock,
+  RunCode,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
@@ -87,6 +88,7 @@ import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/han
 import { executeGetPlatformActions } from '../tools/handlers/platform'
 import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
+import { executeRunCode } from '../tools/handlers/run-code'
 import { executeVfsGlob, executeVfsGrep, executeVfsRead } from '../tools/handlers/vfs'
 import {
   executeCreateWorkflow,
@@ -188,6 +190,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [ListIntegrationTools.id]: h(executeListIntegrationTools),
     [MaterializeFile.id]: h(executeMaterializeFile),
     [FunctionExecute.id]: h(executeFunctionExecute),
+    [RunCode.id]: h(executeRunCode),
 
     ...buildServerToolHandlers(),
   }
