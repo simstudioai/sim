@@ -9,6 +9,7 @@ import {
   escapeHtml,
   htmlToPlainText,
   plainTextToHtml,
+  sanitizeHeaderValue,
 } from './utils'
 
 function decodeSimpleMessage(encoded: string): string {
@@ -57,6 +58,27 @@ describe('encodeRfc2047', () => {
   it('does not double-encode already-encoded subjects', () => {
     const alreadyEncoded = '=?UTF-8?B?VGltZSB0byBTdHJldGNoISDwn6eY?='
     expect(encodeRfc2047(alreadyEncoded)).toBe(alreadyEncoded)
+  })
+})
+
+describe('sanitizeHeaderValue', () => {
+  it('collapses embedded CRLF to a single space', () => {
+    expect(sanitizeHeaderValue('foo\r\nBcc: attacker@example.com')).toBe(
+      'foo Bcc: attacker@example.com'
+    )
+  })
+
+  it('collapses embedded bare LF or CR to a single space', () => {
+    expect(sanitizeHeaderValue('foo\nbar')).toBe('foo bar')
+    expect(sanitizeHeaderValue('foo\rbar')).toBe('foo bar')
+  })
+
+  it('collapses consecutive newlines to a single space', () => {
+    expect(sanitizeHeaderValue('foo\r\n\r\nbar')).toBe('foo bar')
+  })
+
+  it('leaves ordinary values unchanged', () => {
+    expect(sanitizeHeaderValue('a@example.com, b@example.com')).toBe('a@example.com, b@example.com')
   })
 })
 
@@ -167,6 +189,39 @@ describe('buildSimpleEmailMessage', () => {
     expect(decoded).toContain('In-Reply-To: <msg-1@example.com>')
     expect(decoded).toContain('References: <root@example.com> <msg-1@example.com>')
   })
+
+  it('strips embedded CRLF from to/cc/bcc/subject/inReplyTo/references so no extra header line is produced', () => {
+    const injected = 'innocuous\r\nBcc: attacker@example.com'
+    const encoded = buildSimpleEmailMessage({
+      to: injected,
+      cc: injected,
+      bcc: injected,
+      subject: injected,
+      body: 'hello',
+      inReplyTo: injected,
+      references: injected,
+    })
+    const decoded = decodeSimpleMessage(encoded)
+    const lines = decoded.split('\n')
+    const bccLines = lines.filter((line) => line.startsWith('Bcc:'))
+    // Exactly one Bcc header line (the legitimate one), holding the sanitized, single-line value.
+    expect(bccLines).toHaveLength(1)
+    expect(bccLines[0]).toBe('Bcc: innocuous Bcc: attacker@example.com')
+    expect(lines).not.toContain('Bcc: attacker@example.com')
+  })
+
+  it('preserves legitimate ASCII, Unicode, and multi-recipient values unchanged', () => {
+    const encoded = buildSimpleEmailMessage({
+      to: 'a@example.com, b@example.com',
+      cc: 'c@example.com',
+      subject: 'Café meeting 🎉',
+      body: 'hello',
+    })
+    const decoded = decodeSimpleMessage(encoded)
+    expect(decoded).toContain('To: a@example.com, b@example.com')
+    expect(decoded).toContain('Cc: c@example.com')
+    expect(decoded).toContain(`Subject: ${encodeRfc2047('Café meeting 🎉')}`)
+  })
 })
 
 describe('buildMimeMessage', () => {
@@ -198,5 +253,53 @@ describe('buildMimeMessage', () => {
     })
     expect(message).toMatch(/Content-Type: multipart\/alternative; boundary="([^"]+)"/)
     expect(message).not.toContain('multipart/mixed')
+  })
+
+  it('strips embedded CRLF from header fields and the attachment filename', () => {
+    const injected = 'innocuous\r\nBcc: attacker@example.com'
+    const message = buildMimeMessage({
+      to: injected,
+      cc: injected,
+      bcc: injected,
+      subject: injected,
+      body: 'hello',
+      inReplyTo: injected,
+      references: injected,
+      attachments: [
+        {
+          filename: injected,
+          mimeType: 'text/plain',
+          content: Buffer.from('hi'),
+        },
+      ],
+    })
+    const lines = message.split('\n')
+    const bccLines = lines.filter((line) => line.startsWith('Bcc:'))
+    expect(bccLines).toHaveLength(1)
+    expect(bccLines[0]).toBe('Bcc: innocuous Bcc: attacker@example.com')
+    expect(lines).not.toContain('Bcc: attacker@example.com')
+    expect(message).toContain(
+      'Content-Disposition: attachment; filename="innocuous Bcc: attacker@example.com"'
+    )
+  })
+
+  it('preserves legitimate ASCII, Unicode, and multi-recipient values unchanged', () => {
+    const message = buildMimeMessage({
+      to: 'a@example.com, b@example.com',
+      cc: 'c@example.com',
+      subject: 'Café meeting 🎉',
+      body: 'hello',
+      attachments: [
+        {
+          filename: 'note.txt',
+          mimeType: 'text/plain',
+          content: Buffer.from('hi'),
+        },
+      ],
+    })
+    expect(message).toContain('To: a@example.com, b@example.com')
+    expect(message).toContain('Cc: c@example.com')
+    expect(message).toContain(`Subject: ${encodeRfc2047('Café meeting 🎉')}`)
+    expect(message).toContain('Content-Disposition: attachment; filename="note.txt"')
   })
 })
