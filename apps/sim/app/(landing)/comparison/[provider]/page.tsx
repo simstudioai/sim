@@ -8,7 +8,6 @@ import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparison/co
 import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparison/components/brand-icon-tile'
 import { ComparisonCards } from '@/app/(landing)/comparison/components/comparison-cards'
 import { ComparisonTable } from '@/app/(landing)/comparison/components/comparison-table'
-import { KeyDifferences } from '@/app/(landing)/comparison/components/key-differences'
 import {
   ALL_COMPETITORS,
   buildBottomLine,
@@ -229,18 +228,6 @@ export default async function ComparisonProviderPage({
                 </p>
               </section>
             </div>
-
-            <div className='h-px w-full bg-[var(--border)]' />
-
-            <section aria-labelledby='key-differences-heading' className='px-6 py-10'>
-              <h2
-                id='key-differences-heading'
-                className='mb-4 text-[var(--text-primary)] text-md leading-[100%] tracking-[-0.02em]'
-              >
-                Key differences at a glance
-              </h2>
-              <KeyDifferences sim={simProfile} competitor={competitor} />
-            </section>
 
             <div className='h-px w-full bg-[var(--border)]' />
 
