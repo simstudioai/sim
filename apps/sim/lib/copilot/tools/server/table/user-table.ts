@@ -30,7 +30,7 @@ import {
   predicateNamesToIds,
   rowDataIdToName,
   rowDataNameToId,
-  sortNamesToIds,
+  sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
@@ -45,6 +45,7 @@ import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { parsePostgrestFilter, parsePostgrestOrder } from '@/lib/table/query-builder/postgrest'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -603,18 +604,26 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
           const nameById = buildNameById(table.schema)
-          // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
-          // tool result can't drain a whole table. `totalCount` in the response signals truncation,
-          // and the model pages with `offset`.
+          // PostgREST filter/order strings, parsed with the schema (column NAMES
+          // → coercion) then translated to storage ids.
+          const predicate = args.filter
+            ? predicateNamesToIds(parsePostgrestFilter(args.filter, table.schema.columns), idByName)
+            : undefined
+          const orderSpec = args.order
+            ? sortSpecNamesToIds(parsePostgrestOrder(args.order, table.schema.columns), idByName)
+            : undefined
+          const sort = orderSpec?.length
+            ? Object.fromEntries(orderSpec.map((s) => [s.field, s.direction]))
+            : undefined
+          // No limit returns every matching row (bounded by the server's 10MB byte
+          // guard, which fails fast rather than truncating). An explicit limit is
+          // honored as-is so the model can still page with `offset` when it wants to.
           const result = await queryRows(
             table,
             {
-              predicate: args.filter ? predicateNamesToIds(args.filter, idByName) : undefined,
-              sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
-              limit:
-                args.limit !== undefined
-                  ? Math.min(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
-                  : undefined,
+              predicate,
+              sort,
+              limit: args.limit,
               offset: args.offset,
               withExecutions: false,
             },
@@ -729,9 +738,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          // Agent authors the v2 predicate grammar; convert to a Filter for the
-          // bulk engine (same fieldPredicate leaf → identical SQL).
-          const idFilter = predicateToFilter(predicateNamesToIds(args.filter, idByName))
+          // Agent authors a PostgREST filter string; parse → predicate → Filter
+          // for the bulk engine (same fieldPredicate leaf → identical SQL).
+          const idFilter = predicateToFilter(
+            predicateNamesToIds(parsePostgrestFilter(args.filter, table.schema.columns), idByName)
+          )
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -826,9 +837,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          // Agent authors the v2 predicate grammar; convert to a Filter for the
-          // bulk engine (same fieldPredicate leaf → identical SQL).
-          const idFilter = predicateToFilter(predicateNamesToIds(args.filter, idByName))
+          // Agent authors a PostgREST filter string; parse → predicate → Filter
+          // for the bulk engine (same fieldPredicate leaf → identical SQL).
+          const idFilter = predicateToFilter(
+            predicateNamesToIds(parsePostgrestFilter(args.filter, table.schema.columns), idByName)
+          )
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background

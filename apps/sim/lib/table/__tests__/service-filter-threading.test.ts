@@ -10,6 +10,7 @@
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 
@@ -18,6 +19,8 @@ vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),
   buildSortClause: vi.fn(() => sql`true`),
+  buildPredicateClause: vi.fn(() => sql`true`),
+  TableQueryValidationError: class TableQueryValidationError extends Error {},
 }))
 
 vi.mock('@/lib/table/trigger', () => ({
@@ -121,5 +124,64 @@ describe('service filter threading', () => {
       expect.any(String),
       COLUMNS
     )
+  })
+})
+
+describe('bulk update/delete limited-subset ordering', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('orders the match query when updateRowsByFilter has a limit', async () => {
+    await updateRowsByFilter(
+      TABLE,
+      { filter: { score: { $gt: 0 } }, data: { name: 'x' }, limit: 5 },
+      'req-1'
+    )
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(5)
+  })
+
+  it('does not order an unbounded updateRowsByFilter', async () => {
+    dbChainMockFns.where.mockResolvedValueOnce([])
+    await updateRowsByFilter(TABLE, { filter: { score: { $gt: 0 } }, data: { name: 'x' } }, 'req-1')
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+  })
+
+  it('orders the match query when deleteRowsByFilter has a limit', async () => {
+    await deleteRowsByFilter(TABLE, { filter: { score: { $gt: 0 } }, limit: 3 }, 'req-1')
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
+  })
+})
+
+describe('queryRows byte guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('returns an empty page without tripping the guard', async () => {
+    const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
+    expect(result.rows).toEqual([])
+  })
+
+  it('fails fast when the result exceeds the byte budget', async () => {
+    const oversized = 'x'.repeat(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES + 1)
+    dbChainMockFns.orderBy.mockResolvedValueOnce([
+      {
+        id: 'row_1',
+        data: { blob: oversized },
+        position: 0,
+        orderKey: 'a0',
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+      },
+    ])
+
+    await expect(
+      queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
+    ).rejects.toThrow(/10MB/)
   })
 })

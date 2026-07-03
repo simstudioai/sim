@@ -8,10 +8,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   filterRulesToFilter,
+  filterRulesToPostgrest,
   filterRulesToPredicate,
   filterToRules,
   predicateToFilter,
   predicateToFilterRules,
+  sortRulesToPostgrestOrder,
   sortRulesToSortSpec,
 } from '@/lib/table/query-builder/converters'
 import type { FilterRule, SortRule, TablePredicate } from '@/lib/table/types'
@@ -235,5 +237,58 @@ describe('sortRulesToSortSpec (v2)', () => {
 
   it('skips column-less rules and returns null when empty', () => {
     expect(sortRulesToSortSpec([{ id: '1', column: '', direction: 'asc' }])).toBeNull()
+  })
+})
+
+describe('filterRulesToPostgrest', () => {
+  it('serializes builder rules to a PostgREST querystring', () => {
+    expect(
+      filterRulesToPostgrest([
+        rule({ column: 'wins', operator: 'gte', value: '10' }),
+        rule({ column: 'status', operator: 'eq', value: 'active' }),
+      ])
+    ).toBe('wins=gte.10&status=eq.active')
+  })
+
+  it('serializes an OR boundary to an or() group', () => {
+    expect(
+      filterRulesToPostgrest([
+        rule({ column: 'status', operator: 'eq', value: 'active' }),
+        rule({ column: 'status', operator: 'eq', value: 'pending', logicalOperator: 'or' }),
+      ])
+    ).toBe('or=(status.eq.active,status.eq.pending)')
+  })
+
+  it('maps builder-only ops onto PostgREST forms', () => {
+    expect(
+      filterRulesToPostgrest([rule({ column: 'name', operator: 'contains', value: 'jo' })])
+    ).toBe('name=ilike.*jo*')
+    expect(filterRulesToPostgrest([rule({ column: 'name', operator: 'isEmpty' })])).toBe(
+      'name=is.null'
+    )
+  })
+
+  it('returns null for an empty builder', () => {
+    expect(filterRulesToPostgrest([])).toBeNull()
+  })
+
+  it('returns null (does not throw "rules is not iterable") for a non-array value', () => {
+    expect(filterRulesToPostgrest({} as unknown as FilterRule[])).toBeNull()
+    expect(filterRulesToPostgrest(undefined as unknown as FilterRule[])).toBeNull()
+  })
+})
+
+describe('sortRulesToPostgrestOrder', () => {
+  it('serializes sort rules to a PostgREST order string', () => {
+    expect(
+      sortRulesToPostgrestOrder([
+        { id: '1', column: 'wins', direction: 'desc' },
+        { id: '2', column: 'name', direction: 'asc' },
+      ])
+    ).toBe('wins.desc,name.asc')
+  })
+
+  it('returns null when empty', () => {
+    expect(sortRulesToPostgrestOrder([])).toBeNull()
   })
 })

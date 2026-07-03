@@ -1,19 +1,20 @@
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { TableQueryV2Response, TableRowQueryV2Params } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * v2 row query: a structured `all`/`any` predicate grammar and opaque cursor
- * pagination (no offset). Hits POST `/api/table/[tableId]/query`.
+ * v2 row query: PostgREST filter grammar + opaque cursor pagination (no offset).
+ * Hits POST `/api/table/[tableId]/query`.
  */
 export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV2Response> = {
   id: 'table_query_rows_v2',
   name: 'Query Rows',
   description:
-    'Query rows with a structured predicate and cursor pagination. The predicate is a nestable tree: ' +
-    '{ "all": [ { "field": "status", "op": "eq", "value": "active" } ] } (all = AND, any = OR). ' +
-    'Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, isEmpty, isNotEmpty. ' +
-    'To page, pass the nextCursor from the previous response back as cursor; omit it for the first page.',
+    'Query rows with a PostgREST filter string and cursor pagination. ' +
+    'Filter is a querystring fragment: `wins=gte.10&status=in.(active,pending)` (top-level params AND; ' +
+    '`or=(a.eq.1,b.eq.2)` / `and=(...)` for groups). Operators: eq, neq, gt, gte, lt, lte, in, like, ilike, ' +
+    'match, imatch, is.null (negate with not., e.g. not.in, not.is.null). ' +
+    'Order is PostgREST `order` (e.g. `wins.desc,name.asc`). To page, pass the nextCursor from the previous ' +
+    'response back as cursor; omit it for the first page.',
   version: '1.0.0',
 
   params: {
@@ -23,23 +24,24 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
       description: 'Table ID',
       visibility: 'user-only',
     },
-    predicate: {
-      type: 'json',
+    filter: {
+      type: 'string',
       required: false,
       description:
-        'Nestable predicate tree of { all | any: [...] } groups and { field, op, value } leaves. Omit to match all rows.',
+        'PostgREST filter querystring, e.g. `wins=gte.10&status=in.(active,pending)`. Omit to match all rows.',
       visibility: 'user-or-llm',
     },
-    sort: {
-      type: 'json',
+    order: {
+      type: 'string',
       required: false,
-      description: 'Ordered list of { field, direction: "asc" | "desc" }.',
+      description: 'PostgREST order, e.g. `wins.desc,name.asc`.',
       visibility: 'user-or-llm',
     },
     limit: {
       type: 'number',
       required: false,
-      description: `Maximum rows to return (default: ${TABLE_LIMITS.DEFAULT_QUERY_LIMIT}, max: ${TABLE_LIMITS.MAX_QUERY_LIMIT})`,
+      description:
+        'Maximum rows to return. Omit to return every matching row (the server fails fast if the result exceeds 10MB). Set a limit to page with the cursor.',
       visibility: 'user-or-llm',
     },
     cursor: {
@@ -61,8 +63,8 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
       }
       return {
         workspaceId,
-        ...(params.predicate ? { predicate: params.predicate } : {}),
-        ...(params.sort ? { sort: params.sort } : {}),
+        ...(params.filter ? { filter: params.filter } : {}),
+        ...(params.order ? { order: params.order } : {}),
         ...(params.limit !== undefined ? { limit: params.limit } : {}),
         ...(params.cursor ? { cursor: params.cursor } : {}),
       }

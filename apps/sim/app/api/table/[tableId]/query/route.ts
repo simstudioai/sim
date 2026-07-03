@@ -7,6 +7,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Sort, TableSchema } from '@/lib/table'
+import { parsePostgrestFilter, parsePostgrestOrder } from '@/lib/table/query-builder/postgrest'
 import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
@@ -20,8 +21,8 @@ interface TableQueryV2RouteParams {
 }
 
 /**
- * POST /api/table/[tableId]/query — v2 row query. Structured `all`/`any`
- * predicate grammar + opaque cursor pagination (no offset on the wire). Shares
+ * POST /api/table/[tableId]/query — v2 row query. PostgREST filter/order strings
+ * (parsed server-side) + opaque cursor pagination (no offset on the wire). Shares
  * the same engine as the legacy GET /rows route via `queryRows`.
  */
 export const POST = withRouteHandler(
@@ -50,10 +51,18 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+      const schema = table.schema as TableSchema
+      const wire = rowWireTranslators(authResult.authType, schema)
       const cursor = body.cursor ? decodeCursor(body.cursor) : undefined
 
-      const sortSpec = body.sort ? wire.sortSpecIn(body.sort) : undefined
+      // PostgREST filter/order arrive as strings (column NAMES); parse with the
+      // schema for type coercion, then translate names → storage ids.
+      const predicate = body.filter
+        ? wire.predicateIn(parsePostgrestFilter(body.filter, schema.columns))
+        : undefined
+      const sortSpec = body.order
+        ? wire.sortSpecIn(parsePostgrestOrder(body.order, schema.columns))
+        : undefined
       const sort: Sort | undefined = sortSpec?.length
         ? Object.fromEntries(sortSpec.map((s) => [s.field, s.direction]))
         : undefined
@@ -61,7 +70,7 @@ export const POST = withRouteHandler(
       const result = await queryRows(
         table,
         {
-          predicate: body.predicate ? wire.predicateIn(body.predicate) : undefined,
+          predicate,
           sort,
           limit: body.limit,
           after: cursor?.after,

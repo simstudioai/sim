@@ -13,7 +13,14 @@ import { isZodError, validationErrorResponse } from '@/lib/api/server/validation
 import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Filter, RowData, Sort, TableRowsCursor, TableSchema } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  Filter,
+  RowData,
+  Sort,
+  TableRowsCursor,
+  TableSchema,
+} from '@/lib/table'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -25,12 +32,23 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
+import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { parsePostgrestFilter } from '@/lib/table/query-builder/postgrest'
 import { queryRows } from '@/lib/table/rows/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
+
+/**
+ * Resolves a bulk-op filter to a name-keyed legacy `Filter`. v2 callers send a
+ * PostgREST string (parsed → predicate → legacy Filter via the shared leaf);
+ * v1 callers send the legacy object as-is. Caller then runs `wire.filterIn`.
+ */
+function resolveBulkFilter(raw: string | Filter, columns: ColumnDefinition[]): Filter {
+  return typeof raw === 'string' ? predicateToFilter(parsePostgrestFilter(raw, columns)) : raw
+}
 
 interface TableRowsRouteParams {
   params: Promise<{ tableId: string }>
@@ -352,7 +370,12 @@ export const PUT = withRouteHandler(
       const result = await updateRowsByFilter(
         table,
         {
-          filter: wire.filterIn(validated.filter as Filter),
+          filter: wire.filterIn(
+            resolveBulkFilter(
+              validated.filter as string | Filter,
+              (table.schema as TableSchema).columns
+            )
+          ),
           data: patchData,
           limit: validated.limit,
           actorUserId: authResult.userId,
@@ -457,7 +480,12 @@ export const DELETE = withRouteHandler(
       const result = await deleteRowsByFilter(
         table,
         {
-          filter: wire.filterIn(validated.filter as Filter),
+          filter: wire.filterIn(
+            resolveBulkFilter(
+              validated.filter as string | Filter,
+              (table.schema as TableSchema).columns
+            )
+          ),
           limit: validated.limit,
         },
         requestId

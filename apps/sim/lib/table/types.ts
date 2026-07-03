@@ -426,9 +426,11 @@ export interface Filter {
 /**
  * v2 filter operators (bare, no `$`). Equality and `in`/`nin` are case-sensitive
  * (JSONB containment, GIN-indexed); the text ops `contains`/`ncontains`/
- * `startsWith`/`endsWith` are ILIKE (case-insensitive). `isEmpty`/`isNotEmpty`
- * are valueless. This is the canonical operator set the shared `fieldPredicate`
- * leaf understands; the legacy `$`-operators normalize onto it.
+ * `startsWith`/`endsWith` are ILIKE (case-insensitive); `match`/`imatch` are
+ * POSIX regex (`~` / `~*`). `isEmpty`/`isNotEmpty` match null OR empty string;
+ * `isNull`/`isNotNull` are strict null checks. The four `is*` ops are valueless.
+ * This is the canonical operator set the shared `fieldPredicate` leaf
+ * understands; the legacy `$`-operators normalize onto it.
  */
 export type FilterOp =
   | 'eq'
@@ -443,8 +445,14 @@ export type FilterOp =
   | 'ncontains'
   | 'startsWith'
   | 'endsWith'
+  | 'like'
+  | 'ilike'
+  | 'match'
+  | 'imatch'
   | 'isEmpty'
   | 'isNotEmpty'
+  | 'isNull'
+  | 'isNotNull'
 
 /** A single v2 leaf predicate: `field op value`. `value` is omitted for `isEmpty`/`isNotEmpty`. */
 export interface Predicate {

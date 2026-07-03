@@ -4,6 +4,7 @@
 
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { predicateToPostgrest, sortSpecToPostgrestOrder } from '@/lib/table/query-builder/postgrest'
 import type {
   Filter,
   FilterOp,
@@ -145,7 +146,14 @@ function applyLogicalOperators(groups: FilterRule[][]): FilterRule[] {
 }
 
 const ARRAY_OPERATORS = new Set(['in', 'nin'])
-const TEXT_MATCH_OPERATORS = new Set(['contains', 'ncontains', 'startsWith', 'endsWith'])
+const TEXT_MATCH_OPERATORS = new Set([
+  'contains',
+  'ncontains',
+  'startsWith',
+  'endsWith',
+  'match',
+  'imatch',
+])
 
 function parseValue(value: string, operator: string): JsonValue {
   if (ARRAY_OPERATORS.has(operator)) {
@@ -234,7 +242,7 @@ function normalizeSortDirection(direction: string): SortDirection {
 
 /* ----------------------------- v2 grammar ----------------------------- */
 
-const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty'])
+const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty', 'isNull', 'isNotNull'])
 
 function ruleToPredicate(rule: FilterRule): Predicate {
   const op = rule.operator as FilterOp
@@ -248,7 +256,9 @@ function ruleToPredicate(rule: FilterRule): Predicate {
  * Mirrors {@link filterRulesToFilter} but emits the bare-operator grammar.
  */
 export function filterRulesToPredicate(rules: FilterRule[]): TablePredicate | null {
-  if (rules.length === 0) return null
+  // Tolerate a non-array (the builder value can arrive malformed from an agent
+  // that doesn't speak the rule shape) instead of throwing "rules is not iterable".
+  if (!Array.isArray(rules) || rules.length === 0) return null
 
   const groups: Predicate[][] = []
   let current: Predicate[] = []
@@ -308,9 +318,28 @@ export function sortRulesToSortSpec(rules: SortRule[]): SortSpec | null {
   return spec.length > 0 ? spec : null
 }
 
+/**
+ * Serializes UI filter-builder rules straight to a PostgREST filter querystring,
+ * so the v2 block can offer the visual builder while the wire stays PostgREST.
+ * Returns `null` when the builder is empty.
+ */
+export function filterRulesToPostgrest(rules: FilterRule[]): string | null {
+  const predicate = filterRulesToPredicate(rules)
+  return predicate ? predicateToPostgrest(predicate) : null
+}
+
+/** Serializes UI sort-builder rules to a PostgREST `order` string, or `null`. */
+export function sortRulesToPostgrestOrder(rules: SortRule[]): string | null {
+  const spec = sortRulesToSortSpec(rules)
+  return spec ? sortSpecToPostgrestOrder(spec) : null
+}
+
 function predicateLeafToFilterValue(p: Predicate): Filter[string] {
   if (p.op === 'isEmpty') return { $empty: true }
   if (p.op === 'isNotEmpty') return { $empty: false }
+  // Valueless null checks carry a dummy `true` so the key survives JSON transport.
+  if (p.op === 'isNull') return { $isNull: true } as Filter[string]
+  if (p.op === 'isNotNull') return { $isNotNull: true } as Filter[string]
   if (p.op === 'eq') return p.value as Filter[string]
   return { [`$${p.op}`]: p.value } as Filter[string]
 }

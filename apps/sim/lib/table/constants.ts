@@ -16,6 +16,13 @@ export const TABLE_LIMITS = {
   MAX_DESCRIPTION_LENGTH: 500,
   DEFAULT_QUERY_LIMIT: 100,
   MAX_QUERY_LIMIT: 1000,
+  /**
+   * Byte ceiling for a single v2 query result. The v2 query returns every
+   * matching row by default (no row cap); this guard fails the query fast
+   * instead of streaming an unbounded payload. Measured against the serialized
+   * row data, not the full HTTP envelope.
+   */
+  MAX_QUERY_RESULT_BYTES: 10 * 1024 * 1024, // 10MB
   /** Batch size for bulk update operations */
   UPDATE_BATCH_SIZE: 100,
   /** Batch size for bulk delete operations */

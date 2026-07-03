@@ -53,6 +53,7 @@ import {
   buildSortClause,
   escapeLikePattern,
   fieldPredicate,
+  TableQueryValidationError,
 } from '@/lib/table/sql'
 import { fireTableTrigger } from '@/lib/table/trigger'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
@@ -977,7 +978,9 @@ export async function queryRows(
     filter,
     predicate,
     sort,
-    limit = TABLE_LIMITS.DEFAULT_QUERY_LIMIT,
+    // No default: an undefined limit returns every matching row, bounded only by
+    // the MAX_QUERY_RESULT_BYTES fail-fast guard below.
+    limit,
     offset = 0,
     after,
     includeTotal = true,
@@ -1031,6 +1034,7 @@ export async function queryRows(
       .from(userTableRows)
       .where(pageWhere ?? baseConditions)
       .orderBy(buildRowOrderBySql(sort, tableName, columns, fractionalOrdering))
+    if (limit === undefined) return query
     return after ? query.limit(limit) : query.limit(limit).offset(offset)
   }
 
@@ -1077,10 +1081,23 @@ export async function queryRows(
     updatedAt: r.updatedAt,
   }))
 
-  // Opaque next-page cursor: null once we've returned a short (final) page.
+  // Fail fast if the result outgrows the byte budget instead of returning a
+  // silently truncated page — the caller narrows it with a filter or a limit.
+  let resultBytes = 0
+  for (const row of mappedRows) {
+    resultBytes += Buffer.byteLength(JSON.stringify(row.data))
+    if (resultBytes > TABLE_LIMITS.MAX_QUERY_RESULT_BYTES) {
+      throw new TableQueryValidationError(
+        `Query result exceeds the ${TABLE_LIMITS.MAX_QUERY_RESULT_BYTES / (1024 * 1024)}MB limit. Add a filter or a limit to narrow the result.`
+      )
+    }
+  }
+
+  // Opaque next-page cursor: only meaningful for a bounded page that filled up.
+  // An unbounded query returns everything, so there is never a next page.
   const lastRow = mappedRows[mappedRows.length - 1]
   const nextCursor =
-    mappedRows.length < limit || !lastRow
+    limit === undefined || mappedRows.length < limit || !lastRow
       ? null
       : encodeCursor({ lastRow, sort, nextOffset: offset + mappedRows.length })
 
@@ -1088,7 +1105,7 @@ export async function queryRows(
     rows: mappedRows,
     rowCount: rows.length,
     totalCount,
-    limit,
+    limit: limit ?? mappedRows.length,
     offset,
     nextCursor,
   }
@@ -1366,17 +1383,26 @@ export async function updateRowsByFilter(
     eq(userTableRows.workspaceId, table.workspaceId)
   )
 
+  // A limit selects a SUBSET, so impose the default `(order_key, id)` order —
+  // without it Postgres returns planner-arbitrary rows and "update the first N"
+  // is nondeterministic. Sort is irrelevant (and skipped) when every match is updated.
+  const fractionalOrdering = data.limit
+    ? await isFeatureEnabled('tables-fractional-ordering')
+    : false
+
   // Tenant-bounded: the jsonb filter is unestimatable and otherwise sends the planner to a
   // whole-shared-relation seq scan (14.4s measured on a 1M-row table).
   const matchingRows = await withSeqscanOff(async (trx) => {
-    let query = trx
+    const base = trx
       .select({ id: userTableRows.id, data: userTableRows.data })
       .from(userTableRows)
       .where(and(baseConditions, filterClause))
     if (data.limit) {
-      query = query.limit(data.limit) as typeof query
+      return base
+        .orderBy(buildRowOrderBySql(undefined, tableName, table.schema.columns, fractionalOrdering))
+        .limit(data.limit)
     }
-    return query
+    return base
   })
 
   if (matchingRows.length === 0) {
@@ -1709,16 +1735,24 @@ export async function deleteRowsByFilter(
     eq(userTableRows.workspaceId, table.workspaceId)
   )
 
+  // A limit deletes a SUBSET, so order deterministically by `(order_key, id)` —
+  // see updateRowsByFilter. Unbounded deletes affect every match, so order is moot.
+  const fractionalOrdering = data.limit
+    ? await isFeatureEnabled('tables-fractional-ordering')
+    : false
+
   // Tenant-bounded for the same reason as updateRowsByFilter — see withSeqscanOff.
   const matchingRows = await withSeqscanOff(async (trx) => {
-    let query = trx
+    const base = trx
       .select({ id: userTableRows.id, position: userTableRows.position })
       .from(userTableRows)
       .where(and(baseConditions, filterClause))
     if (data.limit) {
-      query = query.limit(data.limit) as typeof query
+      return base
+        .orderBy(buildRowOrderBySql(undefined, tableName, table.schema.columns, fractionalOrdering))
+        .limit(data.limit)
     }
-    return query
+    return base
   })
 
   if (matchingRows.length === 0) {

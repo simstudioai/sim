@@ -78,7 +78,13 @@ const ALLOWED_OPERATORS = new Set([
   '$ncontains',
   '$startsWith',
   '$endsWith',
+  '$like',
+  '$ilike',
+  '$match',
+  '$imatch',
   '$empty',
+  '$isNull',
+  '$isNotNull',
 ])
 
 /**
@@ -449,10 +455,25 @@ export function fieldPredicate(
     case 'endsWith':
       return buildLikeClause(tableName, field, value as string, 'endsWith')
 
+    case 'like':
+      return buildPatternClause(tableName, field, value as string, false)
+    case 'ilike':
+      return buildPatternClause(tableName, field, value as string, true)
+
     case 'isEmpty':
       return buildEmptyClause(tableName, field, true)
     case 'isNotEmpty':
       return buildEmptyClause(tableName, field, false)
+
+    case 'match':
+      return buildRegexClause(tableName, field, value as string, false)
+    case 'imatch':
+      return buildRegexClause(tableName, field, value as string, true)
+
+    case 'isNull':
+      return buildNullClause(tableName, field, true)
+    case 'isNotNull':
+      return buildNullClause(tableName, field, false)
 
     default:
       throw new TableQueryValidationError(`Invalid operator "${op}"`)
@@ -544,6 +565,28 @@ export function escapeLikePattern(value: string): string {
 }
 
 /**
+ * General LIKE/ILIKE pattern match (PostgREST `like`/`ilike`). The caller's `*`
+ * is the only wildcard — it maps to SQL `%`; any literal `%`/`_`/`\` in the
+ * value is escaped so it matches itself. Empty/exact patterns are allowed (an
+ * empty pattern matches only the empty string, not every row, so it's not the
+ * footgun the positional `buildLikeClause` guards against). Cannot use the GIN
+ * index; sequential scan bounded by the `table_id` btree prefix.
+ */
+function buildPatternClause(
+  tableName: string,
+  field: string,
+  value: string,
+  caseInsensitive: boolean
+): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  const pattern = String(value)
+    .replace(/[\\%_]/g, '\\$&')
+    .replace(/\*/g, '%')
+  const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  return caseInsensitive ? sql`${cell} ILIKE ${pattern}` : sql`${cell} LIKE ${pattern}`
+}
+
+/**
  * Builds a case-insensitive pattern match against a JSONB cell using ILIKE.
  * `position` controls wildcard placement: `contains` → `%value%`, `startsWith`
  * → `value%`, `endsWith` → `%value`. When `negate` is set the match is inverted
@@ -610,6 +653,37 @@ function buildEmptyClause(tableName: string, field: string, isEmpty: boolean): S
   return isEmpty
     ? sql`(${cell} IS NULL OR ${cell} = '')`
     : sql`(${cell} IS NOT NULL AND ${cell} <> '')`
+}
+
+/**
+ * Builds a POSIX regex match against a JSONB cell (`~` case-sensitive, `~*`
+ * case-insensitive). The pattern is parameterized (no interpolation); Postgres
+ * validates it at runtime. Negation surfaces null cells, mirroring `$ne`/
+ * `$ncontains`. Cannot use the GIN index — sequential scan bounded by the
+ * `table_id` btree prefix.
+ */
+function buildRegexClause(
+  tableName: string,
+  field: string,
+  value: string,
+  caseInsensitive: boolean
+): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  const pattern = String(value)
+  return caseInsensitive ? sql`${cell} ~* ${pattern}` : sql`${cell} ~ ${pattern}`
+}
+
+/**
+ * Strict null check on a JSONB cell — distinct from `isEmpty`/`isNotEmpty`,
+ * which also treat the empty string as empty. `isNull` matches an absent key or
+ * JSON null (both surfaced as SQL NULL by `->>`); the negation requires the cell
+ * to be present (an empty string counts as not-null here).
+ */
+function buildNullClause(tableName: string, field: string, isNull: boolean): SQL {
+  const escapedField = field.replace(/'/g, "''")
+  const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
+  return isNull ? sql`${cell} IS NULL` : sql`${cell} IS NOT NULL`
 }
 
 /**

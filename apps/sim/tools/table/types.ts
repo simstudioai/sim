@@ -3,9 +3,7 @@ import type {
   Filter,
   RowData,
   Sort,
-  SortSpec,
   TableDefinition,
-  TablePredicate,
   TableRow,
   TableSchema,
 } from '@/lib/table/types'
@@ -58,11 +56,11 @@ export interface TableRowGetParams {
   _context?: WorkflowToolExecutionContext
 }
 
-/** v2 query params: nestable predicate + opaque cursor (no offset). */
+/** v2 query params: PostgREST filter/order strings + opaque cursor (no offset). */
 export interface TableRowQueryV2Params {
   tableId: string
-  predicate?: TablePredicate
-  sort?: SortSpec
+  filter?: string
+  order?: string
   limit?: number
   cursor?: string
   _context?: WorkflowToolExecutionContext

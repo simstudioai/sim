@@ -690,7 +690,7 @@ describe('userTableServerTool.query_rows', () => {
     })
   })
 
-  it('clamps an over-large query limit to MAX_QUERY_LIMIT instead of rejecting', async () => {
+  it('passes an explicit limit through unchanged (no row cap)', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 100000 } },
       { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -698,7 +698,18 @@ describe('userTableServerTool.query_rows', () => {
 
     expect(result.success).toBe(true)
     const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
-    expect(options.limit).toBe(1000)
+    expect(options.limit).toBe(100000)
+  })
+
+  it('omits the limit so queryRows returns every matching row', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
+    expect(options.limit).toBeUndefined()
   })
 
   it('queries without execution metadata and passes limit/offset through', async () => {
@@ -744,7 +755,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
         operation: 'delete_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          filter: 'name=eq.x',
           limit: 5000,
         },
       },
@@ -769,7 +780,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+        args: { tableId: 'tbl_1', filter: 'name=eq.x' },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -790,7 +801,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
         operation: 'delete_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          filter: 'name=eq.x',
           limit: 100,
         },
       },
@@ -814,7 +825,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+        args: { tableId: 'tbl_1', filter: 'name=eq.x' },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -852,7 +863,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+        args: { tableId: 'tbl_1', filter: 'name=eq.x' },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -869,7 +880,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
         operation: 'delete_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          filter: 'name=eq.x',
           limit: 100,
         },
       },
@@ -904,7 +915,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
         operation: 'update_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          filter: 'name=eq.x',
           data: { age: 1 },
           limit: 5000,
         },
@@ -929,7 +940,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
         operation: 'update_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          filter: 'name=eq.x',
           data: { age: 1 },
         },
       },
@@ -954,7 +965,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
         operation: 'update_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          filter: 'name=eq.x',
           data: { age: 1 },
         },
       },
@@ -994,7 +1005,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
         operation: 'update_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'email', op: 'eq', value: 'x' }] },
+          filter: 'email=eq.x',
           data: { email: 'y' },
         },
       },
@@ -1020,7 +1031,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
         operation: 'update_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          filter: 'name=eq.x',
           data: { age: 1 },
         },
       },
@@ -1038,7 +1049,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
         operation: 'update_rows_by_filter',
         args: {
           tableId: 'tbl_1',
-          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          filter: 'name=eq.x',
           data: { age: 1 },
           limit: 100,
         },

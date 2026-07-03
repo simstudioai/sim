@@ -5,12 +5,10 @@ import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
   Filter,
-  PredicateNode,
   RowData,
   Sort,
   TableDefinition,
   TableMetadata,
-  TablePredicate,
   TableRow,
   TableRowsCursor,
 } from '@/lib/table'
@@ -262,76 +260,29 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
 
 const filterSchema = domainObjectSchema<Filter>()
 
-/* --------------------------- v2 predicate grammar --------------------------- */
+/* --------------------------- v2 PostgREST grammar --------------------------- */
 
-const MAX_PREDICATE_MEMBERS = 100
-const MAX_SORT_FIELDS = 32
-const MAX_FIELD_LENGTH = 128
-
-/** v2 bare-operator set — the legible grammar mothership and clients author. */
-export const filterOpSchema = z.enum([
-  'eq',
-  'ne',
-  'gt',
-  'gte',
-  'lt',
-  'lte',
-  'in',
-  'nin',
-  'contains',
-  'ncontains',
-  'startsWith',
-  'endsWith',
-  'isEmpty',
-  'isNotEmpty',
-])
-
-const predicateValueSchema: z.ZodType<string | number | boolean | null | unknown[]> = z.lazy(() =>
-  z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(predicateValueSchema)])
-)
-
-const predicateLeafSchema = z.object({
-  field: z.string().min(1, 'predicate field is required').max(MAX_FIELD_LENGTH),
-  op: filterOpSchema,
-  value: predicateValueSchema.optional(),
-})
+const MAX_FILTER_LENGTH = 4096
 
 /**
- * Recursive `all`/`any` filter tree. A group is `{ all: [...] }` (AND) or
- * `{ any: [...] }` (OR); members are leaf predicates or nested groups. A single
- * cast pins the output to the canonical `TablePredicate` (zod's structural output
- * is assignable but invariant under `z.ZodType`).
+ * v2 filter wire format: a PostgREST querystring fragment (e.g.
+ * `wins=gte.10&status=in.(active,pending)`), parsed + validated server-side by
+ * `parsePostgrestFilter`. The boundary only bounds length; the parser is the
+ * semantic validator.
  */
-export const tablePredicateSchema = z.lazy(() =>
-  z.union([
-    z.object({
-      all: z
-        .array(predicateNodeSchema)
-        .min(1, 'all group cannot be empty')
-        .max(MAX_PREDICATE_MEMBERS),
-    }),
-    z.object({
-      any: z
-        .array(predicateNodeSchema)
-        .min(1, 'any group cannot be empty')
-        .max(MAX_PREDICATE_MEMBERS),
-    }),
-  ])
-) as z.ZodType<TablePredicate>
+const postgrestFilterSchema = z
+  .string()
+  .min(1, 'filter must be a non-empty PostgREST querystring')
+  .max(MAX_FILTER_LENGTH, `filter cannot exceed ${MAX_FILTER_LENGTH} characters`)
 
-const predicateNodeSchema = z.lazy(() =>
-  z.union([predicateLeafSchema, tablePredicateSchema])
-) as z.ZodType<PredicateNode>
+/** v2 order wire format: PostgREST `order` (e.g. `wins.desc,name.asc`). */
+const postgrestOrderSchema = z.string().min(1).max(512)
 
-/** v2 sort: an ordered list of `{ field, direction }`. */
-export const sortSpecSchema = z
-  .array(
-    z.object({
-      field: z.string().min(1, 'sort field is required').max(MAX_FIELD_LENGTH),
-      direction: z.enum(['asc', 'desc']),
-    })
-  )
-  .max(MAX_SORT_FIELDS)
+/**
+ * Bulk update/delete filter accepts either the v2 PostgREST string (v2 block /
+ * agent) or the legacy `$`-operator object (v1 callers / stored workflows).
+ */
+const bulkFilterSchema = z.union([postgrestFilterSchema, nonEmptyFilterSchema])
 
 const optionalPositiveLimit = (max: number, label: string) =>
   z.preprocess(
@@ -351,7 +302,7 @@ export const deleteTableRowBodySchema = z.object({
 export const deleteTableRowsBodySchema = z
   .object({
     workspaceId: z.string().min(1, 'Workspace ID is required'),
-    filter: nonEmptyFilterSchema.optional(),
+    filter: bulkFilterSchema.optional(),
     limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
     rowIds: z
       .array(z.string().min(1))
@@ -416,7 +367,7 @@ export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
 
 export const updateRowsByFilterBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  filter: nonEmptyFilterSchema,
+  filter: bulkFilterSchema,
   data: rowDataSchema,
   limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
 })
@@ -606,24 +557,23 @@ export const listTableRowsContract = defineRouteContract({
 /**
  * v2 query surface: structured predicate grammar + opaque cursor pagination.
  * No `offset` (the cursor encodes paging state) and no after/sort refine (the
- * cursor carries the sort context). POST because the predicate is a JSON tree.
+ * cursor carries the sort context). `filter`/`order` are PostgREST strings,
+ * parsed server-side. POST so the (potentially long) filter rides the body.
  */
 export const queryTableRowsV2BodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  predicate: tablePredicateSchema.optional(),
-  sort: sortSpecSchema.optional(),
-  limit: z
-    .preprocess(
-      (value) =>
-        value === null || value === undefined || value === '' ? undefined : Number(value),
-      z
-        .number({ error: 'Limit must be a number' })
-        .int('Limit must be an integer')
-        .min(1, 'Limit must be at least 1')
-        .max(TABLE_LIMITS.MAX_QUERY_LIMIT, `Limit cannot exceed ${TABLE_LIMITS.MAX_QUERY_LIMIT}`)
-        .optional()
-    )
-    .default(TABLE_LIMITS.DEFAULT_QUERY_LIMIT),
+  filter: postgrestFilterSchema.optional(),
+  order: postgrestOrderSchema.optional(),
+  // Omitted limit returns every matching row (bounded by the server's byte
+  // guard, not a row cap). An explicit limit is honored as-is for paging.
+  limit: z.preprocess(
+    (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
+    z
+      .number({ error: 'Limit must be a number' })
+      .int('Limit must be an integer')
+      .min(1, 'Limit must be at least 1')
+      .optional()
+  ),
   cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
 })
 

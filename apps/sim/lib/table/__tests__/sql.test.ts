@@ -518,13 +518,41 @@ describe('fieldPredicate (shared leaf)', () => {
     expect(render(fieldPredicate(TABLE, 'name', 'startsWith', 'jo', undefined))).toContain('ILIKE')
   })
 
-  it('isEmpty / isNotEmpty emit emptiness checks', () => {
-    expect(render(fieldPredicate(TABLE, 'name', 'isEmpty', undefined, undefined))).toContain(
-      'IS NULL'
-    )
-    expect(render(fieldPredicate(TABLE, 'name', 'isNotEmpty', undefined, undefined))).toContain(
+  it('isEmpty / isNotEmpty emit emptiness checks (null OR empty string)', () => {
+    const empty = render(fieldPredicate(TABLE, 'name', 'isEmpty', undefined, undefined))
+    expect(empty).toContain('IS NULL')
+    expect(empty).toContain("= ''")
+    const notEmpty = render(fieldPredicate(TABLE, 'name', 'isNotEmpty', undefined, undefined))
+    expect(notEmpty).toContain('IS NOT NULL')
+  })
+
+  it('isNull / isNotNull are strict null checks (no empty-string clause)', () => {
+    const isNull = render(fieldPredicate(TABLE, 'name', 'isNull', undefined, undefined))
+    expect(isNull).toContain('IS NULL')
+    expect(isNull).not.toContain("= ''")
+    expect(render(fieldPredicate(TABLE, 'name', 'isNotNull', undefined, undefined))).toContain(
       'IS NOT NULL'
     )
+  })
+
+  it('like / ilike map * to % and escape literal % / _', () => {
+    const like = render(fieldPredicate(TABLE, 'name', 'like', 'jo*n', undefined))
+    expect(like).toContain("data->>'name'")
+    expect(like).toContain('LIKE')
+    expect(like).not.toContain('ILIKE')
+    expect(like).toContain('jo%n')
+    expect(render(fieldPredicate(TABLE, 'name', 'ilike', '*foo*', undefined))).toContain('ILIKE')
+    // literal % is escaped to match itself, not act as a wildcard
+    expect(render(fieldPredicate(TABLE, 'name', 'like', '50%*', undefined))).toContain('50\\%%')
+  })
+
+  it('match / imatch emit POSIX regex (~ / ~*)', () => {
+    const m = render(fieldPredicate(TABLE, 'name', 'match', '^jo.*n$', undefined))
+    expect(m).toContain("data->>'name'")
+    expect(m).toContain('~')
+    expect(m).not.toContain('~*')
+    expect(m).toContain('^jo.*n$')
+    expect(render(fieldPredicate(TABLE, 'name', 'imatch', 'foo', undefined))).toContain('~*')
   })
 
   it('validates the field name', () => {
