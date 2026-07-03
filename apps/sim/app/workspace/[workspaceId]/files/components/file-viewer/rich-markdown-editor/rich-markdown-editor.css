@@ -110,13 +110,6 @@
   text-decoration: line-through;
 }
 
-/* Selecting struck-through text reads in the primary color like any other highlighted text, so the
-   selection looks uniform (it returns to the muted strike color when deselected). */
-.rich-markdown-prose del::selection,
-.rich-markdown-prose s::selection {
-  color: var(--text-primary);
-}
-
 .rich-markdown-prose a {
   color: var(--brand-secondary);
   cursor: pointer;
@@ -124,14 +117,6 @@
 
 .rich-markdown-prose a:hover {
   text-decoration: underline;
-}
-
-/* When a link is selected, drop its blue so it reads like any other highlighted text — the standard
-   MD-editor convention (Linear, Slack) where the selection takes precedence over the link color.
-   Only the selected state is affected; an unselected link stays blue. */
-.rich-markdown-prose a::selection,
-.rich-markdown-prose a ::selection {
-  color: var(--text-primary);
 }
 
 /* Render the gap cursor (e.g. above a leading divider) as a normal vertical caret rather
