@@ -118,7 +118,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   const faqs: ComparisonFaq[] = [
     {
       question: `Is Sim a good alternative to ${name}?`,
-      answer: `Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. ${name} is ${lowercaseFirst(competitor.oneLiner)} Teams considering a switch typically weigh licensing (Sim is Apache 2.0 and self-hostable), pricing model, and how AI-native the platform's agent-building experience is.`,
+      answer: `Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. ${ensurePeriod(competitor.oneLiner)} Teams considering a switch typically weigh licensing (Sim is Apache 2.0 and self-hostable), pricing model, and how AI-native the platform's agent-building experience is.`,
     },
     {
       question: `What is the main difference between Sim and ${name}?`,
