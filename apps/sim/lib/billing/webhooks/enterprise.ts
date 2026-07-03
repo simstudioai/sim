@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
+import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -162,27 +163,35 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
     })
   }
 
-  recordAudit({
-    actorId,
-    action: AuditAction.ENTERPRISE_SUBSCRIPTION_PROVISIONED,
-    resourceType: AuditResourceType.SUBSCRIPTION,
-    resourceId: subscriptionRow.id,
-    description: `Enterprise subscription provisioned for organization ${referenceId} (${seats} seats)`,
-    metadata: {
-      organizationId: referenceId,
-      stripeCustomerId,
-      stripeSubscriptionId: stripeSubscription.id,
-      seats,
-      monthlyPrice,
-      currency: 'usd',
-    },
-  })
-  captureServerEvent(actorId, 'enterprise_subscription_created', {
-    reference_id: referenceId,
-    seats,
-    monthly_price: monthlyPrice,
-    currency: 'usd',
-  })
+  // Dedupe against Stripe redelivery — the upsert above is idempotent, but
+  // recordAudit/captureServerEvent are pure appends and would double-record.
+  await stripeWebhookIdempotency.executeWithIdempotency(
+    'enterprise-subscription-provisioned',
+    event.id,
+    async () => {
+      recordAudit({
+        actorId,
+        action: AuditAction.ENTERPRISE_SUBSCRIPTION_PROVISIONED,
+        resourceType: AuditResourceType.SUBSCRIPTION,
+        resourceId: subscriptionRow.id,
+        description: `Enterprise subscription provisioned for organization ${referenceId} (${seats} seats)`,
+        metadata: {
+          organizationId: referenceId,
+          stripeCustomerId,
+          stripeSubscriptionId: stripeSubscription.id,
+          seats,
+          monthlyPrice,
+          currency: 'usd',
+        },
+      })
+      captureServerEvent(actorId, 'enterprise_subscription_created', {
+        reference_id: referenceId,
+        seats,
+        monthly_price: monthlyPrice,
+        currency: 'usd',
+      })
+    }
+  )
 
   try {
     const userDetails = await db

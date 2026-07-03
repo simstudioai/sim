@@ -222,79 +222,90 @@ export async function handleOrganizationPlanDowngrade(
 /**
  * Handle new subscription creation - reset usage if transitioning from free to paid
  */
-export async function handleSubscriptionCreated(subscriptionData: {
-  id: string
-  referenceId: string
-  plan: string | null
-  status: string
-  periodStart?: Date | null
-  periodEnd?: Date | null
-}) {
+export async function handleSubscriptionCreated(
+  subscriptionData: {
+    id: string
+    referenceId: string
+    plan: string | null
+    status: string
+    periodStart?: Date | null
+    periodEnd?: Date | null
+  },
+  stripeEventId?: string
+) {
+  const idempotencyIdentifier = stripeEventId ?? `sub-created:${subscriptionData.id}`
+
   try {
-    const otherActiveSubscriptions = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, subscriptionData.referenceId),
-          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
-          ne(subscription.id, subscriptionData.id) // Exclude current subscription
-        )
-      )
+    await stripeWebhookIdempotency.executeWithIdempotency(
+      'subscription-created',
+      idempotencyIdentifier,
+      async () => {
+        const otherActiveSubscriptions = await db
+          .select()
+          .from(subscription)
+          .where(
+            and(
+              eq(subscription.referenceId, subscriptionData.referenceId),
+              inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
+              ne(subscription.id, subscriptionData.id) // Exclude current subscription
+            )
+          )
 
-    const wasFreePreviously = otherActiveSubscriptions.length === 0
-    const isPaidPlan = isPaid(subscriptionData.plan)
+        const wasFreePreviously = otherActiveSubscriptions.length === 0
+        const isPaidPlan = isPaid(subscriptionData.plan)
 
-    if (wasFreePreviously && isPaidPlan) {
-      logger.info('Detected free -> paid transition, resetting usage', {
-        subscriptionId: subscriptionData.id,
-        referenceId: subscriptionData.referenceId,
-        plan: subscriptionData.plan,
-      })
+        if (wasFreePreviously && isPaidPlan) {
+          logger.info('Detected free -> paid transition, resetting usage', {
+            subscriptionId: subscriptionData.id,
+            referenceId: subscriptionData.referenceId,
+            plan: subscriptionData.plan,
+          })
 
-      await resetUsageForSubscription({
-        plan: subscriptionData.plan,
-        referenceId: subscriptionData.referenceId,
-        periodStart: subscriptionData.periodStart ?? null,
-        periodEnd: subscriptionData.periodEnd ?? null,
-      })
+          await resetUsageForSubscription({
+            plan: subscriptionData.plan,
+            referenceId: subscriptionData.referenceId,
+            periodStart: subscriptionData.periodStart ?? null,
+            periodEnd: subscriptionData.periodEnd ?? null,
+          })
 
-      logger.info('Successfully reset usage for free -> paid transition', {
-        subscriptionId: subscriptionData.id,
-        referenceId: subscriptionData.referenceId,
-        plan: subscriptionData.plan,
-      })
-    } else {
-      logger.info('No usage reset needed', {
-        subscriptionId: subscriptionData.id,
-        referenceId: subscriptionData.referenceId,
-        plan: subscriptionData.plan,
-        wasFreePreviously,
-        isPaidPlan,
-        otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
-      })
-    }
+          logger.info('Successfully reset usage for free -> paid transition', {
+            subscriptionId: subscriptionData.id,
+            referenceId: subscriptionData.referenceId,
+            plan: subscriptionData.plan,
+          })
+        } else {
+          logger.info('No usage reset needed', {
+            subscriptionId: subscriptionData.id,
+            referenceId: subscriptionData.referenceId,
+            plan: subscriptionData.plan,
+            wasFreePreviously,
+            isPaidPlan,
+            otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
+          })
+        }
 
-    if (wasFreePreviously && isPaidPlan) {
-      const actorId = await resolveSubscriptionActorId(subscriptionData.referenceId)
-      recordAudit({
-        actorId,
-        action: AuditAction.SUBSCRIPTION_CREATED,
-        resourceType: AuditResourceType.SUBSCRIPTION,
-        resourceId: subscriptionData.id,
-        description: `Subscription created on ${subscriptionData.plan ?? 'unknown'} plan for ${subscriptionData.referenceId}`,
-        metadata: {
-          plan: subscriptionData.plan,
-          status: subscriptionData.status,
-          referenceId: subscriptionData.referenceId,
-        },
-      })
-      captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
-        plan: subscriptionData.plan ?? 'unknown',
-        status: subscriptionData.status,
-        reference_id: subscriptionData.referenceId,
-      })
-    }
+        if (wasFreePreviously && isPaidPlan) {
+          const actorId = await resolveSubscriptionActorId(subscriptionData.referenceId)
+          recordAudit({
+            actorId,
+            action: AuditAction.SUBSCRIPTION_CREATED,
+            resourceType: AuditResourceType.SUBSCRIPTION,
+            resourceId: subscriptionData.id,
+            description: `Subscription created on ${subscriptionData.plan ?? 'unknown'} plan for ${subscriptionData.referenceId}`,
+            metadata: {
+              plan: subscriptionData.plan,
+              status: subscriptionData.status,
+              referenceId: subscriptionData.referenceId,
+            },
+          })
+          captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
+            plan: subscriptionData.plan ?? 'unknown',
+            status: subscriptionData.status,
+            reference_id: subscriptionData.referenceId,
+          })
+        }
+      }
+    )
   } catch (error) {
     logger.error('Failed to handle subscription creation usage reset', {
       subscriptionId: subscriptionData.id,

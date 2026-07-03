@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('DisputeWebhooks')
@@ -78,62 +79,68 @@ function recordDisputeInstrumentation(
 export async function handleChargeDispute(event: Stripe.Event): Promise<void> {
   const dispute = event.data.object as Stripe.Dispute
 
-  const customerId = await getCustomerIdFromDispute(dispute)
-  if (!customerId) {
-    logger.warn('No customer ID found in dispute', { disputeId: dispute.id })
-    return
-  }
+  await stripeWebhookIdempotency.executeWithIdempotency(
+    'charge-dispute-opened',
+    event.id,
+    async () => {
+      const customerId = await getCustomerIdFromDispute(dispute)
+      if (!customerId) {
+        logger.warn('No customer ID found in dispute', { disputeId: dispute.id })
+        return
+      }
 
-  // Find user by stripeCustomerId (Pro plans)
-  const users = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.stripeCustomerId, customerId))
-    .limit(1)
+      // Find user by stripeCustomerId (Pro plans)
+      const users = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.stripeCustomerId, customerId))
+        .limit(1)
 
-  if (users.length > 0) {
-    await db
-      .update(userStats)
-      .set({ billingBlocked: true, billingBlockedReason: 'dispute' })
-      .where(eq(userStats.userId, users[0].id))
+      if (users.length > 0) {
+        await db
+          .update(userStats)
+          .set({ billingBlocked: true, billingBlockedReason: 'dispute' })
+          .where(eq(userStats.userId, users[0].id))
 
-    logger.warn('Blocked user due to dispute', {
-      disputeId: dispute.id,
-      userId: users[0].id,
-    })
+        logger.warn('Blocked user due to dispute', {
+          disputeId: dispute.id,
+          userId: users[0].id,
+        })
 
-    recordDisputeInstrumentation('opened', dispute, customerId, users[0].id, {
-      type: 'user',
-      id: users[0].id,
-    })
-    return
-  }
+        recordDisputeInstrumentation('opened', dispute, customerId, users[0].id, {
+          type: 'user',
+          id: users[0].id,
+        })
+        return
+      }
 
-  // Find subscription by stripeCustomerId (Team/Enterprise)
-  const subs = await db
-    .select({ referenceId: subscription.referenceId })
-    .from(subscription)
-    .where(eq(subscription.stripeCustomerId, customerId))
-    .limit(1)
+      // Find subscription by stripeCustomerId (Team/Enterprise)
+      const subs = await db
+        .select({ referenceId: subscription.referenceId })
+        .from(subscription)
+        .where(eq(subscription.stripeCustomerId, customerId))
+        .limit(1)
 
-  if (subs.length > 0) {
-    const orgId = subs[0].referenceId
-    const memberCount = await blockOrgMembers(orgId, 'dispute')
+      if (subs.length > 0) {
+        const orgId = subs[0].referenceId
+        const memberCount = await blockOrgMembers(orgId, 'dispute')
 
-    if (memberCount > 0) {
-      logger.warn('Blocked all org members due to dispute', {
-        disputeId: dispute.id,
-        organizationId: orgId,
-        memberCount,
-      })
+        if (memberCount > 0) {
+          logger.warn('Blocked all org members due to dispute', {
+            disputeId: dispute.id,
+            organizationId: orgId,
+            memberCount,
+          })
+        }
+
+        const actorId = (await getOrganizationOwnerId(orgId)) ?? orgId
+        recordDisputeInstrumentation('opened', dispute, customerId, actorId, {
+          type: 'organization',
+          id: orgId,
+        })
+      }
     }
-
-    const actorId = (await getOrganizationOwnerId(orgId)) ?? orgId
-    recordDisputeInstrumentation('opened', dispute, customerId, actorId, {
-      type: 'organization',
-      id: orgId,
-    })
-  }
+  )
 }
 
 /**
@@ -147,66 +154,72 @@ export async function handleChargeDispute(event: Stripe.Event): Promise<void> {
 export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
   const dispute = event.data.object as Stripe.Dispute
 
-  const customerId = await getCustomerIdFromDispute(dispute)
-  if (!customerId) {
-    return
-  }
+  await stripeWebhookIdempotency.executeWithIdempotency(
+    'charge-dispute-closed',
+    event.id,
+    async () => {
+      const customerId = await getCustomerIdFromDispute(dispute)
+      if (!customerId) {
+        return
+      }
 
-  // Unblock only on won/warning_closed; a 'lost' dispute stays blocked. The close
-  // is audited in every case (dispute.status in metadata distinguishes the outcome).
-  const shouldUnblock = dispute.status === 'won' || dispute.status === 'warning_closed'
+      // Unblock only on won/warning_closed; a 'lost' dispute stays blocked. The close
+      // is audited in every case (dispute.status in metadata distinguishes the outcome).
+      const shouldUnblock = dispute.status === 'won' || dispute.status === 'warning_closed'
 
-  const users = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.stripeCustomerId, customerId))
-    .limit(1)
+      const users = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.stripeCustomerId, customerId))
+        .limit(1)
 
-  if (users.length > 0) {
-    if (shouldUnblock) {
-      await db
-        .update(userStats)
-        .set({ billingBlocked: false, billingBlockedReason: null })
-        .where(
-          and(eq(userStats.userId, users[0].id), eq(userStats.billingBlockedReason, 'dispute'))
-        )
+      if (users.length > 0) {
+        if (shouldUnblock) {
+          await db
+            .update(userStats)
+            .set({ billingBlocked: false, billingBlockedReason: null })
+            .where(
+              and(eq(userStats.userId, users[0].id), eq(userStats.billingBlockedReason, 'dispute'))
+            )
+        }
+        logger.info('Dispute closed for user', {
+          disputeId: dispute.id,
+          userId: users[0].id,
+          status: dispute.status,
+          unblocked: shouldUnblock,
+        })
+
+        recordDisputeInstrumentation('closed', dispute, customerId, users[0].id, {
+          type: 'user',
+          id: users[0].id,
+        })
+        return
+      }
+
+      const subs = await db
+        .select({ referenceId: subscription.referenceId })
+        .from(subscription)
+        .where(eq(subscription.stripeCustomerId, customerId))
+        .limit(1)
+
+      if (subs.length > 0) {
+        const orgId = subs[0].referenceId
+        if (shouldUnblock) {
+          await unblockOrgMembers(orgId, 'dispute')
+        }
+        logger.info('Dispute closed for organization', {
+          disputeId: dispute.id,
+          organizationId: orgId,
+          status: dispute.status,
+          unblocked: shouldUnblock,
+        })
+
+        const actorId = (await getOrganizationOwnerId(orgId)) ?? orgId
+        recordDisputeInstrumentation('closed', dispute, customerId, actorId, {
+          type: 'organization',
+          id: orgId,
+        })
+      }
     }
-    logger.info('Dispute closed for user', {
-      disputeId: dispute.id,
-      userId: users[0].id,
-      status: dispute.status,
-      unblocked: shouldUnblock,
-    })
-
-    recordDisputeInstrumentation('closed', dispute, customerId, users[0].id, {
-      type: 'user',
-      id: users[0].id,
-    })
-    return
-  }
-
-  const subs = await db
-    .select({ referenceId: subscription.referenceId })
-    .from(subscription)
-    .where(eq(subscription.stripeCustomerId, customerId))
-    .limit(1)
-
-  if (subs.length > 0) {
-    const orgId = subs[0].referenceId
-    if (shouldUnblock) {
-      await unblockOrgMembers(orgId, 'dispute')
-    }
-    logger.info('Dispute closed for organization', {
-      disputeId: dispute.id,
-      organizationId: orgId,
-      status: dispute.status,
-      unblocked: shouldUnblock,
-    })
-
-    const actorId = (await getOrganizationOwnerId(orgId)) ?? orgId
-    recordDisputeInstrumentation('closed', dispute, customerId, actorId, {
-      type: 'organization',
-      id: orgId,
-    })
-  }
+  )
 }
