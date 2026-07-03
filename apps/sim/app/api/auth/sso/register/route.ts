@@ -38,6 +38,8 @@ type DiscoveryResult =
   | { ok: true; discovery: Record<string, unknown> }
   | { ok: false; error: string }
 
+const OIDC_DISCOVERY_TIMEOUT_MS = 10000
+
 async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<DiscoveryResult> {
   const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
   if (!urlValidation.isValid || !urlValidation.resolvedIP) {
@@ -47,6 +49,7 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
   try {
     const response = await secureFetchWithPinnedIP(discoveryUrl, urlValidation.resolvedIP, {
       headers: { Accept: 'application/json' },
+      timeout: OIDC_DISCOVERY_TIMEOUT_MS,
     })
     if (!response.ok) {
       return { ok: false, error: `Discovery request failed with status ${response.status}` }
