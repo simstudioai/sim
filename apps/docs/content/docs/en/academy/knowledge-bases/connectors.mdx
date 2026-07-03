@@ -1,24 +1,25 @@
 ---
 title: Connectors
-description: A connector keeps a knowledge base in sync with the tool where your documents actually live — first import, steady re-sync, changes and removals included.
+description: A connector keeps a knowledge base in sync with the tool where your documents actually live, first import, steady re-sync, changes and removals included.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 
 <VideoPlaceholder eyebrow="Knowledge Bases" title="Connectors" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/kb-connectors.mp4" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-You can upload documents to a knowledge base by hand — but your documents usually live somewhere that keeps changing. A connector links the knowledge base to that source, imports everything in scope, and then keeps it current on a schedule.
+You can upload documents to a knowledge base by hand, but your documents usually live somewhere that keeps changing. A connector links the knowledge base to that source, imports everything in scope, and then keeps it current on a schedule.
 
 <WhatYouWillLearn
   items={[
     {
       title: 'Connect once',
-      body: 'Pick the source, authorize the account, choose the scope — which pages or folders — and how often to sync.',
+      body: 'Pick the source, authorize the account, choose the scope, which pages or folders, and how often to sync.',
     },
     {
       title: 'The first import',
@@ -30,7 +31,7 @@ You can upload documents to a knowledge base by hand — but your documents usua
     },
     {
       title: 'Answers reflect the source',
-      body: 'Agents searching the knowledge base read the synced content — so an answer reflects the document as it is now, not as it was at import.',
+      body: 'Agents searching the knowledge base read the synced content: so an answer reflects the document as it is now, not as it was at import.',
     },
   ]}
 />
@@ -55,11 +56,18 @@ You can upload documents to a knowledge base by hand — but your documents usua
 
 ## The lifecycle
 
-The video follows one connector through its whole life: picking Notion as the source, authorizing the account, scoping which pages sync, and choosing the frequency. The first import brings everything in scope into the knowledge base as chunks. From then on the connector re-syncs on schedule — a page edited at the source is re-imported, and a page deleted at the source leaves the knowledge base.
+The video follows one connector through its whole life: picking Notion as the source, authorizing the account, scoping which pages sync, and choosing the frequency. The first import brings everything in scope into the knowledge base as chunks. From then on the connector re-syncs on schedule: a page edited at the source is re-imported, and a page deleted at the source leaves the knowledge base.
 
 ## Why it matters
 
-Knowledge that drifts out of date is worse than no knowledge — an agent will confidently answer from a stale document. A connector makes the knowledge base track the source, so the answers your agents give reflect what your documents say now.
+Knowledge that drifts out of date is worse than no knowledge: an agent will confidently answer from a stale document. A connector makes the knowledge base track the source, so the answers your agents give reflect what your documents say now.
+
+<FAQ items={[
+  { question: "Which sources can a knowledge base connect to?", answer: "Tools where documents live, such as Notion. A connector authorizes the account, scopes which pages or folders sync, and imports everything in scope." },
+  { question: "How often does a connector sync?", answer: "On the schedule you choose when you set it up. Each sync re-imports changed documents and removes documents deleted at the source." },
+  { question: "What happens to a document that changes at the source?", answer: "The next sync re-imports it and re-processes it into chunks, so agents searching the knowledge base read the current version, not the version from the first import." },
+  { question: "Can I mix connected and uploaded documents?", answer: "Yes. A knowledge base can hold hand-uploaded documents alongside connector-synced ones, and search treats them the same." },
+]} />
 
 ## Related documentation
 

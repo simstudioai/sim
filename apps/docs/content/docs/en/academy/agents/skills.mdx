@@ -1,11 +1,12 @@
 ---
 title: Skills
-description: A skill is a written method the agent reads when it decides it's relevant — turning a vague guess into a sourced, repeatable procedure without crowding the prompt.
+description: A skill is a written method the agent reads when it decides it's relevant, turning a vague guess into a sourced, repeatable procedure without crowding the prompt.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview } from '@/components/workflow-preview'
 import { AV_SKILLS_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
@@ -14,17 +15,17 @@ import { AV_SKILLS_WORKFLOW } from '@/components/workflow-preview/academy-video-
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-An agent with tools but no guidance does the minimum: one quick search, then a hedged guess. A **skill** fixes that — a written method the agent can read, like a manual you look up when the situation calls for it. Attach one, and the same run follows the procedure: every claim sourced, every gap flagged.
+An agent with tools but no guidance does the minimum: one quick search, then a hedged guess. A **skill** fixes that: a written method the agent can read, like a manual you look up when the situation calls for it. Attach one, and the same run follows the procedure: every claim sourced, every gap flagged.
 
 <WhatYouWillLearn
   items={[
     {
       title: 'A skill is a written method',
-      body: 'Markdown with a name, a description of when it applies, and the steps — a repeatable procedure, not a saved prompt.',
+      body: 'Markdown with a name, a description of when it applies, and the steps: a repeatable procedure, not a saved prompt.',
     },
     {
       title: 'Loaded on demand, mid-run',
-      body: "Only the skill's name and description sit in the agent's context. The full method loads like a tool call, exactly when the agent decides it's relevant — no context crowding.",
+      body: "Only the skill's name and description sit in the agent's context. The full method loads like a tool call, exactly when the agent decides it's relevant, no context crowding.",
     },
     {
       title: 'The effect on behavior',
@@ -32,7 +33,7 @@ An agent with tools but no guidance does the minimum: one quick search, then a h
     },
     {
       title: 'Every integration ships skills',
-      body: 'You don\'t have to write them — integrations come with ready, battle-tested skills, and you can add your own to share across the workspace.',
+      body: 'You don\'t have to write them, integrations come with ready, battle-tested skills, and you can add your own to share across the workspace.',
     },
   ]}
 />
@@ -60,15 +61,22 @@ Here is the agent from the video with the skill attached:
 
 ## The same run, with and without the skill
 
-The video runs the same lead-qualification task twice. Without a skill, the agent searches once and guesses — "probably Series B, maybe a hundred people." With Exa's `answer-with-citations` skill attached, it loads the method mid-run, turns each claim into a specific factual question, pulls a sourced answer for every one, and returns a verdict where each figure carries its citation.
+The video runs the same lead-qualification task twice. Without a skill, the agent searches once and guesses: "probably Series B, maybe a hundred people." With Exa's `answer-with-citations` skill attached, it loads the method mid-run, turns each claim into a specific factual question, pulls a sourced answer for every one, and returns a verdict where each figure carries its citation.
 
 ## Why not just a longer prompt?
 
-Skills keep procedure out of the prompt. Only the name and one-line description stay in view; the full method loads only when the agent judges it relevant — so you can attach many skills without bloating context, and the agent picks the right manual for the moment.
+Skills keep procedure out of the prompt. Only the name and one-line description stay in view; the full method loads only when the agent judges it relevant: so you can attach many skills without bloating context, and the agent picks the right manual for the moment.
 
 ## Ready to use
 
 Adding a skill is the same motion as adding a tool: pick it in the block's Skills section and it shows on the block. Integrations ship curated skills out of the box, and skills you write are shared across your workspace.
+
+<FAQ items={[
+  { question: "How is a skill different from a system prompt?", answer: "A system prompt is always in the model's context. A skill keeps only its name and one-line description in view, and the full method loads on demand when the agent judges it relevant, so you can attach many without crowding the context window." },
+  { question: "How is a skill different from a tool?", answer: "A tool is something the agent can do, like run a search. A skill is written knowledge about how to do something well, like a research procedure. Agents typically use them together: the skill directs how the tools get used." },
+  { question: "Do I have to write skills myself?", answer: "No. Sim integrations ship with curated skills out of the box. Skills you write yourself are shared across your workspace, so a method one agent learned to use is available to all of them." },
+  { question: "What format is a skill?", answer: "Markdown: a name, a description of when it applies, and the steps of the method. If you can write a runbook, you can write a skill." },
+]} />
 
 ## Related documentation
 

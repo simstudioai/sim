@@ -1,11 +1,12 @@
 ---
 title: Workflows
-description: A workflow is a visual program made of blocks — where you compose data, operations, integrations, and AI agents into a process.
+description: A workflow is a visual program made of blocks: where you compose data, operations, integrations, and AI agents into a process.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, CLASSIFY_REPLY_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Workflows" title="Workflows" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-intro.mp4" className="mt-2" />
@@ -13,7 +14,7 @@ import { WorkflowPreview, CLASSIFY_REPLY_WORKFLOW } from '@/components/workflow-
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-A **workflow** is a visual program made of blocks. It's where you compose everything else in Sim — data, operations, integrations, and AI agents — into a process, and bind it to a trigger so it runs.
+A **workflow** is a visual program made of blocks. It's where you compose everything else in Sim, data, operations, integrations, and AI agents, into a process, and bind it to a trigger so it runs.
 
 <WhatYouWillLearn
   items={[
@@ -53,28 +54,35 @@ A **workflow** is a visual program made of blocks. It's where you compose everyt
 
 ## The pieces
 
-- A workflow is a **visual program** — you build it by placing and wiring blocks, not by writing a script.
-- It's made of **blocks**, each one a step. Some blocks are **triggers** — they decide what starts the run and what it receives.
+- A workflow is a **visual program**, you build it by placing and wiring blocks, not by writing a script.
+- It's made of **blocks**, each one a step. Some blocks are **triggers**: they decide what starts the run and what it receives.
 - **Connections** link blocks together. They set the order: a block runs after the blocks wired into it finish.
 - Blocks have **parameters** that configure how they work. A Fetch Webpage block takes a URL; an Agent block takes a model and a prompt.
 - When a workflow runs, Sim records what each block produced. Any later block can read an earlier block's output through a **connection tag**, like `<fetch.content>`.
-- Everything that happened is saved in the **logs** — the trigger, every block, and each block's input and output — so you can see exactly where a value came from.
+- Everything that happened is saved in the **logs**, the trigger, every block, and each block's input and output, so you can see exactly where a value came from.
 
-Here's a small workflow you can read top to bottom — blocks wired in order, each one a step. The highlighted block reads an earlier block's output through a connection tag:
+Here's a small workflow you can read top to bottom, blocks wired in order, each one a step. The highlighted block reads an earlier block's output through a connection tag:
 
 <WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} highlightBlock="reply" />
 
 ## How execution flows
 
-A block waits only for the blocks it depends on — nothing else.
+A block waits only for the blocks it depends on, nothing else.
 
 So if `A` feeds both `B` and `C`, then `B` and `C` start at the same moment `A` finishes; they don't wait for each other. And if `B` and `C` both feed `D`, then `D` waits for both before it runs. The shape of the connections *is* the execution plan.
 
 ## Branches, loops, and parallel
 
-From those primitives you get expressive control flow: **branch** down one path or another with a Condition or Router, **loop** over a list, run work in **parallel** across many items. These are the expressive core of what you'll build — and they're all just blocks and connections.
+From those primitives you get expressive control flow: **branch** down one path or another with a Condition or Router, **loop** over a list, run work in **parallel** across many items. These are the expressive core of what you'll build, and they're all just blocks and connections.
 
-Everything complicated — an automated software factory, an autonomous triage system that takes action on its own — is built from these same simple primitives. You start with a few blocks; the platform scales to your ambition. As you get more comfortable, the workflows you compose get richer — more branches, more agents, more reach — without ever leaving the same model you learned here. We're glad you're on this journey: Sim is built of simple primitives that compose into anything you can imagine.
+Everything complicated: an automated software factory, an autonomous triage system that takes action on its own, is built from these same simple primitives. You start with a few blocks; the platform scales to your ambition. As you get more comfortable, the workflows you compose get richer, more branches, more agents, more reach, without ever leaving the same model you learned here. We're glad you're on this journey: Sim is built of simple primitives that compose into anything you can imagine.
+
+<FAQ items={[
+  { question: "What is a workflow in Sim?", answer: "A visual program made of blocks on a canvas. Each block does one job, such as running an AI agent, calling an integration, or writing to a table, and connections carry data between them left to right." },
+  { question: "Do I need to code to build workflows?", answer: "No. Workflows are built visually with no-code blocks and plain-language configuration. When you do want code, a Function block accepts it, but nothing requires it." },
+  { question: "How does data move between blocks?", answer: "Through connection tags like <start.input>: a block's parameter references the output of an earlier block, and the value resolves when the run reaches it." },
+  { question: "When does a block run?", answer: "When every block it depends on has finished. Independent branches run in parallel automatically, and a block waits for all of its inputs." },
+]} />
 
 ## Related documentation
 

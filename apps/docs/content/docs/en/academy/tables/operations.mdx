@@ -1,11 +1,12 @@
 ---
 title: Table Operations
-description: The Table block works across two surfaces — a panel where you describe the operation, and the live table that answers it — with one shape shared by query, insert, update, and delete.
+description: The Table block works across two surfaces, a panel where you describe the operation, and the live table that answers it, with one shape shared by query, insert, update, and delete.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview } from '@/components/workflow-preview'
 import { AV_TABLE_OPS_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
@@ -20,7 +21,7 @@ Workflows work with tables through the Table block. Everything the block can do 
   items={[
     {
       title: 'Filters shape a query',
-      body: 'A query is built from conditions — column, operator, value. Conditions stack, and each one narrows the match.',
+      body: 'A query is built from conditions, column, operator, value. Conditions stack, and each one narrows the match.',
     },
     {
       title: 'A query only reads',
@@ -32,7 +33,7 @@ Workflows work with tables through the Table block. Everything the block can do 
     },
     {
       title: 'Update combines both',
-      body: 'Update Rows by Filter pairs a filter with row data — the filter picks the rows, the data changes them in place.',
+      body: 'Update Rows by Filter pairs a filter with row data: the filter picks the rows, the data changes them in place.',
     },
   ]}
 />
@@ -62,11 +63,18 @@ Here is the block from the video, configured for the first query:
 
 ## One shape for every operation
 
-The panel describes what you mean: an operation, a table, and — depending on the operation — a filter, row data, or both. A filter is conditions stacked together (priority equals high, and status equals open), each one narrowing the match. Queries read without touching the table; Delete Rows by Filter removes what matches; Insert Row lands a payload as a new row; Update Rows by Filter picks rows and changes them in place.
+The panel describes what you mean: an operation, a table, and, depending on the operation, a filter, row data, or both. A filter is conditions stacked together (priority equals high, and status equals open), each one narrowing the match. Queries read without touching the table; Delete Rows by Filter removes what matches; Insert Row lands a payload as a new row; Update Rows by Filter picks rows and changes them in place.
 
 ## Reading the result
 
 The live table answers every run: matched rows highlight, deleted rows leave, inserted rows land, and updated cells flip where they sit. The block's output carries the same result back into the workflow for the next block to use.
+
+<FAQ items={[
+  { question: "What operations does the Table block support?", answer: "Reading with Query Rows and Get Row by ID, writing with Insert Row, Upsert Row, and Batch Insert Rows, changing data with Update Rows by Filter and Update Row by ID, deleting with Delete Rows by Filter and Delete Row by ID, and inspecting the shape with Get Schema." },
+  { question: "How do filters work?", answer: "A filter is one or more conditions of column, operator, and value, such as priority equals high. Conditions stack, and each added condition narrows the match." },
+  { question: "Can a workflow update many rows at once?", answer: "Yes. Update Rows by Filter applies the same change to every row the filter matches, and Delete Rows by Filter removes them all in one operation." },
+  { question: "What happens if a value does not match the column type?", answer: "Values that read cleanly are coerced, so the text 68 lands in a number column as 68. A value that cannot match the type is rejected rather than corrupting the table." },
+]} />
 
 ## Related documentation
 

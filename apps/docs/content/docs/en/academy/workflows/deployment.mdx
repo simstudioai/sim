@@ -1,11 +1,12 @@
 ---
 title: Deployment
-description: Deploying gives a workflow an address so the outside world can run it — the same Start block answers calls as an API, a chat, or an MCP tool.
+description: Deploying gives a workflow an address so the outside world can run it: the same Start block answers calls as an API, a chat, or an MCP tool.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, RESPONSE_API_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Workflows" title="Deployment" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-deployments.mp4" className="mt-2" />
@@ -13,7 +14,7 @@ import { WorkflowPreview, RESPONSE_API_WORKFLOW } from '@/components/workflow-pr
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-Deploying publishes a workflow and gives it an **address**, so something other than the editor can run it. Nothing inside the workflow changes — the same blocks, the same Start block — but now an external request can reach it and start a run.
+Deploying publishes a workflow and gives it an **address**, so something other than the editor can run it. Nothing inside the workflow changes, the same blocks, the same Start block, but now an external request can reach it and start a run.
 
 <WhatYouWillLearn
   items={[
@@ -51,31 +52,37 @@ Deploying publishes a workflow and gives it an **address**, so something other t
 
 Before deploying, you have a workflow that runs when *you* run it, in the editor. Deploying is the step that lets anything else run it too.
 
-Here's the shape of the workflow you'll deploy — a Start block, a chain, and a response back to the caller:
+Here's the shape of the workflow you'll deploy: a Start block, a chain, and a response back to the caller:
 
 <WorkflowPreview workflow={RESPONSE_API_WORKFLOW} />
 
 ## Deploy gives it an address
 
-Deploying publishes the workflow and gives it an **address**. Nothing inside the chain changes — same blocks, same Start block, same logic. What's new is that the workflow is now **live** and reachable from outside, at a stable, versioned URL. A deployment is a snapshot, so you can promote new versions and roll back.
+Deploying publishes the workflow and gives it an **address**. Nothing inside the chain changes, same blocks, same Start block, same logic. What's new is that the workflow is now **live** and reachable from outside, at a stable, versioned URL. A deployment is a snapshot, so you can promote new versions and roll back.
 
 ## A call from outside
 
-An external request comes in, hits that address, and flows straight into the **Start block** — the same entry you tested with in the editor. From there the run is identical: the chain executes and the response goes back to whoever called it. An external call is just a run; the only difference is where it came from.
+An external request comes in, hits that address, and flows straight into the **Start block**, the same entry you tested with in the editor. From there the run is identical: the chain executes and the response goes back to whoever called it. An external call is just a run; the only difference is where it came from.
 
 ## The same workflow, three surfaces
 
 The one deployed workflow can be reached three ways, and you choose which:
 
-- **API** — other systems POST to an endpoint and get the response back.
-- **Chat** — a hosted chat page anyone can open; each message becomes the workflow's input.
-- **MCP** — the workflow becomes a tool that other AI agents (like Cursor or Claude) can call.
+- **API**, other systems POST to an endpoint and get the response back.
+- **Chat**, a hosted chat page anyone can open; each message becomes the workflow's input.
+- **MCP**, the workflow becomes a tool that other AI agents (like Cursor or Claude) can call.
 
-Same blocks underneath, same Start — just different doors in.
+Same blocks underneath, same Start, just different doors in.
 
 ## Runs when they run it
 
-Once deployed, the workflow runs on demand — whenever a caller hits it, with no one in the editor. The same process you built is now an operational system.
+Once deployed, the workflow runs on demand, whenever a caller hits it, with no one in the editor. The same process you built is now an operational system.
+
+<FAQ items={[
+  { question: "What does deploying a workflow actually do?", answer: "It gives the workflow an address the outside world can call. The same Start block then answers API requests, chat messages, or MCP tool calls, depending on the surface you enable." },
+  { question: "Can I keep editing after deploying?", answer: "Yes. The deployed version keeps serving while you edit, and you publish changes when ready, so callers never see a half-edited workflow." },
+  { question: "How do external calls pass input?", answer: "Through the Start block: an API request's payload, a chat message, or an MCP tool call's arguments all land as the Start block's input, and the workflow runs the same way it does in the editor." },
+]} />
 
 ## Related documentation
 

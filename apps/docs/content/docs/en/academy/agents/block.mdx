@@ -1,11 +1,12 @@
 ---
 title: The Agent Block
-description: Inside the Agent block, a run becomes a conversation — a message stack the model reads, a swappable brain, and an output bundle every later block can use.
+description: Inside the Agent block, a run becomes a conversation: a message stack the model reads, a swappable brain, and an output bundle every later block can use.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview } from '@/components/workflow-preview'
 import { AV_QUALIFY_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
@@ -14,13 +15,13 @@ import { AV_QUALIFY_WORKFLOW } from '@/components/workflow-preview/academy-video
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-On the canvas, an Agent block looks like any other step: a run arrives at its input handle, and a result leaves on the other side. Inside, it's a conversation machine — this video follows the data in, station by station.
+On the canvas, an Agent block looks like any other step: a run arrives at its input handle, and a result leaves on the other side. Inside, it's a conversation machine. This video follows the data in, station by station.
 
 <WhatYouWillLearn
   items={[
     {
       title: 'The message stack',
-      body: 'Every run starts from a conversation: your system message, any history you preload, and the newest user message — filled in from the blocks before it.',
+      body: 'Every run starts from a conversation: your system message, any history you preload, and the newest user message: filled in from the blocks before it.',
     },
     {
       title: 'A swappable brain',
@@ -32,7 +33,7 @@ On the canvas, an Agent block looks like any other step: a run arrives at its in
     },
     {
       title: 'The output bundle',
-      body: 'Every run ends in a recorded bundle — the content, the model, the token counts, and any tool calls — that later blocks read through connection tags.',
+      body: 'Every run ends in a recorded bundle, the content, the model, the token counts, and any tool calls, that later blocks read through connection tags.',
     },
   ]}
 />
@@ -55,17 +56,28 @@ On the canvas, an Agent block looks like any other step: a run arrives at its in
 
 </div>
 
-Here is the workflow the video rides through — the Qualify agent between its input and its result:
+Here is the workflow the video rides through: the Qualify agent between its input and its result:
 
 <WorkflowPreview workflow={AV_QUALIFY_WORKFLOW} />
 
 ## What's inside the block
 
-The first station is the message stack: your **system message** (the standing instructions), any **history** you preload — worked examples or an earlier conversation — and the newest **user message**, which usually arrives from an earlier block through a connection tag. The second station is the **model**: the brain that reads the whole stack. Sim supports the frontier providers, and because the block stays the same while the model changes, swapping brains never means rebuilding the step.
+The first station is the message stack: your **system message** (the standing instructions), any **history** you preload, worked examples or an earlier conversation, and the newest **user message**, which usually arrives from an earlier block through a connection tag. The second station is the **model**: the brain that reads the whole stack. Sim supports the frontier providers, and because the block stays the same while the model changes, swapping brains never means rebuilding the step.
 
 ## What a run costs and returns
 
-When the run reaches the model, every message on the stack ships as input tokens; the reply streams back as output tokens. If tools are attached, the model can call them mid-run. Everything the run did — the content it wrote, the model that ran, the token bill, the tool calls — lands in the block's outputs, where any later block can read it.
+When the run reaches the model, every message on the stack ships as input tokens; the reply streams back as output tokens. If tools are attached, the model can call them mid-run. Everything the run did, the content it wrote, the model that ran, the token bill, the tool calls, lands in the block's outputs, where any later block can read it.
+
+## Where it fits
+
+The Agent block is the reasoning step of an AI workflow. Everything else in Sim's workflow builder is deterministic: triggers fire, blocks transform data, tables store it. The Agent block is where a language model reads the conversation you configured and decides what to write. Most AI agents you build in Sim are ordinary workflows with one or more Agent blocks doing the thinking.
+
+<FAQ items={[
+  { question: "What model providers can the Agent block use?", answer: "Sim supports the frontier AI model providers, including Anthropic Claude, OpenAI GPT, and Google Gemini. The Model field on the block picks which one runs, and you can change it at any time without rebuilding the workflow step." },
+  { question: "How is Agent block usage billed?", answer: "By tokens. Every message on the stack ships to the model as input tokens, and the reply is billed as output tokens. The block's output records the exact token counts for each run." },
+  { question: "Can I preload conversation history into an agent?", answer: "Yes. The Messages section accepts user and assistant turns in addition to the system message, so a run can start from worked examples or an earlier conversation." },
+  { question: "What does the Agent block output?", answer: "A structured bundle with the content it wrote, the model that ran, the input and output token counts, and any tool calls it made. Downstream blocks read these fields through connection tags like <agent.content>." },
+]} />
 
 ## Related documentation
 

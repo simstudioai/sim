@@ -1,11 +1,12 @@
 ---
 title: The File Object
-description: Every file in Sim — whatever made it — travels as the same object, so producers and consumers compose without special handling.
+description: Every file in Sim, whatever made it, travels as the same object, so producers and consumers compose without special handling.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview } from '@/components/workflow-preview'
 import { AV_INVOICE_INTAKE_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
@@ -14,7 +15,7 @@ import { AV_INVOICE_INTAKE_WORKFLOW } from '@/components/workflow-preview/academ
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-Your workflows make files from very different places — an email attachment, a generated image, synthesized speech, a parsed document. Inside the workflow, every one of them travels as the same thing: a file object.
+Your workflows make files from very different places: an email attachment, a generated image, synthesized speech, a parsed document. Inside the workflow, every one of them travels as the same thing: a file object.
 
 <WhatYouWillLearn
   items={[
@@ -24,7 +25,7 @@ Your workflows make files from very different places — an email attachment, a 
     },
     {
       title: 'The fields never change',
-      body: "Every file object carries an I.D., a name, a URL where the bytes live, a size, a type, and the content — no matter which block made it.",
+      body: "Every file object carries an I.D., a name, a URL where the bytes live, a size, a type, and the content, no matter which block made it.",
     },
     {
       title: 'Producers are swappable',
@@ -32,7 +33,7 @@ Your workflows make files from very different places — an email attachment, a 
     },
     {
       title: 'Consumers compose',
-      body: 'The same object rides to any consumer — into an agent, out as an email attachment, or straight into storage.',
+      body: 'The same object rides to any consumer, into an agent, out as an email attachment, or straight into storage.',
     },
   ]}
 />
@@ -58,15 +59,22 @@ Your workflows make files from very different places — an email attachment, a 
 
 ## The common shape
 
-Catch a file mid-run and look inside: an I.D., a name, a URL where the bytes live, a size, a type, and the content itself. A couple more fields exist under the hood, but the shape never changes — which is exactly what lets a Gmail attachment, a generated image, and a text-to-speech clip all feed the same agent without special handling.
+Catch a file mid-run and look inside: an I.D., a name, a URL where the bytes live, a size, a type, and the content itself. A couple more fields exist under the hood, but the shape never changes: which is exactly what lets a Gmail attachment, a generated image, and a text-to-speech clip all feed the same agent without special handling.
 
-The video closes on this machine — one file object riding the whole chain:
+The video closes on this machine: one file object riding the whole chain:
 
 <WorkflowPreview workflow={AV_INVOICE_INTAKE_WORKFLOW} />
 
 ## Why one shape matters
 
-Swap which producer feeds the agent, and nothing on the agent side changes. Point the same object at a different consumer — an email, cloud storage, another agent — and it just rides. In the closing machine, an invoice lands in Gmail, gets parsed, an agent extracts the fields, and the result settles in the database — one object carried the whole way through.
+Swap which producer feeds the agent, and nothing on the agent side changes. Point the same object at a different consumer, an email, cloud storage, another agent, and it just rides. In the closing machine, an invoice lands in Gmail, gets parsed, an agent extracts the fields, and the result settles in the database: one object carried the whole way through.
+
+<FAQ items={[
+  { question: "What fields does a file object carry?", answer: "An I.D., a name, a URL where the bytes live, a size, a MIME type, and the content. A few internal fields exist under the hood, but the shape is the same for every file, whatever block made it." },
+  { question: "Why does one common shape matter?", answer: "Producers and consumers compose without special handling. You can swap which block feeds an agent, or point the same file at a different destination, and nothing else changes." },
+  { question: "How does an agent read a file?", answer: "Through the Files field on the Agent block, usually referenced with a connection tag such as <file.files[0]>. The agent reads the document content directly." },
+  { question: "Do generated files work the same as uploaded ones?", answer: "Yes. An image from a generator, an audio clip from text-to-speech, and an email attachment all travel as the same object, so downstream blocks treat them identically." },
+]} />
 
 ## Related documentation
 
