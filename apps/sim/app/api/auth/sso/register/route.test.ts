@@ -9,6 +9,7 @@ const {
   mockRegisterSSOProvider,
   mockHasSSOAccess,
   mockValidateUrlWithDNS,
+  mockSecureFetchWithPinnedIP,
   dbState,
   memberTable,
   ssoProviderTable,
@@ -17,6 +18,7 @@ const {
   mockRegisterSSOProvider: vi.fn(),
   mockHasSSOAccess: vi.fn(),
   mockValidateUrlWithDNS: vi.fn(),
+  mockSecureFetchWithPinnedIP: vi.fn(),
   dbState: { members: [] as any[], providers: [] as any[] },
   memberTable: {
     userId: 'member.userId',
@@ -80,7 +82,7 @@ vi.mock('@/lib/auth/sso/domain', () => ({
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidateUrlWithDNS,
-  secureFetchWithPinnedIP: vi.fn(),
+  secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
 }))
 
 vi.mock('@/lib/core/config/env', () => createEnvMock({ SSO_ENABLED: 'true' }))
@@ -192,5 +194,78 @@ describe('POST /api/auth/sso/register', () => {
     expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
     const config = mockRegisterSSOProvider.mock.calls[0][0].body
     expect(config.domain).toBe('acme.com')
+  })
+
+  it('passes skipDiscovery since Sim already resolved and validated the OIDC endpoints', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const config = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(config.oidcConfig.skipDiscovery).toBe(true)
+  })
+
+  it('omits userInfoEndpoint when skipUserInfoEndpoint is requested, forcing ID token claims', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    const res = await POST(request({ ...OIDC_BODY, skipUserInfoEndpoint: true, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const config = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(config.oidcConfig.userInfoEndpoint).toBeUndefined()
+  })
+
+  it('keeps userInfoEndpoint when skipUserInfoEndpoint is not requested', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const config = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(config.oidcConfig.userInfoEndpoint).toBe('https://idp.acme.com/userinfo')
+  })
+
+  it('selects tokenEndpointAuthentication from the discovery document when endpoints are auto-discovered', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    mockSecureFetchWithPinnedIP.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        authorization_endpoint: 'https://idp.acme.com/authorize',
+        token_endpoint: 'https://idp.acme.com/token',
+        userinfo_endpoint: 'https://idp.acme.com/userinfo',
+        jwks_uri: 'https://idp.acme.com/jwks',
+        token_endpoint_auth_methods_supported: ['client_secret_post'],
+      }),
+    })
+    const discoveredBody = {
+      ...OIDC_BODY,
+      authorizationEndpoint: undefined,
+      tokenEndpoint: undefined,
+      jwksEndpoint: undefined,
+    }
+    const res = await POST(request({ ...discoveredBody, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const config = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
+  })
+
+  it('still selects tokenEndpointAuthentication from discovery when all endpoints are explicit', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    mockSecureFetchWithPinnedIP.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        token_endpoint_auth_methods_supported: ['client_secret_post'],
+      }),
+    })
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const config = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
+    expect(config.oidcConfig.authorizationEndpoint).toBe(OIDC_BODY.authorizationEndpoint)
+  })
+
+  it('registers successfully when discovery is unreachable and all endpoints are explicit', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('ECONNREFUSED'))
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const config = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(config.oidcConfig.skipDiscovery).toBe(true)
+    expect(config.oidcConfig.authorizationEndpoint).toBe(OIDC_BODY.authorizationEndpoint)
   })
 })
