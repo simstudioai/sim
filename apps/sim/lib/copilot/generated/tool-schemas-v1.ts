@@ -2783,6 +2783,68 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  ['query_user_table']: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            filter: {
+              type: 'object',
+              description: 'MongoDB-style filter for query_rows',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum rows to return (optional, default 100, max 1000 per call)',
+            },
+            offset: {
+              type: 'number',
+              description: 'Number of rows to skip (optional for query_rows, default 0)',
+            },
+            rowId: {
+              type: 'string',
+              description: 'Row ID (required for get_row)',
+            },
+            sort: {
+              type: 'object',
+              description:
+                "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for all operations)',
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The read operation to perform',
+          enum: ['get', 'get_schema', 'get_row', 'query_rows'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
   ['read']: {
     parameters: {
       type: 'object',
@@ -2956,19 +3018,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['workflowId', 'name'],
-    },
-    resultSchema: undefined,
-  },
-  ['research']: {
-    parameters: {
-      properties: {
-        topic: {
-          description: 'The topic to research.',
-          type: 'string',
-        },
-      },
-      required: ['topic'],
-      type: 'object',
     },
     resultSchema: undefined,
   },
@@ -3188,20 +3237,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  ['scout']: {
-    parameters: {
-      properties: {
-        task: {
-          description:
-            "One short scoping sentence — the scout has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'compute how many rows in the pasted CSV have invalid emails'.",
-          type: 'string',
-        },
-      },
-      required: ['task'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
   ['scrape_page']: {
     parameters: {
       type: 'object',
@@ -3223,6 +3258,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  ['search']: {
+    parameters: {
+      properties: {
+        task: {
+          description:
+            "One short scoping sentence — the search agent has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'count how many rows in the leads table have invalid emails'.",
+          type: 'string',
+        },
+      },
+      required: ['task'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   ['search_documentation']: {
     parameters: {
       type: 'object',
@@ -3239,6 +3288,56 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['query'],
     },
     resultSchema: undefined,
+  },
+  ['search_knowledge_base']: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            knowledgeBaseId: {
+              type: 'string',
+              description: 'Knowledge base ID (required for all operations)',
+            },
+            query: {
+              type: 'string',
+              description: "Search query text (required for 'query')",
+            },
+            topK: {
+              type: 'number',
+              description: 'Number of results to return (1-50, default: 5)',
+              default: 5,
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The read operation to perform',
+          enum: ['get', 'query', 'list_tags'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   ['search_library_docs']: {
     parameters: {
