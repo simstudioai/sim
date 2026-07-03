@@ -278,12 +278,11 @@ describe('Validation', () => {
       expect(result.valid).toBe(true)
     })
 
-    it('should reject string exceeding max length', () => {
-      const longString = 'a'.repeat(TABLE_LIMITS.MAX_STRING_VALUE_LENGTH + 1)
+    it('should allow long strings — cell size is bounded by the row byte cap, not per-value', () => {
+      const longString = 'a'.repeat(100_000)
       const data = { name: longString }
       const result = validateRowAgainstSchema(data, schema)
-      expect(result.valid).toBe(false)
-      expect(result.errors[0]).toContain('exceeds max string length')
+      expect(result.valid).toBe(true)
     })
   })
 

@@ -228,8 +228,6 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
       case 'string':
         if (typeof value !== 'string') {
           errors.push(`${column.name} must be string, got ${typeof value}`)
-        } else if (value.length > TABLE_LIMITS.MAX_STRING_VALUE_LENGTH) {
-          errors.push(`${column.name} exceeds max string length`)
         }
         break
       case 'number':
