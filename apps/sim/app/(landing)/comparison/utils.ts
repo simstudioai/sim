@@ -204,21 +204,29 @@ export function ensurePeriod(value: string): string {
   return /[.!?]$/.test(value) ? value : `${value}.`
 }
 
-/** Lowercases the first letter of `value`, unless it starts with an acronym (e.g. "AI", "SSO", "MCP"). */
+/**
+ * Lowercases the first letter of `value`, unless its leading word is an acronym
+ * (e.g. "AI", "SSO", "MCP") or a CamelCase brand name (e.g. "LangChain",
+ * "OpenClaw", "CrewAI") - detected by 2+ uppercase letters anywhere in that
+ * word, not just consecutive at the start, since lowercasing either would
+ * mangle a proper noun ("langChain", "openClaw").
+ */
 export function lowercaseFirst(value: string): string {
   if (value.length === 0) return value
-  // Leave a leading acronym (2+ consecutive capitals, e.g. "AI", "SSO", "MCP") alone.
-  if (/^[A-Z]{2,}/.test(value)) return value
+  const leadingWord = value.match(/^[A-Za-z]+/)?.[0] ?? ''
+  const upperCaseCount = (leadingWord.match(/[A-Z]/g) ?? []).length
+  if (upperCaseCount >= 2) return value
   return value.charAt(0).toLowerCase() + value.slice(1)
 }
 
 /**
  * Composes {@link firstSentence} + {@link lowercaseFirst} + {@link ensurePeriod} for
- * stitching a fact value mid-sentence. Strips a leading "Yes:"/"No:" token first so
- * boolean facts don't produce mid-sentence "yes: ..."/"no: ..." fragments.
+ * stitching a fact value mid-sentence. Strips a leading "Yes:"/"No:" (or the
+ * comma-separated "Yes,"/"No,") token first so boolean facts don't produce
+ * mid-sentence "yes: ..."/"no: ..." fragments.
  */
 function summarizeFact(value: string): string {
-  const stripped = value.replace(/^(Yes|No)(?![a-zA-Z])(?::\s*)?/, '').trim()
+  const stripped = value.replace(/^(Yes|No)(?![a-zA-Z])(?:[:,]\s*)?/, '').trim()
   const base = stripped.length > 0 ? stripped : value
   return ensurePeriod(lowercaseFirst(firstSentence(base)))
 }
