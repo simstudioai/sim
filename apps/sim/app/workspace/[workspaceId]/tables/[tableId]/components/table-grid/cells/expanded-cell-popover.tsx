@@ -210,6 +210,15 @@ function ExpandedCellEditor({
       setParseError('Invalid JSON')
       return
     }
+    /** `cleanCellValue` nulls unparseable dates/numbers instead of throwing — reject rather than silently clear. */
+    if (
+      cleaned === null &&
+      draftValue.trim() !== '' &&
+      (column.type === 'date' || column.type === 'number')
+    ) {
+      setParseError(column.type === 'date' ? 'Invalid date' : 'Invalid number')
+      return
+    }
     onSave(rowId, column.key, cleaned, 'blur')
     onClose()
   }

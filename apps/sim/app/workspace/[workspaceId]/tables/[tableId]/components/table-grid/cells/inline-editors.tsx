@@ -68,11 +68,12 @@ function InlineDateEditor({
       clearTimeout(blurTimeoutRef.current)
       const raw = storageVal ?? displayToStorage(draft) ?? draft
       if (raw && Number.isNaN(Date.parse(raw))) {
-        toast.error('Invalid date')
         if (reason === 'blur') {
+          if (!invalid) toast.error('Invalid date')
           doneRef.current = true
           onCancel()
         } else {
+          toast.error('Invalid date')
           setInvalid(true)
           inputRef.current?.focus()
         }
@@ -81,7 +82,7 @@ function InlineDateEditor({
       doneRef.current = true
       onSave(raw || null, reason)
     },
-    [draft, onSave, onCancel]
+    [draft, invalid, onSave, onCancel]
   )
 
   const handleKeyDown = useCallback(
@@ -178,11 +179,12 @@ function InlineTextEditor({
   }, [])
 
   const rejectDraft = (message: string, reason: SaveReason) => {
-    toast.error(message)
     if (reason === 'blur') {
+      if (!invalid) toast.error(message)
       doneRef.current = true
       onCancel()
     } else {
+      toast.error(message)
       setInvalid(true)
       inputRef.current?.focus()
     }
