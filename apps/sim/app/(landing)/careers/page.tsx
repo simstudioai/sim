@@ -4,8 +4,6 @@ import { buildLandingMetadata } from '@/lib/landing/seo'
 import Careers from '@/app/(landing)/careers/careers'
 import { ALL_FILTER_VALUE, careersSearchParamsCache } from '@/app/(landing)/careers/search-params'
 
-export const revalidate = 3600
-
 /**
  * `team`/`location` render a genuinely different server-rendered job list (see
  * search-params.ts), so filtered URLs are noindexed rather than
