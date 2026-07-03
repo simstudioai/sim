@@ -1,14 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetUserUsageLogs } = vi.hoisted(() => ({
   mockGetUserUsageLogs: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
   getUserUsageLogs: mockGetUserUsageLogs,
@@ -20,7 +18,6 @@ describe('GET /api/users/me/usage-logs/export', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    dbChainMockFns.where.mockResolvedValue([])
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -57,6 +54,21 @@ describe('GET /api/users/me/usage-logs/export', () => {
     expect(row).toBe('2026-07-01T00:00:00.000Z,Chat,100,0.5')
   })
 
+  it('does not request the summary aggregate — the export never reads it', async () => {
+    mockGetUserUsageLogs.mockResolvedValueOnce({
+      logs: [],
+      summary: { totalCost: 0, bySource: {} },
+      pagination: { hasMore: false },
+    })
+
+    await GET(createMockRequest('GET'))
+
+    expect(mockGetUserUsageLogs).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ includeSummary: false })
+    )
+  })
+
   it('names the specific workflow for workflow-sourced rows', async () => {
     mockGetUserUsageLogs.mockResolvedValueOnce({
       logs: [
@@ -68,12 +80,12 @@ describe('GET /api/users/me/usage-logs/export', () => {
           description: 'execution_fee',
           cost: 0.01,
           workflowId: 'wf-1',
+          workflowName: 'ITSM_Prod_main',
         },
       ],
       summary: { totalCost: 0.01, bySource: { workflow: 0.01 } },
       pagination: { hasMore: false },
     })
-    dbChainMockFns.where.mockResolvedValueOnce([{ id: 'wf-1', name: 'ITSM_Prod_main' }])
 
     const response = await GET(createMockRequest('GET'))
     const csv = await response.text()
@@ -92,12 +104,12 @@ describe('GET /api/users/me/usage-logs/export', () => {
           description: 'execution_fee',
           cost: 0.01,
           workflowId: 'wf-1',
+          workflowName: 'Prod, main',
         },
       ],
       summary: { totalCost: 0.01, bySource: { workflow: 0.01 } },
       pagination: { hasMore: false },
     })
-    dbChainMockFns.where.mockResolvedValueOnce([{ id: 'wf-1', name: 'Prod, main' }])
 
     const response = await GET(createMockRequest('GET'))
     const csv = await response.text()
@@ -146,6 +158,27 @@ describe('GET /api/users/me/usage-logs/export', () => {
       expect.objectContaining({ cursor: 'log-1' })
     )
     expect(csv.split('\n')).toHaveLength(3) // header + 2 rows
+  })
+
+  it('stops at exactly the row cap without an extra wasted page fetch', async () => {
+    // MAX_EXPORT_ROWS=5000, EXPORT_PAGE_SIZE=500 divide evenly — a naive
+    // `<=` loop bound would issue one more page fetch (discarded afterward)
+    // once the cap is hit exactly. Landing on the cap in a single mocked
+    // page with hasMore:true still true asserts the loop doesn't re-enter.
+    mockGetUserUsageLogs.mockResolvedValueOnce({
+      logs: Array.from({ length: 5000 }, (_, i) => ({
+        id: `log-${i}`,
+        createdAt: '2026-07-01T00:00:00.000Z',
+        source: 'copilot',
+        cost: 0.1,
+      })),
+      summary: { totalCost: 0, bySource: {} },
+      pagination: { hasMore: true, nextCursor: 'log-4999' },
+    })
+
+    await GET(createMockRequest('GET'))
+
+    expect(mockGetUserUsageLogs).toHaveBeenCalledTimes(1)
   })
 
   it('rejects "custom" period without a startDate', async () => {

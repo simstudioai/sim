@@ -5,9 +5,10 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
-import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveDateRange, resolveWorkflowNames } from '@/app/api/users/me/usage-logs/shared'
+import { formatCsvValue, toCsvRow } from '@/lib/table/export-format'
+import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
+import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-labels'
 
 const logger = createLogger('UsageLogsExportAPI')
 
@@ -15,28 +16,7 @@ const logger = createLogger('UsageLogsExportAPI')
 const MAX_EXPORT_ROWS = 5000
 const EXPORT_PAGE_SIZE = 500
 
-const CSV_HEADER = ['Date', 'Type', 'Credits', 'Dollar cost'].join(',')
-
-function escapeCsvField(value: string | number): string {
-  const str = typeof value === 'string' ? neutralizeCsvFormula(value) : String(value)
-  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
-}
-
-/**
- * Humanized labels for `usage_log.source`, mirroring the Credit usage page's
- * row rendering so the export reads identically to what's on screen.
- */
-const SOURCE_LABELS: Record<UsageLogSource, string> = {
-  workflow: 'Workflow',
-  wand: 'Wand',
-  copilot: 'Chat',
-  'workspace-chat': 'Chat',
-  mcp_copilot: 'Chat (MCP)',
-  mothership_block: 'Agent block',
-  'knowledge-base': 'Knowledge Base',
-  'voice-input': 'Voice input',
-  enrichment: 'Enrichment',
-}
+const CSV_HEADER = toCsvRow(['Date', 'Type', 'Credits', 'Dollar cost'])
 
 /**
  * Downloads every usage log matching the current filter as CSV — unlike the
@@ -58,56 +38,52 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const rows: Awaited<ReturnType<typeof getUserUsageLogs>>['logs'] = []
   let cursor: string | undefined
-  while (rows.length <= MAX_EXPORT_ROWS) {
+  let truncated = false
+  while (rows.length < MAX_EXPORT_ROWS) {
     const page = await getUserUsageLogs(auth.userId, {
       source: source as UsageLogSource | undefined,
       workspaceId,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
-      limit: EXPORT_PAGE_SIZE,
+      limit: Math.min(EXPORT_PAGE_SIZE, MAX_EXPORT_ROWS - rows.length),
       cursor,
+      includeSummary: false,
     })
     rows.push(...page.logs)
     if (!page.pagination.hasMore) break
+    truncated = rows.length >= MAX_EXPORT_ROWS
     cursor = page.pagination.nextCursor
   }
 
-  if (rows.length > MAX_EXPORT_ROWS) {
+  if (truncated) {
     logger.warn('Usage log export truncated at safety cap', {
       userId: auth.userId,
       period,
-      rowCount: rows.length,
       cap: MAX_EXPORT_ROWS,
     })
   }
-  const exportedRows = rows.slice(0, MAX_EXPORT_ROWS)
-
-  const workflowNames = await resolveWorkflowNames(exportedRows)
 
   // Apportioned across the full export (not per-page) so every row's credits
   // sum exactly to the export's own total — see route.ts's identical rationale.
-  const creditsByLogId = apportionCredits(
-    exportedRows.map((log) => ({ key: log.id, dollars: log.cost }))
-  )
+  const creditsByLogId = apportionCredits(rows.map((log) => ({ key: log.id, dollars: log.cost })))
 
-  const csvLines = exportedRows.map((log) => {
-    const workflowName = log.workflowId ? workflowNames.get(log.workflowId) : undefined
+  const csvLines = rows.map((log) => {
     const type =
-      log.source === 'workflow' && workflowName
-        ? `Workflow: ${workflowName}`
-        : SOURCE_LABELS[log.source]
-    return [
-      escapeCsvField(log.createdAt),
-      escapeCsvField(type),
-      escapeCsvField(creditsByLogId[log.id]),
-      escapeCsvField(log.cost),
-    ].join(',')
+      log.source === 'workflow' && log.workflowName
+        ? `Workflow: ${log.workflowName}`
+        : USAGE_LOG_SOURCE_LABELS[log.source]
+    return toCsvRow([
+      formatCsvValue(log.createdAt),
+      formatCsvValue(type),
+      formatCsvValue(creditsByLogId[log.id]),
+      formatCsvValue(log.cost),
+    ])
   })
 
   const csv = [CSV_HEADER, ...csvLines].join('\n')
   const filename = `credit-usage-${period}-${new Date().toISOString().slice(0, 10)}.csv`
 
-  logger.info('Exported usage logs', { userId: auth.userId, period, rowCount: exportedRows.length })
+  logger.info('Exported usage logs', { userId: auth.userId, period, rowCount: rows.length })
 
   return new NextResponse(csv, {
     status: 200,

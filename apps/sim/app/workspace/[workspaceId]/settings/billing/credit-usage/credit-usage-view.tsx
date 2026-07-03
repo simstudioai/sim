@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   Calendar,
   Chip,
@@ -16,8 +16,9 @@ import {
 import { ArrowLeft, Download } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
-import type { UsageLogEntry, UsageLogPeriod, UsageLogSource } from '@/lib/api/contracts/user'
-import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
+import type { UsageLogEntry, UsageLogPeriod } from '@/lib/api/contracts/user'
+import { formatApportionedCreditCost, formatCreditsLabel } from '@/lib/billing/credits/conversion'
+import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-labels'
 import { CredentialDetailLayout } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
 import {
@@ -35,38 +36,10 @@ const PERIOD_OPTIONS: ComboboxOption[] = [
   { value: 'custom', label: 'Custom range' },
 ]
 
-/**
- * Humanized labels for `usage_log.source`. Avoids the internal "copilot" /
- * "mothership" naming — the agent is always "Sim", the surface is "Chat".
- */
-const SOURCE_LABELS: Record<UsageLogSource, string> = {
-  workflow: 'Workflow',
-  wand: 'Wand',
-  copilot: 'Chat',
-  'workspace-chat': 'Chat',
-  mcp_copilot: 'Chat (MCP)',
-  mothership_block: 'Agent block',
-  'knowledge-base': 'Knowledge Base',
-  'voice-input': 'Voice input',
-  enrichment: 'Enrichment',
-}
-
 /** Workflow-sourced rows name the specific workflow; everything else uses the plain source label. */
 function rowLabel(log: UsageLogEntry): string {
   if (log.source === 'workflow' && log.workflowName) return `Workflow: ${log.workflowName}`
-  return SOURCE_LABELS[log.source]
-}
-
-/**
- * `creditCost` is apportioned across the page so row credits sum exactly to
- * the page total (see route.ts) — a row can legitimately apportion to 0
- * credits despite a real, positive `dollarCost` once a sibling row absorbs
- * the shared rounding remainder. Falls back to `formatCreditCost`'s "<1
- * credit" wording in that case instead of a flat, misleading "0 credits".
- */
-function formatRowCredits(creditCost: number, dollarCost: number): string {
-  if (creditCost > 0) return formatCreditsLabel(creditCost)
-  return dollarCost > 0 ? '<1 credit' : '0 credits'
+  return USAGE_LOG_SOURCE_LABELS[log.source]
 }
 
 interface UsageLogRowProps {
@@ -83,7 +56,7 @@ function UsageLogRow({ log }: UsageLogRowProps) {
         {rowLabel(log)}
       </span>
       <span className='flex-shrink-0 text-[12px] text-[var(--text-muted)] tabular-nums'>
-        {formatRowCredits(log.creditCost, log.dollarCost)}
+        {formatApportionedCreditCost(log.creditCost, log.dollarCost)}
       </span>
     </div>
   )
@@ -101,7 +74,6 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
     creditUsageUrlKeys
   )
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const dateRangeAppliedRef = useRef(false)
 
   const handlePeriodChange = (value: string) => {
     if (value === 'custom') {
@@ -112,7 +84,6 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
   }
 
   const handleDateRangeApply = (nextStart: string, nextEnd: string) => {
-    dateRangeAppliedRef.current = true
     setFilters({ period: 'custom', startDate: nextStart, endDate: nextEnd })
     setDatePickerOpen(false)
   }
@@ -197,13 +168,7 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
           <Popover
             open={datePickerOpen}
             onOpenChange={(isOpen) => {
-              if (!isOpen) {
-                if (dateRangeAppliedRef.current) {
-                  dateRangeAppliedRef.current = false
-                } else {
-                  handleDatePickerCancel()
-                }
-              }
+              if (!isOpen) handleDatePickerCancel()
             }}
           >
             <PopoverAnchor className='pointer-events-none absolute inset-0' />

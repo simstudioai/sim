@@ -1,14 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetUserUsageLogs } = vi.hoisted(() => ({
   mockGetUserUsageLogs: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
   getUserUsageLogs: mockGetUserUsageLogs,
@@ -20,7 +18,6 @@ describe('GET /api/users/me/usage-logs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    dbChainMockFns.where.mockResolvedValue([])
     mockGetUserUsageLogs.mockResolvedValue({
       logs: [
         {
@@ -65,7 +62,7 @@ describe('GET /api/users/me/usage-logs', () => {
     })
   })
 
-  it('resolves the workflow name for workflow-sourced rows', async () => {
+  it('passes through the workflow name for workflow-sourced rows', async () => {
     mockGetUserUsageLogs.mockResolvedValue({
       logs: [
         {
@@ -76,12 +73,12 @@ describe('GET /api/users/me/usage-logs', () => {
           description: 'execution_fee',
           cost: 0.01,
           workflowId: 'wf-1',
+          workflowName: 'ITSM_Prod_main',
         },
       ],
       summary: { totalCost: 0.01, bySource: { workflow: 0.01 } },
       pagination: { hasMore: false },
     })
-    dbChainMockFns.where.mockResolvedValueOnce([{ id: 'wf-1', name: 'ITSM_Prod_main' }])
 
     const response = await GET(createMockRequest('GET'))
     const body = await response.json()

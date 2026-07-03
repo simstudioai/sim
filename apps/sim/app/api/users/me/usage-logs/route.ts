@@ -6,7 +6,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveDateRange, resolveWorkflowNames } from '@/app/api/users/me/usage-logs/shared'
+import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
 
 const logger = createLogger('UsageLogsAPI')
 
@@ -44,13 +44,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     result.logs.map((log) => ({ key: log.id, dollars: log.cost }))
   )
 
-  const workflowNames = await resolveWorkflowNames(result.logs)
-
   const logs = result.logs.map((log) => ({
     id: log.id,
     createdAt: log.createdAt,
     source: log.source,
-    workflowName: log.workflowId ? (workflowNames.get(log.workflowId) ?? null) : null,
+    workflowName: log.workflowName ?? null,
     creditCost: creditsByLogId[log.id],
     dollarCost: log.cost,
   }))

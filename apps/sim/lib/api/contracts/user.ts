@@ -300,24 +300,26 @@ const usageLogsFilterSchema = z.object({
 })
 
 /** Both the list and export query schemas require startDate whenever period is 'custom'. */
-function requireStartDateForCustomPeriod<
-  Schema extends z.ZodType<{ period?: string; startDate?: string }>,
->(schema: Schema) {
-  return schema.refine((query) => query.period !== 'custom' || query.startDate !== undefined, {
-    error: 'startDate is required when period is "custom"',
-    path: ['startDate'],
-  })
+const startDateRequiredForCustomPeriod = {
+  error: 'startDate is required when period is "custom"',
+  path: ['startDate'],
 }
 
-export const usageLogsQuerySchema = requireStartDateForCustomPeriod(
-  usageLogsFilterSchema.extend({
+export const usageLogsQuerySchema = usageLogsFilterSchema
+  .extend({
     limit: z.coerce.number().min(1).max(100).optional().default(50),
     cursor: z.string().optional(),
   })
-)
+  .refine(
+    (query) => query.period !== 'custom' || query.startDate !== undefined,
+    startDateRequiredForCustomPeriod
+  )
 
 /** Same filters as the list query, without pagination — the export route returns every match. */
-export const exportUsageLogsQuerySchema = requireStartDateForCustomPeriod(usageLogsFilterSchema)
+export const exportUsageLogsQuerySchema = usageLogsFilterSchema.refine(
+  (query) => query.period !== 'custom' || query.startDate !== undefined,
+  startDateRequiredForCustomPeriod
+)
 
 export const usageLogEntrySchema = z.object({
   id: z.string(),
