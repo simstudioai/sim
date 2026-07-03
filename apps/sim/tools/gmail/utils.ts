@@ -533,7 +533,7 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
 
     for (const attachment of attachments) {
       messageParts.push(`--${mixedBoundary}`)
-      messageParts.push(`Content-Type: ${attachment.mimeType}`)
+      messageParts.push(`Content-Type: ${sanitizeHeaderValue(attachment.mimeType)}`)
       messageParts.push(
         `Content-Disposition: attachment; filename="${sanitizeHeaderValue(attachment.filename)}"`
       )

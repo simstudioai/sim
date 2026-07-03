@@ -283,6 +283,25 @@ describe('buildMimeMessage', () => {
     )
   })
 
+  it('strips embedded CRLF from the attachment mimeType', () => {
+    const injected = 'text/plain\r\nBcc: attacker@example.com'
+    const message = buildMimeMessage({
+      to: 'a@example.com',
+      body: 'hello',
+      attachments: [
+        {
+          filename: 'note.txt',
+          mimeType: injected,
+          content: Buffer.from('hi'),
+        },
+      ],
+    })
+    const lines = message.split('\n')
+    const bccLines = lines.filter((line) => line.startsWith('Bcc:'))
+    expect(bccLines).toHaveLength(0)
+    expect(message).toContain('Content-Type: text/plain Bcc: attacker@example.com')
+  })
+
   it('preserves legitimate ASCII, Unicode, and multi-recipient values unchanged', () => {
     const message = buildMimeMessage({
       to: 'a@example.com, b@example.com',
