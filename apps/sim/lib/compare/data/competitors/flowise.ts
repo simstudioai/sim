@@ -14,12 +14,12 @@ export const flowiseProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Flowise is an open-source, low-code visual builder for creating LLM chains, RAG pipelines, and multi-agent AI workflows, offered as self-hosted software or a managed cloud service, and owned by Workday since August 2025.',
+    'Flowise is an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, available self-hosted or as a managed cloud service, and owned by Workday since August 2025.',
   standoutFeatures: [
     {
       title: 'Native RAG / Document Store pipeline',
       description:
-        "Flowise's Document Store handles the full RAG pipeline in one place. It offers multiple document loaders, the broadest range of native text-splitter types (character, token, recursive character, markdown, code, HTML-to-markdown) with configurable chunk size and overlap, a live preview before processing, per-chunk editing, and upsert into a wide range of vector store backends.",
+        "Flowise's Document Store handles the full RAG pipeline in one place: multiple document loaders, the broadest range of native text-splitter types (character, token, recursive character, markdown, code, HTML-to-markdown) with configurable chunk size and overlap, a live preview before processing, per-chunk editing, and upsert into a wide range of vector store backends.",
       shortDescription:
         'Native RAG pipeline with the broadest built-in text-splitter and chunking options.',
       source: {
@@ -31,7 +31,7 @@ export const flowiseProfile: CompetitorProfile = {
     {
       title: 'Agentflow V2 with built-in human-in-the-loop and evaluation',
       description:
-        'Agentflow V2 supports loops, conditional branching, and a dedicated Human Input node that pauses execution for approve/reject feedback before sensitive tool calls (bookings, sends, orders) proceed. Flowise also ships a built-in Evaluations feature that runs chatflows/agentflows against a dataset and scores outputs with string, numeric, or LLM-as-judge evaluators, reporting pass/fail rate, average tokens, and latency.',
+        'Agentflow V2 supports loops, conditional branching, and a dedicated Human Input node that pauses execution for approve/reject feedback before sensitive tool calls (bookings, sends, orders) proceed. Flowise also ships a built-in Evaluations feature that runs chatflows/agentflows against a dataset, scoring outputs with string, numeric, or LLM-as-judge evaluators and reporting pass/fail rate, average tokens, and latency.',
       shortDescription:
         'Native human-approval node plus built-in dataset-based LLM-judge evaluation reporting.',
       source: {
@@ -43,7 +43,7 @@ export const flowiseProfile: CompetitorProfile = {
     {
       title: 'Large open-source project with Apache 2.0 core',
       description:
-        "Flowise's Community Edition is Apache License 2.0, and its GitHub repo has roughly 54,000 stars. It has an active Discord community and supports full self-hosting via Docker.",
+        "Flowise's Community Edition is Apache License 2.0, its GitHub repo has roughly 54,000 stars, and it has an active Discord community with full self-hosting support via Docker.",
       shortDescription:
         'Apache 2.0 licensed, ~54k GitHub stars, actively maintained open-source project.',
       source: {
@@ -57,7 +57,7 @@ export const flowiseProfile: CompetitorProfile = {
     {
       title: 'Low enterprise-readiness score in third-party benchmarking',
       description:
-        'The n8n 2026 AI Agent Development Tools report scored Flowise at only 37% on "Enterpriseness," versus 63% on "Codability." The report cites gaps in security features, authentication mechanisms, and production-grade governance compared to top-performing platforms.',
+        'The n8n 2026 AI Agent Development Tools report scored Flowise at 37% on "Enterpriseness," versus 63% on "Codability," citing gaps in security features, authentication mechanisms, and production-grade governance compared to top-performing platforms.',
       shortDescription:
         'Scored only 37% on enterprise-readiness in a third-party 2026 vendor report.',
       source: {
@@ -69,7 +69,7 @@ export const flowiseProfile: CompetitorProfile = {
     {
       title: 'No native real-time multiplayer canvas editing',
       description:
-        "Flowise's core canvas supports only one user editing a flow at a time. There is no built-in real-time co-editing (like Google Docs) of the same chatflow, and community members have requested true multi-user collaborative editing as a feature.",
+        "Flowise's core canvas supports only one user editing a flow at a time, with no built-in real-time co-editing (like Google Docs) of the same chatflow. Community members have requested true multi-user collaborative editing as a feature.",
       shortDescription: 'No live multi-cursor concurrent editing of the same flow.',
       source: {
         url: 'https://github.com/FlowiseAI/Flowise/issues/2661',
@@ -82,8 +82,8 @@ export const flowiseProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          'Flowise is primarily a drag-and-drop visual canvas for wiring chatflow and agentflow nodes together, supplemented by Custom JS Function nodes for arbitrary code and a Custom Tool node for JS-based tools. There is no dedicated natural-language "describe it and I\'ll build it" flow generator documented.',
-        detail: 'No confirmed natural-language workflow generation feature.',
+          'Flowise is primarily a drag-and-drop visual canvas for wiring chatflow and agentflow nodes together, supplemented by Custom JS Function nodes for arbitrary code and a Custom Tool node for JS-based tools. There is no natural-language "describe it and I\'ll build it" flow generator.',
+        detail: 'No natural-language workflow generation feature.',
         shortValue: 'Visual canvas plus custom-code nodes',
         confidence: 'verified',
         sources: [
@@ -96,7 +96,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       learningCurve: {
         value:
-          'Marketed as low-code/no-code and approachable for non-technical users via templates and drag-and-drop nodes, but third-party review found real production use (custom tools, external libraries, env vars) requires developer comfort with JavaScript and LangChain concepts.',
+          'Approachable for non-technical users via templates and drag-and-drop nodes, but real production use (custom tools, external libraries, env vars) requires developer comfort with JavaScript and LangChain concepts.',
         shortValue: 'Easy to start, technical depth needed for production',
         confidence: 'estimated',
         sources: [
@@ -109,7 +109,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          "Yes: Flowise's Community Edition source is Apache 2.0 and can be self-hosted, including via Docker, on your own infrastructure.",
+          "Yes: Flowise's Community Edition is Apache 2.0 and can be self-hosted, including via Docker, on your own infrastructure.",
         shortValue: 'Yes, self-hostable via Docker',
         confidence: 'verified',
         sources: [
@@ -122,7 +122,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       deploymentOptions: {
         value:
-          'Flowise offers self-hosted open-source deployment (Docker/npm), a managed multi-tenant Cloud plan, and an Enterprise tier that supports on-premise or air-gapped deployment for regulated industries.',
+          'Flowise offers self-hosted open-source deployment (Docker/npm), a managed multi-tenant Cloud plan, and an Enterprise tier supporting on-premise or air-gapped deployment for regulated industries.',
         shortValue: 'Self-hosted, cloud, and enterprise on-prem/air-gapped',
         confidence: 'verified',
         sources: [
@@ -140,7 +140,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       templates: {
         value:
-          'Yes: Flowise ships a Marketplace of pre-built, production-ready chatflow and agentflow templates (e.g. document Q&A/RAG, SQL agents, multi-agent orchestration), filterable by type, framework, and use case, plus support for organizations to save their own custom templates.',
+          'Yes: Flowise ships a Marketplace of pre-built, production-ready chatflow and agentflow templates (document Q&A/RAG, SQL agents, multi-agent orchestration), filterable by type, framework, and use case, plus support for organizations to save their own custom templates.',
         shortValue: 'Yes, built-in marketplace of chatflow/agentflow templates',
         confidence: 'verified',
         sources: [
@@ -171,7 +171,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       environmentPromotion: {
         value:
-          "Unknown: no public documentation found describing forking or cloning a whole project or workspace and promoting it between dev, QA, and production environments. Flowise's version control works at the level of individual chatflow/assistant history snapshots, not whole-environment promotion.",
+          "Unknown: no documentation describes forking or cloning a whole project or workspace and promoting it between dev, QA, and production environments. Flowise's version control works at the level of individual chatflow/assistant history snapshots, not whole-environment promotion.",
         shortValue: 'Unknown / not documented',
         confidence: 'unknown',
         sources: [],
@@ -191,7 +191,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          "No: Flowise's canvas supports only one user per session. There is no documented live, multi-cursor editing of the same flow, and this has been an open community feature request.",
+          "No: Flowise's canvas supports only one user per session, with no live, multi-cursor editing of the same flow. This has been an open community feature request.",
         detail:
           'Cloud/Enterprise multi-user features (workspaces, RBAC) govern access, not concurrent editing.',
         shortValue: 'No live multi-user concurrent canvas editing',
@@ -206,28 +206,28 @@ export const flowiseProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          "Unknown: no public documentation found of a general-purpose file storage system with folder hierarchy, link-sharing with access controls, and recovery of deleted items. Flowise's file handling is scoped to per-node uploads and Document Store ingestion, not a standalone file manager.",
+          "Unknown: no documented general-purpose file storage system with folder hierarchy, link-sharing with access controls, or recovery of deleted items. Flowise's file handling is scoped to per-node uploads and Document Store ingestion, not a standalone file manager.",
         shortValue: 'Unknown, only per-node file uploads documented',
         confidence: 'unknown',
         sources: [],
       },
       dataTables: {
         value:
-          "Unknown: no public documentation found of a native spreadsheet-like data table feature with row/column limits and keyboard navigation. Flowise's structured-data support comes through external database and vector-store connector nodes instead.",
+          "Unknown: no native spreadsheet-like data table feature with row/column limits and keyboard navigation is documented. Flowise's structured-data support comes through external database and vector-store connector nodes instead.",
         shortValue: 'Unknown, not documented as a native feature',
         confidence: 'unknown',
         sources: [],
       },
       richTextEditor: {
         value:
-          'Unknown: no public documentation found of an inline rich-text/WYSIWYG markdown editor for documents stored in Flowise.',
+          'Unknown: no documented inline rich-text/WYSIWYG markdown editor for documents stored in Flowise.',
         shortValue: 'Unknown, not documented',
         confidence: 'unknown',
         sources: [],
       },
       subWorkflows: {
         value:
-          "Yes: Flowise's Execute Flow node calls another saved Chatflow or Agentflow as a step, passes it input, waits for the child flow to finish, and receives its final output back to continue the parent flow.",
+          "Yes: Flowise's Execute Flow node calls another saved Chatflow or Agentflow as a step, passes it input, waits for the child flow to finish, and receives its output back to continue the parent flow.",
         shortValue: 'Yes, via the Execute Flow node',
         confidence: 'verified',
         sources: [
@@ -242,7 +242,7 @@ export const flowiseProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: Flowise integrates a broad set of LLM providers including OpenAI, Azure OpenAI, AWS Bedrock, Google PaLM/Vertex AI, Cohere, HuggingFace Inference, Ollama, Replicate, and Anthropic models (e.g. Claude 3.5/4), covering both hosted and self-hosted open-source models.',
+          'Yes: Flowise integrates a broad set of LLM providers including OpenAI, Azure OpenAI, AWS Bedrock, Google PaLM/Vertex AI, Cohere, HuggingFace Inference, Ollama, Replicate, and Anthropic models (Claude 3.5/4), covering both hosted and self-hosted open-source models.',
         shortValue: 'Broad support: OpenAI, Azure, Bedrock, Google, Anthropic, Ollama, more',
         confidence: 'verified',
         sources: [
@@ -255,7 +255,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       agentReasoningBlocks: {
         value:
-          "Yes: Flowise's Agentflow V2 provides dedicated Agent nodes plus orchestration primitives (Condition, Iteration, Human Input) for building multi-step agent reasoning and tool-use loops, distinct from plain data-routing nodes.",
+          "Yes: Flowise's Agentflow V2 provides dedicated Agent nodes plus orchestration primitives (Condition, Iteration, Human Input) for multi-step agent reasoning and tool-use loops, distinct from plain data-routing nodes.",
         shortValue: 'Yes, dedicated Agent/Condition/Iteration nodes in Agentflow V2',
         confidence: 'verified',
         sources: [
@@ -268,7 +268,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       naturalLanguageBuilding: {
         value:
-          'Unknown: no public documentation found of a feature letting a user describe an automation in plain language and have Flowise generate or edit the flow automatically.',
+          'Unknown: no documented feature lets a user describe an automation in plain language and have Flowise generate or edit the flow automatically.',
         shortValue: 'Unknown, not documented',
         confidence: 'unknown',
         sources: [],
@@ -277,7 +277,7 @@ export const flowiseProfile: CompetitorProfile = {
         value:
           "Yes: Flowise's Document Store provides a full RAG pipeline covering document loading (PDF, web pages, Word, etc.), configurable chunking/text-splitting, multiple embedding providers, and upsert into vector stores like Pinecone, Weaviate, Milvus, and FAISS.",
         detail:
-          "n8n's 2026 report rated Flowise's chunking/splitter options as the broadest natively available among evaluated tools.",
+          "n8n's 2026 report rated Flowise's chunking/splitter options the broadest natively available among evaluated tools.",
         shortValue: 'Yes, full built-in Document Store RAG pipeline',
         confidence: 'verified',
         sources: [
@@ -308,7 +308,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       evaluationGuardrails: {
         value:
-          'Yes: Flowise has a built-in Evaluations feature that runs datasets through chatflows/agentflows and scores outputs with string-match, numeric, or LLM-as-judge evaluators, reporting pass/fail rate, average tokens consumed, and latency. No separate, dedicated "guardrail validation" block was documented beyond this.',
+          'Yes: Flowise has a built-in Evaluations feature that runs datasets through chatflows/agentflows and scores outputs with string-match, numeric, or LLM-as-judge evaluators, reporting pass/fail rate, average tokens consumed, and latency. There is no separate, dedicated "guardrail validation" block beyond this.',
         shortValue: 'Yes, built-in dataset-based evaluation with LLM-judge scoring',
         confidence: 'verified',
         sources: [
@@ -334,9 +334,9 @@ export const flowiseProfile: CompetitorProfile = {
       },
       generativeMedia: {
         value:
-          'Partial: Flowise supports speech-to-text nodes and multi-modal image inputs. Image and audio generation can be wired in via custom tools calling providers like Replicate (Stable Diffusion) or ElevenLabs, but no dedicated, built-in image, video, or text-to-speech generation node was found in the standard node library as of this research.',
+          'Partial: Flowise supports speech-to-text nodes and multi-modal image inputs. Image and audio generation can be wired in via custom tools calling providers like Replicate (Stable Diffusion) or ElevenLabs, but the standard node library has no dedicated, built-in image, video, or text-to-speech generation node.',
         detail:
-          'Community discussions (e.g. GitHub issues) show text-to-speech and native image generation as requested but not confirmed shipped as first-class nodes.',
+          'Community GitHub issues show text-to-speech and native image generation as requested but not shipped as first-class nodes.',
         shortValue: 'Partial: STT built in, image/TTS via custom tools only',
         confidence: 'estimated',
         sources: [
@@ -349,7 +349,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       dynamicToolUse: {
         value:
-          "Yes: Flowise's Agent nodes and Custom MCP integration let an agent dynamically discover and select from a connected pool of tools/actions at inference time, rather than only calling a single pre-wired tool per step.",
+          "Yes: Flowise's Agent nodes and Custom MCP integration let an agent dynamically discover and select from a connected pool of tools/actions at inference time, rather than calling only a single pre-wired tool per step.",
         shortValue: 'Yes, agents can dynamically pick from connected tools/MCP servers',
         confidence: 'estimated',
         sources: [
@@ -362,23 +362,23 @@ export const flowiseProfile: CompetitorProfile = {
       },
       modelFallback: {
         value:
-          'Unknown: no public documentation found of automatic retry against a different model or provider on a failed/rate-limited LLM call.',
+          'Unknown: no documented automatic retry against a different model or provider on a failed/rate-limited LLM call.',
         shortValue: 'Unknown, not documented',
         confidence: 'unknown',
         sources: [],
       },
       agentSkills: {
         value:
-          'Unknown: no public documentation found of a reusable, named prompt/knowledge-snippet feature invoked by reference across multiple agents, distinct from a one-off system prompt or Variables feature.',
+          'Unknown: no documented reusable, named prompt/knowledge-snippet feature invoked by reference across multiple agents, distinct from a one-off system prompt or Variables feature.',
         detail:
-          'Flowise does have a general Variables feature (static/runtime key-value) but this is not documented as an agent-skill abstraction.',
+          'Flowise has a general Variables feature (static/runtime key-value), but it is not documented as an agent-skill abstraction.',
         shortValue: 'Unknown, not documented as a distinct feature',
         confidence: 'unknown',
         sources: [],
       },
       nativeChatDeployment: {
         value:
-          'Yes: a built flow can be deployed as a shareable public chat URL or an embeddable chat widget (popup bubble or full-page, via JS script or React components), in addition to a REST API endpoint.',
+          'Yes: a built flow can be deployed as a shareable public chat URL or an embeddable chat widget (popup bubble or full-page, via JS script or React components), plus a REST API endpoint.',
         shortValue: 'Yes, public chat URL and embeddable widget deployment',
         confidence: 'verified',
         sources: [
@@ -391,7 +391,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          'Yes: Flowise\'s Document Store lets users preview and edit individual chunks after ingestion (n8n\'s report calls this "post-processing" with individual chunk editing). The retrieval and upsertion views show chunk-level detail, not just whole-document results.',
+          'Yes: Flowise\'s Document Store lets users preview and edit individual chunks after ingestion (n8n\'s report calls this "post-processing"). Retrieval and upsertion views show chunk-level detail, not just whole-document results.',
         shortValue: 'Yes, per-chunk preview and editing in Document Store',
         confidence: 'verified',
         sources: [
@@ -409,7 +409,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          "No: AgentFlow V2 lets users draw a branching canvas layout, but users and Flowise's own issue tracker report that the execution engine processes the queue one node at a time and does not run parallel branches concurrently, causing chat-history and input-inheritance bugs when a canvas is arranged in a parallel shape.",
+          "No: AgentFlow V2 lets users draw a branching canvas layout, but the execution engine processes the queue one node at a time and does not run parallel branches concurrently, per user reports and Flowise's own issue tracker. This causes chat-history and input-inheritance bugs when a canvas is arranged in a parallel shape.",
         shortValue: 'No, branches in AgentFlow V2 execute sequentially, not concurrently',
         confidence: 'estimated',
         sources: [
@@ -433,7 +433,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          'No: Google A2A (Agent2Agent) protocol support is an open, unimplemented GitHub feature request (opened April 2025), not a shipped capability. Flowise supports MCP for tool-calling but has no documented Agent Card or agent-to-agent discovery feature.',
+          'No: Google A2A (Agent2Agent) protocol support is an open, unimplemented GitHub feature request (opened April 2025). Flowise supports MCP for tool-calling but has no Agent Card or agent-to-agent discovery feature.',
         shortValue: 'No, A2A support is an open feature request, not implemented',
         confidence: 'estimated',
         sources: [
@@ -446,7 +446,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       loopIteration: {
         value:
-          "Yes: Flowise's Agentflow V2 has a dedicated Iteration node that takes an array and executes a nested sub-flow of steps once per item, running sequentially. Its separate Loop node instead jumps backward to re-run an earlier node (a retry cycle, not a collection iterator).",
+          "Yes: Flowise's Agentflow V2 has a dedicated Iteration node that takes an array and executes a nested sub-flow of steps once per item, running sequentially. Its separate Loop node instead jumps backward to re-run an earlier node, a retry cycle rather than a collection iterator.",
         shortValue: 'Yes, via the Iteration node (separate Loop node is retry-only)',
         confidence: 'verified',
         sources: [
@@ -461,7 +461,7 @@ export const flowiseProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          'Flowise documents integration categories across LLMs, vector stores, document loaders, embeddings, tools, and MCP servers (referred to internally as "nodes"), but no official, currently-published exact total node/integration count was found.',
+          'Flowise documents integration categories across LLMs, vector stores, document loaders, embeddings, tools, and MCP servers (referred to internally as "nodes"), but publishes no exact total node/integration count.',
         shortValue: 'Broad multi-category node library, exact count unverified',
         confidence: 'estimated',
         sources: [
@@ -474,7 +474,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value:
-          'Flowise flows are triggered via the chat widget or public URL, direct REST API prediction calls (/api/v1/prediction/{chatflowId}), and Custom MCP/tool invocations. No dedicated cron/schedule trigger, or broad library of app-specific event triggers, was found documented.',
+          'Flowise flows are triggered via the chat widget or public URL, direct REST API prediction calls (/api/v1/prediction/{chatflowId}), and Custom MCP/tool invocations. There is no dedicated cron/schedule trigger or broad library of app-specific event triggers.',
         shortValue: 'Chat, API/webhook-style prediction calls; no schedule trigger found',
         confidence: 'estimated',
         sources: [
@@ -487,7 +487,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       customCodeSteps: {
         value:
-          'Yes: Flowise has a Custom JS Function node for arbitrary JavaScript (async functions, plus built-in and external Node modules) and a Custom Tool node for JS-based agent tools. No dedicated Python code-step node was found documented.',
+          'Yes: Flowise has a Custom JS Function node for arbitrary JavaScript (async functions, plus built-in and external Node modules) and a Custom Tool node for JS-based agent tools. There is no dedicated Python code-step node.',
         shortValue: 'Yes, custom JavaScript function/tool nodes; no native Python step found',
         confidence: 'verified',
         sources: [
@@ -513,7 +513,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       extensibilitySdk: {
         value:
-          'Partial: Flowise provides official embed SDKs (a flowise-embed JS package and React BubbleChat/FullPageChat components) and a documented process for building custom nodes to contribute. No public, first-party marketplace for community-built node plugins was found beyond the flow-template Marketplace.',
+          'Partial: Flowise provides official embed SDKs (a flowise-embed JS package and React BubbleChat/FullPageChat components) and a documented process for building custom nodes to contribute. There is no first-party marketplace for community-built node plugins beyond the flow-template Marketplace.',
         shortValue: 'Embed SDKs and custom-node dev docs; no plugin marketplace found',
         confidence: 'estimated',
         sources: [
@@ -531,9 +531,9 @@ export const flowiseProfile: CompetitorProfile = {
       },
       mcpPublishing: {
         value:
-          "No: Flowise's own documentation covers only consuming external MCP servers as an MCP client; no documented capability exists for publishing a deployed Flowise flow itself as a callable MCP server for other AI tools.",
+          "No: Flowise's documentation covers only consuming external MCP servers as an MCP client. It has no capability for publishing a deployed Flowise flow itself as a callable MCP server for other AI tools.",
         detail:
-          'Third-party community wrapper packages (e.g. mcp-flowise) expose Flowise chatflows via MCP externally, but this is not a native Flowise feature.',
+          'Third-party community wrapper packages (e.g. mcp-flowise) expose Flowise chatflows via MCP externally, but this is not native.',
         shortValue: 'No, cannot publish a flow as an MCP server',
         confidence: 'verified',
         sources: [
@@ -563,7 +563,7 @@ export const flowiseProfile: CompetitorProfile = {
         value:
           'The cheapest paid Cloud plan (Starter) is reported at $35/month, including unlimited flows, 10,000 predictions/month, and 1GB storage.',
         detail:
-          "Pricing sourced from third-party aggregator coverage, not Flowise's own pricing page (which returned a login wall during this research); treat as estimated.",
+          "Sourced from third-party aggregator coverage; Flowise's own pricing page sits behind a login wall.",
         shortValue: '$35/month Starter: unlimited flows, 10k predictions, 1GB storage',
         confidence: 'estimated',
         sources: [
@@ -605,16 +605,16 @@ export const flowiseProfile: CompetitorProfile = {
     security: {
       soc2: {
         value:
-          'Unknown: a third-party security-scan aggregator (Nudge Security) lists Flowise as SOC 2 compliant among several other certifications. No SOC 2 report, badge, or trust page was found published by Flowise itself, so this claim is unverified.',
+          'Unknown: a third-party security-scan aggregator (Nudge Security) lists Flowise as SOC 2 compliant among several other certifications, but Flowise has published no SOC 2 report, badge, or trust page of its own.',
         detail:
-          'Treat with skepticism: the same third-party source also claims FedRAMP and PCI compliance for a small startup, which is atypical and could not be corroborated on flowiseai.com.',
-        shortValue: 'Unverified third-party claim, no official confirmation found',
+          'The same third-party source also claims FedRAMP and PCI compliance for a small startup, an atypical combination not corroborated on flowiseai.com.',
+        shortValue: 'No official confirmation found',
         confidence: 'unknown',
         sources: [],
       },
       dataResidency: {
         value:
-          'Yes, indirectly: self-hosting (including on-prem/air-gapped Enterprise deployment) lets an organization fully control data location; no dedicated regional-cloud-hosting option was documented for the managed Cloud product.',
+          'Yes, indirectly: self-hosting (including on-prem/air-gapped Enterprise deployment) lets an organization fully control data location. There is no dedicated regional-cloud-hosting option for the managed Cloud product.',
         shortValue: 'Yes via self-hosting/on-prem; no documented regional cloud option',
         confidence: 'estimated',
         sources: [
@@ -653,21 +653,21 @@ export const flowiseProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'Unknown: beyond the unverified third-party SOC 2 claim, no official Flowise-published documentation of HIPAA, ISO 27001, PCI, or FedRAMP certification was found.',
+          'Unknown: beyond the unconfirmed third-party SOC 2 claim, Flowise has published no HIPAA, ISO 27001, PCI, or FedRAMP certification.',
         shortValue: 'Unknown, no official certifications published',
         confidence: 'unknown',
         sources: [],
       },
       modelAndToolGovernance: {
         value:
-          "Unknown: no public documentation found of admin controls restricting which specific LLM providers/models or which tools/integrations a given role may use; Flowise's documented RBAC governs resource-level (create/edit/delete) permissions, not model/tool allowlists.",
+          "Unknown: no documented admin controls restrict which specific LLM providers/models or which tools/integrations a given role may use. Flowise's RBAC governs resource-level (create/edit/delete) permissions, not model/tool allowlists.",
         shortValue: 'Unknown, RBAC is resource-level not model/tool-specific',
         confidence: 'unknown',
         sources: [],
       },
       credentialGovernance: {
         value:
-          "Partial: credentials can be shared across workspaces in Flowise's workspace model, but no documentation was found of restricting which specific stored credential a given role/permission group may use.",
+          "Partial: credentials can be shared across workspaces in Flowise's workspace model, but there is no documented way to restrict which specific stored credential a given role/permission group may use.",
         shortValue: 'Credentials shareable across workspaces; per-role credential limits unclear',
         confidence: 'unknown',
         sources: [
@@ -680,7 +680,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       whiteLabeling: {
         value:
-          'Partial: the free plan includes Flowise\'s own embed branding, and paid plans support customizing the embedded chat widget\'s theme (colors, welcome message, tooltips). Community reports indicate fully removing the "Powered by Flowise" watermark is not cleanly supported out of the box and requires workarounds.',
+          'Partial: the free plan includes Flowise\'s own embed branding, and paid plans support customizing the embedded chat widget\'s theme (colors, welcome message, tooltips). Community reports indicate fully removing the "Powered by Flowise" watermark requires workarounds, not a clean built-in option.',
         shortValue: 'Partial: widget theming yes, full logo/brand removal unclear',
         confidence: 'estimated',
         sources: [
@@ -693,21 +693,21 @@ export const flowiseProfile: CompetitorProfile = {
       },
       dataRetention: {
         value:
-          'Unknown: no public documentation found of org-configurable retention windows for execution logs or soft-deleted resources.',
+          'Unknown: no documented org-configurable retention windows for execution logs or soft-deleted resources.',
         shortValue: 'Unknown, not documented',
         confidence: 'unknown',
         sources: [],
       },
       piiRedaction: {
         value:
-          'Unknown: no public documentation found of a dedicated PII detection/redaction feature for workflow content or logs.',
+          'Unknown: no documented PII detection/redaction feature for workflow content or logs.',
         shortValue: 'Unknown, not documented',
         confidence: 'unknown',
         sources: [],
       },
       sso: {
         value:
-          'Yes, with a caveat: Enterprise-plan SSO supports OIDC via Microsoft Azure/Entra ID, Google, and Auth0, but there is no automatic org auto-provisioning; invited users must be added first before SSO login works.',
+          'Yes, with a caveat: Enterprise-plan SSO supports OIDC via Microsoft Azure/Entra ID, Google, and Auth0, but has no automatic org auto-provisioning. Invited users must be added first before SSO login works.',
         detail: 'No SAML support documented.',
         shortValue: 'Yes (OIDC, Enterprise plan), but no auto-provisioning',
         confidence: 'verified',
@@ -721,9 +721,9 @@ export const flowiseProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Yes: Flowise's nodes (LLMs, tools, vector stores, document loaders) live in the packages/components/nodes folder of the core FlowiseAI/Flowise monorepo. New nodes are contributed via GitHub pull request and reviewed/merged by the Flowise team before shipping in an official release, rather than published independently by third parties into an open, unreviewed marketplace. The separate Marketplace feature distributes JSON chatflow/agentflow templates, not installable executable code packages.",
+          "Yes: Flowise's nodes (LLMs, tools, vector stores, document loaders) live in the packages/components/nodes folder of the core FlowiseAI/Flowise monorepo. New nodes are contributed via GitHub pull request and reviewed/merged by the Flowise team before shipping in an official release, rather than published independently by third parties into an open, unreviewed marketplace. The separate Marketplace feature distributes JSON chatflow/agentflow templates, not installable executable code.",
         detail:
-          'Flowise has still had first-party security issues: CVE-2025-59528 (CVSS 10.0) was a critical unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor; patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. This was a bug in vetted, first-party code, not a malicious third-party community node.',
+          'Flowise has still had first-party security issues: CVE-2025-59528 (CVSS 10.0) was a critical unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor. It was patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. This was a bug in vetted, first-party code, not a malicious third-party community node.',
         shortValue:
           'Yes, nodes are PR-reviewed into the core repo, no open community-node marketplace',
         confidence: 'verified',
@@ -764,21 +764,21 @@ export const flowiseProfile: CompetitorProfile = {
       },
       durabilityModel: {
         value:
-          'Unknown: no public documentation found describing automatic retries, checkpointing, or replay of a past execution with its original inputs.',
+          'Unknown: no documentation describes automatic retries, checkpointing, or replay of a past execution with its original inputs.',
         shortValue: 'Unknown, not documented',
         confidence: 'unknown',
         sources: [],
       },
       failureAlerting: {
         value:
-          'Unknown: no public documentation found of proactive notification (email/Slack/webhook) when a run fails or crosses a cost/latency threshold, beyond viewing failures in logs/observability tools.',
+          'Unknown: no documented proactive notification (email/Slack/webhook) when a run fails or crosses a cost/latency threshold, beyond viewing failures in logs/observability tools.',
         shortValue: 'Unknown, not documented',
         confidence: 'unknown',
         sources: [],
       },
       dataDrains: {
         value:
-          'Partial: Flowise supports exporting execution traces to external observability platforms (Langfuse, Opik) on an ongoing basis, but no documentation was found of exporting raw execution/audit/usage data to generic destinations like S3, BigQuery, or Datadog.',
+          'Partial: Flowise supports exporting execution traces to external observability platforms (Langfuse, Opik) on an ongoing basis, but has no documented way to export raw execution/audit/usage data to generic destinations like S3, BigQuery, or Datadog.',
         shortValue: 'Partial: trace export to Langfuse/Opik only, no generic data-drain found',
         confidence: 'estimated',
         sources: [
@@ -791,7 +791,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          'Partial: Flowise supports a queue-based execution mode ("Running Flowise using Queue") for scaling background job processing, but the standard /api/v1/prediction endpoint is documented as a synchronous call. No clear public documentation of a poll-for-result async API pattern was found.',
+          'Partial: Flowise supports a queue-based execution mode ("Running Flowise using Queue") for scaling background job processing, but the standard /api/v1/prediction endpoint is documented as a synchronous call, with no clear poll-for-result async API pattern.',
         shortValue: 'Partial: queue mode exists, prediction API is documented as synchronous',
         confidence: 'estimated',
         sources: [
@@ -804,14 +804,14 @@ export const flowiseProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          'Unknown: no published, verified numbers were found for maximum single-execution duration or concurrency limits, beyond monthly prediction-count caps tied to Cloud pricing tiers.',
+          'Unknown: Flowise publishes no numbers for maximum single-execution duration or concurrency limits, beyond monthly prediction-count caps tied to Cloud pricing tiers.',
         shortValue: 'Unknown, only monthly prediction caps are published',
         confidence: 'unknown',
         sources: [],
       },
       partialFailureHandling: {
         value:
-          'Yes: Agentflow V2\'s conditional branching and Human Input reject-path let a workflow route around a problematic step (e.g. loop back for refinement) rather than only halting entirely, though no dedicated "catch/error-handler" node distinct from conditional routing was documented.',
+          'Yes: Agentflow V2\'s conditional branching and Human Input reject-path let a workflow route around a problematic step (e.g. loop back for refinement) rather than only halting entirely, though there is no dedicated "catch/error-handler" node distinct from conditional routing.',
         shortValue: 'Yes, via conditional branching / reject-loop paths in Agentflow V2',
         confidence: 'estimated',
         sources: [
@@ -839,8 +839,8 @@ export const flowiseProfile: CompetitorProfile = {
       },
       sla: {
         value:
-          'A formal SLA (reported as 99.99% uptime) is offered on the Enterprise plan according to third-party coverage; no SLA is documented for lower tiers.',
-        detail: 'Not independently confirmed on an official Flowise SLA page.',
+          'A formal SLA (99.99% uptime) is offered on the Enterprise plan per third-party coverage; no SLA is documented for lower tiers.',
+        detail: 'No official Flowise SLA page confirms this figure.',
         shortValue: 'Yes, ~99.99% SLA claimed on Enterprise plan',
         confidence: 'estimated',
         sources: [
@@ -853,7 +853,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       community: {
         value:
-          "Flowise's GitHub repository has approximately 54,000 stars (Apache 2.0 licensed core), with an active Discord community; exact Discord member counts were not published.",
+          "Flowise's GitHub repository has approximately 54,000 stars (Apache 2.0 licensed core), with an active Discord community whose exact member count is not published.",
         shortValue: '~54,000 GitHub stars, active Discord community',
         confidence: 'verified',
         sources: [
@@ -879,7 +879,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       academy: {
         value:
-          'No official Flowise-run academy or certification program was found; third-party platforms (Coursera, Codecademy, Udemy) offer independent Flowise courses and certificates of completion, and Flowise maintains standard docs and YouTube tutorials.',
+          'Flowise runs no official academy or certification program. Third-party platforms (Coursera, Codecademy, Udemy) offer independent Flowise courses and certificates of completion, and Flowise maintains standard docs and YouTube tutorials.',
         shortValue: 'No official academy; only third-party courses exist',
         confidence: 'verified',
         sources: [

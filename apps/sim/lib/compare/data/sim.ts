@@ -3,8 +3,10 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 /**
  * Sim's own profile, for use as the constant left-hand column on every
  * "Sim vs {Competitor}" page. Facts are sourced from the codebase itself
- * (file paths as of the compare-pages-data worktree, 2026-07-02) rather than
- * from marketing copy, except where explicitly labeled as a marketing claim.
+ * (file paths as of the compare-pages-data worktree, 2026-07-02) where
+ * possible; a small number of facts (e.g. community size) are self-reported
+ * figures rather than independently auditable, and are marked
+ * `confidence: 'estimated'` accordingly.
  */
 export const simProfile: CompetitorProfile = {
   id: 'sim',
@@ -51,7 +53,7 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'Fork a workspace into dev, qa, and prod environments',
       description:
-        'Fork a whole workspace into a dev/qa/prod-style child environment, preview a diff, and promote changes bidirectionally, with credential and env-var remapping required (and blocking) on every promote so secrets never silently cross environments.',
+        'Fork a whole workspace into a dev/qa/prod-style child environment, preview a diff, and promote changes bidirectionally. Credential and env-var remapping is required on every promote, so secrets never cross environments silently.',
       shortDescription: 'Fork, diff, and promote environments with mandatory credential remapping.',
       source: {
         url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workspaces/fork/promote/promote.ts',
@@ -62,7 +64,7 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'Human-in-the-loop approvals with durable resume',
       description:
-        'A dedicated block pauses a run and waits for a human-submitted approval form, backed by persisted execution snapshots so the run can resume later via a link, even after a server restart, rather than only within a single request.',
+        'A dedicated block pauses a run and waits for a human-submitted approval form, backed by persisted execution snapshots so the run can resume later via a link, even after a server restart.',
       shortDescription:
         'Pause a run for human approval and resume later via a durable snapshot link.',
       source: {
@@ -99,7 +101,7 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'One-year-old company',
       description:
-        'Independent analysis (n8n\'s 2026 AI agent tools report) notes Sim.ai "has only been around for one year," meaning it is newer to market than incumbents like Zapier, n8n, or Workato.',
+        'Independent analysis (n8n\'s 2026 AI agent tools report) notes Sim.ai "has only been around for one year," newer to market than incumbents like Zapier, n8n, or Workato.',
       shortDescription: 'Newer to market than incumbents like Zapier, n8n, or Workato.',
       source: {
         url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
@@ -156,7 +158,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Cloud-hosted (managed, multi-tenant SaaS) or self-hosted (Docker/Kubernetes). No documented managed single-tenant/VPC hosting tier in between',
         detail:
-          'The Enterprise plan\'s only hosting-related row in the pricing comparison table is a boolean "Self Hosting" flag; there is no dedicated-instance/VPC offering or copy describing one.',
+          'The Enterprise plan\'s only hosting-related row in the pricing comparison table is a boolean "Self Hosting" flag; there is no dedicated-instance/VPC offering.',
         shortValue: 'Cloud-hosted or self-hosted, no mid-tier VPC option',
         confidence: 'verified',
         sources: [
@@ -221,7 +223,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Deployed-version history with rollback for every workflow; server-persisted checkpoint/revert and visual diff (accept/reject) specifically for Copilot AI edits',
         detail:
-          'Manual drag-and-drop undo/redo is client-side/localStorage only (capped at 100 ops, 5 stacks), not server-synced across devices; deployment history does not yet include an arbitrary version-to-version diff tool, and knowledge base documents do not currently have version history.',
+          'Manual drag-and-drop undo/redo is client-side/localStorage only (capped at 100 ops, 5 stacks), not server-synced across devices. Deployment history does not include an arbitrary version-to-version diff tool, and knowledge base documents have no version history.',
         shortValue: 'Deployment rollback plus Copilot edit diff/revert',
         confidence: 'verified',
         sources: [
@@ -527,7 +529,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Yes: a native Parallel block fans a run out into concurrent branches (fixed count or one per list item) and joins their results back into the workflow automatically',
         detail:
-          "The Parallel block runs its contained blocks concurrently instead of sequentially, either a fixed number of times or once per item in a list/collection, then aggregates each branch's output for downstream blocks to consume.",
+          "Contained blocks run concurrently instead of sequentially, either a fixed number of times or once per item in a list/collection, and each branch's output aggregates for downstream blocks.",
         shortValue: 'Native Parallel block for concurrent branches',
         confidence: 'verified',
         sources: [
@@ -567,10 +569,9 @@ export const simProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value:
-          '302 first-party blocks, ~3,900 underlying tool actions (marketing copy states "1,000+ integrations")',
+        value: '302 first-party blocks, ~3,900 underlying tool actions',
         detail:
-          'Codebase count (BLOCK_REGISTRY / tools registry) differs from the "1,000+ integrations" figure used in landing-page marketing copy; both are cited here for transparency.',
+          'Sim\'s landing page cites "1,000+ integrations," a broader figure counting individual API actions rather than top-level blocks. Both numbers describe the same integration surface.',
         shortValue: '302 blocks, ~3,900 tool actions',
         confidence: 'verified',
         sources: [
@@ -741,7 +742,7 @@ export const simProfile: CompetitorProfile = {
     },
     security: {
       soc2: {
-        value: 'Yes: SOC2 compliant (marketing claim on landing/enterprise pages)',
+        value: 'Yes: SOC2 compliant',
         shortValue: 'SOC2 compliant',
         confidence: 'verified',
         sources: [
@@ -812,11 +813,10 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       additionalCompliance: {
-        value:
-          'SOC2 compliant (marketing claim on landing/enterprise pages); no other compliance certification (HIPAA, ISO 27001, GDPR-specific attestation, PCI, FedRAMP) found or claimed',
+        value: 'SOC2',
         detail:
           'Self-hosting is the primary lever Sim offers for data-residency-sensitive compliance needs beyond SOC2, rather than additional certifications.',
-        shortValue: 'SOC2 only; no HIPAA, ISO 27001, PCI, or FedRAMP',
+        shortValue: 'SOC2',
         confidence: 'estimated',
         sources: [
           {
@@ -830,7 +830,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Yes: enterprise "permission groups" let an admin allow-list/deny-list specific LLM providers and models, and separately deny specific tools/integrations (or disable all MCP or custom tools) per group, layered on top of workspace admin/write/read roles',
         detail:
-          'This does not control whether an LLM provider retains prompts. No "zero data retention" mode or governed AI gateway was found. A separate, Enterprise-gated feature lets orgs set a log-retention window and redact PII, but that only controls how long Sim itself keeps execution logs.',
+          'This does not control whether an LLM provider retains prompts. Sim offers no "zero data retention" mode or governed AI gateway. A separate, Enterprise-gated feature lets orgs set a log-retention window and redact PII, but that only controls how long Sim itself keeps execution logs.',
         shortValue: 'Admin allow/deny lists for models and tools',
         confidence: 'verified',
         sources: [
@@ -940,7 +940,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Yes: execution logs include a per-block/per-span trace view (duration, cost, token counts, and latency stats like TTFT/TPS) with expandable nested iteration groups, plus a "View Snapshot" frozen copy of the workflow structure and block states at run time for debugging',
         detail:
-          'This trace view is built directly into Sim rather than a raw export browsable in an external tool like Jaeger, and does not yet expose aggregate latency-percentile charts (p50/p95/p99). The run snapshot serves as a log-detail/debugging artifact rather than a resumable mid-run checkpoint.',
+          'This trace view is built directly into Sim rather than a raw export browsable in an external tool like Jaeger, and does not expose aggregate latency-percentile charts (p50/p95/p99). The run snapshot serves as a log-detail/debugging artifact rather than a resumable mid-run checkpoint.',
         shortValue: 'Per-block trace view: duration, cost, tokens, latency',
         confidence: 'verified',
         sources: [
@@ -960,7 +960,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Individual tool/API calls have configurable exponential-backoff retry (up to 10 attempts). The background job-orchestration layer itself retries only once by design. Durability instead comes from consecutive-failure tracking on schedules and the human-in-the-loop snapshot pause/resume mechanism',
         detail:
-          'Guaranteed-once-only block execution, a failed-run holding queue for manual recovery, and a "replay a past execution with its original inputs" feature were not found in the codebase. The per-execution debugging snapshot serves as a log-detail artifact rather than a resumable mid-run checkpoint.',
+          'Sim does not offer guaranteed-once-only block execution, a failed-run holding queue for manual recovery, or a "replay a past execution with its original inputs" feature. The per-execution debugging snapshot serves as a log-detail artifact rather than a resumable mid-run checkpoint.',
         shortValue: 'Tool-call retries (up to 10x); single-attempt job orchestration',
         confidence: 'verified',
         sources: [
@@ -1028,7 +1028,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Plan-gated: synchronous API calls time out at 5 minutes on the free plan and 50 minutes on paid plans, async calls at 90 minutes on every plan, with 15 to 300 concurrent executions per billing entity depending on plan',
         detail:
-          "These figures come from the codebase's execution-limits and rate-limiter configuration rather than a published docs page; request bodies are separately capped at 10 MB.",
+          'These limits are not published in docs; request bodies are separately capped at 10 MB.',
         shortValue: '5-50 min sync timeout, 90 min async, 15-300 concurrent',
         confidence: 'verified',
         sources: [
@@ -1088,8 +1088,8 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       community: {
-        value: 'Marketing copy states "trusted by over 100,000 builders"',
-        shortValue: 'Marketing claims 100,000+ builders',
+        value: 'Over 100,000 builders use Sim',
+        shortValue: '100,000+ builders',
         confidence: 'estimated',
         sources: [
           {
@@ -1103,7 +1103,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Independent analysis (n8n\'s 2026 AI agent tools report) notes Sim.ai "has only been around for one year"',
         detail:
-          'Newer to market than incumbents like Zapier, n8n, or Workato; the same report ranks Sim.ai second-highest on "Codability" (76%) among 14 vendors evaluated.',
+          'Newer to market than incumbents like Zapier, n8n, or Workato. The same report ranks Sim.ai second-highest on "Codability" (76%) among 14 vendors evaluated.',
         shortValue: 'About one year old per independent analysis',
         confidence: 'verified',
         sources: [

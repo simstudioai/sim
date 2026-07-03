@@ -14,7 +14,7 @@ export const dustProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Dust is an enterprise AI agent platform where teams build no-code agents connected to company data and tools inside a shared, multiplayer workspace, and deploy them to chat, Slack, and other surfaces.',
+    'Dust is an enterprise AI agent platform where teams build no-code agents connected to company data and tools in a shared, multiplayer workspace, then deploy them to chat, Slack, and other surfaces.',
   standoutFeatures: [
     {
       title: "'Skills' as reusable, shared agent instruction/tool packages",
@@ -42,7 +42,7 @@ export const dustProfile: CompetitorProfile = {
     {
       title: 'Natural-language scheduled triggers, no cron syntax',
       description:
-        "Agents can be set to run on a recurring schedule described in plain English (e.g. 'Every weekday at 8:30am'), which Dust converts into the underlying cron expression for the agent to execute autonomously without a manual chat invocation.",
+        "Agents can run on a recurring schedule written in plain English (e.g. 'Every weekday at 8:30am'). Dust converts this into a cron expression and runs the agent automatically, without a manual chat invocation.",
       shortDescription: 'Schedule agents in plain English; Dust generates the cron expression.',
       source: {
         url: 'https://docs.dust.tt/docs/scheduling-your-agent-beta',
@@ -53,7 +53,7 @@ export const dustProfile: CompetitorProfile = {
     {
       title: 'Dual-role MCP: consumes external servers and exposes Dust as one',
       description:
-        "Dust agents can call tools from external MCP servers (remote or client-side, the latter executing in the user's own environment for sensitive operations), and Dust can itself be exposed as an MCP server so external MCP-compatible clients (e.g. Claude Desktop, Cursor) can call Dust agents and data as tools.",
+        "Dust agents can call tools from external MCP servers, remote or client-side (client-side tools execute in the user's own environment for sensitive operations). Dust can also be exposed as an MCP server, so external MCP-compatible clients (e.g. Claude Desktop, Cursor) can call Dust agents and data as tools.",
       shortDescription: 'Both calls external MCP tools and can be called as an MCP server itself.',
       source: {
         url: 'https://docs.dust.tt/docs/client-side-mcp-server',
@@ -64,7 +64,7 @@ export const dustProfile: CompetitorProfile = {
     {
       title: "'Frames': agent output rendered as interactive, shareable documents",
       description:
-        'Frames turn an agent conversation into a website-like interactive document that teammates can explore together, hovering over charts for detail, clicking legend items to filter data, and switching between views with buttons, rather than a static text or image reply.',
+        'Frames turn an agent conversation into an interactive, website-like document teammates can explore together, hovering over charts for detail, clicking legend items to filter data, and switching views with buttons, instead of a static text or image reply.',
       shortDescription: 'Turns agent output into an interactive, explorable shared document.',
       source: {
         url: 'https://blog.dust.tt/introducing-frames-interactive-data-visualized/',
@@ -89,8 +89,8 @@ export const dustProfile: CompetitorProfile = {
     {
       title: 'No dedicated pre-deployment evaluation/dataset-testing framework',
       description:
-        "Dust's own blog states it is 'not a pre-deployment evaluation platform': dataset-based evaluation for catching regressions belongs in CI/CD pipelines and specialized testing frameworks, and Dust instead builds observability signals natively into the agent-builder workflow rather than a formal eval-suite feature.",
-      shortDescription: "Dust's own blog says it is not a pre-deployment evaluation platform.",
+        "Dust says it is 'not a pre-deployment evaluation platform': dataset-based regression testing belongs in CI/CD pipelines and specialized testing tools, and Dust builds observability signals into the agent-builder workflow instead of a formal eval-suite feature.",
+      shortDescription: 'Dust says it is not a pre-deployment evaluation platform.',
       source: {
         url: 'https://dust.tt/blog/evaluation-to-maintenance',
         label: 'From Evaluation to Maintenance | Dust Blog',
@@ -100,7 +100,7 @@ export const dustProfile: CompetitorProfile = {
     {
       title: 'Self-hosting is not a supported deployment path despite an MIT-licensed core',
       description:
-        'The core dust-tt/dust repository is published under the MIT License on GitHub, but Dust is sold and operated exclusively as a hosted SaaS product; there is no documented, officially supported path to self-host a production Dust workspace on customer infrastructure.',
+        'The core dust-tt/dust repository is MIT-licensed on GitHub, but Dust is sold and operated only as hosted SaaS. There is no documented, supported way to self-host a production Dust workspace on customer infrastructure.',
       shortDescription:
         'Code is MIT-licensed on GitHub, but only a hosted SaaS deployment is supported.',
       source: {
@@ -112,7 +112,7 @@ export const dustProfile: CompetitorProfile = {
     {
       title: 'No native spreadsheet-like data table; structured data is queried, not edited',
       description:
-        "Dust's Query Tables tool lets an agent generate and run SQL over structured sources (CSVs, Notion databases, Google Sheets, Snowflake, BigQuery), but Dust has no native, editable spreadsheet-grid feature of its own with arrow-key navigation and copy-paste, the way a dedicated data-table product does.",
+        "Dust's Query Tables tool lets an agent generate and run SQL over structured sources (CSVs, Notion databases, Google Sheets, Snowflake, BigQuery), but Dust has no native, editable spreadsheet-grid feature with arrow-key navigation and copy-paste, unlike a dedicated data-table product.",
       shortDescription:
         'Query Tables runs SQL over external data; there is no native editable data grid.',
       source: {
@@ -161,7 +161,7 @@ export const dustProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'No: the core repository is MIT-licensed and public on GitHub, but self-hosting is not an officially supported or documented deployment path; Dust is sold and operated only as hosted SaaS',
+          "No: the core repository is MIT-licensed and public on GitHub, but self-hosting isn't an officially supported deployment path. Dust is sold and operated only as hosted SaaS",
         detail:
           'dust-tt/dust is publicly available and MIT-licensed, but Dust the company documents only its hosted product (with US/EU region choice), not a supported self-managed installation.',
         shortValue: 'No, MIT code exists but only SaaS is supported',
@@ -226,9 +226,9 @@ export const dustProfile: CompetitorProfile = {
       },
       environmentPromotion: {
         value:
-          'Partial: GitOps sync via an official GitHub Action version-controls and syncs Skills/agent configurations from a Git repository into a workspace, but this is configuration sync, not a documented dev/test/prod multi-environment promotion model',
+          'Partial: an official GitHub Action version-controls and syncs Skills/agent configurations from a Git repository into a workspace, but this is configuration sync, not a documented dev/test/prod promotion model',
         detail:
-          'The dust-github-action lets teams define Skills and agent configurations as files, review changes via pull request, and sync them into a Dust workspace from CI/CD, giving change history and rollback. No dedicated separate-environment (e.g. staging vs. production workspace) promotion pipeline is documented beyond this Git-to-workspace sync.',
+          'The dust-github-action lets teams define Skills and agent configurations as files, review changes via pull request, and sync them into a Dust workspace from CI/CD, giving change history and rollback. No separate-environment (e.g. staging vs. production workspace) promotion pipeline is documented beyond this Git-to-workspace sync.',
         shortValue: 'Git-based config sync/rollback, not a formal environment-promotion pipeline',
         confidence: 'estimated',
         sources: [
@@ -261,7 +261,7 @@ export const dustProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          "No: Dust markets itself as 'multiplayer AI' for shared conversations, mentions, notifications, and to-dos between people and agents in a workspace, but this is asynchronous shared workspace collaboration, not live concurrent multi-user editing of the same agent configuration with synced cursors/selections",
+          "No: Dust calls itself 'multiplayer AI', with shared conversations, mentions, notifications, and to-dos between people and agents in a workspace, but this is asynchronous collaboration, not live concurrent editing of the same agent configuration with synced cursors",
         detail:
           "Dust's own materials describe a shared workspace where 'teams and agents work in the same workspace with shared projects, context, conversations, to-dos, notifications' rather than live co-editing of a single agent's configuration.",
         shortValue: 'Shared async workspace, not live co-editing of one config',
@@ -278,7 +278,7 @@ export const dustProfile: CompetitorProfile = {
         value:
           'No: Dust has no folder-hierarchy, link-sharing, recycle-bin file manager of its own; files are handled as agent-conversation uploads/outputs or through connected external services (Google Drive, Notion, etc.)',
         detail:
-          'Agents can generate, read, and edit files (PDF, Word, Excel, Google Docs/Sheets/Slides) within a conversation or a connected Drive/Notion account, but no standalone Dust-native shared-drive product surface with folder hierarchy and permissioned link-sharing was found.',
+          'Agents can generate, read, and edit files (PDF, Word, Excel, Google Docs/Sheets/Slides) within a conversation or a connected Drive/Notion account, but there is no standalone Dust-native shared-drive surface with folder hierarchy and permissioned link-sharing.',
         shortValue: 'No native file manager; files live in conversations or connectors',
         confidence: 'estimated',
         sources: [
@@ -423,10 +423,10 @@ export const dustProfile: CompetitorProfile = {
       },
       evaluationGuardrails: {
         value:
-          "No dedicated pre-deployment evaluation/guardrail framework: Dust's own blog states it is 'not a pre-deployment evaluation platform' and that dataset-based regression testing belongs in CI/CD pipelines, not a built-in Dust feature",
+          "No dedicated pre-deployment evaluation/guardrail framework: Dust says it is 'not a pre-deployment evaluation platform', and that dataset-based regression testing belongs in CI/CD pipelines, not a built-in feature",
         detail:
           'Dust instead builds observability signals (usage trends, tool execution patterns, feedback tracking, latency, RAG behavior) natively into the Agent Builder dashboard rather than a formal test-dataset evaluation suite comparable to a dedicated evals feature.',
-        shortValue: "Dust's own blog says it is not a pre-deployment eval platform",
+        shortValue: 'Dust says it is not a pre-deployment eval platform',
         confidence: 'verified',
         sources: [
           {
@@ -440,7 +440,7 @@ export const dustProfile: CompetitorProfile = {
         value:
           "Yes: MCP tool execution supports an approval step ('always ask' vs. auto-execute) before a tool call runs, and Dust's own guidance recommends human approval checkpoints before irreversible agent actions",
         detail:
-          "Dust's MCP tool architecture includes an approval-workflow layer for tool execution, and Dust's own content recommends 'mandatory steps, and human approval points before any irreversible action' for consequential agent actions, though this is documented as tool-execution approval rather than a single named workflow node like a dedicated approval action in a workflow tool.",
+          "Dust's MCP tool architecture includes an approval-workflow layer for tool execution, and Dust recommends 'mandatory steps, and human approval points before any irreversible action' for consequential agent actions. This is tool-execution approval, not a single named workflow node like a dedicated approval action in a workflow tool.",
         shortValue: 'MCP tool-execution approval step; documented best-practice guidance',
         confidence: 'estimated',
         sources: [
@@ -458,7 +458,7 @@ export const dustProfile: CompetitorProfile = {
       },
       generativeMedia: {
         value:
-          'Partial: native image generation (via Gemini/Nano Banana) with reference-image consistency and parallel generation is built in; no dedicated native video-generation or text-to-speech/speech-to-text block was found',
+          'Partial: native image generation (via Gemini/Nano Banana) with reference-image consistency and parallel generation is built in; there is no dedicated native video-generation or text-to-speech/speech-to-text block',
         detail:
           "Dust's Image Generation capability uses an underlying Gemini image model, supports up to 14 reference images for visual consistency across a series, and can run multiple generations in parallel; generated images are filtered for safety. Video and TTS/STT were not found as native Dust capabilities.",
         shortValue: 'Native image generation with reference images; no native video/audio gen',
@@ -526,9 +526,9 @@ export const dustProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          'Partial: Dust surfaces footnote-style citations tied to a specific source document in agent answers, but no dedicated raw chunk-index/content debugging inspector distinct from citation footnotes was confirmed',
+          "Partial: Dust surfaces footnote-style citations tied to a specific source document in agent answers, but there's no dedicated raw chunk-index/content debugging inspector distinct from citation footnotes",
         detail:
-          'Documentation confirms the Search/RAG method attributes answers back to specific source documents via citations; whether a raw chunk-content inspector view (beyond the citation itself) exists as a separate debugging surface was not confirmed in available docs.',
+          "Documentation confirms the Search/RAG method attributes answers to specific source documents via citations. Whether a raw chunk-content inspector view exists as a separate debugging surface isn't confirmed in available docs.",
         shortValue: 'Citations point to source documents; raw chunk inspector not confirmed',
         confidence: 'estimated',
         sources: [
@@ -583,7 +583,7 @@ export const dustProfile: CompetitorProfile = {
         value:
           '50+ native connections (Slack, Notion, Google Drive, Confluence, GitHub, Salesforce, HubSpot, Zendesk, and more), plus MCP servers for further extensibility',
         detail:
-          "Dust's own enterprise page states 'native integrations to 50+ business tools'; some third-party listings cite higher figures (100+) that likely include MCP-based and community integrations beyond the core native connector count.",
+          "Dust's enterprise page states 'native integrations to 50+ business tools'; some third-party listings cite higher figures (100+) that likely include MCP-based and community integrations beyond the core native connector count.",
         shortValue: '50+ native connections per Dust',
         confidence: 'estimated',
         sources: [
@@ -721,7 +721,7 @@ export const dustProfile: CompetitorProfile = {
       },
       byok: {
         value:
-          'No dedicated BYOK program found: Dust bills usage via plan-included AI credits rather than documenting a bring-your-own-provider-API-key option',
+          'No dedicated BYOK program: Dust bills usage via plan-included AI credits rather than a bring-your-own-provider-API-key option',
         detail:
           'Pricing is structured around per-seat monthly credits that scale with model/task/tool complexity; no Dust source describes letting a workspace supply its own OpenAI/Anthropic API key in place of credit consumption.',
         shortValue: 'Not documented; usage billed via included credits',
@@ -782,7 +782,7 @@ export const dustProfile: CompetitorProfile = {
         value:
           'Yes: audit logs available on the Enterprise plan, documented with 365-day retention',
         detail:
-          "The Enterprise plan lists audit logs among its named features; a third-party enterprise summary specifies 365-day audit log retention, though this figure was not independently confirmed on Dust's own pricing/security pages.",
+          "The Enterprise plan lists audit logs among its named features. A third-party enterprise summary specifies 365-day retention, though this figure isn't independently confirmed on Dust's own pricing/security pages.",
         shortValue: 'Enterprise-tier audit logs, ~365-day retention',
         confidence: 'estimated',
         sources: [
@@ -794,10 +794,9 @@ export const dustProfile: CompetitorProfile = {
         ],
       },
       additionalCompliance: {
-        value:
-          'GDPR compliant, HIPAA-ready/capable, SOC 2 Type II; no ISO 27001, PCI, or FedRAMP found',
+        value: 'GDPR compliant, HIPAA-capable, SOC 2 Type II. No ISO 27001, PCI, or FedRAMP',
         detail:
-          "Dust's security page and enterprise materials state GDPR compliance and describe HIPAA-compliance capability alongside SOC 2 Type II; no source confirms a formal ISO 27001 certification, PCI-DSS, or FedRAMP authorization.",
+          "Dust's security page and enterprise materials state GDPR compliance and HIPAA-compliance capability alongside SOC 2 Type II. No source confirms ISO 27001, PCI-DSS, or FedRAMP.",
         shortValue: 'GDPR, HIPAA-capable, SOC 2 Type II',
         confidence: 'estimated',
         sources: [
@@ -880,7 +879,7 @@ export const dustProfile: CompetitorProfile = {
         value:
           'Partial: native data connections (Slack, Notion, GitHub, Salesforce, and 50+ others) are first-party and built/maintained by the Dust team, but agent tools can also be extended with any external MCP server by pasting its public URL, with no Dust-led vetting or review of that server',
         detail:
-          'Docs describe adding a remote MCP server as entering "the MCP server\'s public URL" for any MCP server available on the internet, with workspace admins responsible for choosing and authenticating servers; there is no formal Dust review process described, unlike the fully managed first-party connectors. No publicly documented security incident specifically involving a malicious or compromised third-party MCP server on Dust was found.',
+          "Docs describe adding a remote MCP server as entering the server's public URL, with workspace admins responsible for choosing and authenticating it. No formal Dust review process is described, unlike the fully managed first-party connectors, and no publicly documented security incident involving a malicious or compromised third-party MCP server on Dust was found.",
         shortValue: 'First-party connectors, open bring-your-own-URL MCP tools',
         confidence: 'verified',
         sources: [
