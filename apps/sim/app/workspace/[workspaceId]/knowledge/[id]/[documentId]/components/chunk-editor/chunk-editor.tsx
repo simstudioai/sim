@@ -59,7 +59,7 @@ export function ChunkEditor({
 
   const [editedContent, setEditedContent] = useState(isCreateMode ? '' : chunkContent)
   const [savedContent, setSavedContent] = useState(chunkContent)
-  const lastToastedErrorRef = useRef<string | null>(null)
+  const validationToastIdRef = useRef<string | null>(null)
   const [tokenizerOn, setTokenizerOn] = useState(false)
   const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
   const savedContentRef = useRef(chunkContent)
@@ -109,17 +109,14 @@ export function ChunkEditor({
   const handleSave = useCallback(async () => {
     const content = editedContentRef.current
     const trimmed = content.trim()
-    /** Autosave retries on every edit pause — only toast when the message changes, not per attempt. */
+    /** Toast every failed attempt, replacing the previous validation toast so retries refresh instead of stack. */
     const failValidation = (message: string): never => {
-      if (lastToastedErrorRef.current !== message) {
-        lastToastedErrorRef.current = message
-        toast.error(message)
-      }
+      if (validationToastIdRef.current) toast.dismiss(validationToastIdRef.current)
+      validationToastIdRef.current = toast.error(message)
       throw new Error(message)
     }
     if (trimmed.length === 0) failValidation('Content cannot be empty')
     if (trimmed.length > 10000) failValidation('Content exceeds maximum length (10,000 characters)')
-    lastToastedErrorRef.current = null
 
     if (isCreateMode) {
       const created = await createChunk({
