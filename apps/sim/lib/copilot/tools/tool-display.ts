@@ -148,6 +148,7 @@ const TOOL_TITLES: Record<string, string> = {
   scheduled_task: 'Scheduled Task Agent',
   agent: 'Tools Agent',
   research: 'Research Agent',
+  scout: 'Scout Agent',
   media: 'Media Agent',
   superagent: 'Executing action',
 }
