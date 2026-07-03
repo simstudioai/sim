@@ -3,6 +3,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/work
 import { type NextRequest, NextResponse } from 'next/server'
 import { guardrailsValidateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -186,6 +187,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
           { status: 402 }
         )
+      }
+
+      if (vertexCredential) {
+        const vertexCredAccess = await authorizeCredentialUse(request, {
+          credentialId: vertexCredential,
+          workflowId: workflowId || undefined,
+          requireWorkflowIdForInternal: false,
+        })
+        if (!vertexCredAccess.ok) {
+          logger.warn(`[${requestId}] Vertex credential access denied`, {
+            error: vertexCredAccess.error,
+            credentialId: vertexCredential,
+          })
+          return NextResponse.json(
+            { error: vertexCredAccess.error || 'Unauthorized' },
+            { status: 401 }
+          )
+        }
       }
     }
 
