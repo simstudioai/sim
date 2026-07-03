@@ -100,7 +100,7 @@ export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
   resource: z.object({
     type: copilotResourceTypeSchema,
-    id: z.string(),
+    id: z.string().min(1, 'resource id is required'),
     title: z.string(),
   }),
 })
@@ -113,12 +113,14 @@ export const removeCopilotChatResourceBodySchema = z.object({
 })
 export type RemoveCopilotChatResourceBody = z.input<typeof removeCopilotChatResourceBodySchema>
 
+// `removeCopilotChatResourceBodySchema` above intentionally keeps a permissive
+// `resourceId` so legacy empty-id rows can still be deleted.
 export const reorderCopilotChatResourcesBodySchema = z.object({
   chatId: z.string(),
   resources: z.array(
     z.object({
       type: copilotResourceTypeSchema,
-      id: z.string(),
+      id: z.string().min(1, 'resource id is required'),
       title: z.string(),
     })
   ),

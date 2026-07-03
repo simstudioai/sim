@@ -124,9 +124,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   )
   const firstName = userName?.split(' ')[0] ?? ''
   const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
-  // Chat-scoped agent outputs aren't in the workspace list; used to resolve an
-  // `outputs/...` file reference (e.g. a #wsres-file link) to its real file id.
-  const { data: chatOutputs = [] } = useChatOutputs(chatId)
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
   const posthog = usePostHog()
@@ -255,6 +252,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       },
     })
   )
+
+  // Chat-scoped agent outputs aren't in the workspace list; used to resolve an
+  // `outputs/...` file reference (e.g. a #wsres-file link) to its real file id.
+  // Falls back to the stream-resolved chat id: on the home surface the route
+  // never changes (the URL is rewritten via history.replaceState), so `chatId`
+  // stays undefined even after the chat exists server-side.
+  const { data: chatOutputs = [] } = useChatOutputs(chatId ?? resolvedChatId)
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -451,6 +455,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   function handleWorkspaceResourceSelect(resource: MothershipResource) {
     const resolvedResource = resolveFileResource(resource)
+    // A #wsres-file link carries only a path; if it didn't resolve to a real
+    // file id, adding it would persist a broken `{id: ''}` resource that later
+    // fails chat-send validation.
+    if (resolvedResource.type === 'file' && !resolvedResource.id) {
+      logger.warn('Ignoring file resource with unresolved id', { path: resolvedResource.path })
+      return
+    }
     const wasAdded = addResource(resolvedResource)
     if (!wasAdded) {
       setActiveResourceId(resolvedResource.id)
