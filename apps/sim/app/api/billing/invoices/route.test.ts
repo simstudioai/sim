@@ -47,9 +47,6 @@ describe('GET /api/billing/invoices', () => {
   })
 
   it('does not surface hasMore when the trailing raw invoice beyond MAX_INVOICES is a draft', async () => {
-    // 10 finalized invoices exactly at MAX_INVOICES, plus 1 draft, and Stripe has
-    // nothing further — the old limit:MAX_INVOICES fetch would have missed the
-    // draft entirely and reported has_more from a truncated raw page.
     const finalized = Array.from({ length: 10 }, () => makeInvoice())
     mockStripeInvoicesList.mockResolvedValueOnce({
       data: [...finalized, makeInvoice({ status: 'draft' })],

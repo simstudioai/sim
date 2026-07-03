@@ -3,6 +3,7 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import type Stripe from 'stripe'
 import { getInvoicesContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
@@ -21,6 +22,46 @@ const STRIPE_PAGE_SIZE = MAX_INVOICES + 1
 
 /** Safety cap on pagination when a customer has many draft invoices interspersed. */
 const MAX_STRIPE_PAGES = 5
+
+/**
+ * Pages through a customer's Stripe invoices, keeping only finalized ones,
+ * until either more than `MAX_INVOICES` have been collected or Stripe's list
+ * is exhausted.
+ *
+ * Stripe's raw pagination cursor (`has_more`) counts draft invoices, which
+ * the caller filters out — so a single page can under-report finalized
+ * invoices while `has_more` is still true. Paging until the finalized count
+ * is conclusive (either past `MAX_INVOICES` or Stripe is exhausted) is what
+ * lets the caller derive an accurate `hasMore` for the "View all" affordance.
+ */
+async function collectFinalizedInvoices(
+  stripe: Stripe,
+  stripeCustomerId: string
+): Promise<Stripe.Invoice[]> {
+  const finalized: Stripe.Invoice[] = []
+  let startingAfter: string | undefined
+  let stripeHasMore = true
+
+  for (
+    let page = 0;
+    page < MAX_STRIPE_PAGES && stripeHasMore && finalized.length <= MAX_INVOICES;
+    page++
+  ) {
+    const result = await stripe.invoices.list({
+      customer: stripeCustomerId,
+      limit: STRIPE_PAGE_SIZE,
+      starting_after: startingAfter,
+    })
+
+    finalized.push(
+      ...result.data.filter((invoice) => invoice.id && invoice.status && invoice.status !== 'draft')
+    )
+    stripeHasMore = result.has_more
+    startingAfter = result.data.at(-1)?.id
+  }
+
+  return finalized
+}
 
 /**
  * Lists finalized Stripe invoices for the caller's billing customer (personal
@@ -75,34 +116,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    // Stripe's raw pagination cursor counts drafts, which we filter out below — so
-    // `has_more` on a single page can be true even when there are no more *finalized*
-    // invoices to show. Page until we've collected enough finalized invoices to know
-    // for certain whether "View all" should render, or Stripe's list is exhausted.
-    const finalized: Awaited<ReturnType<typeof stripe.invoices.list>>['data'] = []
-    let startingAfter: string | undefined
-    let stripeHasMore = true
-
-    for (
-      let page = 0;
-      page < MAX_STRIPE_PAGES && stripeHasMore && finalized.length <= MAX_INVOICES;
-      page++
-    ) {
-      const result = await stripe.invoices.list({
-        customer: stripeCustomerId,
-        limit: STRIPE_PAGE_SIZE,
-        starting_after: startingAfter,
-      })
-
-      finalized.push(
-        ...result.data.filter(
-          (invoice) => invoice.id && invoice.status && invoice.status !== 'draft'
-        )
-      )
-      stripeHasMore = result.has_more
-      startingAfter = result.data.at(-1)?.id
-    }
-
+    const finalized = await collectFinalizedInvoices(stripe, stripeCustomerId)
     const hasMore = finalized.length > MAX_INVOICES
     const invoices = finalized.slice(0, MAX_INVOICES).map((invoice) => ({
       id: invoice.id as string,
