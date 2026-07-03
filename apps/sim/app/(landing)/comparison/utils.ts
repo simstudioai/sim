@@ -115,7 +115,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
       answer: buildKeyDifferenceAnswer(competitor),
     },
     {
-      question: `Does Sim support self-hosting, unlike ${name}?`,
+      question: `Does Sim support self-hosting compared to ${name}?`,
       answer: `Sim can be self-hosted via Docker or Kubernetes under an Apache 2.0 license, in addition to a managed cloud-hosted plan. ${name}'s self-hosting position: ${ensurePeriod(firstSentence(facts.platform.selfHostOption.value))}`,
     },
     {

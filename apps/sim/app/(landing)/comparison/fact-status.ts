@@ -7,7 +7,11 @@ export interface ParsedFact {
   text: string
 }
 
-const STATUS_PREFIX = /^(Yes|No)(?::\s*)?(.*)$/s
+// The negative lookahead (?![a-zA-Z]) requires the "Yes"/"No" token to end at a word
+// boundary, so values like "Not documented" or "Not publicly documented" (which start
+// with the letters "No" but aren't the boolean token) fall through to 'neutral' instead
+// of being misread as a "No" status.
+const STATUS_PREFIX = /^(Yes|No)(?![a-zA-Z])(?::\s*)?(.*)$/s
 
 /**
  * Splits a {@link Fact.value} string into a status (for a compact icon) and

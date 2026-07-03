@@ -108,7 +108,7 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
               {section.rows.map((row, rowIdx) => {
                 const simFact = simGroupFacts[row.key]
                 const competitorFact = competitorGroupFacts[row.key]
-                const isLastRow = rowIdx < section.rows.length - 1
+                const isNotLastRow = rowIdx < section.rows.length - 1
 
                 return (
                   <div key={row.key} className='contents' role='row'>
@@ -116,7 +116,7 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                       role='rowheader'
                       className={cn(
                         'flex items-center border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-2.5',
-                        isLastRow && 'border-[var(--border-1)] border-b'
+                        isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
                       <span className='text-[var(--text-body)] text-small'>{row.label}</span>
@@ -125,7 +125,7 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                       role='cell'
                       className={cn(
                         'flex items-center border-[var(--border)] border-r bg-[var(--surface-2)] px-3 py-2.5',
-                        isLastRow && 'border-[var(--border-1)] border-b'
+                        isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
                       <FactValue fact={simFact} />
@@ -134,7 +134,7 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                       role='cell'
                       className={cn(
                         'flex items-center bg-[var(--surface-2)] px-3 py-2.5',
-                        isLastRow && 'border-[var(--border-1)] border-b'
+                        isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
                       <FactValue fact={competitorFact} />
