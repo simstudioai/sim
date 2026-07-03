@@ -168,6 +168,17 @@ function setupFileApiMocks(
   })
 }
 
+/**
+ * Build a multipart upload request shared across test suites in this file
+ */
+function createUploadRequest(formData: FormData): NextRequest {
+  return new NextRequest('http://localhost:3000/api/files/upload', {
+    method: 'POST',
+    headers: { 'content-length': '1024' },
+    body: formData,
+  })
+}
+
 describe('File Upload API Route', () => {
   const createMockFormData = (files: File[], context = 'workspace'): FormData => {
     const formData = new FormData()
@@ -187,19 +198,13 @@ describe('File Upload API Route', () => {
     return new File([content], name, { type })
   }
 
-  const createUploadRequest = (formData: FormData): NextRequest =>
-    new NextRequest('http://localhost:3000/api/files/upload', {
-      method: 'POST',
-      headers: { 'content-length': '1024' },
-      body: formData,
-    })
-
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('should upload a file to local storage', async () => {
@@ -379,6 +384,7 @@ describe('File Upload Security Tests', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
   })
 
   describe('File Extension Validation', () => {
@@ -550,6 +556,83 @@ describe('File Upload Security Tests', () => {
       expect(response.status).toBe(401)
       const data = await response.json()
       expect(data.error).toBe('Unauthorized')
+    })
+  })
+
+  describe('Execution Context Authorization', () => {
+    const createExecutionFormData = (workspaceId?: string): FormData => {
+      const formData = new FormData()
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      formData.append('file', file)
+      formData.append('context', 'execution')
+      formData.append('workflowId', 'test-workflow-id')
+      formData.append('executionId', 'test-execution-id')
+      if (workspaceId !== undefined) {
+        formData.append('workspaceId', workspaceId)
+      }
+      return formData
+    }
+
+    beforeEach(() => {
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'test-user-id' } })
+      storageServiceMockFns.mockHasCloudStorage.mockReturnValue(false)
+      storageServiceMockFns.mockUploadFile.mockResolvedValue({
+        key: 'execution/test-workspace-id/test-workflow-id/test-execution-id/test.pdf',
+        path: '/test/path',
+      })
+      storageServiceMockFns.mockGeneratePresignedDownloadUrl.mockResolvedValue(
+        'https://example.com/signed'
+      )
+    })
+
+    it('rejects execution uploads when the caller lacks write or admin access', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+
+      const req = createUploadRequest(createExecutionFormData('test-workspace-id'))
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data.error).toBe('Write or Admin access required for execution uploads')
+      expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+    })
+
+    it('allows execution uploads when the caller has write access', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      const req = createUploadRequest(createExecutionFormData('test-workspace-id'))
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+      expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledWith(
+        'test-user-id',
+        'workspace',
+        'test-workspace-id'
+      )
+      expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalled()
+    })
+
+    it('allows execution uploads when the caller has admin access', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+      const req = createUploadRequest(createExecutionFormData('test-workspace-id'))
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+      expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalled()
+    })
+
+    it('rejects execution uploads missing workspaceId instead of defaulting it', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+      const req = createUploadRequest(createExecutionFormData(undefined))
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.message).toContain('workspaceId')
+      expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
+      expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
     })
   })
 })
