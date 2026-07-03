@@ -3,6 +3,7 @@ import { COURSES } from '@/lib/academy/content'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
+import { ALL_COMPETITORS, getLatestVerifiedDate } from '@/app/(landing)/comparison/utils'
 import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
 /**
@@ -148,6 +149,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ]
 
+  const comparisonLastModified =
+    ALL_COMPETITORS.length > 0
+      ? new Date(Math.max(...ALL_COMPETITORS.map((c) => getLatestVerifiedDate(c).getTime())))
+      : undefined
+
+  const comparisonPages: MetadataRoute.Sitemap = [
+    { url: `${baseUrl}/comparison`, lastModified: comparisonLastModified },
+    ...ALL_COMPETITORS.map((competitor) => ({
+      url: `${baseUrl}/comparison/${competitor.id}`,
+      lastModified: getLatestVerifiedDate(competitor),
+    })),
+  ]
+
   return [
     ...staticPages,
     ...blogPages,
@@ -156,5 +170,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...providerPages,
     ...modelEntries,
     ...academyPages,
+    ...comparisonPages,
   ]
 }

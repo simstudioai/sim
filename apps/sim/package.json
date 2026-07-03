@@ -132,6 +132,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
+    "critters": "0.0.25",
     "croner": "^9.0.0",
     "cronstrue": "3.3.0",
     "csv-parse": "6.1.0",
