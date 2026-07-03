@@ -19,6 +19,7 @@ import {
   type McpOauthCallbackReason,
   SimMcpOauthProvider,
 } from '@/lib/mcp/oauth'
+import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import { mcpService } from '@/lib/mcp/service'
 
 const logger = createLogger('McpOauthCallbackAPI')
@@ -149,6 +150,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       result = await mcpAuth(provider, {
         serverUrl: server.url,
         authorizationCode: code,
+        fetchFn: createSsrfGuardedMcpFetch(),
       })
     } catch (e) {
       logger.error('Token exchange failed during MCP OAuth callback', e)
