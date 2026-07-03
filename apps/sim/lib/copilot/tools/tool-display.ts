@@ -76,6 +76,7 @@ const TOOL_TITLES: Record<string, string> = {
   search_library_docs: 'Searching library docs',
   user_memory: 'Accessing memory',
   user_table: 'Managing table',
+  run_code: 'Running code',
   query_user_table: 'Querying table',
   workspace_file: 'Editing file',
   edit_content: 'Applying file content',

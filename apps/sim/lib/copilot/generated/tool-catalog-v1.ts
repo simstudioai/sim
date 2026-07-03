@@ -82,6 +82,7 @@ export interface ToolCatalogEntry {
     | 'restore_resource'
     | 'run'
     | 'run_block'
+    | 'run_code'
     | 'run_from_block'
     | 'run_workflow'
     | 'run_workflow_until_block'
@@ -183,6 +184,7 @@ export interface ToolCatalogEntry {
     | 'restore_resource'
     | 'run'
     | 'run_block'
+    | 'run_code'
     | 'run_from_block'
     | 'run_workflow'
     | 'run_workflow_until_block'
@@ -3447,6 +3449,99 @@ export const RunBlock: ToolCatalogEntry = {
   clientExecutable: true,
 }
 
+export const RunCode: ToolCatalogEntry = {
+  id: 'run_code',
+  name: 'run_code',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      code: {
+        type: 'string',
+        description:
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
+      },
+      inputs: {
+        type: 'object',
+        description:
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
+      },
+      language: {
+        type: 'string',
+        description: 'Execution language.',
+        enum: ['javascript', 'python', 'shell'],
+      },
+      title: {
+        type: 'string',
+        description:
+          'Short user-visible label for this execution, e.g. "Sum June invoices" or "Verify email formats".',
+      },
+    },
+    required: ['code'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_input', 'directory_input', 'table_input'],
+}
+
 export const RunFromBlock: ToolCatalogEntry = {
   id: 'run_from_block',
   name: 'run_from_block',
@@ -4889,6 +4984,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RestoreResource.id]: RestoreResource,
   [Run.id]: Run,
   [RunBlock.id]: RunBlock,
+  [RunCode.id]: RunCode,
   [RunFromBlock.id]: RunFromBlock,
   [RunWorkflow.id]: RunWorkflow,
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
