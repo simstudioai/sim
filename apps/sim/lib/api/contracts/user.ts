@@ -276,21 +276,55 @@ export const usageLogSourceSchema = z.enum([
   'enrichment',
 ])
 
-export const usageLogPeriodSchema = z.enum(['1d', '7d', '30d', 'all'])
+export const usageLogPeriodSchema = z.enum(['1d', '7d', '30d', 'all', 'custom'])
 
-export const usageLogsQuerySchema = z.object({
+/**
+ * `Date`-constructor-parseable string — the {@link Calendar} range picker
+ * emits local `YYYY-MM-DDTHH:mm`, not strict ISO 8601, so this validates
+ * parseability rather than a specific wire format.
+ */
+const parseableDateSchema = z
+  .string()
+  .min(1)
+  .refine((value) => !Number.isNaN(Date.parse(value)), { error: 'Invalid date' })
+
+/** Shared by the paginated list query and the export query — filters only, no pagination. */
+const usageLogsFilterSchema = z.object({
   source: usageLogSourceSchema.optional(),
   workspaceId: z.string().optional(),
   period: usageLogPeriodSchema.optional().default('30d'),
-  limit: z.coerce.number().min(1).max(100).optional().default(50),
-  cursor: z.string().optional(),
+  /** Required when `period` is `'custom'`. */
+  startDate: parseableDateSchema.optional(),
+  /** Defaults to now when omitted for `'custom'`. */
+  endDate: parseableDateSchema.optional(),
 })
+
+/** Both the list and export query schemas require startDate whenever period is 'custom'. */
+function requireStartDateForCustomPeriod<
+  Schema extends z.ZodType<{ period?: string; startDate?: string }>,
+>(schema: Schema) {
+  return schema.refine((query) => query.period !== 'custom' || query.startDate !== undefined, {
+    error: 'startDate is required when period is "custom"',
+    path: ['startDate'],
+  })
+}
+
+export const usageLogsQuerySchema = requireStartDateForCustomPeriod(
+  usageLogsFilterSchema.extend({
+    limit: z.coerce.number().min(1).max(100).optional().default(50),
+    cursor: z.string().optional(),
+  })
+)
+
+/** Same filters as the list query, without pagination — the export route returns every match. */
+export const exportUsageLogsQuerySchema = requireStartDateForCustomPeriod(usageLogsFilterSchema)
 
 export const usageLogEntrySchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   source: usageLogSourceSchema,
-  description: z.string(),
+  /** Specific workflow name, populated only when `source` is `'workflow'`. */
+  workflowName: z.string().nullable(),
   /**
    * Credit-denominated cost of this event (Sim's usage unit; 1,000 credits =
    * $5), apportioned across the page so row credits always sum exactly to
@@ -326,10 +360,26 @@ export const getUsageLogsContract = defineRouteContract({
   },
 })
 
+/**
+ * CSV download of every usage log matching the filter (no pagination). `mode:
+ * 'text'` because a CSV response has no JSON schema to validate; the client
+ * triggers this as a plain browser download (an anchor navigation), never
+ * through `requestJson`, so there's no response shape for a consumer to type.
+ */
+export const exportUsageLogsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/users/me/usage-logs/export',
+  query: exportUsageLogsQuerySchema,
+  response: {
+    mode: 'text',
+  },
+})
+
 export type UsageLogSource = z.output<typeof usageLogSourceSchema>
 export type UsageLogPeriod = z.output<typeof usageLogPeriodSchema>
 export type UsageLogEntry = z.output<typeof usageLogEntrySchema>
 export type UsageLogsApiResponse = z.output<typeof usageLogsApiResponseSchema>
+export type ExportUsageLogsQuery = z.output<typeof exportUsageLogsQuerySchema>
 
 export const subscriptionTransferParamsSchema = z.object({
   id: z.string({ error: 'Subscription ID is required' }).min(1, 'Subscription ID is required'),

@@ -1,12 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, createMockRequest } from '@sim/testing'
+import { authMockFns, createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetUserUsageLogs } = vi.hoisted(() => ({
   mockGetUserUsageLogs: vi.fn(),
 }))
+
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
   getUserUsageLogs: mockGetUserUsageLogs,
@@ -18,6 +20,7 @@ describe('GET /api/users/me/usage-logs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    dbChainMockFns.where.mockResolvedValue([])
     mockGetUserUsageLogs.mockResolvedValue({
       logs: [
         {
@@ -51,7 +54,7 @@ describe('GET /api/users/me/usage-logs', () => {
         id: 'log-1',
         createdAt: '2026-07-01T00:00:00.000Z',
         source: 'workflow',
-        description: 'gpt-4o',
+        workflowName: null,
         creditCost: 100,
         dollarCost: 0.5,
       },
@@ -60,6 +63,39 @@ describe('GET /api/users/me/usage-logs', () => {
       totalCredits: 100,
       bySourceCredits: { workflow: 100 },
     })
+  })
+
+  it('resolves the workflow name for workflow-sourced rows', async () => {
+    mockGetUserUsageLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 'log-1',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          category: 'fixed',
+          source: 'workflow',
+          description: 'execution_fee',
+          cost: 0.01,
+          workflowId: 'wf-1',
+        },
+      ],
+      summary: { totalCost: 0.01, bySource: { workflow: 0.01 } },
+      pagination: { hasMore: false },
+    })
+    dbChainMockFns.where.mockResolvedValueOnce([{ id: 'wf-1', name: 'ITSM_Prod_main' }])
+
+    const response = await GET(createMockRequest('GET'))
+    const body = await response.json()
+
+    expect(body.logs[0].workflowName).toBe('ITSM_Prod_main')
+  })
+
+  it('rejects "custom" period without a startDate', async () => {
+    const response = await GET(
+      createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/test?period=custom')
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockGetUserUsageLogs).not.toHaveBeenCalled()
   })
 
   it('apportions row credits so they sum exactly to the page total, instead of rounding each row independently', async () => {

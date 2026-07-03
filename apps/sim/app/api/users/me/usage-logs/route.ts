@@ -6,17 +6,9 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveDateRange, resolveWorkflowNames } from '@/app/api/users/me/usage-logs/shared'
 
 const logger = createLogger('UsageLogsAPI')
-
-const PERIOD_TO_DAYS: Record<'1d' | '7d' | '30d', number> = { '1d': 1, '7d': 7, '30d': 30 }
-
-function resolveStartDate(period: '1d' | '7d' | '30d' | 'all'): Date | undefined {
-  if (period === 'all') return undefined
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - PERIOD_TO_DAYS[period])
-  return startDate
-}
 
 /**
  * Lists the authenticated user's credit-consuming usage events (model, tool,
@@ -30,13 +22,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(getUsageLogsContract, request, {})
   if (!parsed.success) return parsed.response
-  const { source, workspaceId, period, limit, cursor } = parsed.data.query
+  const { source, workspaceId, period, startDate, endDate, limit, cursor } = parsed.data.query
+
+  const dateRange = resolveDateRange(period, startDate, endDate)
 
   const result = await getUserUsageLogs(auth.userId, {
     source: source as UsageLogSource | undefined,
     workspaceId,
-    startDate: resolveStartDate(period),
-    endDate: new Date(),
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
     limit,
     cursor,
   })
@@ -50,11 +44,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     result.logs.map((log) => ({ key: log.id, dollars: log.cost }))
   )
 
+  const workflowNames = await resolveWorkflowNames(result.logs)
+
   const logs = result.logs.map((log) => ({
     id: log.id,
     createdAt: log.createdAt,
     source: log.source,
-    description: log.description,
+    workflowName: log.workflowId ? (workflowNames.get(log.workflowId) ?? null) : null,
     creditCost: creditsByLogId[log.id],
     dollarCost: log.cost,
   }))
