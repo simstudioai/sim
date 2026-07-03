@@ -86,6 +86,7 @@ export interface ToolCatalogEntry {
     | 'run_workflow'
     | 'run_workflow_until_block'
     | 'scheduled_task'
+    | 'scout'
     | 'scrape_page'
     | 'search_documentation'
     | 'search_library_docs'
@@ -185,6 +186,7 @@ export interface ToolCatalogEntry {
     | 'run_workflow'
     | 'run_workflow_until_block'
     | 'scheduled_task'
+    | 'scout'
     | 'scrape_page'
     | 'search_documentation'
     | 'search_library_docs'
@@ -216,6 +218,7 @@ export interface ToolCatalogEntry {
     | 'research'
     | 'run'
     | 'scheduled_task'
+    | 'scout'
     | 'superagent'
     | 'table'
     | 'workflow'
@@ -3549,6 +3552,25 @@ export const ScheduledTask: ToolCatalogEntry = {
   internal: true,
 }
 
+export const Scout: ToolCatalogEntry = {
+  id: 'scout',
+  name: 'scout',
+  route: 'subagent',
+  mode: 'async',
+  parameters: {
+    properties: {
+      task: {
+        description:
+          "One short scoping sentence — the scout has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'compute how many rows in the pasted CSV have invalid emails'.",
+        type: 'string',
+      },
+    },
+    required: ['task'],
+    type: 'object',
+  },
+  subagentId: 'scout',
+}
+
 export const ScrapePage: ToolCatalogEntry = {
   id: 'scrape_page',
   name: 'scrape_page',
@@ -4759,6 +4781,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RunWorkflow.id]: RunWorkflow,
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
   [ScheduledTask.id]: ScheduledTask,
+  [Scout.id]: Scout,
   [ScrapePage.id]: ScrapePage,
   [SearchDocumentation.id]: SearchDocumentation,
   [SearchLibraryDocs.id]: SearchLibraryDocs,
