@@ -40,6 +40,12 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
       description:
         'Filter by run status: PENDING, RUNNING, ERRORED, COMPLETED, KILLED, UNABLE_TO_ALLOCATE_KERNEL',
     },
+    runTriggerFilter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by how the run was triggered: ALL, API, SCHEDULED, or APP_REFRESH',
+    },
   },
 
   request: {
@@ -48,8 +54,9 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
       if (params.limit) searchParams.set('limit', String(params.limit))
       if (params.offset) searchParams.set('offset', String(params.offset))
       if (params.statusFilter) searchParams.set('statusFilter', params.statusFilter)
+      if (params.runTriggerFilter) searchParams.set('runTriggerFilter', params.runTriggerFilter)
       const qs = searchParams.toString()
-      return `https://app.hex.tech/api/v1/projects/${params.projectId}/runs${qs ? `?${qs}` : ''}`
+      return `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}/runs${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -78,6 +85,8 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
         })),
         total: runs.length,
         traceId: data.traceId ?? null,
+        nextPage: data.nextPage ?? null,
+        previousPage: data.previousPage ?? null,
       },
     }
   },
@@ -111,5 +120,11 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
     },
     total: { type: 'number', description: 'Total number of runs returned' },
     traceId: { type: 'string', description: 'Top-level trace ID', optional: true },
+    nextPage: { type: 'string', description: 'Cursor for the next page of runs', optional: true },
+    previousPage: {
+      type: 'string',
+      description: 'Cursor for the previous page of runs',
+      optional: true,
+    },
   },
 }

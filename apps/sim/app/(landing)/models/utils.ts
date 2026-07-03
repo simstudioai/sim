@@ -513,7 +513,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     models.find((model) => model.id === provider.defaultModel)?.displayName ||
     (provider.defaultModel ? formatModelDisplayName(provider.id, provider.defaultModel) : 'Dynamic')
 
-  const featuredModels = models.toSorted(compareModelsByRelevance).slice(0, 6)
+  const featuredModels = [...models].sort(compareModelsByRelevance).slice(0, 6)
 
   return {
     id: provider.id,

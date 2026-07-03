@@ -55,7 +55,7 @@ export const partialUpdateRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const base = `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/${encodeURIComponent(params.objectID)}/partial`
+      const base = `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/${encodeURIComponent(params.objectID.trim())}/partial`
       if (params.createIfNotExists === false) {
         return `${base}?createIfNotExists=false`
       }

@@ -47,8 +47,8 @@ export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult>
         lastName: data.last_name,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
-        listIds: data.list_ids,
-        customFields: data.custom_fields,
+        listIds: data.list_ids ?? [],
+        customFields: data.custom_fields ?? null,
       },
     }
   },
@@ -56,11 +56,15 @@ export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult>
   outputs: {
     id: { type: 'string', description: 'Contact ID' },
     email: { type: 'string', description: 'Contact email address' },
-    firstName: { type: 'string', description: 'Contact first name' },
-    lastName: { type: 'string', description: 'Contact last name' },
-    createdAt: { type: 'string', description: 'Creation timestamp' },
-    updatedAt: { type: 'string', description: 'Last update timestamp' },
-    listIds: { type: 'json', description: 'Array of list IDs the contact belongs to' },
-    customFields: { type: 'json', description: 'Custom field values' },
+    firstName: { type: 'string', description: 'Contact first name', optional: true },
+    lastName: { type: 'string', description: 'Contact last name', optional: true },
+    createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
+    updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },
+    listIds: {
+      type: 'json',
+      description: 'Array of list IDs the contact belongs to',
+      optional: true,
+    },
+    customFields: { type: 'json', description: 'Custom field values', optional: true },
   },
 }

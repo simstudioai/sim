@@ -62,7 +62,7 @@ export function LandingPreviewResource({
       : rows
 
     if (!sortColId) return filtered
-    return filtered.toSorted((a, b) => {
+    return [...filtered].sort((a, b) => {
       const av = a.cells[sortColId]?.label ?? ''
       const bv = b.cells[sortColId]?.label ?? ''
       const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' })

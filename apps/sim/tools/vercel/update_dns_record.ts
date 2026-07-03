@@ -56,6 +56,48 @@ export const vercelUpdateDnsRecordTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Priority for MX records',
     },
+    srvTarget: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Target hostname for SRV records (required together when updating SRV data)',
+    },
+    srvWeight: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Weight for SRV records (required together when updating SRV data)',
+    },
+    srvPort: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Port for SRV records (required together when updating SRV data)',
+    },
+    srvPriority: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Priority for SRV records (required together when updating SRV data)',
+    },
+    httpsTarget: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Target hostname for HTTPS records (required together when updating HTTPS data)',
+    },
+    httpsPriority: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Priority for HTTPS records (required together when updating HTTPS data)',
+    },
+    httpsParams: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional service parameters for HTTPS records (e.g. "alpn=h2,h3")',
+    },
     comment: {
       type: 'string',
       required: false,
@@ -68,12 +110,19 @@ export const vercelUpdateDnsRecordTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
     url: (params: VercelUpdateDnsRecordParams) => {
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v1/domains/records/${params.recordId.trim()}${qs ? `?${qs}` : ''}`
     },
@@ -85,16 +134,35 @@ export const vercelUpdateDnsRecordTool: ToolConfig<
     body: (params: VercelUpdateDnsRecordParams) => {
       const body: Record<string, unknown> = {}
       if (params.name != null && params.name !== '') body.name = params.name
-      if (params.value != null && params.value !== '') body.value = params.value
-      if (params.type != null && params.type !== '') body.type = params.type
+      const type =
+        params.type != null && params.type !== '' ? params.type.trim().toUpperCase() : null
+      if (type != null) body.type = type
       if (params.ttl != null) {
         const ttl = Number(params.ttl)
         if (!Number.isNaN(ttl)) body.ttl = ttl
       }
-      if (params.mxPriority != null) {
-        const mxPriority = Number(params.mxPriority)
-        if (!Number.isNaN(mxPriority)) body.mxPriority = mxPriority
+
+      if (type === 'SRV') {
+        body.srv = {
+          target: params.srvTarget?.trim(),
+          weight: params.srvWeight,
+          port: params.srvPort,
+          priority: params.srvPriority,
+        }
+      } else if (type === 'HTTPS') {
+        body.https = {
+          target: params.httpsTarget?.trim(),
+          priority: params.httpsPriority,
+          ...(params.httpsParams ? { params: params.httpsParams.trim() } : {}),
+        }
+      } else {
+        if (params.value != null && params.value !== '') body.value = params.value
+        if (params.mxPriority != null) {
+          const mxPriority = Number(params.mxPriority)
+          if (!Number.isNaN(mxPriority)) body.mxPriority = mxPriority
+        }
       }
+
       if (params.comment != null && params.comment !== '') body.comment = params.comment
       return body
     },

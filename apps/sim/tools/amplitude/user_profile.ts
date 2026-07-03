@@ -9,7 +9,7 @@ export const userProfileTool: ToolConfig<AmplitudeUserProfileParams, AmplitudeUs
     id: 'amplitude_user_profile',
     name: 'Amplitude User Profile',
     description:
-      'Get a user profile including properties, cohort memberships, and computed properties.',
+      'Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects.',
     version: '1.0.0',
 
     params: {

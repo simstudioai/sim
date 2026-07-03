@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -30,9 +30,9 @@ export function CreateWorkspaceModal({
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const prevOpenRef = useRef(open)
-  if (prevOpenRef.current !== open) {
-    prevOpenRef.current = open
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
     if (open) {
       setName('')
       setError(null)

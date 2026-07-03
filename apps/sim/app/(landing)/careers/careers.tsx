@@ -9,7 +9,6 @@ import {
   JobGroups,
 } from '@/app/(landing)/careers/components/job-board'
 import { careersSearchParamsCache } from '@/app/(landing)/careers/search-params'
-import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 
 interface CareersProps {
   searchParams: Promise<SearchParams>
@@ -87,8 +86,6 @@ export default async function Careers({ searchParams }: CareersProps) {
         >
           <JobBoard postings={postings} />
         </Suspense>
-
-        <TrustedBy className='pt-6' />
       </section>
     </main>
   )

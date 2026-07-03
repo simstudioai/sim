@@ -48,7 +48,8 @@ export const getRecordsTool: ToolConfig<AlgoliaGetRecordsParams, AlgoliaGetRecor
         typeof params.requests === 'string' ? JSON.parse(params.requests) : params.requests
       const requests = (parsed as Record<string, unknown>[]).map((req) => ({
         ...req,
-        indexName: req.indexName ?? params.indexName,
+        indexName:
+          typeof req.indexName === 'string' ? req.indexName.trim() : params.indexName.trim(),
       }))
       return { requests }
     },

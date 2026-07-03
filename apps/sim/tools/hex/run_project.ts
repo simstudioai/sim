@@ -52,10 +52,23 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
       visibility: 'user-only',
       description: 'If true, use cached SQL results instead of re-running queries',
     },
+    viewId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional SavedView ID to use for the project run',
+    },
+    notifications: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of notification details to deliver once the run completes (e.g., [{"type": "FAILURE", "slackChannelIds": ["C0123456789"], "userIds": [], "groupIds": [], "includeSuccessScreenshot": false}]). type is ALL, SUCCESS, or FAILURE.',
+    },
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId}/runs`,
+    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}/runs`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -65,10 +78,14 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
       const body: Record<string, unknown> = {}
 
       if (params.inputParams) {
-        body.inputParams =
-          typeof params.inputParams === 'string'
-            ? JSON.parse(params.inputParams)
-            : params.inputParams
+        try {
+          body.inputParams =
+            typeof params.inputParams === 'string'
+              ? JSON.parse(params.inputParams)
+              : params.inputParams
+        } catch {
+          throw new Error('inputParams must be valid JSON')
+        }
       }
       if (params.dryRun !== undefined) body.dryRun = params.dryRun
       if (params.updateCache !== undefined) body.updateCache = params.updateCache
@@ -76,6 +93,22 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
         body.updatePublishedResults = params.updatePublishedResults
       if (params.useCachedSqlResults !== undefined)
         body.useCachedSqlResults = params.useCachedSqlResults
+      if (params.viewId) body.viewId = params.viewId.trim()
+      if (params.notifications) {
+        let notifications: unknown
+        try {
+          notifications =
+            typeof params.notifications === 'string'
+              ? JSON.parse(params.notifications)
+              : params.notifications
+        } catch {
+          throw new Error('notifications must be a valid JSON array')
+        }
+        if (!Array.isArray(notifications)) {
+          throw new Error('notifications must be a valid JSON array')
+        }
+        body.notifications = notifications
+      }
 
       return body
     },

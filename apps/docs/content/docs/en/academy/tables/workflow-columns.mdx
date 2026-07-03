@@ -1,0 +1,84 @@
+---
+title: Workflow Columns
+description: Attach a workflow to a table column and the table fills itself, and every value it writes carries the full trace of the run that produced it.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
+
+<VideoPlaceholder eyebrow="Tables" title="Workflow Columns" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/tables-workflow-columns.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+A workflow column doesn't hold typed-in values, it holds the **output of a workflow**, run once per row. Attach the workflow, bind its input to a column and its output to the column it fills, and the table starts doing the work itself: one run for every row, cascading through stages, updating as new rows arrive.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'Attach, bind, run',
+      body: "A workflow column is defined in one panel: which workflow runs, which column feeds its input, and which column receives its output: one run per row, one cell per run.",
+    },
+    {
+      title: 'Stages cascade',
+      body: 'Columns can read columns that other workflow columns fill. Add a scorer that reads the domain column, and a new row flows through the whole pipeline without a click.',
+    },
+    {
+      title: 'Every cell is a run',
+      body: "Every value was produced by a real run, and the cell remembers it. Open a cell's menu to view the execution behind it: every block as a span, with timing and cost.",
+    },
+    {
+      title: 'Errors explain themselves',
+      body: 'A failed row says so in the cell. Its trace shows exactly which block failed and why, and re-running the cell runs the workflow again for just that row.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'The table', time: '0:27' },
+    { title: 'Attaching a workflow', time: '0:37' },
+    { title: 'Binding inputs & outputs', time: '0:55' },
+    { title: 'One run, watched', time: '1:09' },
+    { title: 'A second stage', time: '1:31' },
+    { title: 'Auto-run & the cascade', time: '1:47' },
+    { title: 'A new row', time: '2:14' },
+    { title: 'Every cell is a run', time: '2:24' },
+    { title: 'Tracing one value', time: '2:33' },
+    { title: 'The error explains itself', time: '3:18' },
+    { title: 'Re-run one cell', time: '3:31' },
+    { title: 'The ledger', time: '3:43' },
+  ]}
+/>
+
+</div>
+
+## How a workflow column is defined
+
+Everything that defines a workflow column lives in one panel: the workflow that runs, the column bound to its input, and the column that receives its output. On every row, the workflow reads that row's values and writes one cell back, right beside its source. Attach a second stage that reads what the first one filled, and rows flow through the pipeline in order.
+
+## Watching it run
+
+Run a single row and the cell reports the run as it moves, queued, then running, then the value. Turn on auto-run and the whole column fills in a cascade; type a new company into a blank row and the pipeline runs it end to end, the domain first, then the score, without a single click.
+
+## Every cell records its run
+
+Take one value: a lead score of 75. The cell remembers the run that wrote it: open its menu and view the execution, a real trace where every block is a span, with its timing and cost. That's true all the way down the column: every cell is its own run. When a row fails, the cell says so, its trace shows which block failed and why, and re-running the cell re-runs the workflow for just that row.
+
+<FAQ items={[
+  { question: "What is a workflow column?", answer: "A table column whose values are produced by a workflow instead of typed in. You attach one of your workflows, bind its input to a column and its output to the column it fills, and it runs once per row." },
+  { question: "Can workflow columns depend on each other?", answer: "Yes. A column can read a column another workflow fills, so stages cascade: a new row gets its domain first, then its score, without a click." },
+  { question: "What happens when a row's run fails?", answer: "The cell shows the error, and its trace records exactly which block failed and why. Re-running the cell runs the workflow again for just that row." },
+  { question: "Can I see why a cell has the value it does?", answer: "Every cell in a workflow column keeps the full trace of the run that wrote it: every block as a span, with timing and cost. Open the cell's menu and view the execution." },
+]} />
+
+## Related documentation
+
+- [Tables overview](/tables)
+- [Workflow columns](/tables/workflow-columns)
+- [Logs & debugging](/logs-debugging)

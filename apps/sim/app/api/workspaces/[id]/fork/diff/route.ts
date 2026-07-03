@@ -19,7 +19,10 @@ import {
   loadForkDependentValues,
 } from '@/lib/workspaces/fork/mapping/dependent-value-store'
 import { listForkResourceCandidates } from '@/lib/workspaces/fork/mapping/resources'
-import { collectForkClearedRefCandidates } from '@/lib/workspaces/fork/promote/cleared-refs'
+import {
+  annotateForkClearedRefSourceLiveness,
+  collectForkClearedRefCandidates,
+} from '@/lib/workspaces/fork/promote/cleared-refs'
 import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
 import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import { readTargetDraftDependentValue } from '@/lib/workspaces/fork/remap/remap-references'
@@ -127,15 +130,21 @@ export const GET = withRouteHandler(
         sourceLabels.set(`${kind}:${candidate.id}`, candidate.label)
     }
     const sourceWorkflowNames = new Map(sourceWorkflowRows.map((row) => [row.id, row.name]))
-    const clearedRefs = collectForkClearedRefCandidates({
-      items: plan.items,
-      sourceStates,
-      resolver: plan.resolver,
-      workflowIdMap: plan.workflowIdMap,
-      resolveBlockId,
-      sourceLabels,
-      sourceWorkflowNames,
-    })
+    // Annotate each reference-cause entry's source liveness so the client can phrase the blocker
+    // reason (a deleted source can't be copied - it must be mapped to a live target resource).
+    const clearedRefs = await annotateForkClearedRefSourceLiveness(
+      db,
+      auth.sourceWorkspaceId,
+      collectForkClearedRefCandidates({
+        items: plan.items,
+        sourceStates,
+        resolver: plan.resolver,
+        workflowIdMap: plan.workflowIdMap,
+        resolveBlockId,
+        sourceLabels,
+        sourceWorkflowNames,
+      })
+    )
 
     const toRef = (reference: (typeof plan.unmappedRequired)[number]) => ({
       kind: reference.kind,

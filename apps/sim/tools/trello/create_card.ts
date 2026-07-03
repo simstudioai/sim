@@ -72,6 +72,16 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
         description: 'A Trello label ID',
       },
     },
+    memberIds: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Member IDs to assign to the card',
+      items: {
+        type: 'string',
+        description: 'A Trello member ID',
+      },
+    },
   },
 
   request: {
@@ -111,6 +121,7 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
       if (params.due) body.due = params.due
       if (params.dueComplete !== undefined) body.dueComplete = params.dueComplete
       if (params.labelIds?.length) body.idLabels = params.labelIds
+      if (params.memberIds?.length) body.idMembers = params.memberIds
 
       return body
     },

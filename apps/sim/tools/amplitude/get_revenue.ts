@@ -2,6 +2,7 @@ import type {
   AmplitudeGetRevenueParams,
   AmplitudeGetRevenueResponse,
 } from '@/tools/amplitude/types'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRevenueTool: ToolConfig<AmplitudeGetRevenueParams, AmplitudeGetRevenueResponse> = {
@@ -47,15 +48,35 @@ export const getRevenueTool: ToolConfig<AmplitudeGetRevenueParams, AmplitudeGetR
       visibility: 'user-or-llm',
       description: 'Time interval: 1 (daily), 7 (weekly), or 30 (monthly)',
     },
+    groupBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Property name to group by (limit: one)',
+    },
+    segment: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON segment definition(s) applied to the query',
+    },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
     url: (params) => {
-      const url = new URL('https://amplitude.com/api/2/revenue/ltv')
+      const url = new URL(`${getDashboardHost(params.dataResidency)}/api/2/revenue/ltv`)
       url.searchParams.set('start', params.start)
       url.searchParams.set('end', params.end)
       if (params.metric) url.searchParams.set('m', params.metric)
       if (params.interval) url.searchParams.set('i', params.interval)
+      if (params.groupBy) url.searchParams.set('g', params.groupBy)
+      if (params.segment) url.searchParams.set('s', params.segment)
       return url.toString()
     },
     method: 'GET',
@@ -78,24 +99,34 @@ export const getRevenueTool: ToolConfig<AmplitudeGetRevenueParams, AmplitudeGetR
       output: {
         series: result.series ?? [],
         seriesLabels: result.seriesLabels ?? [],
-        xValues: result.xValues ?? [],
       },
     }
   },
 
   outputs: {
     series: {
-      type: 'json',
-      description: 'Array of revenue data series',
+      type: 'array',
+      description:
+        'Revenue data series [{dates: [YYYY-MM-DD], values: {<date>: {r1d..r90d, count, paid, total_amount}}}]',
+      items: {
+        type: 'json',
+        properties: {
+          dates: {
+            type: 'array',
+            description: 'Dates covered by this series',
+            items: { type: 'string' },
+          },
+          values: {
+            type: 'json',
+            description:
+              'Per-date metric values keyed by date (r1d..r90d, count, paid, total_amount)',
+          },
+        },
+      },
     },
     seriesLabels: {
       type: 'array',
       description: 'Labels for each data series',
-      items: { type: 'string' },
-    },
-    xValues: {
-      type: 'array',
-      description: 'Date values for the x-axis',
       items: { type: 'string' },
     },
   },

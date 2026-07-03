@@ -179,6 +179,14 @@ describe('Validation', () => {
       expect(result.valid).toBe(false)
       expect(result.errors[0]).toContain('exceeds limit')
     })
+
+    it('should measure UTF-8 bytes, not UTF-16 code units', () => {
+      // '工' is one UTF-16 code unit but three UTF-8 bytes — a char-count check
+      // would accept this row at ~1/3 of the real serialized size.
+      const chars = Math.ceil(TABLE_LIMITS.MAX_ROW_SIZE_BYTES / 3) + 1
+      const result = validateRowSize({ content: '工'.repeat(chars) })
+      expect(result.valid).toBe(false)
+    })
   })
 
   describe('validateRowAgainstSchema', () => {
@@ -270,12 +278,11 @@ describe('Validation', () => {
       expect(result.valid).toBe(true)
     })
 
-    it('should reject string exceeding max length', () => {
-      const longString = 'a'.repeat(TABLE_LIMITS.MAX_STRING_VALUE_LENGTH + 1)
+    it('should allow long strings — cell size is bounded by the row byte cap, not per-value', () => {
+      const longString = 'a'.repeat(100_000)
       const data = { name: longString }
       const result = validateRowAgainstSchema(data, schema)
-      expect(result.valid).toBe(false)
-      expect(result.errors[0]).toContain('exceeds max string length')
+      expect(result.valid).toBe(true)
     })
   })
 

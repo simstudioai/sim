@@ -42,9 +42,9 @@ export const addRecordTool: ToolConfig<AlgoliaAddRecordParams, AlgoliaAddRecordR
 
   request: {
     url: (params) => {
-      const base = `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}`
+      const base = `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}`
       if (params.objectID) {
-        return `${base}/${encodeURIComponent(params.objectID)}`
+        return `${base}/${encodeURIComponent(params.objectID.trim())}`
       }
       return base
     },

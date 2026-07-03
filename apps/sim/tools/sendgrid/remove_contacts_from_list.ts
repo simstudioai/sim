@@ -56,12 +56,12 @@ export const sendGridRemoveContactsFromListTool: ToolConfig<
     return {
       success: true,
       output: {
-        jobId: data.job_id,
+        jobId: data.job_id ?? null,
       },
     }
   },
 
   outputs: {
-    jobId: { type: 'string', description: 'Job ID for the request' },
+    jobId: { type: 'string', description: 'Job ID for the request', optional: true },
   },
 }

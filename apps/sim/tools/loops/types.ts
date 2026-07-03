@@ -70,6 +70,20 @@ export interface LoopsListContactPropertiesParams extends LoopsBaseParams {
   list?: string
 }
 
+export interface LoopsCheckContactSuppressionParams extends LoopsBaseParams {
+  email?: string
+  userId?: string
+}
+
+export interface LoopsRemoveContactSuppressionParams extends LoopsBaseParams {
+  email?: string
+  userId?: string
+}
+
+export interface LoopsGetTransactionalEmailParams extends LoopsBaseParams {
+  transactionalId: string
+}
+
 interface LoopsContact {
   id: string
   email: string
@@ -138,6 +152,9 @@ export interface LoopsListTransactionalEmailsResponse extends ToolResponse {
     transactionalEmails: {
       id: string
       name: string
+      createdAt: string
+      updatedAt: string
+      /** @deprecated Alias of updatedAt, kept for backwards compatibility */
       lastUpdated: string
       dataVariables: string[]
     }[]
@@ -168,6 +185,39 @@ export interface LoopsListContactPropertiesResponse extends ToolResponse {
   }
 }
 
+export interface LoopsCheckContactSuppressionResponse extends ToolResponse {
+  output: {
+    contactId: string | null
+    email: string | null
+    userId: string | null
+    isSuppressed: boolean
+    removalQuotaLimit: number | null
+    removalQuotaRemaining: number | null
+  }
+}
+
+export interface LoopsRemoveContactSuppressionResponse extends ToolResponse {
+  output: {
+    success: boolean
+    message: string | null
+    removalQuotaLimit: number | null
+    removalQuotaRemaining: number | null
+  }
+}
+
+export interface LoopsGetTransactionalEmailResponse extends ToolResponse {
+  output: {
+    id: string | null
+    name: string | null
+    draftEmailMessageId: string | null
+    publishedEmailMessageId: string | null
+    transactionalGroupId: string | null
+    createdAt: string | null
+    updatedAt: string | null
+    dataVariables: string[]
+  }
+}
+
 export type LoopsResponse =
   | LoopsCreateContactResponse
   | LoopsUpdateContactResponse
@@ -179,6 +229,9 @@ export type LoopsResponse =
   | LoopsListTransactionalEmailsResponse
   | LoopsCreateContactPropertyResponse
   | LoopsListContactPropertiesResponse
+  | LoopsCheckContactSuppressionResponse
+  | LoopsRemoveContactSuppressionResponse
+  | LoopsGetTransactionalEmailResponse
 
 export const LOOPS_CONTACT_OUTPUT_PROPERTIES = {
   id: { type: 'string' as const, description: 'Loops-assigned contact ID' },

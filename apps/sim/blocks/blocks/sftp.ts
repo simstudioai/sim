@@ -1,5 +1,6 @@
+import { ClipboardList, Download, File, Search, Server, Trash, Upload } from '@sim/emcn/icons'
 import { SftpIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SftpUploadResult } from '@/tools/sftp/types'
@@ -311,3 +312,108 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
     error: { type: 'string', description: 'Error message if operation failed' },
   },
 }
+
+export const SftpBlockMeta = {
+  tags: ['document-processing', 'automation'],
+  templates: [
+    {
+      icon: Download,
+      title: 'Pull new files from a remote drop folder',
+      prompt:
+        'Build a workflow that runs on a schedule, lists a remote SFTP drop folder, downloads any new files, and passes their contents into the workflow for processing.',
+      modules: ['scheduled', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['files', 'automation', 'sftp'],
+    },
+    {
+      icon: Upload,
+      title: 'Push a generated report to a partner SFTP',
+      prompt:
+        'Build a workflow that generates a report file and uploads it to a partner SFTP server under a dated remote path.',
+      modules: ['files', 'workflows'],
+      category: 'operations',
+      tags: ['files', 'upload', 'sftp'],
+    },
+    {
+      icon: Server,
+      title: 'Mirror a local export to a remote directory',
+      prompt:
+        'Build a workflow that lists a remote SFTP directory, compares it to the files produced by an earlier block, and uploads any missing files to keep the remote directory in sync.',
+      modules: ['files', 'scheduled', 'workflows'],
+      category: 'operations',
+      tags: ['files', 'sync', 'sftp'],
+    },
+    {
+      icon: Trash,
+      title: 'Archive and delete old files on a schedule',
+      prompt:
+        'Build a workflow that runs nightly, lists an SFTP directory, downloads files older than a threshold to archive them, and then deletes the originals from the remote server.',
+      modules: ['scheduled', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['files', 'cleanup', 'sftp'],
+    },
+    {
+      icon: ClipboardList,
+      title: 'Notify Slack when new files land on SFTP',
+      prompt:
+        'Build a workflow that checks an SFTP inbox folder on a schedule and sends a Slack message listing any new files that have arrived since the last run.',
+      modules: ['scheduled', 'files', 'agent'],
+      category: 'operations',
+      tags: ['files', 'notifications', 'sftp'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Search,
+      title: 'Inventory a remote directory listing',
+      prompt:
+        'Build a workflow that lists a remote SFTP directory with detailed metadata and records the file names, sizes, and timestamps for auditing.',
+      modules: ['files', 'workflows', 'tables'],
+      category: 'operations',
+      tags: ['files', 'audit', 'sftp'],
+    },
+    {
+      icon: File,
+      title: 'Write a manifest file to a remote server',
+      prompt:
+        'Build a workflow that assembles a manifest of processed records and creates a manifest.txt file on a remote SFTP path so downstream systems know the batch is ready.',
+      modules: ['files', 'workflows'],
+      category: 'operations',
+      tags: ['files', 'manifest', 'sftp'],
+    },
+    {
+      icon: Download,
+      title: 'Download a remote file and summarize it',
+      prompt:
+        'Build a workflow that downloads a file from an SFTP server and passes its contents to an agent that summarizes the key points.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['files', 'summarize', 'sftp'],
+    },
+  ],
+  skills: [
+    {
+      name: 'pull-remote-drop-folder',
+      description: 'Poll a remote SFTP drop folder on a schedule and ingest any new files.',
+      content:
+        '# Pull Remote Drop Folder\n\nPeriodically fetch newly arrived files from a remote SFTP directory into a workflow.\n\n## Steps\n1. Use the List Directory operation to read the remote drop folder and inspect `entries`.\n2. Filter for files newer than the last processed timestamp.\n3. For each new file, use the Download File operation and read `file`/`content`.\n4. Hand the contents to downstream blocks for parsing.\n\n## Output\nNew remote files are downloaded and their contents are available for processing each run.',
+    },
+    {
+      name: 'push-report-to-partner',
+      description: 'Upload a generated report to a partner SFTP server under a dated path.',
+      content:
+        '# Push Report To Partner\n\nDeliver a generated file to an external partner over SFTP.\n\n## Steps\n1. Produce the report file in an earlier block.\n2. Use the Upload Files operation with the partner `remotePath` (e.g. `/outbound/2026-07-01/`).\n3. Enable overwrite only if same-day re-delivery is expected.\n4. Confirm delivery from `uploadedFiles`.\n\n## Output\nThe report lands on the partner SFTP server at the intended remote path.',
+    },
+    {
+      name: 'archive-and-cleanup',
+      description: 'Download aging remote files to archive them, then delete the originals.',
+      content:
+        '# Archive And Cleanup\n\nKeep a remote SFTP directory tidy by archiving and removing old files.\n\n## Steps\n1. List the target directory and identify files past the retention window.\n2. Download each stale file to archive it elsewhere.\n3. Use the Delete File/Directory operation to remove the original and check `deletedPath`.\n4. Schedule the workflow to run nightly.\n\n## Output\nAging files are preserved in an archive and cleared from the live remote directory.',
+    },
+    {
+      name: 'remote-directory-inventory',
+      description: 'Capture a detailed listing of a remote SFTP directory for auditing.',
+      content:
+        '# Remote Directory Inventory\n\nRecord what currently exists in a remote SFTP path.\n\n## Steps\n1. Use the List Directory operation with detailed info enabled.\n2. Read `entries` for names, sizes, and timestamps.\n3. Store the inventory in a table or log for auditing.\n\n## Output\nA point-in-time inventory of the remote directory is captured.',
+    },
+  ],
+} as const satisfies BlockMeta
