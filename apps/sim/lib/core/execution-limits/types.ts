@@ -75,6 +75,19 @@ export function getMaxExecutionTimeout(): number {
   return EXECUTION_TIMEOUTS.enterprise.async
 }
 
+/** Safety buffer added beyond the max execution timeout for execution-lifetime TTLs. */
+export const RESERVATION_TTL_BUFFER_MS = 60_000
+
+/**
+ * TTL (ms) bounding how long a single execution can remain in flight: the max
+ * execution timeout plus a safety buffer. Shared source of truth for the
+ * admission-reservation key and the live progress-marker key so they expire on
+ * the same timeline.
+ */
+export function getExecutionReservationTtlMs(): number {
+  return getMaxExecutionTimeout() + RESERVATION_TTL_BUFFER_MS
+}
+
 export const DEFAULT_EXECUTION_TIMEOUT_MS = EXECUTION_TIMEOUTS.free.sync
 
 export function isTimeoutError(error: unknown): boolean {

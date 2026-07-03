@@ -6,7 +6,7 @@ import {
   TypeJson,
   TypeNumber,
   TypeText,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 
 /**

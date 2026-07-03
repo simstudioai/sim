@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
-import { Slider } from '@/components/emcn/components/slider/slider'
-import { cn } from '@/lib/core/utils/cn'
+import { cn, Slider } from '@sim/emcn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface SliderInputProps {

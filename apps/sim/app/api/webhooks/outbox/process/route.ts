@@ -1,3 +1,4 @@
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -7,6 +8,7 @@ import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
+import { reapStaleBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
 
 const logger = createLogger('OutboxProcessorAPI')
 
@@ -33,12 +35,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       minRemainingMs: 95_000,
     })
 
-    logger.info('Outbox processing completed', { requestId, ...result })
+    // Reap fork background-work rows stuck `processing` past their TTL (worker crash /
+    // restart has no in-task hook). Independent of the outbox; a failure here must not
+    // fail the outbox run, so it's guarded separately.
+    let reapedBackgroundWork = 0
+    try {
+      reapedBackgroundWork = await reapStaleBackgroundWork(db)
+    } catch (error) {
+      logger.error('Background-work reap failed', { requestId, error: toError(error).message })
+    }
+
+    logger.info('Outbox processing completed', { requestId, ...result, reapedBackgroundWork })
 
     return NextResponse.json({
       success: true,
       requestId,
       result,
+      reapedBackgroundWork,
     })
   } catch (error) {
     logger.error('Outbox processing failed', { requestId, error: toError(error).message })

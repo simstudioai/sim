@@ -1,4 +1,3 @@
-export { A2aDeploy } from './a2a'
 export { ApiDeploy } from './api'
 export { ChatDeploy, type ExistingChat } from './chat'
 export { DeployUpgradeGate } from './deploy-upgrade-gate'

@@ -5,7 +5,7 @@ export const executeTool: ToolConfig<ClickHouseExecuteParams, ClickHouseExecuteR
   id: 'clickhouse_execute',
   name: 'ClickHouse Execute',
   description: 'Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

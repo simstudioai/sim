@@ -34,12 +34,11 @@ describe('maskPIIBatchViaHttp', () => {
     vi.unstubAllGlobals()
   })
 
-  it('masks a small batch in a single request, with an abort timeout', async () => {
+  it('masks a small batch in a single request', async () => {
     const out = await maskPIIBatchViaHttp(['a', 'b', 'c'], ['EMAIL_ADDRESS'])
 
     expect(out).toEqual(['M(a)', 'M(b)', 'M(c)'])
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
   })
 
   it('splits by count into multiple requests, preserving global order', async () => {

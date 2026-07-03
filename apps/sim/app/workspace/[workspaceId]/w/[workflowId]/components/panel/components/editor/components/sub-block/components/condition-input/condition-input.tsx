@@ -1,21 +1,21 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import Editor from 'react-simple-code-editor'
 import {
   Button,
   Code,
   calculateGutterWidth,
+  cn,
   getCodeEditorProps,
   highlight,
   languages,
   Textarea,
   Tooltip,
-} from '@/components/emcn'
-import { Trash } from '@/components/emcn/icons/trash'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import Editor from 'react-simple-code-editor'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,

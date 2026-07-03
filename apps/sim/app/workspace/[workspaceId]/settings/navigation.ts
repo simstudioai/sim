@@ -18,7 +18,7 @@ import {
   User,
   Users,
   Wrench,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import { McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 
@@ -248,7 +248,8 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'data-retention',
     label: 'Data retention',
-    description: 'Control data retention windows and PII redaction.',
+    description:
+      'Control data retention windows and PII redaction. Workspaces without an override inherit the organization defaults.',
     icon: Database,
     section: 'enterprise',
     requiresHosted: true,

@@ -56,6 +56,20 @@ export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetA
       visibility: 'user-or-llm',
       description: 'Page number for action results',
     },
+    since: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return actions after this date (ISO 8601 timestamp) or action ID, for paging through long histories',
+    },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return actions before this date (ISO 8601 timestamp) or action ID, for paging through long histories',
+    },
   },
 
   request: {
@@ -84,12 +98,20 @@ export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetA
         url.searchParams.set('filter', params.filter)
       }
 
-      if (params.boardId && params.limit !== undefined) {
+      if (params.limit !== undefined) {
         url.searchParams.set('limit', String(params.limit))
       }
 
       if (params.page !== undefined) {
         url.searchParams.set('page', String(params.page))
+      }
+
+      if (params.since) {
+        url.searchParams.set('since', params.since)
+      }
+
+      if (params.before) {
+        url.searchParams.set('before', params.before)
       }
 
       return url.toString()

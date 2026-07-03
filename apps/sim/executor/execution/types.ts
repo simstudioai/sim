@@ -148,6 +148,15 @@ export interface ExecutionCallbacks {
   ) => Promise<void>
 }
 
+/** In-flight block-output redaction policy (the resolved `blockOutputs` stage). */
+export interface PiiBlockOutputRedaction {
+  enabled: boolean
+  /** Presidio entity types to mask. Empty = redact all detected PII. */
+  entityTypes: string[]
+  /** Language whose Presidio recognizers apply. */
+  language: string
+}
+
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
@@ -180,6 +189,12 @@ export interface ContextExtensions {
   abortSignal?: AbortSignal
   includeFileBase64?: boolean
   base64MaxBytes?: number
+  /**
+   * When enabled, every block output is masked in-flight before downstream blocks
+   * consume it. Resolved from the org/workspace PII redaction policy's
+   * `blockOutputs` stage. Serializable, so it crosses into the trigger.dev worker.
+   */
+  piiBlockOutputRedaction?: PiiBlockOutputRedaction
   onStream?: (streamingExecution: StreamingExecution) => Promise<void>
   onBlockStart?: (
     blockId: string,

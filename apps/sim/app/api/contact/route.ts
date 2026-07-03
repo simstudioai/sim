@@ -4,22 +4,21 @@ import { renderHelpConfirmationEmail } from '@/components/emails'
 import {
   getContactTopicLabel,
   mapContactTopicToHelpType,
-  submitContactBodySchema,
+  submitContactContract,
 } from '@/lib/api/contracts/contact'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isTurnstileConfigured, verifyTurnstileToken } from '@/lib/core/security/turnstile'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
-import { getEmailDomain, SITE_URL } from '@/lib/core/utils/urls'
+import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('ContactAPI')
 const rateLimiter = new RateLimiter()
-const SITE_HOSTNAME = new URL(SITE_URL).hostname
 
 const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 10,
@@ -34,7 +33,22 @@ const CAPTCHA_UNAVAILABLE_RATE_LIMIT: TokenBucketConfig = {
 }
 
 const SUCCESS_RESPONSE = { success: true, message: "Thanks — we'll be in touch soon." }
+const TOO_MANY_REQUESTS_RESPONSE = { error: 'Too many requests. Please try again later.' }
 
+/**
+ * Public contact-form endpoint: per-IP rate limit, honeypot drop, captcha, then a
+ * help-inbox notification plus a best-effort visitor confirmation.
+ *
+ * Captcha is server-authoritative — a valid Turnstile token is the only way past
+ * the stricter fallback bucket, so a caller cannot opt out of the challenge. A
+ * missing token (widget could not load) or a Cloudflare transport error falls
+ * back to the tighter no-captcha bucket rather than a free pass; an outright
+ * invalid token is rejected. That backstop is enforced `failClosed`, so an
+ * unavailable limiter rejects token-less submits instead of admitting them. No
+ * `expectedHostname` is pinned: the site key is already domain-bound in
+ * Cloudflare, and a single-host pin would reject valid self-hosted/preview/apex
+ * tokens.
+ */
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -49,90 +63,66 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     if (!allowed) {
       logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        {
-          status: 429,
-          headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
-        }
-      )
+      return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, {
+        status: 429,
+        headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
+      })
     }
 
-    const body = await req.json()
-    const bodyRecord = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
+    const parsed = await parseRequest(submitContactContract, req, {})
+    if (!parsed.success) {
+      logger.warn(`[${requestId}] Invalid contact request data`)
+      return parsed.response
+    }
 
-    const honeypot = bodyRecord.website
-    if (typeof honeypot === 'string' && honeypot.trim().length > 0) {
+    const { name, email, company, topic, subject, message, website, captchaToken } =
+      parsed.data.body
+
+    if (typeof website === 'string' && website.trim().length > 0) {
       logger.warn(`[${requestId}] Honeypot triggered, discarding`, { ip })
       return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
     }
 
-    const captchaUnavailable = bodyRecord.captchaUnavailable === true
+    if (isTurnstileConfigured()) {
+      let captchaVerified = false
+      const token =
+        typeof captchaToken === 'string' && captchaToken.length > 0 ? captchaToken : null
 
-    if (captchaUnavailable) {
-      const nocaptchaKey = `public:contact:nocaptcha:${ip}`
-      const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
-        nocaptchaKey,
-        CAPTCHA_UNAVAILABLE_RATE_LIMIT
-      )
-      if (!nocaptchaAllowed) {
-        logger.warn(`[${requestId}] Rate limit exceeded (no-captcha) for IP ${ip}`)
-        return NextResponse.json(
-          { error: 'Too many requests. Please try again later.' },
-          { status: 429 }
-        )
+      if (token) {
+        const verification = await verifyTurnstileToken({ token, remoteIp: ip })
+        if (verification.success) {
+          captchaVerified = true
+        } else if (!verification.transportError) {
+          logger.warn(`[${requestId}] Captcha verification failed`, {
+            ip,
+            errorCodes: verification.errorCodes,
+          })
+          return NextResponse.json(
+            { error: 'Captcha verification failed. Please try again.' },
+            { status: 400 }
+          )
+        } else {
+          logger.warn(
+            `[${requestId}] Captcha transport error, falling back to no-captcha rate limit`,
+            { ip }
+          )
+        }
       }
-    }
 
-    if (isTurnstileConfigured() && !captchaUnavailable) {
-      const token = typeof bodyRecord.captchaToken === 'string' ? bodyRecord.captchaToken : null
-      const verification = await verifyTurnstileToken({
-        token,
-        remoteIp: ip,
-        expectedHostname: SITE_HOSTNAME,
-      })
-      if (!verification.success && verification.transportError) {
-        logger.warn(
-          `[${requestId}] Captcha transport error, falling back to no-captcha rate limit`,
-          { ip }
-        )
+      if (!captchaVerified) {
         const nocaptchaKey = `public:contact:nocaptcha:${ip}`
         const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
           nocaptchaKey,
-          CAPTCHA_UNAVAILABLE_RATE_LIMIT
+          CAPTCHA_UNAVAILABLE_RATE_LIMIT,
+          { failClosed: true }
         )
         if (!nocaptchaAllowed) {
-          logger.warn(`[${requestId}] Rate limit exceeded (transport-error fallback) for IP ${ip}`)
-          return NextResponse.json(
-            { error: 'Too many requests. Please try again later.' },
-            { status: 429 }
-          )
+          logger.warn(`[${requestId}] Rate limit rejected (no-captcha) for IP ${ip}`)
+          return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
         }
-      } else if (!verification.success) {
-        logger.warn(`[${requestId}] Captcha verification failed`, {
-          ip,
-          errorCodes: verification.errorCodes,
-        })
-        return NextResponse.json(
-          { error: 'Captcha verification failed. Please try again.' },
-          { status: 400 }
-        )
       }
     }
 
-    const validationResult = submitContactBodySchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.warn(`[${requestId}] Invalid contact request data`, {
-        issues: validationResult.error.issues,
-      })
-      return NextResponse.json(
-        { error: getValidationErrorMessage(validationResult.error, 'Invalid request data') },
-        { status: 400 }
-      )
-    }
-
-    const { name, email, company, topic, subject, message } = validationResult.data
     const topicLabel = getContactTopicLabel(topic)
 
     logger.info(`[${requestId}] Processing contact request`, {

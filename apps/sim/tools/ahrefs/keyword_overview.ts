@@ -4,6 +4,9 @@ import type {
 } from '@/tools/ahrefs/types'
 import type { ToolConfig } from '@/tools/types'
 
+const SELECT_FIELDS =
+  'keyword,volume,difficulty,cpc,clicks,searches_pct_clicks_organic_only,parent_topic,traffic_potential,intents'
+
 export const keywordOverviewTool: ToolConfig<
   AhrefsKeywordOverviewParams,
   AhrefsKeywordOverviewResponse
@@ -38,8 +41,9 @@ export const keywordOverviewTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL('https://api.ahrefs.com/v3/keywords-explorer/overview')
-      url.searchParams.set('keyword', params.keyword)
+      url.searchParams.set('keywords', params.keyword)
       url.searchParams.set('country', params.country || 'us')
+      url.searchParams.set('select', SELECT_FIELDS)
       return url.toString()
     },
     method: 'GET',
@@ -56,18 +60,21 @@ export const keywordOverviewTool: ToolConfig<
       throw new Error(data.error?.message || data.error || 'Failed to get keyword overview')
     }
 
+    const result = (data.keywords || [])[0] || {}
+
     return {
       success: true,
       output: {
         overview: {
-          keyword: data.keyword || '',
-          searchVolume: data.volume ?? 0,
-          keywordDifficulty: data.keyword_difficulty ?? data.difficulty ?? 0,
-          cpc: data.cpc ?? 0,
-          clicks: data.clicks ?? 0,
-          clicksPercentage: data.clicks_percentage ?? 0,
-          parentTopic: data.parent_topic || '',
-          trafficPotential: data.traffic_potential ?? 0,
+          keyword: result.keyword || '',
+          searchVolume: result.volume ?? 0,
+          keywordDifficulty: result.difficulty ?? null,
+          cpc: result.cpc ?? null,
+          clicks: result.clicks ?? null,
+          clicksPercentage: result.searches_pct_clicks_organic_only ?? null,
+          parentTopic: result.parent_topic ?? null,
+          trafficPotential: result.traffic_potential ?? null,
+          intents: result.intents ?? null,
         },
       },
     }
@@ -83,17 +90,38 @@ export const keywordOverviewTool: ToolConfig<
         keywordDifficulty: {
           type: 'number',
           description: 'Keyword difficulty score (0-100)',
+          optional: true,
         },
-        cpc: { type: 'number', description: 'Cost per click in USD' },
-        clicks: { type: 'number', description: 'Estimated clicks per month' },
+        cpc: { type: 'number', description: 'Cost per click in USD', optional: true },
+        clicks: { type: 'number', description: 'Estimated clicks per month', optional: true },
         clicksPercentage: {
           type: 'number',
-          description: 'Percentage of searches that result in clicks',
+          description: 'Percentage of searches that result in an organic click',
+          optional: true,
         },
-        parentTopic: { type: 'string', description: 'The parent topic for this keyword' },
+        parentTopic: {
+          type: 'string',
+          description: 'The parent topic for this keyword',
+          optional: true,
+        },
         trafficPotential: {
           type: 'number',
           description: 'Estimated traffic potential if ranking #1',
+          optional: true,
+        },
+        intents: {
+          type: 'object',
+          description:
+            'Search intent flags (informational, navigational, commercial, transactional, branded, local)',
+          optional: true,
+          properties: {
+            informational: { type: 'boolean', description: 'Query seeks information' },
+            navigational: { type: 'boolean', description: 'Query seeks a specific site or page' },
+            commercial: { type: 'boolean', description: 'Query researches a purchase decision' },
+            transactional: { type: 'boolean', description: 'Query intends to complete a purchase' },
+            branded: { type: 'boolean', description: 'Query references a specific brand' },
+            local: { type: 'boolean', description: 'Query seeks local results' },
+          },
         },
       },
     },

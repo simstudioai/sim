@@ -1,14 +1,12 @@
 'use client'
 
 import { useCallback } from 'react'
+import { Button, cn, handleKeyboardActivation, Library } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
-import { Button, Library } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { Badge } from '@/components/emcn'
+import { Badge } from '@sim/emcn'
 import { BADGE_STYLE } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
 /**

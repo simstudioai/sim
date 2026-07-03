@@ -242,6 +242,72 @@ Update column values of an item on a Monday.com board
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 
+### `monday_change_column_value`
+
+Update a single column's value on a Monday.com item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board containing the item |
+| `itemId` | string | Yes | The ID of the item to update |
+| `columnId` | string | Yes | The ID of the column to update \(e.g., "status", "date4"\) |
+| `value` | string | Yes | The new column value as a JSON string \(e.g., \{"label":"Done"\} for a status column\) |
+| `createLabelsIfMissing` | boolean | No | Create status/dropdown labels that do not yet exist on the column |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The updated item |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+
+### `monday_duplicate_item`
+
+Duplicate an existing item on a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board containing the item |
+| `itemId` | string | Yes | The ID of the item to duplicate |
+| `withUpdates` | boolean | No | Whether to also duplicate the item updates |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The duplicated item |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+
 ### `monday_delete_item`
 
 Delete an item from a Monday.com board
@@ -383,6 +449,80 @@ Create a new group on a Monday.com board
 |   ↳ `archived` | boolean | Whether archived |
 |   ↳ `deleted` | boolean | Whether deleted |
 |   ↳ `position` | string | Group position |
+
+### `monday_get_groups`
+
+Get the groups on a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board to retrieve groups from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | array | Groups on the board |
+|   ↳ `id` | string | Group ID |
+|   ↳ `title` | string | Group title |
+|   ↳ `color` | string | Group color \(hex\) |
+|   ↳ `archived` | boolean | Whether the group is archived |
+|   ↳ `deleted` | boolean | Whether the group is deleted |
+|   ↳ `position` | string | Group position |
+| `count` | number | Number of returned groups |
+
+### `monday_create_board`
+
+Create a new board in Monday.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardName` | string | Yes | The name of the new board |
+| `boardKind` | string | Yes | The board kind: public, private, or share |
+| `description` | string | No | The board description |
+| `workspaceId` | string | No | The ID of the workspace to create the board in |
+| `folderId` | string | No | The ID of the folder to create the board in |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `board` | json | The created board |
+|   ↳ `id` | string | Board ID |
+|   ↳ `name` | string | Board name |
+|   ↳ `description` | string | Board description |
+|   ↳ `state` | string | Board state |
+|   ↳ `boardKind` | string | Board kind \(public, private, share\) |
+|   ↳ `itemsCount` | number | Number of items |
+|   ↳ `url` | string | Board URL |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+
+### `monday_create_column`
+
+Create a new column on a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board to create the column on |
+| `columnTitle` | string | Yes | The title of the new column |
+| `columnType` | string | Yes | The column type \(e.g., status, text, numbers, date, people, dropdown\) |
+| `columnDescription` | string | No | The column description |
+| `columnDefaults` | string | No | JSON string of default settings for the column \(e.g., status labels\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `column` | json | The created column |
+|   ↳ `id` | string | Column ID |
+|   ↳ `title` | string | Column title |
+|   ↳ `type` | string | Column type |
 
 
 

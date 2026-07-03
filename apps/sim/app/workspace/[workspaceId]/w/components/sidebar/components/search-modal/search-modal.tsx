@@ -1,13 +1,7 @@
 'use client'
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { Command } from 'cmdk'
-import { Scan } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
-import { createPortal } from 'react-dom'
-import { Library } from '@/components/emcn'
+import { cn, Library } from '@sim/emcn'
 import {
   Calendar,
   Database,
@@ -20,13 +14,18 @@ import {
   Key,
   Play,
   Plus,
+  Search,
   Send,
   Settings,
   Table,
   Upload,
-} from '@/components/emcn/icons'
-import { Search } from '@/components/emcn/icons/search'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { Command } from 'cmdk'
+import { Scan } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
+import { createPortal } from 'react-dom'
 import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'

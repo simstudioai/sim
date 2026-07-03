@@ -220,3 +220,73 @@ export interface MondayCreateGroupResponse extends ToolResponse {
     group: MondayGroup | null
   }
 }
+
+export interface MondayChangeColumnValueParams {
+  accessToken: string
+  boardId: string
+  itemId: string
+  columnId: string
+  value: string
+  createLabelsIfMissing?: boolean
+}
+
+export interface MondayChangeColumnValueResponse extends ToolResponse {
+  output: {
+    item: MondayItem | null
+  }
+}
+
+export interface MondayCreateBoardParams {
+  accessToken: string
+  boardName: string
+  boardKind: string
+  description?: string
+  workspaceId?: string
+  folderId?: string
+}
+
+export interface MondayCreateBoardResponse extends ToolResponse {
+  output: {
+    board: MondayBoard | null
+  }
+}
+
+export interface MondayCreateColumnParams {
+  accessToken: string
+  boardId: string
+  columnTitle: string
+  columnType: string
+  columnDescription?: string
+  columnDefaults?: string
+}
+
+export interface MondayCreateColumnResponse extends ToolResponse {
+  output: {
+    column: MondayColumn | null
+  }
+}
+
+export interface MondayGetGroupsParams {
+  accessToken: string
+  boardId: string
+}
+
+export interface MondayGetGroupsResponse extends ToolResponse {
+  output: {
+    groups: MondayGroup[]
+    count: number
+  }
+}
+
+export interface MondayDuplicateItemParams {
+  accessToken: string
+  boardId: string
+  itemId: string
+  withUpdates?: boolean
+}
+
+export interface MondayDuplicateItemResponse extends ToolResponse {
+  output: {
+    item: MondayItem | null
+  }
+}

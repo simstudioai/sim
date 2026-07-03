@@ -204,6 +204,7 @@ export interface LinqMessageResult extends ToolResponse {
     id: string
     chatId: string
     isFromMe: boolean | null
+    deliveryStatus: string | null
     isDelivered: boolean | null
     isRead: boolean | null
     service: string | null
@@ -280,6 +281,7 @@ export interface LinqListPhoneNumbersResult extends ToolResponse {
     phoneNumbers: Array<{
       id: string
       phoneNumber: string
+      forwardingNumber: string | null
       healthStatus: LinqHealthStatus | null
     }>
   }

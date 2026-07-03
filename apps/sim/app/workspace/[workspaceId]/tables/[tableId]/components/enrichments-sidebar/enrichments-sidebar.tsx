@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipInput } from '@/components/emcn'
-import { Search, X } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+import { Button, ChipInput, cn } from '@sim/emcn'
+import { Search, X } from '@sim/emcn/icons'
 import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
 import { ALL_ENRICHMENTS } from '@/enrichments'
 import { getEnrichment } from '@/enrichments/registry'

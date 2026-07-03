@@ -68,7 +68,6 @@ export type ContactRequestBody = z.input<typeof contactRequestSchema>
 export const submitContactBodySchema = contactRequestSchema.extend({
   website: z.string().optional(),
   captchaToken: z.string().optional(),
-  captchaUnavailable: z.boolean().optional(),
 })
 
 export function getContactTopicLabel(value: ContactRequestPayload['topic']): string {
@@ -77,23 +76,22 @@ export function getContactTopicLabel(value: ContactRequestPayload['topic']): str
 
 export type HelpEmailType = 'bug' | 'feedback' | 'feature_request' | 'other'
 
+/**
+ * Map a contact topic to the confirmation-email type. Only `feature_request` has
+ * a matching email label ("Feature Request"); every other topic — support, sales,
+ * billing, etc. — resolves to `other` ("General Inquiry") so the confirmation copy
+ * never mislabels the request (e.g. calling a support inquiry a "bug report").
+ */
 export function mapContactTopicToHelpType(topic: ContactRequestPayload['topic']): HelpEmailType {
-  switch (topic) {
-    case 'feature_request':
-      return 'feature_request'
-    case 'support':
-      return 'bug'
-    case 'integration':
-      return 'feedback'
-    default:
-      return 'other'
-  }
+  return topic === 'feature_request' ? 'feature_request' : 'other'
 }
 
 export const contactResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
 })
+
+export type SubmitContactResult = z.output<typeof contactResponseSchema>
 
 export const submitContactContract = defineRouteContract({
   method: 'POST',

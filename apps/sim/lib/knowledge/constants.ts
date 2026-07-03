@@ -1,3 +1,6 @@
+/** Max character length for a knowledge base description, enforced at every layer (UI, internal API, v1 API). */
+export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
+
 export const TAG_SLOT_CONFIG = {
   text: {
     slots: ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const,

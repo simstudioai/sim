@@ -5,10 +5,18 @@ VIN recognizer) and one AnonymizerEngine at startup, exposing stock-compatible
 endpoints so a single PRESIDIO_URL serves both.
 """
 
+import logging
+import time
 from typing import Any
 
 from fastapi import FastAPI
-from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer, RecognizerResult
+from presidio_analyzer import (
+    AnalyzerEngine,
+    BatchAnalyzerEngine,
+    Pattern,
+    PatternRecognizer,
+    RecognizerResult,
+)
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_analyzer.predefined_recognizers import (
     AuAbnRecognizer,
@@ -131,7 +139,11 @@ def build_analyzer() -> AnalyzerEngine:
 
 
 analyzer = build_analyzer()
+batch_analyzer = BatchAnalyzerEngine(analyzer_engine=analyzer)
 anonymizer = AnonymizerEngine()
+
+# Propagates to uvicorn's root handler, so timing lands in the container log stream.
+logger = logging.getLogger("sim.pii")
 
 app = FastAPI(title="Sim Presidio", docs_url=None, redoc_url=None)
 
@@ -144,11 +156,63 @@ class AnalyzeRequest(BaseModel):
     return_decision_process: bool = False
 
 
+class AnalyzeBatchRequest(BaseModel):
+    texts: list[str]
+    language: str = "en"
+    entities: list[str] | None = None
+    score_threshold: float | None = None
+
+
 class AnonymizeRequest(BaseModel):
     text: str
     analyzer_results: list[dict[str, Any]] = []
     anonymizers: dict[str, dict[str, Any]] | None = None
     operators: dict[str, dict[str, Any]] | None = None
+
+
+class AnonymizeBatchItem(BaseModel):
+    text: str
+    analyzer_results: list[dict[str, Any]] = []
+
+
+class AnonymizeBatchRequest(BaseModel):
+    items: list[AnonymizeBatchItem] = []
+    anonymizers: dict[str, dict[str, Any]] | None = None
+    operators: dict[str, dict[str, Any]] | None = None
+
+
+def build_operators(
+    raw_operators: dict[str, dict[str, Any]] | None,
+) -> dict[str, OperatorConfig] | None:
+    if not raw_operators:
+        return None
+    operators: dict[str, OperatorConfig] = {}
+    for entity, raw_cfg in raw_operators.items():
+        op_cfg = dict(raw_cfg)
+        op_type = op_cfg.pop("type", "replace")
+        operators[entity] = OperatorConfig(op_type, op_cfg)
+    return operators
+
+
+def run_anonymize(
+    text: str,
+    raw_results: list[dict[str, Any]],
+    operators: dict[str, OperatorConfig] | None,
+):
+    analyzer_results = [
+        RecognizerResult(
+            entity_type=r["entity_type"],
+            start=r["start"],
+            end=r["end"],
+            score=r.get("score", 1.0),
+        )
+        for r in raw_results
+    ]
+    return anonymizer.anonymize(
+        text=text,
+        analyzer_results=analyzer_results,
+        operators=operators,
+    )
 
 
 @app.get("/health")
@@ -163,6 +227,7 @@ def supported_entities(language: str = "en") -> list[str]:
 
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest) -> list[dict[str, Any]]:
+    started = time.perf_counter()
     results = analyzer.analyze(
         text=req.text,
         language=req.language,
@@ -170,32 +235,39 @@ def analyze(req: AnalyzeRequest) -> list[dict[str, Any]]:
         score_threshold=req.score_threshold,
         return_decision_process=req.return_decision_process,
     )
+    logger.info(
+        "analyze lang=%s chars=%d entities=%d duration_ms=%.1f",
+        req.language,
+        len(req.text),
+        len(results),
+        (time.perf_counter() - started) * 1000,
+    )
     return [r.to_dict() for r in results]
+
+
+@app.post("/analyze_batch")
+def analyze_batch(req: AnalyzeBatchRequest) -> list[list[dict[str, Any]]]:
+    """Analyze many texts in one pass (spaCy nlp.pipe), returning one span list
+    per input in request order — the batched counterpart to /analyze."""
+    results = batch_analyzer.analyze_iterator(
+        texts=req.texts,
+        language=req.language,
+        entities=req.entities or None,
+        score_threshold=req.score_threshold,
+    )
+    return [[r.to_dict() for r in per_text] for per_text in results]
 
 
 @app.post("/anonymize")
 def anonymize(req: AnonymizeRequest) -> dict[str, Any]:
-    analyzer_results = [
-        RecognizerResult(
-            entity_type=r["entity_type"],
-            start=r["start"],
-            end=r["end"],
-            score=r.get("score", 1.0),
-        )
-        for r in req.analyzer_results
-    ]
-    raw_operators = req.anonymizers or req.operators
-    operators = None
-    if raw_operators:
-        operators = {}
-        for entity, raw_cfg in raw_operators.items():
-            op_cfg = dict(raw_cfg)
-            op_type = op_cfg.pop("type", "replace")
-            operators[entity] = OperatorConfig(op_type, op_cfg)
-    result = anonymizer.anonymize(
-        text=req.text,
-        analyzer_results=analyzer_results,
-        operators=operators,
+    started = time.perf_counter()
+    operators = build_operators(req.anonymizers or req.operators)
+    result = run_anonymize(req.text, req.analyzer_results, operators)
+    logger.info(
+        "anonymize chars=%d spans=%d duration_ms=%.1f",
+        len(req.text),
+        len(req.analyzer_results),
+        (time.perf_counter() - started) * 1000,
     )
     return {
         "text": result.text,
@@ -209,4 +281,18 @@ def anonymize(req: AnonymizeRequest) -> dict[str, Any]:
             }
             for item in result.items
         ],
+    }
+
+
+@app.post("/anonymize_batch")
+def anonymize_batch(req: AnonymizeBatchRequest) -> dict[str, list[str]]:
+    """Mask many texts in one pass, returning masked text per item in request
+    order — the batched counterpart to /anonymize. Anonymization is pure string
+    work (no NLP), so callers should send only items with detected spans."""
+    operators = build_operators(req.anonymizers or req.operators)
+    return {
+        "texts": [
+            run_anonymize(item.text, item.analyzer_results, operators).text
+            for item in req.items
+        ]
     }

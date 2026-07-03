@@ -20,18 +20,40 @@ export const vercelGetEnvVarsTool: ToolConfig<VercelGetEnvVarsParams, VercelGetE
       visibility: 'user-or-llm',
       description: 'Project ID or name',
     },
+    decrypt: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'If true, decrypted variable values are returned instead of ciphertext',
+    },
+    gitBranch: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Filter results to the environment variables for this git branch (must have target=preview)',
+    },
     teamId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
     url: (params: VercelGetEnvVarsParams) => {
       const query = new URLSearchParams()
+      if (params.decrypt) query.set('decrypt', 'true')
+      if (params.gitBranch) query.set('gitBranch', params.gitBranch.trim())
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v10/projects/${params.projectId.trim()}/env${qs ? `?${qs}` : ''}`
     },

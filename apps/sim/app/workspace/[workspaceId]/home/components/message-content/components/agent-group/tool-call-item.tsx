@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { PillsRing } from '@/components/emcn'
+import { PillsRing } from '@sim/emcn'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon, resolveToolDisplayState } from '../../utils'

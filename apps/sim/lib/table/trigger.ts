@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
 import type { RowData, TableRow, TableSchema } from '@/lib/table/types'
+import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 
 const logger = createLogger('TableTrigger')
 
@@ -70,7 +71,13 @@ export async function fireTableTrigger(
     // Filter to webhooks watching this table with a matching event type
     const matching = webhooks.filter((entry) => {
       const config = entry.webhook.providerConfig as WebhookConfig | null
-      const configTableId = config?.tableId ?? config?.tableSelector ?? config?.manualTableId
+      // Canonical key `tableId` first; `tableSelector`/`manualTableId` are a transitional
+      // basic-first fallback for configs deployed before the canonical key was written.
+      const configTableId = readCanonicalTriggerValue(
+        config?.tableId,
+        config?.tableSelector,
+        config?.manualTableId
+      )
       if (configTableId !== tableId) return false
 
       const configEventType = config?.eventType ?? 'insert'

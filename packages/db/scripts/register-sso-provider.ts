@@ -22,6 +22,11 @@
  *   SSO_OIDC_CLIENT_SECRET=your_client_secret
  *   SSO_OIDC_SCOPES=openid,profile,email (optional)
  *   SSO_OIDC_TOKEN_ENDPOINT_AUTH=client_secret_post|client_secret_basic (optional, defaults to client_secret_post)
+ *   SSO_OIDC_SKIP_USERINFO_ENDPOINT=true (optional; reads claims from the verified ID token
+ *     instead of calling the discovered UserInfo endpoint, matching better-auth's ID-token
+ *     path in its OIDC callback. Use this for IdPs whose UserInfo endpoint omits claims that
+ *     are present on the ID token, e.g. Microsoft Entra ID's Graph userinfo endpoint dropping
+ *     `email` for some tenants)
  *
  * SAML Providers:
  *   SSO_SAML_ENTRY_POINT=https://your-idp/sso
@@ -55,6 +60,7 @@ interface OIDCConfig {
   authorizationEndpoint?: string
   tokenEndpoint?: string
   userInfoEndpoint?: string
+  skipUserInfoEndpoint?: boolean
   jwksEndpoint?: string
   discoveryEndpoint?: string
   tokenEndpointAuthentication?: 'client_secret_post' | 'client_secret_basic'
@@ -223,6 +229,7 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
           ? process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH
           : undefined,
       userInfoEndpoint: process.env.SSO_OIDC_USERINFO_ENDPOINT,
+      skipUserInfoEndpoint: process.env.SSO_OIDC_SKIP_USERINFO_ENDPOINT === 'true',
       jwksEndpoint: process.env.SSO_OIDC_JWKS_ENDPOINT,
       discoveryEndpoint:
         process.env.SSO_OIDC_DISCOVERY_ENDPOINT ||
@@ -351,6 +358,7 @@ function getExampleEnvVars(
         SSO_OIDC_CLIENT_ID: 'your-application-id',
         SSO_OIDC_CLIENT_SECRET: 'your-client-secret',
         SSO_MAPPING_ID: 'oid',
+        SSO_OIDC_SKIP_USERINFO_ENDPOINT: 'true',
       },
       generic: {
         ...baseVars,
@@ -523,6 +531,11 @@ async function registerSSOProvider(): Promise<boolean> {
           userInfoEndpoint: ssoConfig.oidcConfig.userInfoEndpoint,
           jwksEndpoint: ssoConfig.oidcConfig.jwksEndpoint,
         })
+      }
+
+      if (ssoConfig.oidcConfig.skipUserInfoEndpoint) {
+        ssoConfig.oidcConfig.userInfoEndpoint = undefined
+        logger.info('Skipping UserInfo endpoint: claims will be read from the verified ID token')
       }
 
       if (

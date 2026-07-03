@@ -62,6 +62,12 @@ export const vercelGetDeploymentEventsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
@@ -73,6 +79,7 @@ export const vercelGetDeploymentEventsTool: ToolConfig<
       if (params.since !== undefined) query.set('since', String(params.since))
       if (params.until !== undefined) query.set('until', String(params.until))
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v3/deployments/${params.deploymentId.trim()}/events${qs ? `?${qs}` : ''}`
     },

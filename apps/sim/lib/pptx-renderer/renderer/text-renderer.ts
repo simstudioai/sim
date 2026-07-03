@@ -3,6 +3,7 @@
  * with full 7-level style inheritance.
  */
 
+import { hexToRgb, toCssColor } from '@/lib/colors'
 import type { PlaceholderInfo } from '../model/nodes/base-node'
 import type { TextBody } from '../model/nodes/shape-node'
 import { angleToDeg, emuToPx, pctToDecimal } from '../parser/units'
@@ -285,7 +286,7 @@ function mergeRunProps(target: MergedRunStyle, rPr: SafeXmlNode, ctx: RenderCont
     const { color, alpha } = resolveColor(solidFill, ctx)
     const hex = color.startsWith('#') ? color : `#${color}`
     if (alpha < 1) {
-      const { r, g, b: bl } = hexToRgbInternal(hex)
+      const { r, g, b: bl } = hexToRgb(hex)
       target.color = `rgba(${r},${g},${bl},${alpha.toFixed(3)})`
     } else {
       target.color = hex
@@ -367,7 +368,7 @@ function mergeRunProps(target: MergedRunStyle, rPr: SafeXmlNode, ctx: RenderCont
     const lnSolid = ln.child('solidFill')
     if (lnSolid.exists()) {
       const { color: c, alpha: a } = resolveColor(lnSolid, ctx)
-      target.textOutlineColor = colorToCssLocal(c, a)
+      target.textOutlineColor = toCssColor(c, a)
     }
     // Gradient fill on outline — build CSS gradient for mask effect
     const lnGrad = ln.child('gradFill')
@@ -395,30 +396,6 @@ function resolveThemeFont(typeface: string, ctx: RenderContext): string {
 }
 
 /**
- * Minimal hex-to-rgb parser for inline use.
- */
-function hexToRgbInternal(hex: string): { r: number; g: number; b: number } {
-  const cleaned = hex.replace(/^#/, '')
-  const num = Number.parseInt(
-    cleaned.length === 3
-      ? cleaned[0] + cleaned[0] + cleaned[1] + cleaned[1] + cleaned[2] + cleaned[2]
-      : cleaned,
-    16
-  )
-  return { r: (num >> 16) & 0xff, g: (num >> 8) & 0xff, b: num & 0xff }
-}
-
-/**
- * Convert resolved color + alpha to CSS color string.
- */
-function colorToCssLocal(color: string, alpha: number): string {
-  const hex = color.startsWith('#') ? color : `#${color}`
-  if (alpha >= 1) return hex
-  const { r, g, b } = hexToRgbInternal(hex)
-  return `rgba(${r},${g},${b},${alpha.toFixed(3)})`
-}
-
-/**
  * Resolve a gradient fill node into a CSS linear-gradient string.
  * Used for text outline gradient effects.
  */
@@ -429,7 +406,7 @@ function resolveGradientForText(gradFill: SafeXmlNode, ctx: RenderContext): stri
     const pos = gs.numAttr('pos') ?? 0
     const posPercent = pctToDecimal(pos) * 100
     const { color, alpha } = resolveColor(gs, ctx)
-    stops.push({ position: posPercent, color: colorToCssLocal(color, alpha) })
+    stops.push({ position: posPercent, color: toCssColor(color, alpha) })
   }
   if (stops.length === 0) return ''
   stops.sort((a, b) => a.position - b.position)

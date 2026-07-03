@@ -63,7 +63,7 @@ export const deleteByFilterTool: ToolConfig<
       description: 'Coordinates for geo-search filter (e.g., "40.71,-74.01")',
     },
     aroundRadius: {
-      type: 'number',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Maximum radius in meters for geo-search, or "all" for unlimited',
@@ -85,7 +85,7 @@ export const deleteByFilterTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/deleteByQuery`,
+      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/deleteByQuery`,
     method: 'POST',
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,

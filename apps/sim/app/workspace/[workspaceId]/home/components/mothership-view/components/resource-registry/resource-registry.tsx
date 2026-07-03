@@ -1,7 +1,7 @@
 'use client'
 
 import type { ElementType, ReactNode } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
+import { cn } from '@sim/emcn'
 import {
   Calendar,
   Connections,
@@ -13,9 +13,9 @@ import {
   Task,
   TerminalWindow,
   Workflow,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
+import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { cn } from '@/lib/core/utils/cn'
 import type {
   MothershipResource,
   MothershipResourceType,

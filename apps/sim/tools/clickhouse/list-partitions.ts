@@ -11,7 +11,7 @@ export const listPartitionsTool: ToolConfig<
   id: 'clickhouse_list_partitions',
   name: 'ClickHouse List Partitions',
   description: 'List active partitions for a ClickHouse table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

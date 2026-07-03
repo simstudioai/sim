@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { isEqual } from 'es-toolkit'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
-import { useShallow } from 'zustand/react/shallow'
-import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
+  cn,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -13,8 +10,11 @@ import {
   PopoverScrollArea,
   PopoverSection,
   usePopoverContext,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { isEqual } from 'es-toolkit'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
@@ -30,6 +30,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/types'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { useVariablesStore } from '@/stores/variables/store'
@@ -390,11 +391,11 @@ const TagIcon: React.FC<{
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
-      <span className='!text-white font-bold text-micro'>{icon}</span>
+      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
     ) : (
       (() => {
         const IconComponent = icon
-        return <IconComponent className='!text-white size-[9px]' />
+        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
       })()
     )}
   </div>

@@ -88,6 +88,7 @@ export class DAGExecutor {
     const dag = this.dagBuilder.build(this.workflow, {
       triggerBlockId,
       savedIncomingEdges,
+      includeAllBlocks: this.contextExtensions.resumeFromSnapshot === true,
     })
     const restoredClonedSubflows = this.restoreSnapshotParallelBatches(
       dag,
@@ -421,6 +422,7 @@ export class DAGExecutor {
       userId: this.contextExtensions.userId,
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
+      piiBlockOutputRedaction: this.contextExtensions.piiBlockOutputRedaction,
       blockStates: state.getBlockStates(),
       blockLogs: overrides?.runFromBlockContext ? [] : (snapshotState?.blockLogs ?? []),
       metadata: {

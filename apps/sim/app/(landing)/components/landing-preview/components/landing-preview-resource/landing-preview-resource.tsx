@@ -2,8 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
-import { ArrowUpDown, ListFilter, Plus, Search } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ArrowUpDown, cn, ListFilter, Plus, Search } from '@sim/emcn'
 
 export interface PreviewColumn {
   id: string
@@ -30,17 +29,6 @@ interface LandingPreviewResourceProps {
   columns: PreviewColumn[]
   rows: PreviewRow[]
   onRowClick?: (id: string) => void
-}
-
-export function ownerCell(initial: string, name: string): PreviewCell {
-  return {
-    icon: (
-      <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-        {initial}
-      </span>
-    ),
-    label: name,
-  }
 }
 
 export function LandingPreviewResource({
@@ -84,12 +72,12 @@ export function LandingPreviewResource({
 
   return (
     <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-      {/* Header */}
-      <div className='border-[var(--border)] border-b px-6 py-2.5'>
-        <div className='flex items-center justify-between'>
+      {/* Header - fixed 44px to align with the chat title bar across the split. */}
+      <div className='flex h-[44px] flex-shrink-0 items-center border-[var(--border)] border-b px-6'>
+        <div className='flex w-full items-center justify-between'>
           <div className='flex items-center gap-3'>
             <Icon className='size-[14px] text-[var(--text-icon)]' />
-            <h1 className='font-medium text-[var(--text-body)] text-sm'>{title}</h1>
+            <span className='font-medium text-[var(--text-body)] text-sm'>{title}</span>
           </div>
           <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
             <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
@@ -108,6 +96,7 @@ export function LandingPreviewResource({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
               className='flex-1 bg-transparent text-[var(--text-body)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
             />
           </div>
@@ -193,7 +182,7 @@ export function LandingPreviewResource({
                               {cell.icon}
                             </span>
                           )}
-                          <span className='truncate'>{cell?.label ?? '—'}</span>
+                          <span className='truncate'>{cell?.label ?? '–'}</span>
                         </span>
                       )}
                     </td>

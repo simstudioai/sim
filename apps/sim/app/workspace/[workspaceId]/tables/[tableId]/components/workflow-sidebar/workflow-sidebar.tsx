@@ -2,10 +2,6 @@
 
 import type React from 'react'
 import { useMemo, useState } from 'react'
-import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -13,6 +9,7 @@ import {
   ChipCombobox,
   ChipInput,
   type ComboboxOptionGroup,
+  cn,
   DashedDividerLine,
   FieldDivider,
   Label,
@@ -20,8 +17,12 @@ import {
   Switch,
   Tooltip,
   toast,
-} from '@/components/emcn'
-import { ArrowLeft, ChevronDown, X } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
@@ -32,7 +33,6 @@ import {
   putWorkflowNormalizedStateContract,
   type WorkflowStateContractInput,
 } from '@/lib/api/contracts/workflows'
-import { cn } from '@/lib/core/utils/cn'
 import type {
   ColumnDefinition,
   WorkflowGroup,
@@ -58,6 +58,7 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import {
   useAddWorkflowGroup,
   useUpdateColumn,
@@ -120,6 +121,12 @@ interface WorkflowSidebarProps {
 
 const OUTPUT_VALUE_SEPARATOR = '::'
 
+const TITLE_BY_MODE = {
+  create: 'Add workflow',
+  'edit-group': 'Configure workflow',
+  'edit-output': 'Configure output column',
+} as const
+
 const encodeOutputValue = (blockId: string, path: string) =>
   `${blockId}${OUTPUT_VALUE_SEPARATOR}${path}`
 
@@ -175,11 +182,11 @@ const TagIcon: React.FC<{
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
-      <span className='!text-white font-bold text-micro'>{icon}</span>
+      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
     ) : (
       (() => {
         const IconComponent = icon
-        return <IconComponent className='!text-white size-[9px]' />
+        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
       })()
     )}
   </div>
@@ -771,15 +778,10 @@ export function WorkflowSidebarBody({
     updateWorkflowGroup.isPending ||
     updateColumn.isPending ||
     !depsValid
-  const titleByMode = {
-    create: 'Add workflow',
-    'edit-group': 'Configure workflow',
-    'edit-output': 'Configure output column',
-  } as const
   const title =
     config.mode === 'create' && config.kind === 'enrichment' && config.enrichmentName
       ? config.enrichmentName
-      : titleByMode[config.mode]
+      : TITLE_BY_MODE[config.mode]
   const showBackButton = isEnrichment && Boolean(onBack)
 
   // edit-output mode is single-select on the output picker; everywhere else

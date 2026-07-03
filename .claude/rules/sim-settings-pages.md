@@ -6,14 +6,18 @@ paths:
 
 # Settings Pages
 
-Every settings page renders through the shared **`SettingsPanel`** primitive
-(`@/app/workspace/[workspaceId]/settings/components/settings-panel`). It owns the
-page chrome so pages never hand-roll it: a fixed header bar (right-aligned
-actions), a scroll region, and a centered `max-w-[48rem]` content column led by a
-**title + description that come from navigation metadata**. Pages render only
-their body.
+The Next.js `settings/[section]/layout.tsx` owns all settings page chrome via
+`SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
+action chips), a scroll region, and a centered `max-w-[48rem]` content column led
+by a **title + description from navigation metadata**. The chrome stays mounted
+across section navigation (it never re-renders or re-lays-out). Each section
+renders through the **`SettingsPanel`** registrar
+(`@/app/workspace/[workspaceId]/settings/components/settings-panel`), which feeds
+the shell its header data and renders only the section body. Sections supply
+**data**, never chrome.
 
-Do NOT hand-roll any of these in a settings page — they are the panel's job:
+Do NOT hand-roll any of these in a settings page — they are owned by the layout
+shell (fed through `SettingsPanel`):
 
 - `<div className='flex h-full flex-col bg-[var(--bg)]'>` shell
 - the header bar (`flex flex-shrink-0 … px-[16px] pt-[8.5px] pb-[8.5px]`)
@@ -29,11 +33,7 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 
 return (
   <SettingsPanel
-    actions={
-      <Chip leftIcon={Plus} variant='primary' onClick={onCreate}>
-        Create
-      </Chip>
-    }
+    actions={[{ text: 'Create', icon: Plus, variant: 'primary', onSelect: onCreate }]}
     search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search …' }}
   >
     {/* body only — sections, lists, forms */}
@@ -54,9 +54,22 @@ return (
 
 ## `SettingsPanel` props
 
-- `actions?: ReactNode` — right-aligned header chips. Wrap multiple in a fragment;
-  the slot reserves the 30px chip height even when empty, so vertical rhythm is
-  identical across pages. Conditional actions are fine: `actions={canManage && <Chip…/>}`.
+- `actions?: SettingsAction[]` — right-aligned header chips, **data only**:
+  `{ text, icon?, variant?: 'primary'|'destructive', active?, onSelect, disabled?, tooltip? }`.
+  The shell renders each as a `Chip` — never pass JSX, a `<div>`, or `className`
+  (the locked contract: it's structurally impossible to vibe-code a padding
+  change). Multiple/conditional actions are a plain array
+  (`[...(canManage ? [{…}] : []), …]`). Labels are **sentence case** (`Add override`,
+  not `Add Override`). A disabled action that needs to explain itself sets
+  `tooltip` (the shell renders the hover tooltip, disabled chip included) — never
+  hand-roll a tooltip-wrapped chip in `aside`. Save/Discard pairs come from the
+  `saveDiscardActions()` helper (spread it into `actions`). Only a widget that
+  genuinely cannot be a chip (e.g. one needing hover-prefetch) goes in `aside`.
+- `back?: SettingsBackAction` (`{ text, icon?, onSelect }`) — left-aligned back
+  chip for a **detail sub-view** (e.g. a selected MCP server, a permission group,
+  a retention policy). Detail sub-views render through `SettingsPanel` like list
+  pages — they do NOT hand-roll their own shell.
+- `aside?: ReactNode` — escape hatch for the rare non-chip header widget. Keep it rare.
 - `search?: { value; onChange: (value: string) => void; placeholder?; disabled? }` —
   renders the canonical search field directly below the title. Pass `setSearchTerm`
   straight to `onChange`. Use this for a standalone search; if search shares a row
@@ -66,8 +79,6 @@ return (
   detail sub-view that needs a different heading; normal pages never pass these.
 - `scrollContainerRef?: React.Ref<HTMLDivElement>` — forwards a ref to the scroll
   region (e.g. programmatic scroll-to-bottom).
-- `contentClassName?` — layout/spacing only; reach for it rarely. Prefer the
-  default `gap-7`.
 
 ## Title + description live in navigation metadata
 
@@ -107,12 +118,11 @@ Any settings surface with editable state uses **one** shared stack — never
 hand-roll a Save button, a Discard button, a `beforeunload`, or an "Unsaved
 changes" modal:
 
-- **`SaveDiscardActions`** (`…/components/save-discard-actions/save-discard-actions`)
-  — the canonical dirty-gated **Discard + Save** chip pair. Renders nothing when
-  `!dirty`; otherwise a fragment so it composes beside sibling chips (a detail
-  view's Delete / Remove override, a Share chip). Props: `dirty`, `saving`,
-  `onSave`, `onDiscard`, `saveDisabled?`, `saveLabel?`, `savingLabel?`. Put it in
-  the `SettingsPanel actions` slot (top-level pages) or the detail header bar.
+- **`saveDiscardActions(config)`** (`…/components/save-discard-actions/save-discard-actions`)
+  — returns the canonical dirty-gated **Discard + Save** `SettingsAction[]` (empty
+  when not dirty). Spread it into a `SettingsPanel` `actions` array, beside any
+  sibling actions (a detail view's Delete / Remove override). Config: `dirty`,
+  `saving`, `onSave`, `onDiscard`, `saveDisabled?`, `saveLabel?`, `savingLabel?`.
 - **`useSettingsUnsavedGuard({ isDirty })`** (`…/settings/hooks/use-settings-unsaved-guard`)
   — syncs the page's local `isDirty` into the shared `useSettingsDirtyStore` (so
   the sidebar's **section-switch** confirm + the centralized `beforeunload` both
@@ -141,14 +151,18 @@ changes" modal:
   guards real `router.push` navigation + browser Back via a history sentinel);
   it already shares `UnsavedChangesModal`, so copy stays unified.
 
-## Detail sub-views (the one exception)
+## Detail sub-views
 
 A drill-down view reached from a list row (selected MCP server, workflow MCP
-server, credential set, permission group) keeps its **own** chrome because it
-needs a left-aligned back button (`<Chip leftIcon={ArrowLeft}>`), which the panel
-header (right-actions only) does not model. Leave those returns as hand-rolled
-shells; only the list/main view uses `SettingsPanel`. Gate/early-return states
-(not-entitled, loading, upgrade prompts) also stay as-is.
+server, credential set, permission group, retention policy) renders through
+`SettingsPanel` like a list page: pass `back={{ text, icon: ArrowLeft, onSelect }}`
+for the left back chip, `title` (the entity name), and the header `actions`, then
+render the body. Do NOT hand-roll a shell or header bar; a tab bar renders as the
+first body child. Gate/early-return states (not-entitled, loading, upgrade
+prompts) stay as-is.
+
+The route-based credential detail (`settings/secrets/[credentialId]`) is the lone
+exception — it lives outside `[section]` and keeps its own `CredentialDetailLayout`.
 
 ## Audit checklist
 

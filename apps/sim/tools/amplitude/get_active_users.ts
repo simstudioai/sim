@@ -2,6 +2,7 @@ import type {
   AmplitudeGetActiveUsersParams,
   AmplitudeGetActiveUsersResponse,
 } from '@/tools/amplitude/types'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getActiveUsersTool: ToolConfig<
@@ -50,15 +51,35 @@ export const getActiveUsersTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Time interval: 1 (daily), 7 (weekly), or 30 (monthly)',
     },
+    groupBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Property name to group by',
+    },
+    segment: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON segment definition(s) applied to the query',
+    },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
     url: (params) => {
-      const url = new URL('https://amplitude.com/api/2/users')
+      const url = new URL(`${getDashboardHost(params.dataResidency)}/api/2/users`)
       url.searchParams.set('start', params.start)
       url.searchParams.set('end', params.end)
       if (params.metric) url.searchParams.set('m', params.metric)
       if (params.interval) url.searchParams.set('i', params.interval)
+      if (params.groupBy) url.searchParams.set('g', params.groupBy)
+      if (params.segment) url.searchParams.set('s', params.segment)
       return url.toString()
     },
     method: 'GET',

@@ -11,7 +11,7 @@ export const showCreateTableTool: ToolConfig<
   id: 'clickhouse_show_create_table',
   name: 'ClickHouse Show Create Table',
   description: 'Get the CREATE TABLE statement (DDL) for a ClickHouse table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

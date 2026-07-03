@@ -88,4 +88,145 @@ Write data to a specific sheet in a Microsoft Excel spreadsheet
 |   ↳ `spreadsheetId` | string | Microsoft Excel spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
+### `microsoft_excel_clear_range`
+
+Clear the values and/or formatting of a range in a Microsoft Excel worksheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `sheetName` | string | No | The name of the worksheet \(e.g., "Sheet1"\). If omitted, the range must use the combined "Sheet1!A1:B2" format. |
+| `range` | string | Yes | The cell range to clear \(e.g., "A1:D10" or "Sheet1!A1:D10"\) |
+| `applyTo` | string | No | What to clear: "All", "Formats", or "Contents". Defaults to "All". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cleared` | boolean | Whether the range was cleared |
+| `range` | string | The range that was cleared |
+| `applyTo` | string | What was cleared \(All, Formats, or Contents\) |
+| `metadata` | object | Spreadsheet metadata |
+|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+### `microsoft_excel_format_range`
+
+Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `sheetName` | string | No | The name of the worksheet \(e.g., "Sheet1"\). If omitted, the range must use the combined "Sheet1!A1:B2" format. |
+| `range` | string | Yes | The cell range to format \(e.g., "A1:D10" or "Sheet1!A1:D10"\) |
+| `fillColor` | string | No | Background fill color as an HTML hex code \(e.g., "#FFFF00"\). |
+| `fontBold` | boolean | No | Whether the font is bold. |
+| `fontItalic` | boolean | No | Whether the font is italic. |
+| `fontColor` | string | No | Font color as an HTML hex code \(e.g., "#FF0000"\). |
+| `fontSize` | number | No | Font size in points \(e.g., 12\). |
+| `fontName` | string | No | Font name \(e.g., "Calibri"\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formatted` | boolean | Whether the formatting was applied |
+| `range` | string | The range that was formatted |
+| `fill` | object | The applied fill, or null if no fill was set |
+|   ↳ `color` | string | The applied fill color |
+| `font` | object | The applied font properties, or null if no font was set |
+|   ↳ `bold` | boolean | Whether the font is bold |
+|   ↳ `italic` | boolean | Whether the font is italic |
+|   ↳ `color` | string | The font color |
+|   ↳ `name` | string | The font name |
+|   ↳ `size` | number | The font size in points |
+| `metadata` | object | Spreadsheet metadata |
+|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+### `microsoft_excel_create_table`
+
+Create a new table over a range of cells in a Microsoft Excel workbook
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `address` | string | Yes | The range address for the table data source \(e.g., "Sheet1!A1:D5"\). If no sheet name is included, the active sheet is used. |
+| `hasHeaders` | boolean | No | Whether the first row of the range contains column headers. Defaults to true. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `table` | object | Details of the newly created table |
+|   ↳ `id` | string | The unique ID of the table |
+|   ↳ `name` | string | The name of the table |
+|   ↳ `showHeaders` | boolean | Whether the header row is shown |
+|   ↳ `showTotals` | boolean | Whether the totals row is shown |
+|   ↳ `style` | string | The table style name |
+| `metadata` | object | Spreadsheet metadata |
+|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+### `microsoft_excel_delete_worksheet`
+
+Delete a worksheet (sheet) from a Microsoft Excel workbook
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `worksheetName` | string | Yes | The name of the worksheet to delete \(e.g., "Sheet1", "Old Data"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the worksheet was deleted |
+| `worksheetName` | string | The name of the deleted worksheet |
+| `metadata` | object | Spreadsheet metadata |
+|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
+### `microsoft_excel_sort_range`
+
+Sort a range or table by a column in a Microsoft Excel worksheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook \(e.g., "01ABC123DEF456"\) |
+| `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive. |
+| `tableName` | string | No | The name of the table to sort. When provided, the table is sorted and range/sheetName are ignored. |
+| `sheetName` | string | No | The name of the worksheet \(e.g., "Sheet1"\). Used for range sorts when the range does not include a sheet name. |
+| `range` | string | No | The cell range to sort \(e.g., "A1:D10" or "Sheet1!A1:D10"\). Required when no table name is provided. |
+| `sortColumn` | number | Yes | The zero-based column index within the range or table to sort on \(0 = first column\). |
+| `sortAscending` | boolean | No | Whether to sort in ascending order. Defaults to true. |
+| `hasHeaders` | boolean | No | Whether the range has a header row that should be excluded from sorting. Only applies to range sorts. Defaults to false. |
+| `matchCase` | boolean | No | Whether casing affects string ordering. Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sorted` | boolean | Whether the sort was applied |
+| `target` | string | The range or table name that was sorted |
+| `sortColumn` | number | The zero-based column index that was sorted on |
+| `ascending` | boolean | Whether the sort was ascending |
+| `metadata` | object | Spreadsheet metadata |
+|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
+|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
+
 

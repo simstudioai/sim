@@ -26,7 +26,7 @@ In Sim, the WhatsApp integration enables your agents to leverage these messaging
 
 ## Usage Instructions
 
-Integrate WhatsApp into the workflow. Can send messages.
+Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API.
 
 
 
@@ -58,6 +58,199 @@ Send a text message through the WhatsApp Cloud API.
 | `contacts` | array | Recipient contact records returned by WhatsApp |
 |   ↳ `input` | string | Input phone number sent to the API |
 |   ↳ `wa_id` | string | WhatsApp user ID associated with the recipient |
+
+### `whatsapp_send_template`
+
+Send a pre-approved WhatsApp template message with a language and optional variable components.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumber` | string | Yes | Recipient phone number with country code \(e.g., +14155552671\) |
+| `templateName` | string | Yes | Name of the approved message template |
+| `languageCode` | string | Yes | Template language/locale code \(e.g., en_US\) |
+| `components` | json | No | Template components array with parameters for header/body/button variables, per the WhatsApp template message schema |
+| `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID \(from Meta Business Suite\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Send success status |
+| `messageId` | string | WhatsApp message identifier |
+| `messageStatus` | string | Initial delivery state returned by the send API, such as accepted or paused |
+| `messagingProduct` | string | Messaging product returned by the send API |
+| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
+| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
+| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
+| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
+| `from` | string | Sender phone number from the first incoming message |
+| `recipientId` | string | Recipient phone number from the first status update in the batch |
+| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
+| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
+| `text` | string | Text body from the first incoming text message |
+| `timestamp` | string | Timestamp from the first message or status item in the batch |
+| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
+| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
+| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
+| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
+| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
+| `webhookContacts` | json | All sender contact profiles from the webhook batch |
+| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
+| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
+| `raw` | json | Full structured WhatsApp webhook payload |
+| `error` | string | Error information if sending fails |
+
+### `whatsapp_send_media`
+
+Send an image, document, video, or audio message via a public link or an uploaded media ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumber` | string | Yes | Recipient phone number with country code \(e.g., +14155552671\) |
+| `mediaType` | string | Yes | Type of media to send: image, document, video, or audio |
+| `mediaLink` | string | No | Public HTTPS URL of the media \(provide this or mediaId\) |
+| `mediaId` | string | No | ID of media previously uploaded to WhatsApp \(provide this or mediaLink\) |
+| `caption` | string | No | Optional caption for image, video, or document media |
+| `filename` | string | No | Optional file name shown to the recipient for document media |
+| `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID \(from Meta Business Suite\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Send success status |
+| `messageId` | string | WhatsApp message identifier |
+| `messageStatus` | string | Initial delivery state returned by the send API, such as accepted or paused |
+| `messagingProduct` | string | Messaging product returned by the send API |
+| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
+| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
+| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
+| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
+| `from` | string | Sender phone number from the first incoming message |
+| `recipientId` | string | Recipient phone number from the first status update in the batch |
+| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
+| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
+| `text` | string | Text body from the first incoming text message |
+| `timestamp` | string | Timestamp from the first message or status item in the batch |
+| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
+| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
+| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
+| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
+| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
+| `webhookContacts` | json | All sender contact profiles from the webhook batch |
+| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
+| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
+| `raw` | json | Full structured WhatsApp webhook payload |
+| `error` | string | Error information if sending fails |
+
+### `whatsapp_send_interactive`
+
+Send an interactive WhatsApp message with reply buttons or a selectable list.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumber` | string | Yes | Recipient phone number with country code \(e.g., +14155552671\) |
+| `bodyText` | string | Yes | Main body text of the interactive message |
+| `headerText` | string | No | Optional plain-text header shown above the body |
+| `footerText` | string | No | Optional footer text shown below the body |
+| `buttons` | json | No | Reply buttons array \(max 3\), each item: \{ "type": "reply", "reply": \{ "id": "...", "title": "..." \} \}. Provide buttons or sections. |
+| `listButtonText` | string | No | Label for the menu button that opens the list \(required when sending a list\) |
+| `sections` | json | No | List sections array, each item: \{ "title": "...", "rows": \[\{ "id": "...", "title": "...", "description": "..." \}\] \}. Provide sections or buttons. |
+| `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID \(from Meta Business Suite\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Send success status |
+| `messageId` | string | WhatsApp message identifier |
+| `messageStatus` | string | Initial delivery state returned by the send API, such as accepted or paused |
+| `messagingProduct` | string | Messaging product returned by the send API |
+| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
+| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
+| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
+| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
+| `from` | string | Sender phone number from the first incoming message |
+| `recipientId` | string | Recipient phone number from the first status update in the batch |
+| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
+| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
+| `text` | string | Text body from the first incoming text message |
+| `timestamp` | string | Timestamp from the first message or status item in the batch |
+| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
+| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
+| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
+| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
+| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
+| `webhookContacts` | json | All sender contact profiles from the webhook batch |
+| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
+| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
+| `raw` | json | Full structured WhatsApp webhook payload |
+| `error` | string | Error information if sending fails |
+
+### `whatsapp_send_reaction`
+
+React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumber` | string | Yes | Recipient phone number with country code \(e.g., +14155552671\) |
+| `messageId` | string | Yes | ID \(wamid\) of the message to react to |
+| `emoji` | string | No | Emoji to react with. Leave empty to remove an existing reaction. |
+| `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID \(from Meta Business Suite\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Send success status |
+| `messageId` | string | WhatsApp message identifier |
+| `messageStatus` | string | Initial delivery state returned by the send API, such as accepted or paused |
+| `messagingProduct` | string | Messaging product returned by the send API |
+| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
+| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
+| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
+| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
+| `from` | string | Sender phone number from the first incoming message |
+| `recipientId` | string | Recipient phone number from the first status update in the batch |
+| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
+| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
+| `text` | string | Text body from the first incoming text message |
+| `timestamp` | string | Timestamp from the first message or status item in the batch |
+| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
+| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
+| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
+| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
+| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
+| `webhookContacts` | json | All sender contact profiles from the webhook batch |
+| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
+| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
+| `raw` | json | Full structured WhatsApp webhook payload |
+| `error` | string | Error information if sending fails |
+
+### `whatsapp_mark_read`
+
+Mark a received WhatsApp message as read so the sender sees blue checkmarks.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID \(wamid\) of the incoming message to mark as read |
+| `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID \(from Meta Business Suite\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the message was successfully marked as read |
 
 
 

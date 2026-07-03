@@ -8,7 +8,8 @@ import { secureFetchWithValidation } from '@/lib/core/security/input-validation.
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -71,7 +72,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
       if (denied) return denied
 
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+      try {
+        const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+        fileBuffer = servable.buffer
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        logger.error(`[${requestId}] Failed to download file from storage:`, error)
+        return NextResponse.json(
+          { success: false, error: getErrorMessage(error, 'Failed to download file') },
+          { status: 500 }
+        )
+      }
     } else if (validatedData.fileContent) {
       fileBuffer = Buffer.from(validatedData.fileContent, 'base64')
     } else {

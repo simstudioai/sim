@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   ButtonGroup,
@@ -16,7 +14,9 @@ import {
   ChipModalHeader,
   Input,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useParams } from 'next/navigation'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'

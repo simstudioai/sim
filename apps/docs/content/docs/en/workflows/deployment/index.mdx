@@ -7,7 +7,7 @@ pageType: concept
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-A deployment is a published version of a [workflow](/workflows) that outside callers can run. While you build, a workflow lives on your canvas as a draft only you can run. Deploying publishes a fixed copy of that draft and gives it an address: a REST endpoint, a chat page, a set of [MCP](/workflows/deployment/mcp) tools, or an [A2A](/workflows/deployment/api) agent. Each is a **surface**, a channel callers reach the same published workflow through.
+A deployment is a published version of a [workflow](/workflows) that outside callers can run. While you build, a workflow lives on your canvas as a draft only you can run. Deploying publishes a fixed copy of that draft and gives it an address: a REST endpoint, a chat page, or a set of [MCP](/workflows/deployment/mcp) tools. Each is a **surface**, a channel callers reach the same published workflow through.
 
 Like publishing a book, building and deploying are separate acts. You draft and revise freely on the canvas. When you click **Deploy**, Sim prints a fixed edition. Readers get that edition, not your latest draft, until you publish a new one. You can always go back to an earlier printing.
 
@@ -60,13 +60,12 @@ curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
   -d '{ "input": "Refund request from customer #4821" }'
 ```
 
-{/* VISUAL: deploy modal tab bar. General · API · MCP · A2A · Chat. */}
+{/* VISUAL: deploy modal tab bar. General · API · MCP · Chat. */}
 
 <Cards>
   <Card title="API" href="/workflows/deployment/api" description="A REST endpoint any application can call, with sync, streaming, and async modes." />
   <Card title="Chat" href="/workflows/deployment/chat" description="A shareable conversational page that keeps conversation history." />
   <Card title="MCP" href="/workflows/deployment/mcp" description="Expose the workflow as tools an external AI assistant can call." />
-  <Card title="A2A" href="/workflows/deployment/api" description="Let other AI agents discover and call the workflow as a tool." />
 </Cards>
 
 ## Versioning in practice

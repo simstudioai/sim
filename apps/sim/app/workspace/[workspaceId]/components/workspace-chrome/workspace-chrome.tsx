@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { cn } from '@sim/emcn'
 import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/core/utils/cn'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -47,6 +47,8 @@ export function WorkspaceChrome({
   children,
   initialSidebarCollapsed = false,
 }: WorkspaceChromeProps) {
+  const rafRef = useRef(0)
+
   const pathname = usePathname()
   const isFullscreen = isFullscreenPath(pathname)
 
@@ -65,6 +67,29 @@ export function WorkspaceChrome({
    * client render identical to the server), then the store takes over.
    */
   const isCollapsed = hasHydrated ? storeIsCollapsed : initialSidebarCollapsed
+
+  /**
+   * Suppresses sidebar transitions across the initial hydration window. The
+   * pre-paint script already set the correct `--sidebar-width`, but the store
+   * rehydration below re-applies it a tick later; without this guard that
+   * re-apply animates the rail, reading as a collapse -> expand flash on a
+   * fresh load. Applied before the rehydrate effect so the class is in place
+   * ahead of the width mutation, then lifted after the first paint so
+   * user-driven collapse toggles and the fullscreen slide still animate.
+   */
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    root.classList.add('sidebar-booting')
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => root.classList.remove('sidebar-booting'))
+      rafRef.current = raf2
+    })
+    rafRef.current = raf1
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      root.classList.remove('sidebar-booting')
+    }
+  }, [])
 
   // Hydrate the persisted width before paint (collapse comes from the cookie/prop).
   useLayoutEffect(() => {

@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import {
   Badge,
   Button,
@@ -13,8 +11,10 @@ import {
   Label,
   Switch,
   toast,
-} from '@/components/emcn'
-import { ArrowLeft, X } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft, X } from '@sim/emcn/icons'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'

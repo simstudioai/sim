@@ -1,6 +1,6 @@
 'use client'
 
-import { Tooltip } from '@/components/emcn'
+import { Tooltip } from '@sim/emcn'
 
 interface TooltipProviderProps {
   children: React.ReactNode

@@ -81,7 +81,7 @@ spec:
     - protocol: TCP
       port: {{ .Values.ollama.service.targetPort }}
   {{- end }}
-  # Allow egress to the PII (Presidio) sidecar
+  # Allow egress to the PII (Presidio) service
   {{- if .Values.pii.enabled }}
   - to:
     - podSelector:
@@ -316,7 +316,7 @@ spec:
 
 {{- if .Values.pii.enabled }}
 ---
-# Network Policy for the PII (Presidio) sidecar
+# Network Policy for the PII (Presidio) service
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

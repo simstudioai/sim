@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -106,7 +107,10 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       )
 
       const config = getProviderConfig<GoogleCalendarWebhookConfig>(webhookData.providerConfig)
-      const calendarId = config.calendarId || config.manualCalendarId || 'primary'
+      // Canonical key `calendarId` first; `manualCalendarId` is a transitional basic-first
+      // fallback. Defaults to the user's primary calendar when none is set.
+      const calendarId =
+        readCanonicalTriggerValue(config.calendarId, config.manualCalendarId) || 'primary'
 
       // First poll: seed timestamp, emit nothing
       if (!config.lastCheckedTimestamp) {

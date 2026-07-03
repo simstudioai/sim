@@ -8,7 +8,7 @@ export const size = {
   height: 630,
 }
 
-/** Raw catalog JSON, not the barrel — keeps `@/blocks/registry` out of the OG bundle. */
+/** Raw catalog JSON, not the barrel - keeps `@/blocks/registry` out of the OG bundle. */
 const integrations = integrationsJson.integrations as readonly Integration[]
 const TOTAL_TOOL_COUNT = integrations.reduce((sum, i) => sum + i.operationCount, 0)
 const OAUTH_COUNT = integrations.filter((i) => i.authType === 'oauth').length
@@ -18,7 +18,7 @@ export default async function Image() {
   return createLandingOgImage({
     eyebrow: 'Sim integrations directory',
     title: 'Integrations',
-    subtitle: `Connect ${integrations.length} apps and services to AI agents in Sim's workflow builder — visually, conversationally, or with code.`,
+    subtitle: `Connect ${integrations.length} apps and services to AI agents in Sim's workflow builder, visually, conversationally, or with code.`,
     pills: [
       `${integrations.length} integrations`,
       `${TOTAL_TOOL_COUNT}+ tools`,

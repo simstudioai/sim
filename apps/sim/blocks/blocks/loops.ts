@@ -32,6 +32,9 @@ export const LoopsBlock: BlockConfig<LoopsResponse> = {
         { label: 'List Transactional Emails', id: 'list_transactional_emails' },
         { label: 'Create Contact Property', id: 'create_contact_property' },
         { label: 'List Contact Properties', id: 'list_contact_properties' },
+        { label: 'Check Contact Suppression', id: 'check_contact_suppression' },
+        { label: 'Remove Contact Suppression', id: 'remove_contact_suppression' },
+        { label: 'Get Transactional Email', id: 'get_transactional_email' },
       ],
       value: () => 'create_contact',
     },
@@ -47,7 +50,7 @@ export const LoopsBlock: BlockConfig<LoopsResponse> = {
         value: ['create_contact', 'send_transactional_email'],
       },
     },
-    // Optional email for update, find, delete, send event
+    // Optional email for update, find, delete, send event, suppression lookups
     {
       id: 'contactEmail',
       title: 'Email',
@@ -55,7 +58,14 @@ export const LoopsBlock: BlockConfig<LoopsResponse> = {
       placeholder: 'Enter email address',
       condition: {
         field: 'operation',
-        value: ['update_contact', 'find_contact', 'delete_contact', 'send_event'],
+        value: [
+          'update_contact',
+          'find_contact',
+          'delete_contact',
+          'send_event',
+          'check_contact_suppression',
+          'remove_contact_suppression',
+        ],
       },
     },
     // User ID for operations that support it
@@ -66,7 +76,14 @@ export const LoopsBlock: BlockConfig<LoopsResponse> = {
       placeholder: 'Enter user ID',
       condition: {
         field: 'operation',
-        value: ['update_contact', 'find_contact', 'delete_contact', 'send_event'],
+        value: [
+          'update_contact',
+          'find_contact',
+          'delete_contact',
+          'send_event',
+          'check_contact_suppression',
+          'remove_contact_suppression',
+        ],
       },
     },
     // Contact fields
@@ -199,10 +216,13 @@ Return ONLY the JSON object - no explanations, no extra text.`,
       title: 'Transactional Email ID',
       type: 'short-input',
       placeholder: 'Enter template ID (e.g., clx...)',
-      required: { field: 'operation', value: 'send_transactional_email' },
+      required: {
+        field: 'operation',
+        value: ['send_transactional_email', 'get_transactional_email'],
+      },
       condition: {
         field: 'operation',
-        value: 'send_transactional_email',
+        value: ['send_transactional_email', 'get_transactional_email'],
       },
     },
     {
@@ -426,6 +446,9 @@ Return ONLY the JSON object - no explanations, no extra text.`,
       'loops_list_transactional_emails',
       'loops_create_contact_property',
       'loops_list_contact_properties',
+      'loops_check_contact_suppression',
+      'loops_remove_contact_suppression',
+      'loops_get_transactional_email',
     ],
     config: {
       tool: (params) => `loops_${params.operation}`,
@@ -497,6 +520,16 @@ Return ONLY the JSON object - no explanations, no extra text.`,
           case 'list_contact_properties':
             if (params.propertyFilter) result.list = params.propertyFilter
             break
+
+          case 'check_contact_suppression':
+          case 'remove_contact_suppression':
+            if (params.contactEmail) result.email = params.contactEmail
+            if (params.userId) result.userId = params.userId
+            break
+
+          case 'get_transactional_email':
+            result.transactionalId = params.transactionalId
+            break
         }
 
         return result
@@ -531,7 +564,10 @@ Return ONLY the JSON object - no explanations, no extra text.`,
   },
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
-    id: { type: 'string', description: 'Contact ID (create/update operations)' },
+    id: {
+      type: 'string',
+      description: 'Contact ID (create/update operations) or template ID (get transactional email)',
+    },
     contacts: {
       type: 'json',
       description:
@@ -544,7 +580,8 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     },
     transactionalEmails: {
       type: 'json',
-      description: 'Array of transactional email templates (id, name, lastUpdated, dataVariables)',
+      description:
+        'Array of transactional email templates (id, name, createdAt, updatedAt, lastUpdated (deprecated alias of updatedAt), dataVariables)',
     },
     pagination: {
       type: 'json',
@@ -554,6 +591,50 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     properties: {
       type: 'json',
       description: 'Array of contact properties (key, label, type)',
+    },
+    isSuppressed: {
+      type: 'boolean',
+      description: 'Whether the contact is on the suppression list (check suppression)',
+    },
+    contactId: {
+      type: 'string',
+      description: 'The Loops-assigned contact ID (check suppression)',
+    },
+    removalQuotaLimit: {
+      type: 'number',
+      description: 'Total suppression-removal quota for the team',
+    },
+    removalQuotaRemaining: {
+      type: 'number',
+      description: 'Remaining suppression-removal quota for the team',
+    },
+    name: {
+      type: 'string',
+      description: 'Transactional email template name (get transactional email)',
+    },
+    draftEmailMessageId: {
+      type: 'string',
+      description: 'ID of the draft email message, if any (get transactional email)',
+    },
+    publishedEmailMessageId: {
+      type: 'string',
+      description: 'ID of the published email message, if any (get transactional email)',
+    },
+    transactionalGroupId: {
+      type: 'string',
+      description: 'ID of the transactional group, if any (get transactional email)',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'Creation timestamp (get transactional email)',
+    },
+    updatedAt: {
+      type: 'string',
+      description: 'Last updated timestamp (get transactional email)',
+    },
+    dataVariables: {
+      type: 'json',
+      description: 'Template data variable names (get transactional email)',
     },
   },
 }
@@ -654,6 +735,13 @@ export const LoopsBlockMeta = {
         'Send a Loops transactional email from a template with personalized data variables.',
       content:
         '# Send Transactional Email\n\nDeliver a templated transactional email through Loops.\n\n## Steps\n1. Confirm the transactional email template ID to use.\n2. Build the data variables JSON to match the variable names in the template, such as name and a confirmation URL.\n3. Send Transactional Email with the recipient email, template ID, and data variables, attaching files if needed.\n\n## Output\nConfirmation of send success and the template ID and recipient used.',
+    },
+    {
+      name: 'manage-suppression-compliance',
+      description:
+        'Check and clear Loops suppression status for a contact to keep deliverability and unsubscribe compliance in check.',
+      content:
+        '# Manage Suppression Compliance\n\nKeep Loops sending compliant and deliverable.\n\n## Steps\n1. Check Contact Suppression by email or user ID to see if the contact bounced, complained, or unsubscribed.\n2. If the contact should be re-enabled (e.g. a confirmed re-opt-in), Remove Contact Suppression for the same identifier, noting the remaining removal quota.\n3. Log the result so support and compliance workflows have an audit trail.\n\n## Output\nThe suppression status before and after the change, plus the remaining removal quota.',
     },
   ],
 } as const satisfies BlockMeta

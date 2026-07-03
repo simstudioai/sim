@@ -11,6 +11,7 @@ import {
   useInfiniteTableRows,
   useTable as useTableQuery,
 } from '@/hooks/queries/tables'
+import { countLoadedTableRows, hasMoreTableRows } from '@/hooks/queries/utils/table-rows-pagination'
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -124,12 +125,17 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     // getQueryData bypasses React's render cycle — pages added by fetchNextPage
     // are visible synchronously after each await without waiting for a re-render.
     while (true) {
-      const data = queryClient.getQueryData(opts.queryKey)
-      const lastPage = data?.pages[data.pages.length - 1]
-      if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
+      const pages = queryClient.getQueryData(opts.queryKey)?.pages ?? []
+      if (!hasMoreTableRows(pages)) break
       const result = await fetchNextPage()
       if (result.status === 'error') {
         throw result.error ?? new Error('Failed to load table rows')
+      }
+      const after = queryClient.getQueryData(opts.queryKey)?.pages.length ?? 0
+      if (after <= pages.length) {
+        // A cancelQueries race (optimistic mutation) can resolve the fetch without
+        // appending a page; retrying would spin forever on the same state.
+        throw new Error('Table rows pagination made no progress')
       }
     }
 
@@ -148,25 +154,26 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
         sort: queryOptions.sort,
       })
 
-      // Load one past the cap so `hasMore` is exact: a full final page only
-      // *might* have a successor, so we confirm by loading row `maxRows + 1`
-      // rather than inferring truncation from page fullness.
+      // Load one past the cap when needed so `hasMore` is exact: with the cap
+      // covered but hasMoreTableRows still true, row `maxRows + 1` confirms it.
       while (true) {
-        const data = queryClient.getQueryData(opts.queryKey)
-        const loaded = data?.pages.reduce((sum, p) => sum + p.rows.length, 0) ?? 0
-        if (loaded > maxRows) break
-        const lastPage = data?.pages[data.pages.length - 1]
-        if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
+        const pages = queryClient.getQueryData(opts.queryKey)?.pages ?? []
+        if (countLoadedTableRows(pages) > maxRows || !hasMoreTableRows(pages)) break
         const result = await fetchNextPage()
         if (result.status === 'error') {
           throw result.error ?? new Error('Failed to load table rows')
         }
+        const after = queryClient.getQueryData(opts.queryKey)?.pages.length ?? 0
+        if (after <= pages.length) {
+          throw new Error('Table rows pagination made no progress')
+        }
       }
 
-      const all = queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
+      const pages = queryClient.getQueryData(opts.queryKey)?.pages ?? []
+      const all = pages.flatMap((p) => p.rows)
       return {
         rows: all.length > maxRows ? all.slice(0, maxRows) : all,
-        hasMore: all.length > maxRows,
+        hasMore: all.length > maxRows || hasMoreTableRows(pages),
       }
     },
     [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage]

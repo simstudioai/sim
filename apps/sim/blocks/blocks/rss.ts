@@ -1,4 +1,4 @@
-import { BookOpen, Table } from '@/components/emcn/icons'
+import { BookOpen, Table } from '@sim/emcn/icons'
 import { RssIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'

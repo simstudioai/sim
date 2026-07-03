@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  collectInputFormatFiles,
   createDefaultInputFormatField,
   extractInputFieldsFromBlocks,
+  isFileFieldType,
   normalizeInputFormatValue,
+  parseInputFormatFiles,
 } from '@/lib/workflows/input-format'
 
 describe('extractInputFieldsFromBlocks', () => {
@@ -226,6 +229,136 @@ describe('normalizeInputFormatValue', () => {
       },
     ]
     expect(normalizeInputFormatValue(input)).toEqual(input)
+  })
+})
+
+describe('isFileFieldType', () => {
+  it.concurrent('matches the canonical file[] type', () => {
+    expect(isFileFieldType('file[]')).toBe(true)
+  })
+
+  it.concurrent('does not match legacy variants or other types (no behavior change)', () => {
+    expect(isFileFieldType('files')).toBe(false)
+    expect(isFileFieldType('file')).toBe(false)
+    expect(isFileFieldType('image')).toBe(false)
+    expect(isFileFieldType('string')).toBe(false)
+    expect(isFileFieldType('array')).toBe(false)
+    expect(isFileFieldType(undefined)).toBe(false)
+    expect(isFileFieldType(null)).toBe(false)
+  })
+})
+
+describe('parseInputFormatFiles', () => {
+  const file = {
+    id: 'f1',
+    name: 'doc.pdf',
+    url: '/api/files/serve/workspace%2Fws-1%2F1700000000000-doc.pdf?context=workspace',
+    key: 'key',
+    size: 10,
+    type: 'application/pdf',
+  }
+
+  it.concurrent('parses a JSON string of run-ready files', () => {
+    expect(parseInputFormatFiles(JSON.stringify([file]))).toEqual([file])
+  })
+
+  it.concurrent('accepts an already-materialized array', () => {
+    expect(parseInputFormatFiles([file])).toEqual([file])
+  })
+
+  it.concurrent('returns empty for blank, invalid, or non-array values', () => {
+    expect(parseInputFormatFiles('')).toEqual([])
+    expect(parseInputFormatFiles('   ')).toEqual([])
+    expect(parseInputFormatFiles(undefined)).toEqual([])
+    expect(parseInputFormatFiles('not json')).toEqual([])
+    expect(parseInputFormatFiles('{"name":"x"}')).toEqual([])
+  })
+
+  it.concurrent('drops legacy entries missing id/url (base64 placeholder, raw text)', () => {
+    expect(
+      parseInputFormatFiles(
+        JSON.stringify([{ data: '<base64>', type: 'file', name: 'document.pdf', mime: 'x' }])
+      )
+    ).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ name: 'doc.pdf', path: '/legacy' }]))).toEqual(
+      []
+    )
+  })
+
+  it.concurrent('keeps only the valid files in a mixed array', () => {
+    expect(parseInputFormatFiles(JSON.stringify([file, { name: 'bad' }]))).toEqual([file])
+  })
+
+  it.concurrent('rejects partial files missing the run-ready size/type', () => {
+    expect(parseInputFormatFiles(JSON.stringify([{ id: 'x', name: 'a.pdf', url: '/u' }]))).toEqual(
+      []
+    )
+    expect(
+      parseInputFormatFiles(
+        JSON.stringify([{ id: 'x', name: 'a.pdf', url: '/u', size: Number.NaN, type: 'x' }])
+      )
+    ).toEqual([])
+  })
+
+  it.concurrent('rejects files with no key and a non-internal url (key unrecoverable)', () => {
+    const { key, ...noKey } = file
+    const external = { ...noKey, url: 'https://example.com/x.pdf' }
+    expect(parseInputFormatFiles(JSON.stringify([external]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...external, key: '' }]))).toEqual([])
+  })
+
+  it.concurrent('accepts a key-less file when the url is an internal serve url', () => {
+    const { key, ...noKey } = file
+    expect(parseInputFormatFiles(JSON.stringify([noKey]))).toEqual([noKey])
+  })
+
+  it.concurrent('rejects a key-less file whose internal url yields no key', () => {
+    const { key, ...noKey } = file
+    expect(parseInputFormatFiles(JSON.stringify([{ ...noKey, url: '/api/files/serve/' }]))).toEqual(
+      []
+    )
+  })
+
+  it.concurrent('rejects empty-string id/name/url/type (executor treats them as falsy)', () => {
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, id: '' }]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, name: '' }]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, url: '' }]))).toEqual([])
+    expect(parseInputFormatFiles(JSON.stringify([{ ...file, type: '' }]))).toEqual([])
+  })
+})
+
+describe('collectInputFormatFiles', () => {
+  const file = {
+    id: 'f1',
+    name: 'doc.pdf',
+    url: '/api/files/serve/workspace%2Fws-1%2F1700000000000-doc.pdf?context=workspace',
+    key: 'key',
+    size: 10,
+    type: 'application/pdf',
+  }
+
+  it.concurrent('returns empty for non-array values', () => {
+    expect(collectInputFormatFiles(null)).toEqual([])
+    expect(collectInputFormatFiles('nope')).toEqual([])
+  })
+
+  it.concurrent('collects files only from file[] fields, ignoring other types', () => {
+    const value = [
+      { name: 'query', type: 'string', value: 'hi' },
+      { name: 'a', type: 'file[]', value: JSON.stringify([file]) },
+      { name: 'b', type: 'file[]', value: JSON.stringify([{ ...file, id: 'f2' }]) },
+      { name: 'legacy', type: 'files', value: JSON.stringify([{ ...file, id: 'ignored' }]) },
+    ]
+    expect(collectInputFormatFiles(value).map((f) => f.id)).toEqual(['f1', 'f2'])
+  })
+
+  it.concurrent('ignores legacy/unparseable file values', () => {
+    const value = [
+      { name: 'a', type: 'file[]', value: 'C:/Users/x/budget.xlsx' },
+      { name: 'b', type: 'file[]', value: '[{"data":"<base64>"}]' },
+      { name: 'c', type: 'file[]', value: '' },
+    ]
+    expect(collectInputFormatFiles(value)).toEqual([])
   })
 })
 

@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -11,7 +9,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Switch,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
 
 const logger = createLogger('InboxEnableToggle')
@@ -27,16 +27,13 @@ export function InboxEnableToggle() {
   const [isDisableOpen, setIsDisableOpen] = useState(false)
   const [enableUsername, setEnableUsername] = useState('')
 
-  const handleToggle = useCallback(
-    async (checked: boolean) => {
-      if (checked) {
-        setIsEnableOpen(true)
-        return
-      }
-      setIsDisableOpen(true)
-    },
-    [workspaceId]
-  )
+  const handleToggle = useCallback(async (checked: boolean) => {
+    if (checked) {
+      setIsEnableOpen(true)
+      return
+    }
+    setIsDisableOpen(true)
+  }, [])
 
   const handleDisable = useCallback(async () => {
     try {
@@ -45,7 +42,7 @@ export function InboxEnableToggle() {
     } catch (error) {
       logger.error('Failed to disable inbox', { error })
     }
-  }, [workspaceId])
+  }, [workspaceId, toggleInbox.mutateAsync])
 
   const handleEnable = useCallback(async () => {
     try {
@@ -59,7 +56,7 @@ export function InboxEnableToggle() {
     } catch (error) {
       logger.error('Failed to enable inbox', { error })
     }
-  }, [workspaceId, enableUsername])
+  }, [workspaceId, enableUsername, toggleInbox.mutateAsync])
 
   return (
     <>

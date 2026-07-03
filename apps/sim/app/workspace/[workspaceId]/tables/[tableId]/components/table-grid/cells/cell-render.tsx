@@ -2,9 +2,8 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
-import { Badge, Checkbox, Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { RowExecutionMetadata } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'

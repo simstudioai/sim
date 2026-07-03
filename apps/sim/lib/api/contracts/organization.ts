@@ -133,6 +133,7 @@ const organizationDataRetentionDataSchema = z.object({
   configured: organizationRetentionValuesSchema,
   effective: organizationRetentionValuesSchema,
   piiRedactionEnabled: z.boolean(),
+  piiGranularRedactionEnabled: z.boolean(),
 })
 
 export type OrganizationDataRetention = z.output<typeof organizationDataRetentionDataSchema>

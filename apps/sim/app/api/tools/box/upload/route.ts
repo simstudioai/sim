@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -53,7 +54,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
       if (denied) return denied
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+      try {
+        const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+        fileBuffer = result.buffer
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        return NextResponse.json(
+          { success: false, error: getErrorMessage(error, 'Failed to download file') },
+          { status: 500 }
+        )
+      }
       fileName = validatedData.fileName || userFile.name
     } else if (validatedData.fileContent) {
       logger.info(`[${requestId}] Using legacy base64 content input`)

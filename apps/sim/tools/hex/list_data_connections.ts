@@ -39,6 +39,18 @@ export const listDataConnectionsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Sort direction: ASC or DESC',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor to fetch the page of results after this value',
+    },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor to fetch the page of results before this value',
+    },
   },
 
   request: {
@@ -47,6 +59,8 @@ export const listDataConnectionsTool: ToolConfig<
       if (params.limit) searchParams.set('limit', String(params.limit))
       if (params.sortBy) searchParams.set('sortBy', params.sortBy)
       if (params.sortDirection) searchParams.set('sortDirection', params.sortDirection)
+      if (params.after) searchParams.set('after', params.after)
+      if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
       return `https://app.hex.tech/api/v1/data-connections${qs ? `?${qs}` : ''}`
     },
@@ -74,6 +88,8 @@ export const listDataConnectionsTool: ToolConfig<
           allowWritebackCells: (c.allowWritebackCells as boolean) ?? null,
         })),
         total: connections.length,
+        after: data.pagination?.after ?? null,
+        before: data.pagination?.before ?? null,
       },
     }
   },
@@ -112,5 +128,11 @@ export const listDataConnectionsTool: ToolConfig<
       },
     },
     total: { type: 'number', description: 'Total number of connections returned' },
+    after: { type: 'string', description: 'Cursor for the next page of results', optional: true },
+    before: {
+      type: 'string',
+      description: 'Cursor for the previous page of results',
+      optional: true,
+    },
   },
 }

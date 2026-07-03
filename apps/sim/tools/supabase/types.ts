@@ -119,10 +119,11 @@ export const STORAGE_COPY_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output definition for storage delete bucket response
- * Returns a confirmation message
+ * Output definition for storage bucket operations that only return a
+ * confirmation message (delete bucket, update bucket, empty bucket)
+ * @see https://github.com/supabase/storage-js/blob/main/src/packages/StorageBucketApi.ts
  */
-export const STORAGE_DELETE_BUCKET_OUTPUT_PROPERTIES = {
+export const STORAGE_MESSAGE_OUTPUT_PROPERTIES = {
   message: { type: 'string', description: 'Operation status message' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -231,13 +232,24 @@ export const INTROSPECT_REFERENCE_OUTPUT_PROPERTIES = {
 export const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Column name' },
   type: { type: 'string', description: 'Column data type' },
-  nullable: { type: 'boolean', description: 'Whether the column allows null values' },
+  nullable: {
+    type: 'boolean',
+    description:
+      'Whether the column allows null values — a NOT NULL column that has a default value is misreported as nullable, since the OpenAPI spec this is derived from omits it from the required list in that case',
+  },
   default: { type: 'string', description: 'Default value for the column', optional: true },
-  isPrimaryKey: { type: 'boolean', description: 'Whether the column is a primary key' },
-  isForeignKey: { type: 'boolean', description: 'Whether the column is a foreign key' },
+  isPrimaryKey: {
+    type: 'boolean',
+    description: 'Best-effort guess based on the column being named "id" (not authoritative)',
+  },
+  isForeignKey: {
+    type: 'boolean',
+    description:
+      'True only if the column has a "references table.column" SQL comment; most databases will show false even for real foreign keys',
+  },
   references: {
     type: 'object',
-    description: 'Foreign key reference details',
+    description: 'Foreign key reference details, when detected via SQL comment',
     optional: true,
     properties: INTROSPECT_REFERENCE_OUTPUT_PROPERTIES,
   },
@@ -294,7 +306,8 @@ export const INTROSPECT_TABLE_OUTPUT_PROPERTIES = {
   },
   indexes: {
     type: 'array',
-    description: 'Array of index definitions',
+    description:
+      'Always empty — index definitions are not exposed by the OpenAPI spec this tool reads',
     items: {
       type: 'object',
       properties: INTROSPECT_INDEX_OUTPUT_PROPERTIES,
@@ -588,6 +601,43 @@ export interface SupabaseStorageCreateSignedUrlResponse extends ToolResponse {
   }
   error?: string
 }
+
+export interface SupabaseStorageCreateSignedUploadUrlParams {
+  apiKey: string
+  projectId: string
+  bucket: string
+  path: string
+  upsert?: boolean
+}
+
+export interface SupabaseStorageCreateSignedUploadUrlResponse extends ToolResponse {
+  output: {
+    message: string
+    signedUrl: string
+    path: string
+    token: string
+  }
+  error?: string
+}
+
+export interface SupabaseStorageUpdateBucketParams {
+  apiKey: string
+  projectId: string
+  bucket: string
+  isPublic?: boolean
+  fileSizeLimit?: number
+  allowedMimeTypes?: string[]
+}
+
+export interface SupabaseStorageUpdateBucketResponse extends SupabaseBaseResponse {}
+
+export interface SupabaseStorageEmptyBucketParams {
+  apiKey: string
+  projectId: string
+  bucket: string
+}
+
+export interface SupabaseStorageEmptyBucketResponse extends SupabaseBaseResponse {}
 
 /**
  * Parameters for introspecting a Supabase database schema

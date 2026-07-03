@@ -90,9 +90,9 @@ export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCrea
       if (params.status) body.status = params.status
       if (params.excerpt) body.excerpt = params.excerpt
       if (params.slug) body.slug = params.slug
-      if (params.parent) body.parent = params.parent
-      if (params.menuOrder) body.menu_order = params.menuOrder
-      if (params.featuredMedia) body.featured_media = params.featuredMedia
+      if (params.parent !== undefined) body.parent = params.parent
+      if (params.menuOrder !== undefined) body.menu_order = params.menuOrder
+      if (params.featuredMedia !== undefined) body.featured_media = params.featuredMedia
 
       return body
     },

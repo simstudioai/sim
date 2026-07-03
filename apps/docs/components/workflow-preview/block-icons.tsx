@@ -1,4 +1,4 @@
-import type { SVGProps } from 'react'
+import type { ComponentType, SVGProps } from 'react'
 import { Clock, Database, Layers, Repeat, Table } from 'lucide-react'
 import {
   ApiIcon,
@@ -16,6 +16,7 @@ import {
   WebhookIcon,
   WorkflowIcon,
 } from '@/components/icons'
+import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
 
 /**
  * The two Sim-specific block glyphs we need, ported verbatim from
@@ -100,4 +101,13 @@ export const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: strin
   knowledge_base: Database,
   knowledge: Database,
   table: Table,
+}
+
+/**
+ * Resolves a block (or tool) type to its glyph: the core-block map first, then
+ * the integration icon map so diagrams can render tool chips too. Returns
+ * `null` when no glyph is registered.
+ */
+export function resolveIcon(type: string): ComponentType<{ className?: string }> | null {
+  return BLOCK_ICONS[type] ?? blockTypeToIconMap[type] ?? null
 }

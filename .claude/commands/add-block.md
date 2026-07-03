@@ -732,6 +732,13 @@ Please provide the SVG and I'll convert it to a React component.
 You can usually find this in the service's brand/press kit page, or copy it from their website.
 ```
 
+When converting the SVG: a **monochrome** logo (single white or black mark) must
+use `fill='currentColor'`, never a hardcoded `#fff`/`#000000`. Block icons render
+both inside their `bgColor` tile and "bare" on a neutral page (the home Suggested
+actions list) in light and dark mode; a hardcoded white/black mark goes invisible
+bare on the matching background. Multi-color brand logos keep their own fills.
+Verify with `bun run check:bare-icons`.
+
 ## Advanced Mode for Optional Fields
 
 Optional fields that are rarely used should be set to `mode: 'advanced'` so they don't clutter the basic UI. This includes:

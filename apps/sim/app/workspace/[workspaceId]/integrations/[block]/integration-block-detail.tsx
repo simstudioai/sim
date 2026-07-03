@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import {
   blockTypeToIconMap,
   type Integration,
@@ -20,6 +19,8 @@ import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integr
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {
   getSuggestedSkillsForBlock,
@@ -44,6 +45,7 @@ interface IntegrationBlockDetailProps {
 }
 
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   useOAuthReturnRouter()
   const router = useRouter()
   const [connectMode, setConnectMode] = useQueryState(connectParam.key, connectParam.parser)
@@ -53,10 +55,12 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const oauthService = resolveOAuthServiceForIntegration(integration)
   const [oauthOpen, setOAuthOpen] = useState(false)
 
-  const { data: credentials = [] } = useWorkspaceCredentials({
+  const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
     enabled: Boolean(workspaceId),
   })
+
+  useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
   const connectedCredentials = useMemo(() => {
     if (!oauthService) return []
@@ -170,14 +174,20 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           serviceIcon={oauthService.serviceIcon}
         />
       )}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+      <div
+        ref={scrollContainerRef}
+        className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
+      >
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <div className='flex flex-col gap-3'>
             {Icon ? (
               <IntegrationTile blockType={integration.type} icon={Icon} />
             ) : (
               <div
-                className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] text-white'
+                className={cn(
+                  'flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)]',
+                  getTileIconColorClass(integration.bgColor)
+                )}
                 style={{ background: integration.bgColor }}
               >
                 {integration.name.charAt(0)}

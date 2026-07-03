@@ -5,7 +5,7 @@ export const listClustersTool: ToolConfig<ClickHouseListClustersParams, ClickHou
   id: 'clickhouse_list_clusters',
   name: 'ClickHouse List Clusters',
   description: 'List configured clusters, shards, and replicas',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

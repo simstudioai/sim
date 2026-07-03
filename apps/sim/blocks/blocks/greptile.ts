@@ -1,4 +1,4 @@
-import { ClipboardList } from '@/components/emcn/icons'
+import { ClipboardList } from '@sim/emcn/icons'
 import { GreptileIcon, SlackIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'

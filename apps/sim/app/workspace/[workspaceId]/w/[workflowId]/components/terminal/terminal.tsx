@@ -2,23 +2,23 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { formatDuration } from '@sim/utils/formatting'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import clsx from 'clsx'
-import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
-import Link from 'next/link'
 import {
   Button,
   ChevronDown,
+  handleKeyboardActivation,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-} from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import clsx from 'clsx'
+import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -49,6 +49,7 @@ import {
   type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -126,7 +127,9 @@ const BlockRow = memo(function BlockRow({
           className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
           style={{ background: bgColor }}
         >
-          {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+          {BlockIcon && (
+            <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+          )}
         </div>
         <span
           className={clsx(
@@ -300,7 +303,9 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
             className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+            {BlockIcon && (
+              <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+            )}
           </div>
           <span
             className={clsx(
@@ -425,7 +430,9 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
             className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='size-[10px] text-white' />}
+            {BlockIcon && (
+              <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
+            )}
           </div>
           <span
             className={clsx(

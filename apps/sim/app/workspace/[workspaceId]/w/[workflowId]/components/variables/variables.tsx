@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, X } from 'lucide-react'
-import Editor from 'react-simple-code-editor'
-import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
   Button,
@@ -11,14 +8,17 @@ import {
   Combobox,
   type ComboboxOption,
   calculateGutterWidth,
+  cn,
   getCodeEditorProps,
   highlight,
   Input,
   Label,
   languages,
-} from '@/components/emcn'
-import { Trash } from '@/components/emcn/icons/trash'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
+import { Plus, X } from 'lucide-react'
+import Editor from 'react-simple-code-editor'
+import { useShallow } from 'zustand/react/shallow'
 import { validateName } from '@/lib/core/utils/validation'
 import {
   useFloatBoundarySync,

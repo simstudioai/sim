@@ -1,7 +1,6 @@
 import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
-  a2aAgent,
   chat as chatTable,
   copilotChats,
   document,
@@ -1673,7 +1672,7 @@ export class WorkspaceVFS {
     isDeployed: boolean,
     deployedAt: Date | null
   ): Promise<DeploymentData | null> {
-    const [chatRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
+    const [chatRows, mcpRows, versionRows, allVersionRows] = await Promise.all([
       db
         .select({
           id: chatTable.id,
@@ -1701,23 +1700,6 @@ export class WorkspaceVFS {
             eq(workflowMcpTool.workflowId, workflowId),
             isNull(workflowMcpTool.archivedAt),
             isNull(workflowMcpServer.deletedAt)
-          )
-        ),
-      db
-        .select({
-          id: a2aAgent.id,
-          name: a2aAgent.name,
-          description: a2aAgent.description,
-          version: a2aAgent.version,
-          isPublished: a2aAgent.isPublished,
-          capabilities: a2aAgent.capabilities,
-        })
-        .from(a2aAgent)
-        .where(
-          and(
-            eq(a2aAgent.workflowId, workflowId),
-            eq(a2aAgent.workspaceId, workspaceId),
-            isNull(a2aAgent.archivedAt)
           )
         ),
       isDeployed
@@ -1750,8 +1732,7 @@ export class WorkspaceVFS {
         .orderBy(desc(workflowDeploymentVersion.version)),
     ])
 
-    const hasAnyDeployment =
-      isDeployed || chatRows.length > 0 || mcpRows.length > 0 || a2aRows.length > 0
+    const hasAnyDeployment = isDeployed || chatRows.length > 0 || mcpRows.length > 0
     if (!hasAnyDeployment && allVersionRows.length === 0) return null
 
     let needsRedeployment: boolean | undefined
@@ -1785,7 +1766,6 @@ export class WorkspaceVFS {
         : null,
       chat: chatRows[0] ?? null,
       mcp: mcpRows,
-      a2a: a2aRows[0] ?? null,
       versions: allVersionRows,
     }
   }

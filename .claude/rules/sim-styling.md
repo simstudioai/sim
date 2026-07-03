@@ -16,7 +16,7 @@ paths:
 ## Conditional Classes
 
 ```typescript
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 
 <div className={cn(
   'base-classes',
@@ -52,7 +52,7 @@ Value text `--text-body`; muted/placeholder/labels `--text-muted`; icons `--text
 
 ## Chip Components (consumer usage)
 
-`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `apps/sim/components/emcn/components/chip/chip-chrome.ts` (all tokens are re-exported from the `@/components/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
+`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `apps/sim/components/emcn/components/chip/chip-chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
 
 ### Props over className
 

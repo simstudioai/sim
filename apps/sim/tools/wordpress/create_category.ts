@@ -66,7 +66,7 @@ export const createCategoryTool: ToolConfig<
       }
 
       if (params.description) body.description = params.description
-      if (params.parent) body.parent = params.parent
+      if (params.parent !== undefined) body.parent = params.parent
       if (params.slug) body.slug = params.slug
 
       return body

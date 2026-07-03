@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Button, Combobox } from '@sim/emcn'
 import { ExternalLink, KeyRound, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Combobox } from '@/components/emcn/components'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -229,7 +229,7 @@ export function CredentialSelector({
       return <ExternalLink className='size-3' />
     }
     const Icon: StyleableIcon = baseProviderConfig.icon
-    return <Icon className='size-3' style={getBareIconStyle(Icon)} />
+    return <Icon className='size-3 text-[var(--text-icon)]' style={getBareIconStyle(Icon)} />
   }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {

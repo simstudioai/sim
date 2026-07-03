@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import {
   CONTAINER_LAYOUT_OPTIONS,
   DEFAULT_LAYOUT_OPTIONS,
@@ -11,7 +12,6 @@ import {
   prepareBlockMetrics,
   snapNodesToGrid,
 } from '@/lib/workflows/autolayout/utils'
-import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { EDGE } from '@/executor/constants'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 

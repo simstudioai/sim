@@ -2,7 +2,7 @@
  * Autolayout Constants
  *
  * Layout algorithm specific constants for spacing, padding, and overlap detection.
- * Block dimensions are in @/lib/workflows/blocks/block-dimensions
+ * Block dimensions are in @sim/workflow-renderer
  */
 
 /**

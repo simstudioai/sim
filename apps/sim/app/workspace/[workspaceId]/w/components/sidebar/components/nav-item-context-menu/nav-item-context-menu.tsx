@@ -1,12 +1,7 @@
 'use client'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Duplicate, SquareArrowUpRight } from '@/components/emcn/icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { Duplicate, SquareArrowUpRight } from '@sim/emcn/icons'
 
 interface NavItemContextMenuProps {
   isOpen: boolean

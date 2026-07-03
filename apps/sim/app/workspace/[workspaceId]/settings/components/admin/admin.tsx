@@ -1,13 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Badge, Button, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { Badge, Button, ChipInput, ChipSelect, Label, Search, Switch } from '@/components/emcn'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import {
   adminParsers,
   adminUrlKeys,
@@ -78,11 +77,8 @@ export function Admin() {
     setSearchInput((current) => (current === searchQuery ? current : searchQuery))
   }, [searchQuery])
 
-  const totalPages = useMemo(
-    () => Math.ceil((usersData?.total ?? 0) / PAGE_SIZE),
-    [usersData?.total]
-  )
-  const currentPage = useMemo(() => Math.floor(usersOffset / PAGE_SIZE) + 1, [usersOffset])
+  const totalPages = Math.ceil((usersData?.total ?? 0) / PAGE_SIZE)
+  const currentPage = Math.floor(usersOffset / PAGE_SIZE) + 1
 
   const handleSuperUserModeToggle = async (checked: boolean) => {
     if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
@@ -90,17 +86,14 @@ export function Admin() {
     }
   }
 
-  const handleMothershipEnvironmentChange = useCallback(
-    async (nextEnvironment: MothershipEnvironment) => {
-      if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
-        await updateSetting.mutateAsync({
-          key: 'mothershipEnvironment',
-          value: nextEnvironment,
-        })
-      }
-    },
-    [settings?.mothershipEnvironment, updateSetting]
-  )
+  const handleMothershipEnvironmentChange = async (nextEnvironment: MothershipEnvironment) => {
+    if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({
+        key: 'mothershipEnvironment',
+        value: nextEnvironment,
+      })
+    }
+  }
 
   const handleImport = () => {
     if (!workflowId.trim()) return

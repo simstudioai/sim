@@ -10,7 +10,7 @@ function isApiExecutionGateActive(): boolean {
 
 /**
  * Message for the 402 returned when a free-plan account attempts programmatic
- * workflow execution (API key, public API, MCP server, or A2A agent server).
+ * workflow execution (API key, public API, or MCP server).
  */
 export const API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE =
   'Programmatic workflow execution requires a paid plan. Upgrade to Pro or higher to use the API.'

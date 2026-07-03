@@ -695,6 +695,76 @@ export interface GongLookupPhoneResponse extends ToolResponse {
   }
 }
 
+/** Purge Email Address */
+export interface GongPurgeEmailAddressParams extends GongBaseParams {
+  emailAddress: string
+}
+
+export interface GongPurgeEmailAddressResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+  }
+}
+
+/** Purge Phone Number */
+export interface GongPurgePhoneNumberParams extends GongBaseParams {
+  phoneNumber: string
+}
+
+export interface GongPurgePhoneNumberResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+  }
+}
+
+/** Shared Engage Flow prospect assignment sub-types */
+interface GongAssignedFlow {
+  flowId: string
+  flowName: string
+  crmProspectId: string
+  flowInstanceId: string
+  flowInstanceOwnerEmail: string
+  flowInstanceOwnerFullName: string
+  flowInstanceCreateDate: string
+  flowInstanceStatus: string
+  workspaceId: string
+  exclusive: boolean
+}
+
+interface GongAssignedFlowFailure {
+  flowId: string
+  crmProspectId: string
+  errorCode: string
+  errorMessage: string
+}
+
+/** Assign Flow Prospects */
+export interface GongAssignFlowProspectsParams extends GongBaseParams {
+  flowId: string
+  crmProspectsIds: string
+  flowInstanceOwnerEmail: string
+}
+
+export interface GongAssignFlowProspectsResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    prospectsAssigned: GongAssignedFlow[]
+    prospectsNotAssigned: GongAssignedFlowFailure[]
+  }
+}
+
+/** Get Prospect Flows */
+export interface GongGetProspectFlowsParams extends GongBaseParams {
+  crmProspectsIds: string
+}
+
+export interface GongGetProspectFlowsResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    prospectsAssigned: GongAssignedFlow[]
+  }
+}
+
 /** Union type for all Gong responses */
 export type GongResponse =
   | GongListCallsResponse
@@ -718,3 +788,7 @@ export type GongResponse =
   | GongGetCoachingResponse
   | GongLookupEmailResponse
   | GongLookupPhoneResponse
+  | GongPurgeEmailAddressResponse
+  | GongPurgePhoneNumberResponse
+  | GongAssignFlowProspectsResponse
+  | GongGetProspectFlowsResponse

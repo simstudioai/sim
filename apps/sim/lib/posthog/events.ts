@@ -224,30 +224,6 @@ export interface PostHogEventMap {
     notification_type: string
   }
 
-  a2a_agent_deleted: {
-    agent_id: string
-    workflow_id: string
-    workspace_id: string
-  }
-
-  a2a_agent_published: {
-    agent_id: string
-    workflow_id: string
-    workspace_id: string
-  }
-
-  a2a_agent_unpublished: {
-    agent_id: string
-    workflow_id: string
-    workspace_id: string
-  }
-
-  a2a_agent_created: {
-    agent_id: string
-    workflow_id: string
-    workspace_id: string
-  }
-
   block_added: {
     block_type: string
     workflow_id: string

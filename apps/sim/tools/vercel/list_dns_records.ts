@@ -35,6 +35,12 @@ export const vercelListDnsRecordsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
@@ -42,6 +48,7 @@ export const vercelListDnsRecordsTool: ToolConfig<
       const query = new URLSearchParams()
       if (params.limit) query.set('limit', String(params.limit))
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v5/domains/${params.domain.trim()}/records${qs ? `?${qs}` : ''}`
     },

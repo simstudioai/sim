@@ -1,9 +1,9 @@
 'use client'
 
 import type React from 'react'
+import { Button, ChipInput } from '@sim/emcn'
+import { Loader, X } from '@sim/emcn/icons'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { Button, ChipInput } from '@/components/emcn'
-import { Loader, X } from '@/components/emcn/icons'
 
 export interface TableFindProps {
   query: string

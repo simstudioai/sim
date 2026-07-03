@@ -1,8 +1,7 @@
 import { memo, useMemo } from 'react'
-import { X } from 'lucide-react'
-import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
+import { type EdgeDiffStatus, WorkflowEdgeView } from '@sim/workflow-renderer'
+import type { EdgeProps } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
-import type { EdgeDiffStatus } from '@/lib/workflows/diff/types'
 import { useLastRunEdges } from '@/stores/execution'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
@@ -12,35 +11,14 @@ interface WorkflowEdgeProps extends EdgeProps {
   targetHandle?: string | null
 }
 
-const WorkflowEdgeComponent = ({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  data,
-  style,
-  source,
-  target,
-  sourceHandle,
-  targetHandle,
-}: WorkflowEdgeProps) => {
-  const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
-
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-    borderRadius: 8,
-    offset: isHorizontal ? 30 : 20,
-  })
-
-  const isSelected = data?.isSelected ?? false
+/**
+ * Editor container for {@link WorkflowEdgeView}.
+ *
+ * Reads the diff and execution stores, resolves the edge's diff/run state, and
+ * passes it to the pure renderer shared with the docs preview.
+ */
+const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
+  const { id, data, source, target, sourceHandle, targetHandle } = props
 
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore(
     useShallow((state) => ({
@@ -51,14 +29,12 @@ const WorkflowEdgeComponent = ({
   )
   const lastRunEdges = useLastRunEdges()
 
-  const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
-  const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
   const previewExecutionStatus = (
     data as { executionStatus?: 'success' | 'error' | 'not-executed' } | undefined
   )?.executionStatus
-  const edgeRunStatus = previewExecutionStatus || lastRunEdges.get(id)
+  const runStatus = previewExecutionStatus || lastRunEdges.get(id)
 
-  const edgeDiffStatus = useMemo((): EdgeDiffStatus => {
+  const diffStatus = useMemo((): EdgeDiffStatus => {
     if (data?.isDeleted) return 'deleted'
     if (!diffAnalysis?.edge_diff || !isDiffReady) return null
 
@@ -84,84 +60,14 @@ const WorkflowEdgeComponent = ({
     targetHandle,
   ])
 
-  const edgeStyle = useMemo(() => {
-    let color = 'var(--workflow-edge)'
-    let opacity = 1
-
-    if (edgeDiffStatus === 'deleted') {
-      color = 'var(--text-error)'
-      opacity = 0.7
-    } else if (edgeDiffStatus === 'new') {
-      color = 'var(--brand-accent)'
-    } else if (edgeRunStatus === 'success') {
-      // Use green for preview mode, default for canvas execution
-      color = previewExecutionStatus ? 'var(--brand-accent)' : 'var(--border-success)'
-    } else if (edgeRunStatus === 'error') {
-      color = 'var(--text-error)'
-    } else if (isErrorEdge) {
-      // Error edges that weren't taken stay red
-      color = 'var(--text-error)'
-    }
-
-    if (isSelected) {
-      opacity = 0.5
-    }
-
-    return {
-      ...(style ?? {}),
-      strokeWidth: edgeDiffStatus
-        ? 3
-        : edgeRunStatus === 'success' || edgeRunStatus === 'error'
-          ? 2.5
-          : isSelected
-            ? 2.5
-            : 2,
-      stroke: color,
-      strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : undefined,
-      opacity,
-    }
-  }, [style, edgeDiffStatus, isSelected, isErrorEdge, edgeRunStatus, previewExecutionStatus])
-
   return (
-    <>
-      <BaseEdge path={edgePath} style={edgeStyle} interactionWidth={30} />
-
-      {isSelected && (
-        <EdgeLabelRenderer>
-          <button
-            type='button'
-            className='nodrag nopan group flex size-[22px] cursor-pointer items-center justify-center transition-colors'
-            style={{
-              position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              pointerEvents: 'all',
-              zIndex: 1011,
-            }}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-
-              if (data?.onDelete) {
-                data.onDelete(id)
-              }
-            }}
-          >
-            <X className='size-4 text-[var(--text-error)] transition-colors group-hover:text-[color-mix(in_srgb,var(--text-error)_80%,transparent)]' />
-          </button>
-        </EdgeLabelRenderer>
-      )}
-    </>
+    <WorkflowEdgeView
+      {...props}
+      diffStatus={diffStatus}
+      runStatus={runStatus}
+      isPreviewRun={Boolean(previewExecutionStatus)}
+    />
   )
 }
 
-/**
- * Workflow edge component with execution status and diff visualization.
- *
- * @remarks
- * Edge coloring priority:
- * 1. Diff status (deleted/new) - for version comparison
- * 2. Execution status (success/error) - for run visualization
- * 3. Error edge default (red) - for untaken error paths
- * 4. Default edge color - normal workflow connections
- */
 export const WorkflowEdge = memo(WorkflowEdgeComponent)

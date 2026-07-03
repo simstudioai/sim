@@ -177,7 +177,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-4-6',
+      defaultValue: 'claude-sonnet-5',
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),

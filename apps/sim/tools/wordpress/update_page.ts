@@ -97,7 +97,7 @@ export const updatePageTool: ToolConfig<WordPressUpdatePageParams, WordPressUpda
       if (params.slug) body.slug = params.slug
       if (params.parent !== undefined) body.parent = params.parent
       if (params.menuOrder !== undefined) body.menu_order = params.menuOrder
-      if (params.featuredMedia) body.featured_media = params.featuredMedia
+      if (params.featuredMedia !== undefined) body.featured_media = params.featuredMedia
 
       return body
     },

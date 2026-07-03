@@ -1,8 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Mic, Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { cn, Mic, Tooltip } from '@sim/emcn'
 
 interface MicButtonProps {
   isListening: boolean

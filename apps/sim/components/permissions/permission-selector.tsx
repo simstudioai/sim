@@ -1,8 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ButtonGroup, ButtonGroupItem } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ButtonGroup, ButtonGroupItem, cn } from '@sim/emcn'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 
 export type { PermissionType }

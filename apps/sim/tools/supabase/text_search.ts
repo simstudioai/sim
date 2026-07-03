@@ -7,7 +7,7 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
   id: 'supabase_text_search',
   name: 'Supabase Text Search',
   description: 'Perform full-text search on a Supabase table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

@@ -51,6 +51,12 @@ export const CREDIT_TIERS = [
 export type CreditTier = (typeof CREDIT_TIERS)[number]
 
 /**
+ * Credits granted per dollar of plan spend. A credit is $0.005, so a dollar
+ * buys 200 — the conversion behind both free-tier and daily-refresh credits.
+ */
+export const CREDITS_PER_DOLLAR = 200
+
+/**
  * Daily refresh rate: 1% of plan cost per day.
  * E.g. $25 plan => $0.25/day => 50 credits/day included usage.
  */

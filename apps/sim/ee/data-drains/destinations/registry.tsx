@@ -1,14 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import {
-  ChipInput,
-  ChipModalField,
-  ChipSelect,
-  ChipTextarea,
-  SecretInput,
-  Switch,
-} from '@/components/emcn'
+import { ChipInput, ChipModalField, ChipSelect, ChipTextarea, SecretInput, Switch } from '@sim/emcn'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import type { DestinationType } from '@/lib/data-drains/types'
 

@@ -7,7 +7,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
   id: 'supabase_upsert',
   name: 'Supabase Upsert',
   description: 'Insert or update data in a Supabase table (upsert operation)',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

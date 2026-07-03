@@ -17,8 +17,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 }
 
 export default async function KnowledgeBasePage({ params, searchParams }: PageProps) {
-  const { id } = await params
-  const { kbName } = await searchParams
+  const [{ id }, { kbName }] = await Promise.all([params, searchParams])
 
   return (
     <Suspense fallback={null}>

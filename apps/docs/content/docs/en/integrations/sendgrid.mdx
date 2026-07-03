@@ -206,13 +206,15 @@ Get all contact lists from SendGrid
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SendGrid API key |
-| `pageSize` | number | No | Number of lists to return per page \(default: 100\) |
+| `pageSize` | number | No | Number of lists to return per page \(default: 100, max: 1000\) |
+| `pageToken` | string | No | Page token from a previous response \(nextPageToken\) to fetch the next page |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `lists` | json | Array of lists |
+| `nextPageToken` | string | Token to pass as pageToken to fetch the next page, if more results exist |
 
 ### `sendgrid_delete_list`
 
@@ -321,13 +323,17 @@ Get all email templates from SendGrid
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SendGrid API key |
 | `generations` | string | No | Filter by generation \(legacy, dynamic, or both\) |
-| `pageSize` | number | No | Number of templates to return per page \(default: 20\) |
+| `pageSize` | number | No | Number of templates to return per page \(default: 20, max: 200\). ' +
+        'When paginating with pageToken, pass the same pageSize used on the first request ' +
+        'to keep page boundaries consistent. |
+| `pageToken` | string | No | Page token from a previous response \(nextPageToken\) to fetch the next page |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `templates` | json | Array of templates |
+| `nextPageToken` | string | Token to pass as pageToken to fetch the next page, if more results exist |
 
 ### `sendgrid_delete_template`
 
@@ -365,6 +371,7 @@ Delete an email template from SendGrid
 | `templates` | json | Array of templates |
 | `generation` | string | Template generation |
 | `versions` | json | Array of template versions |
+| `nextPageToken` | string | Token for the next page of results \(list_all_lists, list_templates\) |
 | `templateId` | string | Template ID |
 | `active` | boolean | Whether template version is active |
 | `htmlContent` | string | HTML content |

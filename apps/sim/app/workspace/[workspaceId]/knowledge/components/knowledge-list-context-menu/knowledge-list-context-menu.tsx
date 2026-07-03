@@ -1,13 +1,8 @@
 'use client'
 
 import { memo } from 'react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 
 interface KnowledgeListContextMenuProps {
   isOpen: boolean

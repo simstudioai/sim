@@ -7,11 +7,10 @@ import {
   useRef,
   useState,
 } from 'react'
+import { cn, Textarea } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { ChevronsUpDown, Wand2 } from 'lucide-react'
-import { Textarea } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'

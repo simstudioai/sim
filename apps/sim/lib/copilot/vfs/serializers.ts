@@ -557,14 +557,6 @@ export interface DeploymentData {
     toolName: string
     toolDescription?: string | null
   }>
-  a2a?: {
-    id: string
-    name: string
-    description?: string | null
-    version: string
-    isPublished: boolean
-    capabilities: unknown
-  } | null
   versions?: Array<{
     id: string
     version: number
@@ -616,18 +608,6 @@ export function serializeDeployments(data: DeploymentData): string {
       toolName: m.toolName,
       toolDescription: m.toolDescription || undefined,
     }))
-  }
-
-  if (data.a2a) {
-    result.a2a = {
-      id: data.a2a.id,
-      name: data.a2a.name,
-      description: data.a2a.description || undefined,
-      version: data.a2a.version,
-      isPublished: data.a2a.isPublished,
-      capabilities: data.a2a.capabilities,
-      agentUrl: `/api/a2a/serve/${data.a2a.id}`,
-    }
   }
 
   return JSON.stringify(result, null, 2)

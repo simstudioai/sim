@@ -74,6 +74,25 @@ interface SlackTriggerEvent {
   callback_id: string
   api_app_id: string
   message_ts: string
+  /**
+   * Full Slack view object for modal interactions (view_submission/view_closed):
+   * `state.values` (submitted input values), `private_metadata`, `id`,
+   * `callback_id`, `hash`, etc. Null for non-modal interactions and Events API.
+   */
+  view: Record<string, unknown> | null
+  /**
+   * Full Slack message object the interaction originated from (block_actions):
+   * `blocks`, `text`, `ts`, etc. — needed to rewrite the source message's blocks.
+   * Null when the interaction has no source message and for slash/Events API.
+   */
+  message: Record<string, unknown> | null
+  /**
+   * Top-level interactivity `state` for block_actions: the current values of all
+   * stateful elements in the surface (`state.values`), e.g. inputs read on a
+   * button click without a modal submit. Distinct from `view.state` (modal
+   * submissions). Null for non-block_actions payloads.
+   */
+  state: Record<string, unknown> | null
   hasFiles: boolean
   files: SlackDownloadedFile[]
 }
@@ -104,6 +123,9 @@ function createSlackEvent(): SlackTriggerEvent {
     callback_id: '',
     api_app_id: '',
     message_ts: '',
+    view: null,
+    message: null,
+    state: null,
     hasFiles: false,
     files: [],
   }
@@ -206,11 +228,14 @@ function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
   // Prefer the source message text; fall back to the triggering action's value
   // so a blocks-only message still surfaces something useful in `text`.
   event.text = asString(message?.text) || event.action_value
+  event.message = message ?? null
 
   event.response_url = asString(b.response_url)
   event.trigger_id = asString(b.trigger_id)
   const view = b.view as Record<string, unknown> | undefined
   event.callback_id = asString(b.callback_id) || asString(view?.callback_id)
+  event.view = view ?? null
+  event.state = (b.state as Record<string, unknown>) ?? null
   event.api_app_id = asString(b.api_app_id)
 
   return event

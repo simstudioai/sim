@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
 import { isEqual } from 'es-toolkit'
 import {
   BookOpen,
@@ -16,7 +17,6 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   buildCanonicalIndex,
@@ -49,6 +49,7 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -375,7 +376,10 @@ export function Editor() {
               >
                 <IconComponent
                   icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className='size-[12px] text-[var(--white)]'
+                  className={cn(
+                    'size-[12px]',
+                    getTileIconColorClass(isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor)
+                  )}
                 />
               </div>
             )}

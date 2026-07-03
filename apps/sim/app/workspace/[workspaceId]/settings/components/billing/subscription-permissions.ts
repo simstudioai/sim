@@ -36,7 +36,7 @@ export function getSubscriptionPermissions(
   subscription: SubscriptionState,
   userRole: UserRole
 ): SubscriptionPermissions {
-  const { isFree, isPro, isTeam, isEnterprise, isPaid, isOrgScoped } = subscription
+  const { isFree, isPro, isEnterprise, isPaid, isOrgScoped } = subscription
   const { isTeamAdmin } = userRole
 
   // Non-admin org members see the "team member" view: no edit / no cancel

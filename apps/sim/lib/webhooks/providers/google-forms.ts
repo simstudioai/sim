@@ -29,7 +29,12 @@ export const googleFormsHandler: WebhookProviderHandler = {
     const responseId = (b?.responseId || b?.id || '') as string
     const createTime = (b?.createTime || b?.timestamp || new Date().toISOString()) as string
     const lastSubmittedTime = (b?.lastSubmittedTime || createTime) as string
-    const formId = (b?.formId || providerConfig.formId || '') as string
+    // triggerFormId is the current subBlock id; formId is the pre-#3141 id still
+    // present in provider_config for webhooks deployed before that rename.
+    const formId = (b?.formId ||
+      providerConfig.triggerFormId ||
+      providerConfig.formId ||
+      '') as string
     const includeRaw = providerConfig.includeRawPayload !== false
     return {
       input: {
@@ -46,7 +51,10 @@ export const googleFormsHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext) {
     const expectedToken = providerConfig.token as string | undefined
     if (!expectedToken) {
-      return null
+      logger.warn(`[${requestId}] Google Forms webhook secret not configured`)
+      return new NextResponse('Unauthorized - Missing Google Forms webhook secret', {
+        status: 401,
+      })
     }
 
     const secretHeaderName = providerConfig.secretHeaderName as string | undefined
@@ -56,5 +64,18 @@ export const googleFormsHandler: WebhookProviderHandler = {
     }
 
     return null
+  },
+
+  extractIdempotencyId(body: unknown): string | null {
+    const b = body as Record<string, unknown>
+    // Mirrors formatInput's responseId resolution. formId is deliberately not part
+    // of this key: the final key is already scoped by webhookId (one webhook per
+    // deployed form), and extractIdempotencyId has no access to providerConfig, so
+    // a body-only formId fallback would risk a bogus 'unknown' segment.
+    const responseId = (b?.responseId || b?.id) as string | undefined
+    if (typeof responseId !== 'string' || !responseId) {
+      return null
+    }
+    return `google_forms:${responseId}`
   },
 }

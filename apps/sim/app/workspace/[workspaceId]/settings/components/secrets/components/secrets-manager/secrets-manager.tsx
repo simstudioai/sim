@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip, ChipInput, Tooltip, toast } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
@@ -18,6 +17,7 @@ import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/cr
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
@@ -173,10 +173,14 @@ function parseEnvVarLine(line: string): UIEnvironmentVariable | null {
 
 /** Parses an array of raw text lines, returning only valid non-empty KEY=VALUE entries. */
 function parseValidEnvVars(lines: string[]): UIEnvironmentVariable[] {
-  return lines
-    .map(parseEnvVarLine)
-    .filter((parsed): parsed is UIEnvironmentVariable => parsed !== null)
-    .filter(({ key, value }) => key && value)
+  const result: UIEnvironmentVariable[] = []
+  for (const line of lines) {
+    const parsed = parseEnvVarLine(line)
+    if (parsed?.key && parsed.value) {
+      result.push(parsed)
+    }
+  }
+  return result
 }
 
 interface WorkspaceVariableRowProps {
@@ -771,9 +775,10 @@ export function SecretsManager() {
     }
 
     const personalChanged = (() => {
-      const initialMap = new Map(
-        initialVarsRef.current.filter((v) => v.key && v.value).map((v) => [v.key, v.value])
-      )
+      const initialMap = new Map<string, string>()
+      for (const v of initialVarsRef.current) {
+        if (v.key && v.value) initialMap.set(v.key, v.value)
+      }
       const currentKeys = Object.keys(validVariables)
       if (initialMap.size !== currentKeys.length) return true
       for (const [key, value] of Object.entries(validVariables)) {
@@ -912,13 +917,14 @@ export function SecretsManager() {
 
   return (
     <>
-      <div className='hidden'>
+      <div className='hidden' aria-hidden='true'>
         <input
           type='text'
           name='fakeusernameremembered'
           autoComplete='username'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
         <input
           type='password'
@@ -926,6 +932,7 @@ export function SecretsManager() {
           autoComplete='current-password'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
         <input
           type='email'
@@ -933,6 +940,7 @@ export function SecretsManager() {
           autoComplete='email'
           tabIndex={-1}
           readOnly
+          aria-hidden='true'
         />
       </div>
 
@@ -943,33 +951,27 @@ export function SecretsManager() {
           onChange: setSearchTerm,
           placeholder: 'Search secrets...',
         }}
-        actions={
-          <>
-            {hasChanges && (
-              <Chip onClick={handleCancel} disabled={isListSaving}>
-                Discard
-              </Chip>
-            )}
-            {hasConflicts || hasInvalidKeys ? (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <div className='inline-flex'>
-                    <Chip disabled>Save</Chip>
-                  </div>
-                </Tooltip.Trigger>
-                {hasConflicts ? (
-                  <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
-                ) : (
-                  <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
-                )}
-              </Tooltip.Root>
-            ) : (
-              <Chip onClick={handleSave} disabled={isLoading || !hasChanges || isListSaving}>
-                {isListSaving ? 'Saving...' : 'Save'}
-              </Chip>
-            )}
-          </>
-        }
+        actions={[
+          ...(hasChanges
+            ? [
+                {
+                  text: 'Discard',
+                  onSelect: handleCancel,
+                  disabled: isListSaving,
+                } satisfies SettingsAction,
+              ]
+            : []),
+          {
+            text: isListSaving ? 'Saving...' : 'Save',
+            onSelect: handleSave,
+            disabled: hasConflicts || hasInvalidKeys || isLoading || !hasChanges || isListSaving,
+            tooltip: hasConflicts
+              ? 'Resolve all conflicts before saving'
+              : hasInvalidKeys
+                ? 'Fix invalid variable names before saving'
+                : undefined,
+          },
+        ]}
       >
         {!isLoading && (
           <div className='flex flex-col gap-7'>

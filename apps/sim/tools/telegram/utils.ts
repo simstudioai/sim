@@ -1,3 +1,10 @@
+/**
+ * Build a Telegram Bot API method URL for the given bot token.
+ */
+export function telegramApiUrl(botToken: string, method: string): string {
+  return `https://api.telegram.org/bot${botToken}/${method}`
+}
+
 export function convertMarkdownToHTML(text: string): string {
   return (
     text

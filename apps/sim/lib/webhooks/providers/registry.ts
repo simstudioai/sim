@@ -28,6 +28,7 @@ import { jiraHandler } from '@/lib/webhooks/providers/jira'
 import { jsmHandler } from '@/lib/webhooks/providers/jsm'
 import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
+import { linqHandler } from '@/lib/webhooks/providers/linq'
 import { loopsHandler } from '@/lib/webhooks/providers/loops'
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 import { mondayHandler } from '@/lib/webhooks/providers/monday'
@@ -88,6 +89,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   jsm: jsmHandler,
   lemlist: lemlistHandler,
   linear: linearHandler,
+  linq: linqHandler,
   loops: loopsHandler,
   monday: mondayHandler,
   resend: resendHandler,

@@ -45,7 +45,10 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Storage: Copy File', id: 'storage_copy' },
         { label: 'Storage: Get Public URL', id: 'storage_get_public_url' },
         { label: 'Storage: Create Signed URL', id: 'storage_create_signed_url' },
+        { label: 'Storage: Create Signed Upload URL', id: 'storage_create_signed_upload_url' },
         { label: 'Storage: Create Bucket', id: 'storage_create_bucket' },
+        { label: 'Storage: Update Bucket', id: 'storage_update_bucket' },
+        { label: 'Storage: Empty Bucket', id: 'storage_empty_bucket' },
         { label: 'Storage: List Buckets', id: 'storage_list_buckets' },
         { label: 'Storage: Delete Bucket', id: 'storage_delete_bucket' },
       ],
@@ -686,9 +689,12 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           'storage_move',
           'storage_copy',
           'storage_create_bucket',
+          'storage_update_bucket',
+          'storage_empty_bucket',
           'storage_delete_bucket',
           'storage_get_public_url',
           'storage_create_signed_url',
+          'storage_create_signed_upload_url',
         ],
       },
       required: true,
@@ -920,18 +926,52 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       condition: { field: 'operation', value: 'storage_create_bucket' },
     },
     {
+      id: 'updateIsPublic',
+      title: 'Public Bucket',
+      type: 'dropdown',
+      options: [
+        { label: 'Keep Current', id: '' },
+        { label: 'False (Private)', id: 'false' },
+        { label: 'True (Public)', id: 'true' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'storage_update_bucket' },
+    },
+    {
       id: 'fileSizeLimit',
       title: 'File Size Limit (bytes)',
       type: 'short-input',
       placeholder: '52428800',
-      condition: { field: 'operation', value: 'storage_create_bucket' },
+      condition: { field: 'operation', value: ['storage_create_bucket', 'storage_update_bucket'] },
+      mode: 'advanced',
     },
     {
       id: 'allowedMimeTypes',
       title: 'Allowed MIME Types (JSON array)',
       type: 'code',
       placeholder: '["image/png", "image/jpeg"]',
-      condition: { field: 'operation', value: 'storage_create_bucket' },
+      condition: { field: 'operation', value: ['storage_create_bucket', 'storage_update_bucket'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'path',
+      title: 'Destination Path',
+      type: 'short-input',
+      placeholder: 'folder/file.jpg',
+      condition: { field: 'operation', value: 'storage_create_signed_upload_url' },
+      required: true,
+    },
+    {
+      id: 'upsert',
+      title: 'Allow Overwrite',
+      type: 'dropdown',
+      options: [
+        { label: 'False', id: 'false' },
+        { label: 'True', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'storage_create_signed_upload_url' },
+      mode: 'advanced',
     },
   ],
   tools: {
@@ -955,10 +995,13 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       'supabase_storage_move',
       'supabase_storage_copy',
       'supabase_storage_create_bucket',
+      'supabase_storage_update_bucket',
+      'supabase_storage_empty_bucket',
       'supabase_storage_list_buckets',
       'supabase_storage_delete_bucket',
       'supabase_storage_get_public_url',
       'supabase_storage_create_signed_url',
+      'supabase_storage_create_signed_upload_url',
     ],
     config: {
       tool: (params) => {
@@ -1001,6 +1044,10 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             return 'supabase_storage_copy'
           case 'storage_create_bucket':
             return 'supabase_storage_create_bucket'
+          case 'storage_update_bucket':
+            return 'supabase_storage_update_bucket'
+          case 'storage_empty_bucket':
+            return 'supabase_storage_empty_bucket'
           case 'storage_list_buckets':
             return 'supabase_storage_list_buckets'
           case 'storage_delete_bucket':
@@ -1009,6 +1056,8 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             return 'supabase_storage_get_public_url'
           case 'storage_create_signed_url':
             return 'supabase_storage_create_signed_url'
+          case 'storage_create_signed_upload_url':
+            return 'supabase_storage_create_signed_upload_url'
           default:
             throw new Error(`Invalid Supabase operation: ${params.operation}`)
         }
@@ -1028,6 +1077,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           functionBody,
           functionHeaders,
           method,
+          updateIsPublic,
           ...rest
         } = params
 
@@ -1200,6 +1250,16 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           result.isPublic = parsedIsPublic
         }
 
+        // "Keep Current" (empty string) means the caller didn't choose to
+        // override visibility — omit `isPublic` entirely so the update
+        // tool preserves the bucket's existing public/private setting
+        // instead of defaulting to false.
+        if (operation === 'storage_update_bucket' && updateIsPublic !== undefined) {
+          if (updateIsPublic === 'true' || updateIsPublic === 'false') {
+            result.isPublic = updateIsPublic === 'true'
+          }
+        }
+
         if (normalizedFileData !== undefined) {
           result.fileData = normalizedFileData
         }
@@ -1254,6 +1314,11 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     search: { type: 'string', description: 'Search term for filtering' },
     expiresIn: { type: 'number', description: 'Expiration time in seconds for signed URL' },
     isPublic: { type: 'boolean', description: 'Whether bucket should be public' },
+    updateIsPublic: {
+      type: 'string',
+      description:
+        'Visibility override for bucket update: "" keeps the current value, "true"/"false" overrides it',
+    },
     fileSizeLimit: { type: 'number', description: 'Maximum file size in bytes' },
     allowedMimeTypes: { type: 'array', description: 'Array of allowed MIME types' },
   },
@@ -1281,7 +1346,15 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     },
     signedUrl: {
       type: 'string',
-      description: 'Temporary signed URL for storage file',
+      description: 'Temporary signed URL for storage file (download or upload)',
+    },
+    token: {
+      type: 'string',
+      description: 'Upload token embedded in the signed upload URL',
+    },
+    path: {
+      type: 'string',
+      description: 'Destination object path for the signed upload URL',
     },
     tables: {
       type: 'json',
@@ -1300,9 +1373,9 @@ export const SupabaseBlockMeta = {
   templates: [
     {
       icon: SupabaseIcon,
-      title: 'Supabase user provisioning',
+      title: 'Supabase customer record sync',
       prompt:
-        'Build a workflow that listens for Stripe new-customer events, provisions a Supabase user with the correct role and metadata, and emails the welcome login link.',
+        'Build a workflow that listens for Stripe new-customer events and upserts a row into a Supabase customers table with the correct plan and metadata, then emails a welcome message.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'automation'],

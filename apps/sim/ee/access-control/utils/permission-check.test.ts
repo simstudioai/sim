@@ -36,7 +36,6 @@ const {
     allowedFileShareAuthTypes: null,
     hideDeployApi: false,
     hideDeployMcp: false,
-    hideDeployA2a: false,
     hideDeployChatbot: false,
     hideDeployTemplate: false,
   },

@@ -12,17 +12,17 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   Button,
   Checkbox,
   cellIconNodeClass,
   chipContentGap,
   chipContentLabelClass,
+  cn,
   Loader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'

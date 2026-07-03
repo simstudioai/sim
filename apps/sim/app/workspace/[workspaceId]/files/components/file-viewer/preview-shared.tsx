@@ -1,8 +1,8 @@
 'use client'
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { cn } from '@/lib/core/utils/cn'
 
 const logger = createLogger('FilePreview')
 

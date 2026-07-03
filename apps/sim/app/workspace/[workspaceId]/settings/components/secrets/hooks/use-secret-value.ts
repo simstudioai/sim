@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { WorkspaceCredential } from '@/hooks/queries/credentials'
 import {

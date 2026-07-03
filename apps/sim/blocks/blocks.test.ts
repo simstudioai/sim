@@ -510,7 +510,7 @@ describe.concurrent('Blocks Module', () => {
         expect(modelSubBlock).toBeDefined()
         expect(modelSubBlock?.type).toBe('combobox')
         expect(modelSubBlock?.required).toBe(true)
-        expect(modelSubBlock?.defaultValue).toBe('claude-sonnet-4-6')
+        expect(modelSubBlock?.defaultValue).toBe('claude-sonnet-5')
       })
 
       it('should have LLM tool access', () => {

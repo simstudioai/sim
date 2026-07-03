@@ -1,7 +1,5 @@
 'use client'
 
-import { format, parseISO } from 'date-fns'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   Check,
   Chip,
@@ -10,7 +8,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { format, parseISO } from 'date-fns'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarScope } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
 
 const SCOPE_OPTIONS: { value: CalendarScope; label: string }[] = [

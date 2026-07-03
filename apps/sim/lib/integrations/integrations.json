@@ -1,12 +1,12 @@
 {
-  "updatedAt": "2026-06-27",
+  "updatedAt": "2026-07-02",
   "integrations": [
     {
       "type": "onepassword",
       "slug": "1password",
       "name": "1Password",
       "description": "Manage secrets and items in 1Password vaults",
-      "longDescription": "Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, create new items, update existing ones, delete items, and resolve secret references.",
+      "longDescription": "Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, download attached files, create new items, update existing ones, delete items, and resolve secret references.",
       "bgColor": "#FFFFFF",
       "iconName": "OnePasswordIcon",
       "docsUrl": "https://docs.sim.ai/integrations/onepassword",
@@ -26,6 +26,10 @@
         {
           "name": "Get Item",
           "description": "Get full details of an item including all fields and secrets"
+        },
+        {
+          "name": "Get Item File",
+          "description": "Download the content of a file attached to an item"
         },
         {
           "name": "Create Item",
@@ -48,7 +52,7 @@
           "description": "Resolve a secret reference (op://vault/item/field) to its value. Service Account mode only."
         }
       ],
-      "operationCount": 9,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -345,11 +349,15 @@
       "longDescription": "Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs Enterprise plan with API access.",
       "bgColor": "#FFFFFF",
       "iconName": "AhrefsIcon",
-      "docsUrl": "https://docs.ahrefs.com/docs/api/reference/introduction",
+      "docsUrl": "https://docs.sim.ai/integrations/ahrefs",
       "operations": [
         {
           "name": "Domain Rating",
           "description": "Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website's backlink profile on a scale from 0 to 100."
+        },
+        {
+          "name": "Metrics Overview",
+          "description": "Get a one-call organic and paid search overview for a target domain or URL: organic traffic, organic keywords, paid traffic, paid keywords, and estimated traffic cost."
         },
         {
           "name": "Backlinks",
@@ -357,15 +365,23 @@
         },
         {
           "name": "Backlinks Stats",
-          "description": "Get backlink statistics for a target domain or URL. Returns totals for different backlink types including dofollow, nofollow, text, image, and redirect links."
+          "description": "Get backlink and referring domain totals for a target domain or URL, both currently live and across all time."
         },
         {
           "name": "Referring Domains",
           "description": "Get a list of domains that link to a target domain or URL. Returns unique referring domains with their domain rating, backlink counts, and discovery dates."
         },
         {
+          "name": "Broken Backlinks",
+          "description": "Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities."
+        },
+        {
           "name": "Organic Keywords",
           "description": "Get organic keywords that a target domain or URL ranks for in Google search results. Returns keyword details including search volume, ranking position, and estimated traffic."
+        },
+        {
+          "name": "Organic Competitors",
+          "description": "Get domains that compete with a target domain or URL for the same organic keywords, ranked by keyword overlap."
         },
         {
           "name": "Top Pages",
@@ -374,13 +390,9 @@
         {
           "name": "Keyword Overview",
           "description": "Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential."
-        },
-        {
-          "name": "Broken Backlinks",
-          "description": "Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities."
         }
       ],
-      "operationCount": 8,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -393,7 +405,7 @@
       "slug": "airtable",
       "name": "Airtable",
       "description": "Read, create, and update Airtable",
-      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
+      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
       "bgColor": "#FFFFFF",
       "iconName": "AirtableIcon",
       "docsUrl": "https://docs.sim.ai/integrations/airtable",
@@ -429,9 +441,17 @@
         {
           "name": "Update Multiple Records",
           "description": "Update multiple existing records in an Airtable table"
+        },
+        {
+          "name": "Upsert Records",
+          "description": "Update existing records or create new ones in an Airtable table, matching on the specified merge fields"
+        },
+        {
+          "name": "Delete Records",
+          "description": "Delete one or more records from an Airtable table by ID"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 10,
       "triggers": [
         {
           "id": "airtable_webhook",
@@ -533,9 +553,13 @@
         {
           "name": "Delete By Filter",
           "description": "Delete all records matching a filter from an Algolia index"
+        },
+        {
+          "name": "Get Task Status",
+          "description": "Check whether an Algolia indexing task has finished publishing"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -661,8 +685,8 @@
       "slug": "amplitude",
       "name": "Amplitude",
       "description": "Track events and query analytics from Amplitude",
-      "longDescription": "Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, and retrieve revenue data.",
-      "bgColor": "#1B1F3B",
+      "longDescription": "Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.",
+      "bgColor": "#13294B",
       "iconName": "AmplitudeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/amplitude",
       "operations": [
@@ -688,7 +712,7 @@
         },
         {
           "name": "User Profile",
-          "description": "Get a user profile including properties, cohort memberships, and computed properties."
+          "description": "Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects."
         },
         {
           "name": "Event Segmentation",
@@ -709,9 +733,17 @@
         {
           "name": "Get Revenue",
           "description": "Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user counts."
+        },
+        {
+          "name": "Funnels",
+          "description": "Analyze conversion rates and drop-off between a sequence of events."
+        },
+        {
+          "name": "Retention",
+          "description": "Measure how many users return to perform an action after a starting action."
         }
       ],
-      "operationCount": 11,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -941,9 +973,41 @@
         {
           "name": "Add Comment",
           "description": "Add a comment (story) to an Asana task"
+        },
+        {
+          "name": "Create Subtask",
+          "description": "Create a subtask under an existing Asana task"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Delete an Asana task by its GID (moves it to the trash)"
+        },
+        {
+          "name": "Add Followers",
+          "description": "Add one or more followers to an Asana task"
+        },
+        {
+          "name": "Create Project",
+          "description": "Create a new project in an Asana workspace"
+        },
+        {
+          "name": "Get Project",
+          "description": "Retrieve a single Asana project by its GID"
+        },
+        {
+          "name": "List Workspaces",
+          "description": "List all Asana workspaces and organizations the authenticated user belongs to"
+        },
+        {
+          "name": "Create Section",
+          "description": "Create a new section in an Asana project"
+        },
+        {
+          "name": "List Sections",
+          "description": "List all sections in an Asana project"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 14,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -2607,7 +2671,7 @@
       "slug": "clerk",
       "name": "Clerk",
       "description": "Manage users, organizations, and sessions in Clerk",
-      "longDescription": "Integrate Clerk authentication and user management into your workflow. Create, update, delete, and list users. Manage organizations and their memberships. Monitor and control user sessions.",
+      "longDescription": "Integrate Clerk authentication and user management into your workflow. Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.",
       "bgColor": "#131316",
       "iconName": "ClerkIcon",
       "docsUrl": "https://docs.sim.ai/integrations/clerk",
@@ -2633,6 +2697,26 @@
           "description": "Delete a user from your Clerk application"
         },
         {
+          "name": "Ban User",
+          "description": "Ban a user, preventing them from signing in"
+        },
+        {
+          "name": "Unban User",
+          "description": "Remove a ban from a user, allowing them to sign in again"
+        },
+        {
+          "name": "Lock User",
+          "description": "Lock a user account, blocking sign-in attempts"
+        },
+        {
+          "name": "Unlock User",
+          "description": "Unlock a previously locked user account"
+        },
+        {
+          "name": "Get User OAuth Token",
+          "description": "Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO"
+        },
+        {
           "name": "List Organizations",
           "description": "List all organizations in your Clerk application with optional filtering"
         },
@@ -2645,6 +2729,38 @@
           "description": "Create a new organization in your Clerk application"
         },
         {
+          "name": "Update Organization",
+          "description": "Update an existing organization in your Clerk application"
+        },
+        {
+          "name": "Delete Organization",
+          "description": "Delete an organization from your Clerk application"
+        },
+        {
+          "name": "List Organization Memberships",
+          "description": "List members of a Clerk organization with optional filtering and pagination"
+        },
+        {
+          "name": "Add Organization Member",
+          "description": "Add a user as a member of a Clerk organization with a given role"
+        },
+        {
+          "name": "Update Organization Membership",
+          "description": "Change a member's role within a Clerk organization"
+        },
+        {
+          "name": "Remove Organization Member",
+          "description": "Remove a member from a Clerk organization"
+        },
+        {
+          "name": "Create Organization Invitation",
+          "description": "Invite a user by email to join a Clerk organization with a given role"
+        },
+        {
+          "name": "List Organization Invitations",
+          "description": "List pending and past invitations for a Clerk organization"
+        },
+        {
           "name": "List Sessions",
           "description": "List sessions for a user or client in your Clerk application"
         },
@@ -2655,11 +2771,122 @@
         {
           "name": "Revoke Session",
           "description": "Revoke a session to immediately invalidate it"
+        },
+        {
+          "name": "List Allowlist Identifiers",
+          "description": "List email/phone/web3-wallet identifiers on your Clerk instance allowlist"
+        },
+        {
+          "name": "Create Allowlist Identifier",
+          "description": "Add an email, phone number, or web3 wallet to your Clerk instance allowlist"
+        },
+        {
+          "name": "Delete Allowlist Identifier",
+          "description": "Remove an identifier from your Clerk instance allowlist"
+        },
+        {
+          "name": "List Blocklist Identifiers",
+          "description": "List email/phone/web3-wallet identifiers on your Clerk instance blocklist"
+        },
+        {
+          "name": "Create Blocklist Identifier",
+          "description": "Add an email, phone number, or web3 wallet to your Clerk instance blocklist to prevent sign-ups"
+        },
+        {
+          "name": "Delete Blocklist Identifier",
+          "description": "Remove an identifier from your Clerk instance blocklist"
+        },
+        {
+          "name": "List JWT Templates",
+          "description": "List custom JWT templates configured on your Clerk instance"
+        },
+        {
+          "name": "Get JWT Template",
+          "description": "Retrieve a single custom JWT template by ID from Clerk"
+        },
+        {
+          "name": "Create Actor Token",
+          "description": "Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling"
+        },
+        {
+          "name": "Revoke Actor Token",
+          "description": "Revoke an actor token before it is used or expires"
         }
       ],
-      "operationCount": 11,
-      "triggers": [],
-      "triggerCount": 0,
+      "operationCount": 34,
+      "triggers": [
+        {
+          "id": "clerk_user_created",
+          "name": "Clerk User Created",
+          "description": "Trigger workflow when a Clerk user is created"
+        },
+        {
+          "id": "clerk_user_updated",
+          "name": "Clerk User Updated",
+          "description": "Trigger workflow when a Clerk user is updated"
+        },
+        {
+          "id": "clerk_user_deleted",
+          "name": "Clerk User Deleted",
+          "description": "Trigger workflow when a Clerk user is deleted"
+        },
+        {
+          "id": "clerk_session_created",
+          "name": "Clerk Session Created",
+          "description": "Trigger workflow when a Clerk session is created"
+        },
+        {
+          "id": "clerk_session_ended",
+          "name": "Clerk Session Ended",
+          "description": "Trigger workflow when a Clerk session ends"
+        },
+        {
+          "id": "clerk_session_removed",
+          "name": "Clerk Session Removed",
+          "description": "Trigger workflow when a Clerk session is removed"
+        },
+        {
+          "id": "clerk_session_revoked",
+          "name": "Clerk Session Revoked",
+          "description": "Trigger workflow when a Clerk session is revoked"
+        },
+        {
+          "id": "clerk_organization_created",
+          "name": "Clerk Organization Created",
+          "description": "Trigger workflow when a Clerk organization is created"
+        },
+        {
+          "id": "clerk_organization_updated",
+          "name": "Clerk Organization Updated",
+          "description": "Trigger workflow when a Clerk organization is updated"
+        },
+        {
+          "id": "clerk_organization_deleted",
+          "name": "Clerk Organization Deleted",
+          "description": "Trigger workflow when a Clerk organization is deleted"
+        },
+        {
+          "id": "clerk_organization_membership_created",
+          "name": "Clerk Organization Membership Created",
+          "description": "Trigger workflow when a Clerk organization membership is created"
+        },
+        {
+          "id": "clerk_organization_membership_updated",
+          "name": "Clerk Organization Membership Updated",
+          "description": "Trigger workflow when a Clerk organization membership is updated"
+        },
+        {
+          "id": "clerk_organization_membership_deleted",
+          "name": "Clerk Organization Membership Deleted",
+          "description": "Trigger workflow when a Clerk organization membership is deleted"
+        },
+        {
+          "id": "clerk_webhook",
+          "name": "Clerk Webhook",
+          "description": "Trigger workflow on any Clerk webhook event"
+        }
+      ],
+      "triggerCount": 14,
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
@@ -4274,7 +4501,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["monitoring", "incident-management", "observability"]
+      "tags": ["monitoring", "incident-management"]
     },
     {
       "type": "dropbox",
@@ -4342,7 +4569,7 @@
       "name": "Dropcontact",
       "description": "Enrich B2B contacts with verified email, phone, and company data",
       "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
-      "bgColor": "#0066FF",
+      "bgColor": "#0ABA9F",
       "iconName": "DropcontactIcon",
       "docsUrl": "https://docs.sim.ai/tools/dropcontact",
       "operations": [
@@ -4554,13 +4781,54 @@
       "type": "elevenlabs",
       "slug": "elevenlabs",
       "name": "ElevenLabs",
-      "description": "Convert text to speech with ElevenLabs",
-      "longDescription": "Integrate ElevenLabs into the workflow. Can convert text to speech.",
+      "description": "Generate and transform audio with ElevenLabs",
+      "longDescription": "Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.",
       "bgColor": "#181C1E",
       "iconName": "ElevenLabsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/elevenlabs",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Text to Speech",
+          "description": "Convert text to speech using ElevenLabs voices"
+        },
+        {
+          "name": "Sound Effects",
+          "description": "Generate a sound effect from a text prompt using ElevenLabs"
+        },
+        {
+          "name": "Speech to Speech",
+          "description": "Convert audio into a chosen ElevenLabs voice while preserving content and emotion"
+        },
+        {
+          "name": "Audio Isolation",
+          "description": "Remove background noise from an audio file, isolating the speech using ElevenLabs"
+        },
+        {
+          "name": "List Voices",
+          "description": "List the voices available in your ElevenLabs account"
+        },
+        {
+          "name": "Get Voice",
+          "description": "Get metadata and settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Get Voice Settings",
+          "description": "Get the configured settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Edit Voice Settings",
+          "description": "Update the settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "List Models",
+          "description": "List the models available in ElevenLabs"
+        },
+        {
+          "name": "Get User Info",
+          "description": "Get account and subscription information for the ElevenLabs user"
+        }
+      ],
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4966,6 +5234,10 @@
           "description": "List recent meetings recorded by the user or shared to their team."
         },
         {
+          "name": "List Meeting Types",
+          "description": "List meeting types configured in your Fathom organization."
+        },
+        {
           "name": "Get Summary",
           "description": "Get the call summary for a specific meeting recording."
         },
@@ -4982,7 +5254,7 @@
           "description": "List teams in your Fathom organization."
         }
       ],
-      "operationCount": 5,
+      "operationCount": 6,
       "triggers": [
         {
           "id": "fathom_new_meeting",
@@ -5079,12 +5351,28 @@
           "description": "Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information."
         },
         {
+          "name": "Batch Scrape",
+          "description": "Scrape multiple URLs in a single batch job and retrieve structured content from each page."
+        },
+        {
+          "name": "Batch Scrape Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl batch scrape job by its job ID."
+        },
+        {
           "name": "Search",
           "description": "Search for information on the web using Firecrawl"
         },
         {
           "name": "Crawl",
           "description": "Crawl entire websites and extract structured content from all accessible pages"
+        },
+        {
+          "name": "Crawl Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl crawl job by its job ID."
+        },
+        {
+          "name": "Cancel Crawl",
+          "description": "Cancel an in-progress Firecrawl crawl job by its job ID."
         },
         {
           "name": "Map",
@@ -5095,15 +5383,23 @@
           "description": "Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction."
         },
         {
+          "name": "Extract Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl extract job by its job ID."
+        },
+        {
           "name": "Agent",
           "description": "Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs."
         },
         {
           "name": "Parse Document",
           "description": "Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls."
+        },
+        {
+          "name": "Credit Usage",
+          "description": "Retrieve the remaining and allocated Firecrawl credits for the team."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5957,6 +6253,14 @@
           "description": "List Gong Engage flows (sales engagement sequences)."
         },
         {
+          "name": "Assign Flow Prospects",
+          "description": "Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow."
+        },
+        {
+          "name": "Get Prospect Flows",
+          "description": "Get the Gong Engage flows currently assigned to the given CRM prospects."
+        },
+        {
           "name": "Get Coaching",
           "description": "Retrieve coaching metrics for a manager from Gong."
         },
@@ -5967,9 +6271,17 @@
         {
           "name": "Lookup Phone",
           "description": "Find all references to a phone number in Gong (calls, email messages, meetings, CRM data, and associated contacts)."
+        },
+        {
+          "name": "Purge Email Address",
+          "description": "Erase all Gong data (calls, email messages, leads, contacts) referencing an email address. Asynchronous and irreversible."
+        },
+        {
+          "name": "Purge Phone Number",
+          "description": "Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchronous and irreversible."
         }
       ],
-      "operationCount": 21,
+      "operationCount": 25,
       "triggers": [
         {
           "id": "gong_webhook",
@@ -6031,6 +6343,41 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["marketing", "google-workspace", "data-analytics"]
+    },
+    {
+      "type": "google_appsheet",
+      "slug": "google-appsheet",
+      "name": "Google AppSheet",
+      "description": "Read, add, edit, and delete rows in a Google AppSheet table",
+      "longDescription": "Integrate Google AppSheet into your workflow. Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.",
+      "bgColor": "#FFFFFF",
+      "iconName": "GoogleAppsheetIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/google_appsheet",
+      "operations": [
+        {
+          "name": "Find Rows",
+          "description": "Read rows from an AppSheet table. Omit the selector to return every row, or provide a Selector expression (Filter/Select/OrderBy/Top) to narrow and shape the results."
+        },
+        {
+          "name": "Add Rows",
+          "description": "Add new rows to an AppSheet table. The key column value must be provided explicitly, or omitted when its Initial value expression generates it automatically (e.g. UNIQUEID())."
+        },
+        {
+          "name": "Edit Rows",
+          "description": "Update existing rows in an AppSheet table. Each row must explicitly include the key column name and value, plus any columns to change."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows from an AppSheet table. Each row only needs to include the key column name and value."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["spreadsheet", "automation", "google-workspace"]
     },
     {
       "type": "google_bigquery",
@@ -6233,8 +6580,8 @@
       "type": "google_docs",
       "slug": "google-docs",
       "name": "Google Docs",
-      "description": "Read, write, and create documents",
-      "longDescription": "Integrate Google Docs into the workflow. Can read, write, and create documents.",
+      "description": "Read, write, create, and edit documents",
+      "longDescription": "Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.",
       "bgColor": "#FFFFFF",
       "iconName": "GoogleDocsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_docs",
@@ -6250,9 +6597,57 @@
         {
           "name": "Create Document",
           "description": "Create a new Google Docs document"
+        },
+        {
+          "name": "Insert Text",
+          "description": "Insert text at a specific index in a Google Docs document. When no index is provided, text is appended to the end of the document. Text is inserted literally; Markdown is not interpreted."
+        },
+        {
+          "name": "Find & Replace Text",
+          "description": "Replace all occurrences of a search string with new text across a Google Docs document."
+        },
+        {
+          "name": "Insert Table",
+          "description": "Insert an empty table with the given number of rows and columns into a Google Docs document. When no index is provided, the table is appended to the end of the document."
+        },
+        {
+          "name": "Insert Image",
+          "description": "Insert an inline image from a public URL into a Google Docs document. The image must be publicly accessible and under 50 MB. When no index is provided, the image is appended to the end of the document."
+        },
+        {
+          "name": "Insert Page Break",
+          "description": "Insert a page break into a Google Docs document. When no index is provided, the page break is appended to the end of the document."
+        },
+        {
+          "name": "Apply Text Style",
+          "description": "Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Apply Paragraph Style",
+          "description": "Apply a named paragraph style (such as a heading or title) and/or alignment to the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Create Bullets",
+          "description": "Add bulleted or numbered list formatting to the paragraphs overlapping a range of text in a Google Docs document, using a chosen bullet glyph preset."
+        },
+        {
+          "name": "Delete Bullets",
+          "description": "Remove bullet or numbered list formatting from the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index."
+        },
+        {
+          "name": "Delete Content Range",
+          "description": "Delete all content between a start and end character index in a Google Docs document. The endIndex is exclusive and must be greater than the startIndex."
+        },
+        {
+          "name": "Create Named Range",
+          "description": "Create a named range over a span of content in a Google Docs document so it can be referenced or deleted later. The name may be 1-256 characters and need not be unique."
+        },
+        {
+          "name": "Delete Named Range",
+          "description": "Delete one or more named ranges from a Google Docs document by their ID or by name. Provide exactly one of namedRangeId or name; deleting by name removes all ranges sharing that name. The content itself is not removed."
         }
       ],
-      "operationCount": 3,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -6340,11 +6735,35 @@
           "description": "List all permissions (who has access) for a file in Google Drive"
         },
         {
+          "name": "Export File",
+          "description": "Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV"
+        },
+        {
+          "name": "List Revisions",
+          "description": "List the revision history of a file in Google Drive"
+        },
+        {
+          "name": "Get Revision",
+          "description": "Get metadata for a specific revision of a file in Google Drive"
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on a file in Google Drive"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a file in Google Drive"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a file in Google Drive"
+        },
+        {
           "name": "Get Drive Info",
           "description": "Get information about the user and their Google Drive (storage quota, capabilities)"
         }
       ],
-      "operationCount": 18,
+      "operationCount": 24,
       "triggers": [
         {
           "id": "google_drive_poller",
@@ -7099,7 +7518,7 @@
       "name": "Grafana",
       "description": "Interact with Grafana dashboards, alerts, and annotations",
       "longDescription": "Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.",
-      "bgColor": "#F46800",
+      "bgColor": "#FFFFFF",
       "iconName": "GrafanaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/grafana",
       "operations": [
@@ -7483,7 +7902,7 @@
       "slug": "hex",
       "name": "Hex",
       "description": "Run and manage Hex projects",
-      "longDescription": "Integrate Hex into your workflow. Run projects, check run status, manage collections and groups, list users, and view data connections. Requires a Hex API token.",
+      "longDescription": "Integrate Hex into your workflow. Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.",
       "bgColor": "#14151A",
       "iconName": "HexIcon",
       "docsUrl": "https://docs.sim.ai/integrations/hex",
@@ -7545,15 +7964,35 @@
           "description": "Create a new collection in the Hex workspace to organize projects."
         },
         {
+          "name": "Update Collection",
+          "description": "Update the name or description of an existing Hex collection."
+        },
+        {
           "name": "List Data Connections",
           "description": "List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery)."
         },
         {
           "name": "Get Data Connection",
           "description": "Retrieve details for a specific data connection including type, description, and configuration flags."
+        },
+        {
+          "name": "Create Group",
+          "description": "Create a new group in the Hex workspace, optionally with initial members."
+        },
+        {
+          "name": "Update Group",
+          "description": "Rename a Hex group or add/remove members from it."
+        },
+        {
+          "name": "Delete Group",
+          "description": "Delete a group from the Hex workspace."
+        },
+        {
+          "name": "Deactivate User",
+          "description": "Deactivate a user in the Hex workspace."
         }
       ],
-      "operationCount": 16,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8023,8 +8462,29 @@
         }
       ],
       "operationCount": 46,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "incidentio_incident_created",
+          "name": "incident.io Incident Created",
+          "description": "Trigger workflow when an incident is created in incident.io"
+        },
+        {
+          "id": "incidentio_incident_updated",
+          "name": "incident.io Incident Updated",
+          "description": "Trigger workflow when an incident is updated in incident.io"
+        },
+        {
+          "id": "incidentio_incident_status_updated",
+          "name": "incident.io Incident Status Updated",
+          "description": "Trigger workflow when an incident"
+        },
+        {
+          "id": "incidentio_alert_created",
+          "name": "incident.io Alert Created",
+          "description": "Trigger workflow when an alert is created in incident.io"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -8551,9 +9011,29 @@
         {
           "name": "Search Users",
           "description": "Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress."
+        },
+        {
+          "name": "List Projects",
+          "description": "List Jira projects visible to the user, with optional name/key filtering and pagination. Returns each project with id, key, name, and type."
+        },
+        {
+          "name": "Get Project",
+          "description": "Get the details of a single Jira project by its ID or key, including its type, lead, components, issue types, and versions."
+        },
+        {
+          "name": "Get Transitions",
+          "description": "Get the workflow transitions available for an issue in its current status. Use the returned transition IDs with the Transition Issue operation."
+        },
+        {
+          "name": "List Issue Types",
+          "description": "List all issue types visible to the user across projects (e.g., Task, Bug, Story, Epic, Subtask). Useful for discovering valid issue types before creating an issue."
+        },
+        {
+          "name": "Get Fields",
+          "description": "Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues."
         }
       ],
-      "operationCount": 25,
+      "operationCount": 30,
       "triggers": [
         {
           "id": "jira_issue_created",
@@ -9019,9 +9499,21 @@
         {
           "name": "Create Runs Batch",
           "description": "Forward multiple runs to LangSmith in a single batch."
+        },
+        {
+          "name": "Update Run",
+          "description": "Patch an existing LangSmith run with outputs, status, or timing once it completes."
+        },
+        {
+          "name": "Get Run",
+          "description": "Retrieve a single LangSmith run by ID."
+        },
+        {
+          "name": "Create Feedback",
+          "description": "Attach a score, correction, or comment to a LangSmith run."
         }
       ],
-      "operationCount": 2,
+      "operationCount": 5,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -9749,7 +10241,7 @@
         },
         {
           "name": "Mark Chat as Read",
-          "description": "Mark all messages in a chat as read"
+          "description": "Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)"
         },
         {
           "name": "Leave Chat",
@@ -9865,8 +10357,39 @@
         }
       ],
       "operationCount": 34,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "linq_message_received",
+          "name": "Linq Message Received",
+          "description": "Trigger workflow when an inbound message is received"
+        },
+        {
+          "id": "linq_message_delivered",
+          "name": "Linq Message Delivered",
+          "description": "Trigger workflow when a message is delivered"
+        },
+        {
+          "id": "linq_message_failed",
+          "name": "Linq Message Failed",
+          "description": "Trigger workflow when a message fails to deliver"
+        },
+        {
+          "id": "linq_message_read",
+          "name": "Linq Message Read",
+          "description": "Trigger workflow when a message is read"
+        },
+        {
+          "id": "linq_reaction_added",
+          "name": "Linq Reaction Added",
+          "description": "Trigger workflow when a reaction is added to a message"
+        },
+        {
+          "id": "linq_webhook",
+          "name": "Linq Webhook (All Events)",
+          "description": "Trigger on any Linq webhook event (messages, reactions, chats, and more)"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -9912,7 +10435,7 @@
         },
         {
           "name": "List Transactional Emails",
-          "description": "Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, last updated timestamp, and data variables."
+          "description": "Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables."
         },
         {
           "name": "Create Contact Property",
@@ -9921,11 +10444,64 @@
         {
           "name": "List Contact Properties",
           "description": "Retrieve a list of contact properties from your Loops account. Returns each property with its key, label, and data type. Can filter to show all properties or only custom ones."
+        },
+        {
+          "name": "Check Contact Suppression",
+          "description": "Check whether a Loops contact is on the suppression list (bounced, complained, or unsubscribed) by email address or userId."
+        },
+        {
+          "name": "Remove Contact Suppression",
+          "description": "Remove a Loops contact from the suppression list by email address or userId, allowing them to receive emails again. Subject to a team removal quota."
+        },
+        {
+          "name": "Get Transactional Email",
+          "description": "Retrieve a single transactional email template from your Loops account by its ID, including its data variables and draft/published message IDs."
         }
       ],
-      "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "operationCount": 13,
+      "triggers": [
+        {
+          "id": "loops_email_delivered",
+          "name": "Loops Email Delivered",
+          "description": "Trigger workflow when a Loops email is delivered"
+        },
+        {
+          "id": "loops_email_opened",
+          "name": "Loops Email Opened",
+          "description": "Trigger workflow when a Loops email is opened"
+        },
+        {
+          "id": "loops_email_clicked",
+          "name": "Loops Email Clicked",
+          "description": "Trigger workflow when a link in a Loops email is clicked"
+        },
+        {
+          "id": "loops_email_hard_bounced",
+          "name": "Loops Email Hard Bounced",
+          "description": "Trigger workflow when a Loops email hard bounces"
+        },
+        {
+          "id": "loops_email_soft_bounced",
+          "name": "Loops Email Soft Bounced",
+          "description": "Trigger workflow when a Loops email soft bounces"
+        },
+        {
+          "id": "loops_campaign_email_sent",
+          "name": "Loops Campaign Email Sent",
+          "description": "Trigger workflow when a Loops campaign email is sent"
+        },
+        {
+          "id": "loops_loop_email_sent",
+          "name": "Loops Loop Email Sent",
+          "description": "Trigger workflow when a Loops loop email is sent"
+        },
+        {
+          "id": "loops_transactional_email_sent",
+          "name": "Loops Transactional Email Sent",
+          "description": "Trigger workflow when a Loops transactional email is sent"
+        }
+      ],
+      "triggerCount": 8,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
@@ -10492,9 +11068,29 @@
         {
           "name": "Write Data",
           "description": "Write data to a Microsoft Excel spreadsheet"
+        },
+        {
+          "name": "Clear Range",
+          "description": "Clear the values and/or formatting of a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Format Range",
+          "description": "Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Create Table",
+          "description": "Create a new table over a range of cells in a Microsoft Excel workbook"
+        },
+        {
+          "name": "Sort Range",
+          "description": "Sort a range or table by a column in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Delete Worksheet",
+          "description": "Delete a worksheet (sheet) from a Microsoft Excel workbook"
         }
       ],
-      "operationCount": 2,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -10741,6 +11337,14 @@
           "description": "Update column values of an item on a Monday.com board"
         },
         {
+          "name": "Change Column Value",
+          "description": "Update a single column's value on a Monday.com item"
+        },
+        {
+          "name": "Duplicate Item",
+          "description": "Duplicate an existing item on a Monday.com board"
+        },
+        {
           "name": "Delete Item",
           "description": "Delete an item from a Monday.com board"
         },
@@ -10763,9 +11367,21 @@
         {
           "name": "Create Group",
           "description": "Create a new group on a Monday.com board"
+        },
+        {
+          "name": "Get Groups",
+          "description": "Get the groups on a Monday.com board"
+        },
+        {
+          "name": "Create Board",
+          "description": "Create a new board in Monday.com"
+        },
+        {
+          "name": "Create Column",
+          "description": "Create a new column on a Monday.com board"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "monday_item_created",
@@ -10903,7 +11519,8 @@
       "triggerCount": 0,
       "authType": "none",
       "category": "tools",
-      "integrationType": "databases"
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "neo4j",
@@ -11297,8 +11914,8 @@
       "type": "outlook",
       "slug": "outlook",
       "name": "Outlook",
-      "description": "Send, read, draft, forward, and move Outlook email messages",
-      "longDescription": "Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
+      "description": "Send, read, search, reply, organize, and manage Outlook email",
+      "longDescription": "Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
       "bgColor": "#FFFFFF",
       "iconName": "OutlookIcon",
       "docsUrl": "https://docs.sim.ai/integrations/outlook",
@@ -11316,12 +11933,28 @@
           "description": "Read emails from Outlook"
         },
         {
+          "name": "Search Email",
+          "description": "Search Outlook messages using a free-text query (Microsoft Graph $search)"
+        },
+        {
+          "name": "Reply to Email",
+          "description": "Reply to the sender of an Outlook message with a comment"
+        },
+        {
+          "name": "Reply All",
+          "description": "Reply to all recipients of an Outlook message with a comment"
+        },
+        {
           "name": "Forward Email",
           "description": "Forward an existing Outlook message to specified recipients"
         },
         {
           "name": "Move Email",
           "description": "Move emails between Outlook folders"
+        },
+        {
+          "name": "Copy Email",
+          "description": "Copy an Outlook message to another folder"
         },
         {
           "name": "Mark as Read",
@@ -11332,15 +11965,31 @@
           "description": "Mark an Outlook message as unread"
         },
         {
+          "name": "Set Categories & Flag",
+          "description": "Set the categories, follow-up flag, and importance on an Outlook message"
+        },
+        {
           "name": "Delete Email",
           "description": "Delete an Outlook message (move to Deleted Items)"
         },
         {
-          "name": "Copy Email",
-          "description": "Copy an Outlook message to another folder"
+          "name": "List Folders",
+          "description": "List mail folders in the root of the Outlook mailbox"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new mail folder in the root of the Outlook mailbox"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List the attachments on an Outlook message (metadata only, without contents)"
+        },
+        {
+          "name": "Get Attachment",
+          "description": "Get a single attachment on an Outlook message, including its file contents"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 17,
       "triggers": [
         {
           "id": "outlook_poller",
@@ -11678,7 +12327,7 @@
       "slug": "pinecone",
       "name": "Pinecone",
       "description": "Use Pinecone vector database",
-      "longDescription": "Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.",
+      "longDescription": "Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.",
       "bgColor": "#0D1117",
       "iconName": "PineconeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pinecone",
@@ -11692,6 +12341,14 @@
           "description": "Insert or update text records in a Pinecone index"
         },
         {
+          "name": "Update Vector",
+          "description": "Update the values, sparse values, or metadata of a vector in a Pinecone namespace"
+        },
+        {
+          "name": "Delete Vectors",
+          "description": "Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all"
+        },
+        {
           "name": "Search With Text",
           "description": "Search for similar text in a Pinecone index"
         },
@@ -11702,9 +12359,25 @@
         {
           "name": "Fetch Vectors",
           "description": "Fetch vectors by ID from a Pinecone index"
+        },
+        {
+          "name": "List Vector IDs",
+          "description": "List vector IDs in a Pinecone namespace by prefix (serverless indexes only)"
+        },
+        {
+          "name": "Describe Index Stats",
+          "description": "Get statistics about a Pinecone index, including per-namespace vector counts"
+        },
+        {
+          "name": "List Indexes",
+          "description": "List all Pinecone indexes in the project"
+        },
+        {
+          "name": "Describe Index",
+          "description": "Get the configuration and status of a Pinecone index by name"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -11943,7 +12616,8 @@
       "triggerCount": 0,
       "authType": "none",
       "category": "tools",
-      "integrationType": "databases"
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "posthog",
@@ -12959,6 +13633,10 @@
           "description": "Retrieve details of a previously sent email by its ID"
         },
         {
+          "name": "Cancel Email",
+          "description": "Cancel a scheduled email before it is sent"
+        },
+        {
           "name": "Create Contact",
           "description": "Create a new contact in Resend"
         },
@@ -12979,11 +13657,39 @@
           "description": "Delete a contact from Resend by ID or email"
         },
         {
+          "name": "Create Audience",
+          "description": "Create a new audience in Resend"
+        },
+        {
+          "name": "Get Audience",
+          "description": "Retrieve details of an audience by ID"
+        },
+        {
+          "name": "List Audiences",
+          "description": "List all audiences in Resend"
+        },
+        {
+          "name": "Delete Audience",
+          "description": "Delete an audience from Resend by ID"
+        },
+        {
+          "name": "Create Broadcast",
+          "description": "Create a broadcast email for an audience in Resend"
+        },
+        {
+          "name": "Send Broadcast",
+          "description": "Send a broadcast immediately or schedule it for later"
+        },
+        {
+          "name": "Get Broadcast",
+          "description": "Retrieve details of a broadcast by ID"
+        },
+        {
           "name": "List Domains",
           "description": "List all verified domains in your Resend account"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 16,
       "triggers": [
         {
           "id": "resend_email_sent",
@@ -13084,8 +13790,39 @@
         }
       ],
       "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "revenuecat_initial_purchase",
+          "name": "RevenueCat Initial Purchase",
+          "description": "Trigger workflow when a subscriber makes their first purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_renewal",
+          "name": "RevenueCat Renewal",
+          "description": "Trigger workflow when a RevenueCat subscription renews"
+        },
+        {
+          "id": "revenuecat_cancellation",
+          "name": "RevenueCat Cancellation",
+          "description": "Trigger workflow when a subscriber cancels a RevenueCat subscription"
+        },
+        {
+          "id": "revenuecat_expiration",
+          "name": "RevenueCat Expiration",
+          "description": "Trigger workflow when a RevenueCat subscription expires"
+        },
+        {
+          "id": "revenuecat_non_renewing_purchase",
+          "name": "RevenueCat Non-Renewing Purchase",
+          "description": "Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_product_change",
+          "name": "RevenueCat Product Change",
+          "description": "Trigger workflow when a subscriber changes their RevenueCat subscription product"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "commerce",
@@ -13630,8 +14367,29 @@
         }
       ],
       "operationCount": 41,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "rootly_incident_created",
+          "name": "Rootly Incident Created",
+          "description": "Trigger workflow when a new incident is created in Rootly"
+        },
+        {
+          "id": "rootly_incident_updated",
+          "name": "Rootly Incident Updated",
+          "description": "Trigger workflow when an incident is updated in Rootly"
+        },
+        {
+          "id": "rootly_incident_resolved",
+          "name": "Rootly Incident Resolved",
+          "description": "Trigger workflow when an incident is resolved in Rootly"
+        },
+        {
+          "id": "rootly_alert_created",
+          "name": "Rootly Alert Created",
+          "description": "Trigger workflow when a new alert is created in Rootly"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -13641,8 +14399,8 @@
       "type": "s3",
       "slug": "s3",
       "name": "S3",
-      "description": "Upload, download, list, and manage S3 files",
-      "longDescription": "Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.",
+      "description": "Upload, download, list, and manage S3 files and buckets",
+      "longDescription": "Integrate S3 into the workflow. Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)",
       "iconName": "S3Icon",
       "docsUrl": "https://docs.sim.ai/integrations/s3",
@@ -13664,11 +14422,35 @@
           "description": "Delete an object from an AWS S3 bucket"
         },
         {
+          "name": "Delete Objects (Batch)",
+          "description": "Delete multiple objects from an AWS S3 bucket in a single batch request"
+        },
+        {
           "name": "Copy Object",
           "description": "Copy an object within or between AWS S3 buckets"
+        },
+        {
+          "name": "Head Object (Metadata)",
+          "description": "Retrieve metadata for an S3 object without downloading its body"
+        },
+        {
+          "name": "Presigned URL",
+          "description": "Generate a time-limited presigned URL to download or upload an S3 object"
+        },
+        {
+          "name": "List Buckets",
+          "description": "List the S3 buckets owned by the authenticated AWS account"
+        },
+        {
+          "name": "Create Bucket",
+          "description": "Create a new AWS S3 bucket in the specified region"
+        },
+        {
+          "name": "Delete Bucket",
+          "description": "Delete an empty AWS S3 bucket"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -14554,8 +15336,34 @@
         }
       ],
       "operationCount": 13,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "sentry_issue_created",
+          "name": "Sentry Issue Created",
+          "description": "Trigger workflow when a new issue is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_resolved",
+          "name": "Sentry Issue Resolved",
+          "description": "Trigger workflow when an issue is resolved in Sentry"
+        },
+        {
+          "id": "sentry_error_created",
+          "name": "Sentry Error Created",
+          "description": "Trigger workflow when a new error event is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_alert",
+          "name": "Sentry Issue Alert",
+          "description": "Trigger workflow when a Sentry issue alert rule fires"
+        },
+        {
+          "id": "sentry_metric_alert",
+          "name": "Sentry Metric Alert",
+          "description": "Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)"
+        }
+      ],
+      "triggerCount": 5,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -14696,7 +15504,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "documents"
+      "integrationType": "documents",
+      "tags": ["document-processing", "automation"]
     },
     {
       "type": "sharepoint_v2",
@@ -14715,6 +15524,18 @@
         {
           "name": "Read Page",
           "description": "Read a specific page from a SharePoint site"
+        },
+        {
+          "name": "Update Page",
+          "description": "Update the title and/or content of a SharePoint page"
+        },
+        {
+          "name": "Publish Page",
+          "description": "Publish the latest version of a SharePoint page, making it available to all users"
+        },
+        {
+          "name": "Delete Page",
+          "description": "Delete a page from a SharePoint site"
         },
         {
           "name": "List Sites",
@@ -14737,11 +15558,31 @@
           "description": "Add a new item to a SharePoint list"
         },
         {
+          "name": "Get List Item",
+          "description": "Get a single item (with field values) from a SharePoint list"
+        },
+        {
+          "name": "Delete List Item",
+          "description": "Delete an item from a SharePoint list"
+        },
+        {
           "name": "Upload File",
           "description": "Upload files to a SharePoint document library"
+        },
+        {
+          "name": "Download File",
+          "description": "Download a file from a SharePoint document library"
+        },
+        {
+          "name": "Get Drive Item",
+          "description": "Get metadata for a file or folder in a SharePoint document library"
+        },
+        {
+          "name": "Delete File",
+          "description": "Delete a file (or folder) from a SharePoint document library"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -14883,9 +15724,13 @@
         {
           "name": "Visit Duration (Desktop)",
           "description": "Get average desktop visit duration over time (in seconds)"
+        },
+        {
+          "name": "Page Views",
+          "description": "Get total page views over time (desktop and mobile combined)"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -15077,9 +15922,37 @@
         {
           "name": "Publish View",
           "description": "Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience."
+        },
+        {
+          "name": "Schedule Message",
+          "description": "Schedule a message to be sent to a Slack channel or DM at a future time."
+        },
+        {
+          "name": "List Scheduled Messages",
+          "description": "List pending scheduled messages in a Slack workspace, optionally filtered by channel."
+        },
+        {
+          "name": "Delete Scheduled Message",
+          "description": "Delete a pending scheduled message before it posts to Slack."
+        },
+        {
+          "name": "Archive Conversation",
+          "description": "Archive a Slack channel so it is closed to new activity."
+        },
+        {
+          "name": "Rename Conversation",
+          "description": "Rename an existing Slack channel."
+        },
+        {
+          "name": "Set Conversation Topic",
+          "description": "Set the topic for a Slack channel (max 250 characters)."
+        },
+        {
+          "name": "Set Conversation Purpose",
+          "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 35,
+      "operationCount": 42,
       "triggers": [
         {
           "id": "slack_webhook",
@@ -15096,11 +15969,11 @@
       "landingContent": {
         "install": {
           "heading": "Add Sim to your Slack workspace",
-          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in) — connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
+          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in). Connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
           "steps": [
             {
               "title": "Create your free Sim account",
-              "body": "Sign up at sim.ai — no credit card required."
+              "body": "Sign up at sim.ai. No credit card required."
             },
             {
               "title": "Add a Slack block",
@@ -15120,7 +15993,7 @@
           "body": "Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.",
           "href": "/privacy"
         },
-        "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete — review automated outputs before relying on them, especially for important communications."
+        "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       }
     },
     {
@@ -15138,7 +16011,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "email"
+      "integrationType": "email",
+      "tags": ["messaging", "automation"]
     },
     {
       "type": "sportmonks",
@@ -16266,7 +17140,8 @@
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
-      "integrationType": "devops"
+      "integrationType": "devops",
+      "tags": ["automation"]
     },
     {
       "type": "stagehand",
@@ -16576,7 +17451,7 @@
         },
         {
           "name": "Introspect Schema",
-          "description": "Introspect Supabase database schema to get table structures, columns, and relationships"
+          "description": "Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)"
         },
         {
           "name": "Storage: Upload File",
@@ -16611,8 +17486,20 @@
           "description": "Create a temporary signed URL for a file in a Supabase storage bucket"
         },
         {
+          "name": "Storage: Create Signed Upload URL",
+          "description": "Create a temporary signed URL a client can use to upload directly to a Supabase storage bucket"
+        },
+        {
           "name": "Storage: Create Bucket",
           "description": "Create a new storage bucket in Supabase"
+        },
+        {
+          "name": "Storage: Update Bucket",
+          "description": "Update the configuration of an existing Supabase storage bucket"
+        },
+        {
+          "name": "Storage: Empty Bucket",
+          "description": "Delete all objects inside a Supabase storage bucket without deleting the bucket itself"
         },
         {
           "name": "Storage: List Buckets",
@@ -16623,7 +17510,7 @@
           "description": "Delete a storage bucket in Supabase"
         }
       ],
-      "operationCount": 23,
+      "operationCount": 26,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16674,6 +17561,10 @@
           "description": "Enable or disable key expiry on a device"
         },
         {
+          "name": "Expire Device Key",
+          "description": "Immediately expire a device's node key, requiring it to re-authenticate before it can reconnect to the tailnet"
+        },
+        {
           "name": "List DNS Nameservers",
           "description": "Get the DNS nameservers configured for the tailnet"
         },
@@ -16702,6 +17593,14 @@
           "description": "List all users in the tailnet"
         },
         {
+          "name": "Suspend User",
+          "description": "Suspend a user's access to the tailnet"
+        },
+        {
+          "name": "Delete User",
+          "description": "Delete a user from the tailnet"
+        },
+        {
           "name": "Create Auth Key",
           "description": "Create a new auth key for the tailnet to pre-authorize devices"
         },
@@ -16720,9 +17619,13 @@
         {
           "name": "Get ACL",
           "description": "Get the current ACL policy for the tailnet"
+        },
+        {
+          "name": "Set ACL",
+          "description": "Replace the ACL policy file for the tailnet"
         }
       ],
-      "operationCount": 20,
+      "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16770,7 +17673,7 @@
       "slug": "telegram",
       "name": "Telegram",
       "description": "Interact with Telegram",
-      "longDescription": "Integrate Telegram into the workflow. Can send and delete messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.",
+      "longDescription": "Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete messages; send media, locations, contacts, and polls; react to messages; show chat actions; and look up chat and member info. Can be used in trigger mode to start a workflow when a message is sent to a chat.",
       "bgColor": "#FFFFFF",
       "iconName": "TelegramIcon",
       "docsUrl": "https://docs.sim.ai/integrations/telegram",
@@ -16800,11 +17703,59 @@
           "description": "Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the Telegram Bot API."
         },
         {
+          "name": "Send Location",
+          "description": "Send a point on the map to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Contact",
+          "description": "Send a phone contact to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Poll",
+          "description": "Send a native poll to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Chat Action",
+          "description": "Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Edit Message Text",
+          "description": "Edit the text of an existing message in a Telegram chat or channel through the Telegram Bot API."
+        },
+        {
+          "name": "Forward Message",
+          "description": "Forward a message from one Telegram chat to another through the Telegram Bot API."
+        },
+        {
+          "name": "Copy Message",
+          "description": "Copy a message to another Telegram chat without a forward header through the Telegram Bot API."
+        },
+        {
           "name": "Delete Message",
           "description": "Delete messages in Telegram channels or chats through the Telegram Bot API. Requires the message ID of the message to delete."
+        },
+        {
+          "name": "Pin Message",
+          "description": "Pin a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Unpin Message",
+          "description": "Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins the most recent pinned message when no message ID is given."
+        },
+        {
+          "name": "Set Message Reaction",
+          "description": "Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat",
+          "description": "Get up-to-date information about a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat Member",
+          "description": "Get information about a member of a Telegram chat through the Telegram Bot API."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "telegram_webhook",
@@ -17171,8 +18122,8 @@
       "type": "trello",
       "slug": "trello",
       "name": "Trello",
-      "description": "Manage Trello lists, cards, and activity",
-      "longDescription": "Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.",
+      "description": "Manage Trello lists, cards, checklists, and activity",
+      "longDescription": "Integrate with Trello to list, search, create, update, and delete cards and lists, manage checklists and checklist items, assign labels and members, review activity, and add comments.",
       "bgColor": "#0052CC",
       "iconName": "TrelloIcon",
       "docsUrl": "https://docs.sim.ai/integrations/trello",
@@ -17186,12 +18137,24 @@
           "description": "List cards from a Trello board or list"
         },
         {
+          "name": "Search",
+          "description": "Search Trello cards and boards by keyword"
+        },
+        {
           "name": "Create Card",
           "description": "Create a new card in a Trello list"
         },
         {
+          "name": "Get Card",
+          "description": "Retrieve a single Trello card by ID"
+        },
+        {
           "name": "Update Card",
           "description": "Update an existing card on Trello"
+        },
+        {
+          "name": "Delete Card",
+          "description": "Permanently delete a Trello card"
         },
         {
           "name": "Get Actions",
@@ -17200,9 +18163,57 @@
         {
           "name": "Add Comment",
           "description": "Add a comment to a Trello card"
+        },
+        {
+          "name": "Add Checklist",
+          "description": "Add a checklist to a Trello card"
+        },
+        {
+          "name": "Add Checklist Item",
+          "description": "Add an item to a Trello checklist"
+        },
+        {
+          "name": "Update Checklist Item",
+          "description": "Check off, uncheck, or rename a Trello checklist item"
+        },
+        {
+          "name": "Add Label",
+          "description": "Attach an existing label to a Trello card"
+        },
+        {
+          "name": "Remove Label",
+          "description": "Detach a label from a Trello card"
+        },
+        {
+          "name": "Add Member",
+          "description": "Assign a member to a Trello card"
+        },
+        {
+          "name": "Remove Member",
+          "description": "Unassign a member from a Trello card"
+        },
+        {
+          "name": "List Members",
+          "description": "List members of a Trello board"
+        },
+        {
+          "name": "Create Board",
+          "description": "Create a new Trello board"
+        },
+        {
+          "name": "Get Board",
+          "description": "Retrieve a single Trello board by ID"
+        },
+        {
+          "name": "Create List",
+          "description": "Create a new list on a Trello board"
+        },
+        {
+          "name": "Update List",
+          "description": "Rename, move, archive, or reopen a Trello list"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -17417,8 +18428,19 @@
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
       "operations": [],
       "operationCount": 0,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "twilio_sms_received",
+          "name": "Twilio SMS Received",
+          "description": "Trigger workflow when an inbound SMS or MMS message is received via Twilio"
+        },
+        {
+          "id": "twilio_sms_status",
+          "name": "Twilio Message Status",
+          "description": "Trigger workflow when a Twilio message status changes (sent, delivered, failed)"
+        }
+      ],
+      "triggerCount": 2,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -18245,12 +19267,37 @@
       "slug": "whatsapp",
       "name": "WhatsApp",
       "description": "Send WhatsApp messages",
-      "longDescription": "Integrate WhatsApp into the workflow. Can send messages.",
+      "longDescription": "Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API.",
       "bgColor": "#25D366",
       "iconName": "WhatsAppIcon",
       "docsUrl": "https://docs.sim.ai/integrations/whatsapp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Send Message",
+          "description": "Send a text message through the WhatsApp Cloud API."
+        },
+        {
+          "name": "Send Template",
+          "description": "Send a pre-approved WhatsApp template message with a language and optional variable components."
+        },
+        {
+          "name": "Send Media",
+          "description": "Send an image, document, video, or audio message via a public link or an uploaded media ID."
+        },
+        {
+          "name": "Send Interactive",
+          "description": "Send an interactive WhatsApp message with reply buttons or a selectable list."
+        },
+        {
+          "name": "Send Reaction",
+          "description": "React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction."
+        },
+        {
+          "name": "Mark As Read",
+          "description": "Mark a received WhatsApp message as read so the sender sees blue checkmarks."
+        }
+      ],
+      "operationCount": 6,
       "triggers": [
         {
           "id": "whatsapp_webhook",
@@ -18262,7 +19309,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation", "customer-support", "marketing"]
     },
     {
       "type": "wikipedia",
@@ -18339,7 +19386,7 @@
       "slug": "wordpress",
       "name": "WordPress",
       "description": "Manage WordPress content",
-      "longDescription": "Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.",
+      "longDescription": "Integrate with WordPress.com to create, update, and manage posts, pages, media, comments, categories, tags, and users. Connects to WordPress.com sites via OAuth.",
       "bgColor": "#21759B",
       "iconName": "WordpressIcon",
       "docsUrl": "https://docs.sim.ai/integrations/wordpress",
@@ -18421,12 +19468,36 @@
           "description": "Create a new category in WordPress.com"
         },
         {
+          "name": "Update Category",
+          "description": "Update an existing category in WordPress.com"
+        },
+        {
+          "name": "Delete Category",
+          "description": "Delete a category from WordPress.com"
+        },
+        {
+          "name": "Get Category",
+          "description": "Get a single category from WordPress.com by ID"
+        },
+        {
           "name": "List Categories",
           "description": "List categories from WordPress.com"
         },
         {
           "name": "Create Tag",
           "description": "Create a new tag in WordPress.com"
+        },
+        {
+          "name": "Update Tag",
+          "description": "Update an existing tag in WordPress.com"
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Delete a tag from WordPress.com"
+        },
+        {
+          "name": "Get Tag",
+          "description": "Get a single tag from WordPress.com by ID"
         },
         {
           "name": "List Tags",
@@ -18449,7 +19520,7 @@
           "description": "Search across all content types in WordPress.com (posts, pages, media)"
         }
       ],
-      "operationCount": 26,
+      "operationCount": 32,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

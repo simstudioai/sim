@@ -43,7 +43,7 @@ export const getRecordTool: ToolConfig<AlgoliaGetRecordParams, AlgoliaGetRecordR
   request: {
     method: 'GET',
     url: (params) => {
-      const base = `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/${encodeURIComponent(params.objectID)}`
+      const base = `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/${encodeURIComponent(params.objectID.trim())}`
       if (params.attributesToRetrieve) {
         return `${base}?attributesToRetrieve=${encodeURIComponent(params.attributesToRetrieve)}`
       }

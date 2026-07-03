@@ -1,7 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
-  a2aAgent,
   chat,
   webhook,
   workflow,
@@ -437,7 +436,6 @@ async function restoreFolderRecursively(
       .update(workflowMcpTool)
       .set(restoreSet)
       .where(inArray(workflowMcpTool.workflowId, workflowIds))
-    await tx.update(a2aAgent).set(restoreSet).where(inArray(a2aAgent.workflowId, workflowIds))
 
     stats.workflows += archivedWorkflows.length
   }

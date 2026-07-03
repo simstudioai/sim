@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 865,
-  zodRoutes: 865,
+  totalRoutes: 885,
+  zodRoutes: 885,
   nonZodRoutes: 0,
 } as const
 
@@ -25,13 +25,12 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
   doubleCasts: 8,
-  rawJsonReads: 21,
+  rawJsonReads: 8,
   untypedResponses: 0,
   annotationsMissingReason: 0,
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
-  'apps/sim/app/api/contact/route.ts',
   'apps/sim/app/api/demo-requests/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',
@@ -65,6 +64,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
   'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',
+  'apps/sim/app/api/cron/reconcile-inbox-entitlement/route.ts',
   'apps/sim/app/api/cron/run-data-drains/route.ts',
   'apps/sim/app/api/logs/cleanup/route.ts',
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
@@ -100,9 +100,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
  * `// boundary-raw-json: <reason>` instead.
  */
 const RAW_JSON_BASELINE_ROUTES = new Set([
-  'apps/sim/app/api/a2a/serve/[agentId]/route.ts',
   'apps/sim/app/api/billing/portal/route.ts',
-  'apps/sim/app/api/contact/route.ts',
   'apps/sim/app/api/copilot/api-keys/generate/route.ts',
   'apps/sim/app/api/copilot/api-keys/validate/route.ts',
   'apps/sim/app/api/copilot/chat/abort/route.ts',

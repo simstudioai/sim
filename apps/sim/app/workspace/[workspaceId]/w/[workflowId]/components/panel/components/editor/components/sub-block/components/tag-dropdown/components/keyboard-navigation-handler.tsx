@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useMemo } from 'react'
-import { usePopoverContext } from '@/components/emcn'
+import { usePopoverContext } from '@sim/emcn'
 import { useNestedNavigation } from '../tag-dropdown'
 import type { BlockTagGroup, NestedBlockTagGroup, NestedTag } from '../types'
 

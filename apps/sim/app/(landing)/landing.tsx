@@ -1,74 +1,27 @@
-import { getNavBlogPosts } from '@/lib/blog/registry'
-import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
-import { season } from '@/app/_styles/fonts/season/season'
-import {
-  Collaboration,
-  Features,
-  Footer,
-  Hero,
-  Navbar,
-  Pricing,
-  StructuredData,
-  Templates,
-  Testimonials,
-} from '@/app/(landing)/components'
-import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
+import { Cta, Features, Hero, HomeStructuredData, Mothership } from '@/app/(landing)/components'
 
 /**
- * Landing page root component.
+ * Landing page root - owns the section order and the `<main>` content region.
  *
- * ## SEO Architecture
- * - Single `<h1>` inside Hero (only one per page).
- * - Heading hierarchy: H1 (Hero) -> H2 (each section) -> H3 (sub-items).
- * - Semantic landmarks: `<header>`, `<main>`, `<footer>`.
- * - Every `<section>` has an `id` for anchor linking and `aria-labelledby` for accessibility.
- * - `StructuredData` emits JSON-LD before any visible content.
+ * The shared chrome (`light` + brand token layer, scroll port, skip link, navbar
+ * with build/revalidate-time GitHub stars, footer, and site-wide JSON-LD) is
+ * owned by the route-group layout via `LandingShell`, so the landing family can
+ * never drift and the navbar persists across navigation. This page emits only
+ * its `<main>` and the home-specific structured data.
  *
- * ## GEO Architecture
- * - Above-fold content (Navbar, Hero) is statically rendered (Server Components where possible)
- *   for immediate availability to AI crawlers.
- * - Section `id` attributes serve as fragment anchors for precise AI citations.
- * - Content ordering prioritizes answer-first patterns: definition (Hero) ->
- *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration) ->
- *   pricing (Pricing) -> testimonials (Testimonials).
+ * `<main>` is a `flex flex-col` whose `gap` is the single source of truth for
+ * inter-section rhythm - sections carry no vertical margin/padding of their own,
+ * so one knob keeps every section break uniform across the page. Each section
+ * component owns its own landmark (`<section id aria-labelledby>`).
  */
-export default async function Landing() {
-  const blogPosts = await getNavBlogPosts()
-
+export default function Landing() {
   return (
-    <div
-      className={`${season.variable} ${martianMono.variable} min-h-screen bg-[var(--landing-bg)]`}
-    >
-      <a
-        href='#main-content'
-        className='sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:font-medium focus:text-black focus:text-sm'
-      >
-        Skip to main content
-      </a>
-      <LandingAnalytics />
-      <StructuredData />
-      <header>
-        <Navbar blogPosts={blogPosts} />
-      </header>
-      <main id='main-content'>
-        <article itemScope itemType='https://schema.org/WebPage'>
-          <meta
-            itemProp='name'
-            content='Sim — The AI Workspace | Build, Deploy & Manage AI Agents'
-          />
-          <meta
-            itemProp='description'
-            content='Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.'
-          />
-          <Hero />
-          <Templates />
-          <Features />
-          <Collaboration />
-          <Pricing />
-          <Testimonials />
-        </article>
-      </main>
-      <Footer />
-    </div>
+    <main id='main-content' className='flex flex-col gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'>
+      <HomeStructuredData />
+      <Hero />
+      <Mothership />
+      <Features />
+      <Cta />
+    </main>
   )
 }

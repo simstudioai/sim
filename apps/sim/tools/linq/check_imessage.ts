@@ -44,7 +44,7 @@ export const linqCheckImessageTool: ToolConfig<
   },
 
   transformResponse: async (response): Promise<LinqCapabilityCheckResult> => {
-    const data = await response.json()
+    const data = await response.json().catch(() => null)
 
     if (!response.ok) {
       return {
@@ -57,8 +57,8 @@ export const linqCheckImessageTool: ToolConfig<
     return {
       success: true,
       output: {
-        address: data.address ?? '',
-        available: data.available ?? false,
+        address: data?.address ?? '',
+        available: data?.available ?? false,
       },
     }
   },

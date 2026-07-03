@@ -10,11 +10,10 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, Tooltip } from '@/components/emcn'
-import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { Columns3, Eye, PanelLeft, Pencil } from '@sim/emcn/icons'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
-import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'

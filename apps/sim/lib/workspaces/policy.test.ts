@@ -152,6 +152,45 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
   })
 
+  it('without pinning, a null active org falls back to the caller membership org', async () => {
+    mockFeatureFlags.isBillingEnabled = false
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'user-org',
+      role: 'admin',
+      memberId: 'member-1',
+    })
+    mockDbResults.value = [[{ userId: 'owner-1' }]]
+
+    const result = await getWorkspaceCreationPolicy({
+      userId: 'user-1',
+      activeOrganizationId: null,
+    })
+
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
+    expect(result.organizationId).toBe('user-org')
+  })
+
+  it('pins to the source org: a personal source (null) stays personal regardless of caller org', async () => {
+    mockFeatureFlags.isBillingEnabled = false
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'user-org',
+      role: 'admin',
+      memberId: 'member-1',
+    })
+    mockDbResults.value = [[{ value: 0 }]]
+
+    const result = await getWorkspaceCreationPolicy({
+      userId: 'user-1',
+      activeOrganizationId: null,
+      pinOrganization: true,
+    })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.organizationId).toBeNull()
+    expect(result.billedAccountUserId).toBe('user-1')
+  })
+
   it('allows org admins on a team plan to create organization workspaces', async () => {
     mockGetUserOrganization.mockResolvedValueOnce({
       organizationId: 'org-1',

@@ -1,3 +1,11 @@
-import { elevenLabsTtsTool } from '@/tools/elevenlabs/tts'
-
-export { elevenLabsTtsTool }
+export { elevenLabsAudioIsolationTool } from '@/tools/elevenlabs/audio-isolation'
+export { elevenLabsEditVoiceSettingsTool } from '@/tools/elevenlabs/edit-voice-settings'
+export { elevenLabsGetUserTool } from '@/tools/elevenlabs/get-user'
+export { elevenLabsGetVoiceTool } from '@/tools/elevenlabs/get-voice'
+export { elevenLabsGetVoiceSettingsTool } from '@/tools/elevenlabs/get-voice-settings'
+export { elevenLabsListModelsTool } from '@/tools/elevenlabs/list-models'
+export { elevenLabsListVoicesTool } from '@/tools/elevenlabs/list-voices'
+export { elevenLabsSoundEffectsTool } from '@/tools/elevenlabs/sound-effects'
+export { elevenLabsSpeechToSpeechTool } from '@/tools/elevenlabs/speech-to-speech'
+export { elevenLabsTtsTool } from '@/tools/elevenlabs/tts'
+export * from '@/tools/elevenlabs/types'

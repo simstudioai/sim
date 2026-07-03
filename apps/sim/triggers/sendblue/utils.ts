@@ -56,7 +56,7 @@ export function buildSendblueOutputs(): Record<string, TriggerOutput> {
     },
     plan: { type: 'string', description: 'Account plan type' },
     message_type: { type: 'string', description: 'Message category (e.g., message, group)' },
-    group_id: { type: 'string', description: 'Group identifier, empty for non-group messages' },
+    group_id: { type: 'string', description: 'Group identifier, null for non-group messages' },
     participants: { type: 'array', description: 'Participant phone numbers for group messages' },
     send_style: { type: 'string', description: 'Expressive style if applied' },
     opted_out: { type: 'boolean', description: 'True if the recipient has opted out' },

@@ -1,9 +1,9 @@
 'use client'
 
 import { memo, useMemo, useState } from 'react'
+import { cn } from '@sim/emcn'
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
 

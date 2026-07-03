@@ -165,9 +165,16 @@ export class RateLimiter {
     }
   }
 
+  /**
+   * Consume one token from a bucket. On storage failure the default is to fail
+   * open (allow the request) so a limiter outage never takes down normal traffic.
+   * Pass `failClosed: true` for security-critical checks — e.g. a captcha
+   * backstop — where an unenforceable limit must reject rather than admit.
+   */
   async checkRateLimitDirect(
     storageKey: string,
-    config: { maxTokens: number; refillRate: number; refillIntervalMs: number }
+    config: { maxTokens: number; refillRate: number; refillIntervalMs: number },
+    options?: { failClosed?: boolean }
   ): Promise<RateLimitResult> {
     try {
       const result = await this.storage.consumeTokens(storageKey, 1, config)
@@ -181,13 +188,17 @@ export class RateLimiter {
         retryAfterMs: result.retryAfterMs,
       }
     } catch (error) {
-      logger.error('Rate limit storage error - failing open (allowing request)', {
-        error: toError(error).message,
-        storageKey,
-      })
+      const failClosed = options?.failClosed === true
+      logger.error(
+        `Rate limit storage error - failing ${failClosed ? 'closed (rejecting request)' : 'open (allowing request)'}`,
+        {
+          error: toError(error).message,
+          storageKey,
+        }
+      )
       return {
-        allowed: true,
-        remaining: 1,
+        allowed: !failClosed,
+        remaining: failClosed ? 0 : 1,
         resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }
     }

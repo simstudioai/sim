@@ -1,13 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
-} from '@/components/emcn'
+import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 
 /**

@@ -11,7 +11,7 @@ export const introspectTool: ToolConfig<ClickHouseIntrospectParams, ClickHouseIn
     name: 'ClickHouse Introspect',
     description:
       'Introspect a ClickHouse database to retrieve table structures, columns, and engines',
-    version: '1.0',
+    version: '1.0.0',
 
     params: {
       host: {

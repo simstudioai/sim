@@ -1,6 +1,6 @@
 'use client'
 
-import { Table as TableIcon } from '@/components/emcn/icons'
+import { Table as TableIcon } from '@sim/emcn/icons'
 import {
   type BreadcrumbItem,
   ResourceChromeFallback,

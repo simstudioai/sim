@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
 import {
   COLUMN_TYPES,
+  getMaxRowSizeBytes,
   NAME_PATTERN,
   TABLE_LIMITS,
   USER_TABLE_ROWS_SQL_NAME,
@@ -234,8 +235,6 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
       case 'string':
         if (typeof value !== 'string') {
           errors.push(`${column.name} must be string, got ${typeof value}`)
-        } else if (value.length > TABLE_LIMITS.MAX_STRING_VALUE_LENGTH) {
-          errors.push(`${column.name} exceeds max string length`)
         }
         break
       case 'number':
@@ -360,13 +359,14 @@ export function coerceRowToSchema(data: RowData, schema: TableSchema): Validatio
   return validateRowAgainstSchema(data, schema)
 }
 
-/** Validates row data size is within limits. */
+/** Validates row data size (UTF-8 bytes of the serialized row) is within limits. */
 export function validateRowSize(data: RowData): ValidationResult {
-  const size = JSON.stringify(data).length
-  if (size > TABLE_LIMITS.MAX_ROW_SIZE_BYTES) {
+  const maxRowSizeBytes = getMaxRowSizeBytes()
+  const size = Buffer.byteLength(JSON.stringify(data))
+  if (size > maxRowSizeBytes) {
     return {
       valid: false,
-      errors: [`Row size exceeds limit (${size} bytes > ${TABLE_LIMITS.MAX_ROW_SIZE_BYTES} bytes)`],
+      errors: [`Row size exceeds limit (${size} bytes > ${maxRowSizeBytes} bytes)`],
     }
   }
   return { valid: true, errors: [] }

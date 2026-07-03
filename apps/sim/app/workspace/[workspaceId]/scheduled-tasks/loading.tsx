@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, Plus } from '@/components/emcn'
+import { Calendar, Plus } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,

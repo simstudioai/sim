@@ -5,7 +5,7 @@ export const insertRowsTool: ToolConfig<ClickHouseInsertRowsParams, ClickHouseRo
   id: 'clickhouse_insert_rows',
   name: 'ClickHouse Insert Rows',
   description: 'Insert multiple rows into a ClickHouse table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

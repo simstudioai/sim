@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { Chip, ChipInput, ChipModalField, Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Chip, ChipInput, ChipModalField, Loader } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { importSkillContract } from '@/lib/api/contracts'
 import {

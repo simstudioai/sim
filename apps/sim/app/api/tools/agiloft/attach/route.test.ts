@@ -21,7 +21,7 @@ vi.mock('@/lib/uploads/utils/file-utils', () => ({
   processFilesToUserFiles: mockProcessFilesToUserFiles,
 }))
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: mockDownloadFileFromStorage,
+  downloadServableFileFromStorage: mockDownloadFileFromStorage,
 }))
 vi.mock('@/app/api/files/authorization', () => ({
   assertToolFileAccess: mockAssertToolFileAccess,
@@ -77,7 +77,10 @@ beforeEach(() => {
     { key: 's3://bucket/file.txt', name: 'file.txt', size: 5, type: 'text/plain' },
   ])
   mockAssertToolFileAccess.mockResolvedValue(null)
-  mockDownloadFileFromStorage.mockResolvedValue(Buffer.from('hello'))
+  mockDownloadFileFromStorage.mockResolvedValue({
+    buffer: Buffer.from('hello'),
+    contentType: 'application/octet-stream',
+  })
 })
 
 describe('POST /api/tools/agiloft/attach', () => {

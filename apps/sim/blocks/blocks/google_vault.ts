@@ -1,4 +1,4 @@
-import { ShieldCheck } from '@/components/emcn/icons'
+import { ShieldCheck } from '@sim/emcn/icons'
 import { GoogleVaultIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'

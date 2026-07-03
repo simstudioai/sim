@@ -1,18 +1,18 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { ChevronDown, handleKeyboardActivation } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { ChevronDown } from '@/components/emcn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import {
   FieldItem,
   type SchemaField,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -151,7 +151,8 @@ function ConnectionItem({
           {Icon && (
             <Icon
               className={clsx(
-                'text-white transition-transform duration-200',
+                'transition-transform duration-200',
+                getTileIconColorClass(bgColor),
                 hasFields && 'group-hover:scale-110',
                 '!h-[9px] !w-[9px]'
               )}

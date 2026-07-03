@@ -5,6 +5,8 @@ import { useMarkdownMentions } from './use-markdown-mentions'
 interface UseEditorMentionsOptions {
   /** Whether a chip can Cmd/Ctrl-click to its resource. On for the file viewer, off in modal fields. */
   navigable?: boolean
+  /** Force the `@` insertion menu off even with a workspace; existing tags still render. */
+  disableTagging?: boolean
 }
 
 /**
@@ -20,17 +22,18 @@ export function useEditorMentions(
   const [active, setActive] = useState(false)
   const items = useMarkdownMentions(workspaceId, { enabled: active })
   const navigable = options?.navigable ?? false
+  const disableTagging = options?.disableTagging ?? false
 
   useEffect(() => {
     if (!editor) return
-    const hasWorkspace = Boolean(workspaceId)
-    editor.storage.mention.enabled = hasWorkspace
+    const taggingOn = Boolean(workspaceId) && !disableTagging
+    editor.storage.mention.enabled = taggingOn
     editor.storage.mention.navigable = navigable
-    editor.storage.mention.onOpen = hasWorkspace ? () => setActive(true) : null
+    editor.storage.mention.onOpen = taggingOn ? () => setActive(true) : null
     return () => {
       editor.storage.mention.onOpen = null
     }
-  }, [editor, workspaceId, navigable])
+  }, [editor, workspaceId, navigable, disableTagging])
 
   useEffect(() => {
     editor?.storage.mention.store.set(items)

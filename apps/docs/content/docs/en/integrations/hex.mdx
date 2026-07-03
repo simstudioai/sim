@@ -34,7 +34,7 @@ Whether you’re empowering analysts, automating reporting, or embedding actiona
 
 ## Usage Instructions
 
-Integrate Hex into your workflow. Run projects, check run status, manage collections and groups, list users, and view data connections. Requires a Hex API token.
+Integrate Hex into your workflow. Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.
 
 
 
@@ -82,6 +82,62 @@ Create a new collection in the Hex workspace to organize projects.
 | `creator` | object | Collection creator |
 |   ↳ `email` | string | Creator email |
 |   ↳ `id` | string | Creator UUID |
+
+### `hex_create_group`
+
+Create a new group in the Hex workspace, optionally with initial members.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `name` | string | Yes | Name for the new group |
+| `memberUserIds` | json | No | JSON array of user UUIDs to add as initial group members \(e.g., \["uuid1", "uuid2"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Newly created group UUID |
+| `name` | string | Group name |
+| `createdAt` | string | Creation timestamp |
+
+### `hex_deactivate_user`
+
+Deactivate a user in the Hex workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `userId` | string | Yes | The UUID of the user to deactivate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the user was successfully deactivated |
+| `userId` | string | User UUID that was deactivated |
+
+### `hex_delete_group`
+
+Delete a group from the Hex workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `groupId` | string | Yes | The UUID of the group to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the group was successfully deleted |
+| `groupId` | string | Group UUID that was deleted |
 
 ### `hex_get_collection`
 
@@ -194,6 +250,7 @@ Retrieve API-triggered runs for a Hex project with optional filtering by status 
 | `limit` | number | No | Maximum number of runs to return \(1-100, default: 25\) |
 | `offset` | number | No | Offset for paginated results \(default: 0\) |
 | `statusFilter` | string | No | Filter by run status: PENDING, RUNNING, ERRORED, COMPLETED, KILLED, UNABLE_TO_ALLOCATE_KERNEL |
+| `runTriggerFilter` | string | No | Filter by how the run was triggered: ALL, API, SCHEDULED, or APP_REFRESH |
 
 #### Output
 
@@ -211,6 +268,8 @@ Retrieve API-triggered runs for a Hex project with optional filtering by status 
 |   ↳ `projectVersion` | number | Project version number |
 | `total` | number | Total number of runs returned |
 | `traceId` | string | Top-level trace ID |
+| `nextPage` | string | Cursor for the next page of runs |
+| `previousPage` | string | Cursor for the previous page of runs |
 
 ### `hex_get_queried_tables`
 
@@ -271,6 +330,8 @@ List all collections in the Hex workspace.
 | `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `limit` | number | No | Maximum number of collections to return \(1-500, default: 25\) |
 | `sortBy` | string | No | Sort by field: NAME |
+| `after` | string | No | Cursor to fetch the page of results after this value |
+| `before` | string | No | Cursor to fetch the page of results before this value |
 
 #### Output
 
@@ -284,6 +345,8 @@ List all collections in the Hex workspace.
 |     ↳ `email` | string | Creator email |
 |     ↳ `id` | string | Creator UUID |
 | `total` | number | Total number of collections returned |
+| `after` | string | Cursor for the next page of results |
+| `before` | string | Cursor for the previous page of results |
 
 ### `hex_list_data_connections`
 
@@ -297,6 +360,8 @@ List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, Big
 | `limit` | number | No | Maximum number of connections to return \(1-500, default: 25\) |
 | `sortBy` | string | No | Sort by field: CREATED_AT or NAME |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
+| `after` | string | No | Cursor to fetch the page of results after this value |
+| `before` | string | No | Cursor to fetch the page of results before this value |
 
 #### Output
 
@@ -311,6 +376,8 @@ List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, Big
 |   ↳ `includeMagic` | boolean | Whether Magic AI features are enabled |
 |   ↳ `allowWritebackCells` | boolean | Whether writeback cells are allowed |
 | `total` | number | Total number of connections returned |
+| `after` | string | Cursor for the next page of results |
+| `before` | string | Cursor for the previous page of results |
 
 ### `hex_list_groups`
 
@@ -324,6 +391,8 @@ List all groups in the Hex workspace with optional sorting.
 | `limit` | number | No | Maximum number of groups to return \(1-500, default: 25\) |
 | `sortBy` | string | No | Sort by field: CREATED_AT or NAME |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
+| `after` | string | No | Cursor to fetch the page of results after this value |
+| `before` | string | No | Cursor to fetch the page of results before this value |
 
 #### Output
 
@@ -334,6 +403,8 @@ List all groups in the Hex workspace with optional sorting.
 |   ↳ `name` | string | Group name |
 |   ↳ `createdAt` | string | Creation timestamp |
 | `total` | number | Total number of groups returned |
+| `after` | string | Cursor for the next page of results |
+| `before` | string | Cursor for the previous page of results |
 
 ### `hex_list_projects`
 
@@ -347,6 +418,16 @@ List all projects in your Hex workspace with optional filtering by status.
 | `limit` | number | No | Maximum number of projects to return \(1-100\) |
 | `includeArchived` | boolean | No | Include archived projects in results |
 | `statusFilter` | string | No | Filter by status: PUBLISHED, DRAFT, or ALL |
+| `includeComponents` | boolean | No | Include components in results |
+| `includeTrashed` | boolean | No | Include trashed projects in results |
+| `creatorEmail` | string | No | Filter by creator email |
+| `ownerEmail` | string | No | Filter by owner email |
+| `collectionId` | string | No | Filter by collection UUID |
+| `categories` | json | No | JSON array of category names to filter by \(e.g., \["Marketing", "Finance"\]\) |
+| `sortBy` | string | No | Sort by field: CREATED_AT, LAST_EDITED_AT, or LAST_PUBLISHED_AT |
+| `sortDirection` | string | No | Sort direction: ASC or DESC |
+| `after` | string | No | Cursor to fetch the page of results after this value |
+| `before` | string | No | Cursor to fetch the page of results before this value |
 
 #### Output
 
@@ -368,6 +449,8 @@ List all projects in your Hex workspace with optional filtering by status.
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `archivedAt` | string | Archived timestamp |
 | `total` | number | Total number of projects returned |
+| `after` | string | Cursor for the next page of results |
+| `before` | string | Cursor for the previous page of results |
 
 ### `hex_list_users`
 
@@ -382,6 +465,9 @@ List all users in the Hex workspace with optional filtering and sorting.
 | `sortBy` | string | No | Sort by field: NAME or EMAIL |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
 | `groupId` | string | No | Filter users by group UUID |
+| `userIds` | string | No | Comma-separated list of user UUIDs to filter by |
+| `after` | string | No | Cursor to fetch the page of results after this value |
+| `before` | string | No | Cursor to fetch the page of results before this value |
 
 #### Output
 
@@ -392,7 +478,10 @@ List all users in the Hex workspace with optional filtering and sorting.
 |   ↳ `name` | string | User name |
 |   ↳ `email` | string | User email |
 |   ↳ `role` | string | User role \(ADMIN, MANAGER, EDITOR, EXPLORER, MEMBER, GUEST, EMBEDDED_USER, ANONYMOUS\) |
+|   ↳ `lastLoginDate` | string | Last login timestamp |
 | `total` | number | Total number of users returned |
+| `after` | string | Cursor for the next page of results |
+| `before` | string | Cursor for the previous page of results |
 
 ### `hex_run_project`
 
@@ -409,6 +498,8 @@ Execute a published Hex project. Optionally pass input parameters and control ca
 | `updateCache` | boolean | No | \(Deprecated\) If true, update the cached results after execution |
 | `updatePublishedResults` | boolean | No | If true, update the published app results after execution |
 | `useCachedSqlResults` | boolean | No | If true, use cached SQL results instead of re-running queries |
+| `viewId` | string | No | Optional SavedView ID to use for the project run |
+| `notifications` | json | No | JSON array of notification details to deliver once the run completes \(e.g., \[\{"type": "FAILURE", "slackChannelIds": \["C0123456789"\], "userIds": \[\], "groupIds": \[\], "includeSuccessScreenshot": false\}\]\). type is ALL, SUCCESS, or FAILURE. |
 
 #### Output
 
@@ -420,6 +511,52 @@ Execute a published Hex project. Optionally pass input parameters and control ca
 | `runStatusUrl` | string | URL to check run status |
 | `traceId` | string | Trace ID for debugging |
 | `projectVersion` | number | Project version number |
+
+### `hex_update_collection`
+
+Update the name or description of an existing Hex collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `collectionId` | string | Yes | The UUID of the collection to update |
+| `name` | string | No | New name for the collection |
+| `description` | string | No | New description for the collection |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Collection UUID |
+| `name` | string | Collection name |
+| `description` | string | Collection description |
+| `creator` | object | Collection creator |
+|   ↳ `email` | string | Creator email |
+|   ↳ `id` | string | Creator UUID |
+
+### `hex_update_group`
+
+Rename a Hex group or add/remove members from it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `groupId` | string | Yes | The UUID of the group to update |
+| `name` | string | No | New name for the group |
+| `addUserIds` | json | No | JSON array of user UUIDs to add to the group \(e.g., \["uuid1", "uuid2"\]\) |
+| `removeUserIds` | json | No | JSON array of user UUIDs to remove from the group \(e.g., \["uuid1", "uuid2"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Group UUID |
+| `name` | string | Group name |
+| `createdAt` | string | Creation timestamp |
 
 ### `hex_update_project`
 

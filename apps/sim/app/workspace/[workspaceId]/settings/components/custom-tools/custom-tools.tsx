@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { ChipConfirmModal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipConfirmModal } from '@/components/emcn'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
@@ -86,6 +87,16 @@ export function CustomTools() {
   const showEmptyState = !hasTools && !showAddForm && !editingTool
   const showNoResults = searchTerm.trim() && filteredTools.length === 0 && tools.length > 0
 
+  const actions: SettingsAction[] = [
+    {
+      text: 'Add tool',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => setShowAddForm(true),
+      disabled: isLoading,
+    },
+  ]
+
   return (
     <>
       <SettingsPanel
@@ -95,16 +106,7 @@ export function CustomTools() {
           placeholder: 'Search tools...',
           disabled: isLoading,
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => setShowAddForm(true)}
-            disabled={isLoading}
-          >
-            Add Tool
-          </Chip>
-        }
+        actions={actions}
       >
         {error ? (
           <div className='flex h-full flex-col items-center justify-center gap-2'>
@@ -113,7 +115,7 @@ export function CustomTools() {
             </p>
           </div>
         ) : isLoading ? null : showEmptyState ? (
-          <SettingsEmptyState>Click "Add Tool" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>Click "Add tool" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredTools.map((tool) => (

@@ -15,6 +15,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useDependencyBlockType } from './use-dependency-block-type'
 
 /**
  * Centralized dependsOn gating for sub-block components.
@@ -33,7 +34,13 @@ export function useDependsOnGate(
 
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const blockState = useWorkflowStore((state) => state.blocks[blockId])
-  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+
+  const dependencyBlockType = useDependencyBlockType()
+  const blockConfig = dependencyBlockType
+    ? getBlock(dependencyBlockType)
+    : blockState?.type
+      ? getBlock(blockState.type)
+      : null
   const canonicalIndex = useMemo(
     () => buildCanonicalIndex(blockConfig?.subBlocks || []),
     [blockConfig?.subBlocks]

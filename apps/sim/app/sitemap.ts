@@ -3,6 +3,11 @@ import { COURSES } from '@/lib/academy/content'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
+import {
+  ALL_COMPETITORS,
+  getLatestVerifiedDate,
+  SIM_LATEST_VERIFIED,
+} from '@/app/(landing)/comparison/utils'
 import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
 /**
@@ -10,7 +15,7 @@ import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landin
  * dynamic catalogs (blog posts, authors, integrations, model providers,
  * individual models, and academy courses). Per-integration entries are
  * emitted under `/integrations/{slug}` to match the landing route at
- * `app/(landing)/integrations/(shell)/[slug]`; slugs are guaranteed unique
+ * `app/(landing)/integrations/[slug]`; slugs are guaranteed unique
  * by the catalog generator in `scripts/generate-docs.ts`.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -34,6 +39,39 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: baseUrl,
     },
     {
+      url: `${baseUrl}/workflows`,
+    },
+    {
+      url: `${baseUrl}/pricing`,
+    },
+    {
+      url: `${baseUrl}/demo`,
+    },
+    {
+      url: `${baseUrl}/contact`,
+    },
+    {
+      url: `${baseUrl}/careers`,
+    },
+    {
+      url: `${baseUrl}/enterprise`,
+    },
+    {
+      url: `${baseUrl}/solutions/compliance`,
+    },
+    {
+      url: `${baseUrl}/solutions/engineering`,
+    },
+    {
+      url: `${baseUrl}/solutions/finance`,
+    },
+    {
+      url: `${baseUrl}/solutions/hr`,
+    },
+    {
+      url: `${baseUrl}/solutions/it`,
+    },
+    {
       url: `${baseUrl}/blog`,
       lastModified: latestPostDate,
     },
@@ -55,9 +93,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/partners`,
-    },
-    {
-      url: `${baseUrl}/contact`,
     },
     {
       url: `${baseUrl}/terms`,
@@ -118,6 +153,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ]
 
+  // Matches the max(Sim, competitor) verified-date logic each detail page's own
+  // JSON-LD `dateModified` uses, so the sitemap timestamp never lags behind it.
+  const competitorLastModified = (competitor: (typeof ALL_COMPETITORS)[number]) =>
+    new Date(Math.max(SIM_LATEST_VERIFIED.getTime(), getLatestVerifiedDate(competitor).getTime()))
+
+  const comparisonLastModified =
+    ALL_COMPETITORS.length > 0
+      ? new Date(Math.max(...ALL_COMPETITORS.map((c) => competitorLastModified(c).getTime())))
+      : SIM_LATEST_VERIFIED
+
+  const comparisonPages: MetadataRoute.Sitemap = [
+    { url: `${baseUrl}/comparison`, lastModified: comparisonLastModified },
+    ...ALL_COMPETITORS.map((competitor) => ({
+      url: `${baseUrl}/comparison/${competitor.id}`,
+      lastModified: competitorLastModified(competitor),
+    })),
+  ]
+
   return [
     ...staticPages,
     ...blogPages,
@@ -126,5 +179,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...providerPages,
     ...modelEntries,
     ...academyPages,
+    ...comparisonPages,
   ]
 }

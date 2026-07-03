@@ -2,8 +2,8 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
+import { Database, Table } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
-import { Database, Table } from '@/components/emcn/icons'
 import {
   MemoizedActionItem,
   MemoizedCommandItem,

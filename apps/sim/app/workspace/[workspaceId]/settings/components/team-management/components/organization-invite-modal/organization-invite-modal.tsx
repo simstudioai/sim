@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   ChipDropdown,
   type ChipDropdownOption,
@@ -11,8 +10,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import { useSession } from '@/lib/auth/auth-client'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useInviteMember } from '@/hooks/queries/organization'
 
@@ -23,6 +24,8 @@ const ROLE_OPTIONS = [
   { value: 'write', label: 'Write' },
   { value: 'read', label: 'Read' },
 ] as const
+
+const EMPTY_EMAILS: string[] = []
 
 interface OrganizationInviteModalProps {
   open: boolean
@@ -53,8 +56,8 @@ export function OrganizationInviteModal({
   onOpenChange,
   organizationId,
   workspaces,
-  externalEmails = [],
-  pendingEmails = [],
+  externalEmails = EMPTY_EMAILS,
+  pendingEmails = EMPTY_EMAILS,
 }: OrganizationInviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])
@@ -82,6 +85,10 @@ export function OrganizationInviteModal({
 
   const validateEmail = useCallback(
     (email: string): string | null => {
+      const formatResult = quickValidateEmail(email)
+      if (!formatResult.isValid) {
+        return formatResult.reason ?? 'Invalid email'
+      }
       if (session?.user?.email && session.user.email.toLowerCase() === email) {
         return 'You cannot invite yourself'
       }

@@ -1,5 +1,5 @@
+import { toast } from '@sim/emcn'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type AuthenticatePublicFileResponse,

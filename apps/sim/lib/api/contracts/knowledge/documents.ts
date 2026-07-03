@@ -13,14 +13,66 @@ import {
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { getFieldTypeForSlot } from '@/lib/knowledge/constants'
+import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
 
-export const documentTagFilterSchema = z.object({
-  tagSlot: z.string().min(1),
-  fieldType: z.enum(['text', 'number', 'date', 'boolean']),
-  operator: z.string().min(1),
-  value: z.unknown(),
-  valueTo: z.unknown().optional(),
-})
+export const documentTagFilterSchema = z
+  .object({
+    tagSlot: z.string().min(1),
+    fieldType: z.enum(['text', 'number', 'date', 'boolean']),
+    operator: z.string().min(1),
+    value: z.unknown(),
+    valueTo: z.unknown().optional(),
+  })
+  .superRefine((filter, ctx) => {
+    // The tag slot determines the column type, so validate against the slot
+    // (the source of truth) — not just the client-supplied fieldType. Rejecting
+    // unknown slots, type mismatches, and bad operators at the boundary returns
+    // a 400 instead of the query builder silently dropping or mis-handling the
+    // filter (e.g. a text `contains` aimed at a numeric column).
+    const slotFieldType = getFieldTypeForSlot(filter.tagSlot)
+    if (slotFieldType === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['tagSlot'],
+        message: `Unknown tag slot "${filter.tagSlot}"`,
+      })
+      return
+    }
+    if (slotFieldType !== filter.fieldType) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fieldType'],
+        message: `fieldType "${filter.fieldType}" does not match tag slot "${filter.tagSlot}" (expected "${slotFieldType}")`,
+      })
+      return
+    }
+    const validOperators = getOperatorsForFieldType(filter.fieldType).map((op) => op.value)
+    if (!validOperators.includes(filter.operator)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['operator'],
+        message: `Unsupported operator "${filter.operator}" for a ${filter.fieldType} tag filter`,
+      })
+      return
+    }
+    if (!isValidFilterValue(filter.fieldType, filter.value)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: `Invalid value for a ${filter.fieldType} tag filter`,
+      })
+    }
+    // `between` is only valid for number/date (enforced by the operator check
+    // above), and needs a usable upper bound.
+    if (filter.operator === 'between' && !isValidFilterValue(filter.fieldType, filter.valueTo)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['valueTo'],
+        message: `Invalid second value for a ${filter.fieldType} "between" tag filter`,
+      })
+    }
+  })
 export type DocumentTagFilter = z.output<typeof documentTagFilterSchema>
 
 export const listKnowledgeDocumentsQuerySchema = z.object({
@@ -40,19 +92,24 @@ export const listKnowledgeDocumentsQuerySchema = z.object({
     ])
     .optional(),
   sortOrder: z.enum(['asc', 'desc']).optional(),
-  tagFilters: z
-    .string()
-    .optional()
-    .transform((value, ctx) => {
-      if (!value) return undefined
-      try {
-        return z.array(documentTagFilterSchema).parse(JSON.parse(value))
-      } catch {
-        ctx.addIssue({ code: 'custom', message: 'tagFilters must be a valid JSON array' })
-        return z.NEVER
-      }
-    }),
+  // A query param is a string on the wire, so `tagFilters` is carried as a JSON
+  // string and decoded by the route via `parseDocumentTagFiltersParam`. It must
+  // NOT be a `.transform()` to an array here: the client's `requestJson` parses
+  // the query before serializing it, so a transform would turn the string into
+  // an array that serializes to `tagFilters=[object Object]` and 400s the route.
+  tagFilters: z.string().optional(),
 })
+
+/**
+ * Decodes the `tagFilters` query string (a JSON array) into validated filters.
+ * Throws on malformed JSON or a shape mismatch; callers map that to a 400.
+ */
+export function parseDocumentTagFiltersParam(
+  value: string | undefined
+): DocumentTagFilter[] | undefined {
+  if (!value) return undefined
+  return z.array(documentTagFilterSchema).parse(JSON.parse(value))
+}
 
 export const createDocumentBodySchema = z.object({
   filename: z.string().min(1, 'Filename is required'),

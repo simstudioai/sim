@@ -1,3 +1,4 @@
+import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import {
   CONTAINER_PADDING,
   DEFAULT_HORIZONTAL_SPACING,
@@ -17,7 +18,6 @@ import {
   shouldSkipAutoLayout,
   snapPositionToGrid,
 } from '@/lib/workflows/autolayout/utils'
-import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 type TargetedBlockInfo = {

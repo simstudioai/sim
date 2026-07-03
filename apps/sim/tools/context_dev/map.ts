@@ -83,7 +83,8 @@ export const contextDevMapTool: ToolConfig<ContextDevMapParams, ContextDevMapRes
     },
     meta: {
       type: 'object',
-      description: 'Sitemap discovery stats (sitemapsDiscovered, sitemapsFetched, errors)',
+      description:
+        'Sitemap discovery stats (sitemapsDiscovered, sitemapsFetched, sitemapsSkipped, errors)',
     },
     ...CREDIT_OUTPUTS,
   },

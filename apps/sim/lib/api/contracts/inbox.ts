@@ -17,6 +17,7 @@ export const inboxTaskStatusSchema = z.enum([
 export const inboxConfigSchema = z.object({
   enabled: z.boolean(),
   address: z.string().nullable(),
+  entitled: z.boolean(),
   taskStats: z.object({
     total: z.number(),
     completed: z.number(),

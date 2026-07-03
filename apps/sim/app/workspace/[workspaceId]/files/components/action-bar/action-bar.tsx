@@ -1,8 +1,7 @@
 'use client'
-
-import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import {
   Button,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,9 +10,9 @@ import {
   Folder,
   Tooltip,
   Trash,
-} from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
+import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 

@@ -5,7 +5,7 @@ export const countRowsTool: ToolConfig<ClickHouseCountRowsParams, ClickHouseCoun
   id: 'clickhouse_count_rows',
   name: 'ClickHouse Count Rows',
   description: 'Count rows in a ClickHouse table, optionally filtered',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

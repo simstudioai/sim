@@ -107,6 +107,71 @@ Read a specific page from a SharePoint site
 | `totalPages` | number | Total number of pages found |
 | `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
+### `sharepoint_update_page`
+
+Update the title and/or content of a SharePoint page
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `pageId` | string | Yes | The ID of the page to update. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
+| `pageTitle` | string | No | The new title of the page |
+| `pageContent` | string | No | The new text content of the page. Replaces the entire canvas layout of the page. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Updated SharePoint page information |
+|   ↳ `id` | string | The unique ID of the page |
+|   ↳ `name` | string | The name of the page |
+|   ↳ `title` | string | The title of the page |
+|   ↳ `webUrl` | string | The URL to access the page |
+|   ↳ `pageLayout` | string | The layout type of the page |
+|   ↳ `createdDateTime` | string | When the page was created |
+|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+
+### `sharepoint_publish_page`
+
+Publish the latest version of a SharePoint page, making it available to all users
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `pageId` | string | Yes | The ID of the page to publish. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `published` | boolean | Whether the page was published |
+| `pageId` | string | The ID of the published page |
+
+### `sharepoint_delete_page`
+
+Delete a page from a SharePoint site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `pageId` | string | Yes | The ID of the page to delete. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the page was deleted |
+| `pageId` | string | The ID of the deleted page |
+
 ### `sharepoint_list_sites`
 
 List details of all SharePoint sites
@@ -133,8 +198,7 @@ List details of all SharePoint sites
 |   ↳ `createdDateTime` | string | When the site was created |
 |   ↳ `lastModifiedDateTime` | string | When the site was last modified |
 |   ↳ `isPersonalSite` | boolean | Whether this is a personal site |
-|   ↳ `root` | object | root output from the tool |
-|     ↳ `serverRelativeUrl` | string | Server relative URL |
+|   ↳ `root` | object | Present \(as an empty object\) only when this site is the root of its site collection |
 |   ↳ `siteCollection` | object | siteCollection output from the tool |
 |     ↳ `hostname` | string | Site collection hostname |
 | `sites` | array | List of all accessible SharePoint sites |
@@ -252,6 +316,47 @@ Add a new item to a SharePoint list
 |   ↳ `id` | string | Item ID |
 |   ↳ `fields` | object | Field values for the new item |
 
+### `sharepoint_get_list_item`
+
+Get a single item (with field values) from a SharePoint list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | Yes | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
+| `itemId` | string | Yes | The ID of the list item to retrieve. Example: 1, 42, or 123 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | SharePoint list item with field values |
+|   ↳ `id` | string | Item ID |
+|   ↳ `fields` | object | Field values for the item |
+
+### `sharepoint_delete_list_item`
+
+Delete an item from a SharePoint list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | Yes | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
+| `itemId` | string | Yes | The ID of the list item to delete. Example: 1, 42, or 123 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the list item was deleted |
+| `itemId` | string | The ID of the deleted list item |
+
 ### `sharepoint_upload_file`
 
 Upload files to a SharePoint document library
@@ -288,5 +393,67 @@ Upload files to a SharePoint document library
 |   ↳ `name` | string | File name |
 |   ↳ `error` | string | Error message |
 |   ↳ `status` | number | HTTP status from Microsoft Graph |
+
+### `sharepoint_download_file`
+
+Download a file from a SharePoint document library
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `driveId` | string | Yes | The ID of the document library \(drive\). Example: b!abc123def456 |
+| `driveItemId` | string | Yes | The ID of the file \(drive item\) to download |
+| `fileName` | string | No | Optional filename override \(e.g., "report.pdf", "data.xlsx"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
+### `sharepoint_get_drive_item`
+
+Get metadata for a file or folder in a SharePoint document library
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `driveId` | string | Yes | The ID of the document library \(drive\). Example: b!abc123def456 |
+| `driveItemId` | string | Yes | The ID of the file or folder \(drive item\) to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `driveItem` | object | Metadata for the SharePoint file or folder |
+|   ↳ `id` | string | The unique ID of the drive item |
+|   ↳ `name` | string | The name of the file or folder |
+|   ↳ `webUrl` | string | The URL to access the item |
+|   ↳ `size` | number | The size of the item in bytes |
+|   ↳ `createdDateTime` | string | When the item was created |
+|   ↳ `lastModifiedDateTime` | string | When the item was last modified |
+|   ↳ `file` | object | Present if the item is a file \(contains mimeType\) |
+|   ↳ `folder` | object | Present if the item is a folder \(contains childCount\) |
+|   ↳ `parentReference` | object | Reference to the parent folder/drive |
+
+### `sharepoint_delete_file`
+
+Delete a file (or folder) from a SharePoint document library
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `driveId` | string | Yes | The ID of the document library \(drive\). Example: b!abc123def456 |
+| `driveItemId` | string | Yes | The ID of the file \(drive item\) to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the file was deleted |
+| `itemId` | string | The ID of the deleted file |
 
 

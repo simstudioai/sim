@@ -97,6 +97,41 @@ export const ALL_REVISION_FIELDS = [
   'kind',
 ].join(',')
 
+/** All reply fields requested from the Google Drive API v3. */
+const ALL_REPLY_FIELDS = [
+  'id',
+  'kind',
+  'createdTime',
+  'modifiedTime',
+  'author',
+  'htmlContent',
+  'content',
+  'deleted',
+  'action',
+].join(',')
+
+/** All comment fields requested from the Google Drive API v3. */
+export const ALL_COMMENT_FIELDS = [
+  'id',
+  'kind',
+  'createdTime',
+  'modifiedTime',
+  'author',
+  'htmlContent',
+  'content',
+  'deleted',
+  'resolved',
+  'anchor',
+  'quotedFileContent',
+  `replies(${ALL_REPLY_FIELDS})`,
+].join(',')
+
+/**
+ * Maximum bytes accepted when exporting a Google Workspace file.
+ * Mirrors Google's own 10 MB export ceiling and keeps memory bounded.
+ */
+export const MAX_EXPORT_BYTES = 10 * 1024 * 1024
+
 export const GOOGLE_WORKSPACE_MIME_TYPES = [
   'application/vnd.google-apps.document', // Google Docs
   'application/vnd.google-apps.spreadsheet', // Google Sheets

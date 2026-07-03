@@ -90,12 +90,30 @@ const FEATURE_FLAGS = {
       'agree.',
     fallback: 'PII_REDACTION',
   },
+  'pii-granular-redaction': {
+    description:
+      'Expose the execution-altering PII redaction stages (redact the workflow input and every ' +
+      'block output in-flight) in the Data Retention config, layered on top of pii-redaction. ' +
+      'Global on/off only — gates the config surfaces (route write + UI). Because stored rules ' +
+      'are the source of truth for the executor, a granular stage can only run once it was ' +
+      'writable, so the executor is never flag-gated at runtime (avoiding a fail-open leak).',
+    fallback: 'PII_GRANULAR_REDACTION',
+  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +
       'only — resolved without user/org context at every task-trigger call site via ' +
       'resolveTriggerRegion, so the whole deployment switches regions together.',
     fallback: 'TRIGGER_EU_REGION',
+  },
+  'workspace-forking': {
+    description:
+      'Runtime rollout gate for workspace forking (fork/promote/rollback), layered on top of ' +
+      'the existing FORKING_ENABLED / Enterprise-plan gate at the shared assertForkingEnabled ' +
+      'choke point. Enforced ONLY where AppConfig is the source of truth (Sim Cloud), so ' +
+      'operators can dark-launch forking to specific orgs/users/admins without touching ' +
+      'self-hosted/local behaviour. Fallback mirrors FORKING_ENABLED for off-AppConfig reads.',
+    fallback: 'FORKING_ENABLED',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

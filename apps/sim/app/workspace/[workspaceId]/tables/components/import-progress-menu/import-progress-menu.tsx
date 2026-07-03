@@ -1,6 +1,5 @@
 'use client'
 
-import { createLogger } from '@sim/logger'
 import {
   Button,
   DropdownMenu,
@@ -8,8 +7,9 @@ import {
   DropdownMenuTrigger,
   ProgressItem,
   toast,
-} from '@/components/emcn'
-import { CircleAlert, CircleCheck, Loader } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { CircleAlert, CircleCheck, Loader } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
 import { cancelTableJob, downloadExportResult } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'

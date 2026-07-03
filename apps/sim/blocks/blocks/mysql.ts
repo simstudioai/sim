@@ -1,6 +1,7 @@
+import { ClipboardList, Database, Search, Server, Table, Wrench } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { MySQLIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { MySQLResponse } from '@/tools/mysql/types'
 
@@ -382,3 +383,110 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
     },
   },
 }
+
+export const MySQLBlockMeta = {
+  tags: ['data-analytics'],
+  url: 'https://www.mysql.com',
+  templates: [
+    {
+      icon: Search,
+      title: 'Ask your MySQL database in plain English',
+      prompt:
+        'Build a workflow that takes a plain-English question, has an agent translate it into a MySQL SELECT against the known schema, runs the query, and returns the rows as a readable answer.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'database'],
+    },
+    {
+      icon: ClipboardList,
+      title: 'Daily MySQL metrics report to Slack',
+      prompt:
+        'Create a scheduled workflow that runs a MySQL query for yesterday’s key metrics, has an agent summarize the rows into a short update, and posts the digest to a Slack channel every morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'analytics'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Table,
+      title: 'Document a MySQL schema',
+      prompt:
+        'Build a workflow that introspects a MySQL database schema, has an agent write plain-English descriptions of each table and column, and saves the generated data dictionary as a file.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'documentation'],
+    },
+    {
+      icon: Database,
+      title: 'Sync records from a Sim table into MySQL',
+      prompt:
+        'Create a workflow that reads rows from a Sim table and upserts each one into a MySQL table — updating the row when a matching key exists and inserting it otherwise — so the two stay in sync.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'database'],
+    },
+    {
+      icon: Search,
+      title: 'Nightly MySQL data-quality audit',
+      prompt:
+        'Build a scheduled workflow that runs MySQL queries checking for nulls, duplicates, and orphaned foreign keys, has an agent describe any issues found, and alerts the team in Slack when the counts are non-zero.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['data-quality', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Wrench,
+      title: 'Scheduled MySQL cleanup job',
+      prompt:
+        'Create a scheduled workflow that deletes stale or soft-deleted rows from a MySQL table older than a retention window, reports the row count removed, and keeps the table lean over time.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['maintenance', 'database'],
+    },
+    {
+      icon: Database,
+      title: 'Capture incoming records into MySQL',
+      prompt:
+        'Build a workflow that takes an incoming payload, validates the fields with an agent, and inserts a new row into the right MySQL table so submissions are persisted for later querying.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'database'],
+    },
+    {
+      icon: Server,
+      title: 'Export a MySQL query result to a file',
+      prompt:
+        'Create a scheduled workflow that runs a MySQL query for a snapshot of a table, writes the returned rows to a file, and keeps a dated export available for backups and downstream analysis.',
+      modules: ['scheduled', 'files', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['export', 'backup'],
+    },
+  ],
+  skills: [
+    {
+      name: 'nl-to-sql-query',
+      description: 'Translate a plain-English question into a MySQL SELECT and return the rows.',
+      content:
+        '# Natural Language To SQL\n\nTurn a question into a MySQL query and answer from the rows.\n\n## Steps\n1. Introspect the schema so the agent knows the tables and columns.\n2. Have the agent write a single MySQL SELECT that answers the question, with a LIMIT for safety.\n3. Run the query operation.\n4. Summarize the returned rows into a readable answer.\n\n## Output\nReturn the generated SQL, the rows, and a short natural-language summary of the result.',
+    },
+    {
+      name: 'scheduled-sql-report',
+      description: 'Run a MySQL query on a schedule and post a summarized report.',
+      content:
+        '# Scheduled SQL Report\n\nProduce a recurring report from MySQL data.\n\n## Steps\n1. Run a query for the reporting window (for example, DATE_SUB(NOW(), INTERVAL 1 DAY)).\n2. Read rowCount and rows to gather the metrics.\n3. Have an agent summarize the numbers into a short update.\n4. Deliver the summary to the target channel or file.\n\n## Output\nReport the key metrics, the row count, and the delivered summary.',
+    },
+    {
+      name: 'document-schema',
+      description: 'Introspect a MySQL schema and generate a plain-English data dictionary.',
+      content:
+        '# Document Schema\n\nGenerate documentation from a live MySQL schema.\n\n## Steps\n1. Run the introspect operation to list tables, columns, and types.\n2. Have an agent describe each table and column in plain English.\n3. Assemble the descriptions into a structured data dictionary.\n4. Save the result as a file for the team.\n\n## Output\nReturn the data dictionary covering every table and column, and confirm the saved file.',
+    },
+    {
+      name: 'upsert-records',
+      description: 'Insert new rows or update existing ones in MySQL based on a key match.',
+      content:
+        "# Upsert Records\n\nKeep a MySQL table in sync with a source of records.\n\n## Preferred: native MySQL upsert\nWhen the target table has a PRIMARY KEY or UNIQUE index on the match key, run a single execute with `INSERT ... ON DUPLICATE KEY UPDATE` — MySQL inserts a new row or updates the existing one in one statement (do NOT use Postgres `ON CONFLICT`, which MySQL does not support):\n\n```sql\nINSERT INTO users (id, name, email)\nVALUES (1, 'Jane', 'jane@example.com')\nON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email);\n```\n\n## Fallback: check-then-write\nIf there is no unique key to rely on:\n1. For each record, run a query to check whether a row with the matching key exists.\n2. If it exists, run update with a WHERE condition on the key.\n3. If it does not, run insert with the record data.\n4. Track how many rows were inserted versus updated.\n\n## Output\nReturn the counts of inserted and updated rows and confirm the table is in sync.",
+    },
+  ],
+} as const satisfies BlockMeta

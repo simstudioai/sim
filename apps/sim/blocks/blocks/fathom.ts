@@ -24,6 +24,7 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
       type: 'dropdown',
       options: [
         { label: 'List Meetings', id: 'fathom_list_meetings' },
+        { label: 'List Meeting Types', id: 'fathom_list_meeting_types' },
         { label: 'Get Summary', id: 'fathom_get_summary' },
         { label: 'Get Transcript', id: 'fathom_get_transcript' },
         { label: 'List Team Members', id: 'fathom_list_team_members' },
@@ -84,6 +85,17 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
       condition: { field: 'operation', value: 'fathom_list_meetings' },
     },
     {
+      id: 'includeHighlights',
+      title: 'Include Highlights',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'fathom_list_meetings' },
+    },
+    {
       id: 'createdAfter',
       title: 'Created After',
       type: 'short-input',
@@ -129,13 +141,46 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'meetingType',
+      title: 'Meeting Type',
+      type: 'short-input',
+      placeholder: 'Filter by meeting type name',
+      condition: { field: 'operation', value: 'fathom_list_meetings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'calendarInviteesDomains',
+      title: 'Invitee Domain',
+      type: 'short-input',
+      placeholder: 'Filter by calendar invitee company domain',
+      condition: { field: 'operation', value: 'fathom_list_meetings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'calendarInviteesDomainsType',
+      title: 'Invitee Domain Type',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'all' },
+        { label: 'Only Internal', id: 'only_internal' },
+        { label: 'One or More External', id: 'one_or_more_external' },
+      ],
+      condition: { field: 'operation', value: 'fathom_list_meetings' },
+      mode: 'advanced',
+    },
+    {
       id: 'cursor',
       title: 'Pagination Cursor',
       type: 'short-input',
       placeholder: 'Cursor from a previous response',
       condition: {
         field: 'operation',
-        value: ['fathom_list_meetings', 'fathom_list_team_members', 'fathom_list_teams'],
+        value: [
+          'fathom_list_meetings',
+          'fathom_list_meeting_types',
+          'fathom_list_team_members',
+          'fathom_list_teams',
+        ],
       },
       mode: 'advanced',
     },
@@ -162,6 +207,7 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
   tools: {
     access: [
       'fathom_list_meetings',
+      'fathom_list_meeting_types',
       'fathom_get_summary',
       'fathom_get_transcript',
       'fathom_list_team_members',
@@ -187,6 +233,10 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
       type: 'string',
       description: 'Include linked CRM matches in meetings response',
     },
+    includeHighlights: {
+      type: 'string',
+      description: 'Include highlights in meetings response',
+    },
     createdAfter: { type: 'string', description: 'Filter meetings created after this timestamp' },
     createdBefore: {
       type: 'string',
@@ -194,10 +244,20 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
     },
     recordedBy: { type: 'string', description: 'Filter by recorder email' },
     teams: { type: 'string', description: 'Filter by team name' },
+    meetingType: { type: 'string', description: 'Filter by meeting type name' },
+    calendarInviteesDomains: {
+      type: 'string',
+      description: 'Filter by calendar invitee company domain',
+    },
+    calendarInviteesDomainsType: {
+      type: 'string',
+      description: 'Filter by invitee domain type',
+    },
     cursor: { type: 'string', description: 'Pagination cursor for next page' },
   },
   outputs: {
     meetings: { type: 'json', description: 'List of meetings' },
+    meetingTypes: { type: 'json', description: 'List of meeting types' },
     template_name: { type: 'string', description: 'Summary template name' },
     markdown_formatted: { type: 'string', description: 'Markdown-formatted summary' },
     transcript: { type: 'json', description: 'Meeting transcript entries' },

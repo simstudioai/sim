@@ -318,6 +318,22 @@ Do not include any explanations, markdown formatting, or other text outside the 
       condition: { field: 'operation', value: 'search' },
     },
     {
+      id: 'numResults',
+      title: 'Number of Results',
+      type: 'short-input',
+      placeholder: '10 to 100 (default 10)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'country',
+      title: 'Country',
+      type: 'short-input',
+      placeholder: 'ISO 3166-1 alpha-2 code (e.g., US)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
       id: 'factCheck',
       title: 'Fact Check',
       type: 'switch',
@@ -634,6 +650,8 @@ Do not include any explanations, markdown formatting, or other text outside the 
             const exclude = toStringArray(params.excludeDomains)
             if (exclude?.length) result.excludeDomains = exclude
             setString('freshness')
+            setNumber('numResults')
+            setString('country')
             setBool('queryFanout')
             setBool('markdownEnabled')
             setNumber('timeoutMS')

@@ -1,11 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Badge, Button, ChipInput, ChipSelect, cn, Label, Skeleton } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { Badge, Button, ChipInput, ChipSelect, Label, Skeleton } from '@/components/emcn'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import {
   BYOKKeyManager,
   type BYOKManagerProvider,

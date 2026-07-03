@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { ChipDropdown, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip, ChipDropdown, Plus, toast } from '@/components/emcn'
+import { debounce, useQueryState } from 'nuqs'
 import {
   RoleLockTooltip,
   type WorkspaceRoleSource,
@@ -18,6 +19,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  teammatesSearchParam,
+  teammatesUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/teammates/search-params'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
@@ -71,7 +76,11 @@ export function Teammates() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useQueryState(teammatesSearchParam.key, {
+    ...teammatesSearchParam.parser,
+    ...teammatesUrlKeys,
+    limitUrlUpdates: debounce(300),
+  })
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
   const { data: permissions, isPending: permissionsLoading } =
@@ -167,21 +176,19 @@ export function Teammates() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          onChange: (value) => void setSearchTerm(value),
           placeholder: 'Search teammates...',
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={handleInvite}
-            onMouseEnter={isInvitationsDisabled ? prefetchUpgrade : undefined}
-            onFocus={isInvitationsDisabled ? prefetchUpgrade : undefined}
-            title={inviteDisabledReason ?? undefined}
-          >
-            Invite
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'Invite',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: handleInvite,
+            tooltip: inviteDisabledReason ?? undefined,
+            onPrefetch: isInvitationsDisabled ? prefetchUpgrade : undefined,
+          },
+        ]}
       >
         <MemberSection
           label={`Teammates (${teammates.length})`}

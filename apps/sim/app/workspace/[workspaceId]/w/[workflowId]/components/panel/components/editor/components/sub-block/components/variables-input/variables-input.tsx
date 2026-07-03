@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
   Combobox,
   type ComboboxOption,
+  cn,
+  handleKeyboardActivation,
   Input,
   Label,
   Textarea,
-} from '@/components/emcn'
-import { Trash } from '@/components/emcn/icons/trash'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+} from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
+import { generateId } from '@sim/utils/id'
+import { Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,

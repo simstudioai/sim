@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   OVERLAY_CLASSES,
@@ -122,6 +122,11 @@ export function PromptEditor({
       return <span>{displayText}</span>
     }
 
+    const contextByLabel = new Map<string, (typeof contexts)[number]>()
+    for (const c of contexts) {
+      if (!contextByLabel.has(c.label)) contextByLabel.set(c.label, c)
+    }
+
     const elements: React.ReactNode[] = []
     let lastIndex = 0
     for (let i = 0; i < ranges.length; i++) {
@@ -133,7 +138,7 @@ export function PromptEditor({
       }
 
       const mentionLabel = stripMentionTrigger(range.token)
-      const matchingCtx = contexts.find((c) => c.label === mentionLabel)
+      const matchingCtx = contextByLabel.get(mentionLabel)
 
       const mentionIconNode = matchingCtx ? (
         <ContextMentionIcon

@@ -1,17 +1,16 @@
 'use client'
-
-import { format } from 'date-fns'
-import { useParams } from 'next/navigation'
 import {
-  Calendar,
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   chipFieldSurfaceClass,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+  cn,
+} from '@sim/emcn'
+import { Calendar } from '@sim/emcn/icons'
+import { format } from 'date-fns'
+import { useParams } from 'next/navigation'
 import {
   PromptEditor,
   usePromptEditor,

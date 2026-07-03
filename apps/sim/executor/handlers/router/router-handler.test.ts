@@ -238,12 +238,12 @@ describe('RouterBlockHandler', () => {
 
     await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockGetProviderFromModel).toHaveBeenCalledWith('claude-sonnet-4-6')
+    expect(mockGetProviderFromModel).toHaveBeenCalledWith('claude-sonnet-5')
 
     const fetchCallArgs = mockFetch.mock.calls[0]
     const requestBody = JSON.parse(fetchCallArgs[1].body)
     expect(requestBody).toMatchObject({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       temperature: 0.1,
     })
   })

@@ -1,9 +1,9 @@
 'use client'
 
+import { Button } from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileCards')

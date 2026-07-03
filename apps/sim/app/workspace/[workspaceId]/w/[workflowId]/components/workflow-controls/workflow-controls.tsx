@@ -1,10 +1,6 @@
 'use client'
 
 import { memo, useCallback, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { Scan } from 'lucide-react'
-import { useReactFlow } from 'reactflow'
-import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
   ChevronDown,
@@ -18,7 +14,11 @@ import {
   Redo,
   Tooltip,
   Undo,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { Scan } from 'lucide-react'
+import { useReactFlow } from 'reactflow'
+import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'

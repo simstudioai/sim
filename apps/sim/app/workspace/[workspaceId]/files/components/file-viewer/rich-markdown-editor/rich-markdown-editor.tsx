@@ -1,12 +1,11 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
+import { cn, toast } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
-import { toast } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
@@ -27,11 +26,12 @@ import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
-import '@/components/emcn/components/code/code.css'
+import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
 const EXTENSIONS = createMarkdownEditorExtensions({
   placeholder: "Write something, or press '/' for commands…",
+  embeds: true,
 })
 
 /** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
@@ -56,6 +56,8 @@ interface RichMarkdownEditorProps {
   streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
+  /** Disable the `@` tag-insertion menu (existing tags still render). Defaults off — the file editor keeps tagging. */
+  disableTagging?: boolean
 }
 
 /** Inline WYSIWYG markdown editor: agent output streams in read-only, then the same instance becomes editable on settle. */
@@ -72,6 +74,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   streamIsIncremental,
   disableStreamingAutoScroll = false,
   previewContextKey,
+  disableTagging,
 }: RichMarkdownEditorProps) {
   const {
     content,
@@ -113,6 +116,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       autoFocus={autoFocus}
       streamIsIncremental={streamIsIncremental}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
+      disableTagging={disableTagging}
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
     />
@@ -131,6 +135,7 @@ interface LoadedRichMarkdownEditorProps {
   /** See {@link RichMarkdownEditorProps.streamIsIncremental}. */
   streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
+  disableTagging?: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
 }
@@ -155,6 +160,7 @@ export function LoadedRichMarkdownEditor({
   autoFocus,
   streamIsIncremental,
   disableStreamingAutoScroll,
+  disableTagging,
   onChange,
   onSaveShortcut,
 }: LoadedRichMarkdownEditorProps) {
@@ -339,7 +345,7 @@ export function LoadedRichMarkdownEditor({
     }
   }, [editor])
 
-  useEditorMentions(editor, workspaceId, { navigable: true })
+  useEditorMentions(editor, workspaceId, { navigable: true, disableTagging })
 
   const wasStreamingRef = useRef(streamingAtMountRef.current)
 

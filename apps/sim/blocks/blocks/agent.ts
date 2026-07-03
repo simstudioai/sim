@@ -130,7 +130,7 @@ Return ONLY the JSON array.`,
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-4-6',
+      defaultValue: 'claude-sonnet-5',
       options: getModelOptions,
       commandSearchable: true,
     },
@@ -503,7 +503,7 @@ Return ONLY the JSON array.`,
     ],
     config: {
       tool: (params: Record<string, any>) => {
-        const model = params.model || 'claude-sonnet-4-6'
+        const model = params.model || 'claude-sonnet-5'
         if (!model) {
           throw new Error('No model selected')
         }

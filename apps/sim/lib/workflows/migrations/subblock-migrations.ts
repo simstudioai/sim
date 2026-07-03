@@ -26,6 +26,10 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   knowledge: {
     knowledgeBaseId: 'knowledgeBaseSelector',
   },
+  algolia: {
+    listPage: 'page',
+    listHitsPerPage: 'hitsPerPage',
+  },
   kalshi: {
     settlementStatus: '_removed_settlementStatus',
   },

@@ -1,7 +1,5 @@
 'use client'
-
-import { Check, ChipTag, Credit, chipVariants, Info, RefreshCw } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { Check, ChipTag, Credit, chipVariants, cn, Info, RefreshCw } from '@sim/emcn'
 
 /**
  * Props for {@link UpgradePlanCard}.

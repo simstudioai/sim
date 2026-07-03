@@ -279,6 +279,31 @@ Once the user provides the SVG:
 2. Create a React component that spreads props
 3. Ensure viewBox is preserved from the original SVG
 
+### Theme-safety (bare rendering) — REQUIRED
+
+The icon renders both inside its colored `bgColor` tile AND "bare" (no tile) on a
+neutral page — e.g. the home **Suggested actions** list — in both light and dark
+mode. A monochrome logo whose paths hardcode a single near-white or near-black
+fill is invisible bare on the matching background (white-on-white in light mode,
+black-on-black in dark mode).
+
+Rules when adding the SVG:
+
+- **Monochrome logos** (a single white or black mark): draw the shape with
+  `fill='currentColor'`, not `fill='#fff'` / `fill='#000000'`. It then inherits
+  white inside dark tiles, near-black inside light tiles (via
+  `getTileIconColorClass`), and the theme-aware `var(--text-icon)` bare — legible
+  everywhere. Do NOT set `iconColor` for these.
+- **Multi-color brand logos** (their own vivid fills): keep the hardcoded fills.
+  They read on any background. Only set `iconColor` (a vivid brand hex, never a
+  near-black/near-white tile color) if the bare icon should adopt a brand tint.
+- A large white shape with a tiny vivid accent (e.g. a logo where the body is the
+  white negative space) still vanishes bare — convert the body to `currentColor`.
+
+Verify with `bun run check:bare-icons` (also runs in CI). It flags purely
+monochrome hazards; for partial-accent logos, eyeball the suggested-actions list
+in both light and dark mode.
+
 ## Step 5: Create Triggers (Optional)
 
 If the service supports webhooks, create triggers using the generic `buildTriggerSubBlocks` helper.
@@ -466,6 +491,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Asked user to provide SVG
 - [ ] Added icon to `components/icons.tsx`
 - [ ] Icon spreads props correctly
+- [ ] Monochrome marks use `fill='currentColor'` (not hardcoded white/black) so the icon renders bare in light AND dark mode — verified with `bun run check:bare-icons`
 
 ### Triggers (if service supports webhooks)
 - [ ] Created `triggers/{service}/` directory

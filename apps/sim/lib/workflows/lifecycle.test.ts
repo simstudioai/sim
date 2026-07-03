@@ -102,7 +102,7 @@ describe('workflow lifecycle', () => {
     const result = await archiveWorkflow('workflow-1', { requestId: 'req-1' })
 
     expect(result.archived).toBe(true)
-    expect(tx.update).toHaveBeenCalledTimes(7)
+    expect(tx.update).toHaveBeenCalledTimes(6)
     expect(mockWorkflowDeleted).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',

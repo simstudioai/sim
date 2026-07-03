@@ -3,6 +3,45 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AhrefsResponse } from '@/tools/ahrefs/types'
 
+const COUNTRY_OPTIONS = [
+  { label: 'United States', id: 'us' },
+  { label: 'United Kingdom', id: 'gb' },
+  { label: 'Germany', id: 'de' },
+  { label: 'France', id: 'fr' },
+  { label: 'Spain', id: 'es' },
+  { label: 'Italy', id: 'it' },
+  { label: 'Canada', id: 'ca' },
+  { label: 'Australia', id: 'au' },
+  { label: 'Japan', id: 'jp' },
+  { label: 'Brazil', id: 'br' },
+  { label: 'India', id: 'in' },
+  { label: 'Netherlands', id: 'nl' },
+  { label: 'Poland', id: 'pl' },
+  { label: 'Russia', id: 'ru' },
+  { label: 'Mexico', id: 'mx' },
+]
+
+const MODE_OPTIONS = [
+  { label: 'Domain (entire domain)', id: 'domain' },
+  { label: 'Prefix (URL prefix)', id: 'prefix' },
+  { label: 'Subdomains (include all)', id: 'subdomains' },
+  { label: 'Exact (exact URL)', id: 'exact' },
+]
+
+const DATE_WAND_CONFIG = {
+  enabled: true,
+  prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Current date in YYYY-MM-DD format
+- "yesterday" -> Yesterday's date in YYYY-MM-DD format
+- "last week" -> Date 7 days ago in YYYY-MM-DD format
+- "beginning of this month" -> First day of current month in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+  placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
+  generationType: 'timestamp' as const,
+}
+
 export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
   type: 'ahrefs',
   name: 'Ahrefs',
@@ -10,7 +49,7 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs Enterprise plan with API access.',
-  docsLink: 'https://docs.ahrefs.com/docs/api/reference/introduction',
+  docsLink: 'https://docs.sim.ai/integrations/ahrefs',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#FFFFFF',
@@ -22,13 +61,15 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Domain Rating', id: 'ahrefs_domain_rating' },
+        { label: 'Metrics Overview', id: 'ahrefs_metrics' },
         { label: 'Backlinks', id: 'ahrefs_backlinks' },
         { label: 'Backlinks Stats', id: 'ahrefs_backlinks_stats' },
         { label: 'Referring Domains', id: 'ahrefs_referring_domains' },
+        { label: 'Broken Backlinks', id: 'ahrefs_broken_backlinks' },
         { label: 'Organic Keywords', id: 'ahrefs_organic_keywords' },
+        { label: 'Organic Competitors', id: 'ahrefs_organic_competitors' },
         { label: 'Top Pages', id: 'ahrefs_top_pages' },
         { label: 'Keyword Overview', id: 'ahrefs_keyword_overview' },
-        { label: 'Broken Backlinks', id: 'ahrefs_broken_backlinks' },
       ],
       value: () => 'ahrefs_domain_rating',
     },
@@ -48,19 +89,43 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_domain_rating' },
       mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
-Examples:
-- "today" -> Current date in YYYY-MM-DD format
-- "yesterday" -> Yesterday's date in YYYY-MM-DD format
-- "last week" -> Date 7 days ago in YYYY-MM-DD format
-- "beginning of this month" -> First day of current month in YYYY-MM-DD format
-
-Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
-        generationType: 'timestamp',
-      },
+      wandConfig: DATE_WAND_CONFIG,
+    },
+    // Metrics operation inputs
+    {
+      id: 'target',
+      title: 'Target Domain/URL',
+      type: 'short-input',
+      placeholder: 'example.com',
+      condition: { field: 'operation', value: 'ahrefs_metrics' },
+      required: true,
+    },
+    {
+      id: 'country',
+      title: 'Country',
+      type: 'dropdown',
+      options: COUNTRY_OPTIONS,
+      value: () => 'us',
+      condition: { field: 'operation', value: 'ahrefs_metrics' },
+      mode: 'advanced',
+    },
+    {
+      id: 'mode',
+      title: 'Analysis Mode',
+      type: 'dropdown',
+      options: MODE_OPTIONS,
+      value: () => 'domain',
+      condition: { field: 'operation', value: 'ahrefs_metrics' },
+      mode: 'advanced',
+    },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
+      condition: { field: 'operation', value: 'ahrefs_metrics' },
+      mode: 'advanced',
+      wandConfig: DATE_WAND_CONFIG,
     },
     // Backlinks operation inputs
     {
@@ -75,13 +140,20 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       id: 'mode',
       title: 'Analysis Mode',
       type: 'dropdown',
-      options: [
-        { label: 'Domain (entire domain)', id: 'domain' },
-        { label: 'Prefix (URL prefix)', id: 'prefix' },
-        { label: 'Subdomains (include all)', id: 'subdomains' },
-        { label: 'Exact (exact URL)', id: 'exact' },
-      ],
+      options: MODE_OPTIONS,
       value: () => 'domain',
+      condition: { field: 'operation', value: 'ahrefs_backlinks' },
+      mode: 'advanced',
+    },
+    {
+      id: 'history',
+      title: 'History',
+      type: 'dropdown',
+      options: [
+        { label: 'All time (includes lost backlinks)', id: 'all_time' },
+        { label: 'Live only', id: 'live' },
+      ],
+      value: () => 'all_time',
       condition: { field: 'operation', value: 'ahrefs_backlinks' },
       mode: 'advanced',
     },
@@ -89,38 +161,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: '100',
+      placeholder: '1000',
       condition: { field: 'operation', value: 'ahrefs_backlinks' },
       mode: 'advanced',
-    },
-    {
-      id: 'offset',
-      title: 'Offset',
-      type: 'short-input',
-      placeholder: '0',
-      condition: { field: 'operation', value: 'ahrefs_backlinks' },
-      mode: 'advanced',
-    },
-    {
-      id: 'date',
-      title: 'Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD (defaults to today)',
-      condition: { field: 'operation', value: 'ahrefs_backlinks' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
-Examples:
-- "today" -> Current date in YYYY-MM-DD format
-- "yesterday" -> Yesterday's date in YYYY-MM-DD format
-- "last week" -> Date 7 days ago in YYYY-MM-DD format
-- "beginning of this month" -> First day of current month in YYYY-MM-DD format
-
-Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
-        generationType: 'timestamp',
-      },
     },
     // Backlinks Stats operation inputs
     {
@@ -135,12 +178,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       id: 'mode',
       title: 'Analysis Mode',
       type: 'dropdown',
-      options: [
-        { label: 'Domain (entire domain)', id: 'domain' },
-        { label: 'Prefix (URL prefix)', id: 'prefix' },
-        { label: 'Subdomains (include all)', id: 'subdomains' },
-        { label: 'Exact (exact URL)', id: 'exact' },
-      ],
+      options: MODE_OPTIONS,
       value: () => 'domain',
       condition: { field: 'operation', value: 'ahrefs_backlinks_stats' },
       mode: 'advanced',
@@ -152,19 +190,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_backlinks_stats' },
       mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
-Examples:
-- "today" -> Current date in YYYY-MM-DD format
-- "yesterday" -> Yesterday's date in YYYY-MM-DD format
-- "last week" -> Date 7 days ago in YYYY-MM-DD format
-- "beginning of this month" -> First day of current month in YYYY-MM-DD format
-
-Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
-        generationType: 'timestamp',
-      },
+      wandConfig: DATE_WAND_CONFIG,
     },
     // Referring Domains operation inputs
     {
@@ -179,13 +205,20 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       id: 'mode',
       title: 'Analysis Mode',
       type: 'dropdown',
-      options: [
-        { label: 'Domain (entire domain)', id: 'domain' },
-        { label: 'Prefix (URL prefix)', id: 'prefix' },
-        { label: 'Subdomains (include all)', id: 'subdomains' },
-        { label: 'Exact (exact URL)', id: 'exact' },
-      ],
+      options: MODE_OPTIONS,
       value: () => 'domain',
+      condition: { field: 'operation', value: 'ahrefs_referring_domains' },
+      mode: 'advanced',
+    },
+    {
+      id: 'history',
+      title: 'History',
+      type: 'dropdown',
+      options: [
+        { label: 'All time (includes lost domains)', id: 'all_time' },
+        { label: 'Live only', id: 'live' },
+      ],
+      value: () => 'all_time',
       condition: { field: 'operation', value: 'ahrefs_referring_domains' },
       mode: 'advanced',
     },
@@ -193,240 +226,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: '100',
+      placeholder: '1000',
       condition: { field: 'operation', value: 'ahrefs_referring_domains' },
-      mode: 'advanced',
-    },
-    {
-      id: 'offset',
-      title: 'Offset',
-      type: 'short-input',
-      placeholder: '0',
-      condition: { field: 'operation', value: 'ahrefs_referring_domains' },
-      mode: 'advanced',
-    },
-    {
-      id: 'date',
-      title: 'Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD (defaults to today)',
-      condition: { field: 'operation', value: 'ahrefs_referring_domains' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
-Examples:
-- "today" -> Current date in YYYY-MM-DD format
-- "yesterday" -> Yesterday's date in YYYY-MM-DD format
-- "last week" -> Date 7 days ago in YYYY-MM-DD format
-- "beginning of this month" -> First day of current month in YYYY-MM-DD format
-
-Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
-        generationType: 'timestamp',
-      },
-    },
-    // Organic Keywords operation inputs
-    {
-      id: 'target',
-      title: 'Target Domain/URL',
-      type: 'short-input',
-      placeholder: 'example.com',
-      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
-      required: true,
-    },
-    {
-      id: 'country',
-      title: 'Country',
-      type: 'dropdown',
-      options: [
-        { label: 'United States', id: 'us' },
-        { label: 'United Kingdom', id: 'gb' },
-        { label: 'Germany', id: 'de' },
-        { label: 'France', id: 'fr' },
-        { label: 'Spain', id: 'es' },
-        { label: 'Italy', id: 'it' },
-        { label: 'Canada', id: 'ca' },
-        { label: 'Australia', id: 'au' },
-        { label: 'Japan', id: 'jp' },
-        { label: 'Brazil', id: 'br' },
-        { label: 'India', id: 'in' },
-        { label: 'Netherlands', id: 'nl' },
-        { label: 'Poland', id: 'pl' },
-        { label: 'Russia', id: 'ru' },
-        { label: 'Mexico', id: 'mx' },
-      ],
-      value: () => 'us',
-      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
-      mode: 'advanced',
-    },
-    {
-      id: 'mode',
-      title: 'Analysis Mode',
-      type: 'dropdown',
-      options: [
-        { label: 'Domain (entire domain)', id: 'domain' },
-        { label: 'Prefix (URL prefix)', id: 'prefix' },
-        { label: 'Subdomains (include all)', id: 'subdomains' },
-        { label: 'Exact (exact URL)', id: 'exact' },
-      ],
-      value: () => 'domain',
-      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
-      mode: 'advanced',
-    },
-    {
-      id: 'limit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: '100',
-      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
-      mode: 'advanced',
-    },
-    {
-      id: 'offset',
-      title: 'Offset',
-      type: 'short-input',
-      placeholder: '0',
-      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
-      mode: 'advanced',
-    },
-    {
-      id: 'date',
-      title: 'Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD (defaults to today)',
-      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
-Examples:
-- "today" -> Current date in YYYY-MM-DD format
-- "yesterday" -> Yesterday's date in YYYY-MM-DD format
-- "last week" -> Date 7 days ago in YYYY-MM-DD format
-- "beginning of this month" -> First day of current month in YYYY-MM-DD format
-
-Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
-        generationType: 'timestamp',
-      },
-    },
-    // Top Pages operation inputs
-    {
-      id: 'target',
-      title: 'Target Domain',
-      type: 'short-input',
-      placeholder: 'example.com',
-      condition: { field: 'operation', value: 'ahrefs_top_pages' },
-      required: true,
-    },
-    {
-      id: 'country',
-      title: 'Country',
-      type: 'dropdown',
-      options: [
-        { label: 'United States', id: 'us' },
-        { label: 'United Kingdom', id: 'gb' },
-        { label: 'Germany', id: 'de' },
-        { label: 'France', id: 'fr' },
-        { label: 'Spain', id: 'es' },
-        { label: 'Italy', id: 'it' },
-        { label: 'Canada', id: 'ca' },
-        { label: 'Australia', id: 'au' },
-        { label: 'Japan', id: 'jp' },
-        { label: 'Brazil', id: 'br' },
-        { label: 'India', id: 'in' },
-        { label: 'Netherlands', id: 'nl' },
-        { label: 'Poland', id: 'pl' },
-        { label: 'Russia', id: 'ru' },
-        { label: 'Mexico', id: 'mx' },
-      ],
-      value: () => 'us',
-      condition: { field: 'operation', value: 'ahrefs_top_pages' },
-      mode: 'advanced',
-    },
-    {
-      id: 'mode',
-      title: 'Analysis Mode',
-      type: 'dropdown',
-      options: [
-        { label: 'Domain (entire domain)', id: 'domain' },
-        { label: 'Prefix (URL prefix)', id: 'prefix' },
-        { label: 'Subdomains (include all)', id: 'subdomains' },
-      ],
-      value: () => 'domain',
-      condition: { field: 'operation', value: 'ahrefs_top_pages' },
-      mode: 'advanced',
-    },
-    {
-      id: 'limit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: '100',
-      condition: { field: 'operation', value: 'ahrefs_top_pages' },
-      mode: 'advanced',
-    },
-    {
-      id: 'offset',
-      title: 'Offset',
-      type: 'short-input',
-      placeholder: '0',
-      condition: { field: 'operation', value: 'ahrefs_top_pages' },
-      mode: 'advanced',
-    },
-    {
-      id: 'date',
-      title: 'Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD (defaults to today)',
-      condition: { field: 'operation', value: 'ahrefs_top_pages' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
-Examples:
-- "today" -> Current date in YYYY-MM-DD format
-- "yesterday" -> Yesterday's date in YYYY-MM-DD format
-- "last week" -> Date 7 days ago in YYYY-MM-DD format
-- "beginning of this month" -> First day of current month in YYYY-MM-DD format
-
-Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
-        generationType: 'timestamp',
-      },
-    },
-    // Keyword Overview operation inputs
-    {
-      id: 'keyword',
-      title: 'Keyword',
-      type: 'short-input',
-      placeholder: 'Enter keyword to analyze',
-      condition: { field: 'operation', value: 'ahrefs_keyword_overview' },
-      required: true,
-    },
-    {
-      id: 'country',
-      title: 'Country',
-      type: 'dropdown',
-      options: [
-        { label: 'United States', id: 'us' },
-        { label: 'United Kingdom', id: 'gb' },
-        { label: 'Germany', id: 'de' },
-        { label: 'France', id: 'fr' },
-        { label: 'Spain', id: 'es' },
-        { label: 'Italy', id: 'it' },
-        { label: 'Canada', id: 'ca' },
-        { label: 'Australia', id: 'au' },
-        { label: 'Japan', id: 'jp' },
-        { label: 'Brazil', id: 'br' },
-        { label: 'India', id: 'in' },
-        { label: 'Netherlands', id: 'nl' },
-        { label: 'Poland', id: 'pl' },
-        { label: 'Russia', id: 'ru' },
-        { label: 'Mexico', id: 'mx' },
-      ],
-      value: () => 'us',
-      condition: { field: 'operation', value: 'ahrefs_keyword_overview' },
       mode: 'advanced',
     },
     // Broken Backlinks operation inputs
@@ -442,12 +243,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       id: 'mode',
       title: 'Analysis Mode',
       type: 'dropdown',
-      options: [
-        { label: 'Domain (entire domain)', id: 'domain' },
-        { label: 'Prefix (URL prefix)', id: 'prefix' },
-        { label: 'Subdomains (include all)', id: 'subdomains' },
-        { label: 'Exact (exact URL)', id: 'exact' },
-      ],
+      options: MODE_OPTIONS,
       value: () => 'domain',
       condition: { field: 'operation', value: 'ahrefs_broken_backlinks' },
       mode: 'advanced',
@@ -456,16 +252,43 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: '100',
+      placeholder: '1000',
       condition: { field: 'operation', value: 'ahrefs_broken_backlinks' },
       mode: 'advanced',
     },
+    // Organic Keywords operation inputs
     {
-      id: 'offset',
-      title: 'Offset',
+      id: 'target',
+      title: 'Target Domain/URL',
       type: 'short-input',
-      placeholder: '0',
-      condition: { field: 'operation', value: 'ahrefs_broken_backlinks' },
+      placeholder: 'example.com',
+      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
+      required: true,
+    },
+    {
+      id: 'country',
+      title: 'Country',
+      type: 'dropdown',
+      options: COUNTRY_OPTIONS,
+      value: () => 'us',
+      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
+      mode: 'advanced',
+    },
+    {
+      id: 'mode',
+      title: 'Analysis Mode',
+      type: 'dropdown',
+      options: MODE_OPTIONS,
+      value: () => 'domain',
+      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
+      mode: 'advanced',
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '1000',
+      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
       mode: 'advanced',
     },
     {
@@ -473,21 +296,119 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (defaults to today)',
-      condition: { field: 'operation', value: 'ahrefs_broken_backlinks' },
+      condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
       mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
-Examples:
-- "today" -> Current date in YYYY-MM-DD format
-- "yesterday" -> Yesterday's date in YYYY-MM-DD format
-- "last week" -> Date 7 days ago in YYYY-MM-DD format
-- "beginning of this month" -> First day of current month in YYYY-MM-DD format
-
-Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
-        generationType: 'timestamp',
-      },
+      wandConfig: DATE_WAND_CONFIG,
+    },
+    // Organic Competitors operation inputs
+    {
+      id: 'target',
+      title: 'Target Domain/URL',
+      type: 'short-input',
+      placeholder: 'example.com',
+      condition: { field: 'operation', value: 'ahrefs_organic_competitors' },
+      required: true,
+    },
+    {
+      id: 'country',
+      title: 'Country',
+      type: 'dropdown',
+      options: COUNTRY_OPTIONS,
+      value: () => 'us',
+      condition: { field: 'operation', value: 'ahrefs_organic_competitors' },
+      mode: 'advanced',
+    },
+    {
+      id: 'mode',
+      title: 'Analysis Mode',
+      type: 'dropdown',
+      options: MODE_OPTIONS,
+      value: () => 'domain',
+      condition: { field: 'operation', value: 'ahrefs_organic_competitors' },
+      mode: 'advanced',
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '1000',
+      condition: { field: 'operation', value: 'ahrefs_organic_competitors' },
+      mode: 'advanced',
+    },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
+      condition: { field: 'operation', value: 'ahrefs_organic_competitors' },
+      mode: 'advanced',
+      wandConfig: DATE_WAND_CONFIG,
+    },
+    // Top Pages operation inputs
+    {
+      id: 'target',
+      title: 'Target Domain',
+      type: 'short-input',
+      placeholder: 'example.com',
+      condition: { field: 'operation', value: 'ahrefs_top_pages' },
+      required: true,
+    },
+    {
+      id: 'country',
+      title: 'Country',
+      type: 'dropdown',
+      options: COUNTRY_OPTIONS,
+      value: () => 'us',
+      condition: { field: 'operation', value: 'ahrefs_top_pages' },
+      mode: 'advanced',
+    },
+    {
+      id: 'mode',
+      title: 'Analysis Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Domain (entire domain)', id: 'domain' },
+        { label: 'Prefix (URL prefix)', id: 'prefix' },
+        { label: 'Subdomains (include all)', id: 'subdomains' },
+      ],
+      value: () => 'domain',
+      condition: { field: 'operation', value: 'ahrefs_top_pages' },
+      mode: 'advanced',
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '1000',
+      condition: { field: 'operation', value: 'ahrefs_top_pages' },
+      mode: 'advanced',
+    },
+    {
+      id: 'date',
+      title: 'Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (defaults to today)',
+      condition: { field: 'operation', value: 'ahrefs_top_pages' },
+      mode: 'advanced',
+      wandConfig: DATE_WAND_CONFIG,
+    },
+    // Keyword Overview operation inputs
+    {
+      id: 'keyword',
+      title: 'Keyword',
+      type: 'short-input',
+      placeholder: 'Enter keyword to analyze',
+      condition: { field: 'operation', value: 'ahrefs_keyword_overview' },
+      required: true,
+    },
+    {
+      id: 'country',
+      title: 'Country',
+      type: 'dropdown',
+      options: COUNTRY_OPTIONS,
+      value: () => 'us',
+      condition: { field: 'operation', value: 'ahrefs_keyword_overview' },
+      mode: 'advanced',
     },
     // API Key (common to all operations)
     {
@@ -502,33 +423,39 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   tools: {
     access: [
       'ahrefs_domain_rating',
+      'ahrefs_metrics',
       'ahrefs_backlinks',
       'ahrefs_backlinks_stats',
       'ahrefs_referring_domains',
+      'ahrefs_broken_backlinks',
       'ahrefs_organic_keywords',
+      'ahrefs_organic_competitors',
       'ahrefs_top_pages',
       'ahrefs_keyword_overview',
-      'ahrefs_broken_backlinks',
     ],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'ahrefs_domain_rating':
             return 'ahrefs_domain_rating'
+          case 'ahrefs_metrics':
+            return 'ahrefs_metrics'
           case 'ahrefs_backlinks':
             return 'ahrefs_backlinks'
           case 'ahrefs_backlinks_stats':
             return 'ahrefs_backlinks_stats'
           case 'ahrefs_referring_domains':
             return 'ahrefs_referring_domains'
+          case 'ahrefs_broken_backlinks':
+            return 'ahrefs_broken_backlinks'
           case 'ahrefs_organic_keywords':
             return 'ahrefs_organic_keywords'
+          case 'ahrefs_organic_competitors':
+            return 'ahrefs_organic_competitors'
           case 'ahrefs_top_pages':
             return 'ahrefs_top_pages'
           case 'ahrefs_keyword_overview':
             return 'ahrefs_keyword_overview'
-          case 'ahrefs_broken_backlinks':
-            return 'ahrefs_broken_backlinks'
           default:
             return 'ahrefs_domain_rating'
         }
@@ -536,7 +463,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       params: (params) => {
         const result: Record<string, unknown> = {}
         if (params.limit) result.limit = Number(params.limit)
-        if (params.offset) result.offset = Number(params.offset)
         return result
       },
     },
@@ -549,27 +475,46 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     mode: { type: 'string', description: 'Analysis mode (domain, prefix, subdomains, exact)' },
     country: { type: 'string', description: 'Country code for geo-specific data' },
     date: { type: 'string', description: 'Date for historical data in YYYY-MM-DD format' },
+    history: {
+      type: 'string',
+      description: 'Historical scope for backlink-profile endpoints (all_time, live)',
+    },
     limit: { type: 'number', description: 'Maximum number of results to return' },
-    offset: { type: 'number', description: 'Number of results to skip for pagination' },
   },
   outputs: {
     // Domain Rating output
     domainRating: { type: 'number', description: 'Domain Rating score (0-100)' },
     ahrefsRank: { type: 'number', description: 'Ahrefs Rank (global ranking)' },
+    // Metrics output
+    metrics: {
+      type: 'json',
+      description:
+        'Organic and paid search overview (organicTraffic, organicKeywords, organicKeywordsTop3, organicCost, paidTraffic, paidKeywords, paidPages, paidCost)',
+    },
     // Backlinks output
     backlinks: { type: 'json', description: 'List of backlinks' },
     // Backlinks Stats output
-    stats: { type: 'json', description: 'Backlink statistics' },
+    stats: {
+      type: 'json',
+      description:
+        'Backlink and referring domain totals (liveBacklinks, liveReferringDomains, allTimeBacklinks, allTimeReferringDomains)',
+    },
     // Referring Domains output
     referringDomains: { type: 'json', description: 'List of referring domains' },
+    // Broken Backlinks output
+    brokenBacklinks: { type: 'json', description: 'List of broken backlinks' },
     // Organic Keywords output
     keywords: { type: 'json', description: 'List of organic keywords' },
+    // Organic Competitors output
+    competitors: { type: 'json', description: 'List of organic search competitors' },
     // Top Pages output
     pages: { type: 'json', description: 'List of top pages' },
     // Keyword Overview output
-    overview: { type: 'json', description: 'Keyword metrics overview' },
-    // Broken Backlinks output
-    brokenBacklinks: { type: 'json', description: 'List of broken backlinks' },
+    overview: {
+      type: 'json',
+      description:
+        'Keyword metrics overview, including search intent flags (informational, navigational, commercial, transactional, branded, local)',
+    },
   },
 }
 
@@ -614,6 +559,16 @@ export const AhrefsBlockMeta = {
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation'],
+    },
+    {
+      icon: AhrefsIcon,
+      title: 'Ahrefs organic competitor finder',
+      prompt:
+        'Build a monthly workflow that pulls Ahrefs organic competitors for my domain, cross-references them against my tracked competitor list, and posts newly surfaced competitors to Slack for review.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+      alsoIntegrations: ['slack'],
     },
     {
       icon: AhrefsIcon,
@@ -667,6 +622,13 @@ export const AhrefsBlockMeta = {
         "Pull a domain's organic keyword rankings from Ahrefs and report top movers and lost positions.",
       content:
         '# Track Organic Rankings\n\nReport how a domain is ranking in organic search using Ahrefs.\n\n## Steps\n1. Pull the organic keywords report for the target domain.\n2. Identify the top-ranking keywords and their positions.\n3. Compare against a prior snapshot if available to find gains and losses.\n\n## Output\nA summary of top organic keywords, notable position gains and drops, and pages that may need attention.',
+    },
+    {
+      name: 'find-organic-competitors',
+      description:
+        'Use Ahrefs organic competitors data to identify sites competing for the same search traffic.',
+      content:
+        '# Find Organic Competitors\n\nSurface who actually competes with a domain in organic search using Ahrefs.\n\n## Steps\n1. Run an organic competitors report for the target domain.\n2. Rank results by common keyword overlap and competitor traffic.\n3. Cross-reference against the known competitor list to flag new entrants.\n\n## Output\nA ranked list of organic competitors with keyword overlap and traffic, highlighting any that are not yet being tracked.',
     },
   ],
 } as const satisfies BlockMeta

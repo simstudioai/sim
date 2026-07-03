@@ -51,7 +51,6 @@ vi.mock('@sim/db/schema', () => {
   const wsFileCols = ['id', 'key', 'context', 'workspaceId', 'deletedAt', 'uploadedAt']
   const softCols = ['id', 'archivedAt', 'deletedAt', 'workspaceId']
   return {
-    a2aAgent: table(softCols),
     copilotChats: table(['id', 'workflowId']),
     document: table(['id', 'storageKey', 'knowledgeBaseId']),
     knowledgeBase: table(softCols),

@@ -4,9 +4,10 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import * as ipaddr from 'ipaddr.js'
 import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
@@ -152,6 +153,12 @@ export async function validateUrlWithDNS(
  * database hostnames (e.g. underscores in Docker/K8s service names). It only
  * blocks localhost and private/reserved IPs.
  *
+ * Self-hosted operators can set `ALLOW_PRIVATE_DATABASE_HOSTS` to reach databases
+ * on their private network (e.g. a Docker/Swarm service name that resolves to an
+ * internal IP). The opt-in only bypasses the private/reserved/loopback block; DNS
+ * is still resolved so the caller can pin the connection to the resolved IP. The
+ * bypass is never honored on the hosted platform (see {@link isPrivateDatabaseHostsAllowed}).
+ *
  * @param host - The database hostname to validate
  * @param paramName - Name of the parameter for error messages
  * @returns AsyncValidationResult with resolved IP
@@ -165,19 +172,25 @@ export async function validateDatabaseHost(
   }
 
   const lowerHost = host.toLowerCase()
+  const cleanHost =
+    lowerHost.startsWith('[') && lowerHost.endsWith(']') ? lowerHost.slice(1, -1) : lowerHost
 
-  if (lowerHost === 'localhost') {
+  if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
     return { isValid: false, error: `${paramName} cannot be localhost` }
   }
 
-  if (ipaddr.isValid(lowerHost) && isPrivateOrReservedIP(lowerHost)) {
+  if (
+    ipaddr.isValid(cleanHost) &&
+    isPrivateOrReservedIP(cleanHost) &&
+    !isPrivateDatabaseHostsAllowed
+  ) {
     return { isValid: false, error: `${paramName} cannot be a private IP address` }
   }
 
   try {
-    const { address } = await dns.lookup(host, { verbatim: true })
+    const { address } = await dns.lookup(cleanHost, { verbatim: true })
 
-    if (isPrivateOrReservedIP(address)) {
+    if (isPrivateOrReservedIP(address) && !isPrivateDatabaseHostsAllowed) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
@@ -321,6 +334,8 @@ export interface SecureFetchOptions {
   maxRedirects?: number
   maxResponseBytes?: number
   signal?: AbortSignal
+  /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
+  stripAuthOnRedirect?: boolean
 }
 
 export class SecureFetchHeaders {
@@ -488,10 +503,16 @@ export async function secureFetchWithPinnedIP(
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
+            const redirectOptions = options.stripAuthOnRedirect
+              ? {
+                  ...options,
+                  headers: omit(options.headers ?? {}, ['Authorization', 'authorization']),
+                }
+              : options
             return secureFetchWithPinnedIP(
               redirectUrl,
               validation.resolvedIP!,
-              options,
+              redirectOptions,
               redirectCount + 1
             )
           })

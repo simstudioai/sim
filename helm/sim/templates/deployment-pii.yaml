@@ -1,6 +1,6 @@
 {{- if .Values.pii.enabled }}
 ---
-# Deployment for the Presidio PII redaction sidecar (analyzer + anonymizer combined)
+# Deployment for the Presidio PII redaction service (analyzer + anonymizer combined)
 apiVersion: apps/v1
 kind: Deployment
 metadata:

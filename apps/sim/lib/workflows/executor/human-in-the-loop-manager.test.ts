@@ -152,6 +152,125 @@ describe('updateResumeOutputInAggregationBuffers', () => {
   })
 })
 
+describe('PauseResumeManager.getPauseContextDetail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('does not duplicate a pause point large response payload between pausePoint and execution.pausePoints', async () => {
+    const largeDisplayValue = 'x'.repeat(50_000)
+
+    const row = {
+      id: 'paused-exec-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      status: 'paused',
+      pausedAt: null,
+      updatedAt: null,
+      expiresAt: null,
+      metadata: {},
+      executionSnapshot: { triggerIds: [] },
+      pausePoints: {
+        'ctx-1': {
+          contextId: 'ctx-1',
+          blockId: 'hitl-1',
+          resumeStatus: 'paused',
+          snapshotReady: true,
+          pauseKind: 'human',
+          registeredAt: '2026-07-02T00:00:00.000Z',
+          response: {
+            data: {
+              operation: 'human',
+              inputFormat: [{ id: 'field_0', name: 'approved', type: 'boolean', required: false }],
+              submission: null,
+              responseStructure: [
+                { name: 'ai_analysis', type: 'string', value: largeDisplayValue },
+              ],
+            },
+            status: 200,
+            headers: {},
+          },
+        },
+        'ctx-2': {
+          contextId: 'ctx-2',
+          blockId: 'hitl-2',
+          resumeStatus: 'paused',
+          snapshotReady: true,
+          pauseKind: 'human',
+          registeredAt: '2026-07-02T00:00:00.000Z',
+          response: {
+            data: { operation: 'human', inputFormat: [], submission: null },
+            status: 200,
+            headers: {},
+          },
+        },
+      },
+    }
+
+    dbChainMockFns.limit.mockResolvedValueOnce([row])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    const detail = await PauseResumeManager.getPauseContextDetail({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      contextId: 'ctx-1',
+    })
+
+    expect(detail).not.toBeNull()
+    // The requested pause point keeps its full response payload.
+    expect(detail!.pausePoint.response.data.responseStructure[0].value).toBe(largeDisplayValue)
+    expect(detail!.pausePoint.contextId).toBe('ctx-1')
+
+    // `execution.pausePoints` must not re-embed the (potentially large)
+    // response payload — it's already available via `pausePoint` above.
+    for (const point of detail!.execution.pausePoints) {
+      expect(point.response?.data).toBeUndefined()
+    }
+    // Non-payload fields are still present on the execution's pause points.
+    expect(detail!.execution.pausePoints.map((p) => p.contextId).sort()).toEqual(['ctx-1', 'ctx-2'])
+    expect(detail!.execution.pausePoints.find((p) => p.contextId === 'ctx-1')?.resumeStatus).toBe(
+      'paused'
+    )
+  })
+
+  it('returns null when the pause context no longer exists', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'paused-exec-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        status: 'paused',
+        pausedAt: null,
+        updatedAt: null,
+        expiresAt: null,
+        metadata: {},
+        executionSnapshot: { triggerIds: [] },
+        pausePoints: {
+          'ctx-1': {
+            contextId: 'ctx-1',
+            blockId: 'hitl-1',
+            resumeStatus: 'paused',
+            snapshotReady: true,
+            pauseKind: 'human',
+            registeredAt: '2026-07-02T00:00:00.000Z',
+            response: { data: { operation: 'human' }, status: 200, headers: {} },
+          },
+        },
+      },
+    ])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    const detail = await PauseResumeManager.getPauseContextDetail({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      contextId: 'missing-ctx',
+    })
+
+    expect(detail).toBeNull()
+  })
+})
+
 describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () => {
   beforeEach(() => {
     vi.clearAllMocks()

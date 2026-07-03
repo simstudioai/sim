@@ -9,7 +9,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { buildAttachFileUrl } from '@/tools/agiloft/utils'
 import {
@@ -74,7 +75,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
-    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+
+    let fileBuffer: Buffer
+    try {
+      const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+      fileBuffer = servable.buffer
+    } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
+      logger.error(`[${requestId}] Failed to download file from storage:`, error)
+      return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
+    }
+
     const resolvedFileName = data.fileName || userFile.name || 'attachment'
 
     let resolvedIP: string

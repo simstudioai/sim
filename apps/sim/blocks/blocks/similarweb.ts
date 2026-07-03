@@ -26,6 +26,7 @@ export const SimilarwebBlock: BlockConfig = {
         { label: 'Bounce Rate', id: 'similarweb_bounce_rate' },
         { label: 'Pages Per Visit', id: 'similarweb_pages_per_visit' },
         { label: 'Visit Duration (Desktop)', id: 'similarweb_visit_duration' },
+        { label: 'Page Views', id: 'similarweb_page_views' },
       ],
       value: () => 'similarweb_website_overview',
     },
@@ -88,6 +89,7 @@ export const SimilarwebBlock: BlockConfig = {
       title: 'Start Date',
       type: 'short-input',
       placeholder: 'YYYY-MM (e.g., 2024-01)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: 'similarweb_website_overview',
@@ -112,6 +114,7 @@ Return ONLY the date string in YYYY-MM format - no explanations, no quotes, no e
       title: 'End Date',
       type: 'short-input',
       placeholder: 'YYYY-MM (e.g., 2024-12)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: 'similarweb_website_overview',
@@ -134,6 +137,7 @@ Return ONLY the date string in YYYY-MM format - no explanations, no quotes, no e
       id: 'mainDomainOnly',
       title: 'Main Domain Only',
       type: 'switch',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: 'similarweb_website_overview',
@@ -157,6 +161,7 @@ Return ONLY the date string in YYYY-MM format - no explanations, no quotes, no e
       'similarweb_bounce_rate',
       'similarweb_pages_per_visit',
       'similarweb_visit_duration',
+      'similarweb_page_views',
     ],
     config: {
       tool: (params) => params.operation,
@@ -197,6 +202,7 @@ Return ONLY the date string in YYYY-MM format - no explanations, no quotes, no e
     bounceRate: { type: 'json', description: 'Bounce rate data over time' },
     pagesPerVisit: { type: 'json', description: 'Pages per visit data over time' },
     averageVisitDuration: { type: 'json', description: 'Desktop visit duration data over time' },
+    pageViews: { type: 'json', description: 'Page view data over time' },
   },
 }
 

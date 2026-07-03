@@ -5,6 +5,21 @@ import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-hand
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
+const { mockExecutorExecute, mockCreateSnapshot } = vi.hoisted(() => ({
+  mockExecutorExecute: vi.fn(),
+  mockCreateSnapshot: vi.fn(),
+}))
+
+vi.mock('@/executor', () => ({
+  Executor: class {
+    execute = mockExecutorExecute
+  },
+}))
+
+vi.mock('@/lib/logs/execution/snapshot/service', () => ({
+  snapshotService: { createSnapshotWithDeduplication: mockCreateSnapshot },
+}))
+
 vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: vi.fn().mockResolvedValue('test-token'),
 }))
@@ -158,6 +173,119 @@ describe('WorkflowBlockHandler', () => {
       await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         '"child-workflow-id" failed: Network error'
       )
+    })
+  })
+
+  describe('workspace containment', () => {
+    const inputs = { workflowId: 'child-workflow-id' }
+
+    it('should fail a cross-workspace child in the draft loader path', async () => {
+      const ctx = { ...mockContext, workspaceId: 'workspace-parent' }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Foreign Workflow',
+              workspaceId: 'workspace-other',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+
+      await expect(handler.execute(ctx, mockBlock, inputs)).rejects.toThrow(
+        'Child workflow child-workflow-id belongs to a different workspace and cannot be executed'
+      )
+      expect(mockCreateSnapshot).not.toHaveBeenCalled()
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+    })
+
+    it('should fail a cross-workspace child in the deployed loader path', async () => {
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-parent',
+        isDeployedContext: true,
+      }
+
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                name: 'Foreign Workflow',
+                workspaceId: 'workspace-other',
+                variables: {},
+              },
+            }),
+        }
+      })
+
+      await expect(handler.execute(ctx, mockBlock, inputs)).rejects.toThrow(
+        'Child workflow child-workflow-id belongs to a different workspace and cannot be executed'
+      )
+      expect(mockCreateSnapshot).not.toHaveBeenCalled()
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+    })
+
+    it('should execute a same-workspace child as before', async () => {
+      const ctx = { ...mockContext, workspaceId: 'workspace-parent' }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      const result = await handler.execute(ctx, mockBlock, inputs)
+
+      expect(result).toMatchObject({
+        success: true,
+        childWorkflowId: 'child-workflow-id',
+        childWorkflowName: 'Child Workflow',
+        childWorkflowSnapshotId: 'snapshot-1',
+        result: { data: 'ok' },
+      })
+      expect(mockExecutorExecute).toHaveBeenCalledWith('child-workflow-id')
+    })
+
+    it('should fail closed when the executing context has no workspace', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+        'Cannot execute child workflow child-workflow-id: executing context has no workspace'
+      )
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
     })
   })
 

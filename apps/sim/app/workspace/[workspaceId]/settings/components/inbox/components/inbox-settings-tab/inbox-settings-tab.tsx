@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Chip,
@@ -15,7 +12,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useAddInboxSender,
@@ -65,7 +65,7 @@ export function InboxSettingsTab() {
     } catch (error) {
       setEditAddressError(getErrorMessage(error, 'Failed to update address'))
     }
-  }, [workspaceId, newUsername])
+  }, [workspaceId, newUsername, updateAddress.mutateAsync])
 
   const handleAddSender = useCallback(async () => {
     if (!newSenderEmail.trim()) return
@@ -82,7 +82,7 @@ export function InboxSettingsTab() {
     } catch (error) {
       setAddSenderError(getErrorMessage(error, 'Failed to add sender'))
     }
-  }, [workspaceId, newSenderEmail, newSenderLabel])
+  }, [workspaceId, newSenderEmail, newSenderLabel, addSender.mutateAsync])
 
   const handleRemoveSender = useCallback(
     async (senderId: string) => {
@@ -93,7 +93,7 @@ export function InboxSettingsTab() {
         setRemoveSenderError(getErrorMessage(error, 'Failed to remove sender'))
       }
     },
-    [workspaceId]
+    [workspaceId, removeSender.mutateAsync]
   )
 
   return (

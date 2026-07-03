@@ -19,6 +19,53 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSORegisterRoute')
 
+type TokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post'
+
+/**
+ * Prefers client_secret_post over client_secret_basic when an IdP supports both:
+ * better-auth sends client_secret_basic credentials without URL-encoding per
+ * RFC 6749 §2.3.1, so a '+' in the client secret is decoded as a space, causing
+ * invalid_client errors. Matches the same default in register-sso-provider.ts.
+ */
+function selectTokenEndpointAuthMethod(
+  supportedMethods: unknown,
+  existing?: TokenEndpointAuthMethod
+): TokenEndpointAuthMethod {
+  if (existing) return existing
+  if (!Array.isArray(supportedMethods) || supportedMethods.length === 0) {
+    return 'client_secret_post'
+  }
+  if (supportedMethods.includes('client_secret_post')) return 'client_secret_post'
+  if (supportedMethods.includes('client_secret_basic')) return 'client_secret_basic'
+  return 'client_secret_post'
+}
+
+type DiscoveryResult =
+  | { ok: true; discovery: Record<string, unknown> }
+  | { ok: false; error: string }
+
+const OIDC_DISCOVERY_TIMEOUT_MS = 10000
+
+async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<DiscoveryResult> {
+  const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
+  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+    return { ok: false, error: urlValidation.error ?? 'SSRF validation failed' }
+  }
+
+  try {
+    const response = await secureFetchWithPinnedIP(discoveryUrl, urlValidation.resolvedIP, {
+      headers: { Accept: 'application/json' },
+      timeout: OIDC_DISCOVERY_TIMEOUT_MS,
+    })
+    if (!response.ok) {
+      return { ok: false, error: `Discovery request failed with status ${response.status}` }
+    }
+    return { ok: true, discovery: (await response.json()) as Record<string, unknown> }
+  } catch (error) {
+    return { ok: false, error: getErrorMessage(error, 'Unknown error') }
+  }
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     if (!env.SSO_ENABLED) {
@@ -132,6 +179,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         authorizationEndpoint,
         tokenEndpoint,
         userInfoEndpoint,
+        skipUserInfoEndpoint,
         jwksEndpoint,
       } = body
 
@@ -180,8 +228,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const userProvidedEndpoints: Record<string, string | undefined> = {
         authorizationEndpoint,
         tokenEndpoint,
-        userInfoEndpoint,
         jwksEndpoint,
+        ...(skipUserInfoEndpoint ? {} : { userInfoEndpoint }),
       }
 
       for (const [name, endpointUrl] of Object.entries(userProvidedEndpoints)) {
@@ -206,104 +254,74 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const needsDiscovery =
         !oidcConfig.authorizationEndpoint || !oidcConfig.tokenEndpoint || !oidcConfig.jwksEndpoint
 
+      const discoveryUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
+      const discoveryResult = await fetchOIDCDiscoveryDocument(discoveryUrl)
+
       if (needsDiscovery) {
-        const discoveryUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
-        try {
-          logger.info('Fetching OIDC discovery document for missing endpoints', {
-            discoveryUrl,
-            hasAuthEndpoint: !!oidcConfig.authorizationEndpoint,
-            hasTokenEndpoint: !!oidcConfig.tokenEndpoint,
-            hasJwksEndpoint: !!oidcConfig.jwksEndpoint,
-          })
+        logger.info('Fetching OIDC discovery document for missing endpoints', {
+          discoveryUrl,
+          hasAuthEndpoint: !!oidcConfig.authorizationEndpoint,
+          hasTokenEndpoint: !!oidcConfig.tokenEndpoint,
+          hasJwksEndpoint: !!oidcConfig.jwksEndpoint,
+        })
 
-          const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
-          if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-            logger.warn('OIDC discovery URL failed SSRF validation', {
-              discoveryUrl,
-              error: urlValidation.error,
-            })
-            return NextResponse.json(
-              { error: urlValidation.error ?? 'SSRF validation failed' },
-              { status: 400 }
-            )
-          }
-
-          const discoveryResponse = await secureFetchWithPinnedIP(
-            discoveryUrl,
-            urlValidation.resolvedIP,
-            {
-              headers: { Accept: 'application/json' },
-            }
-          )
-
-          if (!discoveryResponse.ok) {
-            logger.error('Failed to fetch OIDC discovery document', {
-              status: discoveryResponse.status,
-            })
-            return NextResponse.json(
-              {
-                error:
-                  'Failed to fetch OIDC discovery document. Provide all endpoints explicitly or verify the issuer URL.',
-              },
-              { status: 400 }
-            )
-          }
-
-          const discovery = (await discoveryResponse.json()) as Record<string, unknown>
-
-          const discoveredEndpoints: Record<string, unknown> = {
-            authorization_endpoint: discovery.authorization_endpoint,
-            token_endpoint: discovery.token_endpoint,
-            userinfo_endpoint: discovery.userinfo_endpoint,
-            jwks_uri: discovery.jwks_uri,
-          }
-
-          for (const [key, value] of Object.entries(discoveredEndpoints)) {
-            if (typeof value === 'string') {
-              const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
-              if (!endpointValidation.isValid) {
-                logger.warn('OIDC discovered endpoint failed SSRF validation', {
-                  endpoint: key,
-                  url: value,
-                  error: endpointValidation.error,
-                })
-                return NextResponse.json(
-                  {
-                    error: `Discovered OIDC ${key} failed security validation: ${endpointValidation.error}`,
-                  },
-                  { status: 400 }
-                )
-              }
-            }
-          }
-
-          oidcConfig.authorizationEndpoint =
-            oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
-          oidcConfig.tokenEndpoint = oidcConfig.tokenEndpoint || discovery.token_endpoint
-          oidcConfig.userInfoEndpoint = oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
-          oidcConfig.jwksEndpoint = oidcConfig.jwksEndpoint || discovery.jwks_uri
-
-          logger.info('Merged OIDC endpoints (user-provided + discovery)', {
-            providerId,
-            issuer,
-            authorizationEndpoint: oidcConfig.authorizationEndpoint,
-            tokenEndpoint: oidcConfig.tokenEndpoint,
-            userInfoEndpoint: oidcConfig.userInfoEndpoint,
-            jwksEndpoint: oidcConfig.jwksEndpoint,
-          })
-        } catch (error) {
-          logger.error('Error fetching OIDC discovery document', {
-            error: getErrorMessage(error, 'Unknown error'),
-            discoveryUrl,
-          })
+        if (!discoveryResult.ok) {
+          logger.error('Failed to fetch OIDC discovery document', { discoveryResult })
           return NextResponse.json(
             {
-              error:
-                'Failed to fetch OIDC discovery document. Please verify the issuer URL is correct or provide all endpoints explicitly.',
+              error: `Failed to fetch OIDC discovery document: ${discoveryResult.error}. Provide all endpoints explicitly or verify the issuer URL.`,
             },
             { status: 400 }
           )
         }
+
+        const { discovery } = discoveryResult
+
+        const discoveredEndpoints: Record<string, unknown> = {
+          authorization_endpoint: discovery.authorization_endpoint,
+          token_endpoint: discovery.token_endpoint,
+          jwks_uri: discovery.jwks_uri,
+          ...(skipUserInfoEndpoint ? {} : { userinfo_endpoint: discovery.userinfo_endpoint }),
+        }
+
+        for (const [key, value] of Object.entries(discoveredEndpoints)) {
+          if (typeof value === 'string') {
+            const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
+            if (!endpointValidation.isValid) {
+              logger.warn('OIDC discovered endpoint failed SSRF validation', {
+                endpoint: key,
+                url: value,
+                error: endpointValidation.error,
+              })
+              return NextResponse.json(
+                {
+                  error: `Discovered OIDC ${key} failed security validation: ${endpointValidation.error}`,
+                },
+                { status: 400 }
+              )
+            }
+          }
+        }
+
+        oidcConfig.authorizationEndpoint =
+          oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
+        oidcConfig.tokenEndpoint = oidcConfig.tokenEndpoint || discovery.token_endpoint
+        oidcConfig.userInfoEndpoint = oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
+        oidcConfig.jwksEndpoint = oidcConfig.jwksEndpoint || discovery.jwks_uri
+        oidcConfig.tokenEndpointAuthentication = selectTokenEndpointAuthMethod(
+          discovery.token_endpoint_auth_methods_supported,
+          oidcConfig.tokenEndpointAuthentication
+        )
+
+        logger.info('Merged OIDC endpoints (user-provided + discovery)', {
+          providerId,
+          issuer,
+          authorizationEndpoint: oidcConfig.authorizationEndpoint,
+          tokenEndpoint: oidcConfig.tokenEndpoint,
+          userInfoEndpoint: oidcConfig.userInfoEndpoint,
+          jwksEndpoint: oidcConfig.jwksEndpoint,
+          tokenEndpointAuthentication: oidcConfig.tokenEndpointAuthentication,
+        })
       } else {
         logger.info('Using explicitly provided OIDC endpoints (all present)', {
           providerId,
@@ -312,6 +330,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           tokenEndpoint: oidcConfig.tokenEndpoint,
           userInfoEndpoint: oidcConfig.userInfoEndpoint,
           jwksEndpoint: oidcConfig.jwksEndpoint,
+        })
+
+        if (!discoveryResult.ok) {
+          logger.info('OIDC discovery unavailable; falling back to the default token auth method', {
+            providerId,
+            discoveryUrl,
+          })
+        }
+        oidcConfig.tokenEndpointAuthentication = selectTokenEndpointAuthMethod(
+          discoveryResult.ok
+            ? discoveryResult.discovery.token_endpoint_auth_methods_supported
+            : undefined,
+          oidcConfig.tokenEndpointAuthentication
+        )
+      }
+
+      if (skipUserInfoEndpoint) {
+        oidcConfig.userInfoEndpoint = undefined
+        logger.info('Skipping UserInfo endpoint for provider, claims will come from the ID token', {
+          providerId,
         })
       }
 
@@ -339,6 +377,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      oidcConfig.skipDiscovery = true
       providerConfig.oidcConfig = oidcConfig
     } else if (providerType === 'saml') {
       const {

@@ -1388,3 +1388,141 @@ Delete an escalation path in incident.io
 | `message` | string | Success message |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### incident.io Alert Created
+
+Trigger workflow when an alert is created in incident.io
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | The signing secret from your incident.io webhook endpoint. Used to verify events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_type` | string | incident.io event type \(e.g., public_incident.incident_created_v2\). Top-level `event_type` field. |
+| `payload` | json | Full raw webhook body as delivered by incident.io \(the entire Svix envelope\). |
+| `alert` | json | The full alert object from the webhook payload. |
+| `alert_id` | string | Unique alert ID. |
+| `title` | string | Alert title. |
+| `description` | string | Alert description, when set. |
+| `status` | string | Alert status \(e.g., firing, resolved\). |
+| `alert_source_id` | string | ID of the alert source that raised the alert. |
+| `deduplication_key` | string | Deduplication key for the alert, when set. |
+| `source_url` | string | URL to the alert in the originating system, when set. |
+| `created_at` | string | ISO 8601 timestamp when the alert was created. |
+| `updated_at` | string | ISO 8601 timestamp when the alert was last updated. |
+| `resolved_at` | string | ISO 8601 timestamp when the alert was resolved, when applicable. |
+
+
+---
+
+### incident.io Incident Created
+
+Trigger workflow when an incident is created in incident.io
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | The signing secret from your incident.io webhook endpoint. Used to verify events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_type` | string | incident.io event type \(e.g., public_incident.incident_created_v2\). Top-level `event_type` field. |
+| `payload` | json | Full raw webhook body as delivered by incident.io \(the entire Svix envelope\). |
+| `incident` | json | The full incident object from the webhook payload. |
+| `incident_id` | string | Unique incident ID \(e.g., 01FDAG4SAP5TYPT98WGR2N7W91\). |
+| `name` | string | Incident name. |
+| `reference` | string | Human-readable incident reference \(e.g., INC-123\). |
+| `summary` | string | Incident summary, when set. |
+| `incident_status` | json | The incident status object \(id, name, category, rank\). |
+| `severity` | json | The incident severity object \(id, name, rank\), when set. |
+| `mode` | string | Incident mode \(standard, retrospective, test, tutorial, stream\). |
+| `visibility` | string | Incident visibility \(public or private\). |
+| `permalink` | string | Link to the incident in incident.io, when present. |
+| `created_at` | string | ISO 8601 timestamp when the incident was created. |
+| `updated_at` | string | ISO 8601 timestamp when the incident was last updated. |
+| `new_status` | json | New status object \(status-updated events only; null otherwise\). |
+| `previous_status` | json | Previous status object \(status-updated events only; null otherwise\). |
+| `update_message` | string | Update message accompanying a status change \(status-updated events only; null otherwise\). |
+
+
+---
+
+### incident.io Incident Status Updated
+
+Trigger workflow when an incident
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | The signing secret from your incident.io webhook endpoint. Used to verify events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_type` | string | incident.io event type \(e.g., public_incident.incident_created_v2\). Top-level `event_type` field. |
+| `payload` | json | Full raw webhook body as delivered by incident.io \(the entire Svix envelope\). |
+| `incident` | json | The full incident object from the webhook payload. |
+| `incident_id` | string | Unique incident ID \(e.g., 01FDAG4SAP5TYPT98WGR2N7W91\). |
+| `name` | string | Incident name. |
+| `reference` | string | Human-readable incident reference \(e.g., INC-123\). |
+| `summary` | string | Incident summary, when set. |
+| `incident_status` | json | The incident status object \(id, name, category, rank\). |
+| `severity` | json | The incident severity object \(id, name, rank\), when set. |
+| `mode` | string | Incident mode \(standard, retrospective, test, tutorial, stream\). |
+| `visibility` | string | Incident visibility \(public or private\). |
+| `permalink` | string | Link to the incident in incident.io, when present. |
+| `created_at` | string | ISO 8601 timestamp when the incident was created. |
+| `updated_at` | string | ISO 8601 timestamp when the incident was last updated. |
+| `new_status` | json | New status object \(status-updated events only; null otherwise\). |
+| `previous_status` | json | Previous status object \(status-updated events only; null otherwise\). |
+| `update_message` | string | Update message accompanying a status change \(status-updated events only; null otherwise\). |
+
+
+---
+
+### incident.io Incident Updated
+
+Trigger workflow when an incident is updated in incident.io
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | The signing secret from your incident.io webhook endpoint. Used to verify events. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_type` | string | incident.io event type \(e.g., public_incident.incident_created_v2\). Top-level `event_type` field. |
+| `payload` | json | Full raw webhook body as delivered by incident.io \(the entire Svix envelope\). |
+| `incident` | json | The full incident object from the webhook payload. |
+| `incident_id` | string | Unique incident ID \(e.g., 01FDAG4SAP5TYPT98WGR2N7W91\). |
+| `name` | string | Incident name. |
+| `reference` | string | Human-readable incident reference \(e.g., INC-123\). |
+| `summary` | string | Incident summary, when set. |
+| `incident_status` | json | The incident status object \(id, name, category, rank\). |
+| `severity` | json | The incident severity object \(id, name, rank\), when set. |
+| `mode` | string | Incident mode \(standard, retrospective, test, tutorial, stream\). |
+| `visibility` | string | Incident visibility \(public or private\). |
+| `permalink` | string | Link to the incident in incident.io, when present. |
+| `created_at` | string | ISO 8601 timestamp when the incident was created. |
+| `updated_at` | string | ISO 8601 timestamp when the incident was last updated. |
+| `new_status` | json | New status object \(status-updated events only; null otherwise\). |
+| `previous_status` | json | Previous status object \(status-updated events only; null otherwise\). |
+| `update_message` | string | Update message accompanying a status change \(status-updated events only; null otherwise\). |
+

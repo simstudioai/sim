@@ -6,12 +6,12 @@ export const AmplitudeBlock: BlockConfig = {
   name: 'Amplitude',
   description: 'Track events and query analytics from Amplitude',
   longDescription:
-    'Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, and retrieve revenue data.',
+    'Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.',
   docsLink: 'https://docs.sim.ai/integrations/amplitude',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  bgColor: '#1B1F3B',
-  iconColor: '#1F77E0',
+  bgColor: '#13294B',
+  iconColor: '#1E61F0',
   icon: AmplitudeIcon,
   authMode: AuthMode.ApiKey,
 
@@ -32,6 +32,8 @@ export const AmplitudeBlock: BlockConfig = {
         { label: 'Real-time Active Users', id: 'realtime_active_users' },
         { label: 'List Events', id: 'list_events' },
         { label: 'Get Revenue', id: 'get_revenue' },
+        { label: 'Funnels', id: 'funnels' },
+        { label: 'Retention', id: 'retention' },
       ],
       value: () => 'send_event',
     },
@@ -70,6 +72,8 @@ export const AmplitudeBlock: BlockConfig = {
           'realtime_active_users',
           'list_events',
           'get_revenue',
+          'funnels',
+          'retention',
         ],
       },
       placeholder: 'Enter your Amplitude Secret Key',
@@ -85,8 +89,24 @@ export const AmplitudeBlock: BlockConfig = {
           'realtime_active_users',
           'list_events',
           'get_revenue',
+          'funnels',
+          'retention',
         ],
       },
+    },
+
+    // Data Residency (all operations except User Profile, which is US-only)
+    {
+      id: 'dataResidency',
+      title: 'Data Residency',
+      type: 'dropdown',
+      options: [
+        { label: 'US (default)', id: 'us' },
+        { label: 'EU', id: 'eu' },
+      ],
+      value: () => 'us',
+      condition: { field: 'operation', value: 'user_profile', not: true },
+      mode: 'advanced',
     },
 
     // --- Send Event fields ---
@@ -460,6 +480,8 @@ export const AmplitudeBlock: BlockConfig = {
       title: 'Interval',
       type: 'dropdown',
       options: [
+        { label: 'Real-time', id: '-300000' },
+        { label: 'Hourly', id: '-3600000' },
         { label: 'Daily', id: '1' },
         { label: 'Weekly', id: '7' },
         { label: 'Monthly', id: '30' },
@@ -477,10 +499,58 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'segmentationGroupBy2',
+      title: 'Group By (2nd Property)',
+      type: 'short-input',
+      placeholder: 'Second property name (prefix custom with "gp:")',
+      condition: { field: 'operation', value: 'event_segmentation' },
+      mode: 'advanced',
+    },
+    {
       id: 'segmentationLimit',
       title: 'Limit',
       type: 'short-input',
       placeholder: 'Max group-by values (max 1000)',
+      condition: { field: 'operation', value: 'event_segmentation' },
+      mode: 'advanced',
+    },
+    {
+      id: 'segmentationFilters',
+      title: 'Filters',
+      type: 'long-input',
+      placeholder:
+        '[{"subprop_type":"event","subprop_key":"city","subprop_op":"is","subprop_value":["San Francisco"]}]',
+      condition: { field: 'operation', value: 'event_segmentation' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Amplitude event segmentation filter objects, each with subprop_type ("event" or "user"), subprop_key, subprop_op (e.g. "is", "is not", "contains"), and subprop_value (array of strings). Return ONLY the JSON array - no explanations, no extra text.',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'segmentationFormula',
+      title: 'Formula',
+      type: 'short-input',
+      placeholder: 'e.g., UNIQUES(A)/UNIQUES(B) — required when Metric is Formula',
+      condition: {
+        field: 'operation',
+        value: 'event_segmentation',
+        and: { field: 'segmentationMetric', value: 'formula' },
+      },
+      required: {
+        field: 'operation',
+        value: 'event_segmentation',
+        and: { field: 'segmentationMetric', value: 'formula' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'segmentationSegment',
+      title: 'Segment Definition',
+      type: 'long-input',
+      placeholder: 'JSON segment definition(s)',
       condition: { field: 'operation', value: 'event_segmentation' },
       mode: 'advanced',
     },
@@ -536,6 +606,22 @@ export const AmplitudeBlock: BlockConfig = {
         { label: 'Monthly', id: '30' },
       ],
       value: () => '1',
+      condition: { field: 'operation', value: 'get_active_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'activeUsersGroupBy',
+      title: 'Group By',
+      type: 'short-input',
+      placeholder: 'Property name',
+      condition: { field: 'operation', value: 'get_active_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'activeUsersSegment',
+      title: 'Segment Definition',
+      type: 'long-input',
+      placeholder: 'JSON segment definition(s)',
       condition: { field: 'operation', value: 'get_active_users' },
       mode: 'advanced',
     },
@@ -596,6 +682,243 @@ export const AmplitudeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'get_revenue' },
       mode: 'advanced',
     },
+    {
+      id: 'revenueGroupBy',
+      title: 'Group By',
+      type: 'short-input',
+      placeholder: 'Property name (limit: one)',
+      condition: { field: 'operation', value: 'get_revenue' },
+      mode: 'advanced',
+    },
+    {
+      id: 'revenueSegment',
+      title: 'Segment Definition',
+      type: 'long-input',
+      placeholder: 'JSON segment definition(s)',
+      condition: { field: 'operation', value: 'get_revenue' },
+      mode: 'advanced',
+    },
+
+    // --- Funnels fields ---
+    {
+      id: 'funnelEvents',
+      title: 'Funnel Steps',
+      type: 'long-input',
+      required: { field: 'operation', value: 'funnels' },
+      placeholder: '[{"event_type":"signup"},{"event_type":"purchase"}]',
+      condition: { field: 'operation', value: 'funnels' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Amplitude event objects, one per funnel step in order, each with an "event_type" key. Return ONLY the JSON array - no explanations, no extra text.',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'funnelStart',
+      title: 'Start Date',
+      type: 'short-input',
+      required: { field: 'operation', value: 'funnels' },
+      placeholder: 'YYYYMMDD',
+      condition: { field: 'operation', value: 'funnels' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a date in YYYYMMDD format. Return ONLY the date string - no explanations, no extra text.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'funnelEnd',
+      title: 'End Date',
+      type: 'short-input',
+      required: { field: 'operation', value: 'funnels' },
+      placeholder: 'YYYYMMDD',
+      condition: { field: 'operation', value: 'funnels' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a date in YYYYMMDD format. Return ONLY the date string - no explanations, no extra text.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'funnelMode',
+      title: 'Funnel Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Ordered', id: 'ordered' },
+        { label: 'Unordered', id: 'unordered' },
+        { label: 'Sequential', id: 'sequential' },
+      ],
+      value: () => 'ordered',
+      condition: { field: 'operation', value: 'funnels' },
+      mode: 'advanced',
+    },
+    {
+      id: 'funnelUserType',
+      title: 'User Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Active', id: 'active' },
+        { label: 'New', id: 'new' },
+      ],
+      value: () => 'active',
+      condition: { field: 'operation', value: 'funnels' },
+      mode: 'advanced',
+    },
+    {
+      id: 'funnelInterval',
+      title: 'Interval',
+      type: 'dropdown',
+      options: [
+        { label: 'Real-time', id: '-300000' },
+        { label: 'Hourly', id: '-3600000' },
+        { label: 'Daily', id: '1' },
+        { label: 'Weekly', id: '7' },
+        { label: 'Monthly', id: '30' },
+      ],
+      value: () => '1',
+      condition: { field: 'operation', value: 'funnels' },
+      mode: 'advanced',
+    },
+    {
+      id: 'funnelConversionWindowSeconds',
+      title: 'Conversion Window (seconds)',
+      type: 'short-input',
+      placeholder: '2592000 (30 days)',
+      condition: { field: 'operation', value: 'funnels' },
+      mode: 'advanced',
+    },
+    {
+      id: 'funnelGroupBy',
+      title: 'Group By',
+      type: 'short-input',
+      placeholder: 'Property name (limit: one)',
+      condition: { field: 'operation', value: 'funnels' },
+      mode: 'advanced',
+    },
+    {
+      id: 'funnelLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Max group-by values (max 1000)',
+      condition: { field: 'operation', value: 'funnels' },
+      mode: 'advanced',
+    },
+    {
+      id: 'funnelSegment',
+      title: 'Segment Definition',
+      type: 'long-input',
+      placeholder: 'JSON segment definition(s)',
+      condition: { field: 'operation', value: 'funnels' },
+      mode: 'advanced',
+    },
+
+    // --- Retention fields ---
+    {
+      id: 'retentionStartEvent',
+      title: 'Starting Event',
+      type: 'short-input',
+      required: { field: 'operation', value: 'retention' },
+      placeholder: '{"event_type":"_new"}',
+      condition: { field: 'operation', value: 'retention' },
+    },
+    {
+      id: 'retentionReturnEvent',
+      title: 'Returning Event',
+      type: 'short-input',
+      required: { field: 'operation', value: 'retention' },
+      placeholder: '{"event_type":"_all"}',
+      condition: { field: 'operation', value: 'retention' },
+    },
+    {
+      id: 'retentionStart',
+      title: 'Start Date',
+      type: 'short-input',
+      required: { field: 'operation', value: 'retention' },
+      placeholder: 'YYYYMMDD',
+      condition: { field: 'operation', value: 'retention' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a date in YYYYMMDD format. Return ONLY the date string - no explanations, no extra text.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'retentionEnd',
+      title: 'End Date',
+      type: 'short-input',
+      required: { field: 'operation', value: 'retention' },
+      placeholder: 'YYYYMMDD',
+      condition: { field: 'operation', value: 'retention' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a date in YYYYMMDD format. Return ONLY the date string - no explanations, no extra text.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'retentionMode',
+      title: 'Retention Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'N-Day', id: 'n-day' },
+        { label: 'Rolling', id: 'rolling' },
+        { label: 'Bracket', id: 'bracket' },
+      ],
+      value: () => 'n-day',
+      condition: { field: 'operation', value: 'retention' },
+      mode: 'advanced',
+    },
+    {
+      id: 'retentionBrackets',
+      title: 'Retention Brackets',
+      type: 'short-input',
+      placeholder: '[[0,4]] — required when Retention Mode is Bracket',
+      condition: {
+        field: 'operation',
+        value: 'retention',
+        and: { field: 'retentionMode', value: 'bracket' },
+      },
+      required: {
+        field: 'operation',
+        value: 'retention',
+        and: { field: 'retentionMode', value: 'bracket' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'retentionInterval',
+      title: 'Interval',
+      type: 'dropdown',
+      options: [
+        { label: 'Daily', id: '1' },
+        { label: 'Weekly', id: '7' },
+        { label: 'Monthly', id: '30' },
+      ],
+      value: () => '1',
+      condition: { field: 'operation', value: 'retention' },
+      mode: 'advanced',
+    },
+    {
+      id: 'retentionGroupBy',
+      title: 'Group By',
+      type: 'short-input',
+      placeholder: 'Property name (limit: one)',
+      condition: { field: 'operation', value: 'retention' },
+      mode: 'advanced',
+    },
+    {
+      id: 'retentionSegment',
+      title: 'Segment Definition',
+      type: 'long-input',
+      placeholder: 'JSON segment definition(s)',
+      condition: { field: 'operation', value: 'retention' },
+      mode: 'advanced',
+    },
   ],
 
   tools: {
@@ -611,6 +934,8 @@ export const AmplitudeBlock: BlockConfig = {
       'amplitude_realtime_active_users',
       'amplitude_list_events',
       'amplitude_get_revenue',
+      'amplitude_funnels',
+      'amplitude_retention',
     ],
     config: {
       tool: (params) => `amplitude_${params.operation}`,
@@ -649,7 +974,11 @@ export const AmplitudeBlock: BlockConfig = {
             if (params.segmentationMetric) result.metric = params.segmentationMetric
             if (params.segmentationInterval) result.interval = params.segmentationInterval
             if (params.segmentationGroupBy) result.groupBy = params.segmentationGroupBy
+            if (params.segmentationGroupBy2) result.groupBy2 = params.segmentationGroupBy2
             if (params.segmentationLimit) result.limit = params.segmentationLimit
+            if (params.segmentationFilters) result.filters = params.segmentationFilters
+            if (params.segmentationFormula) result.formula = params.segmentationFormula
+            if (params.segmentationSegment) result.segment = params.segmentationSegment
             break
 
           case 'get_active_users':
@@ -657,6 +986,8 @@ export const AmplitudeBlock: BlockConfig = {
             if (params.activeUsersEnd) result.end = params.activeUsersEnd
             if (params.activeUsersMetric) result.metric = params.activeUsersMetric
             if (params.activeUsersInterval) result.interval = params.activeUsersInterval
+            if (params.activeUsersGroupBy) result.groupBy = params.activeUsersGroupBy
+            if (params.activeUsersSegment) result.segment = params.activeUsersSegment
             break
 
           case 'get_revenue':
@@ -664,6 +995,34 @@ export const AmplitudeBlock: BlockConfig = {
             if (params.revenueEnd) result.end = params.revenueEnd
             if (params.revenueMetric) result.metric = params.revenueMetric
             if (params.revenueInterval) result.interval = params.revenueInterval
+            if (params.revenueGroupBy) result.groupBy = params.revenueGroupBy
+            if (params.revenueSegment) result.segment = params.revenueSegment
+            break
+
+          case 'funnels':
+            if (params.funnelEvents) result.events = params.funnelEvents
+            if (params.funnelStart) result.start = params.funnelStart
+            if (params.funnelEnd) result.end = params.funnelEnd
+            if (params.funnelMode) result.mode = params.funnelMode
+            if (params.funnelUserType) result.userType = params.funnelUserType
+            if (params.funnelInterval) result.interval = params.funnelInterval
+            if (params.funnelConversionWindowSeconds)
+              result.conversionWindowSeconds = params.funnelConversionWindowSeconds
+            if (params.funnelGroupBy) result.groupBy = params.funnelGroupBy
+            if (params.funnelLimit) result.limit = params.funnelLimit
+            if (params.funnelSegment) result.segment = params.funnelSegment
+            break
+
+          case 'retention':
+            if (params.retentionStartEvent) result.startEvent = params.retentionStartEvent
+            if (params.retentionReturnEvent) result.returnEvent = params.retentionReturnEvent
+            if (params.retentionStart) result.start = params.retentionStart
+            if (params.retentionEnd) result.end = params.retentionEnd
+            if (params.retentionMode) result.retentionMode = params.retentionMode
+            if (params.retentionBrackets) result.retentionBrackets = params.retentionBrackets
+            if (params.retentionInterval) result.interval = params.retentionInterval
+            if (params.retentionGroupBy) result.groupBy = params.retentionGroupBy
+            if (params.retentionSegment) result.segment = params.retentionSegment
             break
         }
 
@@ -696,6 +1055,32 @@ export const AmplitudeBlock: BlockConfig = {
     activeUsersEnd: { type: 'string', description: 'Active users end date' },
     revenueStart: { type: 'string', description: 'Revenue start date' },
     revenueEnd: { type: 'string', description: 'Revenue end date' },
+    dataResidency: { type: 'string', description: 'Data residency region: "us" or "eu"' },
+    segmentationFilters: { type: 'string', description: 'Event segmentation filters JSON' },
+    segmentationFormula: { type: 'string', description: 'Event segmentation formula expression' },
+    segmentationGroupBy2: {
+      type: 'string',
+      description: 'Event segmentation second group-by property',
+    },
+    segmentationSegment: {
+      type: 'string',
+      description: 'Event segmentation segment definition JSON',
+    },
+    activeUsersGroupBy: { type: 'string', description: 'Active users group-by property' },
+    activeUsersSegment: { type: 'string', description: 'Active users segment definition JSON' },
+    revenueGroupBy: { type: 'string', description: 'Revenue group-by property' },
+    revenueSegment: { type: 'string', description: 'Revenue segment definition JSON' },
+    funnelEvents: { type: 'string', description: 'Funnel step event objects JSON array' },
+    funnelStart: { type: 'string', description: 'Funnel analysis start date' },
+    funnelEnd: { type: 'string', description: 'Funnel analysis end date' },
+    funnelGroupBy: { type: 'string', description: 'Funnel group-by property' },
+    funnelSegment: { type: 'string', description: 'Funnel segment definition JSON' },
+    retentionStartEvent: { type: 'string', description: 'Retention starting event JSON object' },
+    retentionReturnEvent: { type: 'string', description: 'Retention returning event JSON object' },
+    retentionStart: { type: 'string', description: 'Retention analysis start date' },
+    retentionEnd: { type: 'string', description: 'Retention analysis end date' },
+    retentionGroupBy: { type: 'string', description: 'Retention group-by property' },
+    retentionSegment: { type: 'string', description: 'Retention segment definition JSON' },
   },
 
   outputs: {
@@ -711,9 +1096,42 @@ export const AmplitudeBlock: BlockConfig = {
       type: 'number',
       description: 'Number of events ingested (send_event)',
     },
+    payloadSizeBytes: {
+      type: 'number',
+      description: 'Size of the ingested payload in bytes (send_event)',
+    },
+    serverUploadTime: {
+      type: 'number',
+      description: 'Server-side upload timestamp (send_event)',
+    },
     matches: {
       type: 'json',
       description: 'User search matches (amplitudeId, userId)',
+    },
+    type: {
+      type: 'string',
+      description: 'Match type, e.g. match_user_or_device_id (user_search)',
+    },
+    userId: {
+      type: 'string',
+      description: 'External user ID (user_profile)',
+    },
+    deviceId: {
+      type: 'string',
+      description: 'Device ID (user_profile)',
+    },
+    ampProps: {
+      type: 'json',
+      description:
+        'Amplitude user properties (library, first_used, last_used, custom) (user_profile)',
+    },
+    cohortIds: {
+      type: 'json',
+      description: 'Cohort IDs the user belongs to (user_profile)',
+    },
+    computations: {
+      type: 'json',
+      description: 'Computed user properties (user_profile)',
     },
     events: {
       type: 'json',
@@ -725,7 +1143,8 @@ export const AmplitudeBlock: BlockConfig = {
     },
     series: {
       type: 'json',
-      description: 'Time-series data (segmentation, active_users, revenue, realtime)',
+      description:
+        'Time-series data (segmentation, active_users, realtime: number[][]; revenue: [{dates, values}]; retention: [{dates, values, combined}])',
     },
     seriesLabels: {
       type: 'json',
@@ -733,7 +1152,7 @@ export const AmplitudeBlock: BlockConfig = {
     },
     seriesMeta: {
       type: 'json',
-      description: 'Metadata labels for data series (active_users)',
+      description: 'Metadata labels for data series (active_users, retention)',
     },
     seriesCollapsed: {
       type: 'json',
@@ -741,7 +1160,12 @@ export const AmplitudeBlock: BlockConfig = {
     },
     xValues: {
       type: 'json',
-      description: 'X-axis date/time values for chart data',
+      description: 'X-axis date/time values for chart data (segmentation, active_users, realtime)',
+    },
+    funnels: {
+      type: 'json',
+      description:
+        'Funnel results per segment (stepByStep, cumulative, medianTransTimes, dayFunnels, etc.) (funnels)',
     },
   },
 }
@@ -848,6 +1272,13 @@ export const AmplitudeBlockMeta = {
         'Find a user in Amplitude by ID and pull their recent event activity and profile properties.',
       content:
         '# Lookup User Activity\n\nInvestigate a single user in Amplitude for support or debugging.\n\n## Steps\n1. Search for the user by user ID, device ID, or Amplitude ID to resolve their Amplitude ID.\n2. Pull the user activity stream for that Amplitude ID, ordered latest first.\n3. Optionally fetch the user profile to see their current properties.\n\n## Output\nA timeline of the user recent events plus key profile properties. Note the time range covered.',
+    },
+    {
+      name: 'analyze-conversion-funnel',
+      description:
+        'Run an Amplitude funnel across a sequence of events to find conversion rates and drop-off points.',
+      content:
+        '# Analyze Conversion Funnel\n\nMeasure how users progress through a multi-step flow in Amplitude.\n\n## Steps\n1. Define the ordered sequence of events that make up the funnel (e.g., signup, activation, purchase).\n2. Pick the date range and, if useful, a property to group by.\n3. Run the funnel query and read the step-by-step and cumulative conversion numbers.\n\n## Output\nConversion counts and rates at each step, the biggest drop-off point, and any group-by breakdown.',
     },
   ],
 } as const satisfies BlockMeta

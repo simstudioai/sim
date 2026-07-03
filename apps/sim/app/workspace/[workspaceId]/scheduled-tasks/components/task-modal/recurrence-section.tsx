@@ -1,14 +1,14 @@
 'use client'
 
 import { useRef } from 'react'
-import { format } from 'date-fns'
 import {
   CalendarDayCell,
   ChipDatePicker,
   ChipModalField,
   ChipModalSeparator,
   Switch,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { format } from 'date-fns'
 import type {
   MonthlyMode,
   Recurrence,

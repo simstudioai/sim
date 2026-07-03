@@ -10,7 +10,7 @@ export const storageMoveTool: ToolConfig<SupabaseStorageMoveParams, SupabaseStor
   id: 'supabase_storage_move',
   name: 'Supabase Storage Move',
   description: 'Move a file within a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

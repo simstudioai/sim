@@ -2,7 +2,7 @@
 
 import type { ComponentProps, CSSProperties } from 'react'
 import { useState } from 'react'
-import { ChipInput } from '@/components/emcn'
+import { ChipInput } from '@sim/emcn'
 
 const BULLET = '\u2022'
 

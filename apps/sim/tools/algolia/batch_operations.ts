@@ -38,13 +38,13 @@ export const batchOperationsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of batch operations. Each item has "action" (addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject) and "body" (the record data, must include objectID for update/delete)',
+        'Array of batch operations. Each item has "action" (addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject, delete, clear) and "body" (the record data; must include objectID for update/delete; use an empty object {} for the index-level delete/clear actions)',
     },
   },
 
   request: {
     url: (params) =>
-      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/batch`,
+      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/batch`,
     method: 'POST',
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,

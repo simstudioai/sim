@@ -274,7 +274,7 @@ describe('validateInputsForBlock', () => {
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.field).toBe('model')
     expect(result.errors[0]?.error).toContain('Unknown model id')
-    expect(result.errors[0]?.error).toContain('claude-sonnet-4-6')
+    expect(result.errors[0]?.error).toContain('claude-sonnet-5')
   })
 
   it('rejects legacy claude-4.5-haiku style ids', () => {

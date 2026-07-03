@@ -5,7 +5,7 @@ export const dropTableTool: ToolConfig<ClickHouseDropTableParams, ClickHouseMess
   id: 'clickhouse_drop_table',
   name: 'ClickHouse Drop Table',
   description: 'Drop a table from a ClickHouse database',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

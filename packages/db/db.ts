@@ -1,12 +1,8 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { resolveDbUrl } from './connection-url'
 import * as schema from './schema'
 import { instrumentPoolClient } from './tx-tripwire'
-
-const connectionString = process.env.DATABASE_URL!
-if (!connectionString) {
-  throw new Error('Missing DATABASE_URL environment variable')
-}
 
 /**
  * Per-role pool profiles. Starting numbers — validate against real per-role
@@ -28,7 +24,13 @@ if (roleEnv && !Object.hasOwn(DB_POOL_PROFILES, roleEnv)) {
     `Invalid SIM_DB_ROLE '${roleEnv}' — expected one of ${Object.keys(DB_POOL_PROFILES).join(', ')} (or unset for web)`
   )
 }
-const profile = DB_POOL_PROFILES[(roleEnv as DbRole) || 'web']
+const role = (roleEnv as DbRole) || 'web'
+const profile = DB_POOL_PROFILES[role]
+
+const connectionString = resolveDbUrl('DATABASE_URL', role)
+if (!connectionString) {
+  throw new Error('Missing DATABASE_URL environment variable')
+}
 
 const poolOptions = {
   prepare: false,
@@ -51,7 +53,7 @@ export const db = drizzle(postgresClient, { schema })
  * for auth, workflow state, or billing enforcement. Falls back to the primary
  * when `DATABASE_REPLICA_URL` is unset, so call sites never branch.
  */
-const replicaUrl = process.env.DATABASE_REPLICA_URL
+const replicaUrl = resolveDbUrl('DATABASE_REPLICA_URL', role)
 if (replicaUrl && !/^postgres(ql)?:\/\//.test(replicaUrl)) {
   throw new Error(
     'DATABASE_REPLICA_URL is set but is not a postgres:// DSN — fix the URL or unset the variable'

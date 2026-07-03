@@ -1,6 +1,5 @@
+import { cn, Tooltip } from '@sim/emcn'
 import type { LucideIcon } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 
 interface ToolbarButtonProps {
   icon: LucideIcon

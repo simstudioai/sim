@@ -1,9 +1,11 @@
 import dns from 'dns/promises'
 import type {
+  FileAttributes,
   Item,
   ItemCategory,
   ItemField,
   ItemFieldType,
+  ItemFile,
   ItemOverview,
   ItemSection,
   VaultOverview,
@@ -11,6 +13,7 @@ import type {
 } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
@@ -102,10 +105,19 @@ interface NormalizedField {
   entropy: null
 }
 
+/** Normalized attached-file metadata shape matching the Connect API response. */
+export interface NormalizedItemFile {
+  id: string
+  name: string
+  size: number
+  section: { id: string } | null
+}
+
 /** Normalized full item shape matching the Connect API response. */
 export interface NormalizedItem extends NormalizedItemOverview {
   fields: NormalizedField[]
   sections: Array<{ id: string; label: string }>
+  files: NormalizedItemFile[]
 }
 
 /**
@@ -323,9 +335,11 @@ export interface ConnectResponse {
   ok: boolean
   status: number
   statusText: string
+  headers: { get: (name: string) => string | null }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: () => Promise<any>
   text: () => Promise<string>
+  arrayBuffer: () => Promise<ArrayBuffer>
 }
 
 /** Proxy a request to the 1Password Connect Server. */
@@ -431,12 +445,122 @@ export function normalizeSdkItem(item: Item): NormalizedItem {
       id: section.id,
       label: section.title,
     })),
+    files: [
+      ...(item.files ?? []).map((file: ItemFile) => ({
+        id: file.attributes.id,
+        name: file.attributes.name,
+        size: file.attributes.size,
+        section: file.sectionId ? { id: file.sectionId } : null,
+      })),
+      ...(item.document
+        ? [
+            {
+              id: item.document.id,
+              name: item.document.name,
+              size: item.document.size,
+              section: null,
+            },
+          ]
+        : []),
+    ],
     createdAt:
       item.createdAt instanceof Date ? item.createdAt.toISOString() : (item.createdAt ?? null),
     updatedAt:
       item.updatedAt instanceof Date ? item.updatedAt.toISOString() : (item.updatedAt ?? null),
     lastEditedBy: null,
   }
+}
+
+/**
+ * Find an attached file's SDK {@link FileAttributes} on an item by file ID.
+ * Checks both the `files` array and the single `document` attribute that
+ * Document-category items carry instead of a `files` entry.
+ */
+export function findItemFileAttributes(item: Item, fileId: string): FileAttributes | undefined {
+  if (item.document?.id === fileId) return item.document
+  return item.files?.find((file) => file.attributes.id === fileId)?.attributes
+}
+
+/**
+ * Convert a Connect-shaped item (the vocabulary `normalizeSdkItem` produces and
+ * this integration's tools document — `label`/`type`/`section: {id}`) back into
+ * an SDK-compatible {@link Item} for `client.items.put()`. Falls back to `existing`
+ * for any array the caller didn't provide, so partial input (e.g. Replace Item's
+ * optional fields) is preserved.
+ *
+ * Service Account mode must always convert through this function before calling
+ * `put()` — never apply a Connect-shaped JSON Patch directly onto a raw SDK
+ * {@link Item}, since SDK field/category vocabulary differs from Connect's
+ * (`title` vs `label`, `fieldType` vs `type`, `sectionId` vs `section.id`, SDK
+ * category enum strings vs Connect's SCREAMING_SNAKE_CASE) and silently no-ops or
+ * corrupts the write otherwise.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function connectItemToSdkItem(connectItem: Record<string, any>, existing: Item): Item {
+  const existingFieldsById = new Map((existing.fields ?? []).map((f) => [f.id, f]))
+  const existingSectionsById = new Map((existing.sections ?? []).map((s) => [s.id, s]))
+
+  return {
+    ...existing,
+    id: existing.id,
+    vaultId: existing.vaultId,
+    title: connectItem.title || existing.title,
+    category: connectItem.category ? toSdkCategory(connectItem.category) : existing.category,
+    fields: Array.isArray(connectItem.fields)
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        connectItem.fields.map((f: Record<string, any>) => ({
+          // Preserve any SDK-only metadata (e.g. password-generation `details`)
+          // on fields that already existed — only brand-new fields start bare.
+          ...(f.id ? existingFieldsById.get(f.id) : undefined),
+          id: f.id || generateId().slice(0, 8),
+          title: f.label || f.title || '',
+          fieldType: toSdkFieldType(f.type || 'STRING'),
+          value: f.value || '',
+          sectionId: f.section?.id ?? f.sectionId,
+        }))
+      : existing.fields,
+    sections: Array.isArray(connectItem.sections)
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        connectItem.sections.map((s: Record<string, any>) => ({
+          ...(s.id ? existingSectionsById.get(s.id) : undefined),
+          id: s.id || '',
+          title: s.label || s.title || '',
+        }))
+      : existing.sections,
+    notes: connectItem.notes ?? existing.notes,
+    tags: connectItem.tags ?? existing.tags,
+    websites: Array.isArray(connectItem.urls ?? connectItem.websites)
+      ? (connectItem.urls ?? connectItem.websites).map(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (u: Record<string, any>) => ({
+            url: u.href || u.url || '',
+            label: u.label || '',
+            autofillBehavior: 'AnywhereOnWebsite' as const,
+          })
+        )
+      : existing.websites,
+  } as Item
+}
+
+/**
+ * Best-effort SCIM `eq` filter matcher for Service Account mode, which has no
+ * server-side filtering (unlike Connect, whose `filter` query param is forwarded
+ * verbatim and evaluated by the Connect server). Recognizes `attribute eq "value"`
+ * (quotes optional) as an exact, case-insensitive match against the named attribute
+ * — `id` compares against the id, anything else (name/title/etc.) against the
+ * display value; anything that doesn't parse as `eq` falls back to a
+ * case-insensitive substring match against both so the field remains useful for
+ * free-text search.
+ */
+export function matchesFilter(value: string, id: string, filter: string): boolean {
+  const eqMatch = filter.match(/^\s*(\S+)\s+eq\s+"?([^"]*)"?\s*$/i)
+  if (eqMatch) {
+    const [, attribute, needle] = eqMatch
+    const target = attribute.toLowerCase() === 'id' ? id : value
+    return target.toLowerCase() === needle.toLowerCase()
+  }
+  const needle = filter.toLowerCase()
+  return value.toLowerCase().includes(needle) || id.toLowerCase().includes(needle)
 }
 
 /** Convert a Connect-style category string to the SDK category string. */

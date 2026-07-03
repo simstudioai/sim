@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react'
+import {
+  chipVariants,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  useCopyToClipboard,
+} from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import { CodeBlock } from '@tiptap/extension-code-block'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { Check, ChevronDown, Code, Copy, Eye, WrapText } from 'lucide-react'
-import {
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { looksLikeMermaid, MermaidDiagram } from '../mermaid-diagram'
 import { detectLanguage } from './detect-language'
 

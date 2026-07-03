@@ -1,9 +1,9 @@
-import { Loader } from '@/components/emcn'
+import { Loader } from '@sim/emcn'
 
 export default function ModelDetailLoading() {
   return (
-    <div className='flex min-h-[60vh] items-center justify-center bg-[var(--landing-bg)]'>
-      <Loader animate className='size-6 text-[var(--landing-text-muted)]' />
+    <div className='flex min-h-[60vh] items-center justify-center bg-[var(--bg)]'>
+      <Loader animate className='size-6 text-[var(--text-muted)]' />
     </div>
   )
 }

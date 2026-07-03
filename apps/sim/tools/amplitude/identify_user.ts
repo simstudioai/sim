@@ -2,6 +2,7 @@ import type {
   AmplitudeIdentifyUserParams,
   AmplitudeIdentifyUserResponse,
 } from '@/tools/amplitude/types'
+import { getIngestionHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const identifyUserTool: ToolConfig<
@@ -40,13 +41,19 @@ export const identifyUserTool: ToolConfig<
       description:
         'JSON object of user properties. Use operations like $set, $setOnce, $add, $append, $unset.',
     },
+    dataResidency: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data residency region: "us" (default) or "eu"',
+    },
   },
 
   request: {
-    url: 'https://api2.amplitude.com/identify',
+    url: (params) => `${getIngestionHost(params.dataResidency)}/identify`,
     method: 'POST',
     headers: () => ({
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     }),
     body: (params) => {
       const identification: Record<string, unknown> = {}
@@ -60,10 +67,12 @@ export const identifyUserTool: ToolConfig<
         identification.user_properties = {}
       }
 
-      return {
+      const body = new URLSearchParams({
         api_key: params.apiKey,
-        identification: [identification],
-      }
+        identification: JSON.stringify([identification]),
+      })
+
+      return body.toString()
     },
   },
 

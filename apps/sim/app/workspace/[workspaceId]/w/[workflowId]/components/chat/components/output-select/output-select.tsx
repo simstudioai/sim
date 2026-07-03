@@ -2,15 +2,15 @@
 
 import type React from 'react'
 import { useMemo } from 'react'
+import { Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import {
   type FlattenOutputsBlockInput,
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -32,11 +32,11 @@ const TagIcon: React.FC<{
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
-      <span className='!text-white font-bold text-micro'>{icon}</span>
+      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
     ) : (
       (() => {
         const IconComponent = icon
-        return <IconComponent className='!text-white size-[9px]' />
+        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
       })()
     )}
   </div>

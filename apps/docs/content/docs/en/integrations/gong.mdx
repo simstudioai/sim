@@ -769,6 +769,71 @@ List Gong Engage flows (sales engagement sequences).
 | `currentPageNumber` | number | Current page number |
 | `cursor` | string | Pagination cursor for retrieving the next page of records |
 
+### `gong_assign_flow_prospects`
+
+Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `flowId` | string | Yes | The Gong Engage flow ID to assign the prospects to |
+| `crmProspectsIds` | string | Yes | Comma-separated list of CRM prospect IDs \(contacts or leads\) to assign |
+| `flowInstanceOwnerEmail` | string | Yes | Email of the Gong user who owns the flow instance and its to-dos |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `prospectsAssigned` | array | Prospects successfully assigned to the flow |
+|   ↳ `flowId` | string | The flow ID |
+|   ↳ `flowName` | string | The flow name |
+|   ↳ `crmProspectId` | string | The CRM prospect ID |
+|   ↳ `flowInstanceId` | string | The created flow instance ID |
+|   ↳ `flowInstanceOwnerEmail` | string | Email of the flow instance owner |
+|   ↳ `flowInstanceOwnerFullName` | string | Full name of the flow instance owner |
+|   ↳ `flowInstanceCreateDate` | string | Creation time of the flow instance in ISO-8601 format |
+|   ↳ `flowInstanceStatus` | string | Status of the flow instance |
+|   ↳ `workspaceId` | string | Workspace ID |
+|   ↳ `exclusive` | boolean | Whether this prospect can be added to other flows |
+| `prospectsNotAssigned` | array | Prospects that failed to be assigned to the flow |
+|   ↳ `flowId` | string | The flow ID |
+|   ↳ `crmProspectId` | string | The CRM prospect ID |
+|   ↳ `errorCode` | string | Failure reason: InvalidArgument, InvalidState, or UnexpectedError |
+|   ↳ `errorMessage` | string | Human-readable failure message |
+
+### `gong_get_prospect_flows`
+
+Get the Gong Engage flows currently assigned to the given CRM prospects.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `crmProspectsIds` | string | Yes | Comma-separated list of CRM prospect IDs \(contacts or leads\) to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `prospectsAssigned` | array | Flows currently assigned to the requested prospects |
+|   ↳ `flowId` | string | The flow ID |
+|   ↳ `flowName` | string | The flow name |
+|   ↳ `crmProspectId` | string | The CRM prospect ID |
+|   ↳ `flowInstanceId` | string | The flow instance ID |
+|   ↳ `flowInstanceOwnerEmail` | string | Email of the flow instance owner |
+|   ↳ `flowInstanceOwnerFullName` | string | Full name of the flow instance owner |
+|   ↳ `flowInstanceCreateDate` | string | Creation time of the flow instance in ISO-8601 format |
+|   ↳ `flowInstanceStatus` | string | Status of the flow instance |
+|   ↳ `workspaceId` | string | Workspace ID |
+|   ↳ `exclusive` | boolean | Whether this prospect can be added to other flows |
+
 ### `gong_get_coaching`
 
 Retrieve coaching metrics for a manager from Gong.
@@ -903,6 +968,42 @@ Find all references to a phone number in Gong (calls, email messages, meetings, 
 |     ↳ `fields` | array | Object fields |
 |       ↳ `name` | string | Field name |
 |       ↳ `value` | json | Field value |
+
+### `gong_purge_email_address`
+
+Erase all Gong data (calls, email messages, leads, contacts) referencing an email address. Asynchronous and irreversible.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `emailAddress` | string | Yes | Email address whose associated data should be permanently erased from Gong |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+
+### `gong_purge_phone_number`
+
+Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchronous and irreversible.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `phoneNumber` | string | Yes | Phone number whose associated data should be permanently erased from Gong. Must include a leading "+" and country code \(e.g., +14255552671\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 
 
 

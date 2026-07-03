@@ -1,7 +1,7 @@
+import { ToastProvider } from '@sim/emcn'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { ToastProvider } from '@/components/emcn'
 import { getSession } from '@/lib/auth'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'

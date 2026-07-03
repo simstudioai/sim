@@ -5,7 +5,7 @@ export const insertTool: ToolConfig<ClickHouseInsertParams, ClickHouseInsertResp
   id: 'clickhouse_insert',
   name: 'ClickHouse Insert',
   description: 'Insert a row into a ClickHouse table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

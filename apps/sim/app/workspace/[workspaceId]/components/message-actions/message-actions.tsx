@@ -1,8 +1,6 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
-import { GitBranch } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
 import {
   Check,
   ChipModal,
@@ -10,13 +8,15 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  cn,
   Duplicate,
   ThumbsDown,
   ThumbsUp,
   Tooltip,
   toast,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { GitBranch } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'

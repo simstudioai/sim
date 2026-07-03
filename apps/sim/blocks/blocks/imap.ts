@@ -1,4 +1,4 @@
-import { ClipboardList, Table } from '@/components/emcn/icons'
+import { ClipboardList, Table } from '@sim/emcn/icons'
 import { MailServerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'

@@ -50,6 +50,13 @@ export const sendblueSendMessageTool: ToolConfig<
       description:
         'iMessage expressive style (e.g., celebration, fireworks, lasers, confetti, balloons, invisible, slam).',
     },
+    seat_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Seat (user) the message is attributed to. Accepts the seat UUID or Firebase Auth subject.',
+    },
     status_callback: {
       type: 'string',
       required: false,
@@ -69,6 +76,7 @@ export const sendblueSendMessageTool: ToolConfig<
         content: params.content,
         media_url: params.media_url,
         send_style: params.send_style,
+        seat_id: params.seat_id,
         status_callback: params.status_callback,
       }),
   },

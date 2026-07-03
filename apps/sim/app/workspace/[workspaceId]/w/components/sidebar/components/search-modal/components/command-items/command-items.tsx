@@ -2,14 +2,15 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
+import { cn } from '@sim/emcn'
+import { File, Workflow } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
-import { File, Workflow } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
   COMMAND_ITEM_CLASSNAME,
   fuzzyMatch,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 
 interface Segment {
   text: string
@@ -75,7 +76,7 @@ export const MemoizedCommandItem = memo(
             className={cn(
               'transition-transform duration-100 group-hover:scale-110',
               showColoredIcon
-                ? '!h-[10px] !w-[10px] text-white'
+                ? `!h-[10px] !w-[10px] ${getTileIconColorClass(bgColor)}`
                 : 'size-[16px] text-[var(--text-icon)]'
             )}
           />

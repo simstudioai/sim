@@ -107,9 +107,9 @@ export const SendblueBlock: BlockConfig = {
       id: 'numbers',
       title: 'Recipient Numbers',
       type: 'long-input',
-      placeholder: 'One phone number per line, e.g.\n+19998887777\n+13334445555',
+      placeholder:
+        'One phone number per line, e.g.\n+19998887777\n+13334445555\n(optional when sending to an existing Group ID)',
       condition: { field: 'operation', value: 'sendblue_send_group_message' },
-      required: { field: 'operation', value: 'sendblue_send_group_message' },
     },
     {
       id: 'content',
@@ -153,6 +153,17 @@ export const SendblueBlock: BlockConfig = {
       condition: { field: 'operation', value: 'sendblue_send_group_message' },
     },
     {
+      id: 'seat_id',
+      title: 'Seat ID',
+      type: 'short-input',
+      placeholder: 'Seat UUID or Firebase Auth subject to attribute the message to',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['sendblue_send_message', 'sendblue_send_group_message'],
+      },
+    },
+    {
       id: 'status_callback',
       title: 'Status Callback URL',
       type: 'short-input',
@@ -162,6 +173,26 @@ export const SendblueBlock: BlockConfig = {
         field: 'operation',
         value: ['sendblue_send_message', 'sendblue_send_group_message'],
       },
+    },
+    {
+      id: 'typing_state',
+      title: 'Typing State',
+      type: 'dropdown',
+      options: [
+        { label: 'Start', id: 'start' },
+        { label: 'Stop', id: 'stop' },
+      ],
+      value: () => 'start',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'sendblue_send_typing_indicator' },
+    },
+    {
+      id: 'max_duration_ms',
+      title: 'Max Duration (ms)',
+      type: 'short-input',
+      placeholder: '60000 (1–300000)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'sendblue_send_typing_indicator' },
     },
     {
       id: 'message_id',
@@ -200,25 +231,32 @@ export const SendblueBlock: BlockConfig = {
               content: params.content || undefined,
               media_url: params.media_url || undefined,
               send_style: params.send_style || undefined,
+              seat_id: params.seat_id || undefined,
               status_callback: params.status_callback || undefined,
             }
-          case 'sendblue_send_group_message':
+          case 'sendblue_send_group_message': {
+            const parsedNumbers =
+              typeof params.numbers === 'string'
+                ? params.numbers
+                    .split('\n')
+                    .map((n: string) => n.trim())
+                    .filter(Boolean)
+                : params.numbers
             return {
               ...base,
               numbers:
-                typeof params.numbers === 'string'
-                  ? params.numbers
-                      .split('\n')
-                      .map((n: string) => n.trim())
-                      .filter(Boolean)
-                  : params.numbers,
+                Array.isArray(parsedNumbers) && parsedNumbers.length === 0
+                  ? undefined
+                  : parsedNumbers,
               from_number: params.from_number,
               content: params.content || undefined,
               media_url: params.media_url || undefined,
               send_style: params.send_style || undefined,
+              seat_id: params.seat_id || undefined,
               group_id: params.group_id || undefined,
               status_callback: params.status_callback || undefined,
             }
+          }
           case 'sendblue_evaluate_service':
             return { ...base, number: params.number }
           case 'sendblue_send_typing_indicator':
@@ -226,6 +264,13 @@ export const SendblueBlock: BlockConfig = {
               ...base,
               number: params.number,
               from_number: params.from_number || undefined,
+              state: params.typing_state || undefined,
+              max_duration_ms:
+                params.max_duration_ms !== undefined &&
+                params.max_duration_ms !== '' &&
+                Number.isFinite(Number(params.max_duration_ms))
+                  ? Number(params.max_duration_ms)
+                  : undefined,
             }
           case 'sendblue_get_message':
             return { ...base, message_id: params.message_id }
@@ -247,7 +292,13 @@ export const SendblueBlock: BlockConfig = {
     media_url: { type: 'string', description: 'URL of media to send' },
     send_style: { type: 'string', description: 'iMessage expressive style' },
     group_id: { type: 'string', description: 'Existing group ID' },
+    seat_id: { type: 'string', description: 'Seat (user) the message is attributed to' },
     status_callback: { type: 'string', description: 'Status callback webhook URL' },
+    typing_state: { type: 'string', description: 'Typing indicator state (start or stop)' },
+    max_duration_ms: {
+      type: 'number',
+      description: 'Typing indicator max visible duration in milliseconds',
+    },
     message_id: { type: 'string', description: 'Message handle/ID to retrieve' },
   },
 

@@ -1,8 +1,8 @@
 'use client'
 
+import { cn } from '@sim/emcn'
 import { CheckCircle2, Circle } from 'lucide-react'
 import type { ValidationRuleResult } from '@/lib/academy/types'
-import { cn } from '@/lib/core/utils/cn'
 
 interface ValidationChecklistProps {
   results: ValidationRuleResult[]

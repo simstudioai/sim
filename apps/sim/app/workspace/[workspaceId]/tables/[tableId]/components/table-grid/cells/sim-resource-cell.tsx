@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'

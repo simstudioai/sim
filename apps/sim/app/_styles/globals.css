@@ -110,6 +110,18 @@ html.sidebar-resizing .sidebar-shell-inner {
   transition: none !important;
 }
 
+/* Suppress sidebar transitions during the initial hydration window. The
+   pre-paint script sets the correct --sidebar-width, but store rehydration
+   re-applies it a tick later; without this guard that re-apply animates the
+   rail, reading as a collapse -> expand flash on a fresh page load. Removed
+   after the first paint (see workspace-chrome.tsx) so user-driven toggles and
+   the fullscreen slide still animate. */
+html.sidebar-booting .sidebar-container,
+html.sidebar-booting .sidebar-shell-outer,
+html.sidebar-booting .sidebar-shell-inner {
+  transition: none !important;
+}
+
 .panel-container {
   width: var(--panel-width);
 }

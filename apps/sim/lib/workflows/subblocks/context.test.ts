@@ -36,6 +36,30 @@ describe('buildSelectorContextFromBlock', () => {
     expect(ctx.knowledgeBaseId).toBe('manual-kb-id')
   })
 
+  it('resolves the ACTIVE member when both basic and advanced hold values (no last-write-wins)', () => {
+    const subBlocks = {
+      operation: { id: 'operation', type: 'dropdown', value: 'search' },
+      knowledgeBaseSelector: {
+        id: 'knowledgeBaseSelector',
+        type: 'knowledge-base-selector',
+        value: 'kb-basic',
+      },
+      manualKnowledgeBaseId: {
+        id: 'manualKnowledgeBaseId',
+        type: 'short-input',
+        value: 'kb-advanced',
+      },
+    }
+    // No override: the value heuristic keeps basic (matches a default-basic migrated block).
+    expect(buildSelectorContextFromBlock('knowledge', subBlocks).knowledgeBaseId).toBe('kb-basic')
+    // Explicit advanced toggle: the active member wins (the dormant basic value never leaks).
+    expect(
+      buildSelectorContextFromBlock('knowledge', subBlocks, {
+        canonicalModes: { knowledgeBaseId: 'advanced' },
+      }).knowledgeBaseId
+    ).toBe('kb-advanced')
+  })
+
   it('should skip null/empty values', () => {
     const ctx = buildSelectorContextFromBlock('knowledge', {
       knowledgeBaseSelector: {

@@ -1,13 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { Camera, Check, Info, Pencil } from 'lucide-react'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import {
   Button,
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -19,16 +14,20 @@ import {
   Label,
   Switch,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { Camera, Check, Info, Pencil } from 'lucide-react'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
@@ -269,35 +268,35 @@ export function General() {
     return null
   }
 
+  const actions: SettingsAction[] = [
+    ...(isHosted
+      ? [
+          {
+            text: 'Home page',
+            onSelect: () => window.open('/?home', '_blank', 'noopener,noreferrer'),
+          },
+        ]
+      : []),
+    ...(!isAuthDisabled
+      ? [
+          { text: 'Sign out', onSelect: handleSignOut },
+          { text: 'Reset password', onSelect: () => setShowResetPasswordModal(true) },
+        ]
+      : []),
+  ]
+
   return (
     <>
-      <SettingsPanel
-        actions={
-          <>
-            {isHosted && (
-              <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
-                Home Page
-              </Chip>
-            )}
-            {!isAuthDisabled && (
-              <>
-                <Chip onClick={handleSignOut}>Sign out</Chip>
-                <Chip onClick={() => setShowResetPasswordModal(true)}>Reset password</Chip>
-              </>
-            )}
-          </>
-        }
-      >
+      <SettingsPanel actions={actions}>
         <SettingsSection label='Profile'>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center gap-3'>
               <div className='relative'>
-                <div
-                  role='button'
-                  tabIndex={0}
+                <button
+                  type='button'
+                  aria-label='Change profile picture'
                   className={`group relative flex size-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover-hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
                   onClick={handleProfilePictureClick}
-                  onKeyDown={(event) => handleKeyboardActivation(event, handleProfilePictureClick)}
                 >
                   {(() => {
                     if (imageUrl) {
@@ -333,7 +332,7 @@ export function General() {
                       <Camera className='size-4 text-white' />
                     )}
                   </div>
-                </div>
+                </button>
                 <Input
                   type='file'
                   accept='image/png,image/jpeg,image/jpg'
@@ -356,6 +355,7 @@ export function General() {
                         </span>
                         <input
                           ref={inputRef}
+                          aria-label='Your name'
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           onKeyDown={handleKeyDown}

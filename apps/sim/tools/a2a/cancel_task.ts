@@ -1,11 +1,10 @@
 import type { A2ACancelTaskParams, A2ACancelTaskResponse } from '@/tools/a2a/types'
-import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskResponse> = {
   id: 'a2a_cancel_task',
   name: 'A2A Cancel Task',
-  description: 'Cancel a running A2A task.',
+  description: 'Request cancellation of an in-progress A2A task.',
   version: '1.0.0',
 
   params: {
@@ -19,23 +18,22 @@ export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskRes
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Task ID to cancel',
+      description: 'The task ID to cancel',
     },
     apiKey: {
       type: 'string',
+      required: false,
       visibility: 'user-only',
-      description: 'API key for authentication',
+      description: 'API key for authentication (if required)',
     },
   },
 
   request: {
     url: '/api/tools/a2a/cancel-task',
     method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: A2ACancelTaskParams) => {
-      const body: Record<string, string> = {
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => {
+      const body: Record<string, unknown> = {
         agentUrl: params.agentUrl,
         taskId: params.taskId,
       }
@@ -44,13 +42,11 @@ export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskRes
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-    return data
-  },
+  transformResponse: async (response: Response) => response.json(),
 
   outputs: {
-    cancelled: A2A_OUTPUT_PROPERTIES.cancelled,
-    state: A2A_OUTPUT_PROPERTIES.state,
+    taskId: { type: 'string', description: 'Task identifier' },
+    state: { type: 'string', description: 'Task lifecycle state after cancellation' },
+    canceled: { type: 'boolean', description: 'Whether the task was canceled' },
   },
 }

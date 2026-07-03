@@ -1,2 +1,5 @@
+export { langsmithCreateFeedbackTool } from '@/tools/langsmith/create_feedback'
 export { langsmithCreateRunTool } from '@/tools/langsmith/create_run'
 export { langsmithCreateRunsBatchTool } from '@/tools/langsmith/create_runs_batch'
+export { langsmithGetRunTool } from '@/tools/langsmith/get_run'
+export { langsmithUpdateRunTool } from '@/tools/langsmith/update_run'

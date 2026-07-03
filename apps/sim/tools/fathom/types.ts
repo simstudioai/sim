@@ -9,10 +9,14 @@ export interface FathomListMeetingsParams extends FathomBaseParams {
   includeTranscript?: string
   includeActionItems?: string
   includeCrmMatches?: string
+  includeHighlights?: string
   createdAfter?: string
   createdBefore?: string
   recordedBy?: string
   teams?: string
+  meetingType?: string
+  calendarInviteesDomains?: string
+  calendarInviteesDomainsType?: string
   cursor?: string
 }
 
@@ -21,8 +25,10 @@ export interface FathomListMeetingsResponse extends ToolResponse {
     meetings: Array<{
       title: string
       meeting_title: string | null
+      meeting_type: string | null
       recording_id: number | null
       url: string
+      meeting_url: string | null
       share_url: string
       created_at: string
       scheduled_start_time: string | null
@@ -31,6 +37,7 @@ export interface FathomListMeetingsResponse extends ToolResponse {
       recording_end_time: string | null
       transcript_language: string
       calendar_invitees_domains_type: string | null
+      shared_with: string | null
       recorded_by: { name: string; email: string; email_domain: string; team: string | null } | null
       calendar_invitees: Array<{
         name: string | null
@@ -52,6 +59,13 @@ export interface FathomListMeetingsResponse extends ToolResponse {
         recording_timestamp: string
         recording_playback_url: string
         assignee: { name: string | null; email: string | null; team: string | null }
+      }> | null
+      highlights: Array<{
+        type: string
+        summary: string | null
+        text: string
+        start_time: number
+        end_time: number
       }> | null
       crm_matches: {
         contacts: Array<{ name: string; email: string; record_url: string }>
@@ -119,9 +133,25 @@ export interface FathomListTeamsResponse extends ToolResponse {
   }
 }
 
+export interface FathomListMeetingTypesParams extends FathomBaseParams {
+  cursor?: string
+}
+
+export interface FathomListMeetingTypesResponse extends ToolResponse {
+  output: {
+    meetingTypes: Array<{
+      name: string
+      status: string
+      created_at: string
+    }>
+    next_cursor: string | null
+  }
+}
+
 export type FathomResponse =
   | FathomListMeetingsResponse
   | FathomGetSummaryResponse
   | FathomGetTranscriptResponse
   | FathomListTeamMembersResponse
   | FathomListTeamsResponse
+  | FathomListMeetingTypesResponse

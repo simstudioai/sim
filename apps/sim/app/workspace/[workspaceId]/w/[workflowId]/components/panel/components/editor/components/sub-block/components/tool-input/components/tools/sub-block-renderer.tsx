@@ -6,6 +6,7 @@ import {
   resolveToolParamSync,
 } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
+import { DependencyBlockTypeProvider } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-dependency-block-type'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -17,6 +18,8 @@ interface ToolSubBlockRendererProps {
   toolIndex: number
   subBlock: BlockSubBlockConfig
   effectiveParamId: string
+  /** The tool's block type (e.g. `gmail`), so its params' selectors resolve dependencies. */
+  toolType: string
   toolParams: Record<string, string> | undefined
   onParamChange: (toolIndex: number, paramId: string, value: string) => void
   disabled: boolean
@@ -44,6 +47,7 @@ export function ToolSubBlockRenderer({
   toolIndex,
   subBlock,
   effectiveParamId,
+  toolType,
   toolParams,
   onParamChange,
   disabled,
@@ -118,13 +122,15 @@ export function ToolSubBlockRenderer({
   }
 
   return (
-    <SubBlock
-      blockId={blockId}
-      config={config}
-      isPreview={false}
-      disabled={disabled}
-      canonicalToggle={canonicalToggle}
-      dependencyContext={toolParams}
-    />
+    <DependencyBlockTypeProvider value={toolType}>
+      <SubBlock
+        blockId={blockId}
+        config={config}
+        isPreview={false}
+        disabled={disabled}
+        canonicalToggle={canonicalToggle}
+        dependencyContext={toolParams}
+      />
+    </DependencyBlockTypeProvider>
   )
 }

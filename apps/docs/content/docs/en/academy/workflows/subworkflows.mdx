@@ -1,19 +1,20 @@
 ---
 title: Subworkflows
-description: Call one workflow from another, the way you'd call a function in code — reuse logic and compose small workflows into larger systems.
+description: Call one workflow from another, the way you'd call a function in code, reuse logic and compose small workflows into larger systems.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, WORKFLOW_CALL_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Workflows" title="Subworkflows" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-subworkflows-light-with-intro.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Workflows" title="Subworkflows" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-subworkflows.mp4" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-Once you've built a workflow that does something well, you can **call it from another workflow** — the way you'd call a function in code. The Workflow block turns any workflow into a reusable step.
+Once you've built a workflow that does something well, you can **call it from another workflow**, the way you'd call a function in code. The Workflow block turns any workflow into a reusable step.
 
 <WhatYouWillLearn
   items={[
@@ -50,23 +51,29 @@ Once you've built a workflow that does something well, you can **call it from an
 
 ## The workflow you already know
 
-Start with a workflow you've built and trust — say one that classifies a message. On its own it's a complete process you can run.
+Start with a workflow you've built and trust, say one that classifies a message. On its own it's a complete process you can run.
 
-Here's the shape of it — one workflow invoked as a single block inside another:
+Here's the shape of it: one workflow invoked as a single block inside another:
 
 <WorkflowPreview workflow={WORKFLOW_CALL_WORKFLOW} />
 
 ## It becomes a block
 
-Any workflow can be used as a **block** inside another. You drop a **Workflow block**, point it at the workflow you want, and pass it an input — just like calling a function. You don't rebuild its logic; you reuse it.
+Any workflow can be used as a **block** inside another. You drop a **Workflow block**, point it at the workflow you want, and pass it an input, just like calling a function. You don't rebuild its logic; you reuse it.
 
 ## Call, run, return
 
-When the parent run reaches the Workflow block, the **child workflow runs** start to finish — its own blocks, its own logic — and its **result comes back** into the parent, where the next block reads it. The parent doesn't need to know how the child works, only what it returns.
+When the parent run reaches the Workflow block, the **child workflow runs** start to finish, its own blocks, its own logic, and its **result comes back** into the parent, where the next block reads it. The parent doesn't need to know how the child works, only what it returns.
 
 ## Workflows all the way up
 
-This is how big systems stay manageable: factor shared logic into focused subworkflows and **compose** them. Each workflow you build becomes a building block for the next — small, tested pieces assembling into larger processes, without turning into a mess.
+This is how big systems stay manageable: factor shared logic into focused subworkflows and **compose** them. Each workflow you build becomes a building block for the next, small, tested pieces assembling into larger processes, without turning into a mess.
+
+<FAQ items={[
+  { question: "How do I call one workflow from another?", answer: "Add the Workflow block and pick the workflow to call. It appears as a single block, with the child's input as its parameter and the child's output as its result." },
+  { question: "Why split logic into subworkflows?", answer: "The same reasons you write functions: reuse one tested piece from many places, keep each workflow small enough to reason about, and change shared logic in one place." },
+  { question: "Do subworkflow runs show up in logs?", answer: "Yes. The parent's log records the call, and the child's own run is logged in full, so you can inspect either level." },
+]} />
 
 ## Related documentation
 

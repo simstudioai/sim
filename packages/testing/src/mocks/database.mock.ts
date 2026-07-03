@@ -258,17 +258,19 @@ export const dbChainMock = {
  * Creates a mock database connection.
  */
 export function createMockDb() {
+  // A `where(...)` result that is both awaitable (resolves to `[]`) and exposes
+  // `.limit`/`.orderBy`, so `select().from()[.leftJoin()].where()[.limit()]`
+  // works whether or not a terminal is chained.
+  const whereResult = () => {
+    const thenable: any = Promise.resolve([])
+    thenable.limit = vi.fn(() => Promise.resolve([]))
+    thenable.orderBy = vi.fn(() => Promise.resolve([]))
+    return thenable
+  }
   const fromBuilder = () => ({
-    where: vi.fn(() => ({
-      limit: vi.fn(() => Promise.resolve([])),
-      orderBy: vi.fn(() => Promise.resolve([])),
-    })),
-    leftJoin: vi.fn(() => ({
-      where: vi.fn(() => Promise.resolve([])),
-    })),
-    innerJoin: vi.fn(() => ({
-      where: vi.fn(() => Promise.resolve([])),
-    })),
+    where: vi.fn(whereResult),
+    leftJoin: vi.fn(() => ({ where: vi.fn(whereResult) })),
+    innerJoin: vi.fn(() => ({ where: vi.fn(whereResult) })),
   })
 
   return {

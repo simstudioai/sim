@@ -8,14 +8,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ArrowUpLeft } from 'lucide-react'
-import { createPortal } from 'react-dom'
 import {
   Chip,
   ChipChevronDown,
   chipContentIconClass,
   chipGeometryClass,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -29,8 +28,9 @@ import {
   PopoverSection,
   useFloatingTooltip,
   useIsOverflowing,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { ArrowUpLeft } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 

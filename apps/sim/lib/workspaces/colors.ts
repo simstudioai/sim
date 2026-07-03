@@ -1,4 +1,5 @@
 import { randomItem } from '@sim/utils/random'
+import { hexToRgb } from '@/lib/colors'
 
 /** Color palette for workspace accents. */
 export const WORKSPACE_COLORS = [
@@ -63,19 +64,7 @@ function withAlpha(hexColor: string, alpha: number): string {
     return hexColor
   }
 
-  const normalized = hexColor.slice(1)
-  const expanded =
-    normalized.length === 3
-      ? normalized
-          .split('')
-          .map((char) => `${char}${char}`)
-          .join('')
-      : normalized
-
-  const r = Number.parseInt(expanded.slice(0, 2), 16)
-  const g = Number.parseInt(expanded.slice(2, 4), 16)
-  const b = Number.parseInt(expanded.slice(4, 6), 16)
-
+  const { r, g, b } = hexToRgb(hexColor)
   return `rgba(${r}, ${g}, ${b}, ${Math.min(Math.max(alpha, 0), 1)})`
 }
 

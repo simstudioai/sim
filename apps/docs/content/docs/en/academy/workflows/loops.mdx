@@ -1,19 +1,20 @@
 ---
 title: Loops & Parallel
-description: Repeat the same steps over a collection — the Loop block runs them one item at a time, the Parallel block runs every item at once.
+description: "Repeat the same steps over a collection: the Loop block runs them one item at a time, the Parallel block runs every item at once."
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, LOOP_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Workflows" title="Loops & Parallel" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-loops-light-with-intro.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Workflows" title="Loops & Parallel" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-loops.mp4" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-Repeating the same steps across a whole collection is one of the most fundamental ideas in programming. Sim gives you two blocks for it — the **Loop** block and the **Parallel** block. They do the same job and differ only in *how* they run.
+Repeating the same steps across a whole collection is one of the most fundamental ideas in programming. Sim gives you two blocks for it: the **Loop** block and the **Parallel** block. They do the same job and differ only in *how* they run.
 
 <WhatYouWillLearn
   items={[
@@ -51,26 +52,32 @@ Repeating the same steps across a whole collection is one of the most fundamenta
 
 ## A block that holds blocks
 
-A Loop (or Parallel) is a **container** — a block you drop other blocks inside. You hand it a collection, and it runs whatever's inside once for every item in that collection, turning a single step into many.
+A Loop (or Parallel) is a **container**, a block you drop other blocks inside. You hand it a collection, and it runs whatever's inside once for every item in that collection, turning a single step into many.
 
-Here's the shape of it — a container wrapping the blocks it repeats over the collection:
+Here's the shape of it: a container wrapping the blocks it repeats over the collection:
 
 <WorkflowPreview workflow={LOOP_WORKFLOW} />
 
 ## What each run knows
 
-Inside the container, every iteration gets the **current item** to work on (and its index). That's how one lane of blocks becomes a run per lead, per row, or per file — the steps stay the same, the data changes each pass.
+Inside the container, every iteration gets the **current item** to work on (and its index). That's how one lane of blocks becomes a run per lead, per row, or per file: the steps stay the same, the data changes each pass.
 
 ## One at a time, or all at once
 
 This is the whole difference between the two blocks:
 
-- **Loop** runs the items **sequentially** — one finishes before the next begins. Reach for it when each step builds on the last, or when you need to respect order or rate limits.
-- **Parallel** runs them **all at once** — every item concurrently. Reach for it when the items are independent; it's dramatically faster across a large collection.
+- **Loop** runs the items **sequentially**, one finishes before the next begins. Reach for it when each step builds on the last, or when you need to respect order or rate limits.
+- **Parallel** runs them **all at once**, every item concurrently. Reach for it when the items are independent; it's dramatically faster across a large collection.
 
 ## Swapping the container
 
-Because the two blocks share the same shape, you can **swap a Loop for a Parallel** (or back) without rewiring anything inside. Same logic, different execution — sequential or concurrent — chosen by which container you wrap it in.
+Because the two blocks share the same shape, you can **swap a Loop for a Parallel** (or back) without rewiring anything inside. Same logic, different execution, sequential or concurrent, chosen by which container you wrap it in.
+
+<FAQ items={[
+  { question: "What is the difference between Loop and Parallel?", answer: "Both repeat the blocks inside them over a collection. The Loop runs one item at a time in order; the Parallel block runs every item at once. The results collect the same way in both." },
+  { question: "How do the blocks inside know which item they are on?", answer: "Through the container's references, such as the current item tag: each pass sees its own item, and downstream blocks read the collected results when the container finishes." },
+  { question: "When should I prefer a sequential Loop?", answer: "When passes depend on each other, when order matters, or when you want to control the pace of calls to an external service. Reach for Parallel when items are independent and speed matters." },
+]} />
 
 ## Related documentation
 

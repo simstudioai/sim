@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import {
   ChipModal,
   ChipModalBody,
@@ -10,9 +8,12 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -75,6 +76,10 @@ export function InviteModal({
 
   const validateEmail = useCallback(
     (email: string): string | null => {
+      const formatResult = quickValidateEmail(email)
+      if (!formatResult.isValid) {
+        return formatResult.reason ?? 'Invalid email'
+      }
       if (workspacePermissions?.users?.some((user) => user.email === email)) {
         return `${email} is already a teammate in this workspace`
       }

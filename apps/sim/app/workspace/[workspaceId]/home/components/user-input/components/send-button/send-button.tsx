@@ -1,8 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ArrowUp, Button } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ArrowUp, Button, cn } from '@sim/emcn'
 import {
   SEND_BUTTON_ACTIVE,
   SEND_BUTTON_BASE,

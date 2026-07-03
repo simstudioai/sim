@@ -32,12 +32,19 @@ export const vercelDeleteDeploymentTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
     url: (params: VercelDeleteDeploymentParams) => {
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const id = params.deploymentId.trim()
       if (id.includes('.')) {
         query.set('url', id)

@@ -340,3 +340,185 @@ export type OutlookExtendedResponse =
   | OutlookMarkReadResponse
   | OutlookDeleteResponse
   | OutlookCopyResponse
+
+/**
+ * Output definition for mail folder objects.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/mailfolder
+ */
+export const OUTLOOK_FOLDER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Unique folder identifier' },
+  displayName: { type: 'string', description: 'Display name of the folder', optional: true },
+  parentFolderId: {
+    type: 'string',
+    description: 'Identifier of the parent folder',
+    optional: true,
+  },
+  childFolderCount: {
+    type: 'number',
+    description: 'Number of immediate child folders',
+    optional: true,
+  },
+  unreadItemCount: {
+    type: 'number',
+    description: 'Number of unread items in the folder',
+    optional: true,
+  },
+  totalItemCount: {
+    type: 'number',
+    description: 'Total number of items in the folder',
+    optional: true,
+  },
+  isHidden: { type: 'boolean', description: 'Whether the folder is hidden', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for attachment metadata returned by list/get attachment tools.
+ */
+export const OUTLOOK_ATTACHMENT_METADATA_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Unique attachment identifier' },
+  name: { type: 'string', description: 'Attachment filename', optional: true },
+  contentType: { type: 'string', description: 'MIME type of the attachment', optional: true },
+  size: { type: 'number', description: 'Attachment size in bytes', optional: true },
+  isInline: {
+    type: 'boolean',
+    description: 'Whether the attachment is rendered inline in the message body',
+    optional: true,
+  },
+  attachmentType: {
+    type: 'string',
+    description: 'Microsoft Graph attachment type (e.g. #microsoft.graph.fileAttachment)',
+    optional: true,
+  },
+  lastModifiedDateTime: {
+    type: 'string',
+    description: 'When the attachment was last modified (ISO 8601)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Cleaned mail folder returned by our tools. */
+export interface CleanedOutlookFolder {
+  id: string
+  displayName?: string | null
+  parentFolderId?: string | null
+  childFolderCount?: number | null
+  unreadItemCount?: number | null
+  totalItemCount?: number | null
+  isHidden?: boolean | null
+}
+
+/** Cleaned attachment metadata returned by our tools. */
+export interface CleanedOutlookAttachmentMetadata {
+  id: string
+  name?: string | null
+  contentType?: string | null
+  size?: number | null
+  isInline?: boolean | null
+  attachmentType?: string | null
+  lastModifiedDateTime?: string | null
+}
+
+export interface OutlookReplyParams {
+  accessToken: string
+  messageId: string
+  comment?: string
+}
+
+export interface OutlookReplyResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      status: string
+      timestamp: string
+      httpStatus?: number
+      requestId?: string
+    }
+  }
+}
+
+export interface OutlookListFoldersParams {
+  accessToken: string
+  maxResults?: number
+  includeHiddenFolders?: boolean
+}
+
+export interface OutlookListFoldersResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookFolder[]
+  }
+}
+
+export interface OutlookCreateFolderParams {
+  accessToken: string
+  displayName: string
+  isHidden?: boolean
+}
+
+export interface OutlookCreateFolderResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookFolder
+  }
+}
+
+export interface OutlookListAttachmentsParams {
+  accessToken: string
+  messageId: string
+}
+
+export interface OutlookListAttachmentsResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookAttachmentMetadata[]
+  }
+}
+
+export interface OutlookGetAttachmentParams {
+  accessToken: string
+  messageId: string
+  attachmentId: string
+}
+
+export interface OutlookGetAttachmentResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookAttachmentMetadata
+    attachments: OutlookAttachment[]
+  }
+}
+
+export interface OutlookSearchParams {
+  accessToken: string
+  query: string
+  maxResults?: number
+}
+
+export interface OutlookSearchResponse extends ToolResponse {
+  output: {
+    message: string
+    results: CleanedOutlookMessage[]
+  }
+}
+
+export interface OutlookUpdateMessageParams {
+  accessToken: string
+  messageId: string
+  categories?: string[]
+  flagStatus?: 'notFlagged' | 'flagged' | 'complete'
+  importance?: 'low' | 'normal' | 'high'
+}
+
+export interface OutlookUpdateMessageResponse extends ToolResponse {
+  output: {
+    message: string
+    results: {
+      messageId: string
+      subject?: string | null
+      categories: string[]
+      flagStatus?: string | null
+      importance?: string | null
+      isRead?: boolean | null
+    }
+  }
+}

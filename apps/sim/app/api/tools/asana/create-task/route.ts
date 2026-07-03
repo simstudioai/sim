@@ -27,7 +27,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: workspaceValidation.error }, { status: 400 })
     }
 
-    const url = 'https://app.asana.com/api/1.0/tasks'
+    const url =
+      'https://app.asana.com/api/1.0/tasks?opt_fields=name,notes,completed,created_at,permalink_url'
 
     const taskData: Record<string, unknown> = {
       name,

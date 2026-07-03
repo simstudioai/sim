@@ -11,7 +11,7 @@ export const createDatabaseTool: ToolConfig<
   id: 'clickhouse_create_database',
   name: 'ClickHouse Create Database',
   description: 'Create a new database on a ClickHouse server',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

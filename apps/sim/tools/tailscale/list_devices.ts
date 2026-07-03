@@ -47,6 +47,7 @@ export const tailscaleListDevicesTool: ToolConfig<
     const data = await response.json()
     const devices = (data.devices ?? []).map((device: Record<string, unknown>) => ({
       id: (device.id as string) ?? null,
+      nodeId: (device.nodeId as string) ?? null,
       name: (device.name as string) ?? null,
       hostname: (device.hostname as string) ?? null,
       user: (device.user as string) ?? null,
@@ -56,6 +57,8 @@ export const tailscaleListDevicesTool: ToolConfig<
       tags: (device.tags as string[]) ?? [],
       authorized: (device.authorized as boolean) ?? false,
       blocksIncomingConnections: (device.blocksIncomingConnections as boolean) ?? false,
+      keyExpiryDisabled: (device.keyExpiryDisabled as boolean) ?? false,
+      expires: (device.expires as string) ?? null,
       lastSeen: (device.lastSeen as string) ?? null,
       created: (device.created as string) ?? null,
     }))
@@ -76,7 +79,8 @@ export const tailscaleListDevicesTool: ToolConfig<
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Device ID' },
+          id: { type: 'string', description: 'Legacy device ID' },
+          nodeId: { type: 'string', description: 'Preferred device ID' },
           name: { type: 'string', description: 'Device name' },
           hostname: { type: 'string', description: 'Device hostname' },
           user: { type: 'string', description: 'Associated user' },
@@ -89,6 +93,11 @@ export const tailscaleListDevicesTool: ToolConfig<
             type: 'boolean',
             description: 'Whether the device blocks incoming connections',
           },
+          keyExpiryDisabled: {
+            type: 'boolean',
+            description: 'Whether the device key is exempt from expiring',
+          },
+          expires: { type: 'string', description: "The device's auth key expiration timestamp" },
           lastSeen: { type: 'string', description: 'Last seen timestamp' },
           created: { type: 'string', description: 'Creation timestamp' },
         },

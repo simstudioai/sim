@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, useMemo } from 'react'
-import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/emcn'
+import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { SIDEBAR_WIDTH } from '@/stores/constants'

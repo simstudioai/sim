@@ -1,6 +1,6 @@
 ---
 title: Outlook
-description: Send, read, draft, forward, and move Outlook email messages
+description: Send, read, search, reply, organize, and manage Outlook email
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -37,7 +37,7 @@ By connecting Sim with Microsoft Outlook, you enable intelligent agents to autom
 
 ## Usage Instructions
 
-Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.
+Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.
 
 
 
@@ -139,6 +139,91 @@ Read emails from Outlook
 |   ↳ `importance` | string | Message importance \(low, normal, high\) |
 | `attachments` | file[] | All email attachments flattened from all emails |
 
+### `outlook_search`
+
+Search Outlook messages using a free-text query (Microsoft Graph $search)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search text matched against the subject, body, sender, and recipients of messages |
+| `maxResults` | number | No | Maximum number of messages to retrieve \(default: 10, max: 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | array | Array of matching email message objects |
+|   ↳ `id` | string | Unique message identifier |
+|   ↳ `subject` | string | Email subject |
+|   ↳ `bodyPreview` | string | Preview of the message body |
+|   ↳ `body` | object | Message body |
+|     ↳ `contentType` | string | Body content type \(text or html\) |
+|     ↳ `content` | string | Body content |
+|   ↳ `sender` | object | Sender information |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `from` | object | From address information |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `toRecipients` | array | To recipients |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `ccRecipients` | array | CC recipients |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `receivedDateTime` | string | When the message was received \(ISO 8601\) |
+|   ↳ `sentDateTime` | string | When the message was sent \(ISO 8601\) |
+|   ↳ `hasAttachments` | boolean | Whether the message has attachments |
+|   ↳ `isRead` | boolean | Whether the message has been read |
+|   ↳ `importance` | string | Message importance \(low, normal, high\) |
+
+### `outlook_reply`
+
+Reply to the sender of an Outlook message with a comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | The ID of the message to reply to |
+| `comment` | string | No | The reply text to include above the original message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `results` | object | Reply result details |
+|   ↳ `status` | string | Reply status |
+|   ↳ `timestamp` | string | Timestamp when the reply was sent |
+|   ↳ `httpStatus` | number | HTTP status code returned by the API |
+|   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
+
+### `outlook_reply_all`
+
+Reply to all recipients of an Outlook message with a comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | The ID of the message to reply to |
+| `comment` | string | No | The reply text to include above the original message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `results` | object | Reply-all result details |
+|   ↳ `status` | string | Reply status |
+|   ↳ `timestamp` | string | Timestamp when the reply was sent |
+|   ↳ `httpStatus` | number | HTTP status code returned by the API |
+|   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
+
 ### `outlook_forward`
 
 Forward an existing Outlook message to specified recipients
@@ -184,6 +269,27 @@ Move emails between Outlook folders
 | `messageId` | string | ID of the moved message |
 | `newFolderId` | string | ID of the destination folder |
 
+### `outlook_copy`
+
+Copy an Outlook message to another folder
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | ID of the message to copy |
+| `destinationId` | string | Yes | ID of the destination folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Email copy success status |
+| `message` | string | Success or error message |
+| `originalMessageId` | string | ID of the original message |
+| `copiedMessageId` | string | ID of the copied message |
+| `destinationFolderId` | string | ID of the destination folder |
+
 ### `outlook_mark_read`
 
 Mark an Outlook message as read
@@ -222,6 +328,32 @@ Mark an Outlook message as unread
 | `messageId` | string | ID of the message |
 | `isRead` | boolean | Read status of the message |
 
+### `outlook_update_message`
+
+Set the categories, follow-up flag, and importance on an Outlook message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | The ID of the message to update |
+| `categories` | json | No | Array of category names to assign to the message \(replaces existing categories; leave empty to keep them unchanged\) |
+| `flagStatus` | string | No | Follow-up flag status: notFlagged, flagged, or complete |
+| `importance` | string | No | Message importance: low, normal, or high |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `results` | object | Updated message details |
+|   ↳ `messageId` | string | ID of the updated message |
+|   ↳ `subject` | string | Subject of the message |
+|   ↳ `categories` | array | Categories assigned to the message |
+|   ↳ `flagStatus` | string | Follow-up flag status of the message |
+|   ↳ `importance` | string | Importance of the message |
+|   ↳ `isRead` | boolean | Whether the message is read |
+
 ### `outlook_delete`
 
 Delete an Outlook message (move to Deleted Items)
@@ -241,26 +373,105 @@ Delete an Outlook message (move to Deleted Items)
 | `messageId` | string | ID of the deleted message |
 | `status` | string | Deletion status |
 
-### `outlook_copy`
+### `outlook_list_folders`
 
-Copy an Outlook message to another folder
+List mail folders in the root of the Outlook mailbox
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to copy |
-| `destinationId` | string | Yes | ID of the destination folder |
+| `maxResults` | number | No | Maximum number of folders to retrieve \(default: 50, max: 100\) |
+| `includeHiddenFolders` | boolean | No | Whether to include hidden folders in the results |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Email copy success status |
-| `message` | string | Success or error message |
-| `originalMessageId` | string | ID of the original message |
-| `copiedMessageId` | string | ID of the copied message |
-| `destinationFolderId` | string | ID of the destination folder |
+| `message` | string | Success or status message |
+| `results` | array | Array of mail folder objects |
+|   ↳ `id` | string | Unique folder identifier |
+|   ↳ `displayName` | string | Display name of the folder |
+|   ↳ `parentFolderId` | string | Identifier of the parent folder |
+|   ↳ `childFolderCount` | number | Number of immediate child folders |
+|   ↳ `unreadItemCount` | number | Number of unread items in the folder |
+|   ↳ `totalItemCount` | number | Total number of items in the folder |
+|   ↳ `isHidden` | boolean | Whether the folder is hidden |
+
+### `outlook_create_folder`
+
+Create a new mail folder in the root of the Outlook mailbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | The display name of the new folder |
+| `isHidden` | boolean | No | Whether the new folder is hidden \(cannot be changed after creation\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | object | The newly created mail folder |
+|   ↳ `id` | string | Unique folder identifier |
+|   ↳ `displayName` | string | Display name of the folder |
+|   ↳ `parentFolderId` | string | Identifier of the parent folder |
+|   ↳ `childFolderCount` | number | Number of immediate child folders |
+|   ↳ `unreadItemCount` | number | Number of unread items in the folder |
+|   ↳ `totalItemCount` | number | Total number of items in the folder |
+|   ↳ `isHidden` | boolean | Whether the folder is hidden |
+
+### `outlook_list_attachments`
+
+List the attachments on an Outlook message (metadata only, without contents)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | The ID of the message whose attachments to list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | array | Array of attachment metadata objects |
+|   ↳ `id` | string | Unique attachment identifier |
+|   ↳ `name` | string | Attachment filename |
+|   ↳ `contentType` | string | MIME type of the attachment |
+|   ↳ `size` | number | Attachment size in bytes |
+|   ↳ `isInline` | boolean | Whether the attachment is rendered inline in the message body |
+|   ↳ `attachmentType` | string | Microsoft Graph attachment type \(e.g. #microsoft.graph.fileAttachment\) |
+|   ↳ `lastModifiedDateTime` | string | When the attachment was last modified \(ISO 8601\) |
+
+### `outlook_get_attachment`
+
+Get a single attachment on an Outlook message, including its file contents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | The ID of the message that owns the attachment |
+| `attachmentId` | string | Yes | The ID of the attachment to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or status message |
+| `results` | object | Attachment metadata |
+|   ↳ `id` | string | Unique attachment identifier |
+|   ↳ `name` | string | Attachment filename |
+|   ↳ `contentType` | string | MIME type of the attachment |
+|   ↳ `size` | number | Attachment size in bytes |
+|   ↳ `isInline` | boolean | Whether the attachment is rendered inline in the message body |
+|   ↳ `attachmentType` | string | Microsoft Graph attachment type \(e.g. #microsoft.graph.fileAttachment\) |
+|   ↳ `lastModifiedDateTime` | string | When the attachment was last modified \(ISO 8601\) |
+| `attachments` | file[] | The downloaded file attachment \(empty for non-file attachment types\) |
 
 
 

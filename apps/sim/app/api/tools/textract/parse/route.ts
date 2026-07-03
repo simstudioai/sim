@@ -16,9 +16,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
-  downloadFileFromStorage,
+  downloadServableFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -437,9 +438,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
       if (denied) return denied
-      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+      const { buffer, contentType: resolvedContentType } = await downloadServableFileFromStorage(
+        userFile,
+        requestId,
+        logger
+      )
       bytes = buffer.toString('base64')
-      contentType = userFile.type || 'application/octet-stream'
+      contentType = resolvedContentType || userFile.type || 'application/octet-stream'
       isPdf = contentType.includes('pdf') || userFile.name?.toLowerCase().endsWith('.pdf')
     } else if (validatedData.filePath) {
       let fileUrl = validatedData.filePath
@@ -616,6 +621,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
+    const notReady = docNotReadyResponse(error)
+    if (notReady) return notReady
+
     logger.error(`[${requestId}] Error in Textract parse:`, error)
 
     return NextResponse.json(

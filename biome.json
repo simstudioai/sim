@@ -150,6 +150,9 @@
     }
   },
   "css": {
+    "parser": {
+      "cssModules": true
+    },
     "formatter": {
       "enabled": true,
       "indentWidth": 2

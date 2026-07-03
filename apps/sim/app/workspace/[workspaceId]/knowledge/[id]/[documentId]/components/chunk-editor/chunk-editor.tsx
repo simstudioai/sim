@@ -1,11 +1,10 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Label, Switch } from '@/components/emcn'
+import { handleKeyboardActivation, Label, Switch } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
@@ -206,7 +205,7 @@ export function ChunkEditor({
       <div
         role='group'
         aria-label='Chunk content editor'
-        className='flex min-h-0 flex-1 cursor-text overflow-hidden'
+        className='flex min-h-0 flex-1 cursor-text flex-col overflow-hidden'
         onClick={(e) => {
           if (e.target === e.currentTarget) textareaRef.current?.focus()
         }}
@@ -218,7 +217,7 @@ export function ChunkEditor({
         {tokenizerOn ? (
           <div
             ref={tokenizedScrollRef}
-            className='h-full w-full cursor-default overflow-y-auto whitespace-pre-wrap break-words p-6 font-sans text-[var(--text-body)] text-sm'
+            className='mx-auto h-full w-full max-w-[48rem] cursor-default overflow-y-auto whitespace-pre-wrap break-words px-8 py-6 font-sans text-[var(--text-body)] text-sm'
           >
             {tokenStrings.map((token, index) => (
               <span
@@ -245,7 +244,7 @@ export function ChunkEditor({
                     ? 'This chunk is synced from a connector and cannot be edited'
                     : 'Read-only view'
             }
-            className='min-h-0 flex-1 resize-none border-0 bg-transparent p-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
+            className='mx-auto min-h-0 w-full max-w-[48rem] flex-1 resize-none border-0 bg-transparent px-8 py-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
             disabled={!canEdit}
             readOnly={!canEdit}
             spellCheck={false}

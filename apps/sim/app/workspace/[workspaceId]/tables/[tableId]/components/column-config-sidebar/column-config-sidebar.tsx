@@ -1,19 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, ChipCombobox, ChipInput, cn, FieldDivider, Label, Switch, toast } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import {
-  Button,
-  ChipCombobox,
-  ChipInput,
-  FieldDivider,
-  Label,
-  Switch,
-  toast,
-} from '@/components/emcn'
-import { X } from '@/components/emcn/icons'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
-import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
 import {
   FieldError,

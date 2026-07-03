@@ -1,7 +1,7 @@
 'use client'
 
 import { forwardRef, memo, useCallback, useImperativeHandle, useRef, useState } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 
 interface EditConfig {
   onCellChange: (row: number, col: number, value: string) => void

@@ -1,8 +1,6 @@
 'use client'
 
 import { memo } from 'react'
-import clsx from 'clsx'
-import { Filter } from 'lucide-react'
 import {
   Button,
   Popover,
@@ -12,7 +10,9 @@ import {
   PopoverScrollArea,
   PopoverSection,
   PopoverTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import clsx from 'clsx'
+import { Filter } from 'lucide-react'
 import type {
   BlockInfo,
   TerminalFilters,

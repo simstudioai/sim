@@ -1,4 +1,4 @@
-import { Label, Switch as UISwitch } from '@/components/emcn'
+import { Label, Switch as UISwitch } from '@sim/emcn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface SwitchProps {

@@ -1,7 +1,6 @@
+import { Badge, Chip, cn } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, Chip } from '@/components/emcn'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { cn } from '@/lib/core/utils/cn'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 type Subscription = {

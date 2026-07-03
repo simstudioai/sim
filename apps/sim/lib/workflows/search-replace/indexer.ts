@@ -35,6 +35,7 @@ import {
   normalizeDependencyValue,
   parseDependsOn,
   resolveDependencyValue,
+  scopeCanonicalModesForTool,
   shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
@@ -518,22 +519,6 @@ function safeParseJson(value: string): unknown {
   }
 }
 
-function scopeToolCanonicalModes(
-  canonicalModes: CanonicalModeOverrides | undefined,
-  blockType: string | undefined
-): CanonicalModeOverrides | undefined {
-  if (!canonicalModes || !blockType) return undefined
-
-  const prefix = `${blockType}:`
-  let scoped: CanonicalModeOverrides | undefined
-  for (const [key, value] of Object.entries(canonicalModes)) {
-    if (!key.startsWith(prefix) || !value) continue
-    scoped = scoped ?? {}
-    scoped[key.slice(prefix.length)] = value
-  }
-  return scoped
-}
-
 function parseToolParamValue(value: unknown, subBlockType: SubBlockType): unknown {
   if (value === undefined || value === null) return ''
   if (typeof value !== 'string') return value
@@ -682,7 +667,13 @@ function isVisibleToolParameter(param: ToolParameterConfig, values: Record<strin
   )
 }
 
-function getToolInputParamConfigs({
+/**
+ * Resolve a stored tool's params to their subBlock configs (the same resolution
+ * the search index + UI use). Exported so cross-workspace remapping (fork/promote)
+ * can detect and rewrite the workspace-scoped resource ids nested inside block
+ * tools, not just the top-level selectors.
+ */
+export function getToolInputParamConfigs({
   tool,
   parentCanonicalModes,
   credentialTypeById,
@@ -732,7 +723,7 @@ function getToolInputParamConfigs({
 
   if (!toolId) return genericFallback()
 
-  const scopedCanonicalModes = scopeToolCanonicalModes(parentCanonicalModes, tool.type)
+  const scopedCanonicalModes = scopeCanonicalModesForTool(parentCanonicalModes, tool.type)
   const blockConfig =
     tool.type !== 'custom-tool' && tool.type !== 'mcp'
       ? (blockConfigs?.[tool.type] ?? getBlock(tool.type))

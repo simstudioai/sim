@@ -1,4 +1,4 @@
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 
 export type BlockDiffStatus = 'new' | 'edited' | null | undefined
 

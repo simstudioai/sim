@@ -5,6 +5,7 @@ import {
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 
 /**
  * Public API v1 schemas (`/api/v1/knowledge/**`)
@@ -36,7 +37,13 @@ export const v1ListKnowledgeBasesQuerySchema = z.object({
 export const v1CreateKnowledgeBaseBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or less'),
-  description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
+  description: z
+    .string()
+    .max(
+      KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
+      `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+    )
+    .optional(),
   chunkingConfig: v1ChunkingConfigSchema.optional().default({
     maxSize: 1024,
     minSize: 100,
@@ -54,7 +61,13 @@ export const v1UpdateKnowledgeBaseBodySchema = z
   .object({
     workspaceId: z.string().min(1, 'Workspace ID is required'),
     name: z.string().min(1).max(255, 'Name must be 255 characters or less').optional(),
-    description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
+    description: z
+      .string()
+      .max(
+        KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
+        `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+      )
+      .optional(),
     chunkingConfig: z
       .object({
         maxSize: z.number().min(100).max(4000),

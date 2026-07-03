@@ -48,7 +48,7 @@ Optional components (off by default):
 
 * **`copilot`** — the Sim Copilot service plus its own Postgres StatefulSet.
 * **`ollama`** — local LLM inference, with optional NVIDIA GPU support.
-* **`pii`** — Presidio PII redaction sidecar (analyzer + anonymizer) for the Guardrails PII block and log redaction. See [PII redaction](#pii-redaction).
+* **`pii`** — Presidio PII redaction service (analyzer + anonymizer) for the Guardrails PII block and log redaction. See [PII redaction](#pii-redaction).
 * **`telemetry`** — OpenTelemetry Collector wired to Jaeger / Prometheus / OTLP backends.
 * **`ingress`** — NGINX-style Ingress for the app and realtime services.
 * **`networkPolicy`** — east-west and egress isolation (blocks cloud metadata endpoints by default).
@@ -357,14 +357,14 @@ Requires the Prometheus Operator CRDs. Scrapes `/metrics` on the app and realtim
 
 ## PII redaction
 
-Sim can redact personally identifiable information using a [Presidio](https://microsoft.github.io/presidio/) sidecar (analyzer + anonymizer combined into one image listening on port 5001). Enable it with:
+Sim can redact personally identifiable information using a [Presidio](https://microsoft.github.io/presidio/) service (analyzer + anonymizer combined into one image listening on port 5001). Enable it with:
 
 ```yaml
 pii:
   enabled: true
 ```
 
-When enabled, the chart deploys the sidecar (`<release>-pii` Deployment + Service) and **auto-wires** `PII_URL` on the app to the in-cluster service. The sidecar bundles five large spaCy models (en/es/it/pl/fi, ~2.2GB), so the first start takes ~3 minutes while models load — the `startupProbe` allows for this. Size the `pii.resources` for at least ~4Gi memory.
+When enabled, the chart deploys it as a standalone `<release>-pii` Deployment + Service and **auto-wires** `PII_URL` on the app to the in-cluster service. The service bundles five large spaCy models (en/es/it/pl/fi, ~2.2GB), so the first start takes ~3 minutes while models load — the `startupProbe` allows for this. Size the `pii.resources` for at least ~4Gi memory.
 
 This alone powers the **Guardrails PII block** and on-demand masking. To additionally turn on **automatic log redaction** (the org/workspace data-retention scrub), you must:
 

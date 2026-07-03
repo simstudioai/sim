@@ -1,4 +1,4 @@
-import { ChipConfirmModal } from '@/components/emcn'
+import { ChipConfirmModal } from '@sim/emcn'
 
 interface RemoveMemberDialogProps {
   open: boolean

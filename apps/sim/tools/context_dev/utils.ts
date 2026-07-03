@@ -79,7 +79,9 @@ export function appendParam(
   value: string | number | boolean | undefined | null
 ): void {
   if (value === undefined || value === null || value === '') return
-  search.append(key, String(value))
+  const serialized = typeof value === 'string' ? value.trim() : String(value)
+  if (serialized === '') return
+  search.append(key, serialized)
 }
 
 /** Output definitions for the credit accounting fields, reused across every tool. */

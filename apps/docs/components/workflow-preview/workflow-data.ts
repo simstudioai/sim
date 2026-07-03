@@ -26,12 +26,9 @@ export interface PreviewBlock {
    * blocks, `router-<routeId>` on Routers.
    */
   branches?: Array<{ id: string; label: string; value?: string }>
-  /** Render an error row with a red source handle (id `error`). */
-  showError?: boolean
   tools?: PreviewTool[]
   position: { x: number; y: number }
   hideTargetHandle?: boolean
-  hideSourceHandle?: boolean
   /** When set, the block renders as a Loop/Parallel container sized to hold its children. */
   size?: { width: number; height: number }
   /** Id of the container block this block sits inside. Its position is relative to the container. */
@@ -51,8 +48,10 @@ export interface PreviewWorkflow {
 export const BLOCK_STAGGER = 0.12
 export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
-const EDGE_STYLE = { stroke: 'var(--wp-edge)', strokeWidth: 1.5 } as const
-const EDGE_STYLE_HIGHLIGHT = { stroke: 'var(--wp-highlight)', strokeWidth: 2.5 } as const
+const EDGE_STYLE = { stroke: 'var(--workflow-edge)', strokeWidth: 2 } as const
+const EDGE_STYLE_HIGHLIGHT = { stroke: 'var(--brand-secondary)', strokeWidth: 2.5 } as const
+/** Edges leaving a block's error port render red, matching the editor. */
+const EDGE_STYLE_ERROR = { stroke: 'var(--text-error)', strokeWidth: 2 } as const
 
 /** Optional emphasis: light one block or one edge and dim everything else. */
 export interface HighlightOptions {
@@ -101,10 +100,9 @@ export function toReactFlowElements(
         bgColor: block.bgColor,
         rows: block.rows,
         branches: block.branches,
-        showError: block.showError,
         tools: block.tools,
         hideTargetHandle: block.hideTargetHandle,
-        hideSourceHandle: block.hideSourceHandle,
+        size: block.size,
         index,
         animate,
         isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
@@ -122,6 +120,16 @@ export function toReactFlowElements(
     const sourceIndex = blockIndexMap.get(e.source) ?? 0
     const isEdgeHighlight = highlightEdge === e.id
     const dimmed = hasHighlight && !isEdgeHighlight
+    const isErrorEdge = e.sourceHandle === 'error'
+    // Subflow containers expose a right-edge output handle (`loop-end-source` /
+    // `parallel-end-source`) and a left-edge input handle with no id; regular
+    // blocks use `source` / `target`. Resolve each end to the block's real handle
+    // so edges into and out of Loop/Parallel containers still connect.
+    const sourceBlock = blocksById.get(e.source)
+    const targetBlock = blocksById.get(e.target)
+    const sourceHandle =
+      e.sourceHandle ?? (sourceBlock?.size ? `${sourceBlock.type}-end-source` : 'source')
+    const targetHandle = targetBlock?.size ? undefined : 'target'
     return {
       id: e.id,
       source: e.source,
@@ -129,11 +137,11 @@ export function toReactFlowElements(
       type: 'previewEdge',
       animated: false,
       style: {
-        ...(isEdgeHighlight ? EDGE_STYLE_HIGHLIGHT : EDGE_STYLE),
+        ...(isEdgeHighlight ? EDGE_STYLE_HIGHLIGHT : isErrorEdge ? EDGE_STYLE_ERROR : EDGE_STYLE),
         opacity: dimmed ? 0.35 : 1,
       },
-      sourceHandle: e.sourceHandle ?? 'source',
-      targetHandle: 'target',
+      sourceHandle,
+      targetHandle,
       data: {
         animate,
         delay: animate ? sourceIndex * BLOCK_STAGGER + BLOCK_STAGGER : 0,

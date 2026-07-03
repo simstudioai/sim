@@ -29,15 +29,17 @@ export interface SendblueSendMessageParams extends SendblueBaseParams {
   content?: string
   media_url?: string
   send_style?: SendblueSendStyle
+  seat_id?: string
   status_callback?: string
 }
 
 export interface SendblueSendGroupMessageParams extends SendblueBaseParams {
-  numbers: string[]
+  numbers?: string[]
   from_number: string
   content?: string
   media_url?: string
   send_style?: SendblueSendStyle
+  seat_id?: string
   group_id?: string
   status_callback?: string
 }
@@ -49,6 +51,8 @@ export interface SendblueEvaluateServiceParams extends SendblueBaseParams {
 export interface SendblueTypingIndicatorParams extends SendblueBaseParams {
   number: string
   from_number?: string
+  state?: 'start' | 'stop'
+  max_duration_ms?: number
 }
 
 export interface SendblueGetMessageParams extends SendblueBaseParams {

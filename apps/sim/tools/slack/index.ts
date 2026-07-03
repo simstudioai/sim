@@ -1,9 +1,11 @@
 import { slackAddReactionTool } from '@/tools/slack/add_reaction'
+import { slackArchiveConversationTool } from '@/tools/slack/archive_conversation'
 import { slackCanvasTool } from '@/tools/slack/canvas'
 import { slackCreateChannelCanvasTool } from '@/tools/slack/create_channel_canvas'
 import { slackCreateConversationTool } from '@/tools/slack/create_conversation'
 import { slackDeleteCanvasTool } from '@/tools/slack/delete_canvas'
 import { slackDeleteMessageTool } from '@/tools/slack/delete_message'
+import { slackDeleteScheduledMessageTool } from '@/tools/slack/delete_scheduled_message'
 import { slackDownloadTool } from '@/tools/slack/download'
 import { slackEditCanvasTool } from '@/tools/slack/edit_canvas'
 import { slackEphemeralMessageTool } from '@/tools/slack/ephemeral_message'
@@ -20,6 +22,7 @@ import { slackInviteToConversationTool } from '@/tools/slack/invite_to_conversat
 import { slackListCanvasesTool } from '@/tools/slack/list_canvases'
 import { slackListChannelsTool } from '@/tools/slack/list_channels'
 import { slackListMembersTool } from '@/tools/slack/list_members'
+import { slackListScheduledMessagesTool } from '@/tools/slack/list_scheduled_messages'
 import { slackListUsersTool } from '@/tools/slack/list_users'
 import { slackLookupCanvasSectionsTool } from '@/tools/slack/lookup_canvas_sections'
 import { slackMessageTool } from '@/tools/slack/message'
@@ -28,6 +31,10 @@ import { slackOpenViewTool } from '@/tools/slack/open_view'
 import { slackPublishViewTool } from '@/tools/slack/publish_view'
 import { slackPushViewTool } from '@/tools/slack/push_view'
 import { slackRemoveReactionTool } from '@/tools/slack/remove_reaction'
+import { slackRenameConversationTool } from '@/tools/slack/rename_conversation'
+import { slackScheduleMessageTool } from '@/tools/slack/schedule_message'
+import { slackSetConversationPurposeTool } from '@/tools/slack/set_conversation_purpose'
+import { slackSetConversationTopicTool } from '@/tools/slack/set_conversation_topic'
 import { slackSetStatusTool } from '@/tools/slack/set_status'
 import { slackSetSuggestedPromptsTool } from '@/tools/slack/set_suggested_prompts'
 import { slackSetTitleTool } from '@/tools/slack/set_title'
@@ -70,6 +77,13 @@ export {
   slackSetTitleTool,
   slackSetSuggestedPromptsTool,
   slackInviteToConversationTool,
+  slackScheduleMessageTool,
+  slackListScheduledMessagesTool,
+  slackDeleteScheduledMessageTool,
+  slackArchiveConversationTool,
+  slackRenameConversationTool,
+  slackSetConversationTopicTool,
+  slackSetConversationPurposeTool,
 }
 
 export * from './types'

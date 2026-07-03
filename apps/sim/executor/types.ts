@@ -5,6 +5,7 @@ import type {
   ChildWorkflowContext,
   IterationContext,
   ParentIteration,
+  PiiBlockOutputRedaction,
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
@@ -306,6 +307,8 @@ export interface ExecutionContext {
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
+  /** In-flight block-output PII redaction policy (resolved `blockOutputs` stage). */
+  piiBlockOutputRedaction?: PiiBlockOutputRedaction
 
   permissionConfig?: PermissionGroupConfig | null
   permissionConfigLoaded?: boolean

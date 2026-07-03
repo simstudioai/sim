@@ -4,26 +4,24 @@ import type { ToolResponse } from '@/tools/types'
 // Common parameters for all Ahrefs tools
 interface AhrefsBaseParams {
   apiKey: string
-  date?: string // Date in YYYY-MM-DD format, defaults to today
 }
 
 // Target mode for analysis
 export type AhrefsTargetMode = 'domain' | 'prefix' | 'subdomains' | 'exact'
 
+// Historical scope for backlink-profile endpoints (no `date` param on these endpoints)
+export type AhrefsHistory = 'live' | 'all_time' | string // `since:YYYY-MM-DD` is also valid
+
 // Domain Rating tool types
 export interface AhrefsDomainRatingParams extends AhrefsBaseParams {
   target: string
-}
-
-interface AhrefsDomainRatingResult {
-  domain_rating: number
-  ahrefs_rank: number
+  date?: string // Date in YYYY-MM-DD format, defaults to today
 }
 
 export interface AhrefsDomainRatingResponse extends ToolResponse {
   output: {
     domainRating: number
-    ahrefsRank: number
+    ahrefsRank: number | null
   }
 }
 
@@ -31,8 +29,8 @@ export interface AhrefsDomainRatingResponse extends ToolResponse {
 export interface AhrefsBacklinksParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
+  history?: AhrefsHistory
   limit?: number
-  offset?: number
 }
 
 interface AhrefsBacklink {
@@ -55,15 +53,14 @@ export interface AhrefsBacklinksResponse extends ToolResponse {
 export interface AhrefsBacklinksStatsParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
+  date?: string // Date in YYYY-MM-DD format, defaults to today
 }
 
 interface AhrefsBacklinksStatsResult {
-  total: number
-  dofollow: number
-  nofollow: number
-  text: number
-  image: number
-  redirect: number
+  liveBacklinks: number
+  liveReferringDomains: number
+  allTimeBacklinks: number
+  allTimeReferringDomains: number
 }
 
 export interface AhrefsBacklinksStatsResponse extends ToolResponse {
@@ -76,8 +73,8 @@ export interface AhrefsBacklinksStatsResponse extends ToolResponse {
 export interface AhrefsReferringDomainsParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
+  history?: AhrefsHistory
   limit?: number
-  offset?: number
 }
 
 interface AhrefsReferringDomain {
@@ -86,7 +83,7 @@ interface AhrefsReferringDomain {
   backlinks: number
   dofollowBacklinks: number
   firstSeen: string
-  lastVisited: string
+  lastVisited: string | null
 }
 
 export interface AhrefsReferringDomainsResponse extends ToolResponse {
@@ -100,17 +97,17 @@ export interface AhrefsOrganicKeywordsParams extends AhrefsBaseParams {
   target: string
   country?: string
   mode?: AhrefsTargetMode
+  date?: string // Date in YYYY-MM-DD format, defaults to today
   limit?: number
-  offset?: number
 }
 
 interface AhrefsOrganicKeyword {
   keyword: string
   volume: number
-  position: number
-  url: string
+  position: number | null
+  url: string | null
   traffic: number
-  keywordDifficulty: number
+  keywordDifficulty: number | null
 }
 
 export interface AhrefsOrganicKeywordsResponse extends ToolResponse {
@@ -124,17 +121,16 @@ export interface AhrefsTopPagesParams extends AhrefsBaseParams {
   target: string
   country?: string
   mode?: AhrefsTargetMode
+  date?: string // Date in YYYY-MM-DD format, defaults to today
   limit?: number
-  offset?: number
-  select?: string // Comma-separated list of fields to return (e.g., "url,traffic,keywords,top_keyword,value")
 }
 
 interface AhrefsTopPage {
-  url: string
+  url: string | null
   traffic: number
-  keywords: number
-  topKeyword: string
-  value: number
+  keywords: number | null
+  topKeyword: string | null
+  value: number | null
 }
 
 export interface AhrefsTopPagesResponse extends ToolResponse {
@@ -149,15 +145,25 @@ export interface AhrefsKeywordOverviewParams extends AhrefsBaseParams {
   country?: string
 }
 
+interface AhrefsKeywordIntents {
+  informational: boolean
+  navigational: boolean
+  commercial: boolean
+  transactional: boolean
+  branded: boolean
+  local: boolean
+}
+
 interface AhrefsKeywordOverviewResult {
   keyword: string
   searchVolume: number
-  keywordDifficulty: number
-  cpc: number
-  clicks: number
-  clicksPercentage: number
-  parentTopic: string
-  trafficPotential: number
+  keywordDifficulty: number | null
+  cpc: number | null
+  clicks: number | null
+  clicksPercentage: number | null
+  parentTopic: string | null
+  trafficPotential: number | null
+  intents: AhrefsKeywordIntents | null
 }
 
 export interface AhrefsKeywordOverviewResponse extends ToolResponse {
@@ -171,13 +177,12 @@ export interface AhrefsBrokenBacklinksParams extends AhrefsBaseParams {
   target: string
   mode?: AhrefsTargetMode
   limit?: number
-  offset?: number
 }
 
 interface AhrefsBrokenBacklink {
   urlFrom: string
   urlTo: string
-  httpCode: number
+  httpCode: number | null
   anchor: string
   domainRatingSource: number
 }
@@ -185,6 +190,55 @@ interface AhrefsBrokenBacklink {
 export interface AhrefsBrokenBacklinksResponse extends ToolResponse {
   output: {
     brokenBacklinks: AhrefsBrokenBacklink[]
+  }
+}
+
+// Metrics tool types (single-call organic + paid search overview)
+export interface AhrefsMetricsParams extends AhrefsBaseParams {
+  target: string
+  country?: string
+  mode?: AhrefsTargetMode
+  date?: string // Date in YYYY-MM-DD format, defaults to today
+}
+
+interface AhrefsMetricsResult {
+  organicTraffic: number
+  organicKeywords: number
+  organicKeywordsTop3: number
+  organicCost: number | null
+  paidTraffic: number
+  paidKeywords: number
+  paidPages: number
+  paidCost: number | null
+}
+
+export interface AhrefsMetricsResponse extends ToolResponse {
+  output: {
+    metrics: AhrefsMetricsResult
+  }
+}
+
+// Organic Competitors tool types
+export interface AhrefsOrganicCompetitorsParams extends AhrefsBaseParams {
+  target: string
+  country?: string
+  mode?: AhrefsTargetMode
+  date?: string // Date in YYYY-MM-DD format, defaults to today
+  limit?: number
+}
+
+interface AhrefsOrganicCompetitor {
+  domain: string | null
+  domainRating: number
+  commonKeywords: number
+  targetKeywords: number
+  competitorKeywords: number
+  traffic: number | null
+}
+
+export interface AhrefsOrganicCompetitorsResponse extends ToolResponse {
+  output: {
+    competitors: AhrefsOrganicCompetitor[]
   }
 }
 
@@ -198,3 +252,5 @@ export type AhrefsResponse =
   | AhrefsTopPagesResponse
   | AhrefsKeywordOverviewResponse
   | AhrefsBrokenBacklinksResponse
+  | AhrefsMetricsResponse
+  | AhrefsOrganicCompetitorsResponse

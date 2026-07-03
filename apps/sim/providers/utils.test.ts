@@ -214,6 +214,7 @@ describe('Model Capabilities', () => {
     it.concurrent('should return false for models that do not support temperature', () => {
       const unsupportedModels = [
         'unsupported-model',
+        'claude-sonnet-5',
         'cerebras/llama-3.3-70b',
         'o1',
         'o3',
@@ -1581,6 +1582,13 @@ describe('transformBlockTool multi-instance unique IDs', () => {
       { 'table:tableId': 'advanced' }
     )
     expect(result?.id).toBe('table_query_rows_tbl_xyz')
+  })
+
+  it('resolves an advanced-only manual id via the heuristic when basic is empty and no mode is set', async () => {
+    // No canonicalModes entry: routing through resolveCanonicalMode picks advanced (empty basic),
+    // where the old `?? 'basic'` fallback dropped the advanced-only value.
+    const result = await transformTable({ manualTableId: 'tbl_only' })
+    expect(result?.id).toBe('table_query_rows_tbl_only')
   })
 
   it('appends the canonical table id when already present in params', async () => {

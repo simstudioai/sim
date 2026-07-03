@@ -10,6 +10,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
   envRef: {
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
+    FORKING_ENABLED: undefined as boolean | undefined,
   },
   flagRef: { isAppConfigEnabled: false },
 }))
@@ -63,6 +64,7 @@ describe('getFeatureFlags', () => {
     expect(flags['tables-fractional-ordering']).toEqual({ enabled: false })
     expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
+    expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -91,6 +93,7 @@ describe('getFeatureFlags', () => {
     expect(flags['tables-fractional-ordering']).toEqual({ enabled: false })
     expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
+    expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
   })
 
@@ -106,6 +109,26 @@ describe('isFeatureEnabled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     flagRef.isAppConfigEnabled = false
+    envRef.FORKING_ENABLED = undefined
+  })
+
+  describe('workspace-forking flag', () => {
+    it('falls back to FORKING_ENABLED when AppConfig is disabled', async () => {
+      envRef.FORKING_ENABLED = undefined
+      expect(await isFeatureEnabled('workspace-forking', { userId: 'u1', orgId: 'o1' })).toBe(false)
+
+      envRef.FORKING_ENABLED = true
+      expect(await isFeatureEnabled('workspace-forking', { userId: 'u1', orgId: 'o1' })).toBe(true)
+    })
+
+    it('targets specific orgs/users via AppConfig, ignoring the fallback secret', async () => {
+      envRef.FORKING_ENABLED = undefined
+      withAppConfig({ 'workspace-forking': { orgIds: ['o1'], userIds: ['u9'] } })
+
+      expect(await isFeatureEnabled('workspace-forking', { orgId: 'o1' })).toBe(true)
+      expect(await isFeatureEnabled('workspace-forking', { userId: 'u9' })).toBe(true)
+      expect(await isFeatureEnabled('workspace-forking', { orgId: 'o2', userId: 'u1' })).toBe(false)
+    })
   })
 
   it('returns false for an unknown flag', async () => {

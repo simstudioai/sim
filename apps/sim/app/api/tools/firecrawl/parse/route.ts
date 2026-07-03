@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -47,11 +48,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
 
-    const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+    const { buffer, contentType } = await downloadServableFileFromStorage(
+      userFile,
+      requestId,
+      logger
+    )
 
     const formData = new FormData()
     const blob = new Blob([new Uint8Array(buffer)], {
-      type: userFile.type || 'application/octet-stream',
+      type: contentType || userFile.type || 'application/octet-stream',
     })
     formData.append('file', blob, userFile.name)
 
@@ -88,6 +93,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: firecrawlData.data ?? firecrawlData,
     })
   } catch (error) {
+    const notReady = docNotReadyResponse(error)
+    if (notReady) return notReady
     logger.error(`[${requestId}] Error in Firecrawl parse:`, error)
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }

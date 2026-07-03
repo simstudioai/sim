@@ -8,7 +8,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   GOOGLE_WORKSPACE_MIME_TYPES,
@@ -120,10 +121,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (denied) return denied
 
     let fileBuffer: Buffer
+    let downloadedContentType = ''
 
     try {
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+      const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+      fileBuffer = result.buffer
+      downloadedContentType = result.contentType
     } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
       logger.error(`[${requestId}] Failed to download file:`, error)
       return NextResponse.json(
         {
@@ -134,8 +140,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    let uploadMimeType = validatedData.mimeType || userFile.type || 'application/octet-stream'
-    const requestedMimeType = validatedData.mimeType || userFile.type || 'application/octet-stream'
+    let uploadMimeType =
+      validatedData.mimeType || downloadedContentType || userFile.type || 'application/octet-stream'
+    const requestedMimeType =
+      validatedData.mimeType || downloadedContentType || userFile.type || 'application/octet-stream'
 
     if (GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)) {
       uploadMimeType = SOURCE_MIME_TYPES[requestedMimeType] || 'text/plain'

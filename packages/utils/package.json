@@ -26,6 +26,10 @@
       "types": "./src/helpers.ts",
       "default": "./src/helpers.ts"
     },
+    "./media-embed": {
+      "types": "./src/media-embed.ts",
+      "default": "./src/media-embed.ts"
+    },
     "./formatting": {
       "types": "./src/formatting.ts",
       "default": "./src/formatting.ts"

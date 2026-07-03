@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Tooltip } from '@/components/emcn'
+import { Button, Tooltip } from '@sim/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,

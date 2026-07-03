@@ -1,4 +1,4 @@
-import { Bug } from '@/components/emcn/icons'
+import { Bug } from '@sim/emcn/icons'
 import { SentryIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'

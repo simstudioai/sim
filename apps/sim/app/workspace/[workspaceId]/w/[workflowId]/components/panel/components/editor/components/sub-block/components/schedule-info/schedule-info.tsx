@@ -1,5 +1,5 @@
+import { Badge } from '@sim/emcn'
 import { useParams } from 'next/navigation'
-import { Badge } from '@/components/emcn'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import { useRedeployWorkflowSchedule, useScheduleQuery } from '@/hooks/queries/schedules'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'

@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/emcn'
+import { Skeleton } from '@sim/emcn'
 
 /**
  * Skeleton component for BYOK provider key items.

@@ -44,10 +44,10 @@ function coerceForField(field: ConnectorConfigField, raw: unknown): ConfigFieldV
     if (typeof raw === 'string') {
       const trimmed = raw.trim()
       if (!trimmed) return []
-      return trimmed
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+      return trimmed.split(',').flatMap((s) => {
+        const t = s.trim()
+        return t ? [t] : []
+      })
     }
     return []
   }
@@ -119,7 +119,7 @@ export function useConnectorConfigFields({
       for (const field of group) {
         for (const dep of map.get(field.id) ?? []) {
           allDependents.add(dep)
-          const depField = connectorConfig.configFields.find((f) => f.id === dep)
+          const depField = fieldsById.get(dep)
           if (depField?.canonicalParamId) {
             for (const sibling of canonicalGroups.get(depField.canonicalParamId) ?? []) {
               allDependents.add(sibling.id)
@@ -133,7 +133,7 @@ export function useConnectorConfigFields({
     }
     for (const [key, value] of map) result.set(key, [...value])
     return result
-  }, [connectorConfig, canonicalGroups])
+  }, [connectorConfig, canonicalGroups, fieldsById])
 
   const isFieldVisible = useCallback(
     (field: ConnectorConfigField): boolean => {
