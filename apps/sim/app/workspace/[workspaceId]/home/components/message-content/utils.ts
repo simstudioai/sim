@@ -57,6 +57,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   agent: AgentIcon,
   custom_tool: Wrench,
   research: Search,
+  scout: Search,
   context_compaction: Asterisk,
   open_resource: Eye,
   file: File,

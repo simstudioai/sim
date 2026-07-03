@@ -157,6 +157,7 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   knowledge: 'Knowledge Agent',
   table: 'Table Agent',
   custom_tool: 'Custom Tool Agent',
+  scout: 'Scout Agent',
   superagent: 'Superagent',
   run: 'Run Agent',
   agent: 'Tools Agent',
