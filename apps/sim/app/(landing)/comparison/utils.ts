@@ -202,7 +202,13 @@ export function lowercaseFirst(value: string): string {
   return value.charAt(0).toLowerCase() + value.slice(1)
 }
 
-/** Composes {@link firstSentence} + {@link lowercaseFirst} + {@link ensurePeriod} for stitching a fact value mid-sentence. */
+/**
+ * Composes {@link firstSentence} + {@link lowercaseFirst} + {@link ensurePeriod} for
+ * stitching a fact value mid-sentence. Strips a leading "Yes:"/"No:" token first so
+ * boolean facts don't produce mid-sentence "yes: ..."/"no: ..." fragments.
+ */
 function summarizeFact(value: string): string {
-  return ensurePeriod(lowercaseFirst(firstSentence(value)))
+  const stripped = value.replace(/^(Yes|No)(?![a-zA-Z])(?::\s*)?/, '').trim()
+  const base = stripped.length > 0 ? stripped : value
+  return ensurePeriod(lowercaseFirst(firstSentence(base)))
 }
