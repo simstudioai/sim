@@ -348,6 +348,11 @@ describe('tableRowsParamsKey', () => {
 describe('tableRowsInfiniteOptions', () => {
   const PAGE_SIZE = 1000
 
+  interface PageFixture {
+    rows: Array<{ id: string; orderKey?: string }>
+    totalCount: number | null
+  }
+
   function makeOpts(pageSize = PAGE_SIZE, sort: unknown = null) {
     return tableRowsInfiniteOptions({
       workspaceId: WORKSPACE_ID,
@@ -358,47 +363,73 @@ describe('tableRowsInfiniteOptions', () => {
     }) as {
       queryKey: readonly unknown[]
       getNextPageParam: (
-        lastPage: { rows: unknown[] },
-        allPages: unknown[],
+        lastPage: PageFixture,
+        allPages: PageFixture[],
         lastPageParam: unknown
       ) => number | { orderKey: string; id: string } | undefined
     }
   }
 
-  it('getNextPageParam returns undefined for a partial page (drain terminates)', () => {
+  function makePage(count: number, totalCount: number | null, startAt = 0, withOrderKey = false) {
+    return {
+      rows: Array.from({ length: count }, (_, i) => ({
+        id: `r${startAt + i}`,
+        ...(withOrderKey ? { orderKey: `a${startAt + i}` } : {}),
+      })),
+      totalCount,
+    }
+  }
+
+  function next(
+    opts: ReturnType<typeof makeOpts>,
+    pages: PageFixture[],
+    lastPageParam: unknown = 0
+  ) {
+    return opts.getNextPageParam(pages[pages.length - 1], pages, lastPageParam)
+  }
+
+  it('getNextPageParam terminates when the count is covered by a partial page', () => {
     const opts = makeOpts()
-    const lastPage = { rows: Array.from({ length: 500 }, (_, i) => ({ id: `r${i}` })) }
-    expect(opts.getNextPageParam(lastPage, [], 0)).toBeUndefined()
+    expect(next(opts, [makePage(500, 500)])).toBeUndefined()
   })
 
-  it('getNextPageParam returns undefined for an empty page', () => {
+  it('getNextPageParam terminates on an empty page', () => {
     const opts = makeOpts()
-    expect(opts.getNextPageParam({ rows: [] }, [], 0)).toBeUndefined()
+    expect(next(opts, [makePage(1000, null), makePage(0, null, 1000)])).toBeUndefined()
   })
 
-  it('getNextPageParam returns next offset for a full page', () => {
+  it('getNextPageParam continues past a short page when the count says more rows exist', () => {
+    // The regression the termination rule exists for: a page shorter than the
+    // requested size (e.g. a byte-cut page) must not be read as end-of-table.
     const opts = makeOpts()
-    const fullPage = { rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}` })) }
-    expect(opts.getNextPageParam(fullPage, [], 0)).toBe(PAGE_SIZE)
-    expect(opts.getNextPageParam(fullPage, [], PAGE_SIZE)).toBe(PAGE_SIZE * 2)
+    expect(next(opts, [makePage(36, 100)])).toBe(36)
   })
 
-  it('getNextPageParam advances correctly across three pages of 1000', () => {
+  it('getNextPageParam terminates a full page when the count is covered', () => {
     const opts = makeOpts()
-    const fullPage = { rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}` })) }
-    const lastPartialPage = { rows: Array.from({ length: 200 }, (_, i) => ({ id: `r${i}` })) }
+    expect(next(opts, [makePage(PAGE_SIZE, PAGE_SIZE)])).toBeUndefined()
+  })
 
-    expect(opts.getNextPageParam(fullPage, [], 0)).toBe(1000)
-    expect(opts.getNextPageParam(fullPage, [], 1000)).toBe(2000)
-    expect(opts.getNextPageParam(lastPartialPage, [], 2000)).toBeUndefined()
+  it('getNextPageParam returns next offset for a full page with an unknown count', () => {
+    const opts = makeOpts()
+    expect(next(opts, [makePage(PAGE_SIZE, null)])).toBe(PAGE_SIZE)
+  })
+
+  it('getNextPageParam advances correctly across three pages', () => {
+    const opts = makeOpts()
+    const p0 = makePage(PAGE_SIZE, 2200)
+    const p1 = makePage(PAGE_SIZE, null, 1000)
+    const p2 = makePage(200, null, 2000)
+
+    expect(next(opts, [p0])).toBe(1000)
+    expect(next(opts, [p0, p1], 1000)).toBe(2000)
+    expect(next(opts, [p0, p1, p2], 2000)).toBeUndefined()
   })
 
   it('getNextPageParam returns a keyset cursor when rows carry orderKey and there is no sort', () => {
     const opts = makeOpts()
-    const fullPage = {
-      rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}`, orderKey: `a${i}` })),
-    }
-    expect(opts.getNextPageParam(fullPage, [], 0)).toEqual({
+    const pages = [makePage(PAGE_SIZE, 2000, 0, true)]
+    expect(next(opts, pages)).toEqual({
       orderKey: `a${PAGE_SIZE - 1}`,
       id: `r${PAGE_SIZE - 1}`,
     })
@@ -406,11 +437,10 @@ describe('tableRowsInfiniteOptions', () => {
 
   it('getNextPageParam falls back to offset for sorted views even with orderKey present', () => {
     const opts = makeOpts(PAGE_SIZE, { column: 'name', direction: 'asc' })
-    const fullPage = {
-      rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}`, orderKey: `a${i}` })),
-    }
-    expect(opts.getNextPageParam(fullPage, [], 0)).toBe(PAGE_SIZE)
-    expect(opts.getNextPageParam(fullPage, [], PAGE_SIZE)).toBe(PAGE_SIZE * 2)
+    const p0 = makePage(PAGE_SIZE, 3000, 0, true)
+    const p1 = makePage(PAGE_SIZE, null, 1000, true)
+    expect(next(opts, [p0])).toBe(PAGE_SIZE)
+    expect(next(opts, [p0, p1], PAGE_SIZE)).toBe(PAGE_SIZE * 2)
   })
 
   it('queryKey includes the result of tableRowsParamsKey', () => {

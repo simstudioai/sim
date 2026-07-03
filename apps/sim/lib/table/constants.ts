@@ -12,7 +12,6 @@ export const TABLE_LIMITS = {
   MAX_COLUMNS_PER_TABLE: 50,
   MAX_TABLE_NAME_LENGTH: 128,
   MAX_COLUMN_NAME_LENGTH: 50,
-  MAX_STRING_VALUE_LENGTH: 10000,
   MAX_DESCRIPTION_LENGTH: 500,
   DEFAULT_QUERY_LIMIT: 100,
   MAX_QUERY_LIMIT: 1000,
@@ -60,6 +59,17 @@ export const DEFAULT_TABLE_PLAN_LIMITS = {
     maxRowsPerTable: 1000000,
   },
 } as const
+
+/**
+ * Byte budget for one page of row reads, or null when disabled (the default).
+ * Dev-preview of the byte-bounded pagination follow-up: set `TABLE_MAX_PAGE_BYTES`
+ * to cut pages early once their serialized row data exceeds the budget. The
+ * production version moves the cut into SQL — see the pagination-hardening plan.
+ */
+export function getMaxPageBytes(): number | null {
+  const value = envNumber(env.TABLE_MAX_PAGE_BYTES, 0, { min: 0, integer: true })
+  return value > 0 ? value : null
+}
 
 /**
  * Maximum serialized size in bytes of a single row. Defaults to
