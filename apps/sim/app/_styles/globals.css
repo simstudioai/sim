@@ -491,6 +491,13 @@ html.sidebar-booting .sidebar-shell-inner {
     outline: none;
   }
 
+  /* Consistent branded text-selection color everywhere, independent of the
+     browser/OS default (which dims when the window loses focus). */
+  ::selection {
+    background-color: var(--selection);
+    color: #ffffff;
+  }
+
   body {
     background-color: var(--bg);
     color: var(--text-primary);
