@@ -17,6 +17,7 @@ import {
   ModelNotAllowedError,
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
+import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('GuardrailsValidateAPI')
 
@@ -189,10 +190,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      if (vertexCredential) {
+      if (vertexCredential && getProviderFromModel(model) === 'vertex') {
         const vertexCredAccess = await authorizeCredentialUse(request, {
           credentialId: vertexCredential,
-          workflowId: workflowId || undefined,
+          workflowId,
           requireWorkflowIdForInternal: false,
         })
         if (!vertexCredAccess.ok) {

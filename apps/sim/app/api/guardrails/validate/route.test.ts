@@ -70,7 +70,7 @@ describe('POST /api/guardrails/validate', () => {
         validationType: 'hallucination',
         input: 'test input',
         knowledgeBaseId: 'kb-1',
-        model: 'gemini-1.5-pro',
+        model: 'vertex/gemini-2.5-pro',
         workflowId: 'wf-1',
         vertexCredential: 'someone-elses-account-id',
       })
@@ -96,7 +96,7 @@ describe('POST /api/guardrails/validate', () => {
         validationType: 'hallucination',
         input: 'test input',
         knowledgeBaseId: 'kb-1',
-        model: 'gemini-1.5-pro',
+        model: 'vertex/gemini-2.5-pro',
         workflowId: 'wf-1',
         vertexCredential: 'my-own-account-id',
       })
@@ -132,6 +132,23 @@ describe('POST /api/guardrails/validate', () => {
         knowledgeBaseId: 'kb-1',
         model: 'gpt-4o',
         workflowId: 'wf-1',
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockAuthorizeCredentialUse).not.toHaveBeenCalled()
+    expect(mockValidateHallucination).toHaveBeenCalled()
+  })
+
+  it('does not gate on a leftover vertexCredential when the resolved model is not vertex', async () => {
+    const res = await POST(
+      createMockRequest('POST', {
+        validationType: 'hallucination',
+        input: 'test input',
+        knowledgeBaseId: 'kb-1',
+        model: 'gpt-4o',
+        workflowId: 'wf-1',
+        vertexCredential: 'someone-elses-account-id',
       })
     )
 
