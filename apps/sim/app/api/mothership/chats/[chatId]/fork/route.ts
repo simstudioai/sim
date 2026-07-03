@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
@@ -29,6 +29,7 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { removeChatResources } from '@/lib/copilot/resources/persistence'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
@@ -211,11 +212,30 @@ export const POST = withRouteHandler(
       }
       const newChat = result.row
 
-      const { copied, failed } = await executeChatFileBlobCopies(result.blobTasks, {
+      const { copied, failed, failedCopyIds } = await executeChatFileBlobCopies(result.blobTasks, {
         userId,
         workspaceId: parent.workspaceId ?? undefined,
       })
       if (failed > 0) {
+        // A failed blob copy leaves a committed row with no bytes behind it.
+        // Cleanly absent beats present-but-broken: hard-delete the dead rows
+        // (they vanish from the VFS listings and name resolution) and drop
+        // their resource chips from the new chat. Inline transcript embeds
+        // can't be healed — those 404 — which is what `failedFileCopies` in
+        // the response warns the user about.
+        try {
+          await db.delete(workspaceFiles).where(inArray(workspaceFiles.id, failedCopyIds))
+          await removeChatResources(
+            newId,
+            failedCopyIds.map((id) => ({ type: 'file' as const, id, title: '' }))
+          )
+        } catch (cleanupError) {
+          logger.error('Failed to clean up dead file rows after blob-copy failure', {
+            newChatId: newId,
+            failedCopyIds,
+            error: cleanupError,
+          })
+        }
         logger.warn('Some chat file blobs failed to copy during fork', {
           chatId,
           newChatId: newId,
@@ -276,7 +296,11 @@ export const POST = withRouteHandler(
         { groups: { workspace: parent.workspaceId ?? '' } }
       )
 
-      return NextResponse.json({ success: true, id: newId })
+      return NextResponse.json({
+        success: true,
+        id: newId,
+        ...(failed > 0 ? { failedFileCopies: failed } : {}),
+      })
     } catch (error) {
       if (isWorkspaceAccessDeniedError(error)) {
         return createForbiddenResponse('Workspace access denied')

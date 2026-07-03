@@ -154,6 +154,11 @@ export const MessageActions = memo(function MessageActions({
     if (!chatId || !messageId || forkChat.isPending) return
     try {
       const result = await forkChat.mutateAsync({ chatId, upToMessageId: messageId })
+      if (result.failedFileCopies) {
+        toast.warning(
+          `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the fork`
+        )
+      }
       useFolderStore.getState().clearChatSelection()
       router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
     } catch {

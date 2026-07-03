@@ -35,6 +35,8 @@ export type ForkableChatFileRow = typeof workspaceFiles.$inferSelect
 
 /** One blob byte-copy to run after the fork transaction commits. */
 export interface ChatBlobCopyTask {
+  /** The copied `workspace_files` row's id — used to delete the row if the blob copy fails. */
+  copyId: string
   sourceKey: string
   targetKey: string
   context: StorageContext
@@ -147,6 +149,7 @@ export async function planChatFileCopies(params: {
     idMap.set(row.id, copyId)
     keyMap.set(row.key, targetKey)
     blobTasks.push({
+      copyId,
       sourceKey: row.key,
       targetKey,
       context: row.context as StorageContext,
@@ -162,14 +165,18 @@ export async function planChatFileCopies(params: {
  * Copy each planned blob to its new key, best-effort: a failed copy logs a
  * warning and is skipped (the fork keeps its transcript; that one file is
  * missing) rather than failing the whole fork. Each successfully copied file
- * increments the storage-usage counter by its actual byte length.
+ * increments the storage-usage counter by its actual byte length. Failed
+ * tasks' copy-row ids are returned so the caller can delete the dead rows
+ * (row exists, blob doesn't) instead of leaving them listed in the VFS and
+ * resources with nothing behind them.
  */
 export async function executeChatFileBlobCopies(
   blobTasks: ChatBlobCopyTask[],
   params: { userId: string; workspaceId?: string }
-): Promise<{ copied: number; failed: number }> {
+): Promise<{ copied: number; failed: number; failedCopyIds: string[] }> {
   let copied = 0
   let failed = 0
+  const failedCopyIds: string[] = []
   for (const task of blobTasks) {
     try {
       const buffer = await downloadFile({
@@ -205,6 +212,7 @@ export async function executeChatFileBlobCopies(
       }
     } catch (error) {
       failed += 1
+      failedCopyIds.push(task.copyId)
       logger.warn('Failed to copy chat file blob during fork', {
         sourceKey: task.sourceKey,
         targetKey: task.targetKey,
@@ -212,5 +220,5 @@ export async function executeChatFileBlobCopies(
       })
     }
   }
-  return { copied, failed }
+  return { copied, failed, failedCopyIds }
 }

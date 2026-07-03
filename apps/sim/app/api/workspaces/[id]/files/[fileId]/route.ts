@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  getWorkspaceFileByIdContract,
   renameWorkspaceFileContract,
   workspaceFileParamsSchema,
 } from '@/lib/api/contracts/workspace-files'
@@ -28,22 +29,18 @@ const logger = createLogger('WorkspaceFileAPI')
  * the list-based lookup can't see. Requires workspace membership (read).
  */
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
     const requestId = generateRequestId()
-    const paramsResult = workspaceFileParamsSchema.safeParse(await params)
-    if (!paramsResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-        { status: 400 }
-      )
-    }
-    const { id: workspaceId, fileId } = paramsResult.data
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+
+      const parsed = await parseRequest(getWorkspaceFileByIdContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: workspaceId, fileId } = parsed.data.params
 
       const userPermission = await getUserEntityPermissions(
         session.user.id,

@@ -90,6 +90,18 @@ export const listWorkspaceFilesContract = defineRouteContract({
   },
 })
 
+export const getWorkspaceFileByIdContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileSuccessSchema.extend({
+      file: workspaceFileRecordSchema,
+    }),
+  },
+})
+
 export const renameWorkspaceFileContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/workspaces/[id]/files/[fileId]',

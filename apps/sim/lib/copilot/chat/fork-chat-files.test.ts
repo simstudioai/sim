@@ -92,6 +92,7 @@ describe('planChatFileCopies', () => {
     expect(keyMap.get('workspace/ws-1/1-cat.png')).toBe('workspace/ws-1/2-cat.png')
     expect(blobTasks).toEqual([
       {
+        copyId: copy.id,
         sourceKey: 'workspace/ws-1/1-cat.png',
         targetKey: 'workspace/ws-1/2-cat.png',
         context: 'mothership',
@@ -160,6 +161,7 @@ describe('planChatFileCopies', () => {
 
 describe('executeChatFileBlobCopies', () => {
   const task = {
+    copyId: 'wf_copy',
     sourceKey: 'workspace/ws-1/1-cat.png',
     targetKey: 'workspace/ws-1/2-cat.png',
     context: 'mothership' as const,
@@ -180,7 +182,7 @@ describe('executeChatFileBlobCopies', () => {
       workspaceId: 'ws-1',
     })
 
-    expect(result).toEqual({ copied: 1, failed: 0 })
+    expect(result).toEqual({ copied: 1, failed: 0, failedCopyIds: [] })
     expect(mockUploadFile).toHaveBeenCalledWith(
       expect.objectContaining({
         customKey: 'workspace/ws-1/2-cat.png',
@@ -192,15 +194,19 @@ describe('executeChatFileBlobCopies', () => {
     expect(mockIncrementStorageUsage).toHaveBeenCalledWith('user-1', 10, 'ws-1')
   })
 
-  it('is best-effort: a failed download skips the file and counts nothing', async () => {
+  it('is best-effort: a failed download skips the file, counts nothing, and reports its copy id', async () => {
     mockDownloadFile.mockRejectedValueOnce(new Error('blob missing'))
 
-    const result = await executeChatFileBlobCopies([task, task], {
-      userId: 'user-1',
-      workspaceId: 'ws-1',
-    })
+    const result = await executeChatFileBlobCopies(
+      [task, { ...task, copyId: 'wf_copy2', targetKey: 'workspace/ws-1/3-cat.png' }],
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      }
+    )
 
-    expect(result).toEqual({ copied: 1, failed: 1 })
+    // The first task's download failed — its copy id comes back for row cleanup.
+    expect(result).toEqual({ copied: 1, failed: 1, failedCopyIds: ['wf_copy'] })
     expect(mockIncrementStorageUsage).toHaveBeenCalledTimes(1)
   })
 })

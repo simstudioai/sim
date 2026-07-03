@@ -78,9 +78,12 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
     .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
 
   if (!updated) {
+    // The row resolved above but the guarded update matched nothing — it was
+    // deleted (or already promoted) in between. Namespace-agnostic message:
+    // the source may have been an upload OR an output.
     return {
       success: false,
-      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
+      error: `File no longer available: "${fileName}". Use glob("uploads/*") or glob("outputs/*") to list available chat files.`,
     }
   }
 

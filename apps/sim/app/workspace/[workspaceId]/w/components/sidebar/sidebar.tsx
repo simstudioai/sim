@@ -17,6 +17,7 @@ import {
   Loader,
   Skeleton,
   Tooltip,
+  toast,
   Upload,
 } from '@sim/emcn'
 import {
@@ -973,6 +974,11 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
       { chatId: ids[0] },
       {
         onSuccess: (result) => {
+          if (result.failedFileCopies) {
+            toast.warning(
+              `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the duplicate`
+            )
+          }
           useFolderStore.getState().clearChatSelection()
           navigateToPage(`/workspace/${workspaceId}/chat/${result.id}`)
         },

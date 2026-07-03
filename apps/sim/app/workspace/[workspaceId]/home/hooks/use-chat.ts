@@ -3320,6 +3320,12 @@ export function useChat(
               ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
             })
             if (succeeded) return consumedByTranscript
+            // The 409 means THIS send was never accepted, and the failed
+            // reconnect means the conflicting stream is gone too — undo the
+            // optimistic message and phantom activeStreamId (mirrors the
+            // generic pre-stream failure path) instead of leaving a stuck
+            // in-flight turn.
+            rollbackOptimisticSend()
             if (streamGenRef.current === gen) {
               finalize({
                 error: true,

@@ -19,6 +19,8 @@ const {
   mockFetchGo,
   mockPublishStatusChanged,
   mockCaptureServerEvent,
+  mockDeleteWhere,
+  mockRemoveChatResources,
 } = vi.hoisted(() => ({
   mockTransaction: vi.fn(),
   mockSelectRows: vi.fn(),
@@ -33,6 +35,8 @@ const {
   mockFetchGo: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
+  mockDeleteWhere: vi.fn(),
+  mockRemoveChatResources: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -43,6 +47,9 @@ vi.mock('@sim/db', () => ({
           limit: () => mockSelectRows(),
         }),
       }),
+    }),
+    delete: () => ({
+      where: mockDeleteWhere,
     }),
     transaction: mockTransaction,
   },
@@ -61,10 +68,18 @@ vi.mock('@sim/db/schema', () => ({
     planArtifact: 'copilotChats.planArtifact',
     config: 'copilotChats.config',
   },
+  workspaceFiles: {
+    id: 'workspaceFiles.id',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
+  inArray: vi.fn((field: unknown, values: unknown) => ({ type: 'inArray', field, values })),
+}))
+
+vi.mock('@/lib/copilot/resources/persistence', () => ({
+  removeChatResources: mockRemoveChatResources,
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
@@ -206,8 +221,10 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       keyMap: new Map(),
       blobTasks: [],
     })
-    mockExecuteChatFileBlobCopies.mockResolvedValue({ copied: 0, failed: 0 })
+    mockExecuteChatFileBlobCopies.mockResolvedValue({ copied: 0, failed: 0, failedCopyIds: [] })
     mockAppendCopilotChatMessages.mockResolvedValue(undefined)
+    mockDeleteWhere.mockResolvedValue(undefined)
+    mockRemoveChatResources.mockResolvedValue(undefined)
     mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
     mockFetchGo.mockResolvedValue({ ok: true })
     mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
@@ -350,6 +367,42 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     mockFetchGo.mockRejectedValue(new Error('mothership unreachable'))
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(200)
+  })
+
+  it('surfaces failed blob copies and cleans up their dead rows + resource chips', async () => {
+    mockExecuteChatFileBlobCopies.mockResolvedValue({
+      copied: 1,
+      failed: 2,
+      failedCopyIds: ['wf_dead1', 'wf_dead2'],
+    })
+
+    const failedRes = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    const body = await failedRes.json()
+
+    expect(body.failedFileCopies).toBe(2)
+
+    // The dead rows (committed, but no bytes behind them) are hard-deleted so
+    // they vanish from VFS listings and name resolution…
+    expect(mockDeleteWhere).toHaveBeenCalledWith({
+      type: 'inArray',
+      field: 'workspaceFiles.id',
+      values: ['wf_dead1', 'wf_dead2'],
+    })
+    // …and their resource chips are dropped from the new chat.
+    expect(mockRemoveChatResources).toHaveBeenCalledWith(body.id, [
+      { type: 'file', id: 'wf_dead1', title: '' },
+      { type: 'file', id: 'wf_dead2', title: '' },
+    ])
+  })
+
+  it('omits failedFileCopies and skips cleanup when every blob copies', async () => {
+    mockExecuteChatFileBlobCopies.mockResolvedValue({ copied: 3, failed: 0, failedCopyIds: [] })
+
+    const cleanRes = await POST(createRequest('chat-1'), makeContext('chat-1'))
+
+    expect('failedFileCopies' in (await cleanRes.json())).toBe(false)
+    expect(mockDeleteWhere).not.toHaveBeenCalled()
+    expect(mockRemoveChatResources).not.toHaveBeenCalled()
   })
 
   it('drops ghost resources on a branch fork: chat-owned files that were not copied', async () => {

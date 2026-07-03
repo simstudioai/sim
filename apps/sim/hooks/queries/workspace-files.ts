@@ -10,6 +10,7 @@ import { listChatOutputsContract } from '@/lib/api/contracts/mothership-chats'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   deleteWorkspaceFileContract,
+  getWorkspaceFileByIdContract,
   listWorkspaceFilesContract,
   registerWorkspaceFileContract,
   renameWorkspaceFileContract,
@@ -120,14 +121,16 @@ export function useWorkspaceFileById(workspaceId: string, fileId: string, enable
   return useQuery({
     queryKey: [...workspaceFilesKeys.all, 'byId', workspaceId, fileId] as const,
     queryFn: async ({ signal }): Promise<WorkspaceFileRecord | null> => {
-      // boundary-raw-fetch: single-file record lookup incl. chat-scoped outputs; no contract
-      const response = await fetch(
-        `/api/workspaces/${encodeURIComponent(workspaceId)}/files/${encodeURIComponent(fileId)}`,
-        { signal, cache: 'no-store' }
-      )
-      if (!response.ok) return null
-      const data = await response.json().catch(() => null)
-      return data?.success && data.file ? (data.file as WorkspaceFileRecord) : null
+      try {
+        const data = await requestJson(getWorkspaceFileByIdContract, {
+          params: { id: workspaceId, fileId },
+          signal,
+        })
+        return data.success ? data.file : null
+      } catch {
+        // 404 (deleted / not previewable) resolves to null — the panel treats it as a miss.
+        return null
+      }
     },
     enabled: enabled && !!workspaceId && !!fileId,
     staleTime: 30 * 1000,
