@@ -1,12 +1,17 @@
 import {
   type CompetitorProfile,
   claudeCoworkProfile,
+  crewaiProfile,
+  dustProfile,
   flowiseProfile,
   gumloopProfile,
+  langchainProfile,
   langflowProfile,
   makeProfile,
+  microsoftCopilotProfile,
   n8nProfile,
   openaiAgentkitProfile,
+  openClawProfile,
   pipedreamProfile,
   powerAutomateProfile,
   retoolProfile,
@@ -40,6 +45,11 @@ export const ALL_COMPETITORS: CompetitorProfile[] = [
   claudeCoworkProfile,
   langflowProfile,
   flowiseProfile,
+  microsoftCopilotProfile,
+  openClawProfile,
+  dustProfile,
+  crewaiProfile,
+  langchainProfile,
 ]
 
 const COMPETITOR_BY_SLUG = new Map(ALL_COMPETITORS.map((c) => [c.id, c]))
