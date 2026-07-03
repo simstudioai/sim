@@ -21,17 +21,23 @@ const logger = createLogger('SSORegisterRoute')
 
 type TokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post'
 
+/**
+ * Prefers client_secret_post over client_secret_basic when an IdP supports both:
+ * better-auth sends client_secret_basic credentials without URL-encoding per
+ * RFC 6749 §2.3.1, so a '+' in the client secret is decoded as a space, causing
+ * invalid_client errors. Matches the same default in register-sso-provider.ts.
+ */
 function selectTokenEndpointAuthMethod(
   supportedMethods: unknown,
   existing?: TokenEndpointAuthMethod
 ): TokenEndpointAuthMethod {
   if (existing) return existing
   if (!Array.isArray(supportedMethods) || supportedMethods.length === 0) {
-    return 'client_secret_basic'
+    return 'client_secret_post'
   }
-  if (supportedMethods.includes('client_secret_basic')) return 'client_secret_basic'
   if (supportedMethods.includes('client_secret_post')) return 'client_secret_post'
-  return 'client_secret_basic'
+  if (supportedMethods.includes('client_secret_basic')) return 'client_secret_basic'
+  return 'client_secret_post'
 }
 
 type DiscoveryResult =
@@ -263,8 +269,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           logger.error('Failed to fetch OIDC discovery document', { discoveryResult })
           return NextResponse.json(
             {
-              error:
-                'Failed to fetch OIDC discovery document. Provide all endpoints explicitly or verify the issuer URL.',
+              error: `Failed to fetch OIDC discovery document: ${discoveryResult.error}. Provide all endpoints explicitly or verify the issuer URL.`,
             },
             { status: 400 }
           )

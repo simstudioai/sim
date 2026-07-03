@@ -269,4 +269,51 @@ describe('POST /api/auth/sso/register', () => {
     expect(config.oidcConfig.skipDiscovery).toBe(true)
     expect(config.oidcConfig.authorizationEndpoint).toBe(OIDC_BODY.authorizationEndpoint)
   })
+
+  it('prefers client_secret_post over client_secret_basic when an IdP supports both', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    mockSecureFetchWithPinnedIP.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+      }),
+    })
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const config = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
+  })
+
+  it('defaults to client_secret_post when discovery advertises no auth methods', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    mockSecureFetchWithPinnedIP.mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    })
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
+    expect(res.status).toBe(200)
+    const config = mockRegisterSSOProvider.mock.calls[0][0].body
+    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
+  })
+
+  it('surfaces the specific discovery failure reason when endpoints are missing', async () => {
+    dbState.members = [{ organizationId: 'org1', role: 'owner' }]
+    mockValidateUrlWithDNS.mockImplementation(async (url: string, label: string) => {
+      if (label === 'OIDC discovery URL') {
+        return { isValid: false, error: 'resolves to a private IP address' }
+      }
+      return { isValid: true, resolvedIP: '1.2.3.4' }
+    })
+    const discoveredBody = {
+      ...OIDC_BODY,
+      authorizationEndpoint: undefined,
+      tokenEndpoint: undefined,
+      jwksEndpoint: undefined,
+    }
+    const res = await POST(request({ ...discoveredBody, orgId: 'org1' }))
+    const json = await res.json()
+    expect(res.status).toBe(400)
+    expect(json.error).toContain('resolves to a private IP address')
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
 })
