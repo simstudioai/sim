@@ -68,9 +68,15 @@ function UsageLogRow({ log }: UsageLogRowProps) {
 export function CreditUsageSection() {
   const [{ period }, setFilters] = useQueryStates(billingParsers, billingUrlKeys)
 
-  const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } = useUsageLogs(
-    { period }
-  )
+  const {
+    data,
+    isLoading,
+    isError,
+    isPlaceholderData,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useUsageLogs({ period })
 
   const logs = data?.pages.flatMap((page) => page.logs) ?? []
   const totalCredits = data?.pages[0]?.summary.totalCredits ?? 0
@@ -86,7 +92,16 @@ export function CreditUsageSection() {
         />
       }
     >
-      <div className='-mx-2 flex flex-col gap-y-0.5'>
+      {/* isPlaceholderData means these rows/total are the still-displayed prior
+          period's data while the newly selected period is in flight — dim them
+          so they don't read as settled results for the period now shown in the
+          dropdown. */}
+      <div
+        className={cn(
+          '-mx-2 flex flex-col gap-y-0.5',
+          isPlaceholderData && 'opacity-50 transition-opacity'
+        )}
+      >
         {isLoading ? (
           <SettingsEmptyState variant='inline'>Loading usage…</SettingsEmptyState>
         ) : isError ? (
