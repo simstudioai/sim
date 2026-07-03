@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { buildCollectionPageJsonLd } from '@/lib/blog/seo'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { withFilteredNoindex } from '@/lib/landing/seo'
 import { Cta } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
@@ -35,34 +36,36 @@ export async function generateMetadata({
   const canonical = `${SITE_URL}/blog`
   const isFiltered = Boolean(tag) || pageNum > 1
 
-  return {
-    title,
-    description,
-    alternates: { canonical },
-    openGraph: {
-      title: `${title} | Sim`,
+  return withFilteredNoindex(
+    {
+      title,
       description,
-      url: canonical,
-      siteName: 'Sim',
-      locale: 'en_US',
-      type: 'website',
-      images: [
-        {
-          url: `${SITE_URL}/logo/primary/medium.png`,
-          width: 1200,
-          height: 630,
-          alt: 'Sim Blog',
-        },
-      ],
+      alternates: { canonical },
+      openGraph: {
+        title: `${title} | Sim`,
+        description,
+        url: canonical,
+        siteName: 'Sim',
+        locale: 'en_US',
+        type: 'website',
+        images: [
+          {
+            url: `${SITE_URL}/logo/primary/medium.png`,
+            width: 1200,
+            height: 630,
+            alt: 'Sim Blog',
+          },
+        ],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${title} | Sim`,
+        description,
+        site: '@simdotai',
+      },
     },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${title} | Sim`,
-      description,
-      site: '@simdotai',
-    },
-    ...(isFiltered && { robots: { index: false, follow: true } }),
-  }
+    isFiltered
+  )
 }
 
 export default async function BlogIndex({
