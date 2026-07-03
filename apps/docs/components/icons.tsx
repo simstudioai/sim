@@ -1742,6 +1742,21 @@ export function AmplitudeIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function GoogleAppsheetIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 35 36' fill='none'>
+      <path
+        fill='#0060d9'
+        d='m29.0098 6.30417h-7.6818l-3.0989 4.40413-1.8448 4.3641 4.9437.5578 5.1352-.5377 3.8117-6.59901c.5596-.97344-.1422-2.18932-1.2651-2.18932z'
+      />
+      <g fill='#4285f4'>
+        <path d='m3.10253 8.49714 3.19192 5.47426c.39193.6708 1.10834 1.0846 1.8849 1.0846l8.20315.0164 4.9455-8.76823h-16.96584c-1.12656 0-1.82656 1.22135-1.25963 2.19297z' />
+        <path d='m18.0122 29.8453c-.556.9662-1.9469.9789-2.5175.0201l-3.1791-5.3375c-.4011-.6745-.412-1.5112-.0256-2.1948l4.0943-7.2625 10.0771.02z' />
+      </g>
+    </svg>
+  )
+}
+
 export function GoogleBooksIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 478.63 540.07'>
@@ -7985,18 +8000,16 @@ export function LeadMagicIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-/** Dropcontact brand icon: teal disc with the white open-"d" contact mark. */
+/** Dropcontact brand icon: the teal swirl mark from the official wordmark. */
 export function DropcontactIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-      <circle cx='12' cy='12' r='12' fill='#0ABA9F' />
+    <svg {...props} viewBox='0 0 50 50' fill='none' xmlns='http://www.w3.org/2000/svg'>
       <path
-        d='M13.87 7.9A5 5 0 1 0 13.87 16.1'
-        stroke='#FFFFFF'
-        strokeWidth='2.4'
-        strokeLinecap='round'
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M29.57 16.22a10.84 10.84 0 0 0-4.698-1.064c-6.01 0-10.88 4.872-10.88 10.88s4.872 10.88 10.88 10.88c4.09 0 7.655-2.258 9.513-5.596l-2.623-1.457a7.88 7.88 0 0 1-6.89 4.053c-4.353 0-7.88-3.528-7.88-7.88s3.528-7.88 7.88-7.88a7.85 7.85 0 0 1 3.403.77l1.295-2.707zm5.21-14.235v25.762h-3.11V.9C29.546.313 27.3 0 25 0 11.193 0 0 11.193 0 25s11.193 25 25 25 25-11.193 25-25c0-10.337-6.274-19.21-15.222-23.016z'
+        fill='currentColor'
       />
-      <path d='M15.1 6.2V17.8' stroke='#FFFFFF' strokeWidth='2.4' strokeLinecap='round' />
     </svg>
   )
 }

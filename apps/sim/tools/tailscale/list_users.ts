@@ -46,7 +46,7 @@ export const tailscaleListUsersTool: ToolConfig<TailscaleBaseParams, TailscaleLi
       id: (user.id as string) ?? null,
       displayName: (user.displayName as string) ?? null,
       loginName: (user.loginName as string) ?? null,
-      profilePicURL: (user.profilePicURL as string) ?? null,
+      profilePicURL: (user.profilePicUrl as string) ?? null,
       role: (user.role as string) ?? null,
       status: (user.status as string) ?? null,
       type: (user.type as string) ?? null,

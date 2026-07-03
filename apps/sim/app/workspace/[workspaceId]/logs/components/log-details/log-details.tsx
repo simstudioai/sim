@@ -529,7 +529,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       Version
                     </span>
                     <div className='flex w-0 flex-1 justify-end'>
-                      <Badge variant='green' size='md' className='max-w-full truncate'>
+                      <Badge variant='green' size='sm' className='max-w-full truncate'>
                         {log.deploymentVersionName || `v${log.deploymentVersion}`}
                       </Badge>
                     </div>
@@ -542,13 +542,20 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Snapshot
                     </span>
-                    <Chip
-                      variant='primary'
-                      leftIcon={Eye}
-                      flush
-                      onClick={() => setIsExecutionSnapshotOpen(true)}
-                    >
+                    <Chip leftIcon={Eye} flush onClick={() => setIsExecutionSnapshotOpen(true)}>
                       View Snapshot
+                    </Chip>
+                  </div>
+                )}
+
+                {/* Troubleshoot */}
+                {canTroubleshoot && (
+                  <div className='flex h-10 items-center justify-between px-3'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                      Troubleshoot
+                    </span>
+                    <Chip leftIcon={Wrench} flush onClick={handleTroubleshoot}>
+                      Troubleshoot in Chat
                     </Chip>
                   </div>
                 )}
@@ -579,19 +586,6 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                   </span>
                   <WorkflowOutputSection output={workflowOutput} />
                 </div>
-              )}
-
-              {/* Troubleshoot */}
-              {canTroubleshoot && (
-                <Chip
-                  variant='primary'
-                  leftIcon={Wrench}
-                  flush
-                  className='self-start'
-                  onClick={handleTroubleshoot}
-                >
-                  Troubleshoot in Chat
-                </Chip>
               )}
 
               {/* Files */}

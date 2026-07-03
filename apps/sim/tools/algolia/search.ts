@@ -56,6 +56,44 @@ export const searchTool: ToolConfig<AlgoliaSearchParams, AlgoliaSearchResponse> 
       visibility: 'user-or-llm',
       description: 'Comma-separated list of attributes to retrieve',
     },
+    facets: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of facet attribute names to retrieve counts for (use "*" for all)',
+    },
+    getRankingInfo: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to include detailed ranking information in each hit',
+    },
+    aroundLatLng: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Coordinates for geo-search (e.g., "40.71,-74.01")',
+    },
+    aroundRadius: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum radius in meters for geo-search, or "all" for unlimited',
+    },
+    insideBoundingBox: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Bounding box coordinates as [[lat1, lng1, lat2, lng2]] for geo-search',
+    },
+    insidePolygon: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Polygon coordinates as [[lat1, lng1, lat2, lng2, lat3, lng3, ...]] for geo-search',
+    },
   },
 
   request: {
@@ -68,7 +106,7 @@ export const searchTool: ToolConfig<AlgoliaSearchParams, AlgoliaSearchResponse> 
     }),
     body: (params) => {
       const request: Record<string, unknown> = {
-        indexName: params.indexName,
+        indexName: params.indexName.trim(),
         query: params.query,
       }
       if (params.hitsPerPage !== undefined) request.hitsPerPage = Number(params.hitsPerPage)
@@ -78,6 +116,26 @@ export const searchTool: ToolConfig<AlgoliaSearchParams, AlgoliaSearchResponse> 
         request.attributesToRetrieve = params.attributesToRetrieve
           .split(',')
           .map((a: string) => a.trim())
+      }
+      if (params.facets) {
+        request.facets = params.facets.split(',').map((f: string) => f.trim())
+      }
+      if (params.getRankingInfo) request.getRankingInfo = true
+      if (params.aroundLatLng) request.aroundLatLng = params.aroundLatLng
+      if (params.aroundRadius !== undefined) {
+        request.aroundRadius = params.aroundRadius === 'all' ? 'all' : Number(params.aroundRadius)
+      }
+      if (params.insideBoundingBox) {
+        request.insideBoundingBox =
+          typeof params.insideBoundingBox === 'string'
+            ? JSON.parse(params.insideBoundingBox)
+            : params.insideBoundingBox
+      }
+      if (params.insidePolygon) {
+        request.insidePolygon =
+          typeof params.insidePolygon === 'string'
+            ? JSON.parse(params.insidePolygon)
+            : params.insidePolygon
       }
       return { requests: [request] }
     },

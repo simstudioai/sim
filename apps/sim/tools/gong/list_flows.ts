@@ -130,6 +130,7 @@ export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsRespons
     cursor: {
       type: 'string',
       description: 'Pagination cursor for retrieving the next page of records',
+      optional: true,
     },
   },
 }

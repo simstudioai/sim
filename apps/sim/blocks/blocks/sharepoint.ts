@@ -30,12 +30,20 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       options: [
         { label: 'Create Page', id: 'create_page' },
         { label: 'Read Page', id: 'read_page' },
+        { label: 'Update Page', id: 'update_page' },
+        { label: 'Publish Page', id: 'publish_page' },
+        { label: 'Delete Page', id: 'delete_page' },
         { label: 'List Sites', id: 'list_sites' },
         { label: 'Create List', id: 'create_list' },
         { label: 'Read List', id: 'read_list' },
         { label: 'Update List', id: 'update_list' },
         { label: 'Add List Items', id: 'add_list_items' },
+        { label: 'Get List Item', id: 'get_list_item' },
+        { label: 'Delete List Item', id: 'delete_list_item' },
         { label: 'Upload File', id: 'upload_file' },
+        { label: 'Download File', id: 'download_file' },
+        { label: 'Get Drive Item', id: 'get_drive_item' },
+        { label: 'Delete File', id: 'delete_file' },
       ],
     },
     {
@@ -65,7 +73,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       serviceId: 'sharepoint',
       selectorKey: 'sharepoint.sites',
       requiredScopes: getScopesForService('sharepoint'),
-      mimeType: 'application/vnd.microsoft.graph.folder',
+      mimeType: 'application/vnd.microsoft.graph.site',
       placeholder: 'Select a site',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -74,11 +82,16 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         value: [
           'create_page',
           'read_page',
+          'update_page',
+          'publish_page',
+          'delete_page',
           'list_sites',
           'create_list',
           'read_list',
           'update_list',
           'add_list_items',
+          'get_list_item',
+          'delete_list_item',
           'upload_file',
         ],
       },
@@ -90,14 +103,37 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'short-input',
       placeholder: 'Name of the page',
       condition: { field: 'operation', value: ['create_page', 'read_page'] },
+      required: { field: 'operation', value: 'create_page' },
+    },
+
+    {
+      id: 'pageTitle',
+      title: 'Page Title',
+      type: 'short-input',
+      placeholder: 'Optional title (defaults to page name)',
+      condition: { field: 'operation', value: ['create_page', 'update_page'] },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'pageContent',
+      title: 'Page Content',
+      type: 'long-input',
+      placeholder: 'Optional text content for the page',
+      condition: { field: 'operation', value: ['create_page', 'update_page'] },
+      mode: 'advanced',
     },
 
     {
       id: 'pageId',
       title: 'Page ID',
       type: 'short-input',
-      placeholder: 'Page ID (alternative to page name)',
-      condition: { field: 'operation', value: 'read_page' },
+      placeholder: 'Page ID',
+      condition: {
+        field: 'operation',
+        value: ['read_page', 'update_page', 'publish_page', 'delete_page'],
+      },
+      required: { field: 'operation', value: ['update_page', 'publish_page', 'delete_page'] },
       mode: 'advanced',
     },
 
@@ -111,7 +147,14 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       placeholder: 'Select a list',
       dependsOn: ['credential', 'siteSelector'],
       mode: 'basic',
-      condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
+      condition: {
+        field: 'operation',
+        value: ['read_list', 'update_list', 'add_list_items', 'get_list_item', 'delete_list_item'],
+      },
+      required: {
+        field: 'operation',
+        value: ['update_list', 'add_list_items', 'get_list_item', 'delete_list_item'],
+      },
     },
     {
       id: 'listId',
@@ -120,7 +163,14 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       canonicalParamId: 'listId',
       placeholder: 'Enter list ID (GUID). Required for Update; optional for Read.',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
+      condition: {
+        field: 'operation',
+        value: ['read_list', 'update_list', 'add_list_items', 'get_list_item', 'delete_list_item'],
+      },
+      required: {
+        field: 'operation',
+        value: ['update_list', 'add_list_items', 'get_list_item', 'delete_list_item'],
+      },
     },
 
     {
@@ -129,7 +179,11 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'short-input',
       placeholder: 'Enter item ID',
       canonicalParamId: 'itemId',
-      condition: { field: 'operation', value: ['update_list'] },
+      condition: {
+        field: 'operation',
+        value: ['update_list', 'get_list_item', 'delete_list_item'],
+      },
+      required: { field: 'operation', value: ['update_list', 'get_list_item', 'delete_list_item'] },
     },
 
     {
@@ -138,6 +192,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'short-input',
       placeholder: 'Name of the list',
       condition: { field: 'operation', value: 'create_list' },
+      required: { field: 'operation', value: 'create_list' },
     },
 
     {
@@ -270,11 +325,16 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         value: [
           'create_page',
           'read_page',
+          'update_page',
+          'publish_page',
+          'delete_page',
           'list_sites',
           'create_list',
           'read_list',
           'update_list',
           'add_list_items',
+          'get_list_item',
+          'delete_list_item',
           'upload_file',
         ],
       },
@@ -288,6 +348,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         'Enter list item fields as JSON (e.g., {"Title": "My Item", "Status": "Active"})',
       canonicalParamId: 'listItemFields',
       condition: { field: 'operation', value: ['update_list', 'add_list_items'] },
+      required: { field: 'operation', value: ['update_list', 'add_list_items'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a JSON object for SharePoint list item fields based on the user's description.
@@ -330,15 +391,80 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       },
     },
 
-    // Upload File operation fields
+    {
+      id: 'maxPages',
+      title: 'Max Pages',
+      type: 'short-input',
+      placeholder: 'Default 10, maximum 50',
+      condition: { field: 'operation', value: 'read_page' },
+      mode: 'advanced',
+    },
+    {
+      id: 'groupId',
+      title: 'Group ID',
+      type: 'short-input',
+      placeholder: 'Optional Microsoft 365 group ID',
+      condition: { field: 'operation', value: 'list_sites' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeColumns',
+      title: 'Include Columns',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'read_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeItems',
+      title: 'Include Items',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'read_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'nextPageUrl',
+      title: 'Next Page URL',
+      type: 'short-input',
+      placeholder: 'Paste the @odata.nextLink URL from a previous result',
+      condition: {
+        field: 'operation',
+        value: ['read_page', 'list_sites', 'read_list'],
+      },
+      mode: 'advanced',
+    },
+
+    // Upload / Download / Delete File / Get Drive Item operation fields
     {
       id: 'driveId',
       title: 'Document Library ID',
       type: 'short-input',
       placeholder: 'Enter document library (drive) ID',
       canonicalParamId: 'driveId',
-      condition: { field: 'operation', value: 'upload_file' },
+      condition: {
+        field: 'operation',
+        value: ['upload_file', 'download_file', 'delete_file', 'get_drive_item'],
+      },
+      required: { field: 'operation', value: ['download_file', 'delete_file', 'get_drive_item'] },
       mode: 'advanced',
+    },
+    {
+      id: 'driveItemId',
+      title: 'File ID',
+      type: 'short-input',
+      placeholder: 'Enter the file (drive item) ID',
+      canonicalParamId: 'driveItemId',
+      condition: { field: 'operation', value: ['download_file', 'delete_file', 'get_drive_item'] },
+      required: { field: 'operation', value: ['download_file', 'delete_file', 'get_drive_item'] },
     },
     {
       id: 'folderPath',
@@ -352,8 +478,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       id: 'fileName',
       title: 'File Name',
       type: 'short-input',
-      placeholder: 'Optional: override uploaded file name',
-      condition: { field: 'operation', value: 'upload_file' },
+      placeholder: 'Optional: override uploaded/downloaded file name',
+      condition: { field: 'operation', value: ['upload_file', 'download_file'] },
       mode: 'advanced',
       required: false,
     },
@@ -367,7 +493,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'basic',
       multiple: true,
-      required: false,
+      required: true,
     },
     // Variable reference (advanced mode)
     {
@@ -378,19 +504,27 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'advanced',
-      required: false,
+      required: true,
     },
   ],
   tools: {
     access: [
       'sharepoint_create_page',
       'sharepoint_read_page',
+      'sharepoint_update_page',
+      'sharepoint_publish_page',
+      'sharepoint_delete_page',
       'sharepoint_list_sites',
       'sharepoint_create_list',
       'sharepoint_get_list',
       'sharepoint_update_list',
       'sharepoint_add_list_items',
+      'sharepoint_get_list_item',
+      'sharepoint_delete_list_item',
       'sharepoint_upload_file',
+      'sharepoint_download_file',
+      'sharepoint_get_drive_item',
+      'sharepoint_delete_file',
     ],
     config: {
       tool: (params) => {
@@ -399,6 +533,12 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             return 'sharepoint_create_page'
           case 'read_page':
             return 'sharepoint_read_page'
+          case 'update_page':
+            return 'sharepoint_update_page'
+          case 'publish_page':
+            return 'sharepoint_publish_page'
+          case 'delete_page':
+            return 'sharepoint_delete_page'
           case 'list_sites':
             return 'sharepoint_list_sites'
           case 'create_list':
@@ -409,8 +549,18 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             return 'sharepoint_update_list'
           case 'add_list_items':
             return 'sharepoint_add_list_items'
+          case 'get_list_item':
+            return 'sharepoint_get_list_item'
+          case 'delete_list_item':
+            return 'sharepoint_delete_list_item'
           case 'upload_file':
             return 'sharepoint_upload_file'
+          case 'download_file':
+            return 'sharepoint_download_file'
+          case 'get_drive_item':
+            return 'sharepoint_get_drive_item'
+          case 'delete_file':
+            return 'sharepoint_delete_file'
           default:
             throw new Error(`Invalid Sharepoint operation: ${params.operation}`)
         }
@@ -428,6 +578,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           includeItems,
           files, // canonical param from uploadFiles (basic) or files (advanced)
           driveId, // canonical param from driveId
+          driveItemId, // canonical param from driveItemId
           columnDefinitions,
           listId,
           ...others
@@ -458,19 +609,16 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         }
 
         if (others.operation === 'update_list' || others.operation === 'add_list_items') {
-          try {
-            logger.info('SharepointBlock list item param check', {
-              siteId: effectiveSiteId || undefined,
-              listId: listId,
-              listTitle: (others as any)?.listTitle,
-              itemId: sanitizedItemId,
-              hasItemFields: !!parsedItemFields && typeof parsedItemFields === 'object',
-              itemFieldKeys:
-                parsedItemFields && typeof parsedItemFields === 'object'
-                  ? Object.keys(parsedItemFields)
-                  : [],
-            })
-          } catch {}
+          logger.info('SharepointBlock list item param check', {
+            siteId: effectiveSiteId || undefined,
+            listId: listId,
+            itemId: sanitizedItemId,
+            hasItemFields: !!parsedItemFields && typeof parsedItemFields === 'object',
+            itemFieldKeys:
+              parsedItemFields && typeof parsedItemFields === 'object'
+                ? Object.keys(parsedItemFields)
+                : [],
+          })
         }
 
         // Handle file upload files parameter using canonical param
@@ -478,11 +626,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         const baseParams: Record<string, any> = {
           oauthCredential,
           siteId: effectiveSiteId || undefined,
-          pageSize: others.pageSize ? Number.parseInt(others.pageSize as string, 10) : undefined,
-          mimeType: mimeType,
           ...others,
           ...(listId ? { listId } : {}),
           ...(driveId ? { driveId } : {}),
+          ...(driveItemId ? { driveItemId: String(driveItemId).trim() } : {}),
           itemId: sanitizedItemId,
           listItemFields: parsedItemFields,
           includeColumns: coerceBoolean(includeColumns),
@@ -494,7 +641,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           baseParams.files = normalizedFiles
         }
 
-        if (columnDefinitions) {
+        if (columnDefinitions && others.operation === 'create_list') {
           baseParams.pageContent = columnDefinitions
         }
 
@@ -511,14 +658,13 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       description: 'Column definitions for list creation (JSON array)',
     },
     pageTitle: { type: 'string', description: 'Page title' },
+    pageContent: { type: 'string', description: 'Page text content' },
     pageId: { type: 'string', description: 'Page ID' },
     siteId: { type: 'string', description: 'Site ID' },
-    pageSize: { type: 'number', description: 'Results per page' },
     listDisplayName: { type: 'string', description: 'List display name' },
     listDescription: { type: 'string', description: 'List description' },
     listTemplate: { type: 'string', description: 'List template' },
     listId: { type: 'string', description: 'List ID' },
-    listTitle: { type: 'string', description: 'List title' },
     includeColumns: { type: 'boolean', description: 'Include columns in response' },
     includeItems: { type: 'boolean', description: 'Include items in response' },
     itemId: { type: 'string', description: 'List item ID (canonical param)' },
@@ -527,9 +673,16 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       type: 'string',
       description: 'Document library (drive) ID',
     },
+    driveItemId: { type: 'string', description: 'File (drive item) ID (canonical param)' },
     folderPath: { type: 'string', description: 'Folder path for file upload' },
     fileName: { type: 'string', description: 'File name override' },
     files: { type: 'array', description: 'Files to upload' },
+    maxPages: { type: 'number', description: 'Maximum pages to return when reading all pages' },
+    groupId: { type: 'string', description: 'Microsoft 365 group ID for group-owned sites' },
+    nextPageUrl: {
+      type: 'string',
+      description: 'Full Microsoft Graph @odata.nextLink URL from a previous result',
+    },
   },
   outputs: {
     sites: {
@@ -537,9 +690,39 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       description:
         'An array of SharePoint site objects, each containing details such as id, name, and more.',
     },
+    site: {
+      type: 'json',
+      description: 'Single SharePoint site object (id, name, displayName, webUrl)',
+    },
+    page: {
+      type: 'json',
+      description: 'SharePoint page object (id, name, title, webUrl, pageLayout)',
+    },
+    pages: {
+      type: 'json',
+      description: 'Array of SharePoint pages with content ([{page, content}])',
+    },
+    content: {
+      type: 'json',
+      description: 'Content of the SharePoint page (content, canvasLayout)',
+    },
+    totalPages: {
+      type: 'number',
+      description: 'Total number of pages found when listing all pages',
+    },
+    nextPageUrl: {
+      type: 'string',
+      description: 'Full Microsoft Graph @odata.nextLink URL for the next page of results',
+    },
+    published: { type: 'boolean', description: 'Whether the page was published' },
+    deleted: { type: 'boolean', description: 'Whether the item/page/file was deleted' },
     list: {
       type: 'json',
       description: 'SharePoint list object (id, displayName, name, webUrl, etc.)',
+    },
+    lists: {
+      type: 'json',
+      description: 'Array of SharePoint list objects when no specific list is requested',
     },
     item: {
       type: 'json',
@@ -549,6 +732,14 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       type: 'json',
       description: 'Array of SharePoint list items with fields',
     },
+    driveItem: {
+      type: 'json',
+      description: 'SharePoint drive item metadata (id, name, size, webUrl, file/folder facet)',
+    },
+    file: {
+      type: 'json',
+      description: 'Downloaded file stored in execution files',
+    },
     uploadedFiles: {
       type: 'json',
       description: 'Array of uploaded file objects with id, name, webUrl, size',
@@ -557,6 +748,21 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       type: 'number',
       description: 'Number of files uploaded',
     },
+    skippedFiles: {
+      type: 'json',
+      description:
+        'Files skipped during upload for exceeding the size limit (name, size, limit, reason)',
+    },
+    skippedCount: {
+      type: 'number',
+      description: 'Number of files skipped during upload',
+    },
+    errors: {
+      type: 'json',
+      description: 'Per-file upload errors ([{name, error, status}])',
+    },
+    itemId: { type: 'string', description: 'ID of the deleted list item or file' },
+    pageId: { type: 'string', description: 'ID of the deleted or published page' },
     success: {
       type: 'boolean',
       description: 'Success status',
@@ -571,19 +777,46 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
 const SHAREPOINT_V2_TOOL_IDS = [
   'sharepoint_create_page',
   'sharepoint_read_page',
+  'sharepoint_update_page',
+  'sharepoint_publish_page',
+  'sharepoint_delete_page',
   'sharepoint_list_sites',
   'sharepoint_create_list',
   'sharepoint_get_list',
   'sharepoint_update_list',
   'sharepoint_add_list_items',
+  'sharepoint_get_list_item',
+  'sharepoint_delete_list_item',
   'sharepoint_upload_file',
+  'sharepoint_download_file',
+  'sharepoint_get_drive_item',
+  'sharepoint_delete_file',
 ] as const
 
-const SHAREPOINT_V2_SITE_OPERATIONS = Array.from(SHAREPOINT_V2_TOOL_IDS)
+const SHAREPOINT_V2_DRIVE_ONLY_OPERATIONS = [
+  'sharepoint_download_file',
+  'sharepoint_delete_file',
+  'sharepoint_get_drive_item',
+] as const
+
+const SHAREPOINT_V2_SITE_OPERATIONS = SHAREPOINT_V2_TOOL_IDS.filter(
+  (id) => !(SHAREPOINT_V2_DRIVE_ONLY_OPERATIONS as readonly string[]).includes(id)
+)
 
 const SHAREPOINT_V2_LIST_ITEM_OPERATIONS = [
   'sharepoint_update_list',
   'sharepoint_add_list_items',
+] as const
+
+const SHAREPOINT_V2_LIST_ITEM_LOOKUP_OPERATIONS = [
+  'sharepoint_get_list_item',
+  'sharepoint_delete_list_item',
+] as const
+
+const SHAREPOINT_V2_PAGE_MUTATION_OPERATIONS = [
+  'sharepoint_update_page',
+  'sharepoint_publish_page',
+  'sharepoint_delete_page',
 ] as const
 
 export const SharepointV2Block: BlockConfig<SharepointResponse> = {
@@ -599,12 +832,20 @@ export const SharepointV2Block: BlockConfig<SharepointResponse> = {
       options: [
         { label: 'Create Page', id: 'sharepoint_create_page' },
         { label: 'Read Page', id: 'sharepoint_read_page' },
+        { label: 'Update Page', id: 'sharepoint_update_page' },
+        { label: 'Publish Page', id: 'sharepoint_publish_page' },
+        { label: 'Delete Page', id: 'sharepoint_delete_page' },
         { label: 'List Sites', id: 'sharepoint_list_sites' },
         { label: 'Create List', id: 'sharepoint_create_list' },
         { label: 'Read List', id: 'sharepoint_get_list' },
         { label: 'Update List Item', id: 'sharepoint_update_list' },
         { label: 'Add List Item', id: 'sharepoint_add_list_items' },
+        { label: 'Get List Item', id: 'sharepoint_get_list_item' },
+        { label: 'Delete List Item', id: 'sharepoint_delete_list_item' },
         { label: 'Upload File', id: 'sharepoint_upload_file' },
+        { label: 'Download File', id: 'sharepoint_download_file' },
+        { label: 'Get Drive Item', id: 'sharepoint_get_drive_item' },
+        { label: 'Delete File', id: 'sharepoint_delete_file' },
       ],
       value: () => 'sharepoint_create_page',
     },
@@ -664,8 +905,12 @@ export const SharepointV2Block: BlockConfig<SharepointResponse> = {
       id: 'pageId',
       title: 'Page ID',
       type: 'short-input',
-      placeholder: 'Page ID (alternative to page name)',
-      condition: { field: 'operation', value: 'sharepoint_read_page' },
+      placeholder: 'Page ID (alternative to page name for Read Page)',
+      condition: {
+        field: 'operation',
+        value: ['sharepoint_read_page', ...SHAREPOINT_V2_PAGE_MUTATION_OPERATIONS],
+      },
+      required: { field: 'operation', value: [...SHAREPOINT_V2_PAGE_MUTATION_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -673,7 +918,10 @@ export const SharepointV2Block: BlockConfig<SharepointResponse> = {
       title: 'Page Title',
       type: 'short-input',
       placeholder: 'Optional title (defaults to page name)',
-      condition: { field: 'operation', value: 'sharepoint_create_page' },
+      condition: {
+        field: 'operation',
+        value: ['sharepoint_create_page', 'sharepoint_update_page'],
+      },
       mode: 'advanced',
     },
     {
@@ -681,7 +929,10 @@ export const SharepointV2Block: BlockConfig<SharepointResponse> = {
       title: 'Page Content',
       type: 'long-input',
       placeholder: 'Optional text content for the page',
-      condition: { field: 'operation', value: 'sharepoint_create_page' },
+      condition: {
+        field: 'operation',
+        value: ['sharepoint_create_page', 'sharepoint_update_page'],
+      },
       mode: 'advanced',
     },
     {
@@ -712,9 +963,19 @@ export const SharepointV2Block: BlockConfig<SharepointResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['sharepoint_get_list', ...SHAREPOINT_V2_LIST_ITEM_OPERATIONS],
+        value: [
+          'sharepoint_get_list',
+          ...SHAREPOINT_V2_LIST_ITEM_OPERATIONS,
+          ...SHAREPOINT_V2_LIST_ITEM_LOOKUP_OPERATIONS,
+        ],
       },
-      required: { field: 'operation', value: [...SHAREPOINT_V2_LIST_ITEM_OPERATIONS] },
+      required: {
+        field: 'operation',
+        value: [
+          ...SHAREPOINT_V2_LIST_ITEM_OPERATIONS,
+          ...SHAREPOINT_V2_LIST_ITEM_LOOKUP_OPERATIONS,
+        ],
+      },
     },
     {
       id: 'manualListId',
@@ -725,9 +986,19 @@ export const SharepointV2Block: BlockConfig<SharepointResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['sharepoint_get_list', ...SHAREPOINT_V2_LIST_ITEM_OPERATIONS],
+        value: [
+          'sharepoint_get_list',
+          ...SHAREPOINT_V2_LIST_ITEM_OPERATIONS,
+          ...SHAREPOINT_V2_LIST_ITEM_LOOKUP_OPERATIONS,
+        ],
       },
-      required: { field: 'operation', value: [...SHAREPOINT_V2_LIST_ITEM_OPERATIONS] },
+      required: {
+        field: 'operation',
+        value: [
+          ...SHAREPOINT_V2_LIST_ITEM_OPERATIONS,
+          ...SHAREPOINT_V2_LIST_ITEM_LOOKUP_OPERATIONS,
+        ],
+      },
     },
     {
       id: 'includeColumns',
@@ -821,8 +1092,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       title: 'Item ID',
       type: 'short-input',
       placeholder: 'Enter item ID',
-      condition: { field: 'operation', value: 'sharepoint_update_list' },
-      required: { field: 'operation', value: 'sharepoint_update_list' },
+      condition: {
+        field: 'operation',
+        value: ['sharepoint_update_list', ...SHAREPOINT_V2_LIST_ITEM_LOOKUP_OPERATIONS],
+      },
+      required: {
+        field: 'operation',
+        value: ['sharepoint_update_list', ...SHAREPOINT_V2_LIST_ITEM_LOOKUP_OPERATIONS],
+      },
     },
     {
       id: 'listItemFields',
@@ -848,8 +1125,20 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       title: 'Document Library ID',
       type: 'short-input',
       placeholder: 'Enter document library (drive) ID',
-      condition: { field: 'operation', value: 'sharepoint_upload_file' },
+      condition: {
+        field: 'operation',
+        value: [...SHAREPOINT_V2_DRIVE_ONLY_OPERATIONS, 'sharepoint_upload_file'],
+      },
+      required: { field: 'operation', value: [...SHAREPOINT_V2_DRIVE_ONLY_OPERATIONS] },
       mode: 'advanced',
+    },
+    {
+      id: 'driveItemId',
+      title: 'File ID',
+      type: 'short-input',
+      placeholder: 'Enter the file (drive item) ID',
+      condition: { field: 'operation', value: [...SHAREPOINT_V2_DRIVE_ONLY_OPERATIONS] },
+      required: { field: 'operation', value: [...SHAREPOINT_V2_DRIVE_ONLY_OPERATIONS] },
     },
     {
       id: 'folderPath',
@@ -864,8 +1153,11 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       id: 'fileName',
       title: 'File Name',
       type: 'short-input',
-      placeholder: 'Optional: override uploaded file name',
-      condition: { field: 'operation', value: 'sharepoint_upload_file' },
+      placeholder: 'Optional: override uploaded/downloaded file name',
+      condition: {
+        field: 'operation',
+        value: ['sharepoint_upload_file', 'sharepoint_download_file'],
+      },
       mode: 'advanced',
       required: false,
     },
@@ -919,6 +1211,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           files,
           maxPages,
           driveId,
+          driveItemId,
           ...rest
         } = params
 
@@ -950,13 +1243,14 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           listId: cleanString(listId),
           itemId: cleanString(itemId),
           driveId: cleanString(driveId),
+          driveItemId: cleanString(driveItemId),
           includeColumns: coerceBoolean(includeColumns),
           includeItems: coerceBoolean(includeItems),
           listItemFields: parseJsonObject(listItemFields),
           maxPages: maxPages ? Number.parseInt(String(maxPages), 10) : undefined,
         }
 
-        if (columnDefinitions) {
+        if (columnDefinitions && rest.operation === 'sharepoint_create_list') {
           result.pageContent = columnDefinitions
         }
         if (normalizedFiles) {
@@ -991,6 +1285,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     itemId: { type: 'string', description: 'List item ID' },
     listItemFields: { type: 'json', description: 'List item fields' },
     driveId: { type: 'string', description: 'Document library (drive) ID' },
+    driveItemId: { type: 'string', description: 'File (drive item) ID' },
     folderPath: { type: 'string', description: 'Folder path for file upload' },
     fileName: { type: 'string', description: 'File name override' },
     files: { type: 'json', description: 'Files to upload' },
@@ -1017,6 +1312,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       description: 'SharePoint page content (content, canvasLayout)',
     },
     totalPages: { type: 'number', description: 'Number of pages returned' },
+    published: { type: 'boolean', description: 'Whether the page was published' },
     list: {
       type: 'json',
       description: 'SharePoint list object (id, displayName, name, webUrl, columns, items)',
@@ -1027,6 +1323,15 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     },
     item: { type: 'json', description: 'SharePoint list item with fields' },
     items: { type: 'json', description: 'Array of SharePoint list items with fields' },
+    deleted: { type: 'boolean', description: 'Whether the item/page/file was deleted' },
+    driveItem: {
+      type: 'json',
+      description: 'SharePoint drive item metadata (id, name, size, webUrl, file/folder facet)',
+    },
+    file: {
+      type: 'json',
+      description: 'Downloaded file stored in execution files',
+    },
     uploadedFiles: {
       type: 'json',
       description: 'Array of uploaded file objects with id, name, webUrl, size',
@@ -1041,6 +1346,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       type: 'json',
       description: 'Array of per-file upload errors (name, error, status)',
     },
+    itemId: { type: 'string', description: 'ID of the deleted list item or file' },
+    pageId: { type: 'string', description: 'ID of the deleted or published page' },
     nextPageUrl: {
       type: 'string',
       description: 'Microsoft Graph @odata.nextLink URL for the next page of results',

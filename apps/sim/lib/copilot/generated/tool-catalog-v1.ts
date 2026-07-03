@@ -71,22 +71,25 @@ export interface ToolCatalogEntry {
     | 'open_resource'
     | 'promote_to_live'
     | 'query_logs'
+    | 'query_user_table'
     | 'read'
     | 'redeploy'
     | 'rename_file'
     | 'rename_file_folder'
     | 'rename_workflow'
-    | 'research'
     | 'respond'
     | 'restore_resource'
     | 'run'
     | 'run_block'
+    | 'run_code'
     | 'run_from_block'
     | 'run_workflow'
     | 'run_workflow_until_block'
     | 'scheduled_task'
     | 'scrape_page'
+    | 'search'
     | 'search_documentation'
+    | 'search_knowledge_base'
     | 'search_library_docs'
     | 'search_online'
     | 'search_patterns'
@@ -169,22 +172,25 @@ export interface ToolCatalogEntry {
     | 'open_resource'
     | 'promote_to_live'
     | 'query_logs'
+    | 'query_user_table'
     | 'read'
     | 'redeploy'
     | 'rename_file'
     | 'rename_file_folder'
     | 'rename_workflow'
-    | 'research'
     | 'respond'
     | 'restore_resource'
     | 'run'
     | 'run_block'
+    | 'run_code'
     | 'run_from_block'
     | 'run_workflow'
     | 'run_workflow_until_block'
     | 'scheduled_task'
     | 'scrape_page'
+    | 'search'
     | 'search_documentation'
+    | 'search_knowledge_base'
     | 'search_library_docs'
     | 'search_online'
     | 'search_patterns'
@@ -211,9 +217,9 @@ export interface ToolCatalogEntry {
     | 'file'
     | 'knowledge'
     | 'media'
-    | 'research'
     | 'run'
     | 'scheduled_task'
+    | 'search'
     | 'superagent'
     | 'table'
     | 'workflow'
@@ -3015,6 +3021,55 @@ export const QueryLogs: ToolCatalogEntry = {
   },
 }
 
+export const QueryUserTable: ToolCatalogEntry = {
+  id: 'query_user_table',
+  name: 'query_user_table',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      args: {
+        type: 'object',
+        description: 'Arguments for the operation',
+        properties: {
+          filter: { type: 'object', description: 'MongoDB-style filter for query_rows' },
+          limit: {
+            type: 'number',
+            description: 'Maximum rows to return (optional, default 100, max 1000 per call)',
+          },
+          offset: {
+            type: 'number',
+            description: 'Number of rows to skip (optional for query_rows, default 0)',
+          },
+          rowId: { type: 'string', description: 'Row ID (required for get_row)' },
+          sort: {
+            type: 'object',
+            description:
+              "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
+          },
+          tableId: { type: 'string', description: 'Table ID (required for all operations)' },
+        },
+      },
+      operation: {
+        type: 'string',
+        description: 'The read operation to perform',
+        enum: ['get', 'get_schema', 'get_row', 'query_rows'],
+      },
+    },
+    required: ['operation', 'args'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: { type: 'object', description: 'Operation-specific result payload.' },
+      message: { type: 'string', description: 'Human-readable outcome summary.' },
+      success: { type: 'boolean', description: 'Whether the operation succeeded.' },
+    },
+    required: ['success', 'message'],
+  },
+}
+
 export const Read: ToolCatalogEntry = {
   id: 'read',
   name: 'read',
@@ -3182,20 +3237,6 @@ export const RenameWorkflow: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const Research: ToolCatalogEntry = {
-  id: 'research',
-  name: 'research',
-  route: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: { topic: { description: 'The topic to research.', type: 'string' } },
-    required: ['topic'],
-    type: 'object',
-  },
-  subagentId: 'research',
-  internal: true,
-}
-
 export const Respond: ToolCatalogEntry = {
   id: 'respond',
   name: 'respond',
@@ -3291,6 +3332,99 @@ export const RunBlock: ToolCatalogEntry = {
     required: ['blockId'],
   },
   clientExecutable: true,
+}
+
+export const RunCode: ToolCatalogEntry = {
+  id: 'run_code',
+  name: 'run_code',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      code: {
+        type: 'string',
+        description:
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
+      },
+      inputs: {
+        type: 'object',
+        description:
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
+      },
+      language: {
+        type: 'string',
+        description: 'Execution language.',
+        enum: ['javascript', 'python', 'shell'],
+      },
+      title: {
+        type: 'string',
+        description:
+          'Short user-visible label for this execution, e.g. "Sum June invoices" or "Verify email formats".',
+      },
+    },
+    required: ['code'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_input', 'directory_input', 'table_input'],
 }
 
 export const RunFromBlock: ToolCatalogEntry = {
@@ -3456,6 +3590,26 @@ export const ScrapePage: ToolCatalogEntry = {
   },
 }
 
+export const Search: ToolCatalogEntry = {
+  id: 'search',
+  name: 'search',
+  route: 'subagent',
+  mode: 'async',
+  parameters: {
+    properties: {
+      task: {
+        description:
+          "One short scoping sentence — the search agent has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'count how many rows in the leads table have invalid emails'.",
+        type: 'string',
+      },
+    },
+    required: ['task'],
+    type: 'object',
+  },
+  subagentId: 'search',
+  internal: true,
+}
+
 export const SearchDocumentation: ToolCatalogEntry = {
   id: 'search_documentation',
   name: 'search_documentation',
@@ -3468,6 +3622,49 @@ export const SearchDocumentation: ToolCatalogEntry = {
       topK: { type: 'number', description: 'Number of results (max 10)' },
     },
     required: ['query'],
+  },
+}
+
+export const SearchKnowledgeBase: ToolCatalogEntry = {
+  id: 'search_knowledge_base',
+  name: 'search_knowledge_base',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      args: {
+        type: 'object',
+        description: 'Arguments for the operation',
+        properties: {
+          knowledgeBaseId: {
+            type: 'string',
+            description: 'Knowledge base ID (required for all operations)',
+          },
+          query: { type: 'string', description: "Search query text (required for 'query')" },
+          topK: {
+            type: 'number',
+            description: 'Number of results to return (1-50, default: 5)',
+            default: 5,
+          },
+        },
+      },
+      operation: {
+        type: 'string',
+        description: 'The read operation to perform',
+        enum: ['get', 'query', 'list_tags'],
+      },
+    },
+    required: ['operation', 'args'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: { type: 'object', description: 'Operation-specific result payload.' },
+      message: { type: 'string', description: 'Human-readable outcome summary.' },
+      success: { type: 'boolean', description: 'Whether the operation succeeded.' },
+    },
+    required: ['success', 'message'],
   },
 }
 
@@ -4461,6 +4658,38 @@ export const MaterializeFileOperationValues = [
   MaterializeFileOperation.import,
 ] as const
 
+export const QueryUserTableOperation = {
+  get: 'get',
+  getSchema: 'get_schema',
+  getRow: 'get_row',
+  queryRows: 'query_rows',
+} as const
+
+export type QueryUserTableOperation =
+  (typeof QueryUserTableOperation)[keyof typeof QueryUserTableOperation]
+
+export const QueryUserTableOperationValues = [
+  QueryUserTableOperation.get,
+  QueryUserTableOperation.getSchema,
+  QueryUserTableOperation.getRow,
+  QueryUserTableOperation.queryRows,
+] as const
+
+export const SearchKnowledgeBaseOperation = {
+  get: 'get',
+  query: 'query',
+  listTags: 'list_tags',
+} as const
+
+export type SearchKnowledgeBaseOperation =
+  (typeof SearchKnowledgeBaseOperation)[keyof typeof SearchKnowledgeBaseOperation]
+
+export const SearchKnowledgeBaseOperationValues = [
+  SearchKnowledgeBaseOperation.get,
+  SearchKnowledgeBaseOperation.query,
+  SearchKnowledgeBaseOperation.listTags,
+] as const
+
 export const UserMemoryOperation = {
   add: 'add',
   search: 'search',
@@ -4629,22 +4858,25 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [OpenResource.id]: OpenResource,
   [PromoteToLive.id]: PromoteToLive,
   [QueryLogs.id]: QueryLogs,
+  [QueryUserTable.id]: QueryUserTable,
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
   [RenameFile.id]: RenameFile,
   [RenameFileFolder.id]: RenameFileFolder,
   [RenameWorkflow.id]: RenameWorkflow,
-  [Research.id]: Research,
   [Respond.id]: Respond,
   [RestoreResource.id]: RestoreResource,
   [Run.id]: Run,
   [RunBlock.id]: RunBlock,
+  [RunCode.id]: RunCode,
   [RunFromBlock.id]: RunFromBlock,
   [RunWorkflow.id]: RunWorkflow,
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
   [ScheduledTask.id]: ScheduledTask,
   [ScrapePage.id]: ScrapePage,
+  [Search.id]: Search,
   [SearchDocumentation.id]: SearchDocumentation,
+  [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,
   [SearchOnline.id]: SearchOnline,
   [SearchPatterns.id]: SearchPatterns,

@@ -2783,6 +2783,68 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  query_user_table: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            filter: {
+              type: 'object',
+              description: 'MongoDB-style filter for query_rows',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum rows to return (optional, default 100, max 1000 per call)',
+            },
+            offset: {
+              type: 'number',
+              description: 'Number of rows to skip (optional for query_rows, default 0)',
+            },
+            rowId: {
+              type: 'string',
+              description: 'Row ID (required for get_row)',
+            },
+            sort: {
+              type: 'object',
+              description:
+                "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for all operations)',
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The read operation to perform',
+          enum: ['get', 'get_schema', 'get_row', 'query_rows'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
   read: {
     parameters: {
       type: 'object',
@@ -2959,19 +3021,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  research: {
-    parameters: {
-      properties: {
-        topic: {
-          description: 'The topic to research.',
-          type: 'string',
-        },
-      },
-      required: ['topic'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
   respond: {
     parameters: {
       additionalProperties: true,
@@ -3059,6 +3108,99 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['blockId'],
+    },
+    resultSchema: undefined,
+  },
+  run_code: {
+    parameters: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description:
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
+        },
+        inputs: {
+          type: 'object',
+          description:
+            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          properties: {
+            directories: {
+              type: 'array',
+              description:
+                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            files: {
+              type: 'array',
+              description: 'Workspace files to mount into the sandbox.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            tables: {
+              type: 'array',
+              description: 'Workspace tables to mount as CSV files.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description: 'Canonical VFS table path when available.',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description: 'Optional full sandbox path for the mounted CSV.',
+                  },
+                  tableId: {
+                    type: 'string',
+                    description: 'Workspace table ID.',
+                  },
+                },
+              },
+            },
+          },
+        },
+        language: {
+          type: 'string',
+          description: 'Execution language.',
+          enum: ['javascript', 'python', 'shell'],
+        },
+        title: {
+          type: 'string',
+          description:
+            'Short user-visible label for this execution, e.g. "Sum June invoices" or "Verify email formats".',
+        },
+      },
+      required: ['code'],
     },
     resultSchema: undefined,
   },
@@ -3209,6 +3351,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  search: {
+    parameters: {
+      properties: {
+        task: {
+          description:
+            "One short scoping sentence — the search agent has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'count how many rows in the leads table have invalid emails'.",
+          type: 'string',
+        },
+      },
+      required: ['task'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   search_documentation: {
     parameters: {
       type: 'object',
@@ -3225,6 +3381,56 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['query'],
     },
     resultSchema: undefined,
+  },
+  search_knowledge_base: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            knowledgeBaseId: {
+              type: 'string',
+              description: 'Knowledge base ID (required for all operations)',
+            },
+            query: {
+              type: 'string',
+              description: "Search query text (required for 'query')",
+            },
+            topK: {
+              type: 'number',
+              description: 'Number of results to return (1-50, default: 5)',
+              default: 5,
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The read operation to perform',
+          enum: ['get', 'query', 'list_tags'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   search_library_docs: {
     parameters: {

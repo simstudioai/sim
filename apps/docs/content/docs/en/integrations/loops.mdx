@@ -205,7 +205,7 @@ Retrieve all mailing lists from your Loops account. Returns each list with its I
 
 ### `loops_list_transactional_emails`
 
-Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, last updated timestamp, and data variables.
+Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables.
 
 #### Input
 
@@ -222,7 +222,9 @@ Retrieve a list of published transactional email templates from your Loops accou
 | `transactionalEmails` | array | Array of published transactional email templates |
 |   ↳ `id` | string | The transactional email template ID |
 |   ↳ `name` | string | The template name |
-|   ↳ `lastUpdated` | string | Last updated timestamp |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
+|   ↳ `lastUpdated` | string | Deprecated alias of updatedAt, kept for backwards compatibility |
 |   ↳ `dataVariables` | array | Template data variable names |
 | `pagination` | object | Pagination information |
 |   ↳ `totalResults` | number | Total number of results |
@@ -269,6 +271,74 @@ Retrieve a list of contact properties from your Loops account. Returns each prop
 |   ↳ `key` | string | The property key \(camelCase identifier\) |
 |   ↳ `label` | string | The property display label |
 |   ↳ `type` | string | The property data type \(string, number, boolean, date\) |
+
+### `loops_check_contact_suppression`
+
+Check whether a Loops contact is on the suppression list (bounced, complained, or unsubscribed) by email address or userId.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `email` | string | No | The contact email address to check \(at least one of email or userId is required\) |
+| `userId` | string | No | The contact userId to check \(at least one of email or userId is required\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contactId` | string | The Loops-assigned contact ID |
+| `email` | string | The contact email address |
+| `userId` | string | The contact userId |
+| `isSuppressed` | boolean | Whether the contact is on the suppression list |
+| `removalQuotaLimit` | number | Total suppression-removal quota for the team |
+| `removalQuotaRemaining` | number | Remaining suppression-removal quota for the team |
+
+### `loops_remove_contact_suppression`
+
+Remove a Loops contact from the suppression list by email address or userId, allowing them to receive emails again. Subject to a team removal quota.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `email` | string | No | The contact email address to remove from suppression \(at least one of email or userId is required\) |
+| `userId` | string | No | The contact userId to remove from suppression \(at least one of email or userId is required\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the contact was removed from suppression successfully |
+| `message` | string | Status message from the API |
+| `removalQuotaLimit` | number | Total suppression-removal quota for the team |
+| `removalQuotaRemaining` | number | Remaining suppression-removal quota for the team |
+
+### `loops_get_transactional_email`
+
+Retrieve a single transactional email template from your Loops account by its ID, including its data variables and draft/published message IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `transactionalId` | string | Yes | The ID of the transactional email template to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The transactional email template ID |
+| `name` | string | The template name |
+| `draftEmailMessageId` | string | ID of the draft email message, if any |
+| `publishedEmailMessageId` | string | ID of the published email message, if any |
+| `transactionalGroupId` | string | ID of the transactional group this template belongs to, if any |
+| `createdAt` | string | Creation timestamp \(ISO 8601\) |
+| `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
+| `dataVariables` | array | Template data variable names |
 
 
 

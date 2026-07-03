@@ -35,6 +35,20 @@ export function forkVisibleCopyables(
   return copyableUnmapped.filter((candidate) => !mappedKeys.has(forkRefKey(candidate)))
 }
 
+/**
+ * The copy selection seeded once the diff settles: every REFERENCED candidate (deselecting one
+ * clears its references, so the common case needs no clicks). Unreferenced candidates - used by
+ * no synced workflow - start unselected: copying them is opt-in, so scratch data created in the
+ * source is never pushed by surprise.
+ */
+export function forkDefaultCopySelection(copyableUnmapped: ForkCopyableUnmapped[]): Set<string> {
+  const keys = new Set<string>()
+  for (const candidate of copyableUnmapped) {
+    if (candidate.referenced) keys.add(forkRefKey(candidate))
+  }
+  return keys
+}
+
 /** Keys of the visible copy candidates actually selected for copy. */
 export function forkCopyingKeys(
   visibleCopyables: ForkCopyableUnmapped[],
@@ -82,4 +96,21 @@ export function forkRequiredPending(
       effectiveForkTarget(entry, targets) === '' &&
       !copyingKeys.has(forkRefKey(entry))
   )
+}
+
+/**
+ * Human label for the kinds still failing the required gate, for "Map all required {label} first"
+ * messaging - shared by the Sync button's disabled tooltip (client gate) and the server gate's
+ * failure toast so both name the obstacle identically. Credentials and secrets are named
+ * explicitly: they are the map-only kinds that fail the required gate WITHOUT also appearing in
+ * the cleared-ref blockers (the collector excludes them), so they need their own wording. Any
+ * other kind falls back to "references".
+ */
+export function forkRequiredKindsLabel(kinds: ReadonlySet<string>): string {
+  const credentials = kinds.has('credential')
+  const secrets = kinds.has('env-var')
+  if (credentials && secrets) return 'credentials and secrets'
+  if (credentials) return 'credentials'
+  if (secrets) return 'secrets'
+  return 'references'
 }

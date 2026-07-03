@@ -1,12 +1,12 @@
 {
-  "updatedAt": "2026-07-01",
+  "updatedAt": "2026-07-02",
   "integrations": [
     {
       "type": "onepassword",
       "slug": "1password",
       "name": "1Password",
       "description": "Manage secrets and items in 1Password vaults",
-      "longDescription": "Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, create new items, update existing ones, delete items, and resolve secret references.",
+      "longDescription": "Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, download attached files, create new items, update existing ones, delete items, and resolve secret references.",
       "bgColor": "#FFFFFF",
       "iconName": "OnePasswordIcon",
       "docsUrl": "https://docs.sim.ai/integrations/onepassword",
@@ -26,6 +26,10 @@
         {
           "name": "Get Item",
           "description": "Get full details of an item including all fields and secrets"
+        },
+        {
+          "name": "Get Item File",
+          "description": "Download the content of a file attached to an item"
         },
         {
           "name": "Create Item",
@@ -48,7 +52,7 @@
           "description": "Resolve a secret reference (op://vault/item/field) to its value. Service Account mode only."
         }
       ],
-      "operationCount": 9,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -345,11 +349,15 @@
       "longDescription": "Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs Enterprise plan with API access.",
       "bgColor": "#FFFFFF",
       "iconName": "AhrefsIcon",
-      "docsUrl": "https://docs.ahrefs.com/docs/api/reference/introduction",
+      "docsUrl": "https://docs.sim.ai/integrations/ahrefs",
       "operations": [
         {
           "name": "Domain Rating",
           "description": "Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website's backlink profile on a scale from 0 to 100."
+        },
+        {
+          "name": "Metrics Overview",
+          "description": "Get a one-call organic and paid search overview for a target domain or URL: organic traffic, organic keywords, paid traffic, paid keywords, and estimated traffic cost."
         },
         {
           "name": "Backlinks",
@@ -357,15 +365,23 @@
         },
         {
           "name": "Backlinks Stats",
-          "description": "Get backlink statistics for a target domain or URL. Returns totals for different backlink types including dofollow, nofollow, text, image, and redirect links."
+          "description": "Get backlink and referring domain totals for a target domain or URL, both currently live and across all time."
         },
         {
           "name": "Referring Domains",
           "description": "Get a list of domains that link to a target domain or URL. Returns unique referring domains with their domain rating, backlink counts, and discovery dates."
         },
         {
+          "name": "Broken Backlinks",
+          "description": "Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities."
+        },
+        {
           "name": "Organic Keywords",
           "description": "Get organic keywords that a target domain or URL ranks for in Google search results. Returns keyword details including search volume, ranking position, and estimated traffic."
+        },
+        {
+          "name": "Organic Competitors",
+          "description": "Get domains that compete with a target domain or URL for the same organic keywords, ranked by keyword overlap."
         },
         {
           "name": "Top Pages",
@@ -374,13 +390,9 @@
         {
           "name": "Keyword Overview",
           "description": "Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential."
-        },
-        {
-          "name": "Broken Backlinks",
-          "description": "Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities."
         }
       ],
-      "operationCount": 8,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -541,9 +553,13 @@
         {
           "name": "Delete By Filter",
           "description": "Delete all records matching a filter from an Algolia index"
+        },
+        {
+          "name": "Get Task Status",
+          "description": "Check whether an Algolia indexing task has finished publishing"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -669,8 +685,8 @@
       "slug": "amplitude",
       "name": "Amplitude",
       "description": "Track events and query analytics from Amplitude",
-      "longDescription": "Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, and retrieve revenue data.",
-      "bgColor": "#1B1F3B",
+      "longDescription": "Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.",
+      "bgColor": "#13294B",
       "iconName": "AmplitudeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/amplitude",
       "operations": [
@@ -696,7 +712,7 @@
         },
         {
           "name": "User Profile",
-          "description": "Get a user profile including properties, cohort memberships, and computed properties."
+          "description": "Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects."
         },
         {
           "name": "Event Segmentation",
@@ -717,9 +733,17 @@
         {
           "name": "Get Revenue",
           "description": "Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user counts."
+        },
+        {
+          "name": "Funnels",
+          "description": "Analyze conversion rates and drop-off between a sequence of events."
+        },
+        {
+          "name": "Retention",
+          "description": "Measure how many users return to perform an action after a starting action."
         }
       ],
-      "operationCount": 11,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2647,7 +2671,7 @@
       "slug": "clerk",
       "name": "Clerk",
       "description": "Manage users, organizations, and sessions in Clerk",
-      "longDescription": "Integrate Clerk authentication and user management into your workflow. Create, update, delete, and list users. Manage organizations and their memberships. Monitor and control user sessions.",
+      "longDescription": "Integrate Clerk authentication and user management into your workflow. Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.",
       "bgColor": "#131316",
       "iconName": "ClerkIcon",
       "docsUrl": "https://docs.sim.ai/integrations/clerk",
@@ -2673,6 +2697,26 @@
           "description": "Delete a user from your Clerk application"
         },
         {
+          "name": "Ban User",
+          "description": "Ban a user, preventing them from signing in"
+        },
+        {
+          "name": "Unban User",
+          "description": "Remove a ban from a user, allowing them to sign in again"
+        },
+        {
+          "name": "Lock User",
+          "description": "Lock a user account, blocking sign-in attempts"
+        },
+        {
+          "name": "Unlock User",
+          "description": "Unlock a previously locked user account"
+        },
+        {
+          "name": "Get User OAuth Token",
+          "description": "Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO"
+        },
+        {
           "name": "List Organizations",
           "description": "List all organizations in your Clerk application with optional filtering"
         },
@@ -2685,6 +2729,38 @@
           "description": "Create a new organization in your Clerk application"
         },
         {
+          "name": "Update Organization",
+          "description": "Update an existing organization in your Clerk application"
+        },
+        {
+          "name": "Delete Organization",
+          "description": "Delete an organization from your Clerk application"
+        },
+        {
+          "name": "List Organization Memberships",
+          "description": "List members of a Clerk organization with optional filtering and pagination"
+        },
+        {
+          "name": "Add Organization Member",
+          "description": "Add a user as a member of a Clerk organization with a given role"
+        },
+        {
+          "name": "Update Organization Membership",
+          "description": "Change a member's role within a Clerk organization"
+        },
+        {
+          "name": "Remove Organization Member",
+          "description": "Remove a member from a Clerk organization"
+        },
+        {
+          "name": "Create Organization Invitation",
+          "description": "Invite a user by email to join a Clerk organization with a given role"
+        },
+        {
+          "name": "List Organization Invitations",
+          "description": "List pending and past invitations for a Clerk organization"
+        },
+        {
           "name": "List Sessions",
           "description": "List sessions for a user or client in your Clerk application"
         },
@@ -2695,9 +2771,49 @@
         {
           "name": "Revoke Session",
           "description": "Revoke a session to immediately invalidate it"
+        },
+        {
+          "name": "List Allowlist Identifiers",
+          "description": "List email/phone/web3-wallet identifiers on your Clerk instance allowlist"
+        },
+        {
+          "name": "Create Allowlist Identifier",
+          "description": "Add an email, phone number, or web3 wallet to your Clerk instance allowlist"
+        },
+        {
+          "name": "Delete Allowlist Identifier",
+          "description": "Remove an identifier from your Clerk instance allowlist"
+        },
+        {
+          "name": "List Blocklist Identifiers",
+          "description": "List email/phone/web3-wallet identifiers on your Clerk instance blocklist"
+        },
+        {
+          "name": "Create Blocklist Identifier",
+          "description": "Add an email, phone number, or web3 wallet to your Clerk instance blocklist to prevent sign-ups"
+        },
+        {
+          "name": "Delete Blocklist Identifier",
+          "description": "Remove an identifier from your Clerk instance blocklist"
+        },
+        {
+          "name": "List JWT Templates",
+          "description": "List custom JWT templates configured on your Clerk instance"
+        },
+        {
+          "name": "Get JWT Template",
+          "description": "Retrieve a single custom JWT template by ID from Clerk"
+        },
+        {
+          "name": "Create Actor Token",
+          "description": "Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling"
+        },
+        {
+          "name": "Revoke Actor Token",
+          "description": "Revoke an actor token before it is used or expires"
         }
       ],
-      "operationCount": 11,
+      "operationCount": 34,
       "triggers": [
         {
           "id": "clerk_user_created",
@@ -2720,9 +2836,34 @@
           "description": "Trigger workflow when a Clerk session is created"
         },
         {
+          "id": "clerk_session_ended",
+          "name": "Clerk Session Ended",
+          "description": "Trigger workflow when a Clerk session ends"
+        },
+        {
+          "id": "clerk_session_removed",
+          "name": "Clerk Session Removed",
+          "description": "Trigger workflow when a Clerk session is removed"
+        },
+        {
+          "id": "clerk_session_revoked",
+          "name": "Clerk Session Revoked",
+          "description": "Trigger workflow when a Clerk session is revoked"
+        },
+        {
           "id": "clerk_organization_created",
           "name": "Clerk Organization Created",
           "description": "Trigger workflow when a Clerk organization is created"
+        },
+        {
+          "id": "clerk_organization_updated",
+          "name": "Clerk Organization Updated",
+          "description": "Trigger workflow when a Clerk organization is updated"
+        },
+        {
+          "id": "clerk_organization_deleted",
+          "name": "Clerk Organization Deleted",
+          "description": "Trigger workflow when a Clerk organization is deleted"
         },
         {
           "id": "clerk_organization_membership_created",
@@ -2730,12 +2871,22 @@
           "description": "Trigger workflow when a Clerk organization membership is created"
         },
         {
+          "id": "clerk_organization_membership_updated",
+          "name": "Clerk Organization Membership Updated",
+          "description": "Trigger workflow when a Clerk organization membership is updated"
+        },
+        {
+          "id": "clerk_organization_membership_deleted",
+          "name": "Clerk Organization Membership Deleted",
+          "description": "Trigger workflow when a Clerk organization membership is deleted"
+        },
+        {
           "id": "clerk_webhook",
           "name": "Clerk Webhook",
           "description": "Trigger workflow on any Clerk webhook event"
         }
       ],
-      "triggerCount": 7,
+      "triggerCount": 14,
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
@@ -4418,7 +4569,7 @@
       "name": "Dropcontact",
       "description": "Enrich B2B contacts with verified email, phone, and company data",
       "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
-      "bgColor": "#0066FF",
+      "bgColor": "#0ABA9F",
       "iconName": "DropcontactIcon",
       "docsUrl": "https://docs.sim.ai/tools/dropcontact",
       "operations": [
@@ -5083,6 +5234,10 @@
           "description": "List recent meetings recorded by the user or shared to their team."
         },
         {
+          "name": "List Meeting Types",
+          "description": "List meeting types configured in your Fathom organization."
+        },
+        {
           "name": "Get Summary",
           "description": "Get the call summary for a specific meeting recording."
         },
@@ -5099,7 +5254,7 @@
           "description": "List teams in your Fathom organization."
         }
       ],
-      "operationCount": 5,
+      "operationCount": 6,
       "triggers": [
         {
           "id": "fathom_new_meeting",
@@ -6098,6 +6253,14 @@
           "description": "List Gong Engage flows (sales engagement sequences)."
         },
         {
+          "name": "Assign Flow Prospects",
+          "description": "Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow."
+        },
+        {
+          "name": "Get Prospect Flows",
+          "description": "Get the Gong Engage flows currently assigned to the given CRM prospects."
+        },
+        {
           "name": "Get Coaching",
           "description": "Retrieve coaching metrics for a manager from Gong."
         },
@@ -6108,9 +6271,17 @@
         {
           "name": "Lookup Phone",
           "description": "Find all references to a phone number in Gong (calls, email messages, meetings, CRM data, and associated contacts)."
+        },
+        {
+          "name": "Purge Email Address",
+          "description": "Erase all Gong data (calls, email messages, leads, contacts) referencing an email address. Asynchronous and irreversible."
+        },
+        {
+          "name": "Purge Phone Number",
+          "description": "Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchronous and irreversible."
         }
       ],
-      "operationCount": 21,
+      "operationCount": 25,
       "triggers": [
         {
           "id": "gong_webhook",
@@ -6172,6 +6343,41 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["marketing", "google-workspace", "data-analytics"]
+    },
+    {
+      "type": "google_appsheet",
+      "slug": "google-appsheet",
+      "name": "Google AppSheet",
+      "description": "Read, add, edit, and delete rows in a Google AppSheet table",
+      "longDescription": "Integrate Google AppSheet into your workflow. Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.",
+      "bgColor": "#FFFFFF",
+      "iconName": "GoogleAppsheetIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/google_appsheet",
+      "operations": [
+        {
+          "name": "Find Rows",
+          "description": "Read rows from an AppSheet table. Omit the selector to return every row, or provide a Selector expression (Filter/Select/OrderBy/Top) to narrow and shape the results."
+        },
+        {
+          "name": "Add Rows",
+          "description": "Add new rows to an AppSheet table. The key column value must be provided explicitly, or omitted when its Initial value expression generates it automatically (e.g. UNIQUEID())."
+        },
+        {
+          "name": "Edit Rows",
+          "description": "Update existing rows in an AppSheet table. Each row must explicitly include the key column name and value, plus any columns to change."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows from an AppSheet table. Each row only needs to include the key column name and value."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["spreadsheet", "automation", "google-workspace"]
     },
     {
       "type": "google_bigquery",
@@ -7312,7 +7518,7 @@
       "name": "Grafana",
       "description": "Interact with Grafana dashboards, alerts, and annotations",
       "longDescription": "Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.",
-      "bgColor": "#F46800",
+      "bgColor": "#FFFFFF",
       "iconName": "GrafanaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/grafana",
       "operations": [
@@ -7696,7 +7902,7 @@
       "slug": "hex",
       "name": "Hex",
       "description": "Run and manage Hex projects",
-      "longDescription": "Integrate Hex into your workflow. Run projects, check run status, manage collections and groups, list users, and view data connections. Requires a Hex API token.",
+      "longDescription": "Integrate Hex into your workflow. Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.",
       "bgColor": "#14151A",
       "iconName": "HexIcon",
       "docsUrl": "https://docs.sim.ai/integrations/hex",
@@ -7758,15 +7964,35 @@
           "description": "Create a new collection in the Hex workspace to organize projects."
         },
         {
+          "name": "Update Collection",
+          "description": "Update the name or description of an existing Hex collection."
+        },
+        {
           "name": "List Data Connections",
           "description": "List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery)."
         },
         {
           "name": "Get Data Connection",
           "description": "Retrieve details for a specific data connection including type, description, and configuration flags."
+        },
+        {
+          "name": "Create Group",
+          "description": "Create a new group in the Hex workspace, optionally with initial members."
+        },
+        {
+          "name": "Update Group",
+          "description": "Rename a Hex group or add/remove members from it."
+        },
+        {
+          "name": "Delete Group",
+          "description": "Delete a group from the Hex workspace."
+        },
+        {
+          "name": "Deactivate User",
+          "description": "Deactivate a user in the Hex workspace."
         }
       ],
-      "operationCount": 16,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -9273,9 +9499,21 @@
         {
           "name": "Create Runs Batch",
           "description": "Forward multiple runs to LangSmith in a single batch."
+        },
+        {
+          "name": "Update Run",
+          "description": "Patch an existing LangSmith run with outputs, status, or timing once it completes."
+        },
+        {
+          "name": "Get Run",
+          "description": "Retrieve a single LangSmith run by ID."
+        },
+        {
+          "name": "Create Feedback",
+          "description": "Attach a score, correction, or comment to a LangSmith run."
         }
       ],
-      "operationCount": 2,
+      "operationCount": 5,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -10197,7 +10435,7 @@
         },
         {
           "name": "List Transactional Emails",
-          "description": "Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, last updated timestamp, and data variables."
+          "description": "Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables."
         },
         {
           "name": "Create Contact Property",
@@ -10206,9 +10444,21 @@
         {
           "name": "List Contact Properties",
           "description": "Retrieve a list of contact properties from your Loops account. Returns each property with its key, label, and data type. Can filter to show all properties or only custom ones."
+        },
+        {
+          "name": "Check Contact Suppression",
+          "description": "Check whether a Loops contact is on the suppression list (bounced, complained, or unsubscribed) by email address or userId."
+        },
+        {
+          "name": "Remove Contact Suppression",
+          "description": "Remove a Loops contact from the suppression list by email address or userId, allowing them to receive emails again. Subject to a team removal quota."
+        },
+        {
+          "name": "Get Transactional Email",
+          "description": "Retrieve a single transactional email template from your Loops account by its ID, including its data variables and draft/published message IDs."
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [
         {
           "id": "loops_email_delivered",
@@ -15276,6 +15526,18 @@
           "description": "Read a specific page from a SharePoint site"
         },
         {
+          "name": "Update Page",
+          "description": "Update the title and/or content of a SharePoint page"
+        },
+        {
+          "name": "Publish Page",
+          "description": "Publish the latest version of a SharePoint page, making it available to all users"
+        },
+        {
+          "name": "Delete Page",
+          "description": "Delete a page from a SharePoint site"
+        },
+        {
           "name": "List Sites",
           "description": "List details of all SharePoint sites"
         },
@@ -15296,11 +15558,31 @@
           "description": "Add a new item to a SharePoint list"
         },
         {
+          "name": "Get List Item",
+          "description": "Get a single item (with field values) from a SharePoint list"
+        },
+        {
+          "name": "Delete List Item",
+          "description": "Delete an item from a SharePoint list"
+        },
+        {
           "name": "Upload File",
           "description": "Upload files to a SharePoint document library"
+        },
+        {
+          "name": "Download File",
+          "description": "Download a file from a SharePoint document library"
+        },
+        {
+          "name": "Get Drive Item",
+          "description": "Get metadata for a file or folder in a SharePoint document library"
+        },
+        {
+          "name": "Delete File",
+          "description": "Delete a file (or folder) from a SharePoint document library"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -15442,9 +15724,13 @@
         {
           "name": "Visit Duration (Desktop)",
           "description": "Get average desktop visit duration over time (in seconds)"
+        },
+        {
+          "name": "Page Views",
+          "description": "Get total page views over time (desktop and mobile combined)"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -17165,7 +17451,7 @@
         },
         {
           "name": "Introspect Schema",
-          "description": "Introspect Supabase database schema to get table structures, columns, and relationships"
+          "description": "Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)"
         },
         {
           "name": "Storage: Upload File",
@@ -17200,8 +17486,20 @@
           "description": "Create a temporary signed URL for a file in a Supabase storage bucket"
         },
         {
+          "name": "Storage: Create Signed Upload URL",
+          "description": "Create a temporary signed URL a client can use to upload directly to a Supabase storage bucket"
+        },
+        {
           "name": "Storage: Create Bucket",
           "description": "Create a new storage bucket in Supabase"
+        },
+        {
+          "name": "Storage: Update Bucket",
+          "description": "Update the configuration of an existing Supabase storage bucket"
+        },
+        {
+          "name": "Storage: Empty Bucket",
+          "description": "Delete all objects inside a Supabase storage bucket without deleting the bucket itself"
         },
         {
           "name": "Storage: List Buckets",
@@ -17212,7 +17510,7 @@
           "description": "Delete a storage bucket in Supabase"
         }
       ],
-      "operationCount": 23,
+      "operationCount": 26,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -17263,6 +17561,10 @@
           "description": "Enable or disable key expiry on a device"
         },
         {
+          "name": "Expire Device Key",
+          "description": "Immediately expire a device's node key, requiring it to re-authenticate before it can reconnect to the tailnet"
+        },
+        {
           "name": "List DNS Nameservers",
           "description": "Get the DNS nameservers configured for the tailnet"
         },
@@ -17291,6 +17593,14 @@
           "description": "List all users in the tailnet"
         },
         {
+          "name": "Suspend User",
+          "description": "Suspend a user's access to the tailnet"
+        },
+        {
+          "name": "Delete User",
+          "description": "Delete a user from the tailnet"
+        },
+        {
           "name": "Create Auth Key",
           "description": "Create a new auth key for the tailnet to pre-authorize devices"
         },
@@ -17309,9 +17619,13 @@
         {
           "name": "Get ACL",
           "description": "Get the current ACL policy for the tailnet"
+        },
+        {
+          "name": "Set ACL",
+          "description": "Replace the ACL policy file for the tailnet"
         }
       ],
-      "operationCount": 20,
+      "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -17808,8 +18122,8 @@
       "type": "trello",
       "slug": "trello",
       "name": "Trello",
-      "description": "Manage Trello lists, cards, and activity",
-      "longDescription": "Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.",
+      "description": "Manage Trello lists, cards, checklists, and activity",
+      "longDescription": "Integrate with Trello to list, search, create, update, and delete cards and lists, manage checklists and checklist items, assign labels and members, review activity, and add comments.",
       "bgColor": "#0052CC",
       "iconName": "TrelloIcon",
       "docsUrl": "https://docs.sim.ai/integrations/trello",
@@ -17821,6 +18135,10 @@
         {
           "name": "List Cards",
           "description": "List cards from a Trello board or list"
+        },
+        {
+          "name": "Search",
+          "description": "Search Trello cards and boards by keyword"
         },
         {
           "name": "Create Card",
@@ -17835,6 +18153,10 @@
           "description": "Update an existing card on Trello"
         },
         {
+          "name": "Delete Card",
+          "description": "Permanently delete a Trello card"
+        },
+        {
           "name": "Get Actions",
           "description": "Get activity/actions from a board or card"
         },
@@ -17847,12 +18169,32 @@
           "description": "Add a checklist to a Trello card"
         },
         {
+          "name": "Add Checklist Item",
+          "description": "Add an item to a Trello checklist"
+        },
+        {
+          "name": "Update Checklist Item",
+          "description": "Check off, uncheck, or rename a Trello checklist item"
+        },
+        {
           "name": "Add Label",
           "description": "Attach an existing label to a Trello card"
         },
         {
+          "name": "Remove Label",
+          "description": "Detach a label from a Trello card"
+        },
+        {
           "name": "Add Member",
           "description": "Assign a member to a Trello card"
+        },
+        {
+          "name": "Remove Member",
+          "description": "Unassign a member from a Trello card"
+        },
+        {
+          "name": "List Members",
+          "description": "List members of a Trello board"
         },
         {
           "name": "Create Board",
@@ -17865,9 +18207,13 @@
         {
           "name": "Create List",
           "description": "Create a new list on a Trello board"
+        },
+        {
+          "name": "Update List",
+          "description": "Rename, move, archive, or reopen a Trello list"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -19040,7 +19386,7 @@
       "slug": "wordpress",
       "name": "WordPress",
       "description": "Manage WordPress content",
-      "longDescription": "Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.",
+      "longDescription": "Integrate with WordPress.com to create, update, and manage posts, pages, media, comments, categories, tags, and users. Connects to WordPress.com sites via OAuth.",
       "bgColor": "#21759B",
       "iconName": "WordpressIcon",
       "docsUrl": "https://docs.sim.ai/integrations/wordpress",
@@ -19122,12 +19468,36 @@
           "description": "Create a new category in WordPress.com"
         },
         {
+          "name": "Update Category",
+          "description": "Update an existing category in WordPress.com"
+        },
+        {
+          "name": "Delete Category",
+          "description": "Delete a category from WordPress.com"
+        },
+        {
+          "name": "Get Category",
+          "description": "Get a single category from WordPress.com by ID"
+        },
+        {
           "name": "List Categories",
           "description": "List categories from WordPress.com"
         },
         {
           "name": "Create Tag",
           "description": "Create a new tag in WordPress.com"
+        },
+        {
+          "name": "Update Tag",
+          "description": "Update an existing tag in WordPress.com"
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Delete a tag from WordPress.com"
+        },
+        {
+          "name": "Get Tag",
+          "description": "Get a single tag from WordPress.com by ID"
         },
         {
           "name": "List Tags",
@@ -19150,7 +19520,7 @@
           "description": "Search across all content types in WordPress.com (posts, pages, media)"
         }
       ],
-      "operationCount": 26,
+      "operationCount": 32,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

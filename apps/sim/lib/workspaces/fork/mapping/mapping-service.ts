@@ -205,7 +205,12 @@ export async function getForkMappingView(
       sourceLabel: p.sourceLabel,
       targetId,
       suggested,
-      required: p.reference.required,
+      // Every entry here is a reference a synced workflow actually carries, and a sync is
+      // blocked while ANY reference would clear - so every entry is required. Copyable kinds
+      // (table / KB / file / custom tool / skill) also satisfy the gate by being selected for
+      // copy; map-only kinds (credential / env-var / MCP server) and source-deleted resources
+      // (no copy candidate) must be mapped.
+      required: true,
       candidates,
       // The full (unfiltered) target list for this kind hit the cap, so the picker is
       // showing a partial list - the UI tells the user to refine.
