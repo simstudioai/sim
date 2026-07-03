@@ -13,13 +13,23 @@ import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 const logger = createLogger('ForkChatFiles')
 
 /**
- * The only chat-owned storage context a fork copies: user uploads
+ * The only chat-owned storage context a branch fork copies: user uploads
  * (`mothership`). Agent-generated `outputs/` rows deliberately stay behind — a
  * fork starts with an empty outputs/ namespace. Shared workspace `files/`
  * (`context='workspace'`) is workspace-owned, not chat-owned — both chats
  * reference it in place and it is never copied.
  */
 export const FORKABLE_CHAT_FILE_CONTEXT: StorageContext = 'mothership'
+
+/**
+ * The chat-owned contexts a whole-chat duplicate copies: user uploads
+ * (`mothership`) AND agent-generated outputs (`output`). A duplicate is a
+ * self-contained snapshot, so outputs come along — bytes included (every
+ * copied row gets a fresh storage key; live rows can't share a key because of
+ * the `workspace_files_key_active_unique` index, and serve/view lookups
+ * resolve by key). Workspace `files/` stays referenced in place, as above.
+ */
+export const DUPLICABLE_CHAT_FILE_CONTEXTS: readonly StorageContext[] = ['mothership', 'output']
 
 export type ForkableChatFileRow = typeof workspaceFiles.$inferSelect
 
@@ -73,7 +83,29 @@ export async function listForkableChatFiles(
 }
 
 /**
- * Insert copy rows for the kept upload files under the new chat id (fresh
+ * The live file rows a whole-chat duplicate copies: every upload AND output
+ * owned by the chat, no timeline cut — nothing is being left behind, so
+ * nothing needs a birthdate. Also used pre-transaction to sum sizes for the
+ * storage-quota gate.
+ */
+export async function listDuplicableChatFiles(
+  db: DbOrTx,
+  chatId: string
+): Promise<ForkableChatFileRow[]> {
+  return db
+    .select()
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.chatId, chatId),
+        inArray(workspaceFiles.context, [...DUPLICABLE_CHAT_FILE_CONTEXTS]),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+}
+
+/**
+ * Insert copy rows for the kept chat-owned files under the new chat id (fresh
  * `wf_` id + fresh storage key; `message_id` carries over verbatim so the copy
  * matches the same message in the forked transcript; display names carry over
  * verbatim because their uniqueness is per-chat and the new chat is an empty

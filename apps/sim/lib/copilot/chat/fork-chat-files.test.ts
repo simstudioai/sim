@@ -101,6 +101,39 @@ describe('planChatFileCopies', () => {
     ])
   })
 
+  it('byte-copies output rows the same as uploads (fresh key + blob task) on a duplicate', async () => {
+    const inserted: Array<Record<string, unknown>> = []
+    const tx = {
+      insert: () => ({
+        values: async (v: Record<string, unknown>) => {
+          inserted.push(v)
+        },
+      }),
+    }
+
+    const { idMap, blobTasks } = await planChatFileCopies({
+      tx: tx as never,
+      rows: [makeRow({ id: 'wf_output', context: 'output', messageId: null })],
+      newChatId: 'chat-copy',
+      userId: 'user-1',
+      now: NOW,
+    })
+
+    // Live rows can't share a storage key (workspace_files_key_active_unique),
+    // so outputs get fresh keys and physical byte copies, exactly like uploads.
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0].key).toBe('workspace/ws-1/2-cat.png')
+    expect(inserted[0].context).toBe('output')
+    expect(idMap.get('wf_output')).toBe(inserted[0].id)
+    expect(blobTasks).toEqual([
+      expect.objectContaining({
+        sourceKey: 'workspace/ws-1/1-cat.png',
+        targetKey: 'workspace/ws-1/2-cat.png',
+        context: 'output',
+      }),
+    ])
+  })
+
   it('skips legacy rows with no workspaceId instead of failing the fork', async () => {
     const inserted: Array<Record<string, unknown>> = []
     const tx = {

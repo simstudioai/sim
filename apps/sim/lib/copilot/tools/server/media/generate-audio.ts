@@ -6,12 +6,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateAudioTool')
 
@@ -84,7 +82,11 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
     let voiceSampleDataUri: string | undefined
     const samplePath = params.inputs?.files?.[0]?.path
     if (samplePath) {
-      const sample = await resolveWorkspaceFileReference(workspaceId, samplePath)
+      const sample = await resolveToolInputFile({
+        workspaceId,
+        chatId: context.chatId,
+        path: samplePath,
+      })
       if (!sample) {
         return { success: false, message: `Voice sample not found: ${samplePath}` }
       }

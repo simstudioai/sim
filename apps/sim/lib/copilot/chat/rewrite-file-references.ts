@@ -66,15 +66,25 @@ export function rewriteMessageFileRefs(
  * stores raw `workspace_files.id`s) at the copied files. Non-file resources
  * (workflows, tables, knowledge bases…) reference shared workspace entities
  * and pass through unchanged.
+ *
+ * `dropFileIds` is the source chat's chat-owned file ids (uploads + outputs).
+ * A file resource pointing at one of these that was NOT copied is a ghost in
+ * the new chat — its file stays behind on a branch fork (outputs always,
+ * uploads born after the cut) — so it is dropped rather than left pointing at
+ * the source chat's file. Shared workspace files are not chat-owned, never
+ * appear in the set, and pass through unchanged.
  */
 export function rewriteResourceFileRefs(
   resources: MothershipResource[],
-  maps: ChatFileRefMaps
+  maps: ChatFileRefMaps,
+  dropFileIds?: ReadonlySet<string>
 ): MothershipResource[] {
-  if (!hasMappings(maps)) return resources
-  return resources.map((resource) =>
-    resource.type === 'file'
-      ? { ...resource, id: maps.fileIds.get(resource.id) ?? resource.id }
-      : resource
-  )
+  if (!hasMappings(maps) && !dropFileIds?.size) return resources
+  return resources.flatMap((resource) => {
+    if (resource.type !== 'file') return [resource]
+    const copyId = maps.fileIds.get(resource.id)
+    if (copyId) return [{ ...resource, id: copyId }]
+    if (dropFileIds?.has(resource.id)) return []
+    return [resource]
+  })
 }

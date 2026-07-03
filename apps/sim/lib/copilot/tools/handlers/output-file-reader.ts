@@ -112,6 +112,19 @@ export async function findChatOutputRowByChatAndName(
 }
 
 /**
+ * Resolve a chat output by VFS name to a serve-ready {@link WorkspaceFileRecord}
+ * (storageContext `output`), for callers that need the file itself rather than
+ * its text content (e.g. media tools loading a reference image).
+ */
+export async function resolveChatOutputRecord(
+  chatId: string,
+  fileName: string
+): Promise<WorkspaceFileRecord | null> {
+  const row = await findChatOutputRowByChatAndName(chatId, fileName)
+  return row ? toWorkspaceFileRecord(row) : null
+}
+
+/**
  * List all chat-scoped outputs for a given chat in creation order.
  */
 export async function listChatOutputs(chatId: string): Promise<WorkspaceFileRecord[]> {

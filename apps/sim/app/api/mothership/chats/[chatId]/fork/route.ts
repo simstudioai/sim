@@ -9,6 +9,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkStorageQuota } from '@/lib/billing/storage'
 import {
   executeChatFileBlobCopies,
+  listDuplicableChatFiles,
   listForkableChatFiles,
   planChatFileCopies,
 } from '@/lib/copilot/chat/fork-chat-files'
@@ -42,13 +43,24 @@ const logger = createLogger('ForkChatAPI')
 
 /**
  * POST /api/mothership/chats/[chatId]/fork
- * Creates a new chat branched from the given chat, keeping messages up to and
- * including the specified message. Resources and copilot-side state are copied,
- * along with the chat's uploads born at-or-before the fork point (fresh row id
- * and storage key per copy, same message_id; bytes are physically copied and
- * counted against the storage quota). Agent-generated outputs/ stay behind.
- * Every in-transcript file reference is re-pointed at the copies so the fork
- * survives deletion of the source chat.
+ * Creates a new chat copied from the given chat, in one of two modes.
+ *
+ * Branch (upToMessageId set): keeps messages up to and including the specified
+ * message, along with the chat's uploads born at-or-before the fork point.
+ * Agent-generated outputs/ stay behind, and the copy is titled "Fork | <name>".
+ *
+ * Whole-chat duplicate (upToMessageId omitted): keeps every message, copies
+ * uploads AND outputs, titles the copy "<name> (Copy)", and asks the copilot
+ * service for its whole-chat clone mode (compacted working memory preserved
+ * verbatim — nothing is cut, so nothing can leak across a cut).
+ *
+ * In both modes every copied file gets a fresh row id and storage key, bytes
+ * are physically copied and counted against the storage quota, and every
+ * in-transcript file reference is re-pointed at the copies so the new chat
+ * survives deletion of the source chat. File resources whose chat-owned file
+ * was NOT copied (a branch fork leaves outputs and post-cut uploads behind)
+ * are dropped from the new chat's resources rather than left as ghosts
+ * pointing at the source chat's files.
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
@@ -58,12 +70,11 @@ export const POST = withRouteHandler(
         return createUnauthorizedResponse()
       }
 
-      const parsed = await parseRequest(forkMothershipChatContract, request, context, {
-        validationErrorResponse: () => createBadRequestResponse('upToMessageId is required'),
-      })
+      const parsed = await parseRequest(forkMothershipChatContract, request, context)
       if (!parsed.success) return parsed.response
       const { chatId } = parsed.data.params
       const { upToMessageId } = parsed.data.body
+      const isWholeChatDuplicate = !upToMessageId
 
       const [parent] = await db
         .select({
@@ -91,16 +102,22 @@ export const POST = withRouteHandler(
       }
 
       const messages = await loadCopilotChatMessages(chatId)
-      const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
-      if (forkIdx < 0) {
-        return createBadRequestResponse('Message not found in chat')
+      let forkedMessages = messages
+      if (upToMessageId) {
+        const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
+        if (forkIdx < 0) {
+          return createBadRequestResponse('Message not found in chat')
+        }
+        forkedMessages = messages.slice(0, forkIdx + 1)
       }
-      const forkedMessages = messages.slice(0, forkIdx + 1)
 
-      // The timeline cut for files: uploads born in any kept message come
-      // along; uploads born after the fork point stay behind.
-      const keptMessageIds = new Set(forkedMessages.map((m) => m.id))
-      const sourceFiles = await listForkableChatFiles(db, chatId, keptMessageIds)
+      // The timeline cut for files: a branch copies uploads born in any kept
+      // message (uploads born after the fork point stay behind); a whole-chat
+      // duplicate keeps everything, so it copies all uploads AND outputs with
+      // no cut.
+      const sourceFiles = isWholeChatDuplicate
+        ? await listDuplicableChatFiles(db, chatId)
+        : await listForkableChatFiles(db, chatId, new Set(forkedMessages.map((m) => m.id)))
       const totalFileBytes = sourceFiles.reduce((sum, row) => sum + row.size, 0)
       if (totalFileBytes > 0) {
         const quotaCheck = await checkStorageQuota(userId, totalFileBytes)
@@ -109,14 +126,29 @@ export const POST = withRouteHandler(
         }
       }
 
-      // Resources are stored as a jsonb array on the chat row — copy them directly.
+      // Resources are stored as a jsonb array on the chat row. They carry no
+      // timestamps, so they can't be timeline-cut like messages — instead,
+      // file resources whose chat-owned file is NOT copied (outputs on a
+      // branch fork, uploads born after the cut) are dropped in the rewrite
+      // below; everything else is copied.
       const parentResources = Array.isArray(parent.resources)
         ? (parent.resources as MothershipResource[])
         : []
 
+      // The source chat's chat-owned file ids (uploads + outputs, no cut) —
+      // the "is this resource a ghost?" test set for the rewrite. On a
+      // whole-chat duplicate sourceFiles already IS that full set.
+      const chatOwnedFileIds = new Set(
+        (isWholeChatDuplicate ? sourceFiles : await listDuplicableChatFiles(db, chatId)).map(
+          (row) => row.id
+        )
+      )
+
       const newId = generateId()
       const baseTitle = (parent.title ?? 'New chat').replace(/^Fork \| /, '')
-      const title = `Fork | ${baseTitle}`
+      const title = isWholeChatDuplicate
+        ? `${parent.title ?? 'New chat'} (Copy)`
+        : `Fork | ${baseTitle}`
       const now = new Date()
 
       const result = await db.transaction(async (tx) => {
@@ -151,10 +183,17 @@ export const POST = withRouteHandler(
         })
 
         const maps = { fileIds: idMap, fileKeys: keyMap }
-        if (idMap.size > 0 || keyMap.size > 0) {
+        const newChatResources = rewriteResourceFileRefs(parentResources, maps, chatOwnedFileIds)
+        // Skip the redundant update only when the rewrite changed nothing:
+        // no ids re-pointed AND no ghost resources dropped.
+        if (
+          idMap.size > 0 ||
+          keyMap.size > 0 ||
+          newChatResources.length !== parentResources.length
+        ) {
           await tx
             .update(copilotChats)
-            .set({ resources: rewriteResourceFileRefs(parentResources, maps) })
+            .set({ resources: newChatResources })
             .where(eq(copilotChats.id, newId))
         }
 
@@ -186,6 +225,8 @@ export const POST = withRouteHandler(
       }
 
       // Clone copilot-service conversation state (messages, active_messages, memory files).
+      // Omitting upToMessageId selects the service's whole-chat mode, which preserves the
+      // compacted working memory verbatim instead of rebuilding it from raw messages.
       // Best-effort: if the copilot service doesn't have a row for the source chat yet, skip.
       try {
         const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -200,7 +241,7 @@ export const POST = withRouteHandler(
           body: JSON.stringify({
             sourceChatId: chatId,
             newChatId: newId,
-            upToMessageId,
+            ...(upToMessageId ? { upToMessageId } : {}),
             userId,
           }),
           spanName: 'sim → go /api/chats/fork',
@@ -227,7 +268,11 @@ export const POST = withRouteHandler(
       captureServerEvent(
         userId,
         'task_forked',
-        { workspace_id: parent.workspaceId ?? '', source_chat_id: chatId },
+        {
+          workspace_id: parent.workspaceId ?? '',
+          source_chat_id: chatId,
+          whole_chat: isWholeChatDuplicate,
+        },
         { groups: { workspace: parent.workspaceId ?? '' } }
       )
 

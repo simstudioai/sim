@@ -7,12 +7,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateImageTool')
 
@@ -86,30 +84,44 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
 
       if (referencePaths.length) {
         for (const filePath of referencePaths) {
+          // An explicitly-passed reference the tool can't load must FAIL the
+          // call, not silently generate from the prompt alone — the agent can
+          // correct the path; a plausible-but-unrelated image just ships.
+          let fileRecord: Awaited<ReturnType<typeof resolveToolInputFile>>
+          let buffer: Buffer
           try {
-            const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
-            if (fileRecord) {
-              const buffer = await fetchWorkspaceFileBuffer(fileRecord)
-              const base64 = buffer.toString('base64')
-              const mime = fileRecord.type || 'image/png'
-              parts.push({
-                inlineData: { mimeType: mime, data: base64 },
-              })
-              logger.info('Loaded reference image', {
-                filePath,
-                name: fileRecord.name,
-                size: buffer.length,
-                mimeType: mime,
-              })
-            } else {
-              logger.warn('Reference file not found, skipping', { filePath })
-            }
-          } catch (err) {
-            logger.warn('Failed to load reference image, skipping', {
-              filePath,
-              error: toError(err).message,
+            fileRecord = await resolveToolInputFile({
+              workspaceId,
+              chatId: context.chatId,
+              path: filePath,
             })
+            if (!fileRecord) {
+              return {
+                success: false,
+                message: withMessageId(
+                  `Reference file not found: "${filePath}". Check the path (files/, uploads/, or outputs/) and try again.`
+                ),
+              }
+            }
+            buffer = await fetchWorkspaceFileBuffer(fileRecord)
+          } catch (err) {
+            return {
+              success: false,
+              message: withMessageId(
+                `Failed to load reference image "${filePath}": ${toError(err).message}`
+              ),
+            }
           }
+          const mime = fileRecord.type || 'image/png'
+          parts.push({
+            inlineData: { mimeType: mime, data: buffer.toString('base64') },
+          })
+          logger.info('Loaded reference image', {
+            filePath,
+            name: fileRecord.name,
+            size: buffer.length,
+            mimeType: mime,
+          })
         }
       }
 

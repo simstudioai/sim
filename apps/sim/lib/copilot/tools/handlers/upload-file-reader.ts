@@ -113,6 +113,19 @@ export async function findMothershipUploadRowByChatAndName(
 }
 
 /**
+ * Resolve a chat upload by VFS name to a serve-ready {@link WorkspaceFileRecord}
+ * (storageContext `mothership`), for callers that need the file itself rather
+ * than its text content (e.g. media tools loading a reference image).
+ */
+export async function resolveChatUploadRecord(
+  chatId: string,
+  fileName: string
+): Promise<WorkspaceFileRecord | null> {
+  const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
+  return row ? toWorkspaceFileRecord(row) : null
+}
+
+/**
  * List all chat-scoped uploads for a given chat in upload order.
  */
 export async function listChatUploads(chatId: string): Promise<WorkspaceFileRecord[]> {

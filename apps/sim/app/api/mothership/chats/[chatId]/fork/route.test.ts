@@ -10,6 +10,7 @@ const {
   mockSelectRows,
   mockCheckStorageQuota,
   mockListForkableChatFiles,
+  mockListDuplicableChatFiles,
   mockPlanChatFileCopies,
   mockExecuteChatFileBlobCopies,
   mockLoadCopilotChatMessages,
@@ -23,6 +24,7 @@ const {
   mockSelectRows: vi.fn(),
   mockCheckStorageQuota: vi.fn(),
   mockListForkableChatFiles: vi.fn(),
+  mockListDuplicableChatFiles: vi.fn(),
   mockPlanChatFileCopies: vi.fn(),
   mockExecuteChatFileBlobCopies: vi.fn(),
   mockLoadCopilotChatMessages: vi.fn(),
@@ -73,6 +75,7 @@ vi.mock('@/lib/billing/storage', () => ({
 
 vi.mock('@/lib/copilot/chat/fork-chat-files', () => ({
   listForkableChatFiles: mockListForkableChatFiles,
+  listDuplicableChatFiles: mockListDuplicableChatFiles,
   planChatFileCopies: mockPlanChatFileCopies,
   executeChatFileBlobCopies: mockExecuteChatFileBlobCopies,
 }))
@@ -148,15 +151,26 @@ const threeMessages = [
   },
 ]
 
+/** Chat rows inserted through the mock transaction, captured for title assertions. */
+let insertedChatRows: Array<Record<string, unknown>> = []
+/** tx.update(...).set(...) payloads, captured for resource-rewrite assertions. */
+let updatedChatRows: Array<Record<string, unknown>> = []
+
 function makeTx() {
   return {
     insert: () => ({
-      values: () => ({
-        returning: async () => [{ id: 'row-id', workspaceId: 'ws-1' }],
-      }),
+      values: (v: Record<string, unknown>) => {
+        insertedChatRows.push(v)
+        return {
+          returning: async () => [{ id: 'row-id', workspaceId: 'ws-1' }],
+        }
+      },
     }),
     update: () => ({
-      set: vi.fn().mockReturnValue({ where: async () => undefined }),
+      set: (v: Record<string, unknown>) => {
+        updatedChatRows.push(v)
+        return { where: async () => undefined }
+      },
     }),
   }
 }
@@ -176,12 +190,15 @@ function makeContext(chatId: string) {
 describe('POST /api/mothership/chats/[chatId]/fork', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    insertedChatRows = []
+    updatedChatRows = []
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
     })
     mockSelectRows.mockResolvedValue([parentRow])
     mockListForkableChatFiles.mockResolvedValue([])
+    mockListDuplicableChatFiles.mockResolvedValue([])
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
     mockLoadCopilotChatMessages.mockResolvedValue(threeMessages)
     mockPlanChatFileCopies.mockResolvedValue({
@@ -220,8 +237,8 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(res.status).toBe(404)
   })
 
-  it('400s when upToMessageId is missing', async () => {
-    const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
+  it('400s when upToMessageId is an empty string', async () => {
+    const res = await POST(createRequest('chat-1', { upToMessageId: '' }), makeContext('chat-1'))
     expect(res.status).toBe(400)
     expect(mockTransaction).not.toHaveBeenCalled()
   })
@@ -321,14 +338,181 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
       'task_forked',
-      { workspace_id: 'ws-1', source_chat_id: 'chat-1' },
+      { workspace_id: 'ws-1', source_chat_id: 'chat-1', whole_chat: false },
       { groups: { workspace: 'ws-1' } }
     )
+
+    // Branch forks are titled "Fork | <name>".
+    expect(insertedChatRows[0].title).toBe('Fork | Generate Logs')
   })
 
   it('still succeeds when the copilot-service clone fails (best-effort)', async () => {
     mockFetchGo.mockRejectedValue(new Error('mothership unreachable'))
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(200)
+  })
+
+  it('drops ghost resources on a branch fork: chat-owned files that were not copied', async () => {
+    // The source chat generated two outputs (apple pre-cut, banana post-cut)
+    // and has one upload + one shared workspace-file resource. A branch fork
+    // copies only the kept upload; BOTH outputs stay behind, so both output
+    // resources must be dropped — not left pointing at the source chat.
+    mockSelectRows.mockResolvedValue([
+      {
+        ...parentRow,
+        resources: [
+          { type: 'file', id: OLD_FILE_ID, title: 'cat.png' },
+          { type: 'file', id: 'wf_apple_output', title: 'apple.png' },
+          { type: 'file', id: 'wf_banana_output', title: 'banana.png' },
+          { type: 'file', id: 'wf_shared', title: 'shared.pdf' },
+          { type: 'workflow', id: 'wflow-1', title: 'My flow' },
+        ],
+      },
+    ])
+    // Every chat-owned file of the source chat (uploads + outputs, no cut).
+    mockListDuplicableChatFiles.mockResolvedValue([
+      { id: OLD_FILE_ID },
+      { id: 'wf_apple_output' },
+      { id: 'wf_banana_output' },
+    ])
+    // The branch cut keeps (and the plan copies) only the upload.
+    mockListForkableChatFiles.mockResolvedValue([{ id: OLD_FILE_ID, size: 100 }])
+    mockPlanChatFileCopies.mockResolvedValue({
+      idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
+      keyMap: new Map(),
+      blobTasks: [],
+    })
+
+    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+
+    expect(res.status).toBe(200)
+    expect(updatedChatRows).toHaveLength(1)
+    expect(updatedChatRows[0].resources).toEqual([
+      { type: 'file', id: NEW_FILE_ID, title: 'cat.png' },
+      { type: 'file', id: 'wf_shared', title: 'shared.pdf' },
+      { type: 'workflow', id: 'wflow-1', title: 'My flow' },
+    ])
+  })
+
+  it('drops ghosts even when the fork copies no files at all', async () => {
+    // Fork cut before any upload, but the source chat has an output: the
+    // old guard skipped the resources update entirely when idMap was empty,
+    // leaving the ghost in place.
+    mockSelectRows.mockResolvedValue([
+      {
+        ...parentRow,
+        resources: [{ type: 'file', id: 'wf_banana_output', title: 'banana.png' }],
+      },
+    ])
+    mockListDuplicableChatFiles.mockResolvedValue([{ id: 'wf_banana_output' }])
+    mockListForkableChatFiles.mockResolvedValue([])
+
+    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+
+    expect(res.status).toBe(200)
+    expect(updatedChatRows).toHaveLength(1)
+    expect(updatedChatRows[0].resources).toEqual([])
+  })
+
+  describe('whole-chat duplicate (no upToMessageId)', () => {
+    it('keeps every message and copies files with no timeline cut', async () => {
+      const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+
+      // The whole-chat lister runs (uploads AND outputs, no message cut) — the
+      // branch lister never does.
+      expect(mockListDuplicableChatFiles).toHaveBeenCalledTimes(1)
+      expect(mockListDuplicableChatFiles.mock.calls[0][1]).toBe('chat-1')
+      expect(mockListForkableChatFiles).not.toHaveBeenCalled()
+
+      // Every message is appended — including msg-3, which a branch would cut.
+      const appended = mockAppendCopilotChatMessages.mock.calls[0]
+      expect(appended[1].map((m: { id: string }) => m.id)).toEqual(['msg-1', 'msg-2', 'msg-3'])
+    })
+
+    it('titles the copy "<name> (Copy)"', async () => {
+      const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
+      expect(res.status).toBe(200)
+      expect(insertedChatRows[0].title).toBe('Generate Logs (Copy)')
+    })
+
+    it('asks the copilot service for whole-chat mode (no upToMessageId in the body)', async () => {
+      const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
+      const body = await res.json()
+      expect(res.status).toBe(200)
+
+      const goBody = JSON.parse(mockFetchGo.mock.calls[0][1].body)
+      expect(goBody).toEqual({
+        sourceChatId: 'chat-1',
+        newChatId: body.id,
+        userId: 'user-1',
+      })
+      expect('upToMessageId' in goBody).toBe(false)
+
+      expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+        'user-1',
+        'task_forked',
+        { workspace_id: 'ws-1', source_chat_id: 'chat-1', whole_chat: true },
+        { groups: { workspace: 'ws-1' } }
+      )
+    })
+
+    it('gates the quota on the full upload + output byte total', async () => {
+      mockListDuplicableChatFiles.mockResolvedValue([
+        { size: 700, context: 'mothership' },
+        { size: 500, context: 'output' },
+      ])
+      mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
+
+      const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
+
+      expect(res.status).toBe(400)
+      expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 1200)
+      expect(mockTransaction).not.toHaveBeenCalled()
+    })
+
+    it('duplicates an empty chat cleanly', async () => {
+      mockLoadCopilotChatMessages.mockResolvedValue([])
+
+      const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
+
+      expect(res.status).toBe(200)
+      expect(mockAppendCopilotChatMessages.mock.calls[0][1]).toEqual([])
+    })
+
+    it('keeps every resource: all chat-owned files are copied, so none are ghosts', async () => {
+      mockSelectRows.mockResolvedValue([
+        {
+          ...parentRow,
+          resources: [
+            { type: 'file', id: OLD_FILE_ID, title: 'cat.png' },
+            { type: 'file', id: 'wf_banana_output', title: 'banana.png' },
+          ],
+        },
+      ])
+      mockListDuplicableChatFiles.mockResolvedValue([
+        { id: OLD_FILE_ID, size: 100 },
+        { id: 'wf_banana_output', size: 200 },
+      ])
+      mockPlanChatFileCopies.mockResolvedValue({
+        idMap: new Map([
+          [OLD_FILE_ID, NEW_FILE_ID],
+          ['wf_banana_output', 'wf_banana_copy'],
+        ]),
+        keyMap: new Map(),
+        blobTasks: [],
+      })
+
+      const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
+
+      expect(res.status).toBe(200)
+      expect(updatedChatRows[0].resources).toEqual([
+        { type: 'file', id: NEW_FILE_ID, title: 'cat.png' },
+        { type: 'file', id: 'wf_banana_copy', title: 'banana.png' },
+      ])
+    })
   })
 })

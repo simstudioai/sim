@@ -6,12 +6,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { generateFalVideo } from '@/lib/media/falai-video'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateVideoTool')
 
@@ -62,7 +60,11 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
       if (refPath) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, refPath)
+        const fileRecord = await resolveToolInputFile({
+          workspaceId,
+          chatId: context.chatId,
+          path: refPath,
+        })
         if (!fileRecord) {
           return { success: false, message: `Reference image not found: ${refPath}` }
         }

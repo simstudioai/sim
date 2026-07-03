@@ -6,12 +6,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('FfmpegTool')
 
@@ -83,7 +81,11 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
     try {
       const mediaFiles: MediaFile[] = []
       for (const filePath of inputPaths) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
+        const fileRecord = await resolveToolInputFile({
+          workspaceId,
+          chatId: context.chatId,
+          path: filePath,
+        })
         if (!fileRecord) {
           return { success: false, message: `Input file not found: ${filePath}` }
         }

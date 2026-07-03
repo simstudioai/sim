@@ -263,7 +263,13 @@ export const deleteMothershipChatContract = defineRouteContract({
 })
 
 export const forkMothershipChatBodySchema = z.object({
-  upToMessageId: z.string().min(1, 'upToMessageId is required'),
+  /**
+   * The fork cut point: messages up to and including this id are kept, and the
+   * copy is titled "Fork | <name>". Omitted for a whole-chat duplicate: every
+   * message is kept, agent outputs/ rows come along, and the copy is titled
+   * "<name> (Copy)".
+   */
+  upToMessageId: z.string().min(1, 'upToMessageId cannot be empty').optional(),
 })
 export type ForkMothershipChatBody = z.input<typeof forkMothershipChatBodySchema>
 

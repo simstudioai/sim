@@ -122,4 +122,38 @@ describe('rewriteResourceFileRefs', () => {
     const resources: MothershipResource[] = [{ type: 'file', id: OLD_ID, title: 'cat.png' }]
     expect(rewriteResourceFileRefs(resources, emptyMaps)).toBe(resources)
   })
+
+  it('drops ghost file resources: chat-owned but not copied (e.g. outputs on a branch fork)', () => {
+    const resources: MothershipResource[] = [
+      { type: 'file', id: OLD_ID, title: 'apple-upload.png' },
+      { type: 'file', id: 'wf_banana_output', title: 'banana.png' },
+      { type: 'file', id: 'wf_shared_workspace', title: 'shared.pdf' },
+      { type: 'workflow', id: 'wflow-1', title: 'My flow' },
+    ]
+    // Owned by the source chat: the copied upload and the uncopied output.
+    // The shared workspace file is not chat-owned and must pass through.
+    const owned = new Set([OLD_ID, 'wf_banana_output'])
+
+    const result = rewriteResourceFileRefs(resources, maps, owned)
+
+    expect(result).toEqual([
+      { type: 'file', id: NEW_ID, title: 'apple-upload.png' },
+      { type: 'file', id: 'wf_shared_workspace', title: 'shared.pdf' },
+      { type: 'workflow', id: 'wflow-1', title: 'My flow' },
+    ])
+  })
+
+  it('drops ghosts even when nothing was copied (empty maps + drop set)', () => {
+    const resources: MothershipResource[] = [
+      { type: 'file', id: 'wf_banana_output', title: 'banana.png' },
+      { type: 'table', id: 'tbl-1', title: 'Orders' },
+    ]
+    const result = rewriteResourceFileRefs(resources, emptyMaps, new Set(['wf_banana_output']))
+    expect(result).toEqual([{ type: 'table', id: 'tbl-1', title: 'Orders' }])
+  })
+
+  it('keeps everything when the drop set is empty', () => {
+    const resources: MothershipResource[] = [{ type: 'file', id: OLD_ID, title: 'cat.png' }]
+    expect(rewriteResourceFileRefs(resources, emptyMaps, new Set())).toBe(resources)
+  })
 })
