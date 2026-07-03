@@ -264,13 +264,61 @@ export type UnsubscribeActionResponse = ContractJsonResponse<typeof unsubscribeP
 export type UnsubscribeBody = z.input<typeof unsubscribeBodySchema>
 export type UnsubscribeType = NonNullable<UnsubscribeBody['type']>
 
+export const usageLogSourceSchema = z.enum([
+  'workflow',
+  'wand',
+  'copilot',
+  'workspace-chat',
+  'mcp_copilot',
+  'mothership_block',
+  'knowledge-base',
+  'voice-input',
+  'enrichment',
+])
+
 export const usageLogsQuerySchema = z.object({
-  source: z.enum(['workflow', 'wand', 'copilot']).optional(),
+  source: usageLogSourceSchema.optional(),
   workspaceId: z.string().optional(),
   period: z.enum(['1d', '7d', '30d', 'all']).optional().default('30d'),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   cursor: z.string().optional(),
 })
+
+export const usageLogEntrySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  source: usageLogSourceSchema,
+  description: z.string(),
+  /** Credit-denominated cost of this event (Sim's usage unit; 1,000 credits = $5). */
+  creditCost: z.number(),
+})
+
+export const usageLogsApiResponseSchema = z.object({
+  success: z.boolean(),
+  logs: z.array(usageLogEntrySchema),
+  summary: z.object({
+    totalCredits: z.number(),
+    bySourceCredits: z.record(z.string(), z.number()),
+  }),
+  pagination: z.object({
+    nextCursor: z.string().optional(),
+    hasMore: z.boolean(),
+  }),
+})
+
+export const getUsageLogsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/users/me/usage-logs',
+  query: usageLogsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: usageLogsApiResponseSchema,
+  },
+})
+
+export type UsageLogSource = z.output<typeof usageLogSourceSchema>
+export type UsageLogEntry = z.output<typeof usageLogEntrySchema>
+export type UsageLogsApiResponse = z.output<typeof usageLogsApiResponseSchema>
 
 export const subscriptionTransferParamsSchema = z.object({
   id: z.string({ error: 'Subscription ID is required' }).min(1, 'Subscription ID is required'),
