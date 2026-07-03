@@ -117,6 +117,10 @@ export function ChunkEditor({
     }
     if (trimmed.length === 0) failValidation('Content cannot be empty')
     if (trimmed.length > 10000) failValidation('Content exceeds maximum length (10,000 characters)')
+    if (validationToastIdRef.current) {
+      toast.dismiss(validationToastIdRef.current)
+      validationToastIdRef.current = null
+    }
 
     if (isCreateMode) {
       const created = await createChunk({
