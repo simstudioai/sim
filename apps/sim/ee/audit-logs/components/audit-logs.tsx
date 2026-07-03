@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Calendar,
+  ChipCombobox,
   ChipInput,
   ChipSelect,
   type ComboboxOption,
@@ -32,16 +33,14 @@ const logger = createLogger('AuditLogs')
 
 const REFRESH_SPINNER_DURATION_MS = 1000
 
+/** Trimmed to the most commonly used granularities so the menu fits without scrolling. */
 const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'All time', label: 'All time' },
-  { value: 'Past 30 minutes', label: 'Past 30 minutes' },
   { value: 'Past hour', label: 'Past hour' },
   { value: 'Past 6 hours', label: 'Past 6 hours' },
-  { value: 'Past 12 hours', label: 'Past 12 hours' },
   { value: 'Past 24 hours', label: 'Past 24 hours' },
   { value: 'Past 3 days', label: 'Past 3 days' },
   { value: 'Past 7 days', label: 'Past 7 days' },
-  { value: 'Past 14 days', label: 'Past 14 days' },
   { value: 'Past 30 days', label: 'Past 30 days' },
   { value: 'Custom range', label: 'Custom range' },
 ]
@@ -385,12 +384,18 @@ export function AuditLogs() {
           align='start'
         />
         <div className='relative'>
-          <ChipSelect
+          {/* ChipCombobox (Radix Popover, non-modal), not ChipSelect (Radix
+              DropdownMenu, modal by default) — a modal trigger closing in the
+              same tick that opens the Calendar popover below traps it behind
+              the modal's focus lock, so "Custom range" silently did nothing. */}
+          <ChipCombobox
             options={TIME_RANGE_OPTIONS}
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'
-            displayLabel={timeDisplayLabel}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+            }
             maxHeight={320}
             align='start'
           />
