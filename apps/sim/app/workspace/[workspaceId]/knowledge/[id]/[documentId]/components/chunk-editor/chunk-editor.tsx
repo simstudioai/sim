@@ -59,6 +59,7 @@ export function ChunkEditor({
 
   const [editedContent, setEditedContent] = useState(isCreateMode ? '' : chunkContent)
   const [savedContent, setSavedContent] = useState(chunkContent)
+  const [validationError, setValidationError] = useState<string | null>(null)
   const [tokenizerOn, setTokenizerOn] = useState(false)
   const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
   const savedContentRef = useRef(chunkContent)
@@ -108,8 +109,15 @@ export function ChunkEditor({
   const handleSave = useCallback(async () => {
     const content = editedContentRef.current
     const trimmed = content.trim()
-    if (trimmed.length === 0) throw new Error('Content cannot be empty')
-    if (trimmed.length > 10000) throw new Error('Content exceeds maximum length')
+    if (trimmed.length === 0) {
+      setValidationError('Content cannot be empty')
+      throw new Error('Content cannot be empty')
+    }
+    if (trimmed.length > 10000) {
+      setValidationError('Content exceeds maximum length (10,000 characters)')
+      throw new Error('Content exceeds maximum length')
+    }
+    setValidationError(null)
 
     if (isCreateMode) {
       const created = await createChunk({
@@ -234,7 +242,10 @@ export function ChunkEditor({
           <textarea
             ref={textareaRef}
             value={editedContent}
-            onChange={(e) => setEditedContent(e.target.value)}
+            onChange={(e) => {
+              setEditedContent(e.target.value)
+              setValidationError(null)
+            }}
             placeholder={
               isCreateMode
                 ? 'Enter the content for this chunk...'
@@ -257,6 +268,9 @@ export function ChunkEditor({
           onCheckedChange={handleTokenizerChange}
           hoveredTokenIndex={tokenizerOn ? hoveredTokenIndex : null}
         />
+        {validationError && (
+          <span className='text-[var(--text-error)] text-caption'>{validationError}</span>
+        )}
         <span className='text-[var(--text-secondary)] text-caption'>
           {tokenCount.toLocaleString()}
           {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens

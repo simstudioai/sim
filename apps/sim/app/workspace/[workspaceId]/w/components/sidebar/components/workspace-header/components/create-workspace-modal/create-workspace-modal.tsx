@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -9,6 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 
 interface CreateWorkspaceModalProps {
   open: boolean
@@ -27,17 +28,25 @@ export function CreateWorkspaceModal({
   isCreating,
 }: CreateWorkspaceModalProps) {
   const [name, setName] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) {
       setName('')
+      setError(null)
     }
-  }, [open])
+  }
 
   const handleSubmit = async () => {
     const trimmed = name.trim()
     if (!trimmed || isCreating) return
-    await onConfirm(trimmed)
+    try {
+      await onConfirm(trimmed)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to create workspace'))
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -45,6 +54,11 @@ export function CreateWorkspaceModal({
       e.preventDefault()
       void handleSubmit()
     }
+  }
+
+  const handleNameChange = (value: string) => {
+    setName(value)
+    setError(null)
   }
 
   return (
@@ -55,14 +69,14 @@ export function CreateWorkspaceModal({
           type='input'
           title='Name'
           value={name}
-          onChange={setName}
+          onChange={handleNameChange}
           placeholder='Workspace name'
           maxLength={100}
           autoComplete='off'
           disabled={isCreating}
           required
         />
-        <ChipModalError>{undefined}</ChipModalError>
+        <ChipModalError>{error ?? undefined}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}

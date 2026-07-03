@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Calendar, cn, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn'
+import { Calendar, cn, Popover, PopoverAnchor, PopoverContent, toast } from '@sim/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import type { SaveReason } from '../../../types'
 import {
@@ -35,6 +35,7 @@ function InlineDateEditor({
   const [draft, setDraft] = useState(() =>
     initialCharacter !== undefined ? initialCharacter : storageToDisplay(storedValue)
   )
+  const [invalid, setInvalid] = useState(false)
 
   const pickerValue = displayToStorage(draft) || storedValue || undefined
 
@@ -55,13 +56,23 @@ function InlineDateEditor({
   const doSave = useCallback(
     (reason: SaveReason, storageVal?: string) => {
       if (doneRef.current) return
-      doneRef.current = true
       clearTimeout(blurTimeoutRef.current)
       const raw = storageVal ?? displayToStorage(draft) ?? draft
-      const val = raw && !Number.isNaN(Date.parse(raw)) ? raw : null
-      onSave(val, reason)
+      if (raw && Number.isNaN(Date.parse(raw))) {
+        toast.error('Invalid date')
+        if (reason === 'blur') {
+          doneRef.current = true
+          onCancel()
+        } else {
+          setInvalid(true)
+          inputRef.current?.focus()
+        }
+        return
+      }
+      doneRef.current = true
+      onSave(raw || null, reason)
     },
-    [draft, onSave]
+    [draft, onSave, onCancel]
   )
 
   const handleKeyDown = useCallback(
@@ -107,12 +118,16 @@ function InlineDateEditor({
         ref={inputRef}
         type='text'
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setInvalid(false)
+        }}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         placeholder='mm/dd/yyyy'
         className={cn(
-          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
+          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+          invalid && 'text-[var(--text-error)]'
         )}
       />
       <Popover open onOpenChange={handlePickerOpenChange}>
@@ -137,6 +152,7 @@ function InlineTextEditor({
   const [draft, setDraft] = useState(() =>
     initialCharacter !== undefined ? initialCharacter : formatValueForInput(value, column.type)
   )
+  const [invalid, setInvalid] = useState(false)
   const doneRef = useRef(false)
 
   useEffect(() => {
@@ -160,14 +176,32 @@ function InlineTextEditor({
     }
   }
 
+  const rejectDraft = (message: string, reason: SaveReason) => {
+    toast.error(message)
+    if (reason === 'blur') {
+      doneRef.current = true
+      onCancel()
+    } else {
+      setInvalid(true)
+      inputRef.current?.focus()
+    }
+  }
+
   const doSave = (reason: SaveReason) => {
     if (doneRef.current) return
-    doneRef.current = true
+    let cleaned: unknown
     try {
-      onSave(cleanCellValue(draft, column), reason)
+      cleaned = cleanCellValue(draft, column)
     } catch {
-      onCancel()
+      rejectDraft('Invalid JSON', reason)
+      return
     }
+    if (column.type === 'number' && cleaned === null && draft.trim() !== '') {
+      rejectDraft('Invalid number', reason)
+      return
+    }
+    doneRef.current = true
+    onSave(cleaned, reason)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -192,11 +226,17 @@ function InlineTextEditor({
       type='text'
       inputMode={isNumber ? 'decimal' : undefined}
       value={draft ?? ''}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        setInvalid(false)
+      }}
       onKeyDown={handleKeyDown}
       onWheel={handleWheel}
       onBlur={() => doSave('blur')}
-      className='w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
+      className={cn(
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+        invalid && 'text-[var(--text-error)]'
+      )}
     />
   )
 }

@@ -197,12 +197,19 @@ function ExpandedCellEditor({
   textareaRef,
 }: ExpandedCellEditorProps) {
   const [draftValue, setDraftValue] = useState(initialValue)
+  const [parseError, setParseError] = useState<string | null>(null)
 
   const handleSave = () => {
     // `displayToStorage` only normalizes dates — it returns null for anything else.
     // Fall back to the raw draft for non-date columns, matching the inline editor.
     const raw = displayToStorage(draftValue) ?? draftValue
-    const cleaned = cleanCellValue(raw, column)
+    let cleaned: unknown
+    try {
+      cleaned = cleanCellValue(raw, column)
+    } catch {
+      setParseError('Invalid JSON')
+      return
+    }
     onSave(rowId, column.key, cleaned, 'blur')
     onClose()
   }
@@ -219,16 +226,23 @@ function ExpandedCellEditor({
       <textarea
         ref={textareaRef}
         value={draftValue}
-        onChange={(e) => setDraftValue(e.target.value)}
+        onChange={(e) => {
+          setDraftValue(e.target.value)
+          setParseError(null)
+        }}
         onKeyDown={handleTextareaKeyDown}
         className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-none placeholder:text-[var(--text-muted)]'
         spellCheck={false}
         autoCorrect='off'
       />
       <div className='flex items-center justify-between border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
-        <span className='text-[var(--text-tertiary)] text-caption'>
-          <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
-        </span>
+        {parseError ? (
+          <span className='text-[var(--text-error)] text-caption'>{parseError}</span>
+        ) : (
+          <span className='text-[var(--text-tertiary)] text-caption'>
+            <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
+          </span>
+        )}
         <div className='flex items-center gap-1.5'>
           <Button variant='ghost' size='sm' onClick={onClose}>
             Cancel

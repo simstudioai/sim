@@ -14,8 +14,10 @@ import {
   Label,
   Switch,
   Tooltip,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Camera, Check, Info, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -149,6 +151,7 @@ export function General() {
       setIsEditingName(false)
     } catch (error) {
       logger.error('Error updating name:', error)
+      toast.error(getErrorMessage(error, 'Failed to update name'))
       setName(profile?.name || '')
     }
   }

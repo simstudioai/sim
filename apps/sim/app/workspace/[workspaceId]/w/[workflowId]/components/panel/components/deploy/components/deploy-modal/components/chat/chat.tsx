@@ -326,6 +326,7 @@ export function ChatDeploy({
             disabled={chatSubmitting}
             onValidationChange={setIsIdentifierValid}
             isEditingExisting={!!existingChat}
+            error={errors.identifier}
           />
 
           <div>
@@ -473,6 +474,7 @@ interface IdentifierInputProps {
   disabled?: boolean
   onValidationChange?: (isValid: boolean) => void
   isEditingExisting?: boolean
+  error?: string
 }
 
 const getDomainPrefix = (() => {
@@ -487,12 +489,15 @@ function IdentifierInput({
   disabled = false,
   onValidationChange,
   isEditingExisting = false,
+  error,
 }: IdentifierInputProps) {
-  const { isChecking, error, isValid } = useIdentifierValidation(
-    value,
-    originalIdentifier,
-    isEditingExisting
-  )
+  const {
+    isChecking,
+    error: availabilityError,
+    isValid,
+  } = useIdentifierValidation(value, originalIdentifier, isEditingExisting)
+
+  const displayError = error || availabilityError
 
   useEffect(() => {
     onValidationChange?.(isValid)
@@ -517,7 +522,7 @@ function IdentifierInput({
       <div
         className={cn(
           'relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)]',
-          error && 'border-[var(--text-error)]'
+          displayError && 'border-[var(--text-error)]'
         )}
       >
         <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm'>
@@ -558,7 +563,9 @@ function IdentifierInput({
           )}
         </div>
       </div>
-      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
+      {displayError && (
+        <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{displayError}</p>
+      )}
       <p className='mt-[6.5px] truncate text-[var(--text-secondary)] text-xs'>
         {isEditingExisting && value ? (
           <>
