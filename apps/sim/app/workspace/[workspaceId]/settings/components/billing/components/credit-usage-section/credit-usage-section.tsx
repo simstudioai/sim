@@ -36,6 +36,18 @@ const SOURCE_LABELS: Record<UsageLogSource, string> = {
   enrichment: 'Enrichment',
 }
 
+/**
+ * `creditCost` is apportioned across the page so row credits sum exactly to
+ * the page total (see route.ts) — a row can legitimately apportion to 0
+ * credits despite a real, positive `dollarCost` once a sibling row absorbs
+ * the shared rounding remainder. Falls back to `formatCreditCost`'s "<1
+ * credit" wording in that case instead of a flat, misleading "0 credits".
+ */
+function formatRowCredits(creditCost: number, dollarCost: number): string {
+  if (creditCost > 0) return formatCreditsLabel(creditCost)
+  return dollarCost > 0 ? '<1 credit' : '0 credits'
+}
+
 interface UsageLogRowProps {
   log: UsageLogEntry
 }
@@ -53,7 +65,7 @@ function UsageLogRow({ log }: UsageLogRowProps) {
         {SOURCE_LABELS[log.source]}
       </Badge>
       <span className='flex-shrink-0 text-[12px] text-[var(--text-muted)] tabular-nums'>
-        {formatCreditsLabel(log.creditCost)}
+        {formatRowCredits(log.creditCost, log.dollarCost)}
       </span>
     </div>
   )

@@ -56,6 +56,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     source: log.source,
     description: log.description,
     creditCost: creditsByLogId[log.id],
+    dollarCost: log.cost,
   }))
 
   const bySourceCredits = Object.fromEntries(

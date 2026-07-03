@@ -291,8 +291,16 @@ export const usageLogEntrySchema = z.object({
   createdAt: z.string(),
   source: usageLogSourceSchema,
   description: z.string(),
-  /** Credit-denominated cost of this event (Sim's usage unit; 1,000 credits = $5). */
+  /**
+   * Credit-denominated cost of this event (Sim's usage unit; 1,000 credits =
+   * $5), apportioned across the page so row credits always sum exactly to
+   * the page's rounded total — this can legitimately be 0 for a row with a
+   * real but sub-credit `dollarCost` once a sibling row absorbs the shared
+   * rounding remainder.
+   */
   creditCost: z.number(),
+  /** Raw dollar cost, so a 0 `creditCost` can be distinguished from a genuinely free event. */
+  dollarCost: z.number(),
 })
 
 export const usageLogsApiResponseSchema = z.object({
