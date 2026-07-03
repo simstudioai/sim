@@ -57,7 +57,7 @@ export const workatoProfile: CompetitorProfile = {
     {
       title: 'Broad compliance certification set',
       description:
-        'Workato holds SOC 1/2/3, PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications. A notably wide compliance footprint for an integration/agent platform.',
+        'Workato holds SOC 1/2/3, PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications, a wide compliance footprint for an integration/agent platform.',
       shortDescription:
         'Wide compliance footprint spanning SOC, ISO, HIPAA, PCI-DSS, IRAP, and NIST.',
       source: {

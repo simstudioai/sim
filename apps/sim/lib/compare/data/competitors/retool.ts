@@ -10,7 +10,7 @@ export const retoolProfile: CompetitorProfile = {
     icon: RetoolIcon,
     colors: ['#242424', '#818479', '#e8e9dc'],
     description:
-      'Retool is a low‑code platform that lets enterprises build, deploy, and manage internal tools and AI‑powered applications quickly and securely. Users describe desired functionality or import existing React, Replit, or GitHub code, and Retool generates production‑ready apps with built‑in enterprise security, access controls, and audit logging. The platform connects directly to any database, API, or LLM, leveraging existing permissions for seamless data access. Features include a prompt‑driven app builder, MCP server for AI coding agents, and import tools for legacy codebases. Retool’s governance framework lets business teams move fast while IT retains full visibility, making it a trusted solution for finance, manufacturing, logistics, and other data‑intensive organizations.',
+      'Retool is a low‑code platform that lets enterprises build, deploy, and manage internal tools and AI‑powered applications. Users describe desired functionality or import existing React, Replit, or GitHub code, and Retool generates production‑ready apps with built‑in enterprise security, access controls, and audit logging. The platform connects directly to any database, API, or LLM, leveraging existing permissions for data access. Features include a prompt‑driven app builder, MCP server for AI coding agents, and import tools for legacy codebases. Retool’s governance framework lets business teams move fast while IT retains visibility, and the product is used by finance, manufacturing, logistics, and other data‑intensive organizations.',
     industries: ['Software (B2B)', 'Developer Tools & APIs'],
     socials: [
       { type: 'x', url: 'https://x.com/retool' },
@@ -280,7 +280,7 @@ export const retoolProfile: CompetitorProfile = {
           "Yes: Retool Database is a built-in, Postgres-backed data table (separate from connecting your own external database) with a spreadsheet-style Edit Table view for inline editing. Retool's Table component can also render and scroll through 100,000+ rows and hundreds of columns without slowing down.",
         detail:
           "Specific hard row/column caps for Retool Database itself were not found in official docs (forum threads reference plan-dependent limits like 50,000 records, but this isn't confirmed as an official current limit); the Table UI component is documented as handling 100K+ rows.",
-        shortValue: 'Yes, Retool Database plus high-performance Table component',
+        shortValue: 'Yes, Retool Database plus a Table component for large datasets',
         confidence: 'verified',
         sources: [
           {

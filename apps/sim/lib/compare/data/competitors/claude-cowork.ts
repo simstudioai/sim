@@ -368,7 +368,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
         ],
       },
       mcpSupport: {
-        value: 'Yes: broad, first-class MCP support',
+        value: 'Yes: broad MCP support',
         detail:
           'Cowork connects to external services via connectors built on the Model Context Protocol (remote MCP), managed through a Connectors Directory; a Zoom MCP connector was announced with GA (April 9, 2026) for meeting summaries, transcripts, recordings, and scheduling.',
         shortValue: 'Broad MCP connector support',
@@ -431,7 +431,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       dynamicToolUse: {
         value: 'Yes: Claude selects tools/connectors dynamically at runtime',
         detail:
-          "Documented directly: Claude picks the fastest path. A connector for Slack, Chrome for web research, or the screen to open apps when there's no direct integration. This contrasts with Sim's agent blocks, where tool availability is pre-wired by the workflow builder.",
+          "Documented directly: Claude picks the fastest path. A connector for Slack, Chrome for web research, or the screen to open apps when there's no direct integration. By comparison, Sim's workflow builder lets users configure which tool or connector an agent step uses at build time.",
         shortValue: 'Picks tools dynamically at runtime',
         confidence: 'verified',
         sources: [

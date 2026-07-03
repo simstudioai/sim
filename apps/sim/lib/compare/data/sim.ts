@@ -89,7 +89,7 @@ export const simProfile: CompetitorProfile = {
       description:
         "Sim ships 302 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (7,000+ apps) or Pipedream (1,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
       shortDescription:
-        "302 blocks and ~3,900 tool actions trail Zapier and Pipedream's raw app counts.",
+        "302 blocks and ~3,900 tool actions, versus Zapier and Pipedream's larger raw app counts.",
       source: {
         url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
         label: 'Sim codebase: BLOCK_REGISTRY count',
@@ -99,8 +99,8 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'One-year-old company',
       description:
-        'Independent analysis (n8n\'s 2026 AI agent tools report) notes Sim.ai "has only been around for one year," meaning a shorter market track record than incumbents like Zapier, n8n, or Workato.',
-      shortDescription: 'Shorter market track record than incumbents like Zapier, n8n, or Workato.',
+        'Independent analysis (n8n\'s 2026 AI agent tools report) notes Sim.ai "has only been around for one year," meaning it is newer to market than incumbents like Zapier, n8n, or Workato.',
+      shortDescription: 'Newer to market than incumbents like Zapier, n8n, or Workato.',
       source: {
         url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
         label: 'n8n: 2026 AI Agent Development Tools report',
@@ -221,7 +221,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Deployed-version history with rollback for every workflow; server-persisted checkpoint/revert and visual diff (accept/reject) specifically for Copilot AI edits',
         detail:
-          'Manual drag-and-drop undo/redo is client-side/localStorage only (capped at 100 ops, 5 stacks), not server-synced across devices; no arbitrary version-to-version diff tool exists for deployment history, and knowledge base documents have no version history at all.',
+          'Manual drag-and-drop undo/redo is client-side/localStorage only (capped at 100 ops, 5 stacks), not server-synced across devices; deployment history does not yet include an arbitrary version-to-version diff tool, and knowledge base documents do not currently have version history.',
         shortValue: 'Deployment rollback plus Copilot edit diff/revert',
         confidence: 'verified',
         sources: [
@@ -435,10 +435,10 @@ export const simProfile: CompetitorProfile = {
       },
       dynamicToolUse: {
         value:
-          'No: an Agent block can only call tools the workflow author explicitly added to it at build time; it cannot browse and pick from a broader pool (e.g. an entire MCP server catalog) at inference time',
+          'No: an Agent block calls tools the workflow author explicitly added to it at build time, rather than browsing and picking from a broader pool (e.g. an entire MCP server catalog) at inference time',
         detail:
-          'Runtime MCP "discovery" exists, but only to resolve/refresh the schema of an already-configured tool. The model never sees or chooses from the server\'s full tool list.',
-        shortValue: 'Only pre-wired tools, no runtime tool discovery',
+          'Runtime MCP "discovery" exists to resolve/refresh the schema of an already-configured tool. The model does not browse or choose from the server\'s full tool list.',
+        shortValue: 'Tools pre-wired at build time; runtime discovery refreshes schemas',
         confidence: 'verified',
         sources: [
           {
@@ -450,10 +450,10 @@ export const simProfile: CompetitorProfile = {
       },
       modelFallback: {
         value:
-          'No: a failed or rate-limited LLM call is not automatically retried against a different model or provider',
+          "No: a failed or rate-limited LLM call is retried using Sim's own hosted API keys for the same model, rather than automatically switching to a different model or provider",
         detail:
-          'A "fallback" comment in the provider layer refers only to rotating among Sim\'s own hosted API keys for the same model, not switching models.',
-        shortValue: 'No automatic retry on a different model or provider',
+          'A "fallback" comment in the provider layer refers to rotating among Sim\'s own hosted API keys for the same model, not switching models.',
+        shortValue: 'Retries rotate hosted keys for the same model, not across providers',
         confidence: 'verified',
         sources: [
           {
@@ -878,7 +878,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Yes: execution logs include a per-block/per-span trace view (duration, cost, token counts, and latency stats like TTFT/TPS) with expandable nested iteration groups, plus a "View Snapshot" frozen copy of the workflow structure and block states at run time for debugging',
         detail:
-          'This is a built-in trace view, not a raw export browsable in an external tool like Jaeger, and no aggregate latency-percentile charts (p50/p95/p99) are exposed. The run snapshot is a log-detail/debugging artifact, not a resumable mid-run checkpoint.',
+          'This trace view is built directly into Sim rather than a raw export browsable in an external tool like Jaeger, and does not yet expose aggregate latency-percentile charts (p50/p95/p99). The run snapshot serves as a log-detail/debugging artifact rather than a resumable mid-run checkpoint.',
         shortValue: 'Per-block trace view: duration, cost, tokens, latency',
         confidence: 'verified',
         sources: [
@@ -898,7 +898,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Individual tool/API calls have configurable exponential-backoff retry (up to 10 attempts). The background job-orchestration layer itself retries only once by design. Durability instead comes from consecutive-failure tracking on schedules and the human-in-the-loop snapshot pause/resume mechanism',
         detail:
-          'No guaranteed-once-only block execution, no failed-run holding queue for manual recovery, and no "replay a past execution with its original inputs" feature were found. The per-execution debugging snapshot is not a resumable mid-run checkpoint.',
+          'Guaranteed-once-only block execution, a failed-run holding queue for manual recovery, and a "replay a past execution with its original inputs" feature were not found in the codebase. The per-execution debugging snapshot serves as a log-detail artifact rather than a resumable mid-run checkpoint.',
         shortValue: 'Tool-call retries (up to 10x); single-attempt job orchestration',
         confidence: 'verified',
         sources: [
@@ -946,7 +946,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Yes: a workflow can be triggered in fire-and-forget async mode, returning HTTP 202 with a job ID immediately, then polled via a dedicated jobs endpoint through queued/processing/completed/failed states',
         detail:
-          'There is no completion webhook/callback option for async jobs; polling the job endpoint is the only way to learn a run finished.',
+          'Async jobs are tracked via polling the job endpoint rather than a completion webhook/callback option.',
         shortValue: 'Async mode: job ID returned immediately, poll for result',
         confidence: 'verified',
         sources: [
@@ -1001,7 +1001,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Community (open source, GitHub) plus an unquantified "Dedicated Support" flag on the Enterprise plan',
         detail:
-          'No dedicated CSM, onboarding/enablement, or professional-services copy was found on the enterprise or pricing pages. "Dedicated Support" is a plan-comparison-table boolean with no elaboration.',
+          'Enterprise and pricing pages do not include CSM, onboarding/enablement, or professional-services details beyond a plan-comparison-table "Dedicated Support" flag.',
         shortValue: "Community support plus Enterprise 'Dedicated Support'",
         confidence: 'verified',
         sources: [
@@ -1041,7 +1041,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Independent analysis (n8n\'s 2026 AI agent tools report) notes Sim.ai "has only been around for one year"',
         detail:
-          'Shorter market track record than incumbents like Zapier, n8n, or Workato; the same report ranks Sim.ai second-highest on "Codability" (76%) among 14 vendors evaluated.',
+          'Newer to market than incumbents like Zapier, n8n, or Workato; the same report ranks Sim.ai second-highest on "Codability" (76%) among 14 vendors evaluated.',
         shortValue: 'About one year old per independent analysis',
         confidence: 'verified',
         sources: [

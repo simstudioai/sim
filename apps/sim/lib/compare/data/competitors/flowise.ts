@@ -17,7 +17,7 @@ export const flowiseProfile: CompetitorProfile = {
     'Flowise is an open-source, low-code visual builder for creating LLM chains, RAG pipelines, and multi-agent AI workflows, offered as self-hosted software or a managed cloud service, and owned by Workday since August 2025.',
   standoutFeatures: [
     {
-      title: 'Deep, native RAG / Document Store pipeline',
+      title: 'Native RAG / Document Store pipeline',
       description:
         "Flowise's Document Store handles the full RAG pipeline in one place. It offers multiple document loaders, the broadest range of native text-splitter types (character, token, recursive character, markdown, code, HTML-to-markdown) with configurable chunk size and overlap, a live preview before processing, per-chunk editing, and upsert into a wide range of vector store backends.",
       shortDescription:
@@ -41,9 +41,9 @@ export const flowiseProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Large, mature open-source project with Apache 2.0 core',
+      title: 'Large open-source project with Apache 2.0 core',
       description:
-        "Flowise's Community Edition is Apache License 2.0, and its GitHub repo has roughly 54,000 stars, making it one of the most widely adopted open-source visual AI-agent builders. It has an active Discord community and supports full self-hosting via Docker.",
+        "Flowise's Community Edition is Apache License 2.0, and its GitHub repo has roughly 54,000 stars. It has an active Discord community and supports full self-hosting via Docker.",
       shortDescription:
         'Apache 2.0 licensed, ~54k GitHub stars, actively maintained open-source project.',
       source: {

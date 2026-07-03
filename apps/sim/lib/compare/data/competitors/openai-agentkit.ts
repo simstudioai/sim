@@ -10,7 +10,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     icon: OpenAIIcon,
     colors: ['#848484', '#141414', '#dddddd'],
     description:
-      'OpenAI is an artificial intelligence research and deployment company dedicated to building safe, beneficial artificial general intelligence (AGI). Founded in 2015, it creates advanced AI models such as GPT‑5.5, Codex, and specialized tools for chat, coding, and enterprise use. OpenAI offers products like ChatGPT, ChatGPT Business, and ChatGPT Enterprise, as well as APIs for developers to integrate AI into apps, workflows, and research. The organization publishes cutting‑edge research, advances AI safety, security, and transparency, and partners with businesses to automate tasks, improve decision‑making, and unlock new capabilities across industries. Its mission is to ensure that AGI benefits all of humanity.',
+      'OpenAI is an artificial intelligence research and deployment company dedicated to building safe, beneficial artificial general intelligence (AGI). Founded in 2015, it creates advanced AI models such as GPT‑5.5, Codex, and specialized tools for chat, coding, and enterprise use. OpenAI offers products like ChatGPT, ChatGPT Business, and ChatGPT Enterprise, as well as APIs for developers to integrate AI into apps, workflows, and research. The organization publishes AI research, works on AI safety, security, and transparency, and partners with businesses to automate tasks, improve decision‑making, and unlock new capabilities across industries. Its mission is to ensure that AGI benefits all of humanity.',
     industries: [
       'Artificial Intelligence & Machine Learning',
       'Developer Tools & APIs',

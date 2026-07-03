@@ -11,7 +11,7 @@ export const zapierProfile: CompetitorProfile = {
     selfFramed: true,
     colors: ['#fc4c06', '#fcac7c', '#241414'],
     description:
-      'Zapier is a cloud‑based automation platform that connects thousands of web applications, enabling users to create custom workflows without coding. By linking apps such as Gmail, Slack, Salesforce, and many more, Zapier automates repetitive tasks-moving data, triggering actions, and syncing information across services-so teams can focus on higher‑value work. Users build “Zaps” that define triggers and actions, allowing software to work together seamlessly and efficiently.',
+      'Zapier is a cloud‑based automation platform that connects thousands of web applications, enabling users to create custom workflows without coding. By linking apps such as Gmail, Slack, Salesforce, and many more, Zapier automates repetitive tasks-moving data, triggering actions, and syncing information across services-so teams can focus on other work. Users build “Zaps” that define triggers and actions, allowing software to work together.',
     industries: [
       'Software (B2B)',
       'Developer Tools & APIs',
@@ -32,9 +32,8 @@ export const zapierProfile: CompetitorProfile = {
   standoutFeatures: [
     {
       title: '9,000+ pre-built app integrations',
-      description:
-        "Zapier's app directory lists 9,000+ supported apps and connectors, one of the largest integration catalogs of any automation platform.",
-      shortDescription: 'Connects to 9,000+ apps, one of the largest catalogs available.',
+      description: "Zapier's app directory lists 9,000+ supported apps and connectors.",
+      shortDescription: 'Connects to 9,000+ apps.',
       source: { url: 'https://zapier.com/apps', label: 'Zapier App Directory', asOf: '2026-07-02' },
     },
     {
