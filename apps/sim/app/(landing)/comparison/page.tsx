@@ -4,7 +4,7 @@ import { simProfile } from '@/lib/compare/data'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
 import { BrandIconTile } from '@/app/(landing)/comparison/components/brand-icon-tile'
-import { ALL_COMPETITORS, lowercaseFirst } from '@/app/(landing)/comparison/utils'
+import { ALL_COMPETITORS, ensurePeriod, lowercaseFirst } from '@/app/(landing)/comparison/utils'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
@@ -31,15 +31,15 @@ const faqItems = [
   },
   {
     question: 'Is Sim free to use?',
-    answer: `Yes. ${simProfile.facts.pricing.freeTier.value} Sim is also free to self-host under the Apache 2.0 license with no seat or usage limits beyond your own infrastructure.`,
+    answer: `${ensurePeriod(simProfile.facts.pricing.freeTier.value)} Sim is also free to self-host under the Apache 2.0 license with no seat or usage limits beyond your own infrastructure.`,
   },
   {
     question: 'Does Sim support MCP (Model Context Protocol)?',
-    answer: `Yes. ${simProfile.facts.aiCapabilities.mcpSupport.value} Sim can also publish any deployed workflow as its own MCP server, so it works as both an MCP client and an MCP server.`,
+    answer: `${ensurePeriod(simProfile.facts.aiCapabilities.mcpSupport.value)} Sim can also publish any deployed workflow as its own MCP server, so it works as both an MCP client and an MCP server.`,
   },
   {
     question: 'How many integrations does Sim support?',
-    answer: `Sim ships ${lowercaseFirst(simProfile.facts.integrations.integrationCount.value)} Combined with native MCP client support, teams can extend Sim to any service with a public API, not just the built-in catalog.`,
+    answer: `Sim ships ${ensurePeriod(lowercaseFirst(simProfile.facts.integrations.integrationCount.value))} Combined with native MCP client support, teams can extend Sim to any service with a public API, not just the built-in catalog.`,
   },
 ]
 
