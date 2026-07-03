@@ -29,7 +29,7 @@ export const workatoProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Workato is a cloud-based enterprise integration platform that has extended its workflow automation engine with an AI-agent layer (Agent Studio, "Genies") and native Model Context Protocol (MCP) server support, for building, orchestrating, and governing AI agents across connected business systems.',
+    'Workato is a cloud-based enterprise integration platform that extends its workflow automation engine with an AI-agent layer (Agent Studio, "Genies") and native Model Context Protocol (MCP) server support, for building, orchestrating, and governing AI agents across connected business systems.',
   standoutFeatures: [
     {
       title: 'Enterprise MCP server hosting',
@@ -57,7 +57,7 @@ export const workatoProfile: CompetitorProfile = {
     {
       title: 'Broad compliance certification set',
       description:
-        'Workato holds SOC 1/2/3, PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications, a wide compliance footprint for an integration/agent platform.',
+        'Workato holds SOC 1/2/3, PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications, a wide footprint for an integration/agent platform.',
       shortDescription:
         'Wide compliance footprint spanning SOC, ISO, HIPAA, PCI-DSS, IRAP, and NIST.',
       source: {
@@ -82,7 +82,7 @@ export const workatoProfile: CompetitorProfile = {
     {
       title: 'No published self-serve pricing',
       description:
-        "Workato's own pricing page contains no plan names, prices, or free-tier terms. It routes every visitor to a sales demo or trial request, making cost comparison and self-serve adoption difficult versus vendors with transparent pricing.",
+        "Workato's pricing page contains no plan names, prices, or free-tier terms, and routes every visitor to a sales demo or trial request, making cost comparison and self-serve adoption difficult versus vendors with transparent pricing.",
       shortDescription: 'Pricing page has no figures. Every visitor is routed to sales.',
       source: {
         url: 'https://www.workato.com/pricing',
@@ -93,7 +93,7 @@ export const workatoProfile: CompetitorProfile = {
     {
       title: 'Not open source / not self-hostable',
       description:
-        "Workato is a proprietary, cloud-hosted SaaS platform. The only on-prem component is a lightweight connectivity agent bridging the customer's private network to Workato's cloud. The platform's builder, execution engine, and agent runtime cannot be run entirely on customer infrastructure.",
+        "Workato is a proprietary, cloud-hosted SaaS platform. The only on-prem component is a lightweight connectivity agent bridging the customer's private network to Workato's cloud; the builder, execution engine, and agent runtime cannot run entirely on customer infrastructure.",
       shortDescription: 'Proprietary SaaS only. The builder and runtime cannot run on-prem.',
       source: {
         url: 'https://docs.workato.com/on-prem.html',
@@ -157,7 +157,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'Core platform is not self-hostable (SaaS-only, proprietary). Workato provides an on-premises "on-prem agent" that runs behind a customer firewall and tunnels via TLS websocket to the Workato cloud, giving hybrid connectivity to on-prem apps and databases without opening firewall ports. This is a connectivity bridge, not a self-hosted deployment of the platform itself.',
+          'Core platform is not self-hostable (SaaS-only, proprietary). Workato provides an on-premises "on-prem agent" that runs behind a customer firewall and tunnels via TLS websocket to the Workato cloud, giving hybrid connectivity to on-prem apps and databases without opening firewall ports. This is a connectivity bridge, not a self-hosted deployment of the platform.',
         shortValue: 'SaaS-only; on-prem agent only bridges connectivity',
         confidence: 'verified',
         sources: [
@@ -283,9 +283,9 @@ export const workatoProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          'Partial: Workato FileStorage supports creating/storing files and organizing them into directories (folder hierarchy) within a recipe, but no live public documentation describes password-protected or link-based external sharing, or a deleted-item recovery view.',
+          'Partial: Workato FileStorage supports creating/storing files and organizing them into directories (folder hierarchy) within a recipe, but no public documentation describes password-protected or link-based external sharing, or a deleted-item recovery view.',
         detail:
-          'Access to FileStorage itself requires Customer Success enablement on certain plans; a previously-cited "generate shareable file link" doc page could not be verified live and was removed.',
+          'Access to FileStorage itself requires Customer Success enablement on certain plans; a previously published "generate shareable file link" doc page has since been removed.',
         shortValue: 'Partial: folders exist, no confirmed link sharing',
         confidence: 'estimated',
         sources: [
@@ -305,7 +305,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Yes: Workato has a native Data Tables feature, a spreadsheet-like store with columns/rows supporting up to 1,000,000 records per table, plus filter/sort/hide-column controls in the UI, distinct from external database connectors.',
         detail:
-          'Public docs describe filter, sort, and column visibility controls; no explicit confirmation found of full spreadsheet-style keyboard navigation (arrow-key cell traversal, multi-cell copy-paste) in the interface.',
+          'Public docs describe filter, sort, and column visibility controls, but not full spreadsheet-style keyboard navigation (arrow-key cell traversal, multi-cell copy-paste) in the interface.',
         shortValue: 'Yes: native Data Tables, up to 1M rows',
         confidence: 'verified',
         sources: [
@@ -323,9 +323,9 @@ export const workatoProfile: CompetitorProfile = {
       },
       richTextEditor: {
         value:
-          'Unknown: no public documentation was found describing an inline rich-text/WYSIWYG markdown document editor as a platform feature within Workato.',
+          'Unknown: no public documentation describes an inline rich-text/WYSIWYG markdown document editor as a platform feature in Workato.',
         detail:
-          "Searches surfaced only third-party markdown editor tools, not a Workato-native document editor; Workato's product surface (recipes, data tables, knowledge bases) does not appear to include a general-purpose rich-text document editor akin to a Notion-style editor.",
+          "Only third-party markdown editor tools appear in public search results, not a Workato-native document editor; Workato's product surface (recipes, data tables, knowledge bases) does not include a general-purpose rich-text document editor akin to a Notion-style editor.",
         shortValue: 'Unknown: no evidence found',
         confidence: 'unknown',
         sources: [],
@@ -372,7 +372,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       agentReasoningBlocks: {
         value:
-          'Yes: Agent Studio provides dedicated AI-agent constructs ("Genies") with skills, knowledge bases, and autonomous decision logic distinct from plain trigger/action data-routing recipes; pre-built departmental Genies (IT, Sales, HR, Support, CX, Marketing) are offered alongside custom agent building',
+          'Yes: Agent Studio provides dedicated AI-agent constructs ("Genies") with skills, knowledge bases, and autonomous decision logic, distinct from plain trigger/action data-routing recipes. Pre-built departmental Genies (IT, Sales, HR, Support, CX, Marketing) are offered alongside custom agent building',
         shortValue: 'Genies agents with skills and knowledge bases',
         confidence: 'verified',
         sources: [
@@ -386,7 +386,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       naturalLanguageBuilding: {
         value:
-          'Yes: Recipe Copilot lets a user describe an automation in plain language; it drafts a recipe outline, sets up connections after confirmation, and auto-converts the sketch into a working recipe with AI-suggested data-pill/field mappings for review',
+          'Yes: Recipe Copilot lets a user describe an automation in plain language, then drafts a recipe outline, sets up connections after confirmation, and converts the sketch into a working recipe with AI-suggested data-pill/field mappings for review',
         shortValue: 'Recipe Copilot drafts recipes from plain language',
         confidence: 'verified',
         sources: [
@@ -399,7 +399,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       knowledgeBaseRag: {
         value:
-          'Yes: Agent Studio supports "knowledge bases" as a Genie\'s memory (ingesting documents/data with a vector-embedding pattern for RAG); a Knowledge Base Accelerator uses a prompt-engineering + vector-embedding-database pattern, natively supporting text and PDF formats, extensible via connectors to other LLM/vector-DB providers',
+          'Yes: Agent Studio supports "knowledge bases" as a Genie\'s memory, ingesting documents/data with a vector-embedding pattern for RAG. A Knowledge Base Accelerator uses a prompt-engineering plus vector-embedding-database pattern, natively supporting text and PDF formats, extensible via connectors to other LLM/vector-DB providers',
         shortValue: 'Knowledge bases for RAG via vector embeddings',
         confidence: 'verified',
         sources: [
@@ -417,7 +417,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       mcpSupport: {
         value:
-          'Yes: Workato ships an "Enterprise MCP" offering: it can act as an MCP server exposing existing recipes/workflows as tools/skills to any MCP-compatible client (Claude, ChatGPT, Agent Studio), including pre-built MCP servers and remote/cloud-hosted MCP servers configurable from AI Hub > MCP servers, plus Local MCP support with fine-grained, API-token-linked access control',
+          'Yes: Workato ships an "Enterprise MCP" offering. It can act as an MCP server exposing existing recipes/workflows as tools/skills to any MCP-compatible client (Claude, ChatGPT, Agent Studio), including pre-built MCP servers and remote/cloud-hosted MCP servers configurable from AI Hub > MCP servers, plus Local MCP support with fine-grained, API-token-linked access control',
         shortValue: 'Acts as an MCP server exposing recipes as tools',
         confidence: 'verified',
         sources: [
@@ -454,7 +454,7 @@ export const workatoProfile: CompetitorProfile = {
       humanInTheLoop: {
         value: 'Yes, via Wait/Wait-for-resume actions and Workbot approval messages',
         detail:
-          "Workato provides dedicated wait mechanisms distinct from a plain timed delay. 'Wait for Async Calls' pauses a recipe until an external event or call completes; connector SDK 'wait-for-resume' actions let a custom connector pause a recipe and resume later via an external trigger or webhook. For approvals specifically, Workbot for Slack has a 'Wait for user action in messages' action: the recipe posts an interactive Slack message and pauses, and the run resumes when the designated approver clicks an action button in Slack, or auto-proceeds/expires with an Expired flag if a timeout elapses. This is a purpose-built pause-for-human-approval mechanism, not a generic sleep/delay step.",
+          "Workato provides dedicated wait mechanisms distinct from a plain timed delay. 'Wait for Async Calls' pauses a recipe until an external event or call completes; connector SDK 'wait-for-resume' actions let a custom connector pause a recipe and resume later via an external trigger or webhook. For approvals specifically, Workbot for Slack has a 'Wait for user action in messages' action: the recipe posts an interactive Slack message and pauses, then resumes when the designated approver clicks an action button, or auto-proceeds/expires with an Expired flag if a timeout elapses. This is a purpose-built pause-for-human-approval mechanism, not a generic sleep/delay step.",
         shortValue: 'Wait actions and Slack approval workflows',
         confidence: 'verified',
         sources: [
@@ -477,7 +477,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       generativeMedia: {
         value:
-          "Text-only natively. Workato's own 'AI by Workato' utility connector has no generation actions. But a pre-built OpenAI connector adds a native 'Generate Images' (DALL-E) action for image generation. No native video or audio generation block exists.",
+          "Text-only natively. Workato's own 'AI by Workato' utility connector has no generation actions, but a pre-built OpenAI connector adds a native 'Generate Images' (DALL-E) action for image generation. No native video or audio generation block exists.",
         detail:
           "Workato's own 'AI by Workato' utility connector (built on Anthropic/OpenAI models) exposes only text/analysis actions: analyze image (vision/analysis, not generation), categorize text, draft email, parse text, summarize text, translate text. Generative-media capability beyond image generation would have to be assembled via generic HTTP/connector calls to third-party providers (e.g., ElevenLabs) rather than a first-party block.",
         shortValue: 'Image generation via OpenAI connector, no native video/audio',
@@ -552,9 +552,9 @@ export const workatoProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          "No: Workato's knowledge base documentation describes chunking as the underlying retrieval mechanism (content is split into fragments/entries and retrieval returns the most semantically similar fragments), but no chunk-index or fragment-level debug view was found; debugging retrieval issues relies on tracing back to the source document/URL rather than inspecting individual chunk content in a dedicated UI.",
+          "No: Workato's knowledge base documentation describes chunking as the underlying retrieval mechanism (content is split into fragments/entries and retrieval returns the most semantically similar fragments), but no chunk-index or fragment-level debug view exists; debugging retrieval issues relies on tracing back to the source document/URL rather than inspecting individual chunk content in a dedicated UI.",
         detail:
-          'Docs mention source URLs help identify which document a bad fragment came from, which implies fragment-level awareness exists internally, but a chunk index/content inspector as a user-facing feature is not documented.',
+          'Source URLs help identify which document a bad fragment came from, implying fragment-level awareness exists internally, though no chunk index or content inspector is documented as a user-facing feature.',
         shortValue: 'No: no chunk-level debug view documented',
         confidence: 'estimated',
         sources: [
@@ -572,7 +572,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'No: Workato recipe steps documentation describes IF/ELSE branching and repeat loops as sequential control-flow constructs; no dedicated fan-out/fan-in step that runs multiple branches concurrently and joins them back was found. Workato does support running independent async calls alongside a wait step, and recipe-level concurrency settings control how many separate job instances run at once, but these are distinct from a single-run parallel-branches feature.',
+          'No: Workato recipe steps documentation describes IF/ELSE branching and repeat loops as sequential control-flow constructs; no dedicated fan-out/fan-in step that runs multiple branches concurrently and joins them back exists. Workato does support running independent async calls alongside a wait step, and recipe-level concurrency settings control how many separate job instances run at once, but these are distinct from a single-run parallel-branches feature.',
         detail:
           'Multi-threaded custom connector actions (SDK feature) can issue concurrent API requests within one action, but that is a connector-development capability, not a native workflow step available to recipe builders.',
         shortValue: 'No: no native parallel-branches step documented',
@@ -634,7 +634,7 @@ export const workatoProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          'Workato\'s own integrations page cites "thousands of SaaS apps, databases, and ERPs" without a precise total; its on-prem connectivity docs cite 300+ cloud and on-premise applications specifically for out-of-the-box on-prem connectivity. Third-party sources put the broader library above 1,200 connectors, though the vendor does not publish that figure directly.',
+          'Workato\'s integrations page cites "thousands of SaaS apps, databases, and ERPs" without a precise total; its on-prem docs cite 300+ cloud and on-premise applications for out-of-the-box on-prem connectivity. Third-party sources put the broader library above 1,200 connectors, though Workato does not publish that figure directly.',
         shortValue: 'Thousands of connectors; 300+ documented for on-prem',
         confidence: 'estimated',
         sources: [
@@ -670,7 +670,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       customCodeSteps: {
         value:
-          'Not documented whether recipes support inline custom-code steps (e.g. Ruby/JS snippets); Workato does offer a Ruby-based Custom SDK for building custom connectors, a related but separate capability',
+          'Not documented whether recipes support inline custom-code steps (e.g. Ruby/JS snippets). Workato offers a Ruby-based Custom SDK for building custom connectors instead, a related but separate capability',
         shortValue: 'Unclear; Ruby SDK exists for custom connectors',
         confidence: 'estimated',
         sources: [
@@ -698,7 +698,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Ruby-based Connector SDK + open community connector library, no first-party multi-language client SDK found',
         detail:
-          "Workato's Connector SDK lets developers build custom connectors in Ruby, with a local SDK Emulator (the open-source `workato-connector-sdk` gem on GitHub) for offline development, testing, and git-based versioning outside the cloud editor. Custom connectors can be published to Workato's Community Library (install-and-customize, open-source style) or submitted as Partner Connectors for native review and listing across all workspaces, functioning as a connector marketplace. Workato also exposes a full platform API (recipes, connectors, jobs) for programmatic control, plus a separate Platform CLI for asset sync. There is no official multi-language client SDK (e.g., Python/JS/Go) for calling the Workato API beyond the Ruby connector-development kit and the generic REST API.",
+          "Workato's Connector SDK lets developers build custom connectors in Ruby, with a local SDK Emulator (the open-source `workato-connector-sdk` gem on GitHub) for offline development, testing, and git-based versioning outside the cloud editor. Custom connectors can be published to Workato's Community Library (install-and-customize, open-source style) or submitted as Partner Connectors for native review and listing across all workspaces, functioning as a connector marketplace. Workato also exposes a full platform API (recipes, connectors, jobs) for programmatic control, plus a separate Platform CLI for asset sync. No official multi-language client SDK (Python/JS/Go) exists for calling the Workato API beyond the Ruby connector-development kit and the generic REST API.",
         shortValue: 'Ruby Connector SDK plus community connector library',
         confidence: 'verified',
         sources: [
@@ -733,7 +733,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           "Yes: Workato lets builders publish recipes/Genies as Enterprise Skills exposed through a managed MCP server hosted in Workato's AI Hub, so external AI tools (Claude, Cursor, other MCP clients) can call Workato automations as MCP servers, in addition to Genies acting as MCP clients that consume external MCP servers.",
         detail:
-          'This confirms the prior signal about Genies: Workato ships genuine bidirectional MCP support, both publishing (recipes/Genies as MCP servers) and consuming (Genies as MCP clients).',
+          'Workato ships genuine bidirectional MCP support: both publishing (recipes/Genies as MCP servers) and consuming (Genies as MCP clients).',
         shortValue: 'Yes: Genies/recipes publishable as MCP servers',
         confidence: 'verified',
         sources: [
@@ -776,7 +776,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       entryPaidPlan: {
         value:
-          "No published starting price. Workato's pricing page is sales-led (demo/trial request only). Third-party pricing-intelligence sites report a Standard/Starter tier in the range of roughly $2,000–$10,000/month, unconfirmed by the vendor.",
+          "No published starting price; Workato's pricing page is sales-led (demo/trial request only). Third-party pricing-intelligence sites report a Standard/Starter tier around $2,000 to $10,000/month, unconfirmed by Workato.",
         shortValue: 'No published price; sales-quoted only',
         confidence: 'unknown',
         sources: [
@@ -789,7 +789,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          "No self-serve free tier is documented; Workato's pricing page is sales-gated (demo/trial request only) and does not confirm a permanent free plan",
+          "No self-serve free tier is documented. Workato's pricing page is sales-gated (demo/trial request only) and does not confirm a permanent free plan",
         shortValue: 'No documented free tier',
         confidence: 'unknown',
         sources: [
@@ -835,7 +835,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       dataResidency: {
         value:
-          'Workato operates multiple regional data centers (for example, an Israel data center that uses OpenAI GPT-4o mini instead of Anthropic Sonnet 4 used elsewhere) and documents data-protection and residency options for customers. The on-prem agent additionally lets customers keep on-prem application data behind their own firewall, tunneling only authorized traffic to the Workato cloud.',
+          'Workato operates multiple regional data centers (for example, an Israel data center that uses OpenAI GPT-4o mini instead of the Anthropic Sonnet 4 used elsewhere) and documents data-protection and residency options for customers. The on-prem agent additionally lets customers keep on-prem application data behind their own firewall, tunneling only authorized traffic to the Workato cloud.',
         shortValue: 'Multiple regional data centers; on-prem agent option',
         confidence: 'verified',
         sources: [
@@ -886,7 +886,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'SOC1 Type II, SOC2 Type II, SOC3, ISO 27001, ISO 27701, ISO 42001, HIPAA (BAA), PCI-DSS v4.0.1 Level 1, IRAP (PROTECTED, Australia), NIST 800-171A r2',
         detail:
-          "Workato's security/compliance page lists well beyond bare SOC2: SOC 1 Type II (financial reporting controls), SOC 2 Type II, and public SOC 3; ISO 27001 (infosec management), ISO 27701 (privacy/PIMS extending 27001, aligns with GDPR handling of PII), and ISO 42001 (AI governance/responsible-AI management); HIPAA compliance as a Business Associate with signable BAAs and annual third-party HIPAA attestation; PCI-DSS v4.0.1 Level 1 for cardholder data; IRAP assessment at the Australian government PROTECTED level; and NIST 800-171A r2 support for federal contractors handling Controlled Unclassified Information. There is no explicit FedRAMP authorization or a standalone 'GDPR certification'. GDPR compliance is represented via the ISO 27701 PIMS alignment.",
+          "Workato's certifications go well beyond SOC 2: SOC 1 Type II covers financial reporting controls, ISO 27001 covers infosec management, ISO 27701 covers privacy (PIMS extending 27001, aligning with GDPR handling of PII), ISO 42001 covers AI governance, HIPAA compliance runs through signable BAAs with annual third-party attestation, PCI-DSS v4.0.1 Level 1 covers cardholder data, IRAP is assessed at the Australian government PROTECTED level, and NIST 800-171A r2 supports federal contractors handling Controlled Unclassified Information. There is no FedRAMP authorization or a standalone GDPR certification; GDPR compliance is represented through the ISO 27701 PIMS alignment.",
         shortValue: 'SOC, ISO 27001/27701/42001, HIPAA, PCI-DSS, IRAP, NIST',
         confidence: 'verified',
         sources: [
@@ -912,7 +912,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           "Yes: Workato's project-level access control includes dedicated connection privileges (view, update, create, remove connections) that can be assigned to specific roles or collaborator groups per project, letting admins restrict who can use or manage specific stored connections and credentials, separate from general feature-level permissions.",
         detail:
-          'Granularity is at the project/connection-privilege level (and per-service scoping such as AWS IAM external IDs), not necessarily an arbitrary per-credential allow-list across all roles. It still meets the bar of restricting specific credentials beyond feature-level access control.',
+          'Granularity is at the project/connection-privilege level (and per-service scoping such as AWS IAM external IDs), not an arbitrary per-credential allow-list across all roles, but it still restricts specific credentials beyond feature-level access control.',
         shortValue: 'Yes: per-project connection privileges via RBAC',
         confidence: 'verified',
         sources: [
@@ -932,7 +932,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Yes: Workato Embedded offers a Theme editor (Admin Console > Settings > Branding) for customizing colors, fonts, spacing, and adding a custom company logo/name, plus the ability to white-label error messages, notifications, and logs, for partners embedding Workato in their own product.',
         detail:
-          'This capability is scoped to the Workato Embedded/OEM offering rather than the standard workspace UI.',
+          'This capability is scoped to the Workato Embedded/OEM offering, not the standard workspace UI.',
         shortValue: 'Yes: Embedded theme editor with logo/branding',
         confidence: 'verified',
         sources: [
@@ -971,7 +971,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           "No: Workato's relevant feature is manual data masking, where a builder explicitly flags individual recipe steps so their runtime input and output are not stored or shown in job logs. This is step-level opt-in suppression, not automatic detection or redaction of PII patterns (emails, SSNs, etc.) within the content itself.",
         detail:
-          'Zero data retention is a related but separate blanket no-storage option; neither is documented as content-aware PII pattern detection/redaction.',
+          'Zero data retention is a related but separate blanket no-storage option; neither is content-aware PII pattern detection or redaction.',
         shortValue: 'No: manual step-masking, not automatic PII detection',
         confidence: 'verified',
         sources: [
@@ -991,7 +991,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Yes: Workato supports SAML-based single sign-on with just-in-time (JIT) provisioning, so a user signing in via SSO for the first time is automatically added/provisioned into the workspace, plus SAML role sync to assign workspace roles and collaborator groups from the identity provider.',
         detail:
-          'Documentation found emphasizes SAML; no explicit public confirmation of native OIDC support was found alongside SAML.',
+          'Documentation emphasizes SAML; no public confirmation of native OIDC support alongside SAML exists.',
         shortValue: 'Yes: SAML SSO with JIT auto-provisioning',
         confidence: 'verified',
         sources: [
@@ -1011,7 +1011,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Partial: Workato has a large first-party catalog of native, Workato-built connectors, plus an open Community Library where any developer with Connector SDK access can build and publish a connector that other users install with no formal Workato security review, alongside an invite-only Partner Connector tier that does get Workato code review.',
         detail:
-          "Workato's own docs distinguish three tiers: native connectors are built and maintained by Workato directly; Partner Connectors go through Workato's partnership program with dedicated developer accounts and code review by Workato engineers on the initial version and subsequent updates; and Community Connectors are built by any community member and published to the Community Library with no formal Workato security review, explicitly labeled 'intended as examples only.' Installing a community connector requires full Connector SDK privileges, and Workato's own guidance tells users to independently evaluate and test a community connector's code before releasing it workspace-wide, since 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' No specific publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) was found; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical/industry-wide concern, not a confirmed Workato-specific incident.",
+          "Workato's docs distinguish three tiers: native connectors are built and maintained by Workato directly; Partner Connectors go through Workato's partnership program with dedicated developer accounts and code review by Workato engineers on the initial version and subsequent updates; and Community Connectors are built by any community member and published to the Community Library with no formal Workato security review, explicitly labeled 'intended as examples only.' Installing a community connector requires full Connector SDK privileges, and Workato tells users to independently evaluate and test a community connector's code before releasing it workspace-wide, since 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' No publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) exists; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical, industry-wide concern rather than a Workato-specific incident.",
         shortValue: 'Partial: first-party catalog plus open, lightly-vetted community library',
         confidence: 'verified',
         sources: [
@@ -1037,7 +1037,7 @@ export const workatoProfile: CompetitorProfile = {
       tracingDepth: {
         value: 'Customer-facing job/step-level tracing plus an operational metrics dashboard',
         detail:
-          'Job debug tracing shows per-step request/response detail (headers, request body, response) for every action in a run, making it possible to trace the root cause of a single execution. The Workato Dashboard gives a workspace-wide operational view: a jobs graph, recipe details table, plan usage, and app-connection overview, for spotting trends and outliers across recipes. A separate Logging Service streams step-by-step logs in real time (no need to wait for job completion) and can forward them to external systems like Datadog. These are all customer-facing, in-app views; detailed latency-percentile APM metrics go beyond what the jobs/errors dashboard offers.',
+          'Job debug tracing shows per-step request/response detail (headers, request body, response) for every action in a run, making it possible to trace the root cause of a single execution. The Workato Dashboard gives a workspace-wide operational view: a jobs graph, recipe details table, plan usage, and app-connection overview for spotting trends and outliers across recipes. A separate Logging Service streams step-by-step logs in real time (no need to wait for job completion) and can forward them to external systems like Datadog. These are all customer-facing, in-app views; detailed latency-percentile APM metrics go beyond the jobs/errors dashboard.',
         shortValue: 'Job/step-level tracing plus operational dashboard',
         confidence: 'verified',
         sources: [
@@ -1062,7 +1062,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Manual/configurable step retries + full job rerun with original trigger payload; no automatic checkpoint-resume mid-recipe',
         detail:
-          "Workato's 'Handle errors' block lets you wrap a group of actions and configure up to 3 automatic retries on failure before falling through to an error-handling block. This is opt-in per recipe, not a platform-wide automatic retry for every step. For durability and replay, Workato retains the original trigger event for every job, so any completed or failed job can be rerun from Job History with its original inputs reproduced end-to-end. This is effectively a full-run replay, not a mid-run checkpoint resume. At scale, this can be automated via a 'RecipeOps by Workato' recipe that finds failed jobs and reruns them.",
+          "Workato's 'Handle errors' block lets you wrap a group of actions and configure up to 3 automatic retries on failure before falling through to an error-handling block. This is opt-in per recipe, not a platform-wide automatic retry for every step. For durability and replay, Workato retains the original trigger event for every job, so any completed or failed job can be rerun from Job History with its original inputs reproduced end-to-end, effectively a full-run replay rather than a mid-run checkpoint resume. At scale, this can be automated via a 'RecipeOps by Workato' recipe that finds failed jobs and reruns them.",
         shortValue: 'Manual retries plus full job rerun, no checkpoint resume',
         confidence: 'verified',
         sources: [
@@ -1112,7 +1112,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Yes: Workato supports continuous audit/activity log streaming to external destinations including Amazon S3, Azure Monitor/Blob, Google Cloud Storage, Sumo Logic, Datadog, and Splunk, sending each job/event as a JSON payload via HTTP POST, with customizable log message formatting.',
         detail:
-          'No public documentation found confirming direct BigQuery streaming specifically, though Google Cloud Storage is supported.',
+          "Direct BigQuery streaming isn't documented specifically, though Google Cloud Storage is supported.",
         shortValue: 'Yes: log streaming to S3, Datadog, Splunk, etc.',
         confidence: 'verified',
         sources: [
@@ -1132,7 +1132,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           "Yes: Workato recipes can run as background jobs you check on later, rather than only blocking synchronously. A recipe run creates a job with an ID, and the Workato Jobs API lets you list jobs and fetch an individual job's status and details afterward. Workato also has explicit async patterns inside recipes: Callable Recipes support a 'fire-and-forget' async function call alongside a synchronous variant, a 'Wait for async calls' action to rejoin parallel async jobs, and a resume-token mechanism for jobs paused while awaiting external input.",
         detail:
-          'The public Jobs API is documented as metadata/status only (job state, timestamps, step summaries) via job_id, not a rich step-by-step output payload; full run-time data is viewed on the job details page in the UI rather than returned by the API.',
+          'The public Jobs API returns metadata/status only (job state, timestamps, step summaries) via job_id, not a rich step-by-step output payload; full run-time data is viewed on the job details page in the UI rather than returned by the API.',
         shortValue: 'Yes: async job_id + pollable Jobs API',
         confidence: 'verified',
         sources: [
@@ -1221,7 +1221,7 @@ export const workatoProfile: CompetitorProfile = {
       },
       community: {
         value:
-          'No published community size metrics. Workato operates a public forum ("Systematic Community") with active discussion, but no member count, Slack/Discord size, or GitHub star count is published. The core product is closed source, so no public GitHub stars apply',
+          'No published community size metrics. Workato operates a public forum ("Systematic Community") with active discussion, but no member count, Slack/Discord size, or GitHub star count is published, and the core product is closed source so no GitHub stars apply',
         shortValue: 'No published size metrics; closed-source',
         confidence: 'unknown',
         sources: [
@@ -1236,7 +1236,7 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Founded 2013; ~$421M total funding; last priced at $5.7B (2021), secondary markets ~$1.7B (mid-2025); ~1,400 employees',
         detail:
-          'Workato was founded in 2013 by Gautham Viswanathan and Vijay Tella (Palo Alto, CA). It has raised approximately $421M in total funding across rounds including a $200M Series E in late 2021 at a $5.7B valuation; secondary-market pricing as of mid-2025 reportedly implied a lower valuation near $1.7B. Employee count is approximately 1,414 as of May 2026, indicating a mature, well-funded, late-stage private company with no IPO.',
+          'Workato was founded in 2013 by Gautham Viswanathan and Vijay Tella (Palo Alto, CA). It has raised approximately $421M in total funding across rounds including a $200M Series E in late 2021 at a $5.7B valuation; secondary-market pricing as of mid-2025 implied a lower valuation near $1.7B. Employee count is approximately 1,414 as of May 2026, a mature, well-funded, late-stage private company with no IPO.',
         shortValue: 'Founded 2013; ~$421M raised; ~1,400 employees',
         confidence: 'verified',
         sources: [
