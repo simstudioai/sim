@@ -12,6 +12,7 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  toast,
 } from '@sim/emcn'
 import { ArrowLeft, Download } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
@@ -93,21 +94,38 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
   }
 
   /**
-   * Downloads a CSV of every log matching the current filter — a plain anchor
-   * navigation to the export route, not a `fetch`, so the browser handles the
-   * download natively via the response's `Content-Disposition` header.
+   * Downloads a CSV of every log matching the current filter. Fetches rather
+   * than navigating a plain anchor to the export URL so the client can read
+   * the `X-Export-Truncated` response header and surface it — an anchor
+   * navigation has no way to inspect the response before the browser commits
+   * to the download.
    */
-  const handleExport = () => {
+  const handleExport = async () => {
     const params = new URLSearchParams({ period })
-    if (period === 'custom' && startDate && endDate) {
-      params.set('startDate', startDate)
-      params.set('endDate', endDate)
+    if (period === 'custom') {
+      if (startDate) params.set('startDate', startDate)
+      if (endDate) params.set('endDate', endDate)
     }
+
+    // boundary-raw-fetch: downloads a CSV blob and reads a response header before saving — a plain anchor navigation can't do either
+    const response = await fetch(`/api/users/me/usage-logs/export?${params.toString()}`)
+    if (!response.ok) {
+      toast.error('Failed to export usage logs')
+      return
+    }
+    if (response.headers.get('X-Export-Truncated') === '1') {
+      toast.info('Export truncated — narrow the date range to see everything')
+    }
+
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = `/api/users/me/usage-logs/export?${params.toString()}`
+    link.href = url
+    link.download = `credit-usage-${period}-${new Date().toISOString().slice(0, 10)}.csv`
     document.body.appendChild(link)
     link.click()
     link.remove()
+    URL.revokeObjectURL(url)
   }
 
   const periodDisplayLabel =
@@ -140,7 +158,7 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
         </ChipLink>
       }
       actions={
-        <Chip leftIcon={Download} onClick={handleExport} disabled={logs.length === 0}>
+        <Chip leftIcon={Download} onClick={() => void handleExport()} disabled={logs.length === 0}>
           Export
         </Chip>
       }

@@ -50,8 +50,26 @@ describe('GET /api/users/me/usage-logs/export', () => {
 
     expect(response.headers.get('Content-Type')).toBe('text/csv; charset=utf-8')
     expect(response.headers.get('Content-Disposition')).toContain('attachment; filename=')
+    expect(response.headers.get('X-Export-Truncated')).toBe('0')
     expect(header).toBe('Date,Type,Credits')
     expect(row).toBe('2026-07-01T00:00:00.000Z,Chat,100')
+  })
+
+  it('sets X-Export-Truncated when the row cap is hit with more data remaining', async () => {
+    mockGetUserUsageLogs.mockResolvedValueOnce({
+      logs: Array.from({ length: 5000 }, (_, i) => ({
+        id: `log-${i}`,
+        createdAt: '2026-07-01T00:00:00.000Z',
+        source: 'copilot',
+        cost: 0.1,
+      })),
+      summary: { totalCost: 0, bySource: {} },
+      pagination: { hasMore: true, nextCursor: 'log-4999' },
+    })
+
+    const response = await GET(createMockRequest('GET'))
+
+    expect(response.headers.get('X-Export-Truncated')).toBe('1')
   })
 
   it('does not request the summary aggregate — the export never reads it', async () => {

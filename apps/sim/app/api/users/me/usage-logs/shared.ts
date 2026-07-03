@@ -14,8 +14,9 @@ export function resolveDateRange(
   customEndDate: string | undefined
 ): ResolvedDateRange {
   if (period === 'custom') {
+    if (!customStartDate) throw new Error('startDate is required when period is "custom"')
     return {
-      startDate: new Date(customStartDate as string),
+      startDate: new Date(customStartDate),
       endDate: customEndDate ? new Date(customEndDate) : new Date(),
     }
   }
