@@ -2,18 +2,8 @@
 
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  getUsageLogsContract,
-  type UsageLogSource,
-  type UsageLogsApiResponse,
-} from '@/lib/api/contracts/user'
-
-export const usageLogKeys = {
-  all: ['usage-logs'] as const,
-  lists: () => [...usageLogKeys.all, 'list'] as const,
-  list: (period: string, source?: UsageLogSource) =>
-    [...usageLogKeys.lists(), period, source ?? ''] as const,
-}
+import { getUsageLogsContract, type UsageLogsApiResponse } from '@/lib/api/contracts/user'
+import { usageLogKeys } from '@/hooks/queries/utils/usage-log-keys'
 
 const PAGE_SIZE = 25
 

@@ -50,8 +50,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }))
 
   const bySourceCredits = Object.fromEntries(
-    Object.entries(result.summary.bySource).map(([source, cost]) => [
-      source,
+    Object.entries(result.summary.bySource).map(([sourceKey, cost]) => [
+      sourceKey,
       dollarsToCredits(cost),
     ])
   )
