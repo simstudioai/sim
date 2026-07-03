@@ -114,6 +114,7 @@ describe('POST /api/auth/sso/register', () => {
     mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
     mockHasSSOAccess.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
+    mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
     mockRegisterSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
   })
 
