@@ -71,12 +71,12 @@ export interface ToolCatalogEntry {
     | 'open_resource'
     | 'promote_to_live'
     | 'query_logs'
+    | 'query_user_table'
     | 'read'
     | 'redeploy'
     | 'rename_file'
     | 'rename_file_folder'
     | 'rename_workflow'
-    | 'research'
     | 'respond'
     | 'restore_resource'
     | 'run'
@@ -85,9 +85,10 @@ export interface ToolCatalogEntry {
     | 'run_workflow'
     | 'run_workflow_until_block'
     | 'scheduled_task'
-    | 'scout'
     | 'scrape_page'
+    | 'search'
     | 'search_documentation'
+    | 'search_knowledge_base'
     | 'search_library_docs'
     | 'search_online'
     | 'search_patterns'
@@ -170,12 +171,12 @@ export interface ToolCatalogEntry {
     | 'open_resource'
     | 'promote_to_live'
     | 'query_logs'
+    | 'query_user_table'
     | 'read'
     | 'redeploy'
     | 'rename_file'
     | 'rename_file_folder'
     | 'rename_workflow'
-    | 'research'
     | 'respond'
     | 'restore_resource'
     | 'run'
@@ -184,9 +185,10 @@ export interface ToolCatalogEntry {
     | 'run_workflow'
     | 'run_workflow_until_block'
     | 'scheduled_task'
-    | 'scout'
     | 'scrape_page'
+    | 'search'
     | 'search_documentation'
+    | 'search_knowledge_base'
     | 'search_library_docs'
     | 'search_online'
     | 'search_patterns'
@@ -213,10 +215,9 @@ export interface ToolCatalogEntry {
     | 'file'
     | 'knowledge'
     | 'media'
-    | 'research'
     | 'run'
     | 'scheduled_task'
-    | 'scout'
+    | 'search'
     | 'superagent'
     | 'table'
     | 'workflow'
@@ -3018,6 +3019,55 @@ export const QueryLogs: ToolCatalogEntry = {
   },
 }
 
+export const QueryUserTable: ToolCatalogEntry = {
+  id: 'query_user_table',
+  name: 'query_user_table',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      args: {
+        type: 'object',
+        description: 'Arguments for the operation',
+        properties: {
+          filter: { type: 'object', description: 'MongoDB-style filter for query_rows' },
+          limit: {
+            type: 'number',
+            description: 'Maximum rows to return (optional, default 100, max 1000 per call)',
+          },
+          offset: {
+            type: 'number',
+            description: 'Number of rows to skip (optional for query_rows, default 0)',
+          },
+          rowId: { type: 'string', description: 'Row ID (required for get_row)' },
+          sort: {
+            type: 'object',
+            description:
+              "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
+          },
+          tableId: { type: 'string', description: 'Table ID (required for all operations)' },
+        },
+      },
+      operation: {
+        type: 'string',
+        description: 'The read operation to perform',
+        enum: ['get', 'get_schema', 'get_row', 'query_rows'],
+      },
+    },
+    required: ['operation', 'args'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: { type: 'object', description: 'Operation-specific result payload.' },
+      message: { type: 'string', description: 'Human-readable outcome summary.' },
+      success: { type: 'boolean', description: 'Whether the operation succeeded.' },
+    },
+    required: ['success', 'message'],
+  },
+}
+
 export const Read: ToolCatalogEntry = {
   id: 'read',
   name: 'read',
@@ -3183,20 +3233,6 @@ export const RenameWorkflow: ToolCatalogEntry = {
     required: ['workflowId', 'name'],
   },
   requiredPermission: 'write',
-}
-
-export const Research: ToolCatalogEntry = {
-  id: 'research',
-  name: 'research',
-  route: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: { topic: { description: 'The topic to research.', type: 'string' } },
-    required: ['topic'],
-    type: 'object',
-  },
-  subagentId: 'research',
-  internal: true,
 }
 
 export const Respond: ToolCatalogEntry = {
@@ -3437,25 +3473,6 @@ export const ScheduledTask: ToolCatalogEntry = {
   internal: true,
 }
 
-export const Scout: ToolCatalogEntry = {
-  id: 'scout',
-  name: 'scout',
-  route: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: {
-      task: {
-        description:
-          "One short scoping sentence — the scout has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'compute how many rows in the pasted CSV have invalid emails'.",
-        type: 'string',
-      },
-    },
-    required: ['task'],
-    type: 'object',
-  },
-  subagentId: 'scout',
-}
-
 export const ScrapePage: ToolCatalogEntry = {
   id: 'scrape_page',
   name: 'scrape_page',
@@ -3478,6 +3495,26 @@ export const ScrapePage: ToolCatalogEntry = {
   },
 }
 
+export const Search: ToolCatalogEntry = {
+  id: 'search',
+  name: 'search',
+  route: 'subagent',
+  mode: 'async',
+  parameters: {
+    properties: {
+      task: {
+        description:
+          "One short scoping sentence — the search agent has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'count how many rows in the leads table have invalid emails'.",
+        type: 'string',
+      },
+    },
+    required: ['task'],
+    type: 'object',
+  },
+  subagentId: 'search',
+  internal: true,
+}
+
 export const SearchDocumentation: ToolCatalogEntry = {
   id: 'search_documentation',
   name: 'search_documentation',
@@ -3490,6 +3527,49 @@ export const SearchDocumentation: ToolCatalogEntry = {
       topK: { type: 'number', description: 'Number of results (max 10)' },
     },
     required: ['query'],
+  },
+}
+
+export const SearchKnowledgeBase: ToolCatalogEntry = {
+  id: 'search_knowledge_base',
+  name: 'search_knowledge_base',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      args: {
+        type: 'object',
+        description: 'Arguments for the operation',
+        properties: {
+          knowledgeBaseId: {
+            type: 'string',
+            description: 'Knowledge base ID (required for all operations)',
+          },
+          query: { type: 'string', description: "Search query text (required for 'query')" },
+          topK: {
+            type: 'number',
+            description: 'Number of results to return (1-50, default: 5)',
+            default: 5,
+          },
+        },
+      },
+      operation: {
+        type: 'string',
+        description: 'The read operation to perform',
+        enum: ['get', 'query', 'list_tags'],
+      },
+    },
+    required: ['operation', 'args'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: { type: 'object', description: 'Operation-specific result payload.' },
+      message: { type: 'string', description: 'Human-readable outcome summary.' },
+      success: { type: 'boolean', description: 'Whether the operation succeeded.' },
+    },
+    required: ['success', 'message'],
   },
 }
 
@@ -4483,6 +4563,38 @@ export const MaterializeFileOperationValues = [
   MaterializeFileOperation.import,
 ] as const
 
+export const QueryUserTableOperation = {
+  get: 'get',
+  getSchema: 'get_schema',
+  getRow: 'get_row',
+  queryRows: 'query_rows',
+} as const
+
+export type QueryUserTableOperation =
+  (typeof QueryUserTableOperation)[keyof typeof QueryUserTableOperation]
+
+export const QueryUserTableOperationValues = [
+  QueryUserTableOperation.get,
+  QueryUserTableOperation.getSchema,
+  QueryUserTableOperation.getRow,
+  QueryUserTableOperation.queryRows,
+] as const
+
+export const SearchKnowledgeBaseOperation = {
+  get: 'get',
+  query: 'query',
+  listTags: 'list_tags',
+} as const
+
+export type SearchKnowledgeBaseOperation =
+  (typeof SearchKnowledgeBaseOperation)[keyof typeof SearchKnowledgeBaseOperation]
+
+export const SearchKnowledgeBaseOperationValues = [
+  SearchKnowledgeBaseOperation.get,
+  SearchKnowledgeBaseOperation.query,
+  SearchKnowledgeBaseOperation.listTags,
+] as const
+
 export const UserMemoryOperation = {
   add: 'add',
   search: 'search',
@@ -4651,12 +4763,12 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [OpenResource.id]: OpenResource,
   [PromoteToLive.id]: PromoteToLive,
   [QueryLogs.id]: QueryLogs,
+  [QueryUserTable.id]: QueryUserTable,
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
   [RenameFile.id]: RenameFile,
   [RenameFileFolder.id]: RenameFileFolder,
   [RenameWorkflow.id]: RenameWorkflow,
-  [Research.id]: Research,
   [Respond.id]: Respond,
   [RestoreResource.id]: RestoreResource,
   [Run.id]: Run,
@@ -4665,9 +4777,10 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RunWorkflow.id]: RunWorkflow,
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
   [ScheduledTask.id]: ScheduledTask,
-  [Scout.id]: Scout,
   [ScrapePage.id]: ScrapePage,
+  [Search.id]: Search,
   [SearchDocumentation.id]: SearchDocumentation,
+  [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,
   [SearchOnline.id]: SearchOnline,
   [SearchPatterns.id]: SearchPatterns,
