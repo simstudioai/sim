@@ -7,7 +7,6 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
@@ -39,6 +38,8 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
 }: EditKnowledgeBaseModalProps) {
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [descriptionError, setDescriptionError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   /**
@@ -51,24 +52,38 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
     if (open) {
       setName(initialName)
       setDescription(initialDescription)
+      setNameError(null)
+      setDescriptionError(null)
     }
   }
 
-  const validate = (): string | null => {
-    if (!name.trim()) return 'Name is required'
-    if (name.trim().length > 100) return 'Name must be less than 100 characters'
-    if (description.length > KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH) {
-      return `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+  const validate = (): boolean => {
+    let valid = true
+
+    if (!name.trim()) {
+      setNameError('Name is required')
+      valid = false
+    } else if (name.trim().length > 100) {
+      setNameError('Name must be less than 100 characters')
+      valid = false
+    } else {
+      setNameError(null)
     }
-    return null
+
+    if (description.length > KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH) {
+      setDescriptionError(
+        `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+      )
+      valid = false
+    } else {
+      setDescriptionError(null)
+    }
+
+    return valid
   }
 
   const handleSubmit = async () => {
-    const validationError = validate()
-    if (validationError) {
-      toast.error(validationError)
-      return
-    }
+    if (!validate()) return
 
     setIsSubmitting(true)
 
@@ -96,6 +111,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
           onChange={setName}
           placeholder='Enter knowledge base name'
           required
+          error={nameError ?? undefined}
           autoComplete='off'
         />
         <ChipModalField
@@ -105,6 +121,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
           onChange={setDescription}
           placeholder='Describe this knowledge base (optional)'
           rows={4}
+          error={descriptionError ?? undefined}
         />
         {chunkingConfig && (
           <ChipModalField type='custom' title='Chunking Configuration'>

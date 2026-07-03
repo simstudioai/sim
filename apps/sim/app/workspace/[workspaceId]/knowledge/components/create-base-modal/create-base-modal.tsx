@@ -22,7 +22,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { type FieldErrors, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
@@ -142,11 +142,14 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     onOpenChange(open)
   }
 
-  const { register, handleSubmit, reset, watch, setValue } = useForm<
-    FormInputValues,
-    unknown,
-    FormValues
-  >({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<FormInputValues, unknown, FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       name: '',
@@ -220,15 +223,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   const isSubmitting =
     createKnowledgeBaseMutation.isPending || deleteKnowledgeBaseMutation.isPending || isUploading
 
-  const onInvalid = (formErrors: FieldErrors<FormInputValues>) => {
-    const firstMessage = Object.values(formErrors).find(
-      (fieldError) => typeof fieldError?.message === 'string'
-    )?.message
-    toast.error(
-      typeof firstMessage === 'string' ? firstMessage : 'Please fix the errors and try again'
-    )
-  }
-
   const onSubmit = async (data: FormValues) => {
     try {
       const strategyOptions: StrategyOptions | undefined =
@@ -293,7 +287,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     <ChipModal open={open} onOpenChange={handleClose} srTitle='Create Knowledge Base' size='lg'>
       <ChipModalHeader onClose={() => handleClose(false)}>Create Knowledge Base</ChipModalHeader>
 
-      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className='flex min-h-0 flex-1 flex-col'>
+      <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
         <button type='submit' hidden disabled={isSubmitting || !nameValue?.trim()} />
         <ChipModalBody>
           <input
@@ -305,10 +299,11 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             readOnly
           />
 
-          <ChipModalField type='custom' title='Name'>
+          <ChipModalField type='custom' title='Name' error={errors.name?.message}>
             <ChipInput
               placeholder='Enter knowledge base name'
               {...register('name')}
+              error={Boolean(errors.name)}
               autoComplete='off'
               autoCorrect='off'
               autoCapitalize='off'
@@ -317,16 +312,22 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             />
           </ChipModalField>
 
-          <ChipModalField type='custom' title='Description'>
+          <ChipModalField type='custom' title='Description' error={errors.description?.message}>
             <ChipTextarea
               placeholder='Describe this knowledge base (optional)'
               rows={4}
               {...register('description')}
+              error={Boolean(errors.description)}
             />
           </ChipModalField>
 
           <div className='flex gap-3'>
-            <ChipModalField type='custom' title='Min Chunk Size (characters)' className='flex-1'>
+            <ChipModalField
+              type='custom'
+              title='Min Chunk Size (characters)'
+              className='flex-1'
+              error={errors.minChunkSize?.message}
+            >
               <ChipInput
                 type='number'
                 min={1}
@@ -334,12 +335,18 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 step={1}
                 placeholder='100'
                 {...register('minChunkSize', { valueAsNumber: true })}
+                error={Boolean(errors.minChunkSize)}
                 autoComplete='off'
                 data-form-type='other'
               />
             </ChipModalField>
 
-            <ChipModalField type='custom' title='Max Chunk Size (tokens)' className='flex-1'>
+            <ChipModalField
+              type='custom'
+              title='Max Chunk Size (tokens)'
+              className='flex-1'
+              error={errors.maxChunkSize?.message}
+            >
               <ChipInput
                 type='number'
                 min={100}
@@ -347,6 +354,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 step={1}
                 placeholder='1024'
                 {...register('maxChunkSize', { valueAsNumber: true })}
+                error={Boolean(errors.maxChunkSize)}
                 autoComplete='off'
                 data-form-type='other'
               />
@@ -357,6 +365,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             type='custom'
             title='Overlap (tokens)'
             hint='1 token ≈ 4 characters. Max chunk size and overlap are in tokens.'
+            error={errors.overlapSize?.message}
           >
             <ChipInput
               type='number'
@@ -365,6 +374,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               step={1}
               placeholder='200'
               {...register('overlapSize', { valueAsNumber: true })}
+              error={Boolean(errors.overlapSize)}
               autoComplete='off'
               data-form-type='other'
             />
@@ -390,10 +400,12 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 type='custom'
                 title='Regex Pattern'
                 hint='Text will be split at each match of this regex pattern.'
+                error={errors.regexPattern?.message}
               >
                 <ChipInput
                   placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
                   {...register('regexPattern')}
+                  error={Boolean(errors.regexPattern)}
                   autoComplete='off'
                   data-form-type='other'
                 />
@@ -512,7 +524,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                     : 'Creating...'
                 : 'Creating...'
               : 'Create',
-            onClick: handleSubmit(onSubmit, onInvalid),
+            onClick: handleSubmit(onSubmit),
             disabled: isSubmitting || !nameValue?.trim(),
           }}
         />
