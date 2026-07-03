@@ -24,13 +24,6 @@ interface RouteParams {
 }
 
 /**
- * Maps known service-layer error messages onto HTTP responses; falls through
- * to a 500 with a generic message for anything unrecognized. The three
- * group-route handlers all surface the same error shapes from
- * `addWorkflowGroup` / `updateWorkflowGroup` / `deleteWorkflowGroup`, so they
- * share this mapper instead of repeating the if-chain three times.
- */
-/**
  * Confirms `workflowId` resolves to an active workflow in `workspaceId` before it is
  * persisted onto a table's workflow group. Returns a 400 response when the workflow
  * doesn't exist or belongs to a different workspace, otherwise `null`.
@@ -46,6 +39,13 @@ async function validateWorkflowInWorkspace(
   return null
 }
 
+/**
+ * Maps known service-layer error messages onto HTTP responses; falls through
+ * to a 500 with a generic message for anything unrecognized. The three
+ * group-route handlers all surface the same error shapes from
+ * `addWorkflowGroup` / `updateWorkflowGroup` / `deleteWorkflowGroup`, so they
+ * share this mapper instead of repeating the if-chain three times.
+ */
 function mapWorkflowGroupError(error: unknown, fallbackMessage: string): NextResponse {
   if (error instanceof Error) {
     const msg = error.message
