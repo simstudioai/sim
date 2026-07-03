@@ -296,7 +296,7 @@ export const retoolProfile: CompetitorProfile = {
       },
       richTextEditor: {
         value:
-          "No true WYSIWYG editing: Retool's Rich Text Editor component lets users type HTML-formatted text, and a separate Text component displays Markdown, but neither is a full WYSIWYG Markdown editor. Community members have built custom components (based on the CKEditor library) to get true WYSIWYG Markdown editing.",
+          "Not true WYSIWYG editing: Retool's Rich Text Editor component lets users type HTML-formatted text, and a separate Text component displays Markdown, but neither is a full WYSIWYG Markdown editor. Community members have built custom components (based on the CKEditor library) to get true WYSIWYG Markdown editing.",
         detail:
           'Multiple long-running Retool forum feature requests ask for WYSIWYG markdown editing, still unresolved.',
         shortValue: 'No, native editor is HTML-input, not WYSIWYG markdown',

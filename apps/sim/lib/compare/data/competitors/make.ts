@@ -435,7 +435,7 @@ export const makeProfile: CompetitorProfile = {
         ],
       },
       naturalLanguageBuilding: {
-        value: 'No native, officially-branded feature',
+        value: 'Not a native, officially-branded feature',
         detail:
           "Natural-language scenario creation is available only through third-party/unofficial MCP servers (e.g., community 'make-mcp-server') feeding prompts to external AI assistants like Claude or Cursor, plus Make's own MCP Server letting external agents call Make scenarios as tools. Make has no first-party 'type a prompt, Make builds the scenario' copilot feature.",
         shortValue: 'No native prompt-to-scenario copilot',

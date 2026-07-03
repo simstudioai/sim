@@ -218,7 +218,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
         sources: [],
       },
       versionControlDepth: {
-        value: 'No native version control',
+        value: 'Not documented, no native version control',
         detail:
           'Plugins and skills are file-based (SKILL.md and package files), so a user could track them in an external VCS, but there is no built-in versioning, diffing, or rollback for tasks or plugins.',
         shortValue: 'No native version control',
