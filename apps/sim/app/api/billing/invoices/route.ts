@@ -14,7 +14,13 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 const logger = createLogger('BillingInvoices')
 
 /** Cap the number of invoices returned to the most recent statements. */
-const MAX_INVOICES = 12
+const MAX_INVOICES = 10
+
+/** Stripe page size when scanning for finalized invoices; also bounds the has-more probe. */
+const STRIPE_PAGE_SIZE = MAX_INVOICES + 1
+
+/** Safety cap on pagination when a customer has many draft invoices interspersed. */
+const MAX_STRIPE_PAGES = 5
 
 /**
  * Lists finalized Stripe invoices for the caller's billing customer (personal
@@ -69,23 +75,48 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const result = await stripe.invoices.list({ customer: stripeCustomerId, limit: MAX_INVOICES })
+    // Stripe's raw pagination cursor counts drafts, which we filter out below — so
+    // `has_more` on a single page can be true even when there are no more *finalized*
+    // invoices to show. Page until we've collected enough finalized invoices to know
+    // for certain whether "View all" should render, or Stripe's list is exhausted.
+    const finalized: Awaited<ReturnType<typeof stripe.invoices.list>>['data'] = []
+    let startingAfter: string | undefined
+    let stripeHasMore = true
 
-    const invoices = result.data
-      .filter((invoice) => invoice.id && invoice.status && invoice.status !== 'draft')
-      .map((invoice) => ({
-        id: invoice.id as string,
-        number: invoice.number ?? null,
-        created: invoice.created,
-        total: invoice.total,
-        amountPaid: invoice.amount_paid,
-        currency: invoice.currency,
-        status: invoice.status ?? null,
-        hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
-        invoicePdf: invoice.invoice_pdf ?? null,
-      }))
+    for (
+      let page = 0;
+      page < MAX_STRIPE_PAGES && stripeHasMore && finalized.length <= MAX_INVOICES;
+      page++
+    ) {
+      const result = await stripe.invoices.list({
+        customer: stripeCustomerId,
+        limit: STRIPE_PAGE_SIZE,
+        starting_after: startingAfter,
+      })
 
-    return NextResponse.json({ success: true, invoices, hasMore: result.has_more })
+      finalized.push(
+        ...result.data.filter(
+          (invoice) => invoice.id && invoice.status && invoice.status !== 'draft'
+        )
+      )
+      stripeHasMore = result.has_more
+      startingAfter = result.data.at(-1)?.id
+    }
+
+    const hasMore = finalized.length > MAX_INVOICES
+    const invoices = finalized.slice(0, MAX_INVOICES).map((invoice) => ({
+      id: invoice.id as string,
+      number: invoice.number ?? null,
+      created: invoice.created,
+      total: invoice.total,
+      amountPaid: invoice.amount_paid,
+      currency: invoice.currency,
+      status: invoice.status ?? null,
+      hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
+      invoicePdf: invoice.invoice_pdf ?? null,
+    }))
+
+    return NextResponse.json({ success: true, invoices, hasMore })
   } catch (error) {
     logger.error('Failed to list invoices', { error, userId: session.user.id, context })
     return NextResponse.json({ error: 'Failed to list invoices' }, { status: 500 })
