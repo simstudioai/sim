@@ -495,7 +495,7 @@ html.sidebar-booting .sidebar-shell-inner {
      browser/OS default (which dims when the window loses focus). */
   ::selection {
     background-color: var(--selection);
-    color: #ffffff;
+    color: var(--white);
   }
 
   body {
