@@ -8,6 +8,13 @@ import { SITE_URL } from '@/lib/core/utils/urls'
 import { Cta } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
+/**
+ * Filtered/paginated variants render genuinely different lists, but only the
+ * bare index is indexable — same policy as the integrations and models
+ * catalogs — so canonical always points at the unfiltered page and the
+ * variant itself is noindexed rather than asking Google to index every
+ * tag/page permutation.
+ */
 export async function generateMetadata({
   searchParams,
 }: {
@@ -25,11 +32,8 @@ export async function generateMetadata({
     ? `Sim blog posts tagged "${tag}": insights and guides for building AI agents.`
     : 'Announcements, insights, and guides from Sim, the open-source AI workspace, for building, deploying, and managing AI agents.'
 
-  const canonicalParams = new URLSearchParams()
-  if (tag) canonicalParams.set('tag', tag)
-  if (pageNum > 1) canonicalParams.set('page', String(pageNum))
-  const qs = canonicalParams.toString()
-  const canonical = `${SITE_URL}/blog${qs ? `?${qs}` : ''}`
+  const canonical = `${SITE_URL}/blog`
+  const isFiltered = Boolean(tag) || pageNum > 1
 
   return {
     title,
@@ -57,6 +61,7 @@ export async function generateMetadata({
       description,
       site: '@simdotai',
     },
+    ...(isFiltered && { robots: { index: false, follow: true } }),
   }
 }
 

@@ -78,30 +78,46 @@ const featured = FEATURED_SLUGS.map((s) => bySlug.get(s)).filter(
   (i): i is Integration => i !== undefined
 )
 
-export const metadata: Metadata = {
-  title: 'Integrations',
-  description: `Connect ${INTEGRATION_COUNT}+ apps and services in Sim's AI workspace. Build agents that automate real work with ${TOP_NAMES.join(', ')}, and more.`,
-  keywords: [
-    'AI workspace integrations',
-    'AI agent integrations',
-    'AI agent builder integrations',
-    ...TOP_NAMES.flatMap((n) => [`${n} integration`, `${n} automation`]),
-    ...allIntegrations.slice(0, 20).map((i) => `${i.name} automation`),
-  ],
-  // og:image/twitter:image come from the sibling opengraph-image.tsx -
-  // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
-  openGraph: {
-    title: 'Integrations | Sim AI Workspace',
-    description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace. Build agents that link ${TOP_NAMES.join(', ')}, and every tool your team uses.`,
-    url: `${baseUrl}/integrations`,
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Integrations | Sim',
-    description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace.`,
-  },
-  alternates: { canonical: `${baseUrl}/integrations` },
+/**
+ * `q`/`category` render a genuinely different server-rendered list (see
+ * search-params.ts), so filtered URLs are noindexed rather than
+ * self-canonicalized — keeps the single indexable URL as the bare catalog
+ * page instead of asking Google to index every filter permutation.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}): Promise<Metadata> {
+  const { q, category } = await integrationsSearchParamsCache.parse(searchParams)
+  const isFiltered = Boolean(q || category)
+
+  return {
+    title: 'Integrations',
+    description: `Connect ${INTEGRATION_COUNT}+ apps and services in Sim's AI workspace. Build agents that automate real work with ${TOP_NAMES.join(', ')}, and more.`,
+    keywords: [
+      'AI workspace integrations',
+      'AI agent integrations',
+      'AI agent builder integrations',
+      ...TOP_NAMES.flatMap((n) => [`${n} integration`, `${n} automation`]),
+      ...allIntegrations.slice(0, 20).map((i) => `${i.name} automation`),
+    ],
+    // og:image/twitter:image come from the sibling opengraph-image.tsx -
+    // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
+    openGraph: {
+      title: 'Integrations | Sim AI Workspace',
+      description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace. Build agents that link ${TOP_NAMES.join(', ')}, and every tool your team uses.`,
+      url: `${baseUrl}/integrations`,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'Integrations | Sim',
+      description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace.`,
+    },
+    alternates: { canonical: `${baseUrl}/integrations` },
+    ...(isFiltered && { robots: { index: false, follow: true } }),
+  }
 }
 
 export default async function IntegrationsPage({

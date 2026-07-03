@@ -1153,18 +1153,6 @@ export const schemaMock = {
     secret: 'secret',
     createdAt: 'createdAt',
   },
-  academyCertStatusEnum: 'academyCertStatusEnum',
-  academyCertificate: {
-    id: 'id',
-    userId: 'userId',
-    courseId: 'courseId',
-    status: 'status',
-    issuedAt: 'issuedAt',
-    expiresAt: 'expiresAt',
-    certificateNumber: 'certificateNumber',
-    metadata: 'metadata',
-    createdAt: 'createdAt',
-  },
   dataDrains: {
     id: 'id',
     organizationId: 'organizationId',
