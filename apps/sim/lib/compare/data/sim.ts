@@ -512,6 +512,11 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.sim.ai/knowledgebase/debugging-retrieval',
+            label: 'Sim Docs: Debugging retrieval',
+            asOf: '2026-07-02',
+          },
+          {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/chunk-editor/chunk-editor.tsx',
             label: 'Sim codebase: chunk editor',
             asOf: '2026-07-02',
@@ -604,6 +609,11 @@ export const simProfile: CompetitorProfile = {
         shortValue: 'Code-execution block for custom logic',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.sim.ai/workflows/blocks/function',
+            label: 'Sim Docs: Function block',
+            asOf: '2026-07-02',
+          },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
             label: 'Sim codebase: block registry',
@@ -712,6 +722,11 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
+            label: 'Sim Docs: Bring Your Own Key (BYOK)',
+            asOf: '2026-07-02',
+          },
+          {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/calculations/usage-monitor.ts',
             label: 'Sim codebase: BYOK usage-monitor logic',
             asOf: '2026-07-02',
@@ -766,6 +781,11 @@ export const simProfile: CompetitorProfile = {
         shortValue: 'Workspace and org-level role permissions',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.sim.ai/platform/permissions',
+            label: 'Sim Docs: Roles and Permissions',
+            asOf: '2026-07-02',
+          },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
             label: 'Sim codebase: permissionTypeEnum, role columns',
