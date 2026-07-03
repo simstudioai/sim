@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
-import { buildLandingMetadata } from '@/lib/landing/seo'
+import { buildLandingMetadata, withFilteredNoindex } from '@/lib/landing/seo'
 import Pricing from '@/app/(landing)/pricing/pricing'
 import { pricingSearchParamsCache } from '@/app/(landing)/pricing/search-params'
 
@@ -29,7 +29,7 @@ export async function generateMetadata({
       'Sim pricing, AI workspace pricing, AI agent platform pricing, build AI agents, Pro plan, Max plan, Enterprise plan, open-source AI agents, LLM pricing',
   })
 
-  return { ...base, ...(isFiltered && { robots: { index: false, follow: true } }) }
+  return withFilteredNoindex(base, isFiltered)
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {

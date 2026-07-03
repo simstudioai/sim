@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
-import { buildLandingMetadata } from '@/lib/landing/seo'
+import { buildLandingMetadata, withFilteredNoindex } from '@/lib/landing/seo'
 import Careers from '@/app/(landing)/careers/careers'
 import { ALL_FILTER_VALUE, careersSearchParamsCache } from '@/app/(landing)/careers/search-params'
 
@@ -26,7 +26,7 @@ export async function generateMetadata({
       'Sim careers, Sim jobs, AI workspace jobs, AI agent engineering jobs, open source jobs',
   })
 
-  return { ...base, ...(isFiltered && { robots: { index: false, follow: true } }) }
+  return withFilteredNoindex(base, isFiltered)
 }
 
 export default function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {

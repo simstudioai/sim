@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { withFilteredNoindex } from '@/lib/landing/seo'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
@@ -74,40 +75,42 @@ export async function generateMetadata({
   const { q, provider } = await modelsSearchParamsCache.parse(searchParams)
   const isFiltered = Boolean(q || provider)
 
-  return {
-    title: 'AI Models Directory',
-    description: `Compare ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers in Sim's AI workspace. Compare pricing, context windows, and capabilities for your agents.`,
-    keywords: [
-      'AI models directory',
-      'AI model comparison',
-      'LLM model list',
-      'model pricing',
-      'context window comparison',
-      'OpenAI models',
-      'Anthropic models',
-      'Google Gemini models',
-      'xAI Grok models',
-      'Mistral models',
-      ...TOP_MODEL_PROVIDERS.map((provider) => `${provider} models`),
-    ],
-    // og:image/twitter:image come from the sibling opengraph-image.tsx -
-    // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
-    openGraph: {
-      title: 'AI Models Directory | Sim',
-      description: `Explore ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers with pricing, context windows, and capability details.`,
-      url: `${baseUrl}/models`,
-      type: 'website',
+  return withFilteredNoindex(
+    {
+      title: 'AI Models Directory',
+      description: `Compare ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers in Sim's AI workspace. Compare pricing, context windows, and capabilities for your agents.`,
+      keywords: [
+        'AI models directory',
+        'AI model comparison',
+        'LLM model list',
+        'model pricing',
+        'context window comparison',
+        'OpenAI models',
+        'Anthropic models',
+        'Google Gemini models',
+        'xAI Grok models',
+        'Mistral models',
+        ...TOP_MODEL_PROVIDERS.map((provider) => `${provider} models`),
+      ],
+      // og:image/twitter:image come from the sibling opengraph-image.tsx -
+      // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
+      openGraph: {
+        title: 'AI Models Directory | Sim',
+        description: `Explore ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers with pricing, context windows, and capability details.`,
+        url: `${baseUrl}/models`,
+        type: 'website',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: 'AI Models Directory | Sim',
+        description: `Search ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers.`,
+      },
+      alternates: {
+        canonical: `${baseUrl}/models`,
+      },
     },
-    twitter: {
-      card: 'summary_large_image',
-      title: 'AI Models Directory | Sim',
-      description: `Search ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers.`,
-    },
-    alternates: {
-      canonical: `${baseUrl}/models`,
-    },
-    ...(isFiltered && { robots: { index: false, follow: true } }),
-  }
+    isFiltered
+  )
 }
 
 export default async function ModelsPage({
