@@ -942,6 +942,31 @@ export const zapierProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Partial: Zapier's App Directory is an open developer ecosystem, not a closed first-party catalog. Any developer can build an integration on the Zapier Developer Platform and submit it for public listing; Zapier's review checks publishing/technical requirements (HTTPS-only endpoints, no hardcoded credentials, OAuth verification) rather than a deep security audit, and Zapier explicitly tells customers these apps are 'owned and operated by third parties' and that users are responsible for evaluating trust in the developer.",
+        detail:
+          "Zapier's own Partner Program docs describe review turnaround of up to 21 business days against publishing standards, and OAuth verification is framed as 'a helpful start' rather than a guarantee of an app's suitability. No documented security incident specifically tied to a malicious third-party app published in the App Directory was found; separate publicly reported incidents (a 2025 repository breach exposing debug logs, and a 2025 npm supply-chain compromise of Zapier's own published packages) involved Zapier's internal infrastructure and package registry, not the App Directory's third-party integration ecosystem.",
+        shortValue: 'Partial: open app directory, lighter technical review',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://platform.zapier.com/publish/integration-publishing-requirements',
+            label: 'Integration publishing requirements',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.zapier.com/platform/publish/partner-program',
+            label: 'Partner Program',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/17709950386573-Data-safety-when-using-Zapier-embedded-in-other-apps',
+            label: 'Data safety when using Zapier embedded in other apps',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

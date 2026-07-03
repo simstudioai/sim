@@ -762,6 +762,37 @@ export const langflowProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      thirdPartyVetting: {
+        value:
+          'Partial: most built-in integration bundles are contributed as pull requests to the official langflow-ai/langflow codebase and merged by the core maintainers, but Langflow also ships a community Store where users can share and install flows and components with lighter, informal vetting, plus a custom-component system that lets any user author and run their own Python code with full server access. Langflow has disclosed a real security incident tied to this code-execution model: CVE-2025-3248, an unauthenticated remote code execution flaw in the custom-component code-validation endpoint (fixed in 1.3.0), which was actively exploited in the wild to deploy the Flodrix botnet on unpatched instances.',
+        detail:
+          'Langflow documents that it does not enforce isolation between users or restrict local disk/network access, so both bundle and custom-component code run with the same trust level as the core server.',
+        shortValue:
+          'Partial: reviewed bundles plus a lighter-vetted community Store and custom code',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/components-bundle-components',
+            label: 'Langflow Docs - About bundles',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.langflow.org/components-custom-components',
+            label: 'Langflow Docs - Create custom Python components',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.langflow.org/security',
+            label: 'Langflow Docs - Security',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/langflow-ai/langflow/security/advisories/GHSA-vwmf-pq79-vjvx',
+            label: 'GitHub Security Advisory GHSA-vwmf-pq79-vjvx (CVE-2025-3248)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

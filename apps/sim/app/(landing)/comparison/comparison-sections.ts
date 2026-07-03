@@ -92,6 +92,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'modelAndToolGovernance', label: 'Model & tool governance' },
       { key: 'credentialGovernance', label: 'Credential governance' },
       { key: 'sso', label: 'Single sign-on (SSO)' },
+      { key: 'thirdPartyVetting', label: 'Vetted first-party integrations' },
       { key: 'piiRedaction', label: 'PII redaction' },
       { key: 'dataRetention', label: 'Custom data retention' },
       { key: 'whiteLabeling', label: 'White-labeling' },

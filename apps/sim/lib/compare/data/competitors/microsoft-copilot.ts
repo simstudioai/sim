@@ -1029,6 +1029,27 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'Partial: the primary connector catalog (1,000+ connectors) is Microsoft-certified, requiring code/security review, functional verification, and malware scanning before publication, including connectors submitted by third-party (independent) publishers, but any maker can also build an uncertified custom connector against an arbitrary API for their own tenant, and security researchers at Zenity have documented that custom connectors can bypass Power Platform Data Loss Prevention policies to reach connectors an admin has explicitly blocked',
+        detail:
+          "Microsoft's own connector certification docs describe scanning all submitted connector code for malware or viruses and a functional/security review before a connector joins the shared, browsable catalog. Custom connectors skip that review entirely unless separately submitted for certification, and Zenity's published research specifically demonstrates using a custom connector to reach a DLP-blocked connector, a documented real-world weakness in the uncertified path rather than a hypothetical one.",
+        shortValue: 'Certified catalog is vetted; uncertified custom connectors can bypass DLP',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/connectors/custom-connectors/submit-certification',
+            label: 'Get your connector certified - Overview | Microsoft Learn',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://zenity.io/blog/research/microsoft-power-platform-dlp-bypass-uncovered-finding-3-custom-connectors',
+            label:
+              'AI Agent Security | Microsoft Power Platform DLP Bypass Uncovered - Finding #3 - Custom Connectors | Zenity',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

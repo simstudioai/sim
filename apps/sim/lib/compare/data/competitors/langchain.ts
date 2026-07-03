@@ -897,6 +897,28 @@ export const langchainProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Partial: the core langchain and langchain-core packages plus a set of popular integrations are maintained and security-reviewed by LangChain's own team, but the much larger integration surface lives in the community-driven langchain-community package (and hundreds of separately published community PyPI packages), which LangChain's own security policy states is not eligible for its bug bounty program",
+        detail:
+          "LangChain's published security policy explicitly excludes langchain-community from bug bounty eligibility due to its community-driven nature, while still accepting and addressing reports for it, indicating a lighter, best-effort review tier for community-contributed integration code compared to the core libraries and officially maintained popular integrations. No source found for a distinct, documented incident of a malicious or credential-stealing community-published LangChain integration package; the closest public security incident (CVE-2025-68664, a serialization-injection vulnerability nicknamed LangGrinch, CVSS 9.3) was in the core langchain-core library itself, not a third-party community integration.",
+        shortValue:
+          'Partial: core/popular integrations vendor-reviewed; langchain-community is community-maintained, excluded from bug bounty',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/oss/python/security-policy',
+            label: 'Security policy - Docs by LangChain',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/advisories/GHSA-c67j-w6g6-q2cm',
+            label:
+              'LangChain serialization injection vulnerability (CVE-2025-68664) - GitHub Advisory Database',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

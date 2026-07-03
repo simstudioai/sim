@@ -868,6 +868,26 @@ export const pipedreamProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'No: Pipedream is built around an open component registry where any developer can publish integration components to the public pipedreamhq/pipedream GitHub repo for anyone else to run, and users can also write and execute their own arbitrary custom code steps.',
+        detail:
+          'Community-contributed components go through automated checks (linting and other CI checks a contributor can also run locally via pnpm) rather than a documented manual first-party security review before a submission becomes runnable by other users. No publicly documented security incident specific to a malicious or compromised Pipedream component was found as of this check.',
+        shortValue: 'No, open community component registry',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/components/guidelines',
+            label: 'Pipedream Docs: Components Guidelines & Patterns',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://pipedream.com/community',
+            label: 'Pipedream Community',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

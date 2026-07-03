@@ -1007,6 +1007,31 @@ export const workatoProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'Partial: Workato has a large first-party catalog of native, Workato-built connectors, plus an open Community Library where any developer with Connector SDK access can build and publish a connector that other users install with no formal Workato security review, alongside an invite-only Partner Connector tier that does get Workato code review.',
+        detail:
+          "Workato's own docs distinguish three tiers: native connectors are built and maintained by Workato directly; Partner Connectors go through Workato's partnership program with dedicated developer accounts and code review by Workato engineers on the initial version and subsequent updates; and Community Connectors are built by any community member and published to the Community Library with no formal Workato security review, explicitly labeled 'intended as examples only.' Installing a community connector requires full Connector SDK privileges, and Workato's own guidance tells users to independently evaluate and test a community connector's code before releasing it workspace-wide, since 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' No specific publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) was found; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical/industry-wide concern, not a confirmed Workato-specific incident.",
+        shortValue: 'Partial: first-party catalog plus open, lightly-vetted community library',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/developing-connectors/community/community.html',
+            label: 'Community connectors | Workato Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.workato.com/developing-connectors/community/community-listing.html',
+            label: 'Contributing your connector | Workato Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.workato.com/product-hub/community-connectors/',
+            label: 'Workato Community Connectors: What you need to know',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

@@ -931,6 +931,26 @@ export const gumloopProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Yes: Gumloop's 100+ built-in integrations are first-party nodes authored and maintained by Gumloop. Custom Nodes (user-written code steps) are built privately per account or team and shared only with named teammates or an org/link, not published to a public, searchable registry of third-party installable nodes. The separate Community Templates gallery is workflow templates (built from Gumloop's own nodes), and submissions go through a Gumloop content-quality review before listing.",
+        detail:
+          "No public marketplace was found where an unaffiliated third-party developer publishes a Custom Node for arbitrary other users to discover and install, unlike an open community-node ecosystem. No documented security incidents involving Gumloop's Custom Nodes or Community Templates were found in public sources as of this check.",
+        shortValue: 'Yes: first-party nodes, private custom nodes, reviewed templates',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/nodes/custom_node_details',
+            label: 'Custom Node Builder - Gumloop docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.gumloop.com/blog/announcing-community-templates',
+            label: 'Announcing Community Templates - Gumloop blog',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

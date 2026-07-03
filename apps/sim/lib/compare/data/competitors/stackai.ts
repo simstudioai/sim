@@ -792,6 +792,26 @@ export const stackaiProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Yes: StackAI's 70+ app integrations (databases, cloud storage, CRMs, communication tools) are built and maintained by StackAI's own team, not an open community marketplace. Users needing an unlisted service fall back to a built-in Custom API node or connect their own MCP servers, rather than installing code published by other third-party users.",
+        detail:
+          'No public marketplace or community-node registry (like n8n community nodes) was found where outside developers publish installable integrations for other StackAI users. MCP support lets a workspace point at third-party MCP servers, but that is a user-configured connection to an external server the user chooses, not a shared plugin store with lighter vendor review. No StackAI-specific security incident involving its integrations or MCP connections was found in public sources.',
+        shortValue: 'Yes, first-party catalog only',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/apps',
+            label: 'StackAI Apps documentation',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/apps/mcp',
+            label: 'StackAI MCP documentation',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

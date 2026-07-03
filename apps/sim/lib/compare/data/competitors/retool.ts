@@ -893,6 +893,26 @@ export const retoolProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Yes: Retool's built-in integrations (Resources) are a first-party catalog of roughly 50 databases/APIs/cloud services built and maintained by Retool itself, not an open marketplace of third-party-submitted connectors. Retool separately offers Custom Component Libraries, which let a customer's own developers pull in npm packages to build custom UI components, but these are private to the authoring organization by default (or explicitly made public by that org) and are not a shared registry where other Retool customers install code published by unrelated third parties.",
+        detail:
+          "Retool documents that a custom component loads into a sandboxed iframe, and its own custom-component-guide plus a community forum thread ('Custom Component Vulnerabilities') flag that developers should run npm audit on the dependencies they pull into their own component libraries. This is a supply-chain caution for self-authored code, not a documented incident involving a shared marketplace, since no such public component marketplace exists.",
+        shortValue: 'Yes, first-party integration catalog, no public component marketplace',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://retool.com/integrations',
+            label: 'Retool Integrations',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.retool.com/apps/guides/custom/custom-component-libraries/',
+            label: 'Build custom React components',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

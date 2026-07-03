@@ -719,6 +719,33 @@ export const flowiseProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Yes: Flowise's nodes (LLMs, tools, vector stores, document loaders) live in the packages/components/nodes folder of the core FlowiseAI/Flowise monorepo. New nodes are contributed via GitHub pull request and reviewed/merged by the Flowise team before shipping in an official release, rather than published independently by third parties into an open, unreviewed marketplace. The separate Marketplace feature distributes JSON chatflow/agentflow templates, not installable executable code packages.",
+        detail:
+          'Flowise has still had first-party security issues: CVE-2025-59528 (CVSS 10.0) was a critical unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor; patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. This was a bug in vetted, first-party code, not a malicious third-party community node.',
+        shortValue:
+          'Yes, nodes are PR-reviewed into the core repo, no open community-node marketplace',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/contributing/building-node',
+            label: 'Flowise Docs: Building Node',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/security/advisories/GHSA-3gcm-f6qx-ff7p',
+            label: 'GitHub Security Advisory GHSA-3gcm-f6qx-ff7p (CVE-2025-59528)',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.csoonline.com/article/4155680/hackers-exploit-a-critical-flowise-flaw-affecting-thousands-of-ai-workflows.html',
+            label:
+              'CSO Online: Hackers exploit a critical Flowise flaw affecting thousands of AI workflows',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

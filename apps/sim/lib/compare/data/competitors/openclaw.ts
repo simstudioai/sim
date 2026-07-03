@@ -922,6 +922,28 @@ export const openClawProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'No: Skills mainly come from ClawHub, an open marketplace where any third-party developer can publish and any user can install executable Markdown/code Skill packages, not a first-party catalog authored by OpenClaw. Independent research documented 283 ClawHub skills (about 7.1% of the registry) leaking API keys and other credentials, and a separate scan found 24 accounts distributing over 600 malicious skills before scanning existed.',
+        detail:
+          'OpenClaw has since added a ClawScan pipeline (static analysis, VirusTotal, and NVIDIA SkillSpector as of June 2026) that assigns each published skill a Clean/Suspicious/Malicious verdict and a Skill Card, but its own docs still tell users to treat third-party skills as untrusted code, and the marketplace remains open to any publisher rather than vendor-authored.',
+        shortValue:
+          'No: open ClawHub marketplace, documented credential-leak and malware incidents',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://snyk.io/blog/openclaw-skills-credential-leaks-research/',
+            label: 'Snyk: 280+ Leaky Skills: How OpenClaw & ClawHub Are Exposing API Keys and PII',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://openclaw.ai/blog/openclaw-nvidia-skill-security',
+            label:
+              'OpenClaw Blog: OpenClaw Collaborates with NVIDIA for Stronger Agent Skill Security',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

@@ -832,6 +832,26 @@ export const vellumProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      thirdPartyVetting: {
+        value:
+          "Yes: Vellum's tool ecosystem is closed and vendor/partner controlled, not an open marketplace. Its own 100+ native integrations are built and maintained by Vellum, its Composio partnership adds access to Composio's curated tool library (not third-party developer submissions reviewed loosely), and 'Custom Nodes' are authored by the customer's own team for internal reuse rather than published to a shared public marketplace for other tenants to install.",
+        detail:
+          "No documentation was found describing a public marketplace or community-node/plugin registry where independent third-party developers publish executable code that other Vellum customers can browse and install, unlike ecosystems such as n8n community nodes. Custom Nodes extend a single customer's own workflows and are not distributed to other organizations. No publicly documented security incidents involving Vellum's integration or tool ecosystem were found.",
+        shortValue: 'Closed first-party/partner catalog, no open plugin marketplace',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.vellum.ai/blog/vellum-composio-new-partnership-for-ai-agent-building',
+            label: 'Vellum + Composio: Build Powerful AI Agents Faster',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/tutorials/custom-nodes',
+            label: 'Custom Nodes - Vellum Documentation',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

@@ -874,6 +874,31 @@ export const claudeCoworkProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'Partial: Anthropic maintains first-party catalogs (anthropics/skills, anthropics/knowledge-work-plugins, the 11 plugins bundled into Cowork), but the plugin/skill ecosystem is open by design. Any developer can host a plugin marketplace as a git repo and users add it via `/plugin marketplace add`, with no Anthropic approval queue or review gate before installation.',
+        detail:
+          'Third-party community sites (ClawHub, skills.sh, and others) distribute unvetted, community-authored skills for Claude Code/Cowork. Security researchers have found real, documented incidents in this ecosystem: Snyk\'s ToxicSkills audit of ~3,984 skills on ClawHub and skills.sh found 1,467 with security flaws and confirmed 76 active malicious payloads built for credential theft, backdoors, and data exfiltration; Koi Security separately audited all 2,857 skills on ClawHub and flagged 341 as malicious, 335 tied to one coordinated campaign ("ClawHavoc"). These incidents are in the broader Claude Skills/plugin ecosystem rather than Anthropic\'s own first-party catalog.',
+        shortValue: 'Partial: first-party catalog + open, unvetted plugin ecosystem',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://code.claude.com/docs/en/plugin-marketplaces',
+            label: 'Create and distribute a plugin marketplace',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/anthropics/skills',
+            label: 'anthropics/skills: Public repository for Agent Skills',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/',
+            label: 'Snyk: ToxicSkills - malicious AI agent skills on ClawHub',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

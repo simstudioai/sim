@@ -1018,6 +1018,26 @@ export const makeProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'Partial: any developer can build a custom Make app, but publishing it to the public Apps Marketplace requires passing a Make QA code review before it becomes available to all users',
+        detail:
+          "Make's Developer Hub documents an open custom-app development model (any third-party developer can build and privately use a custom app), combined with a gated marketplace: to share an app with all Make users, the developer must request an app review, and Make's QA team examines the app's code against app standards and best practices (including sanitization of sensitive data such as API keys/tokens) before publishing it publicly. This is a lighter-touch, code-reviewed model rather than either a fully closed first-party catalog or a fully open, unreviewed community marketplace. No publicly documented security incident specifically involving malicious or credential-leaking third-party Make apps/marketplace listings was found.",
+        shortValue: 'Partial: open custom apps, but QA-reviewed before public marketplace listing',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://developers.make.com/custom-apps-documentation/app-review/overview',
+            label: 'App review overview - Make Developer Hub',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://developers.make.com/custom-apps-documentation/apps-marketplace/terms-and-conditions',
+            label: 'Apps Marketplace terms and conditions - Make Developer Hub',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

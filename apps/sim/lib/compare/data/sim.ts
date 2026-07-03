@@ -899,6 +899,21 @@ export const simProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Yes: every one of Sim's 302 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
+        detail:
+          "Custom code steps run inside Sim's own isolated-vm sandbox rather than as an installable third-party skill package, so the supply-chain trust boundary is Sim's codebase review, not an open registry.",
+        shortValue: 'All 302 blocks are first-party authored and code-reviewed',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://github.com/simstudioai/sim/tree/main/apps/sim/blocks/blocks',
+            label: 'Sim codebase: first-party block directory',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

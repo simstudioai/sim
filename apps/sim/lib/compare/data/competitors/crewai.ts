@@ -883,6 +883,26 @@ export const crewaiProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'Partial: the core crewai-tools package is maintainer-reviewed, but the Enterprise Tool Repository lets any org publish public tools with only automated security checks, and CrewAI also supports the open, community-run MCP server ecosystem',
+        detail:
+          "CrewAI's official crewai-tools GitHub repository is a first-party, contribution-reviewed catalog (community pull requests are merged by CrewAI maintainers). Separately, CrewAI's own Enterprise docs describe a Tool Repository where any user with org permissions can publish a tool with the --public flag, making it installable by other users; the docs state only that 'every published version undergoes automated security checks' before install, with no described human/editorial review process. CrewAI also documents first-class support for the Model Context Protocol, giving agents access to 'thousands of tools from hundreds of MCP servers built by the community,' which are third-party code not authored or reviewed by CrewAI. No CrewAI-specific documented security incident (malicious tool, credential leak via a community tool or MCP server) was found in public sources at the time of this research.",
+        shortValue: 'Partial, reviewed core repo + open public Tool Repository + community MCP',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.crewai.com/en/enterprise/guides/tool-repository',
+            label: 'CrewAI Enterprise Tool Repository docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/crewAIInc/crewAI-tools',
+            label: 'crewAI-tools GitHub repository',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

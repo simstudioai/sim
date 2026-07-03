@@ -1003,6 +1003,31 @@ export const n8nProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'Partial: n8n ships built-in first-party nodes plus an open community-node ecosystem published to public npm, where only a subset carry an official "verified" review',
+        detail:
+          "Beyond its built-in nodes, n8n lets any developer publish a community node as a public npm package that other users install by name; only nodes n8n manually reviews for quality and security (and which forgo runtime dependencies) earn the verified shield icon and are installable/discoverable from n8n Cloud, while unverified community nodes can still be installed on self-hosted instances (or disabled via N8N_COMMUNITY_PACKAGES_ENABLED). n8n's own docs warn that community nodes run with the same level of access as n8n itself, including decrypted credentials during execution. In January 2026, researchers documented a real supply-chain attack in which malicious npm packages posing as n8n community nodes (one mimicking a Google Ads integration) stole OAuth tokens from the credential store; the primary malicious package had over 3,400 weekly downloads before removal.",
+        shortValue: 'First-party nodes plus an open, lightly-vetted npm community marketplace',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/integrations/community-nodes/risks',
+            label: 'Risks when using community nodes | n8n Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.n8n.io/integrations/creating-nodes/build/reference/verification-guidelines/',
+            label: 'Verification guidelines | n8n Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://thehackernews.com/2026/01/n8n-supply-chain-attack-abuses.html',
+            label: 'n8n Supply Chain Attack Abuses Community Nodes to Steal OAuth Tokens',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

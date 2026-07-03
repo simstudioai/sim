@@ -876,6 +876,26 @@ export const dustProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          'Partial: native data connections (Slack, Notion, GitHub, Salesforce, and 50+ others) are first-party and built/maintained by the Dust team, but agent tools can also be extended with any external MCP server by pasting its public URL, with no Dust-led vetting or review of that server',
+        detail:
+          'Docs describe adding a remote MCP server as entering "the MCP server\'s public URL" for any MCP server available on the internet, with workspace admins responsible for choosing and authenticating servers; there is no formal Dust review process described, unlike the fully managed first-party connectors. No publicly documented security incident specifically involving a malicious or compromised third-party MCP server on Dust was found.',
+        shortValue: 'First-party connectors, open bring-your-own-URL MCP tools',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/remote-mcp-server',
+            label: 'Adding an MCP Server',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/connections',
+            label: 'Connections',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

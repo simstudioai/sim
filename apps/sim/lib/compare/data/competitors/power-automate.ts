@@ -998,6 +998,27 @@ export const powerAutomateProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Partial: the certified connector catalog (1,400+ connectors, including third-party 'Independent Publisher' submissions) goes through a Microsoft Certification team review, identity/credential verification of the publisher, and swagger/endpoint/security validation before being listed. However, any user or org can also build and share 'custom connectors' that call arbitrary APIs, and these bypass the certification catalog entirely with no Microsoft security review. Security researchers at Zenity documented that custom connectors can be used to reach connectors otherwise blocked by Data Loss Prevention (DLP) policies, a real, publicly documented DLP-bypass finding tied to the custom-connector path specifically.",
+        detail:
+          "This is not an open, install-anything marketplace like n8n community nodes: independent publishers must pass identity verification and a Microsoft-run technical/security review to appear in the shared connector catalog. The gap is the separate custom-connector mechanism, which lets any maker define and use an unreviewed connector inside their own environment, and which Zenity's research showed can be abused to bypass connector-level DLP blocks.",
+        shortValue: 'Certified catalog is vetted; custom connectors bypass review and DLP',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/connectors/custom-connectors/certification-submission-ip',
+            label: 'Independent publisher certification process - Microsoft Learn',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://zenity.io/blog/research/microsoft-power-platform-dlp-bypass-uncovered-finding-3-custom-connectors',
+            label:
+              'AI Agent Security | Microsoft Power Platform DLP Bypass Uncovered - Finding #3 - Custom Connectors | Zenity',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

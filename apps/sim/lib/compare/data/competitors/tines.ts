@@ -897,6 +897,26 @@ export const tinesProfile: CompetitorProfile = {
           },
         ],
       },
+      thirdPartyVetting: {
+        value:
+          "Yes: Tines' executable actions (HTTP Request, webhooks, email, Send to Story, AI Agent, etc.) are a fixed, first-party set built and maintained by Tines itself, not a plugin/node marketplace; integrations with third-party tools are done by pointing the generic HTTP Request action at that tool's API, or by importing a pre-built 'Story' (a workflow template/JSON config, not installable code) from the community Story Library. No mechanism exists for a third party to publish executable custom actions/nodes that other tenants install.",
+        detail:
+          "The public Story Library has a 'Community selection' of user-submitted Story templates alongside Tines-authored ones, but these are shareable workflow configurations built from the same fixed first-party action set, not third-party executable plugins with their own code/dependencies (unlike n8n community nodes or a skill/plugin registry). No public vetting process for community Story submissions is documented, and no publicly documented security incident involving Tines' Story Library or action set was found.",
+        shortValue: 'Yes: fixed first-party action set, no plugin marketplace',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/library',
+            label: 'Story Library | Tines',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.tines.com/docs/actions/overview',
+            label: 'Actions overview | Docs | Tines',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     observability: {
       tracingDepth: {

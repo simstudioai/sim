@@ -130,6 +130,8 @@ export interface ComparisonFacts {
     piiRedaction: Fact
     /** SAML/OIDC single sign-on with organization auto-provisioning on first login. */
     sso: Fact
+    /** Whether integrations/tools/skills come from a vetted first-party catalog authored and reviewed by the vendor, versus an open marketplace where any third party can publish and users install executable code from unvetted authors. */
+    thirdPartyVetting: Fact
   }
   /**
    * Production-readiness signals that matter once feature parity is
