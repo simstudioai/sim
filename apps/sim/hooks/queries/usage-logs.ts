@@ -2,13 +2,17 @@
 
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
-import { getUsageLogsContract, type UsageLogsApiResponse } from '@/lib/api/contracts/user'
+import {
+  getUsageLogsContract,
+  type UsageLogPeriod,
+  type UsageLogsApiResponse,
+} from '@/lib/api/contracts/user'
 import { usageLogKeys } from '@/hooks/queries/utils/usage-log-keys'
 
 const PAGE_SIZE = 25
 
 async function fetchUsageLogs(
-  period: '1d' | '7d' | '30d' | 'all',
+  period: UsageLogPeriod,
   cursor: string | undefined,
   signal?: AbortSignal
 ): Promise<UsageLogsApiResponse> {
@@ -19,7 +23,7 @@ async function fetchUsageLogs(
 }
 
 interface UseUsageLogsOptions {
-  period: '1d' | '7d' | '30d' | 'all'
+  period: UsageLogPeriod
   enabled?: boolean
 }
 

@@ -276,10 +276,12 @@ export const usageLogSourceSchema = z.enum([
   'enrichment',
 ])
 
+export const usageLogPeriodSchema = z.enum(['1d', '7d', '30d', 'all'])
+
 export const usageLogsQuerySchema = z.object({
   source: usageLogSourceSchema.optional(),
   workspaceId: z.string().optional(),
-  period: z.enum(['1d', '7d', '30d', 'all']).optional().default('30d'),
+  period: usageLogPeriodSchema.optional().default('30d'),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   cursor: z.string().optional(),
 })
@@ -317,6 +319,7 @@ export const getUsageLogsContract = defineRouteContract({
 })
 
 export type UsageLogSource = z.output<typeof usageLogSourceSchema>
+export type UsageLogPeriod = z.output<typeof usageLogPeriodSchema>
 export type UsageLogEntry = z.output<typeof usageLogEntrySchema>
 export type UsageLogsApiResponse = z.output<typeof usageLogsApiResponseSchema>
 

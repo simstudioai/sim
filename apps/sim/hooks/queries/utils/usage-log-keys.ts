@@ -8,11 +8,11 @@
  * resolve to client-reference stubs on the server.
  */
 
-import type { UsageLogSource } from '@/lib/api/contracts/user'
+import type { UsageLogPeriod, UsageLogSource } from '@/lib/api/contracts/user'
 
 export const usageLogKeys = {
   all: ['usage-logs'] as const,
   lists: () => [...usageLogKeys.all, 'list'] as const,
-  list: (period: string, source?: UsageLogSource) =>
+  list: (period: UsageLogPeriod, source?: UsageLogSource) =>
     [...usageLogKeys.lists(), period, source ?? ''] as const,
 }

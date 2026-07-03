@@ -3,13 +3,11 @@
 import { useState } from 'react'
 import { Badge, ChipDropdown, type ChipDropdownOption, chipVariants, cn } from '@sim/emcn'
 import { formatDateTime } from '@sim/utils/formatting'
-import type { UsageLogEntry, UsageLogSource } from '@/lib/api/contracts/user'
+import type { UsageLogEntry, UsageLogPeriod, UsageLogSource } from '@/lib/api/contracts/user'
 import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useUsageLogs } from '@/hooks/queries/usage-logs'
-
-type Period = '1d' | '7d' | '30d' | 'all'
 
 const PERIOD_OPTIONS: ReadonlyArray<ChipDropdownOption> = [
   { value: '1d', label: 'Today' },
@@ -64,7 +62,7 @@ function UsageLogRow({ log }: UsageLogRowProps) {
  * so builders can see exactly where their credits went.
  */
 export function CreditUsageSection() {
-  const [period, setPeriod] = useState<Period>('30d')
+  const [period, setPeriod] = useState<UsageLogPeriod>('30d')
 
   const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } = useUsageLogs(
     { period }
@@ -80,7 +78,7 @@ export function CreditUsageSection() {
         <ChipDropdown
           options={PERIOD_OPTIONS}
           value={period}
-          onChange={(value) => setPeriod(value as Period)}
+          onChange={(value) => setPeriod(value as UsageLogPeriod)}
           showSelectedCheck={false}
         />
       }
