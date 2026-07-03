@@ -323,6 +323,26 @@ export const zapierProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          'Yes: Sub-Zaps by Zapier let a Zap call a saved Sub-Zap as a dedicated step ("Call a Sub-Zap" action). The parent Zap waits for the Sub-Zap to finish, sends data into it via a "Start a Sub-Zap" trigger, and receives data back via a "Return from Sub-Zap" step.',
+        detail:
+          'Sub-Zaps are built once and reused across multiple parent Zaps, avoiding copy-paste duplication of the same step sequence.',
+        shortValue: 'Yes, via Sub-Zaps (Call a Sub-Zap action)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/32283713627533-Understanding-Sub-Zaps',
+            label: 'Understanding Sub-Zaps',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/8496308527629-Create-reusable-Zap-steps-with-Sub-Zaps',
+            label: 'Create reusable Zap steps with Sub-Zaps',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -549,6 +569,26 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://zapier.com/blog/a2a-protocol/',
             label: 'What is the A2A protocol? (Zapier blog)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Partial: Looping by Zapier provides a dedicated loop step that repeats a set of follow-up actions over a text list, line items, or a numeric range, up to 500 iterations. Zapier's own documentation states iterations execute concurrently in parallel by default, not sequentially, and this holds even when the loop is nested inside a Path configured to run sequentially. There is no official setting to force strictly sequential iteration order.",
+        detail:
+          'Zapier\'s help center: "All iterations of the loop execute in parallel (simultaneously), not one after another" and "Loops always run in parallel (simultaneously). This happens even if the loop is nested within a Path configured to run sequentially." Community workarounds (incremental delay steps, webhook-based looping) exist but are not a native sequential mode.',
+        shortValue: 'Yes, but iterations run in parallel by default, not sequentially',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/42969233918477-Understanding-Looping-by-Zapier',
+            label: 'Understanding Looping by Zapier',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/8496106701453-Loop-your-Zap-actions',
+            label: 'Loop your Zap actions',
             asOf: '2026-07-02',
           },
         ],
@@ -898,6 +938,31 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://help.zapier.com/hc/en-us/articles/33678718215309-Team-plan-updates-SSO-is-now-included-and-new-user-limits',
             label: 'Team plan updates: SSO is now included and new user limits',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          "Partial: Zapier's App Directory is an open developer ecosystem, not a closed first-party catalog. Any developer can build an integration on the Zapier Developer Platform and submit it for public listing; Zapier's review checks publishing/technical requirements (HTTPS-only endpoints, no hardcoded credentials, OAuth verification) rather than a deep security audit, and Zapier explicitly tells customers these apps are 'owned and operated by third parties' and that users are responsible for evaluating trust in the developer.",
+        detail:
+          "Zapier's own Partner Program docs describe review turnaround of up to 21 business days against publishing standards, and OAuth verification is framed as 'a helpful start' rather than a guarantee of an app's suitability. No documented security incident specifically tied to a malicious third-party app published in the App Directory was found; separate publicly reported incidents (a 2025 repository breach exposing debug logs, and a 2025 npm supply-chain compromise of Zapier's own published packages) involved Zapier's internal infrastructure and package registry, not the App Directory's third-party integration ecosystem.",
+        shortValue: 'Partial: open app directory, lighter technical review',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://platform.zapier.com/publish/integration-publishing-requirements',
+            label: 'Integration publishing requirements',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.zapier.com/platform/publish/partner-program',
+            label: 'Partner Program',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/17709950386573-Data-safety-when-using-Zapier-embedded-in-other-apps',
+            label: 'Data safety when using Zapier embedded in other apps',
             asOf: '2026-07-02',
           },
         ],

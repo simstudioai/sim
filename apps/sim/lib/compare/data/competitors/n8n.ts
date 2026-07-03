@@ -338,6 +338,21 @@ export const n8nProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "Yes: the Execute Sub-workflow node calls a saved workflow as a step in another workflow, with a 'Wait for Sub-Workflow Completion' option so the parent pauses until the child finishes, passing data in via the child's trigger and receiving data back from the child's last node.",
+        detail:
+          "The child workflow starts with a 'When Executed by Another Workflow' trigger that defines the expected input fields. When 'Wait for Sub-Workflow Completion' is enabled, the parent blocks until the sub-workflow finishes and receives whatever data the sub-workflow's final node outputs; disabling it lets the parent continue without waiting.",
+        shortValue: 'Yes, Execute Sub-workflow node with wait-for-completion option',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.executeworkflow/',
+            label: 'Execute Sub-workflow | Nodes | n8n Docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -614,6 +629,21 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://github.com/pjawz/n8n-nodes-agent2agent',
             label: 'n8n-nodes-agent2agent (community package, GitHub)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Yes: the Loop Over Items (Split in Batches) node iterates a list in fixed-size batches, running each batch sequentially through a 'loop' output and combining results through a 'done' output once all batches complete.",
+        detail:
+          "Loop Over Items processes a configurable batch size per iteration and re-enters the loop until every input item has passed through, rather than fanning items out concurrently. n8n's docs note this is the primary built-in mechanism for iterative processing, distinct from the Parallel-style concurrent fan-out other flow-logic nodes provide.",
+        shortValue: 'Yes, Loop Over Items node, sequential batch iteration',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.splitinbatches/',
+            label: 'Loop Over Items (Split in Batches) | Nodes | n8n Docs',
             asOf: '2026-07-02',
           },
         ],
@@ -969,6 +999,31 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://blog.n8n.io/introducing-custom-project-roles-and-user-provisioning-via-sso-built-for-enterprise-governance/',
             label: 'User Provisioning via SSO, built for Enterprise governance',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          'Partial: n8n ships built-in first-party nodes plus an open community-node ecosystem published to public npm, where only a subset carry an official "verified" review',
+        detail:
+          "Beyond its built-in nodes, n8n lets any developer publish a community node as a public npm package that other users install by name; only nodes n8n manually reviews for quality and security (and which forgo runtime dependencies) earn the verified shield icon and are installable/discoverable from n8n Cloud, while unverified community nodes can still be installed on self-hosted instances (or disabled via N8N_COMMUNITY_PACKAGES_ENABLED). n8n's own docs warn that community nodes run with the same level of access as n8n itself, including decrypted credentials during execution. In January 2026, researchers documented a real supply-chain attack in which malicious npm packages posing as n8n community nodes (one mimicking a Google Ads integration) stole OAuth tokens from the credential store; the primary malicious package had 4,241 downloads listed before removal.",
+        shortValue: 'First-party nodes plus an open, lightly-vetted npm community marketplace',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/integrations/community-nodes/risks',
+            label: 'Risks when using community nodes | n8n Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.n8n.io/integrations/creating-nodes/build/reference/verification-guidelines/',
+            label: 'Verification guidelines | n8n Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://thehackernews.com/2026/01/n8n-supply-chain-attack-abuses.html',
+            label: 'n8n Supply Chain Attack Abuses Community Nodes to Steal OAuth Tokens',
             asOf: '2026-07-02',
           },
         ],

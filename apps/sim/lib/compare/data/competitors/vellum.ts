@@ -280,6 +280,26 @@ export const vellumProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          'Yes: Vellum has a Subworkflow node that executes a deployed or inline workflow as a step inside a parent workflow, waiting for it to finish and passing/receiving data through defined inputs and outputs.',
+        detail:
+          'Both "Deployed Subworkflows" (calling a separately versioned, released workflow) and "Inline Subworkflows" (defined within the parent workflow for modularization/reuse) are documented; the Agent Node can also register subworkflows as callable tools.',
+        shortValue: 'Dedicated Subworkflow node',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/api-reference/nodes/subworkflow-deployment-node',
+            label: 'Subworkflow Deployment Node - Vellum Documentation',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/agent-node',
+            label: 'Agent Node - Vellum Documentation',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -500,6 +520,21 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://www.vellum.ai/blog/googles-ap2-a-new-protocol-for-ai-agent-payments',
             label: "Google's AP2: A new protocol for AI agent payments - Vellum Blog",
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "No: Vellum's only documented list-iteration mechanism is the Map Node, which executes a subworkflow once per array item concurrently (up to 96 parallel executions) rather than as a dedicated sequential for-each/while container; no separate While/loop node is documented.",
+        detail:
+          'The Map Node is already the mechanism counted under parallelExecution (concurrent fan-out plus Merge Strategy join). Vellum documentation does not describe a way to force single-lane sequential iteration or a distinct while/repeat-until construct.',
+        shortValue: 'Only a concurrent Map Node, no sequential loop',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/map-node',
+            label: 'Map Node - Vellum Documentation',
             asOf: '2026-07-02',
           },
         ],
@@ -796,6 +831,26 @@ export const vellumProfile: CompetitorProfile = {
         shortValue: 'Claimed by third parties, undocumented directly',
         confidence: 'unknown',
         sources: [],
+      },
+      thirdPartyVetting: {
+        value:
+          "Yes: Vellum's tool ecosystem is closed and vendor/partner controlled, not an open marketplace. Its own 100+ native integrations are built and maintained by Vellum, its Composio partnership adds access to Composio's curated tool library (not third-party developer submissions reviewed loosely), and 'Custom Nodes' are authored by the customer's own team for internal reuse rather than published to a shared public marketplace for other tenants to install.",
+        detail:
+          "No documentation was found describing a public marketplace or community-node/plugin registry where independent third-party developers publish executable code that other Vellum customers can browse and install, unlike ecosystems such as n8n community nodes. Custom Nodes extend a single customer's own workflows and are not distributed to other organizations. No publicly documented security incidents involving Vellum's integration or tool ecosystem were found.",
+        shortValue: 'Closed first-party/partner catalog, no open plugin marketplace',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.vellum.ai/blog/vellum-composio-new-partnership-for-ai-agent-building',
+            label: 'Vellum + Composio: Build Powerful AI Agents Faster',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/tutorials/custom-nodes',
+            label: 'Custom Nodes - Vellum Documentation',
+            asOf: '2026-07-02',
+          },
+        ],
       },
     },
     observability: {

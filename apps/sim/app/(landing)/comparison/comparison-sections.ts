@@ -67,6 +67,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'versionControlDepth', label: 'Version control' },
       { key: 'realtimeCollaboration', label: 'Realtime collaboration' },
       { key: 'nativeFileStorage', label: 'Native file storage' },
+      { key: 'subWorkflows', label: 'Sub-workflows (composition)' },
     ],
   }),
   defineSection({
@@ -91,6 +92,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'modelAndToolGovernance', label: 'Model & tool governance' },
       { key: 'credentialGovernance', label: 'Credential governance' },
       { key: 'sso', label: 'Single sign-on (SSO)' },
+      { key: 'thirdPartyVetting', label: 'Vetted first-party integrations' },
       { key: 'piiRedaction', label: 'PII redaction' },
       { key: 'dataRetention', label: 'Custom data retention' },
       { key: 'whiteLabeling', label: 'White-labeling' },
@@ -114,6 +116,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'nativeChatDeployment', label: 'Native chat deployment' },
       { key: 'parallelExecution', label: 'Parallel execution' },
       { key: 'a2aProtocol', label: 'Agent2Agent (A2A) protocol' },
+      { key: 'loopIteration', label: 'Loop / iteration block' },
     ],
   }),
   defineSection({

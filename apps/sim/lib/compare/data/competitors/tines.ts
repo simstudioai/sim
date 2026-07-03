@@ -322,6 +322,26 @@ export const tinesProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "Yes: Tines' Send to Story action lets a parent Story call a separate sub-Story as a reusable step. The sub-story is configured with a webhook input action and a message-only output action; the parent's Send to Story action passes a payload, execution blocks until the sub-story finishes, and the sub-story's output event is returned to the calling action.",
+        detail:
+          'This is synchronous parent-waits-for-child composition with data passed in and returned, distinct from firing an independent story asynchronously via a plain webhook.',
+        shortValue: 'Yes: Send to Story calls a sub-story, waits, returns data',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/docs/stories/send-to-story/',
+            label: 'Send to Story | Docs | Tines',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.tines.com/docs/stories/apis/',
+            label: 'Workflows as APIs | Docs | Tines',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -526,6 +546,26 @@ export const tinesProfile: CompetitorProfile = {
           {
             url: 'https://www.tines.com/docs/actions/types/ai-agent/',
             label: 'AI Agent | Docs | Tines',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: Tines actions (including Event Transform in message-only mode and Send to Story) support a Loop attribute that points at a list or object field on the incoming event and invokes the action once per element, exposing a LOOP object for the current item on each pass. This is a per-action for-each attribute rather than a separate visual loop container block, and executes one item at a time rather than concurrently, distinct from the separate Explode/Implode parallel fan-out mechanism.',
+        detail:
+          'Tines caps a single loop at fewer than 20,000 elements. The dedicated concurrent-fan-out counterpart is Explode/Implode, documented separately as parallelExecution.',
+        shortValue: 'Yes: per-action Loop attribute, for-each over a list',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.tines.com/university/advanced/looping/',
+            label: 'Looping in Tines | Tines University',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.tines.com/docs/actions/types/send-to-story/',
+            label: 'Send to Story | Docs | Tines',
             asOf: '2026-07-02',
           },
         ],
@@ -853,6 +893,26 @@ export const tinesProfile: CompetitorProfile = {
           {
             url: 'https://saml-doc.okta.com/SAML_Docs/How-to-Configure-SAML-2.0-for-Tines.html',
             label: 'How to Configure SAML 2.0 for Tines - Okta',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          "Yes: Tines' executable actions (HTTP Request, webhooks, email, Send to Story, AI Agent, etc.) are a fixed, first-party set built and maintained by Tines itself, not a plugin/node marketplace; integrations with third-party tools are done by pointing the generic HTTP Request action at that tool's API, or by importing a pre-built 'Story' (a workflow template/JSON config, not installable code) from the community Story Library. No mechanism exists for a third party to publish executable custom actions/nodes that other tenants install.",
+        detail:
+          "The public Story Library has a 'Community selection' of user-submitted Story templates alongside Tines-authored ones, but these are shareable workflow configurations built from the same fixed first-party action set, not third-party executable plugins with their own code/dependencies (unlike n8n community nodes or a skill/plugin registry). No public vetting process for community Story submissions is documented, and no publicly documented security incident involving Tines' Story Library or action set was found.",
+        shortValue: 'Yes: fixed first-party action set, no plugin marketplace',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/library',
+            label: 'Story Library | Tines',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.tines.com/docs/actions/overview',
+            label: 'Actions overview | Docs | Tines',
             asOf: '2026-07-02',
           },
         ],

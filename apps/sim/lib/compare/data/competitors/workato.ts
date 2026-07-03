@@ -330,6 +330,26 @@ export const workatoProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          "Yes: Recipe Functions' Call Recipe Function (Synchronously) action adds a step that calls another saved recipe as a child, passing input via that recipe's Input schema, waiting for it to finish, and returning its output through the Response schema back into the parent recipe's data pills; an asynchronous 'fire-and-forget' variant is also available for cases where the parent should not wait.",
+        detail:
+          "This supersedes the older Callable Recipes connector (legacy recipes still run, but new ones must use Recipe Functions). The synchronous call is subject to a timeout, after which Workato's docs recommend the async variant instead.",
+        shortValue: 'Yes: Call Recipe Function step, sync or async, with I/O',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/features/callable-recipes/call-recipe-action.html',
+            label: 'Callable Recipes - Call Recipe Actions | Workato Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.workato.com/connectors/recipe-functions/actions/call-recipe-function-synchronously.html',
+            label: 'Recipe Functions - Call Recipe Function Synchronously | Workato Docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -586,6 +606,26 @@ export const workatoProfile: CompetitorProfile = {
           {
             url: 'https://docs.workato.com/en/connectors/a2a.html',
             label: 'Workato Docs: A2A Protocol connector',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Yes: a dedicated 'Repeat for each' loop block executes a nested set of steps once per item in a given list, sequentially rather than concurrently, with each iteration's data pills scoped to that item; Workato also offers a separate 'Repeat while' loop for condition-based looping, and 'Repeat for each in batches' for grouping items into fixed-size batches (default 100) per iteration when downstream systems can't accept single-record calls.",
+        detail:
+          'Docs explicitly frame Repeat for each as sequential, one item at a time, contrasting it with bulk/batch transfer; concurrent/parallel execution of loop iterations is not offered by this construct.',
+        shortValue: 'Yes: Repeat for each/while loop blocks, sequential',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/recipes/repeat-for-each.html',
+            label: 'Repeat for each loop | Workato Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.workato.com/recipes/loops.html',
+            label: 'Repeat while loop | Workato docs',
             asOf: '2026-07-02',
           },
         ],
@@ -963,6 +1003,31 @@ export const workatoProfile: CompetitorProfile = {
           {
             url: 'https://docs.workato.com/user-accounts-and-teams/saml-role-sync.html',
             label: 'Workato Docs: SAML role sync',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          'Partial: Workato has a large first-party catalog of native, Workato-built connectors, plus an open Community Library where any developer with Connector SDK access can build and publish a connector that other users install with no formal Workato security review, alongside an invite-only Partner Connector tier that does get Workato code review.',
+        detail:
+          "Workato's own docs distinguish three tiers: native connectors are built and maintained by Workato directly; Partner Connectors go through Workato's partnership program with dedicated developer accounts and code review by Workato engineers on the initial version and subsequent updates; and Community Connectors are built by any community member and published to the Community Library with no formal Workato security review, explicitly labeled 'intended as examples only.' Installing a community connector requires full Connector SDK privileges, and Workato's own guidance tells users to independently evaluate and test a community connector's code before releasing it workspace-wide, since 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' No specific publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) was found; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical/industry-wide concern, not a confirmed Workato-specific incident.",
+        shortValue: 'Partial: first-party catalog plus open, lightly-vetted community library',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/developing-connectors/community/community.html',
+            label: 'Community connectors | Workato Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.workato.com/developing-connectors/community/community-listing.html',
+            label: 'Contributing your connector | Workato Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.workato.com/product-hub/community-connectors/',
+            label: 'Workato Community Connectors: What you need to know',
             asOf: '2026-07-02',
           },
         ],

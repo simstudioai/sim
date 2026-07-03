@@ -280,6 +280,21 @@ export const stackaiProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          "Yes: an AI Agent node can invoke a separately saved StackAI workflow as a Subflow Tool. The parent agent passes input into the subflow, waits for it to run to completion, and receives the subflow's output node result back before continuing, rather than only firing an async webhook-triggered run.",
+        detail:
+          'Subflow Tools are configured on the AI Agent node; each must connect to an output node to complete, and the docs describe subflows running "collaboratively" where one subflow\'s output can inform whether/how another is invoked. Whether a Subflow Tool can be reused unmodified across multiple different parent workflows was not independently confirmed.',
+        shortValue: 'Yes, via Subflow Tools on the AI Agent node',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/subflow-tools',
+            label: 'Subflow Tools docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -480,6 +495,21 @@ export const stackaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.stackai.com',
             label: 'StackAI documentation',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: the Loop Subflow node iterates over a list of inputs, running its Loop branch once per item sequentially, with the current item exposed via a current_item variable. A separate Done branch runs once after all iterations finish, collecting any outputs explicitly emitted inside the loop.',
+        detail:
+          'This is a sequential, one-item-at-a-time iterator distinct from the parallel/concurrent execution StackAI exposes separately through parallel Subflow Tool calls or parallel Project runs inside a loop.',
+        shortValue: 'Yes, via the Loop Subflow node',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/loop-subflow',
+            label: 'Loop Subflow docs',
             asOf: '2026-07-02',
           },
         ],
@@ -758,6 +788,26 @@ export const stackaiProfile: CompetitorProfile = {
           {
             url: 'https://www.stackai.com/insights/sso-and-rbac-for-ai-agents-how-to-secure-enterprise-ai-deployments',
             label: 'SSO and RBAC for AI Agents',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          "Yes: StackAI's 70+ app integrations (databases, cloud storage, CRMs, communication tools) are built and maintained by StackAI's own team, not an open community marketplace. Users needing an unlisted service fall back to a built-in Custom API node or connect their own MCP servers, rather than installing code published by other third-party users.",
+        detail:
+          'No public marketplace or community-node registry (like n8n community nodes) was found where outside developers publish installable integrations for other StackAI users. MCP support lets a workspace point at third-party MCP servers, but that is a user-configured connection to an external server the user chooses, not a shared plugin store with lighter vendor review. No StackAI-specific security incident involving its integrations or MCP connections was found in public sources.',
+        shortValue: 'Yes, first-party catalog only',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/apps',
+            label: 'StackAI Apps documentation',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/apps/mcp',
+            label: 'StackAI MCP documentation',
             asOf: '2026-07-02',
           },
         ],

@@ -309,6 +309,26 @@ export const claudeCoworkProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "No: Claude Cowork has no visual workflow builder and no feature to call one saved task as a reusable step inside another task. Anthropic's own scheduled-tasks documentation describes each scheduled task as its own independent Cowork session with no documented composition or nesting mechanism.",
+        detail:
+          "Cowork's closest analog is model-driven 'sub-agent coordination', where Claude itself decides to break a single task into parallel sub-agent workstreams at run time. That is not a user-authored, reusable sub-workflow the way a workflow platform lets you call a saved flow as a step with explicit parent-waits-for-child data passing.",
+        shortValue: 'No: no task composition, only same-session sub-agents',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
+            label: 'Schedule recurring tasks in Claude Cowork',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -530,6 +550,26 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://www.anthropic.com/webinars/deploying-multi-agent-systems-using-mcp-and-a2a-with-claude-on-vertex-ai',
             label: 'Deploying multi-agent systems using MCP and A2A with Claude on Vertex AI',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "No: Claude Cowork has no visual builder and no dedicated for-each/while loop container that iterates a set of steps over a list or fixed count. Anthropic's documentation describes scheduled tasks re-running on a time cadence (hourly/daily/weekly), not a loop node iterating over items within a single run.",
+        detail:
+          "The closest documented mechanism is Claude's own model-driven 'parallel workstreams' for breaking one task into concurrent sub-agents, which is the opposite of sequential per-item iteration and is not user-configurable as a loop primitive.",
+        shortValue: 'No: no loop/for-each container, only time-based re-runs',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
+            label: 'Schedule recurring tasks in Claude Cowork',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
             asOf: '2026-07-02',
           },
         ],
@@ -830,6 +870,31 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/10276682-important-considerations-before-enabling-single-sign-on-sso-and-jit-scim-provisioning',
             label: 'Important considerations before enabling SSO and JIT/SCIM provisioning',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          'Partial: Anthropic maintains first-party catalogs (anthropics/skills, anthropics/knowledge-work-plugins, the 11 plugins bundled into Cowork), but the plugin/skill ecosystem is open by design. Any developer can host a plugin marketplace as a git repo and users add it via `/plugin marketplace add`, with no Anthropic approval queue or review gate before installation.',
+        detail:
+          'Third-party community sites (ClawHub, skills.sh, and others) distribute unvetted, community-authored skills for Claude Code/Cowork. Security researchers have found real, documented incidents in this ecosystem: Snyk\'s ToxicSkills audit of ~3,984 skills on ClawHub and skills.sh found 1,467 with security flaws and confirmed 76 active malicious payloads built for credential theft, backdoors, and data exfiltration; Koi Security separately audited all 2,857 skills on ClawHub and flagged 341 as malicious, 335 tied to one coordinated campaign ("ClawHavoc"). These incidents are in the broader Claude Skills/plugin ecosystem rather than Anthropic\'s own first-party catalog.',
+        shortValue: 'Partial: first-party catalog + open, unvetted plugin ecosystem',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://code.claude.com/docs/en/plugin-marketplaces',
+            label: 'Create and distribute a plugin marketplace',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/anthropics/skills',
+            label: 'anthropics/skills: Public repository for Agent Skills',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/',
+            label: 'Snyk: ToxicSkills - malicious AI agent skills on ClawHub',
             asOf: '2026-07-02',
           },
         ],

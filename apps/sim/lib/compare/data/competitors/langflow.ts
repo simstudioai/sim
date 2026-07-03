@@ -251,6 +251,19 @@ export const langflowProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          "Yes: Langflow's Run Flow component runs another saved flow as a subprocess of the current flow, dynamically generating input and output fields from the target flow's graph so the parent flow passes data in and receives the child flow's outputs back. It can also be attached to an Agent component as a callable tool.",
+        shortValue: 'Yes, via the Run Flow component',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/run-flow',
+            label: 'Langflow Docs: Run Flow component',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -461,6 +474,19 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow/issues/10241',
             label: 'GitHub langflow-ai/langflow Issue #10241: A2A (tracking issue)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: Langflow ships a dedicated Loop component that takes a list of JSON or Table items (for example CSV rows), passes items one at a time through its Item output port to a chain of connected components, and loops back until every item is processed sequentially, before emitting the aggregated result from its Done port.',
+        shortValue: 'Yes, via the Loop component (sequential, Item/Done ports)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/loop',
+            label: 'Langflow Docs: Loop component',
             asOf: '2026-07-02',
           },
         ],
@@ -735,6 +761,37 @@ export const langflowProfile: CompetitorProfile = {
         shortValue: 'Unknown, not confirmed as a documented shipped feature',
         confidence: 'unknown',
         sources: [],
+      },
+      thirdPartyVetting: {
+        value:
+          'Partial: most built-in integration bundles are contributed as pull requests to the official langflow-ai/langflow codebase and merged by the core maintainers, but Langflow also ships a community Store where users can share and install flows and components with lighter, informal vetting, plus a custom-component system that lets any user author and run their own Python code with full server access. Langflow has disclosed a real security incident tied to this code-execution model: CVE-2025-3248, an unauthenticated remote code execution flaw in the custom-component code-validation endpoint (fixed in 1.3.0), which was actively exploited in the wild to deploy the Flodrix botnet on unpatched instances.',
+        detail:
+          'Langflow documents that it does not enforce isolation between users or restrict local disk/network access, so both bundle and custom-component code run with the same trust level as the core server.',
+        shortValue:
+          'Partial: reviewed bundles plus a lighter-vetted community Store and custom code',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/components-bundle-components',
+            label: 'Langflow Docs - About bundles',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.langflow.org/components-custom-components',
+            label: 'Langflow Docs - Create custom Python components',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.langflow.org/security',
+            label: 'Langflow Docs - Security',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/langflow-ai/langflow/security/advisories/GHSA-vwmf-pq79-vjvx',
+            label: 'GitHub Security Advisory GHSA-vwmf-pq79-vjvx (CVE-2025-3248)',
+            asOf: '2026-07-02',
+          },
+        ],
       },
     },
     observability: {

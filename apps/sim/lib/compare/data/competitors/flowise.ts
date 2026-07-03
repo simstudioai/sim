@@ -225,6 +225,19 @@ export const flowiseProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          "Yes: Flowise's Execute Flow node calls another saved Chatflow or Agentflow as a step, passes it input, waits for the child flow to finish, and receives its final output back to continue the parent flow.",
+        shortValue: 'Yes, via the Execute Flow node',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise Docs: Agentflow V2 (Execute Flow node)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -427,6 +440,19 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://github.com/FlowiseAI/Flowise/issues/4283',
             label: 'Flowise GitHub: "Support the Google A2A (Agent2Agent) Protocol" (#4283, open)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Yes: Flowise's Agentflow V2 has a dedicated Iteration node that takes an array and executes a nested sub-flow of steps once per item, running sequentially. Its separate Loop node instead jumps backward to re-run an earlier node (a retry cycle, not a collection iterator).",
+        shortValue: 'Yes, via the Iteration node (separate Loop node is retry-only)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise Docs: Agentflow V2 (Iteration and Loop nodes)',
             asOf: '2026-07-02',
           },
         ],
@@ -689,6 +715,33 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/configuration/sso',
             label: 'Flowise Docs: SSO',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          "Yes: Flowise's nodes (LLMs, tools, vector stores, document loaders) live in the packages/components/nodes folder of the core FlowiseAI/Flowise monorepo. New nodes are contributed via GitHub pull request and reviewed/merged by the Flowise team before shipping in an official release, rather than published independently by third parties into an open, unreviewed marketplace. The separate Marketplace feature distributes JSON chatflow/agentflow templates, not installable executable code packages.",
+        detail:
+          'Flowise has still had first-party security issues: CVE-2025-59528 (CVSS 10.0) was a critical unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor; patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. This was a bug in vetted, first-party code, not a malicious third-party community node.',
+        shortValue:
+          'Yes, nodes are PR-reviewed into the core repo, no open community-node marketplace',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/contributing/building-node',
+            label: 'Flowise Docs: Building Node',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/security/advisories/GHSA-3gcm-f6qx-ff7p',
+            label: 'GitHub Security Advisory GHSA-3gcm-f6qx-ff7p (CVE-2025-59528)',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.csoonline.com/article/4155680/hackers-exploit-a-critical-flowise-flaw-affecting-thousands-of-ai-workflows.html',
+            label:
+              'CSO Online: Hackers exploit a critical Flowise flaw affecting thousands of AI workflows',
             asOf: '2026-07-02',
           },
         ],

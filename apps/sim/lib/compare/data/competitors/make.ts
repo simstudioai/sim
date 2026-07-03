@@ -372,6 +372,26 @@ export const makeProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "Yes: Make's 'Call a Scenario' subscenario module lets a parent scenario invoke a saved sub-scenario as a step, passing structured inputs and, in synchronous mode, pausing until the sub-scenario finishes and returns outputs via a 'Return outputs' module.",
+        detail:
+          "Make's Subscenarios feature supports two modes: synchronous, where the parent calls the sub-scenario and pauses execution until it completes and returns output; and asynchronous, where the parent continues immediately without waiting. Each call creates its own separately logged run, and an error in the sub-scenario propagates back to the parent's error handling. This is a dedicated composition feature, distinct from triggering an unrelated scenario via a plain webhook.",
+        shortValue: 'Yes: Call a Scenario module runs a sub-scenario as a step',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.make.com/subscenarios',
+            label: 'Subscenarios - Make Help Center',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://help.make.com/scenario-inputs-and-scenario-outputs',
+            label: 'Scenario inputs and scenario outputs - Make Help Center',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -595,6 +615,26 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/blog/agentic-operating-system',
             label: 'Make Blog: What Is an Agentic Operating System? 2026 Guide',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: Make has two dedicated Flow Control loop modules. The Iterator takes an existing array and outputs each element as a separate bundle, running every downstream module once per item, sequentially. The Repeater generates a fixed number of bundles from scratch (a numeric counter, no source array needed), also processed one at a time.',
+        detail:
+          "Per Make's Help Center, the Iterator splits an array into individual bundles that flow through the rest of the scenario one item at a time, while the Repeater runs a specified number of repetitions (its 'repeats' field) with each bundle carrying an incrementing counter item. Both are sequential, item-by-item execution; Make's separate Router feature (used for branching, not looping) is also documented as processing routes sequentially rather than in parallel.",
+        shortValue: 'Yes: Iterator (array loop) and Repeater (counted loop)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.make.com/iterator',
+            label: 'Iterator - Make Help Center',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.make.com/en/help/tools/flow-control',
+            label: 'Flow control - Make Help Center',
             asOf: '2026-07-02',
           },
         ],
@@ -974,6 +1014,26 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://developers.make.com/white-label-documentation/manage-login/configure-single-sign-on',
             label: 'Configure Single Sign-on - Make White Label Developer Hub',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          'Partial: any developer can build a custom Make app, but publishing it to the public Apps Marketplace requires passing a Make QA code review before it becomes available to all users',
+        detail:
+          "Make's Developer Hub documents an open custom-app development model (any third-party developer can build and privately use a custom app), combined with a gated marketplace: to share an app with all Make users, the developer must request an app review, and Make's QA team examines the app's code against app standards and best practices (including sanitization of sensitive data such as API keys/tokens) before publishing it publicly. This is a lighter-touch, code-reviewed model rather than either a fully closed first-party catalog or a fully open, unreviewed community marketplace. No publicly documented security incident specifically involving malicious or credential-leaking third-party Make apps/marketplace listings was found.",
+        shortValue: 'Partial: open custom apps, but QA-reviewed before public marketplace listing',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://developers.make.com/custom-apps-documentation/app-review/overview',
+            label: 'App review overview - Make Developer Hub',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://developers.make.com/custom-apps-documentation/apps-marketplace/terms-and-conditions',
+            label: 'Apps Marketplace terms and conditions - Make Developer Hub',
             asOf: '2026-07-02',
           },
         ],

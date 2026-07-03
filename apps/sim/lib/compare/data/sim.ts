@@ -298,6 +298,20 @@ export const simProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "Yes: a Workflow block calls another saved workflow as a step, waits for it to finish, runs its latest deployed version, and maps parent variables into the child's input form",
+        detail: 'Self-references are blocked to prevent infinite recursion.',
+        shortValue: 'Workflow block calls a saved workflow as a reusable step',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.sim.ai/workflows/blocks/workflow',
+            label: 'Sim Docs: Workflow block',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -498,6 +512,11 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.sim.ai/knowledgebase/debugging-retrieval',
+            label: 'Sim Docs: Debugging retrieval',
+            asOf: '2026-07-02',
+          },
+          {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/chunk-editor/chunk-editor.tsx',
             label: 'Sim codebase: chunk editor',
             asOf: '2026-07-02',
@@ -528,6 +547,19 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://docs.sim.ai/integrations/a2a',
             label: 'Sim Docs: A2A integration',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: a Loop container block runs the blocks inside it repeatedly (For a fixed count, ForEach over a collection, While a condition holds, or Do-While), running iterations one after another; concurrent fan-out is a separate Parallel block',
+        shortValue: 'Native Loop block: For, ForEach, While, Do-While',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.sim.ai/workflows/blocks/loop',
+            label: 'Sim Docs: Loop block',
             asOf: '2026-07-02',
           },
         ],
@@ -577,6 +609,11 @@ export const simProfile: CompetitorProfile = {
         shortValue: 'Code-execution block for custom logic',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.sim.ai/workflows/blocks/function',
+            label: 'Sim Docs: Function block',
+            asOf: '2026-07-02',
+          },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
             label: 'Sim codebase: block registry',
@@ -685,6 +722,11 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
+            label: 'Sim Docs: Bring Your Own Key (BYOK)',
+            asOf: '2026-07-02',
+          },
+          {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/calculations/usage-monitor.ts',
             label: 'Sim codebase: BYOK usage-monitor logic',
             asOf: '2026-07-02',
@@ -739,6 +781,11 @@ export const simProfile: CompetitorProfile = {
         shortValue: 'Workspace and org-level role permissions',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.sim.ai/platform/permissions',
+            label: 'Sim Docs: Roles and Permissions',
+            asOf: '2026-07-02',
+          },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
             label: 'Sim codebase: permissionTypeEnum, role columns',
@@ -868,6 +915,21 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://docs.sim.ai/platform/enterprise/sso',
             label: 'Sim Docs: Single Sign-On (SSO)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          "Yes: every one of Sim's 302 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
+        detail:
+          "Custom code steps run inside Sim's own isolated-vm sandbox rather than as an installable third-party skill package, so the supply-chain trust boundary is Sim's codebase review, not an open registry.",
+        shortValue: 'All 302 blocks are first-party authored and code-reviewed',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://github.com/simstudioai/sim/tree/main/apps/sim/blocks/blocks',
+            label: 'Sim codebase: first-party block directory',
             asOf: '2026-07-02',
           },
         ],

@@ -319,6 +319,26 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "No: Agent Builder's node reference (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no node that calls a separate saved workflow as a nested step and waits for it to finish. Composition across agents happens via handoffs between Agent nodes within the same workflow canvas, not by invoking another independently saved workflow as a reusable child step.",
+        detail:
+          'A workflow can call other agents through handoffs (execution transfers to another Agent node, carrying conversation state), but that is agent-to-agent handoff inside one workflow graph, not a documented call-another-workflow-and-return block. The only way to reuse a workflow elsewhere is to export it as Agents SDK code and call that code from other code, which is a code-level reuse pattern rather than a visual sub-workflow step.',
+        shortValue: 'No dedicated call-sub-workflow node found',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://developers.openai.com/api/docs/guides/node-reference',
+            label: 'Node reference | OpenAI API',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://developers.openai.com/api/docs/guides/agent-builder',
+            label: 'Agent Builder | OpenAI API',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -552,6 +572,26 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           {
             url: 'https://developers.openai.com/api/docs/guides/agents',
             label: 'Agents SDK | OpenAI API',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Yes: Agent Builder has a dedicated 'While' logic node that loops on a custom Common Expression Language (CEL) condition, re-running the connected steps sequentially each pass until the condition is false.",
+        detail:
+          "The While node is condition-based rather than an explicit for-each-over-a-list container: iterating over a list means writing a CEL expression that checks an index or remaining-items condition against a Set-state variable, and incrementing that variable each pass, rather than dropping in a purpose-built for-each block. Iterations run one after another (sequential), matching the node palette's lack of any fan-out/parallel node.",
+        shortValue: 'Yes, via the While logic node (condition-based, sequential)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://developers.openai.com/api/docs/guides/node-reference',
+            label: 'Node reference | OpenAI API',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://community.openai.com/t/agent-builder-while-loop-transform-and-set-state-an-example/1362386',
+            label: 'OpenAI Community: Agent Builder - While Loop, Transform and Set State example',
             asOf: '2026-07-02',
           },
         ],
@@ -909,6 +949,36 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           {
             url: 'https://help.openai.com/en/articles/9672121-getting-started-with-identity-and-provisioning-in-chatgpt-enterprise-edu-and-chatgpt-for-teachers',
             label: 'Getting started with identity and provisioning | OpenAI Help Center',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      thirdPartyVetting: {
+        value:
+          "Partial: pre-built Connector Registry entries (Dropbox, Google Drive, SharePoint, Teams) and the ChatGPT Apps directory go through OpenAI identity verification and app review, but Agent Builder's MCP node and the Agents SDK can connect to any third-party MCP server with no vendor vetting pipeline documented",
+        detail:
+          "OpenAI's own Connector Registry connectors and ChatGPT Apps directory submissions require developer identity verification and pass through an OpenAI app-review process before listing, per the App submission guidelines. But Agent Builder's MCP node and the Agents SDK let a builder point at any hosted MCP server, first-party or community-run, with no described OpenAI review of that server's code. This client-only MCP model mirrors the wider MCP ecosystem, where unreviewed community servers have shipped malicious behavior elsewhere (for example, an unofficial third-party Postmark MCP server was found in September 2025 silently BCC'ing all outgoing email to an attacker). No security incident specific to OpenAI's own Connector Registry, Apps directory, or Agent Builder MCP integration was found in public reporting as of this writing.",
+        shortValue: 'Partial: reviewed first-party catalog, but open MCP server connections',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://developers.openai.com/apps-sdk/app-submission-guidelines',
+            label: 'App submission guidelines | Apps SDK | OpenAI Developers',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://developers.openai.com/apps-sdk/guides/security-privacy',
+            label: 'Security & Privacy | Apps SDK | OpenAI Developers',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://openai.com/index/developers-can-now-submit-apps-to-chatgpt/',
+            label: 'Developers can now submit apps to ChatGPT | OpenAI',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://authzed.com/blog/timeline-mcp-breaches',
+            label: 'A Timeline of Model Context Protocol (MCP) Security Breaches',
             asOf: '2026-07-02',
           },
         ],
