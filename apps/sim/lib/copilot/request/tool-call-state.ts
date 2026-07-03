@@ -60,14 +60,30 @@ export function getToolCallTerminalData(
   toolCall: Pick<ToolCallState, 'id' | 'status' | 'result' | 'error'>
 ): unknown {
   const output = getToolCallStateOutput(toolCall)
+  const failed = !isSuccessfulToolCallStatus(toolCall.status as TerminalToolCallStatus)
+
   if (output !== undefined) {
-    return output
+    if (!failed) {
+      return output
+    }
+    /**
+     * A failed call must always surface its error in the terminal data — this
+     * is what the model reads on resume. Handlers can fail with an
+     * empty-but-defined output (the app-tool executor's "Tool not found" ships
+     * `output: {}`), and preferring that output rendered failures as bare `{}`,
+     * so the model retried blind instead of reacting to the error.
+     */
+    const error =
+      typeof toolCall.error === 'string' && toolCall.error.length > 0
+        ? toolCall.error
+        : 'Tool failed without an error message'
+    if (output && typeof output === 'object' && !Array.isArray(output)) {
+      return 'error' in output ? output : { ...output, error }
+    }
+    return { output, error }
   }
 
-  if (
-    toolCall.status === MothershipStreamV1ToolOutcome.success ||
-    toolCall.status === MothershipStreamV1ToolOutcome.skipped
-  ) {
+  if (!failed) {
     return undefined
   }
 
