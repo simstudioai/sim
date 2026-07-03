@@ -12,7 +12,6 @@ import {
   addMothershipChatResourceContract,
   createMothershipChatContract,
   deleteMothershipChatContract,
-  duplicateMothershipChatContract,
   forkMothershipChatContract,
   getMothershipChatContract,
   listMothershipChatsContract,
@@ -709,49 +708,6 @@ export function useForkMothershipChat(workspaceId?: string) {
         queryClient.setQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId), [
           ...existing.slice(0, insertAt),
           optimisticChat,
-          ...existing.slice(insertAt),
-        ])
-      }
-    },
-    onSettled: () => {
-      if (!workspaceId) return
-      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
-    },
-  })
-}
-
-async function duplicateChat(params: { chatId: string }): Promise<{ id: string }> {
-  const data = await requestJson(duplicateMothershipChatContract, {
-    params: { chatId: params.chatId },
-  })
-  return { id: data.id }
-}
-
-export function useDuplicateMothershipChat(workspaceId?: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: duplicateChat,
-    onSuccess: async (data, variables) => {
-      if (!workspaceId) return
-      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
-      const existing = queryClient.getQueryData<MothershipChatMetadata[]>(
-        mothershipChatKeys.list(workspaceId)
-      )
-      if (existing) {
-        const sourceChat = existing.find((t) => t.id === variables.chatId)
-        const duplicateEntry: MothershipChatMetadata = {
-          id: data.id,
-          name: `${sourceChat?.name ?? 'New chat'} (Copy)`,
-          updatedAt: new Date(),
-          isActive: false,
-          isUnread: false,
-          isPinned: false,
-        }
-        const pinnedCount = existing.findIndex((chat) => !chat.isPinned)
-        const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
-        queryClient.setQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId), [
-          ...existing.slice(0, insertAt),
-          duplicateEntry,
           ...existing.slice(insertAt),
         ])
       }

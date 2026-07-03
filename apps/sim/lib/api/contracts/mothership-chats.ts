@@ -294,19 +294,6 @@ export const listChatOutputsContract = defineRouteContract({
   },
 })
 
-export const duplicateMothershipChatContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/mothership/chats/[chatId]/duplicate',
-  params: mothershipChatParamsSchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      id: z.string(),
-    }),
-  },
-})
-
 export const createMothershipChatResponseSchema = z.object({
   success: z.literal(true),
   id: z.string(),

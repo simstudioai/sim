@@ -1,14 +1,23 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFindUpload } = vi.hoisted(() => ({
+const { mockFindUpload, mockFindOutput, mockAllocateName } = vi.hoisted(() => ({
   mockFindUpload: vi.fn(),
+  mockFindOutput: vi.fn(),
+  mockAllocateName: vi.fn(),
 }))
+
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/tools/handlers/upload-file-reader', () => ({
   findMothershipUploadRowByChatAndName: mockFindUpload,
+}))
+
+vi.mock('@/lib/copilot/tools/handlers/output-file-reader', () => ({
+  findChatOutputRowByChatAndName: mockFindOutput,
 }))
 
 vi.mock('@/lib/uploads', () => ({
@@ -17,6 +26,7 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: vi.fn(),
+  allocateUniqueWorkspaceFileName: mockAllocateName,
 }))
 
 vi.mock('@/lib/copilot/vfs/path-utils', () => ({
@@ -37,6 +47,39 @@ const context = {
   userId: 'user-1',
   workflowId: 'wf-1',
 } as ExecutionContext
+
+describe('executeMaterializeFile - save clears chat provenance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('nulls both chatId and messageId when promoting an upload to the workspace', async () => {
+    mockFindUpload.mockResolvedValue({
+      id: 'wf_1',
+      key: 'mothership/chat-1/cat.png',
+      workspaceId: 'ws-1',
+      folderId: null,
+      userId: 'user-1',
+      originalName: 'cat.png',
+      displayName: 'cat.png',
+      contentType: 'image/png',
+      size: 10,
+      deletedAt: null,
+      uploadedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    mockAllocateName.mockResolvedValue('cat.png')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_1', originalName: 'cat.png' }])
+
+    const result = await executeMaterializeFile({ fileNames: ['cat.png'] }, context)
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ context: 'workspace', chatId: null, messageId: null })
+    )
+  })
+})
 
 describe('executeMaterializeFile - unsupported operation', () => {
   beforeEach(() => vi.clearAllMocks())

@@ -162,7 +162,7 @@ export const MessageActions = memo(function MessageActions({
 
   const hasContent = Boolean(content)
   const canSubmitFeedback = Boolean(chatId && userQuery)
-  const canFork = false
+  const canFork = Boolean(chatId && messageId)
   if (!hasContent && !canSubmitFeedback && !canFork) return null
 
   return (

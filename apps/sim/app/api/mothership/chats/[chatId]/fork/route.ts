@@ -6,8 +6,18 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { checkStorageQuota } from '@/lib/billing/storage'
+import {
+  executeChatFileBlobCopies,
+  listForkableChatFiles,
+  planChatFileCopies,
+} from '@/lib/copilot/chat/fork-chat-files'
 import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
+import {
+  rewriteMessageFileRefs,
+  rewriteResourceFileRefs,
+} from '@/lib/copilot/chat/rewrite-file-references'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
@@ -33,7 +43,12 @@ const logger = createLogger('ForkChatAPI')
 /**
  * POST /api/mothership/chats/[chatId]/fork
  * Creates a new chat branched from the given chat, keeping messages up to and
- * including the specified message. Resources and copilot-side state are copied.
+ * including the specified message. Resources and copilot-side state are copied,
+ * along with the chat's uploads born at-or-before the fork point (fresh row id
+ * and storage key per copy, same message_id; bytes are physically copied and
+ * counted against the storage quota). Agent-generated outputs/ stay behind.
+ * Every in-transcript file reference is re-pointed at the copies so the fork
+ * survives deletion of the source chat.
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
@@ -82,6 +97,18 @@ export const POST = withRouteHandler(
       }
       const forkedMessages = messages.slice(0, forkIdx + 1)
 
+      // The timeline cut for files: uploads born in any kept message come
+      // along; uploads born after the fork point stay behind.
+      const keptMessageIds = new Set(forkedMessages.map((m) => m.id))
+      const sourceFiles = await listForkableChatFiles(db, chatId, keptMessageIds)
+      const totalFileBytes = sourceFiles.reduce((sum, row) => sum + row.size, 0)
+      if (totalFileBytes > 0) {
+        const quotaCheck = await checkStorageQuota(userId, totalFileBytes)
+        if (!quotaCheck.allowed) {
+          return createBadRequestResponse(quotaCheck.error || 'Storage limit exceeded')
+        }
+      }
+
       // Resources are stored as a jsonb array on the chat row — copy them directly.
       const parentResources = Array.isArray(parent.resources)
         ? (parent.resources as MothershipResource[])
@@ -92,7 +119,7 @@ export const POST = withRouteHandler(
       const title = `Fork | ${baseTitle}`
       const now = new Date()
 
-      const newChat = await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(copilotChats)
           .values({
@@ -114,12 +141,48 @@ export const POST = withRouteHandler(
 
         if (!row) return null
 
-        await appendCopilotChatMessages(newId, forkedMessages, { chatModel: parent.model }, tx)
-        return row
+        // File rows FK the new chat row, so the plan runs after the insert.
+        const { idMap, keyMap, blobTasks } = await planChatFileCopies({
+          tx,
+          rows: sourceFiles,
+          newChatId: newId,
+          userId,
+          now,
+        })
+
+        const maps = { fileIds: idMap, fileKeys: keyMap }
+        if (idMap.size > 0 || keyMap.size > 0) {
+          await tx
+            .update(copilotChats)
+            .set({ resources: rewriteResourceFileRefs(parentResources, maps) })
+            .where(eq(copilotChats.id, newId))
+        }
+
+        await appendCopilotChatMessages(
+          newId,
+          rewriteMessageFileRefs(forkedMessages, maps),
+          { chatModel: parent.model },
+          tx
+        )
+        return { row, blobTasks }
       })
 
-      if (!newChat) {
+      if (!result) {
         return createInternalServerErrorResponse('Failed to create forked chat')
+      }
+      const newChat = result.row
+
+      const { copied, failed } = await executeChatFileBlobCopies(result.blobTasks, {
+        userId,
+        workspaceId: parent.workspaceId ?? undefined,
+      })
+      if (failed > 0) {
+        logger.warn('Some chat file blobs failed to copy during fork', {
+          chatId,
+          newChatId: newId,
+          copied,
+          failed,
+        })
       }
 
       // Clone copilot-service conversation state (messages, active_messages, memory files).

@@ -9,7 +9,7 @@ const {
   mockTransaction,
   mockSelectRows,
   mockCheckStorageQuota,
-  mockListDuplicableChatFiles,
+  mockListForkableChatFiles,
   mockPlanChatFileCopies,
   mockExecuteChatFileBlobCopies,
   mockLoadCopilotChatMessages,
@@ -22,7 +22,7 @@ const {
   mockTransaction: vi.fn(),
   mockSelectRows: vi.fn(),
   mockCheckStorageQuota: vi.fn(),
-  mockListDuplicableChatFiles: vi.fn(),
+  mockListForkableChatFiles: vi.fn(),
   mockPlanChatFileCopies: vi.fn(),
   mockExecuteChatFileBlobCopies: vi.fn(),
   mockLoadCopilotChatMessages: vi.fn(),
@@ -71,8 +71,8 @@ vi.mock('@/lib/billing/storage', () => ({
   checkStorageQuota: mockCheckStorageQuota,
 }))
 
-vi.mock('@/lib/copilot/chat/duplicate-chat-files', () => ({
-  listDuplicableChatFiles: mockListDuplicableChatFiles,
+vi.mock('@/lib/copilot/chat/fork-chat-files', () => ({
+  listForkableChatFiles: mockListForkableChatFiles,
   planChatFileCopies: mockPlanChatFileCopies,
   executeChatFileBlobCopies: mockExecuteChatFileBlobCopies,
 }))
@@ -109,7 +109,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   isWorkspaceAccessDeniedError: () => false,
 }))
 
-import { POST } from '@/app/api/mothership/chats/[chatId]/duplicate/route'
+import { POST } from '@/app/api/mothership/chats/[chatId]/fork/route'
 
 const OLD_FILE_ID = 'wf_oldfile'
 const NEW_FILE_ID = 'wf_newfile'
@@ -127,6 +127,27 @@ const parentRow = {
   config: null,
 }
 
+const threeMessages = [
+  {
+    id: 'msg-1',
+    role: 'user',
+    content: `See ![cat](/api/files/view/${OLD_FILE_ID})`,
+    timestamp: '2026-07-01T00:00:00.000Z',
+  },
+  {
+    id: 'msg-2',
+    role: 'assistant',
+    content: 'Nice cat.',
+    timestamp: '2026-07-01T00:00:01.000Z',
+  },
+  {
+    id: 'msg-3',
+    role: 'user',
+    content: 'A later message the fork must not keep.',
+    timestamp: '2026-07-01T00:00:02.000Z',
+  },
+]
+
 function makeTx() {
   return {
     insert: () => ({
@@ -140,9 +161,11 @@ function makeTx() {
   }
 }
 
-function createRequest(chatId: string) {
-  return new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}/duplicate`, {
+function createRequest(chatId: string, body?: unknown) {
+  return new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}/fork`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? { upToMessageId: 'msg-2' }),
   })
 }
 
@@ -150,7 +173,7 @@ function makeContext(chatId: string) {
   return { params: Promise.resolve({ chatId }) }
 }
 
-describe('POST /api/mothership/chats/[chatId]/duplicate', () => {
+describe('POST /api/mothership/chats/[chatId]/fork', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
@@ -158,9 +181,9 @@ describe('POST /api/mothership/chats/[chatId]/duplicate', () => {
       isAuthenticated: true,
     })
     mockSelectRows.mockResolvedValue([parentRow])
-    mockListDuplicableChatFiles.mockResolvedValue([])
+    mockListForkableChatFiles.mockResolvedValue([])
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
-    mockLoadCopilotChatMessages.mockResolvedValue([])
+    mockLoadCopilotChatMessages.mockResolvedValue(threeMessages)
     mockPlanChatFileCopies.mockResolvedValue({
       idMap: new Map(),
       keyMap: new Map(),
@@ -197,8 +220,37 @@ describe('POST /api/mothership/chats/[chatId]/duplicate', () => {
     expect(res.status).toBe(404)
   })
 
+  it('400s when upToMessageId is missing', async () => {
+    const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
+    expect(res.status).toBe(400)
+    expect(mockTransaction).not.toHaveBeenCalled()
+  })
+
+  it('400s when the message is not in the chat', async () => {
+    const res = await POST(
+      createRequest('chat-1', { upToMessageId: 'msg-unknown' }),
+      makeContext('chat-1')
+    )
+    expect(res.status).toBe(400)
+    expect(mockTransaction).not.toHaveBeenCalled()
+  })
+
+  it('applies the timeline cut: kept message ids drive the file selection', async () => {
+    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    expect(res.status).toBe(200)
+
+    // Files are selected by the kept slice (inclusive of msg-2, excluding msg-3).
+    const listCall = mockListForkableChatFiles.mock.calls[0]
+    expect(listCall[1]).toBe('chat-1')
+    expect(listCall[2]).toEqual(new Set(['msg-1', 'msg-2']))
+
+    // The appended transcript is the same inclusive slice.
+    const appended = mockAppendCopilotChatMessages.mock.calls[0]
+    expect(appended[1].map((m: { id: string }) => m.id)).toEqual(['msg-1', 'msg-2'])
+  })
+
   it('fails up front with the quota error when copied bytes would exceed the limit', async () => {
-    mockListDuplicableChatFiles.mockResolvedValue([{ size: 600 }, { size: 400 }])
+    mockListForkableChatFiles.mockResolvedValue([{ size: 600 }, { size: 400 }])
     mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
 
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
@@ -209,36 +261,28 @@ describe('POST /api/mothership/chats/[chatId]/duplicate', () => {
     expect(mockExecuteChatFileBlobCopies).not.toHaveBeenCalled()
   })
 
-  it('skips the quota check entirely for a chat with no files', async () => {
+  it('skips the quota check entirely when no upload rows are in the cut', async () => {
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(200)
     expect(mockCheckStorageQuota).not.toHaveBeenCalled()
   })
 
-  it('duplicates the chat: copies files, rewrites references, clones agent state', async () => {
+  it('forks the chat: copies kept uploads, rewrites references, clones agent state', async () => {
     const blobTasks = [
       {
         sourceKey: 'workspace/ws-1/old-cat.png',
         targetKey: 'workspace/ws-1/new-cat.png',
-        context: 'output',
+        context: 'mothership',
         fileName: 'cat.png',
         contentType: 'image/png',
       },
     ]
-    mockListDuplicableChatFiles.mockResolvedValue([{ size: 100 }])
+    mockListForkableChatFiles.mockResolvedValue([{ size: 100 }])
     mockPlanChatFileCopies.mockResolvedValue({
       idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
       keyMap: new Map([['workspace/ws-1/old-cat.png', 'workspace/ws-1/new-cat.png']]),
       blobTasks,
     })
-    mockLoadCopilotChatMessages.mockResolvedValue([
-      {
-        id: 'msg-1',
-        role: 'assistant',
-        content: `![cat](/api/files/view/${OLD_FILE_ID})`,
-        timestamp: '2026-07-01T00:00:00.000Z',
-      },
-    ])
 
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     const body = await res.json()
@@ -249,9 +293,10 @@ describe('POST /api/mothership/chats/[chatId]/duplicate', () => {
 
     expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 100)
 
+    // The real rewriter runs: the kept message's view-URL points at the copy.
     const appended = mockAppendCopilotChatMessages.mock.calls[0]
     expect(appended[0]).toBe(body.id)
-    expect(appended[1][0].content).toBe(`![cat](/api/files/view/${NEW_FILE_ID})`)
+    expect(appended[1][0].content).toBe(`See ![cat](/api/files/view/${NEW_FILE_ID})`)
 
     expect(mockExecuteChatFileBlobCopies).toHaveBeenCalledWith(blobTasks, {
       userId: 'user-1',
@@ -261,8 +306,12 @@ describe('POST /api/mothership/chats/[chatId]/duplicate', () => {
     const goCall = mockFetchGo.mock.calls[0]
     expect(goCall[0]).toBe('http://mothership.test/api/chats/fork')
     const goBody = JSON.parse(goCall[1].body)
-    expect(goBody).toEqual({ sourceChatId: 'chat-1', newChatId: body.id, userId: 'user-1' })
-    expect(goBody.upToMessageId).toBeUndefined()
+    expect(goBody).toEqual({
+      sourceChatId: 'chat-1',
+      newChatId: body.id,
+      upToMessageId: 'msg-2',
+      userId: 'user-1',
+    })
 
     expect(mockPublishStatusChanged).toHaveBeenCalledWith({
       workspaceId: 'ws-1',
@@ -271,7 +320,7 @@ describe('POST /api/mothership/chats/[chatId]/duplicate', () => {
     })
     expect(mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
-      'task_duplicated',
+      'task_forked',
       { workspace_id: 'ws-1', source_chat_id: 'chat-1' },
       { groups: { workspace: 'ws-1' } }
     )

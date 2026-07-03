@@ -67,7 +67,10 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
     .update(workspaceFiles)
     .set({
       context: 'workspace',
+      // A workspace file has no birth chat or message — clear both provenance
+      // fields so the row reads as workspace-owned, not stale chat-owned.
       chatId: null,
+      messageId: null,
       originalName: uniqueName,
       displayName: uniqueName,
     })

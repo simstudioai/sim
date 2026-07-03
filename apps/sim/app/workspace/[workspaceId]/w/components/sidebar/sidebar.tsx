@@ -92,7 +92,6 @@ import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import {
   useDeleteMothershipChat,
   useDeleteMothershipChats,
-  useDuplicateMothershipChat,
   useMarkMothershipChatRead,
   useMarkMothershipChatUnread,
   useMothershipChats,
@@ -598,7 +597,6 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
 
   const deleteChatMutation = useDeleteMothershipChat(workspaceId)
   const deleteChatsMutation = useDeleteMothershipChats(workspaceId)
-  const duplicateChatMutation = useDuplicateMothershipChat(workspaceId)
   const markChatReadMutation = useMarkMothershipChatRead(workspaceId)
   const markChatUnreadMutation = useMarkMothershipChatUnread(workspaceId)
   const renameChatMutation = useRenameMothershipChat(workspaceId)
@@ -964,20 +962,6 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     chatsHover.setLocked(true)
     chatFlyoutRename.startRename({ id: chatId, name: chat.name })
   }, [chatFlyoutRename, chats, chatsHover])
-
-  const handleDuplicateChat = useCallback(() => {
-    const { chatIds: ids } = contextMenuSelectionRef.current
-    if (ids.length !== 1) return
-    duplicateChatMutation.mutate(
-      { chatId: ids[0] },
-      {
-        onSuccess: (result) => {
-          useFolderStore.getState().clearChatSelection()
-          navigateToPage(`/workspace/${workspaceId}/chat/${result.id}`)
-        },
-      }
-    )
-  }, [navigateToPage, workspaceId])
 
   const handleToggleChatPin = useCallback(() => {
     const { chatIds: ids } = contextMenuSelectionRef.current
@@ -1702,7 +1686,6 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                   onMarkAsUnread={handleMarkChatAsUnread}
                   onTogglePin={handleToggleChatPin}
                   onRename={handleStartChatRename}
-                  onDuplicate={handleDuplicateChat}
                   onDelete={handleDeleteChat}
                   showOpenInNewTab={!isMultiChatContextMenu}
                   showMarkAsRead={!isMultiChatContextMenu && !!activeChatContextMenuItem?.isUnread}
@@ -1714,9 +1697,8 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                   showPin={!isMultiChatContextMenu && !!activeChatContextMenuItem}
                   isPinned={!!activeChatContextMenuItem?.isPinned}
                   showRename={!isMultiChatContextMenu}
-                  showDuplicate={!isMultiChatContextMenu}
+                  showDuplicate={false}
                   disableRename={!canEdit}
-                  disableDuplicate={!canEdit || duplicateChatMutation.isPending}
                   disableDelete={!canEdit}
                 />
 
