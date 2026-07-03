@@ -38,6 +38,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   manage_skill: Asterisk,
   user_memory: Database,
   function_execute: TerminalWindow,
+  run_code: TerminalWindow,
   superagent: Blimp,
   user_table: TableIcon,
   workspace_file: File,
