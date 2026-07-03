@@ -55,16 +55,16 @@ describe('GET /api/users/me/usage-logs/export', () => {
     expect(row).toBe('2026-07-01T00:00:00.000Z,Chat,100')
   })
 
-  it('sets X-Export-Truncated when the row cap is hit with more data remaining', async () => {
+  it('sets X-Export-Truncated when the safety cap is hit with more data remaining', async () => {
     mockGetUserUsageLogs.mockResolvedValueOnce({
-      logs: Array.from({ length: 5000 }, (_, i) => ({
+      logs: Array.from({ length: 50000 }, (_, i) => ({
         id: `log-${i}`,
         createdAt: '2026-07-01T00:00:00.000Z',
         source: 'copilot',
         cost: 0.1,
       })),
       summary: { totalCost: 0, bySource: {} },
-      pagination: { hasMore: true, nextCursor: 'log-4999' },
+      pagination: { hasMore: true, nextCursor: 'log-49999' },
     })
 
     const response = await GET(createMockRequest('GET'))
@@ -178,16 +178,16 @@ describe('GET /api/users/me/usage-logs/export', () => {
     expect(csv.split('\n')).toHaveLength(3)
   })
 
-  it('stops at exactly the row cap without an extra wasted page fetch', async () => {
+  it('stops at exactly the safety cap without an extra wasted page fetch', async () => {
     mockGetUserUsageLogs.mockResolvedValueOnce({
-      logs: Array.from({ length: 5000 }, (_, i) => ({
+      logs: Array.from({ length: 50000 }, (_, i) => ({
         id: `log-${i}`,
         createdAt: '2026-07-01T00:00:00.000Z',
         source: 'copilot',
         cost: 0.1,
       })),
       summary: { totalCost: 0, bySource: {} },
-      pagination: { hasMore: true, nextCursor: 'log-4999' },
+      pagination: { hasMore: true, nextCursor: 'log-49999' },
     })
 
     await GET(createMockRequest('GET'))

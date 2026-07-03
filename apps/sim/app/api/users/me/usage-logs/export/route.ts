@@ -12,15 +12,20 @@ import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-la
 
 const logger = createLogger('UsageLogsExportAPI')
 
-/** Safety cap on export size — a single user's credit ledger; not expected to approach this. */
-const MAX_EXPORT_ROWS = 5000
-const EXPORT_PAGE_SIZE = 500
+/**
+ * Circuit breaker, not a UX boundary — a personal credit ledger is bounded by
+ * the user's own usage history and should never realistically approach this.
+ * Exists only to keep a pathological account (or a bug upstream) from paging
+ * forever; hitting it is worth alerting on, not a normal truncation case.
+ */
+const EXPORT_SAFETY_CAP = 50000
+const EXPORT_PAGE_SIZE = 1000
 
 const CSV_HEADER = toCsvRow(['Date', 'Type', 'Credits'])
 
 /**
  * Downloads every usage log matching the current filter as CSV — unlike the
- * paginated list route, this fetches up to `MAX_EXPORT_ROWS` in one response
+ * paginated list route, this fetches every matching row in one response
  * rather than a single page, since a user's own credit ledger is bounded
  * (unlike, say, a workspace's full execution history).
  */
@@ -39,27 +44,27 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const rows: Awaited<ReturnType<typeof getUserUsageLogs>>['logs'] = []
   let cursor: string | undefined
   let truncated = false
-  while (rows.length < MAX_EXPORT_ROWS) {
+  while (rows.length < EXPORT_SAFETY_CAP) {
     const page = await getUserUsageLogs(auth.userId, {
       source: source as UsageLogSource | undefined,
       workspaceId,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
-      limit: Math.min(EXPORT_PAGE_SIZE, MAX_EXPORT_ROWS - rows.length),
+      limit: Math.min(EXPORT_PAGE_SIZE, EXPORT_SAFETY_CAP - rows.length),
       cursor,
       includeSummary: false,
     })
     rows.push(...page.logs)
     if (!page.pagination.hasMore) break
-    truncated = rows.length >= MAX_EXPORT_ROWS
+    truncated = rows.length >= EXPORT_SAFETY_CAP
     cursor = page.pagination.nextCursor
   }
 
   if (truncated) {
-    logger.warn('Usage log export truncated at safety cap', {
+    logger.error('Usage log export hit the safety cap — investigate this account', {
       userId: auth.userId,
       period,
-      cap: MAX_EXPORT_ROWS,
+      cap: EXPORT_SAFETY_CAP,
     })
   }
 

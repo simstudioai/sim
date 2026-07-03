@@ -4,7 +4,7 @@ import { usageLog, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
@@ -624,9 +624,12 @@ export async function getUserUsageLogs(
         .limit(1)
 
       if (cursorLog.length > 0) {
-        conditions.push(
-          sql`(${usageLog.createdAt} < ${cursorLog[0].createdAt} OR (${usageLog.createdAt} = ${cursorLog[0].createdAt} AND ${usageLog.id} < ${cursor}))`
+        const cursorCreatedAt = cursorLog[0].createdAt
+        const cursorCondition = or(
+          lt(usageLog.createdAt, cursorCreatedAt),
+          and(eq(usageLog.createdAt, cursorCreatedAt), lt(usageLog.id, cursor))
         )
+        if (cursorCondition) conditions.push(cursorCondition)
       }
     }
 
