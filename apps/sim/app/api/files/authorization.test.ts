@@ -210,3 +210,69 @@ describe('public-context access (profile-pictures / og-images / workspace-logos)
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * Chat-scoped `output` files belong to a private chat: workspace membership
+ * alone must NOT grant access — the caller must also be the row's owner.
+ * These lock in the fix for the member-reads-another-member's-outputs leak,
+ * on both the explicit-context path (view route) and the inferred-workspace
+ * path (serve route — output keys share the workspace key shape).
+ */
+describe('chat output file ownership (verifyFileAccess)', () => {
+  const OUTPUT_KEY = 'workspace/ws-1/1780000000-abcd-generated-image.png'
+  const outputRow = {
+    workspaceId: 'ws-1',
+    userId: 'owner-user',
+    context: 'output',
+    deletedAt: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('denies a workspace member who is not the owning chat user (explicit output context)', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue(outputRow)
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await expect(verifyFileAccess(OUTPUT_KEY, 'other-member', undefined, 'output')).resolves.toBe(
+      false
+    )
+  })
+
+  it('denies a non-owner member when context is inferred as workspace (serve path)', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue(outputRow)
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await expect(
+      verifyFileAccess(OUTPUT_KEY, 'other-member', undefined, 'workspace')
+    ).resolves.toBe(false)
+  })
+
+  it('grants the owning chat user with workspace membership', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue(outputRow)
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await expect(verifyFileAccess(OUTPUT_KEY, 'owner-user', undefined, 'output')).resolves.toBe(
+      true
+    )
+  })
+
+  it('still denies the owner without workspace membership (left the workspace)', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue(outputRow)
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+
+    await expect(verifyFileAccess(OUTPUT_KEY, 'owner-user', undefined, 'output')).resolves.toBe(
+      false
+    )
+  })
+
+  it('leaves plain workspace files on membership-only auth', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue({ ...outputRow, context: 'workspace' })
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await expect(
+      verifyFileAccess(OUTPUT_KEY, 'other-member', undefined, 'workspace')
+    ).resolves.toBe(true)
+  })
+})

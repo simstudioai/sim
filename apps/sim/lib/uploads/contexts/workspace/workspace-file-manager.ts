@@ -989,8 +989,10 @@ export async function getWorkspaceFile(
  * Fetch a single file record by id for PREVIEW, including the chat-scoped `output`
  * context (agent-generated outputs) that never appears in the workspace Files list.
  * Returns the same shape as {@link listWorkspaceFiles} so the resource panel can
- * render an output that {@link getWorkspaceFile}/list would miss. Authorization
- * (workspace membership) is the caller's responsibility.
+ * render an output that {@link getWorkspaceFile}/list would miss. Workspace
+ * membership is the caller's responsibility; chat-output OWNERSHIP is enforced
+ * here — `output` rows belong to a private chat, so only the owning chat's user
+ * may resolve them (non-owners get null, indistinguishable from a missing id).
  *
  * `mothership` chat uploads are intentionally not included here — surfacing uploads
  * through this preview path is out of scope for the outputs feature (see
@@ -998,7 +1000,8 @@ export async function getWorkspaceFile(
  */
 export async function getPreviewableWorkspaceFile(
   workspaceId: string,
-  fileId: string
+  fileId: string,
+  requestingUserId: string
 ): Promise<WorkspaceFileRecord | null> {
   try {
     const [file] = await db
@@ -1015,6 +1018,14 @@ export async function getPreviewableWorkspaceFile(
       .limit(1)
 
     if (!file) return null
+    if (file.context === 'output' && file.userId !== requestingUserId) {
+      logger.warn('Chat output preview denied: caller is not the owning chat user', {
+        fileId,
+        workspaceId,
+        requestingUserId,
+      })
+      return null
+    }
     return mapSingleWorkspaceFileRecord(file, workspaceId)
   } catch (error) {
     logger.error(`Failed to get previewable workspace file ${fileId}:`, error)

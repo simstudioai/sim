@@ -51,7 +51,7 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      const file = await getPreviewableWorkspaceFile(workspaceId, fileId)
+      const file = await getPreviewableWorkspaceFile(workspaceId, fileId, session.user.id)
       if (!file) {
         return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
       }

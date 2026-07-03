@@ -36,6 +36,7 @@ import {
   Workflow,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { MoreHorizontal, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
@@ -981,6 +982,9 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           }
           useFolderStore.getState().clearChatSelection()
           navigateToPage(`/workspace/${workspaceId}/chat/${result.id}`)
+        },
+        onError: (error) => {
+          toast.error(getErrorMessage(error, 'Failed to duplicate chat'))
         },
       }
     )
