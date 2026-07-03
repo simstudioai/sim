@@ -53,6 +53,7 @@ describe('GET /api/users/me/usage-logs', () => {
         source: 'workflow',
         description: 'gpt-4o',
         creditCost: 100,
+        dollarCost: 0.5,
       },
     ])
     expect(body.summary).toEqual({
