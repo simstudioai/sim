@@ -74,22 +74,36 @@ describe('GET /api/billing/invoices', () => {
   })
 
   it('pages through further drafts to confirm hasMore when the first page is inconclusive', async () => {
+    const firstPage = Array.from({ length: 11 }, () => makeInvoice({ status: 'draft' }))
     mockStripeInvoicesList
-      .mockResolvedValueOnce({
-        data: Array.from({ length: 11 }, () => makeInvoice({ status: 'draft' })),
-        has_more: true,
-      })
-      .mockResolvedValueOnce({
-        data: [makeInvoice()],
-        has_more: false,
-      })
+      .mockResolvedValueOnce({ data: firstPage, has_more: true })
+      .mockResolvedValueOnce({ data: [makeInvoice()], has_more: false })
 
     const request = createMockRequest('GET')
     const response = await GET(request)
     const body = await response.json()
 
     expect(mockStripeInvoicesList).toHaveBeenCalledTimes(2)
+    expect(mockStripeInvoicesList).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ starting_after: firstPage.at(-1)?.id })
+    )
     expect(body.invoices).toHaveLength(1)
     expect(body.hasMore).toBe(false)
+  })
+
+  it('reports hasMore when the MAX_STRIPE_PAGES safety cap is hit while Stripe still has more', async () => {
+    mockStripeInvoicesList.mockResolvedValue({
+      data: Array.from({ length: 11 }, () => makeInvoice({ status: 'draft' })),
+      has_more: true,
+    })
+
+    const request = createMockRequest('GET')
+    const response = await GET(request)
+    const body = await response.json()
+
+    expect(mockStripeInvoicesList).toHaveBeenCalledTimes(5)
+    expect(body.invoices).toHaveLength(0)
+    expect(body.hasMore).toBe(true)
   })
 })

@@ -23,28 +23,40 @@ const STRIPE_PAGE_SIZE = MAX_INVOICES + 1
 /** Safety cap on pagination when a customer has many draft invoices interspersed. */
 const MAX_STRIPE_PAGES = 5
 
+interface FinalizedInvoicesPage {
+  invoices: Stripe.Invoice[]
+  /**
+   * Whether Stripe's raw cursor still had more records after the scan
+   * stopped — either because `invoices.length` became conclusive, or the
+   * `MAX_STRIPE_PAGES` safety cap was hit first. Callers must OR this into
+   * `hasMore` so hitting the cap never silently hides a "View all" that a
+   * customer with many consecutive drafts genuinely has.
+   */
+  stripeHasMore: boolean
+}
+
 /**
  * Pages through a customer's Stripe invoices, keeping only finalized ones,
  * until either more than `MAX_INVOICES` have been collected or Stripe's list
- * is exhausted.
+ * is exhausted (bounded by `MAX_STRIPE_PAGES`).
  *
  * Stripe's raw pagination cursor (`has_more`) counts draft invoices, which
  * the caller filters out — so a single page can under-report finalized
  * invoices while `has_more` is still true. Paging until the finalized count
- * is conclusive (either past `MAX_INVOICES` or Stripe is exhausted) is what
- * lets the caller derive an accurate `hasMore` for the "View all" affordance.
+ * is conclusive is what lets the caller derive an accurate `hasMore` for the
+ * "View all" affordance.
  */
 async function collectFinalizedInvoices(
   stripe: Stripe,
   stripeCustomerId: string
-): Promise<Stripe.Invoice[]> {
-  const finalized: Stripe.Invoice[] = []
+): Promise<FinalizedInvoicesPage> {
+  const invoices: Stripe.Invoice[] = []
   let startingAfter: string | undefined
   let stripeHasMore = true
 
   for (
     let page = 0;
-    page < MAX_STRIPE_PAGES && stripeHasMore && finalized.length <= MAX_INVOICES;
+    page < MAX_STRIPE_PAGES && stripeHasMore && invoices.length <= MAX_INVOICES;
     page++
   ) {
     const result = await stripe.invoices.list({
@@ -53,14 +65,14 @@ async function collectFinalizedInvoices(
       starting_after: startingAfter,
     })
 
-    finalized.push(
+    invoices.push(
       ...result.data.filter((invoice) => invoice.id && invoice.status && invoice.status !== 'draft')
     )
     stripeHasMore = result.has_more
     startingAfter = result.data.at(-1)?.id
   }
 
-  return finalized
+  return { invoices, stripeHasMore }
 }
 
 /**
@@ -117,8 +129,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const finalized = await collectFinalizedInvoices(stripe, stripeCustomerId)
-    const hasMore = finalized.length > MAX_INVOICES
-    const invoices = finalized.slice(0, MAX_INVOICES).map((invoice) => ({
+    const hasMore = finalized.invoices.length > MAX_INVOICES || finalized.stripeHasMore
+    const invoices = finalized.invoices.slice(0, MAX_INVOICES).map((invoice) => ({
       id: invoice.id as string,
       number: invoice.number ?? null,
       created: invoice.created,
