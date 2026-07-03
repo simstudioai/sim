@@ -20,6 +20,7 @@ import {
   SimMcpOauthProvider,
   setOauthRowUser,
 } from '@/lib/mcp/oauth'
+import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import { createMcpErrorResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpOauthStartAPI')
@@ -129,7 +130,10 @@ export const GET = withRouteHandler(
       const provider = new SimMcpOauthProvider({ row, preregistered })
 
       try {
-        const result = await mcpAuth(provider, { serverUrl: server.url })
+        const result = await mcpAuth(provider, {
+          serverUrl: server.url,
+          fetchFn: createSsrfGuardedMcpFetch(),
+        })
         if (result === 'AUTHORIZED') {
           return NextResponse.json({ status: 'already_authorized' })
         }
