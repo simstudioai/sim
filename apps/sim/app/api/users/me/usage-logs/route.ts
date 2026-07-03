@@ -35,11 +35,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     cursor,
   })
 
-  // Apportioned (not independently rounded per row) so this page's visible
-  // credit costs always sum to exactly `dollarsToCredits(sum of this page's
-  // dollars)` — rounding each row on its own can drift from that sum by
-  // several credits over enough rows, which reads as "the numbers don't add
-  // up" next to the period total.
   const creditsByLogId = apportionCredits(
     result.logs.map((log) => ({ key: log.id, dollars: log.cost }))
   )

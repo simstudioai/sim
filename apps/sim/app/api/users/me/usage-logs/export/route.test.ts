@@ -50,8 +50,8 @@ describe('GET /api/users/me/usage-logs/export', () => {
 
     expect(response.headers.get('Content-Type')).toBe('text/csv; charset=utf-8')
     expect(response.headers.get('Content-Disposition')).toContain('attachment; filename=')
-    expect(header).toBe('Date,Type,Credits,Dollar cost')
-    expect(row).toBe('2026-07-01T00:00:00.000Z,Chat,100,0.5')
+    expect(header).toBe('Date,Type,Credits')
+    expect(row).toBe('2026-07-01T00:00:00.000Z,Chat,100')
   })
 
   it('does not request the summary aggregate — the export never reads it', async () => {
@@ -157,14 +157,10 @@ describe('GET /api/users/me/usage-logs/export', () => {
       'user-1',
       expect.objectContaining({ cursor: 'log-1' })
     )
-    expect(csv.split('\n')).toHaveLength(3) // header + 2 rows
+    expect(csv.split('\n')).toHaveLength(3)
   })
 
   it('stops at exactly the row cap without an extra wasted page fetch', async () => {
-    // MAX_EXPORT_ROWS=5000, EXPORT_PAGE_SIZE=500 divide evenly — a naive
-    // `<=` loop bound would issue one more page fetch (discarded afterward)
-    // once the cap is hit exactly. Landing on the cap in a single mocked
-    // page with hasMore:true still true asserts the loop doesn't re-enter.
     mockGetUserUsageLogs.mockResolvedValueOnce({
       logs: Array.from({ length: 5000 }, (_, i) => ({
         id: `log-${i}`,

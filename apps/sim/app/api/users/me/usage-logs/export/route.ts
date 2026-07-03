@@ -16,7 +16,7 @@ const logger = createLogger('UsageLogsExportAPI')
 const MAX_EXPORT_ROWS = 5000
 const EXPORT_PAGE_SIZE = 500
 
-const CSV_HEADER = toCsvRow(['Date', 'Type', 'Credits', 'Dollar cost'])
+const CSV_HEADER = toCsvRow(['Date', 'Type', 'Credits'])
 
 /**
  * Downloads every usage log matching the current filter as CSV — unlike the
@@ -63,8 +63,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
   }
 
-  // Apportioned across the full export (not per-page) so every row's credits
-  // sum exactly to the export's own total — see route.ts's identical rationale.
   const creditsByLogId = apportionCredits(rows.map((log) => ({ key: log.id, dollars: log.cost })))
 
   const csvLines = rows.map((log) => {
@@ -76,7 +74,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       formatCsvValue(log.createdAt),
       formatCsvValue(type),
       formatCsvValue(creditsByLogId[log.id]),
-      formatCsvValue(log.cost),
     ])
   })
 

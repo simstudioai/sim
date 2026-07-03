@@ -645,8 +645,6 @@ export async function getUserUsageLogs(
         executionId: usageLog.executionId,
       })
       .from(usageLog)
-      // Left join so a since-deleted workflow (workflowId still set, no
-      // matching row) doesn't drop the usage_log row — workflowName is just null.
       .leftJoin(workflow, eq(usageLog.workflowId, workflow.id))
       .where(and(...conditions))
       .orderBy(desc(usageLog.createdAt), desc(usageLog.id))

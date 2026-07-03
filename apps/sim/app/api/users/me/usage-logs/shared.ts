@@ -14,7 +14,6 @@ export function resolveDateRange(
   customEndDate: string | undefined
 ): ResolvedDateRange {
   if (period === 'custom') {
-    // Contract-enforced: startDate is required whenever period is 'custom'.
     return {
       startDate: new Date(customStartDate as string),
       endDate: customEndDate ? new Date(customEndDate) : new Date(),
