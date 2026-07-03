@@ -228,8 +228,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const userProvidedEndpoints: Record<string, string | undefined> = {
         authorizationEndpoint,
         tokenEndpoint,
-        userInfoEndpoint,
         jwksEndpoint,
+        ...(skipUserInfoEndpoint ? {} : { userInfoEndpoint }),
       }
 
       for (const [name, endpointUrl] of Object.entries(userProvidedEndpoints)) {
@@ -280,8 +280,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const discoveredEndpoints: Record<string, unknown> = {
           authorization_endpoint: discovery.authorization_endpoint,
           token_endpoint: discovery.token_endpoint,
-          userinfo_endpoint: discovery.userinfo_endpoint,
           jwks_uri: discovery.jwks_uri,
+          ...(skipUserInfoEndpoint ? {} : { userinfo_endpoint: discovery.userinfo_endpoint }),
         }
 
         for (const [key, value] of Object.entries(discoveredEndpoints)) {
@@ -332,17 +332,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           jwksEndpoint: oidcConfig.jwksEndpoint,
         })
 
-        if (discoveryResult.ok) {
-          oidcConfig.tokenEndpointAuthentication = selectTokenEndpointAuthMethod(
-            discoveryResult.discovery.token_endpoint_auth_methods_supported,
-            oidcConfig.tokenEndpointAuthentication
-          )
-        } else {
+        if (!discoveryResult.ok) {
           logger.info('OIDC discovery unavailable; falling back to the default token auth method', {
             providerId,
             discoveryUrl,
           })
         }
+        oidcConfig.tokenEndpointAuthentication = selectTokenEndpointAuthMethod(
+          discoveryResult.ok
+            ? discoveryResult.discovery.token_endpoint_auth_methods_supported
+            : undefined,
+          oidcConfig.tokenEndpointAuthentication
+        )
       }
 
       if (skipUserInfoEndpoint) {
