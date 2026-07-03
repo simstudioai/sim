@@ -1,10 +1,14 @@
 'use client'
 
-import { useState } from 'react'
 import { Badge, ChipDropdown, type ChipDropdownOption, chipVariants, cn } from '@sim/emcn'
 import { formatDateTime } from '@sim/utils/formatting'
+import { useQueryStates } from 'nuqs'
 import type { UsageLogEntry, UsageLogPeriod, UsageLogSource } from '@/lib/api/contracts/user'
 import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
+import {
+  billingParsers,
+  billingUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/billing/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useUsageLogs } from '@/hooks/queries/usage-logs'
@@ -62,7 +66,7 @@ function UsageLogRow({ log }: UsageLogRowProps) {
  * so builders can see exactly where their credits went.
  */
 export function CreditUsageSection() {
-  const [period, setPeriod] = useState<UsageLogPeriod>('30d')
+  const [{ period }, setFilters] = useQueryStates(billingParsers, billingUrlKeys)
 
   const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } = useUsageLogs(
     { period }
@@ -78,8 +82,7 @@ export function CreditUsageSection() {
         <ChipDropdown
           options={PERIOD_OPTIONS}
           value={period}
-          onChange={(value) => setPeriod(value as UsageLogPeriod)}
-          showSelectedCheck={false}
+          onChange={(value) => setFilters({ period: value as UsageLogPeriod })}
         />
       }
     >

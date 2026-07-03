@@ -1,6 +1,6 @@
 'use client'
 
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getUsageLogsContract,
@@ -30,7 +30,8 @@ interface UseUsageLogsOptions {
 /**
  * Infinite-scrolls the authenticated user's credit-consuming usage events for
  * the Billing settings "Credit usage" section, keyset-paginated by the
- * backend's opaque `nextCursor`.
+ * backend's opaque `nextCursor`. Keeps the prior period's rows on screen
+ * while a newly selected period loads, since `period` is a variable key.
  */
 export function useUsageLogs({ period, enabled = true }: UseUsageLogsOptions) {
   return useInfiniteQuery({
@@ -41,5 +42,6 @@ export function useUsageLogs({ period, enabled = true }: UseUsageLogsOptions) {
       lastPage.pagination.hasMore ? lastPage.pagination.nextCursor : undefined,
     enabled,
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
