@@ -359,6 +359,27 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          'Yes: agent flows built in the flow designer include a built-in child-flow action, alongside loop and branch control structures, that calls another published flow as a step, waits for it to finish, and passes/receives data, distinct from an agent merely calling a flow as a tool at the conversation level',
+        detail:
+          'Vendor documentation on the agent flow designer lists control structures for looping and branching, data operations, date and time functions, and child flows as the built-in action categories available when composing a flow, the same child-flow composition model Power Automate uses for its underlying flow engine.',
+        shortValue: 'Yes, a built-in child-flow action calls and awaits another flow',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/flow-designer',
+            label:
+              'Edit and manage your agent flow in the designer - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-use-flow',
+            label: 'Call an agent flow from an agent - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -637,6 +658,27 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://troystaylor.com/power%20platform/custom%20connectors/2026-05-05-agent-to-agent-a2a-connector-work-iq.html',
             label: 'Agent-to-Agent (A2A) connector for Copilot Studio and Power Automate',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: agent flows include a built-in Loop action supporting both For each (iterating a known collection) and Do until (repeating until a condition becomes true) patterns, running sequentially by default with an optional parallel/concurrency mode (a configurable degree-of-parallelism setting) for iterations that are fully independent',
+        detail:
+          'Vendor and third-party guidance both note that operations accumulating a value or depending on order must stay Sequential, since turning on parallel mode risks race conditions on shared variables and API throttling; Do until loops also require a maximum iteration count and timeout to prevent runaway execution.',
+        shortValue: 'Yes, a Loop action with For each/Do until, sequential by default',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.candede.com/articles/copilot-studio-workflow-engine-loop-component/',
+            label: 'Mastering Copilot Studio Workflows: The Loop Component',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.microsoft.com/en-us/power-platform/blog/power-automate/parallel-actions/',
+            label:
+              'Add parallel branches in flows and five new services - Microsoft Power Platform Blog',
             asOf: '2026-07-02',
           },
         ],

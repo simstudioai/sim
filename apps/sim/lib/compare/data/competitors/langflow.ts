@@ -251,6 +251,19 @@ export const langflowProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          "Yes: Langflow's Run Flow component runs another saved flow as a subprocess of the current flow, dynamically generating input and output fields from the target flow's graph so the parent flow passes data in and receives the child flow's outputs back. It can also be attached to an Agent component as a callable tool.",
+        shortValue: 'Yes, via the Run Flow component',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/run-flow',
+            label: 'Langflow Docs: Run Flow component',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -461,6 +474,19 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow/issues/10241',
             label: 'GitHub langflow-ai/langflow Issue #10241: A2A (tracking issue)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: Langflow ships a dedicated Loop component that takes a list of JSON or Table items (for example CSV rows), passes items one at a time through its Item output port to a chain of connected components, and loops back until every item is processed sequentially, before emitting the aggregated result from its Done port.',
+        shortValue: 'Yes, via the Loop component (sequential, Item/Done ports)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/loop',
+            label: 'Langflow Docs: Loop component',
             asOf: '2026-07-02',
           },
         ],

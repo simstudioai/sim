@@ -326,6 +326,26 @@ export const gumloopProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          "Yes: a dedicated 'Subflow' feature lets any saved workflow be dropped in as a reusable node inside another workflow, with Input/Output nodes to pass parameters in and return values out",
+        detail:
+          "Gumloop docs describe Subflows as workflows that 'show up in your node library just like native nodes' once built, so they can be dragged onto the canvas of any other flow, wired to Input nodes for parameters and Output nodes for return values. When a list is connected to a Subflow node it runs once per list item (Loop Mode) rather than a single time. Public docs do not explicitly state whether the parent execution blocks until the subflow completes, but since a Subflow is embedded as a node in the parent's directed graph (not invoked over a separate async webhook call), later nodes depending on its outputs necessarily wait for it to resolve.",
+        shortValue: 'Yes: Subflow node calls a saved workflow as a step',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/core-concepts/subflows',
+            label: 'Subflows - Gumloop docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.gumloop.com/university/lessons/subflows',
+            label: 'Gumloop University: Subflows',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -562,6 +582,26 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://www.gumloop.com/blog/introducing-mcp-workflows',
             label: 'Introducing MCP Nodes & Workflows in Gumloop',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Partial: Gumloop's only documented iteration primitive is 'Loop Mode', the same mechanism already covered under parallelExecution, which auto-triggers when a list is connected to a node or Subflow and runs that node once per list item. Per Gumloop's own docs this is concurrent (2 items at once on Free, 15 on Pro), not a strictly one-at-a-time sequential container, and there is no separate while-loop or fixed-iteration-count node documented, only iteration over an existing list.",
+        detail:
+          "Gumloop docs describe Loop Mode as processing 'multiple items simultaneously' with concurrency capped by plan tier, distinct from a classic for-each node that guarantees one iteration finishes before the next starts. No dedicated while-loop (condition-based) or fixed-count repeat node was found in public docs; all iteration is driven by connecting a list as input.",
+        shortValue: 'Partial: list-driven Loop Mode is concurrent, not a sequential loop node',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/core-concepts/loop_mode',
+            label: 'Loop Mode - Gumloop docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.gumloop.com/university/lessons/lists-loop-mode',
+            label: 'Gumloop University: Lists & Loop mode',
             asOf: '2026-07-02',
           },
         ],

@@ -341,6 +341,21 @@ export const langchainProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "Yes: LangGraph's subgraph feature lets a compiled graph be added directly as a node in a parent graph via add_node, the parent waits for the subgraph to finish before continuing, and when state keys overlap the subgraph reads from and writes to the parent's state channels automatically; when schemas differ, a wrapper node function maps parent state to subgraph input and back",
+        detail:
+          'This is a code-level composition primitive (one compiled graph nested inside another), not a drag-and-drop "call another workflow" block in a visual builder, but it satisfies the same synchronous parent-waits-for-child, data-in/data-out contract.',
+        shortValue: 'Yes, LangGraph subgraphs: compiled graph nested as a node, parent waits',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-subgraphs',
+            label: 'Subgraphs - Docs by LangChain',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -558,6 +573,22 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/server-a2a',
             label: 'A2A endpoint in Agent Server - Docs by LangChain',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'No: there is no dedicated for-each/while/Loop container node. Sequential repetition over a list, a fixed count, or a condition is built by wiring a conditional edge back to an earlier node (a cycle in the graph) with the loop-continuation check written in a routing function, capped by a default recursion_limit of 25 super-steps unless raised',
+        detail:
+          'This is a general graph-cycle capability, not a purpose-built "Loop"/"Repeat" block a builder drops in and configures declaratively; a developer writes the state counter, the exit condition, and the conditional edge by hand. The Send API covers the concurrent/parallel case, sequential iteration is left to hand-built cycles.',
+        shortValue:
+          'No dedicated loop block; sequential iteration is a hand-built conditional-edge cycle',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
+            label: 'Use the graph API - Docs by LangChain',
             asOf: '2026-07-02',
           },
         ],

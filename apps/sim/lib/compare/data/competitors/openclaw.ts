@@ -342,6 +342,26 @@ export const openClawProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "No: OpenClaw's optional Lobster workflow shell has no documented step type for invoking another saved workflow file as a nested sub-step. Sub-agents (sessions_spawn) delegate a task to a whole separate agent session, not a call-and-wait step inside a defined multi-step pipeline.",
+        detail:
+          "Lobster's documented step types are run/command (shell/CLI), pipeline (native stages like llm.invoke), and approval (gates); none of them reference invoking a second .lobster/YAML/JSON workflow file as a step. Sub-agents are the closest related feature but compose whole agent sessions, not saved workflow definitions, and even that requires an explicit sessions_yield to block for a result rather than a built-in composition primitive.",
+        shortValue: 'No: no documented call-another-workflow step in Lobster',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.openclaw.ai/tools/lobster',
+            label: 'OpenClaw Docs: Lobster',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.openclaw.ai/tools/subagents',
+            label: 'OpenClaw Docs: Sub-agents',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -558,6 +578,27 @@ export const openClawProfile: CompetitorProfile = {
             url: 'https://github.com/openclaw/openclaw/issues/12401',
             label:
               'openclaw/openclaw GitHub issue: Native Agent-to-Agent Communication (A2A Protocol Support)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "No: neither the core agent loop nor the optional Lobster workflow shell has a dedicated for-each/while loop container. Lobster's own maintainers describe its steps as executing strictly top to bottom with no way to jump back to a previous step, and a GitHub feature-request proposal for adding loop/flow-control (a next field enabling backward jumps and max_iterations) is explicitly framed as not yet implemented.",
+        detail:
+          'Lobster documents only run/command, pipeline, and approval step types plus a boolean condition gate; a maintainer-filed proposal (openclaw/lobster issue #38) states plainly that "steps execute top to bottom. There\'s no way to jump back to a previous step" and lists step flow control/loops as a future addition, not a shipped feature.',
+        shortValue: 'No: Lobster steps run top to bottom, no loop construct shipped',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.openclaw.ai/tools/lobster',
+            label: 'OpenClaw Docs: Lobster',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/openclaw/lobster/issues/38',
+            label:
+              'openclaw/lobster GitHub issue #38: Human-in-the-loop workflows: structured input requests, conditionals, and step flow control',
             asOf: '2026-07-02',
           },
         ],

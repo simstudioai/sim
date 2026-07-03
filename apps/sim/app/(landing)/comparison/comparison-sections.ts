@@ -67,6 +67,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'versionControlDepth', label: 'Version control' },
       { key: 'realtimeCollaboration', label: 'Realtime collaboration' },
       { key: 'nativeFileStorage', label: 'Native file storage' },
+      { key: 'subWorkflows', label: 'Sub-workflows (composition)' },
     ],
   }),
   defineSection({
@@ -114,6 +115,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'nativeChatDeployment', label: 'Native chat deployment' },
       { key: 'parallelExecution', label: 'Parallel execution' },
       { key: 'a2aProtocol', label: 'Agent2Agent (A2A) protocol' },
+      { key: 'loopIteration', label: 'Loop / iteration block' },
     ],
   }),
   defineSection({

@@ -338,6 +338,21 @@ export const n8nProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "Yes: the Execute Sub-workflow node calls a saved workflow as a step in another workflow, with a 'Wait for Sub-Workflow Completion' option so the parent pauses until the child finishes, passing data in via the child's trigger and receiving data back from the child's last node.",
+        detail:
+          "The child workflow starts with a 'When Executed by Another Workflow' trigger that defines the expected input fields. When 'Wait for Sub-Workflow Completion' is enabled, the parent blocks until the sub-workflow finishes and receives whatever data the sub-workflow's final node outputs; disabling it lets the parent continue without waiting.",
+        shortValue: 'Yes, Execute Sub-workflow node with wait-for-completion option',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.executeworkflow/',
+            label: 'Execute Sub-workflow | Nodes | n8n Docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -614,6 +629,21 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://github.com/pjawz/n8n-nodes-agent2agent',
             label: 'n8n-nodes-agent2agent (community package, GitHub)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Yes: the Loop Over Items (Split in Batches) node iterates a list in fixed-size batches, running each batch sequentially through a 'loop' output and combining results through a 'done' output once all batches complete.",
+        detail:
+          "Loop Over Items processes a configurable batch size per iteration and re-enters the loop until every input item has passed through, rather than fanning items out concurrently. n8n's docs note this is the primary built-in mechanism for iterative processing, distinct from the Parallel-style concurrent fan-out other flow-logic nodes provide.",
+        shortValue: 'Yes, Loop Over Items node, sequential batch iteration',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.splitinbatches/',
+            label: 'Loop Over Items (Split in Batches) | Nodes | n8n Docs',
             asOf: '2026-07-02',
           },
         ],

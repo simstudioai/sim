@@ -280,6 +280,21 @@ export const stackaiProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          "Yes: an AI Agent node can invoke a separately saved StackAI workflow as a Subflow Tool. The parent agent passes input into the subflow, waits for it to run to completion, and receives the subflow's output node result back before continuing, rather than only firing an async webhook-triggered run.",
+        detail:
+          'Subflow Tools are configured on the AI Agent node; each must connect to an output node to complete, and the docs describe subflows running "collaboratively" where one subflow\'s output can inform whether/how another is invoked. Whether a Subflow Tool can be reused unmodified across multiple different parent workflows was not independently confirmed.',
+        shortValue: 'Yes, via Subflow Tools on the AI Agent node',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/subflow-tools',
+            label: 'Subflow Tools docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -480,6 +495,21 @@ export const stackaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.stackai.com',
             label: 'StackAI documentation',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: the Loop Subflow node iterates over a list of inputs, running its Loop branch once per item sequentially, with the current item exposed via a current_item variable. A separate Done branch runs once after all iterations finish, collecting any outputs explicitly emitted inside the loop.',
+        detail:
+          'This is a sequential, one-item-at-a-time iterator distinct from the parallel/concurrent execution StackAI exposes separately through parallel Subflow Tool calls or parallel Project runs inside a loop.',
+        shortValue: 'Yes, via the Loop Subflow node',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/loop-subflow',
+            label: 'Loop Subflow docs',
             asOf: '2026-07-02',
           },
         ],

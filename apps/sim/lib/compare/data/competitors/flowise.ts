@@ -225,6 +225,19 @@ export const flowiseProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          "Yes: Flowise's Execute Flow node calls another saved Chatflow or Agentflow as a step, passes it input, waits for the child flow to finish, and receives its final output back to continue the parent flow.",
+        shortValue: 'Yes, via the Execute Flow node',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise Docs: Agentflow V2 (Execute Flow node)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -427,6 +440,19 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://github.com/FlowiseAI/Flowise/issues/4283',
             label: 'Flowise GitHub: "Support the Google A2A (Agent2Agent) Protocol" (#4283, open)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Yes: Flowise's Agentflow V2 has a dedicated Iteration node that takes an array and executes a nested sub-flow of steps once per item, running sequentially. Its separate Loop node instead jumps backward to re-run an earlier node (a retry cycle, not a collection iterator).",
+        shortValue: 'Yes, via the Iteration node (separate Loop node is retry-only)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise Docs: Agentflow V2 (Iteration and Loop nodes)',
             asOf: '2026-07-02',
           },
         ],

@@ -298,6 +298,20 @@ export const simProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "Yes: a Workflow block calls another saved workflow as a step, waits for it to finish, runs its latest deployed version, and maps parent variables into the child's input form",
+        detail: 'Self-references are blocked to prevent infinite recursion.',
+        shortValue: 'Workflow block calls a saved workflow as a reusable step',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.sim.ai/workflows/blocks/workflow',
+            label: 'Sim Docs: Workflow block',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -528,6 +542,19 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://docs.sim.ai/integrations/a2a',
             label: 'Sim Docs: A2A integration',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: a Loop container block runs the blocks inside it repeatedly (For a fixed count, ForEach over a collection, While a condition holds, or Do-While), running iterations one after another; concurrent fan-out is a separate Parallel block',
+        shortValue: 'Native Loop block: For, ForEach, While, Do-While',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.sim.ai/workflows/blocks/loop',
+            label: 'Sim Docs: Loop block',
             asOf: '2026-07-02',
           },
         ],

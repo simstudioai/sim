@@ -309,6 +309,21 @@ export const pipedreamProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          'No: Pipedream\'s documented mechanism for connecting workflows is $.send.emit(), which is explicitly asynchronous ("Destination delivery is asynchronous: emits are sent after your workflow finishes"). This triggers a separate listener workflow after the emitting workflow completes; it is not a step that calls a saved workflow synchronously, waits for it, and receives its return value.',
+        detail:
+          'No Pipedream documentation describes a "call workflow" or "execute sub-workflow" step. Community help threads confirm the emit-and-listen pattern is the standard workaround for chaining workflows, not true parent-waits-for-child composition.',
+        shortValue: 'No, only async emit-to-listener chaining',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/destinations/emit',
+            label: 'Pipedream Docs: Destinations (emit)',
+            asOf: '2026-07-03',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -492,6 +507,21 @@ export const pipedreamProfile: CompetitorProfile = {
             url: 'https://pipedream.com/docs/connect/mcp',
             label: 'Pipedream Docs: MCP Servers',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'No: Pipedream\'s control flow docs list If/Else, Delay, Filter, and End Workflow as available operators, and the control flow overview page states "more operators (including parallel and looping) are coming soon" even after the Parallel operator itself shipped, indicating a dedicated sequential Loop/Repeat/For Each container is still not released as of this check.',
+        detail:
+          'No page exists for a Loop or Repeat control-flow operator (a guessed docs URL for it 404s), and long-running community threads confirm the standard workaround is iterating over an array inside a Node.js or Python code step rather than using a native loop block.',
+        shortValue: 'No native loop block; only code-step iteration workaround',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/control-flow',
+            label: 'Pipedream Docs: Control Flow overview',
+            asOf: '2026-07-03',
           },
         ],
       },

@@ -64,6 +64,8 @@ export interface ComparisonFacts {
     dataTables: Fact
     /** An inline rich-text/WYSIWYG markdown editor for documents stored in the platform, versus a plain textarea or raw-source view only. */
     richTextEditor: Fact
+    /** Calling one saved workflow as a reusable step inside another workflow (composition/nesting), versus only being able to duplicate or manually re-wire the same logic per workflow. */
+    subWorkflows: Fact
   }
   aiCapabilities: {
     multiLlmSupport: Fact
@@ -90,6 +92,8 @@ export interface ComparisonFacts {
     parallelExecution: Fact
     /** Support for the Agent2Agent (A2A) protocol, the emerging open standard for one AI agent to discover and call another agent as a peer, distinct from ordinary MCP tool-calling. */
     a2aProtocol: Fact
+    /** A dedicated for-each/while loop container that iterates a set of steps over a list or a fixed count, distinct from a Parallel block's concurrent fan-out. */
+    loopIteration: Fact
   }
   integrations: {
     integrationCount: Fact

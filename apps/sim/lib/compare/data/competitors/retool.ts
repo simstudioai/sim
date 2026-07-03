@@ -320,6 +320,26 @@ export const retoolProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          'Yes: the Workflow block runs another saved workflow as a step, passing data to it and receiving its returned data back, so the parent workflow can compose child workflows rather than duplicating logic.',
+        detail:
+          'The Workflow block supports two execution modes: Finished, where the calling workflow pauses until the triggered workflow run completes, and Queued, where the calling workflow continues immediately while the triggered run is queued.',
+        shortValue: 'Yes, Workflow block calls and waits on another workflow',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.retool.com/workflows/guides/blocks/run-workflow',
+            label: 'Run another workflow with the Workflow block | Retool Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.retool.com/workflows/reference/objects/block/run-workflow',
+            label: 'The Workflow block | Retool Docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -545,6 +565,21 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/agents/concepts/a2a',
             label: 'Agent-to-agent communication (A2A)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: a dedicated Loop block runs an embedded set of blocks once per item in an array, referencing each item and its index via value and index.',
+        detail:
+          'The Loop block supports Sequential mode (each iteration completes before the next starts, with an optional delay to avoid rate limits), Parallel mode (all iterations run simultaneously), and Batch mode (a configurable number of iterations run in parallel per batch, default batch size 10) before moving to the next batch.',
+        shortValue: 'Yes, Loop block with sequential, parallel, and batch modes',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.retool.com/workflows/guides/blocks/logic/loop',
+            label: 'Loop block | Retool Docs',
             asOf: '2026-07-02',
           },
         ],

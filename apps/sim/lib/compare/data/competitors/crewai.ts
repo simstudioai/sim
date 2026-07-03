@@ -321,6 +321,26 @@ export const crewaiProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          'No: no documented feature to call one Flow as a waiting sub-step inside another Flow',
+        detail:
+          'CrewAI Flows orchestrate Crews and plain Python steps via @start/@listen/@router decorators, but no CrewAI source describes a dedicated primitive for invoking one saved Flow as a nested, synchronous sub-step of another Flow with the parent waiting on the child and exchanging state. A Flow can call a Crew (which is a form of composition), and community discussion covers Flows calling Crews or Crews/Tasks calling Flows, but not a first-class call-another-flow block.',
+        shortValue: 'No, Flows compose Crews but no documented nested-Flow-as-step feature',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.crewai.com/en/concepts/flows',
+            label: 'Flows - CrewAI Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://community.crewai.com/t/flows-calling-crews-or-crews-tasks-calling-flows/3684',
+            label: 'Flows calling Crews or Crews/Tasks calling Flows - CrewAI Community',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -538,6 +558,26 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/learn/a2a-agent-delegation',
             label: 'Agent-to-Agent (A2A) Protocol - CrewAI Docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'No: Flows have no dedicated for-each/while loop decorator, only manual state-tracked routing',
+        detail:
+          "CrewAI's own Flows documentation has no built-in loop/for-each container; repeating steps requires manually tracking an iteration counter in the Flow's state and looping back through @router/@listen methods until a condition is met, or calling a Crew's kickoff_for_each() to run a full crew once per item in a list. Neither is a single named, sequential loop block comparable to a visual builder's Loop node.",
+        shortValue: 'No dedicated loop node; manual state-router loops or kickoff_for_each',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.crewai.com/en/concepts/flows',
+            label: 'Flows - CrewAI Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://community.crewai.com/t/loops-in-a-flow/1306',
+            label: 'Loops in a flow - CrewAI Community',
             asOf: '2026-07-02',
           },
         ],

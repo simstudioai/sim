@@ -319,6 +319,26 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "No: Agent Builder's node reference (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no node that calls a separate saved workflow as a nested step and waits for it to finish. Composition across agents happens via handoffs between Agent nodes within the same workflow canvas, not by invoking another independently saved workflow as a reusable child step.",
+        detail:
+          'A workflow can call other agents through handoffs (execution transfers to another Agent node, carrying conversation state), but that is agent-to-agent handoff inside one workflow graph, not a documented call-another-workflow-and-return block. The only way to reuse a workflow elsewhere is to export it as Agents SDK code and call that code from other code, which is a code-level reuse pattern rather than a visual sub-workflow step.',
+        shortValue: 'No dedicated call-sub-workflow node found',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://developers.openai.com/api/docs/guides/node-reference',
+            label: 'Node reference | OpenAI API',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://developers.openai.com/api/docs/guides/agent-builder',
+            label: 'Agent Builder | OpenAI API',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -552,6 +572,26 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           {
             url: 'https://developers.openai.com/api/docs/guides/agents',
             label: 'Agents SDK | OpenAI API',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "Yes: Agent Builder has a dedicated 'While' logic node that loops on a custom Common Expression Language (CEL) condition, re-running the connected steps sequentially each pass until the condition is false.",
+        detail:
+          "The While node is condition-based rather than an explicit for-each-over-a-list container: iterating over a list means writing a CEL expression that checks an index or remaining-items condition against a Set-state variable, and incrementing that variable each pass, rather than dropping in a purpose-built for-each block. Iterations run one after another (sequential), matching the node palette's lack of any fan-out/parallel node.",
+        shortValue: 'Yes, via the While logic node (condition-based, sequential)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://developers.openai.com/api/docs/guides/node-reference',
+            label: 'Node reference | OpenAI API',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://community.openai.com/t/agent-builder-while-loop-transform-and-set-state-an-example/1362386',
+            label: 'OpenAI Community: Agent Builder - While Loop, Transform and Set State example',
             asOf: '2026-07-02',
           },
         ],

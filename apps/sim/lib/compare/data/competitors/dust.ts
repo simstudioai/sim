@@ -324,6 +324,21 @@ export const dustProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          'Yes: a "Run agent" tool lets one Dust agent call another saved agent as a step, waiting for it to finish and receiving its output back before continuing',
+        detail:
+          'By default the called agent runs in a separate conversation and returns its output to the calling agent, which then continues processing (the calling agent can also enable a handoff mode where the called agent responds directly to the user instead). Recursion is capped at a maximum depth of 4 nested calls.',
+        shortValue: '"Run agent" tool calls a saved agent as a step and returns its output',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/run-agent',
+            label: 'Run agent | Dust Docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -546,6 +561,21 @@ export const dustProfile: CompetitorProfile = {
         shortValue: 'Not publicly documented by Dust',
         confidence: 'unknown',
         sources: [],
+      },
+      loopIteration: {
+        value:
+          'No: Dust has no dedicated for-each/while loop container; its tools page lists default tools (data visualization, web search, file/image creation, agent memory, run-agent), third-party integrations, remote MCP servers, and Dust Apps, none of which is a loop/iterator block',
+        detail:
+          "Dust's agent builder is tool-and-instruction driven rather than a step-sequence canvas, so repeated execution over a list or count relies on the model's own reasoning (or delegating subtasks to sub-agents) rather than an explicit loop container that guarantees sequential per-item iteration.",
+        shortValue: "No dedicated loop/for-each block found in Dust's tool catalog",
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/tools',
+            label: 'Tools | Dust Docs',
+            asOf: '2026-07-02',
+          },
+        ],
       },
     },
     integrations: {

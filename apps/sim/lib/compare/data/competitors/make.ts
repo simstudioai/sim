@@ -372,6 +372,26 @@ export const makeProfile: CompetitorProfile = {
           },
         ],
       },
+      subWorkflows: {
+        value:
+          "Yes: Make's 'Call a Scenario' subscenario module lets a parent scenario invoke a saved sub-scenario as a step, passing structured inputs and, in synchronous mode, pausing until the sub-scenario finishes and returns outputs via a 'Return outputs' module.",
+        detail:
+          "Make's Subscenarios feature supports two modes: synchronous, where the parent calls the sub-scenario and pauses execution until it completes and returns output; and asynchronous, where the parent continues immediately without waiting. Each call creates its own separately logged run, and an error in the sub-scenario propagates back to the parent's error handling. This is a dedicated composition feature, distinct from triggering an unrelated scenario via a plain webhook.",
+        shortValue: 'Yes: Call a Scenario module runs a sub-scenario as a step',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.make.com/subscenarios',
+            label: 'Subscenarios - Make Help Center',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://help.make.com/scenario-inputs-and-scenario-outputs',
+            label: 'Scenario inputs and scenario outputs - Make Help Center',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -595,6 +615,26 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/blog/agentic-operating-system',
             label: 'Make Blog: What Is an Agentic Operating System? 2026 Guide',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: Make has two dedicated Flow Control loop modules. The Iterator takes an existing array and outputs each element as a separate bundle, running every downstream module once per item, sequentially. The Repeater generates a fixed number of bundles from scratch (a numeric counter, no source array needed), also processed one at a time.',
+        detail:
+          "Per Make's Help Center, the Iterator splits an array into individual bundles that flow through the rest of the scenario one item at a time, while the Repeater runs a specified number of repetitions (its 'repeats' field) with each bundle carrying an incrementing counter item. Both are sequential, item-by-item execution; Make's separate Router feature (used for branching, not looping) is also documented as processing routes sequentially rather than in parallel.",
+        shortValue: 'Yes: Iterator (array loop) and Repeater (counted loop)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.make.com/iterator',
+            label: 'Iterator - Make Help Center',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.make.com/en/help/tools/flow-control',
+            label: 'Flow control - Make Help Center',
             asOf: '2026-07-02',
           },
         ],

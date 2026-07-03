@@ -280,6 +280,26 @@ export const vellumProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          'Yes: Vellum has a Subworkflow node that executes a deployed or inline workflow as a step inside a parent workflow, waiting for it to finish and passing/receiving data through defined inputs and outputs.',
+        detail:
+          'Both "Deployed Subworkflows" (calling a separately versioned, released workflow) and "Inline Subworkflows" (defined within the parent workflow for modularization/reuse) are documented; the Agent Node can also register subworkflows as callable tools.',
+        shortValue: 'Dedicated Subworkflow node',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/api-reference/nodes/subworkflow-deployment-node',
+            label: 'Subworkflow Deployment Node - Vellum Documentation',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/agent-node',
+            label: 'Agent Node - Vellum Documentation',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -500,6 +520,21 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://www.vellum.ai/blog/googles-ap2-a-new-protocol-for-ai-agent-payments',
             label: "Google's AP2: A new protocol for AI agent payments - Vellum Blog",
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          "No: Vellum's only documented list-iteration mechanism is the Map Node, which executes a subworkflow once per array item concurrently (up to 96 parallel executions) rather than as a dedicated sequential for-each/while container; no separate While/loop node is documented.",
+        detail:
+          'The Map Node is already the mechanism counted under parallelExecution (concurrent fan-out plus Merge Strategy join). Vellum documentation does not describe a way to force single-lane sequential iteration or a distinct while/repeat-until construct.',
+        shortValue: 'Only a concurrent Map Node, no sequential loop',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/map-node',
+            label: 'Map Node - Vellum Documentation',
             asOf: '2026-07-02',
           },
         ],

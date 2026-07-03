@@ -340,6 +340,21 @@ export const powerAutomateProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [],
       },
+      subWorkflows: {
+        value:
+          'Yes: Power Automate supports child flows via the built-in "Run a Child Flow" action, which calls another flow as a step, waits for it to finish, and can pass inputs and receive its outputs back into the parent flow.',
+        detail:
+          'Child flows must use the "Manually trigger a flow" trigger and must be part of a solution to be callable this way; this is distinct from firing an independent flow asynchronously via HTTP/webhook.',
+        shortValue: 'Yes, via the "Run a Child Flow" action',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/create-child-flows',
+            label: 'Create child flows - Power Automate | Microsoft Learn',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -591,6 +606,26 @@ export const powerAutomateProfile: CompetitorProfile = {
             url: 'https://www.powercommunity.com/empowering-multi-agent-apps-with-the-open-agent2agent-a2a-protocol/',
             label:
               'Empowering multi-agent apps with the open Agent2Agent (A2A) protocol - Power Community',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      loopIteration: {
+        value:
+          'Yes: Power Automate provides built-in loop containers, the "Apply to each" action iterates over a list/array and the "Do until" action repeats a set of actions until a condition or state is met, each running its iterations sequentially by default.',
+        detail:
+          'Apply to each can optionally run with concurrency (parallel iteration) via a setting, but sequential execution is the default behavior; Do until requires a defined exit condition and has a configurable iteration/timeout limit.',
+        shortValue: 'Yes, via "Apply to each" and "Do until" actions',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/apply-to-each',
+            label: 'Use the Apply to each action - Power Automate | Microsoft Learn',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-control-flow-loops',
+            label: 'Repeat actions with loops in workflows - Azure Logic Apps | Microsoft Learn',
             asOf: '2026-07-02',
           },
         ],
