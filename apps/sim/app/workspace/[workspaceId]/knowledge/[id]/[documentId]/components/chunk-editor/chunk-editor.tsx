@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { handleKeyboardActivation, Label, Switch } from '@sim/emcn'
+import { handleKeyboardActivation, Label, Switch, toast } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
@@ -59,7 +59,7 @@ export function ChunkEditor({
 
   const [editedContent, setEditedContent] = useState(isCreateMode ? '' : chunkContent)
   const [savedContent, setSavedContent] = useState(chunkContent)
-  const [validationError, setValidationError] = useState<string | null>(null)
+  const lastToastedErrorRef = useRef<string | null>(null)
   const [tokenizerOn, setTokenizerOn] = useState(false)
   const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
   const savedContentRef = useRef(chunkContent)
@@ -109,15 +109,17 @@ export function ChunkEditor({
   const handleSave = useCallback(async () => {
     const content = editedContentRef.current
     const trimmed = content.trim()
-    if (trimmed.length === 0) {
-      setValidationError('Content cannot be empty')
-      throw new Error('Content cannot be empty')
+    /** Autosave retries on every edit pause — only toast when the message changes, not per attempt. */
+    const failValidation = (message: string): never => {
+      if (lastToastedErrorRef.current !== message) {
+        lastToastedErrorRef.current = message
+        toast.error(message)
+      }
+      throw new Error(message)
     }
-    if (trimmed.length > 10000) {
-      setValidationError('Content exceeds maximum length (10,000 characters)')
-      throw new Error('Content exceeds maximum length')
-    }
-    setValidationError(null)
+    if (trimmed.length === 0) failValidation('Content cannot be empty')
+    if (trimmed.length > 10000) failValidation('Content exceeds maximum length (10,000 characters)')
+    lastToastedErrorRef.current = null
 
     if (isCreateMode) {
       const created = await createChunk({
@@ -242,10 +244,7 @@ export function ChunkEditor({
           <textarea
             ref={textareaRef}
             value={editedContent}
-            onChange={(e) => {
-              setEditedContent(e.target.value)
-              setValidationError(null)
-            }}
+            onChange={(e) => setEditedContent(e.target.value)}
             placeholder={
               isCreateMode
                 ? 'Enter the content for this chunk...'
@@ -268,9 +267,6 @@ export function ChunkEditor({
           onCheckedChange={handleTokenizerChange}
           hoveredTokenIndex={tokenizerOn ? hoveredTokenIndex : null}
         />
-        {validationError && (
-          <span className='text-[var(--text-error)] text-caption'>{validationError}</span>
-        )}
         <span className='text-[var(--text-secondary)] text-caption'>
           {tokenCount.toLocaleString()}
           {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
