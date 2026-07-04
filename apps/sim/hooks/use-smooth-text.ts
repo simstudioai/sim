@@ -1,41 +1,46 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * Paced reveal of a growing string, ported from opencode's `createPacedValue`
- * (`packages/ui/src/components/message-part.tsx`). Instead of revealing a fixed
- * number of characters per animation frame, it advances on a steady ~24ms timer
- * in small tiered steps that SNAP to the next word/punctuation boundary — so
- * text appears word-by-word at a calm, even cadence regardless of how bursty the
- * upstream model deltas are. The boundary snapping is what keeps it from reading
- * as "blocky": a reveal never stops mid-word.
+ * Time-based paced reveal of a growing string. A per-frame loop earns a
+ * character budget from elapsed time and releases text one word/punctuation
+ * boundary at a time — so words appear individually, evenly spaced on the
+ * timeline, instead of the old fixed-interval tick that dumped a multi-word
+ * chunk every 24ms and read as blocky.
+ *
+ * The rate is a proportional controller: drain the current backlog over
+ * {@link DRAIN_HORIZON_MS}. It therefore converges on the stream's real
+ * arrival rate — a fast stream reveals fast, a slow one trickles — instead of
+ * racing ahead at a fixed cap, emptying the backlog, and stalling until the
+ * next network burst (the old burst–pause rhythm).
  */
-const PACE_MS = 24
 const SNAP = /[\s.,!?;:)\]]/
 
-/**
- * Characters to advance per tick as a function of how far the reveal is behind.
- * Small backlogs trickle (2–8 chars); large backlogs accelerate but stay capped
- * so a burst is spread over several ticks rather than dumped at once.
- */
-function step(remaining: number): number {
-  if (remaining <= 12) return 2
-  if (remaining <= 48) return 4
-  if (remaining <= 96) return 8
-  return Math.min(24, Math.ceil(remaining / 8))
+/** Reveal the backlog over roughly this horizon (a small jitter buffer). */
+const DRAIN_HORIZON_MS = 400
+/** Floor so a near-empty backlog still trickles out instead of freezing. */
+const MIN_CPS = 45
+/** Cap so a huge backlog (resume, giant paste) sweeps in over ~a second. */
+const MAX_CPS = 2400
+
+/** Chars/second that drains `remaining` over the horizon, clamped. */
+function drainRate(remaining: number): number {
+  return Math.min(MAX_CPS, Math.max(MIN_CPS, (remaining * 1000) / DRAIN_HORIZON_MS))
 }
 
 /**
- * Advance from `start` by `step(...)`, then extend up to 8 more characters to
- * land just past the next word/punctuation boundary so the reveal lands on a
- * whole word rather than mid-token.
+ * The furthest word/punctuation boundary within `start + budget`, or `start`
+ * when the budget doesn't yet cover the next whole word (the budget carries
+ * over to later frames). Words longer than the 24-char lookahead are released
+ * whole once the budget covers the lookahead, so an unbroken token (a URL, a
+ * long identifier) cannot dam the reveal.
  */
-function nextIndex(text: string, start: number): number {
-  const end = Math.min(text.length, start + step(text.length - start))
-  const max = Math.min(text.length, end + 8)
-  for (let i = end; i < max; i++) {
-    if (SNAP.test(text[i] ?? '')) return i + 1
+function nextIndex(text: string, start: number, budget: number): number {
+  const limit = Math.min(text.length, start + Math.floor(budget))
+  for (let i = limit; i > start; i--) {
+    if (SNAP.test(text[i - 1] ?? '')) return i
   }
-  return end
+  if (limit >= Math.min(text.length, start + 24)) return limit
+  return start
 }
 
 /**
@@ -74,13 +79,13 @@ interface SmoothTextOptions {
  *
  * @remarks
  * The re-arm effect runs on every committed render with a cheap
- * `timeoutRef === null` guard instead of keying on a `hasBacklog` dependency.
- * The tick chain self-terminates whenever the reveal catches up, and a chain
- * keyed on the `hasBacklog` boolean could die for good: when the final tick's
+ * `rafRef === null` guard instead of keying on a `hasBacklog` dependency.
+ * The frame chain self-terminates whenever the reveal catches up, and a chain
+ * keyed on the `hasBacklog` boolean could die for good: when the final frame's
  * `setRevealed` and a new chunk land in the same React commit, `hasBacklog`
  * stays `true` across commits, the effect never re-fires, and the reveal
  * freezes mid-stream until remount. Re-arming per render closes that
- * interleaving while still avoiding per-chunk timer teardown (no cleanup on
+ * interleaving while still avoiding per-chunk loop teardown (no cleanup on
  * content changes), so it cannot trip React's max-update-depth guard either.
  * If upstream sanitization rewrites earlier text and shrinks the string, the
  * cursor is pulled back to the new end so regrowth stays paced instead of
@@ -99,7 +104,10 @@ export function useSmoothText(
 
   const contentRef = useRef(content)
   const revealedRef = useRef(revealed)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rafRef = useRef<number | null>(null)
+  /** Fractional character budget carried between frames (see the frame loop). */
+  const budgetRef = useRef(0)
+  const lastFrameAtRef = useRef(0)
   const prevContentRef = useRef(content)
   const prevIsStreamingRef = useRef(isStreaming)
 
@@ -142,36 +150,53 @@ export function useSmoothText(
   }, [content, isStreaming])
 
   useEffect(() => {
-    const run = () => {
-      timeoutRef.current = null
+    /**
+     * Per-frame reveal: each frame earns `drainRate * dt` characters of budget
+     * (fractional remainder carried in `budgetRef`), and the cursor advances to
+     * the furthest word boundary the budget covers — releasing words one at a
+     * time, evenly spaced in real time, rather than a fixed-size chunk per
+     * tick. Frames whose budget doesn't yet cover the next word update nothing.
+     */
+    const run = (now: number) => {
+      rafRef.current = null
       const text = contentRef.current
       const target = text.length
 
       if (revealedRef.current > target) {
         revealedRef.current = target
+        budgetRef.current = 0
         setRevealed(target)
       }
       const current = revealedRef.current
       if (current >= target) return
 
-      const next = nextIndex(text, current)
-      revealedRef.current = next
-      setRevealed(next)
-      if (next < target) {
-        timeoutRef.current = setTimeout(run, PACE_MS)
+      // Clamp dt so a background tab's paused rAF doesn't bank a giant budget.
+      const dt = Math.min(now - lastFrameAtRef.current, 100)
+      lastFrameAtRef.current = now
+      budgetRef.current += (drainRate(target - current) * dt) / 1000
+
+      const next = nextIndex(text, current, budgetRef.current)
+      if (next > current) {
+        budgetRef.current -= next - current
+        revealedRef.current = next
+        setRevealed(next)
+      }
+      if (revealedRef.current < target) {
+        rafRef.current = requestAnimationFrame(run)
       }
     }
 
-    if (hasBacklog && timeoutRef.current === null) {
-      timeoutRef.current = setTimeout(run, PACE_MS)
+    if (hasBacklog && rafRef.current === null) {
+      lastFrameAtRef.current = performance.now()
+      rafRef.current = requestAnimationFrame(run)
     }
   })
 
   useEffect(
     () => () => {
-      if (timeoutRef.current !== null) {
-        clearTimeout(timeoutRef.current)
-        timeoutRef.current = null
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
       }
     },
     []
