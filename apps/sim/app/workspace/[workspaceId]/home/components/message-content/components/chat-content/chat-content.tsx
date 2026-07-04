@@ -343,6 +343,8 @@ const MARKDOWN_COMPONENTS = {
 interface ChatContentProps {
   content: string
   isStreaming?: boolean
+  /** Transcript-derived answers for this message's question card (renders the recap). */
+  questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
@@ -351,6 +353,7 @@ interface ChatContentProps {
 function ChatContentInner({
   content,
   isStreaming = false,
+  questionAnswers,
   onOptionSelect,
   onWorkspaceResourceSelect,
   onRevealStateChange,
@@ -552,6 +555,7 @@ function ChatContentInner({
           <SpecialTags
             key={`special-${group.index}`}
             segment={group.segment}
+            questionAnswers={questionAnswers}
             onOptionSelect={onOptionSelect}
           />
         )
