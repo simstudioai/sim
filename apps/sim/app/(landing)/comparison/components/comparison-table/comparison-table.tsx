@@ -49,15 +49,17 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
       <div
         role='table'
         aria-label={`Sim vs ${competitor.name} feature comparison`}
-        className='grid min-w-[560px] grid-cols-[1.2fr_1fr_1fr]'
+        className='grid min-w-[560px] grid-cols-[minmax(140px,max-content)_1fr_1fr]'
       >
         <div className='contents' role='row'>
           <div
             role='columnheader'
-            className='flex flex-col justify-center border-[var(--border)] border-r border-b bg-[var(--surface-1)] px-4 py-4'
+            className='flex min-w-0 flex-col justify-center border-[var(--border)] border-r border-b bg-[var(--surface-1)] px-4 py-4'
           >
-            <span className='font-medium text-[var(--text-primary)] text-base'>Compare</span>
-            <span className='text-[var(--text-muted)] text-small'>
+            <span className='truncate font-medium text-[var(--text-primary)] text-base'>
+              Compare
+            </span>
+            <span className='truncate text-[var(--text-muted)] text-small'>
               {sim.name} vs {competitor.name}
             </span>
           </div>
@@ -115,7 +117,7 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                     <div
                       role='rowheader'
                       className={cn(
-                        'flex items-center border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-2.5',
+                        'flex min-w-0 items-center border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-2.5',
                         isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
@@ -124,7 +126,7 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                     <div
                       role='cell'
                       className={cn(
-                        'flex items-center border-[var(--border)] border-r bg-[var(--surface-2)] px-3 py-2.5',
+                        'flex min-w-0 items-center border-[var(--border)] border-r bg-[var(--surface-2)] px-3 py-2.5',
                         isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
@@ -133,7 +135,7 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                     <div
                       role='cell'
                       className={cn(
-                        'flex items-center bg-[var(--surface-2)] px-3 py-2.5',
+                        'flex min-w-0 items-center bg-[var(--surface-2)] px-3 py-2.5',
                         isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
