@@ -12,11 +12,8 @@ const { mockFindUpload, mockFindOutput, mockAllocateName } = vi.hoisted(() => ({
 
 vi.mock('@sim/db', () => dbChainMock)
 
-vi.mock('@/lib/copilot/tools/handlers/upload-file-reader', () => ({
+vi.mock('@/lib/copilot/tools/handlers/chat-file-reader', () => ({
   findMothershipUploadRowByChatAndName: mockFindUpload,
-}))
-
-vi.mock('@/lib/copilot/tools/handlers/output-file-reader', () => ({
   findChatOutputRowByChatAndName: mockFindOutput,
 }))
 

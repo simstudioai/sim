@@ -8,6 +8,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { isOutputsPath } from '@/lib/copilot/vfs/path-utils'
 import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
@@ -144,12 +145,6 @@ export function splitWorkspaceFilePath(fileName: string): {
     folderSegments: segments.slice(0, -1),
     leafName: segments[segments.length - 1] ?? '',
   }
-}
-
-/** True when a path/name targets the chat-scoped `outputs/` namespace, which is non-editable. */
-function isOutputsPath(path: string | undefined): boolean {
-  if (!path) return false
-  return path.trim().replace(/^\/+/, '').startsWith('outputs/')
 }
 
 export interface DocumentFormatInfo {

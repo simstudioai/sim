@@ -9,7 +9,7 @@ const {
   mockTransaction,
   mockSelectRows,
   mockCheckStorageQuota,
-  mockListForkableChatFiles,
+  mockFilterForkableChatFiles,
   mockListDuplicableChatFiles,
   mockPlanChatFileCopies,
   mockExecuteChatFileBlobCopies,
@@ -25,7 +25,12 @@ const {
   mockTransaction: vi.fn(),
   mockSelectRows: vi.fn(),
   mockCheckStorageQuota: vi.fn(),
-  mockListForkableChatFiles: vi.fn(),
+  // Real (pure) cut semantics so tests drive selection through row.messageId:
+  // rows with a NULL/undefined messageId are kept in every fork.
+  mockFilterForkableChatFiles: vi.fn(
+    (rows: Array<{ messageId?: string | null }>, kept: ReadonlySet<string>) =>
+      rows.filter((row) => !row.messageId || kept.has(row.messageId))
+  ),
   mockListDuplicableChatFiles: vi.fn(),
   mockPlanChatFileCopies: vi.fn(),
   mockExecuteChatFileBlobCopies: vi.fn(),
@@ -89,7 +94,7 @@ vi.mock('@/lib/billing/storage', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat/fork-chat-files', () => ({
-  listForkableChatFiles: mockListForkableChatFiles,
+  filterForkableChatFiles: mockFilterForkableChatFiles,
   listDuplicableChatFiles: mockListDuplicableChatFiles,
   planChatFileCopies: mockPlanChatFileCopies,
   executeChatFileBlobCopies: mockExecuteChatFileBlobCopies,
@@ -212,7 +217,6 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       isAuthenticated: true,
     })
     mockSelectRows.mockResolvedValue([parentRow])
-    mockListForkableChatFiles.mockResolvedValue([])
     mockListDuplicableChatFiles.mockResolvedValue([])
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
     mockLoadCopilotChatMessages.mockResolvedValue(threeMessages)
@@ -270,13 +274,36 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   })
 
   it('applies the timeline cut: kept message ids drive the file selection', async () => {
+    // One upload born pre-cut, one output born pre-cut, one output born
+    // post-cut, and one legacy row with no birth message. The single
+    // chat-owned read is cut in memory: everything but the post-cut row.
+    const preCutUpload = { id: 'wf_up', size: 1, context: 'mothership', messageId: 'msg-1' }
+    const preCutOutput = { id: 'wf_out', size: 1, context: 'output', messageId: 'msg-1' }
+    const postCutOutput = { id: 'wf_late', size: 1, context: 'output', messageId: 'msg-3' }
+    const legacyRow = { id: 'wf_legacy', size: 1, context: 'mothership', messageId: null }
+    mockListDuplicableChatFiles.mockResolvedValue([
+      preCutUpload,
+      preCutOutput,
+      postCutOutput,
+      legacyRow,
+    ])
+
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(200)
 
-    // Files are selected by the kept slice (inclusive of msg-2, excluding msg-3).
-    const listCall = mockListForkableChatFiles.mock.calls[0]
-    expect(listCall[1]).toBe('chat-1')
-    expect(listCall[2]).toEqual(new Set(['msg-1', 'msg-2']))
+    // The cut runs over the single read with the kept slice (inclusive of
+    // msg-2, excluding msg-3).
+    expect(mockListDuplicableChatFiles).toHaveBeenCalledTimes(1)
+    const filterCall = mockFilterForkableChatFiles.mock.calls[0]
+    expect(filterCall[1]).toEqual(new Set(['msg-1', 'msg-2']))
+
+    // The copy plan receives the cut set — pre-cut upload AND output, plus the
+    // legacy no-birthdate row; the post-cut output stays behind.
+    expect(mockPlanChatFileCopies.mock.calls[0][0].rows).toEqual([
+      preCutUpload,
+      preCutOutput,
+      legacyRow,
+    ])
 
     // The appended transcript is the same inclusive slice.
     const appended = mockAppendCopilotChatMessages.mock.calls[0]
@@ -284,7 +311,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   })
 
   it('fails up front with the quota error when copied bytes would exceed the limit', async () => {
-    mockListForkableChatFiles.mockResolvedValue([{ size: 600 }, { size: 400 }])
+    mockListDuplicableChatFiles.mockResolvedValue([{ size: 600 }, { size: 400 }])
     mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
 
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
@@ -295,7 +322,11 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(mockExecuteChatFileBlobCopies).not.toHaveBeenCalled()
   })
 
-  it('skips the quota check entirely when no upload rows are in the cut', async () => {
+  it('skips the quota check entirely when no chat-owned rows are in the cut', async () => {
+    // The chat owns one file, but it was born after the fork point.
+    mockListDuplicableChatFiles.mockResolvedValue([
+      { id: 'wf_late', size: 500, context: 'output', messageId: 'msg-3' },
+    ])
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(200)
     expect(mockCheckStorageQuota).not.toHaveBeenCalled()
@@ -311,7 +342,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
         contentType: 'image/png',
       },
     ]
-    mockListForkableChatFiles.mockResolvedValue([{ size: 100 }])
+    mockListDuplicableChatFiles.mockResolvedValue([{ size: 100, messageId: 'msg-1' }])
     mockPlanChatFileCopies.mockResolvedValue({
       idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
       keyMap: new Map([['workspace/ws-1/old-cat.png', 'workspace/ws-1/new-cat.png']]),
@@ -405,11 +436,12 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(mockRemoveChatResources).not.toHaveBeenCalled()
   })
 
-  it('drops ghost resources on a branch fork: chat-owned files that were not copied', async () => {
+  it('copies pre-cut outputs and drops only post-cut ghosts on a branch fork', async () => {
     // The source chat generated two outputs (apple pre-cut, banana post-cut)
     // and has one upload + one shared workspace-file resource. A branch fork
-    // copies only the kept upload; BOTH outputs stay behind, so both output
-    // resources must be dropped — not left pointing at the source chat.
+    // copies the kept upload AND the pre-cut output; only the post-cut output
+    // stays behind, so only its resource is dropped — not left pointing at
+    // the source chat.
     mockSelectRows.mockResolvedValue([
       {
         ...parentRow,
@@ -422,16 +454,18 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
         ],
       },
     ])
-    // Every chat-owned file of the source chat (uploads + outputs, no cut).
+    // Every chat-owned file of the source chat (uploads + outputs) in the
+    // single read; messageId drives the in-memory cut.
     mockListDuplicableChatFiles.mockResolvedValue([
-      { id: OLD_FILE_ID },
-      { id: 'wf_apple_output' },
-      { id: 'wf_banana_output' },
+      { id: OLD_FILE_ID, size: 100, context: 'mothership', messageId: 'msg-1' },
+      { id: 'wf_apple_output', size: 50, context: 'output', messageId: 'msg-1' },
+      { id: 'wf_banana_output', size: 50, context: 'output', messageId: 'msg-3' },
     ])
-    // The branch cut keeps (and the plan copies) only the upload.
-    mockListForkableChatFiles.mockResolvedValue([{ id: OLD_FILE_ID, size: 100 }])
     mockPlanChatFileCopies.mockResolvedValue({
-      idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
+      idMap: new Map([
+        [OLD_FILE_ID, NEW_FILE_ID],
+        ['wf_apple_output', 'wf_apple_copy'],
+      ]),
       keyMap: new Map(),
       blobTasks: [],
     })
@@ -439,26 +473,33 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
 
     expect(res.status).toBe(200)
+    // The plan received the cut set: upload + pre-cut output only.
+    expect(mockPlanChatFileCopies.mock.calls[0][0].rows.map((r: { id: string }) => r.id)).toEqual([
+      OLD_FILE_ID,
+      'wf_apple_output',
+    ])
     expect(updatedChatRows).toHaveLength(1)
     expect(updatedChatRows[0].resources).toEqual([
       { type: 'file', id: NEW_FILE_ID, title: 'cat.png' },
+      { type: 'file', id: 'wf_apple_copy', title: 'apple.png' },
       { type: 'file', id: 'wf_shared', title: 'shared.pdf' },
       { type: 'workflow', id: 'wflow-1', title: 'My flow' },
     ])
   })
 
   it('drops ghosts even when the fork copies no files at all', async () => {
-    // Fork cut before any upload, but the source chat has an output: the
-    // old guard skipped the resources update entirely when idMap was empty,
-    // leaving the ghost in place.
+    // Fork cut before the chat's only output was generated: the old guard
+    // skipped the resources update entirely when idMap was empty, leaving
+    // the ghost in place.
     mockSelectRows.mockResolvedValue([
       {
         ...parentRow,
         resources: [{ type: 'file', id: 'wf_banana_output', title: 'banana.png' }],
       },
     ])
-    mockListDuplicableChatFiles.mockResolvedValue([{ id: 'wf_banana_output' }])
-    mockListForkableChatFiles.mockResolvedValue([])
+    mockListDuplicableChatFiles.mockResolvedValue([
+      { id: 'wf_banana_output', size: 50, context: 'output', messageId: 'msg-3' },
+    ])
 
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
 
@@ -475,11 +516,10 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       expect(res.status).toBe(200)
       expect(body.success).toBe(true)
 
-      // The whole-chat lister runs (uploads AND outputs, no message cut) — the
-      // branch lister never does.
+      // The single chat-owned read runs; a whole-chat duplicate never cuts it.
       expect(mockListDuplicableChatFiles).toHaveBeenCalledTimes(1)
       expect(mockListDuplicableChatFiles.mock.calls[0][1]).toBe('chat-1')
-      expect(mockListForkableChatFiles).not.toHaveBeenCalled()
+      expect(mockFilterForkableChatFiles).not.toHaveBeenCalled()
 
       // Every message is appended — including msg-3, which a branch would cut.
       const appended = mockAppendCopilotChatMessages.mock.calls[0]

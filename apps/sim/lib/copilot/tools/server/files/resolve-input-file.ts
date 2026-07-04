@@ -1,17 +1,23 @@
-import { resolveChatOutputRecord } from '@/lib/copilot/tools/handlers/output-file-reader'
-import { resolveChatUploadRecord } from '@/lib/copilot/tools/handlers/upload-file-reader'
+import {
+  resolveChatFileRecordById,
+  resolveChatOutputRecord,
+  resolveChatUploadRecord,
+} from '@/lib/copilot/tools/handlers/chat-file-reader'
+import { chatScopedLeafSegment, isOutputsPath, isUploadsPath } from '@/lib/copilot/vfs/path-utils'
 import {
   resolveWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 /**
- * Resolve a tool input file path across every VFS namespace the agent can
- * reference: chat-scoped `uploads/<name>` and `outputs/<name>` (resolved by
- * chat + VFS name, raw or percent-encoded), and workspace `files/` paths /
- * `wf_` ids (delegated to {@link resolveWorkspaceFileReference}, which only
- * knows `context='workspace'` rows — the reason chat-scoped inputs need this
- * wrapper). Chat-scoped prefixes resolve to null without a chatId; uploads
+ * Resolve a tool input file reference across every VFS namespace the agent
+ * can hold: chat-scoped `uploads/<name>` and `outputs/<name>` (resolved by
+ * chat + VFS name, raw or percent-encoded), workspace `files/` paths, and
+ * bare `wf_` ids. A `wf_` id resolves against the workspace first and then
+ * against the chat's own uploads/outputs — {@link resolveWorkspaceFileReference}
+ * pins `context='workspace'`, so a chat-scoped id would otherwise fail even
+ * though the agent legitimately holds it (the reason this wrapper exists).
+ * Chat-scoped prefixes resolve to null without a chatId; both chat namespaces
  * are flat, so any trailing segment after the name is ignored.
  */
 export async function resolveToolInputFile(params: {
@@ -20,15 +26,20 @@ export async function resolveToolInputFile(params: {
   path: string
 }): Promise<WorkspaceFileRecord | null> {
   const { workspaceId, chatId, path } = params
-  if (path.startsWith('uploads/')) {
+  if (isUploadsPath(path)) {
     if (!chatId) return null
-    const fileName = path.slice('uploads/'.length).split('/')[0]
-    return resolveChatUploadRecord(chatId, fileName)
+    return resolveChatUploadRecord(chatId, chatScopedLeafSegment(path, 'uploads'))
   }
-  if (path.startsWith('outputs/')) {
+  if (isOutputsPath(path)) {
     if (!chatId) return null
-    const fileName = path.slice('outputs/'.length).split('/')[0]
-    return resolveChatOutputRecord(chatId, fileName)
+    return resolveChatOutputRecord(chatId, chatScopedLeafSegment(path, 'outputs'))
   }
-  return resolveWorkspaceFileReference(workspaceId, path)
+  const workspaceRecord = await resolveWorkspaceFileReference(workspaceId, path)
+  if (workspaceRecord) return workspaceRecord
+
+  const trimmed = path.trim()
+  if (chatId && trimmed.startsWith('wf_')) {
+    return resolveChatFileRecordById(chatId, trimmed)
+  }
+  return null
 }

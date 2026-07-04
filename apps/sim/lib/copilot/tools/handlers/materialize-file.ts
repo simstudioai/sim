@@ -6,8 +6,10 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { findChatOutputRowByChatAndName } from '@/lib/copilot/tools/handlers/output-file-reader'
-import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
+import {
+  findChatOutputRowByChatAndName,
+  findMothershipUploadRowByChatAndName,
+} from '@/lib/copilot/tools/handlers/chat-file-reader'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
 import {

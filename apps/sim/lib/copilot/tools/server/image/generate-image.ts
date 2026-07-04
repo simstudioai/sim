@@ -189,6 +189,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         userId: context.userId,
         chatId: context.chatId,
         interactive: context.interactive,
+        messageId: context.messageId,
         target: {
           path: outputPath,
           mode,

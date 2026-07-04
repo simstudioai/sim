@@ -106,6 +106,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         userId: context.userId,
         chatId: context.chatId,
         interactive: context.interactive,
+        messageId: context.messageId,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,

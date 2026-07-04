@@ -199,6 +199,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
         userId: context.userId,
         chatId: context.chatId,
         interactive: context.interactive,
+        messageId: context.messageId,
         target: {
           path: outputPath,
           mode: outputFile?.mode ?? 'create',

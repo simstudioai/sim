@@ -2,34 +2,31 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { incrementStorageUsage } from '@/lib/billing/storage'
 import type { DbOrTx } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('ForkChatFiles')
 
 /**
- * The only chat-owned storage context a branch fork copies: user uploads
- * (`mothership`). Agent-generated `outputs/` rows deliberately stay behind — a
- * fork starts with an empty outputs/ namespace. Shared workspace `files/`
- * (`context='workspace'`) is workspace-owned, not chat-owned — both chats
- * reference it in place and it is never copied.
- */
-export const FORKABLE_CHAT_FILE_CONTEXT: StorageContext = 'mothership'
-
-/**
- * The chat-owned contexts a whole-chat duplicate copies: user uploads
- * (`mothership`) AND agent-generated outputs (`output`). A duplicate is a
- * self-contained snapshot, so outputs come along — bytes included (every
- * copied row gets a fresh storage key; live rows can't share a key because of
- * the `workspace_files_key_active_unique` index, and serve/view lookups
- * resolve by key). Workspace `files/` stays referenced in place, as above.
+ * The chat-owned storage contexts a fork or duplicate copies: user uploads
+ * (`mothership`) AND agent-generated outputs (`output`). Both copy modes are
+ * self-contained snapshots — bytes included (every copied row gets a fresh
+ * storage key; live rows can't share a key because of the
+ * `workspace_files_key_active_unique` index, and serve/view lookups resolve by
+ * key) — so the new chat survives deletion of the source chat. A branch fork
+ * additionally timeline-cuts the set ({@link filterForkableChatFiles}).
+ * Shared workspace `files/` (`context='workspace'`) is workspace-owned, not
+ * chat-owned — both chats reference it in place and it is never copied.
  */
 export const DUPLICABLE_CHAT_FILE_CONTEXTS: readonly StorageContext[] = ['mothership', 'output']
+
+/** Max concurrent blob byte-copies during a chat fork/duplicate. */
+const CHAT_BLOB_COPY_CONCURRENCY = 4
 
 export type ForkableChatFileRow = typeof workspaceFiles.$inferSelect
 
@@ -54,41 +51,11 @@ export interface PlanChatFileCopiesResult {
 }
 
 /**
- * The live upload rows a fork copies: the chat's `mothership`-context files
- * whose `message_id` is at-or-before the fork point (i.e. in the kept message
- * slice), excluding soft-deleted rows. Rows with a NULL `message_id` predate
- * message tracking and are included in every fork of their chat — we can't
- * know when they arrived, and copying them beats forking old chats with no
- * files. Also used pre-transaction to sum sizes for the storage-quota gate.
- */
-export async function listForkableChatFiles(
-  db: DbOrTx,
-  chatId: string,
-  keptMessageIds: ReadonlySet<string>
-): Promise<ForkableChatFileRow[]> {
-  const keptIds = [...keptMessageIds]
-  const messageCut =
-    keptIds.length > 0
-      ? or(isNull(workspaceFiles.messageId), inArray(workspaceFiles.messageId, keptIds))
-      : isNull(workspaceFiles.messageId)
-  return db
-    .select()
-    .from(workspaceFiles)
-    .where(
-      and(
-        eq(workspaceFiles.chatId, chatId),
-        eq(workspaceFiles.context, FORKABLE_CHAT_FILE_CONTEXT),
-        isNull(workspaceFiles.deletedAt),
-        messageCut
-      )
-    )
-}
-
-/**
- * The live file rows a whole-chat duplicate copies: every upload AND output
- * owned by the chat, no timeline cut — nothing is being left behind, so
- * nothing needs a birthdate. Also used pre-transaction to sum sizes for the
- * storage-quota gate.
+ * Every live chat-owned file row (uploads + outputs, no timeline cut): the set
+ * a whole-chat duplicate copies, the ghost test set for the resource-chip
+ * rewrite, and the superset a branch fork cuts down in memory via
+ * {@link filterForkableChatFiles} — one `workspace_files` read serves all
+ * three. Also used pre-transaction to sum sizes for the storage-quota gate.
  */
 export async function listDuplicableChatFiles(
   db: DbOrTx,
@@ -104,6 +71,22 @@ export async function listDuplicableChatFiles(
         isNull(workspaceFiles.deletedAt)
       )
     )
+}
+
+/**
+ * The rows a branch fork copies out of the chat's owned files: those whose
+ * `message_id` is at-or-before the fork point (i.e. in the kept message
+ * slice). Rows with a NULL `message_id` — uploads that predate message
+ * tracking and outputs that predate messageId stamping — are included in
+ * every fork of their chat: we can't know when they arrived, and copying them
+ * beats forking with broken references. Pure filter so the route reads
+ * `workspace_files` once per fork ({@link listDuplicableChatFiles}).
+ */
+export function filterForkableChatFiles(
+  rows: ForkableChatFileRow[],
+  keptMessageIds: ReadonlySet<string>
+): ForkableChatFileRow[] {
+  return rows.filter((row) => !row.messageId || keptMessageIds.has(row.messageId))
 }
 
 /**
@@ -164,21 +147,34 @@ export async function planChatFileCopies(params: {
 /**
  * Copy each planned blob to its new key, best-effort: a failed copy logs a
  * warning and is skipped (the fork keeps its transcript; that one file is
- * missing) rather than failing the whole fork. Each successfully copied file
- * increments the storage-usage counter by its actual byte length. Failed
- * tasks' copy-row ids are returned so the caller can delete the dead rows
- * (row exists, blob doesn't) instead of leaving them listed in the VFS and
- * resources with nothing behind them.
+ * missing) rather than failing the whole fork. Runs a bounded worker pool
+ * ({@link CHAT_BLOB_COPY_CONCURRENCY}) — media-heavy chats must not pay 2N
+ * serial storage round-trips, but unbounded fan-out would buffer every file
+ * in memory at once. Each successfully copied file increments the
+ * storage-usage counter by its actual byte length. Failed tasks' copy-row ids
+ * are returned so the caller can delete the dead rows (row exists, blob
+ * doesn't) instead of leaving them listed in the VFS and resources with
+ * nothing behind them.
  */
 export async function executeChatFileBlobCopies(
   blobTasks: ChatBlobCopyTask[],
   params: { userId: string; workspaceId?: string }
 ): Promise<{ copied: number; failed: number; failedCopyIds: string[] }> {
   let copied = 0
-  let failed = 0
   const failedCopyIds: string[] = []
-  for (const task of blobTasks) {
+
+  const copyOne = async (task: ChatBlobCopyTask): Promise<void> => {
     try {
+      // Replay guard (mirrors the workspace-fork copy): target keys are freshly
+      // generated per fork, so an existing object can only mean an earlier
+      // attempt already landed this exact copy. Skip without incrementing — a
+      // replay must never double-charge. `headObject` returns null on local
+      // storage, where the copy is simply repeated (same bytes to the same key).
+      const existing = await headObject(task.targetKey, task.context)
+      if (existing) {
+        copied += 1
+        return
+      }
       const buffer = await downloadFile({
         key: task.sourceKey,
         context: task.context,
@@ -211,7 +207,6 @@ export async function executeChatFileBlobCopies(
         })
       }
     } catch (error) {
-      failed += 1
       failedCopyIds.push(task.copyId)
       logger.warn('Failed to copy chat file blob during fork', {
         sourceKey: task.sourceKey,
@@ -220,5 +215,19 @@ export async function executeChatFileBlobCopies(
       })
     }
   }
-  return { copied, failed, failedCopyIds }
+
+  let nextIndex = 0
+  const workers = Array.from(
+    { length: Math.min(CHAT_BLOB_COPY_CONCURRENCY, blobTasks.length) },
+    async () => {
+      while (nextIndex < blobTasks.length) {
+        const task = blobTasks[nextIndex]
+        nextIndex += 1
+        await copyOne(task)
+      }
+    }
+  )
+  await Promise.all(workers)
+
+  return { copied, failed: failedCopyIds.length, failedCopyIds }
 }

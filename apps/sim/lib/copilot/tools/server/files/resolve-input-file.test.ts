@@ -3,19 +3,22 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveChatUploadRecord, mockResolveChatOutputRecord, mockResolveWorkspaceFileRef } =
-  vi.hoisted(() => ({
-    mockResolveChatUploadRecord: vi.fn(),
-    mockResolveChatOutputRecord: vi.fn(),
-    mockResolveWorkspaceFileRef: vi.fn(),
-  }))
-
-vi.mock('@/lib/copilot/tools/handlers/upload-file-reader', () => ({
-  resolveChatUploadRecord: mockResolveChatUploadRecord,
+const {
+  mockResolveChatUploadRecord,
+  mockResolveChatOutputRecord,
+  mockResolveChatFileRecordById,
+  mockResolveWorkspaceFileRef,
+} = vi.hoisted(() => ({
+  mockResolveChatUploadRecord: vi.fn(),
+  mockResolveChatOutputRecord: vi.fn(),
+  mockResolveChatFileRecordById: vi.fn(),
+  mockResolveWorkspaceFileRef: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/tools/handlers/output-file-reader', () => ({
+vi.mock('@/lib/copilot/tools/handlers/chat-file-reader', () => ({
+  resolveChatUploadRecord: mockResolveChatUploadRecord,
   resolveChatOutputRecord: mockResolveChatOutputRecord,
+  resolveChatFileRecordById: mockResolveChatFileRecordById,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -33,6 +36,7 @@ describe('resolveToolInputFile', () => {
     vi.clearAllMocks()
     mockResolveChatUploadRecord.mockResolvedValue(UPLOAD_RECORD)
     mockResolveChatOutputRecord.mockResolvedValue(OUTPUT_RECORD)
+    mockResolveChatFileRecordById.mockResolvedValue(null)
     mockResolveWorkspaceFileRef.mockResolvedValue(WORKSPACE_RECORD)
   })
 
@@ -86,5 +90,46 @@ describe('resolveToolInputFile', () => {
     expect(byId).toBe(WORKSPACE_RECORD)
     expect(mockResolveWorkspaceFileRef).toHaveBeenCalledWith('ws-1', 'files/shared.pdf')
     expect(mockResolveWorkspaceFileRef).toHaveBeenCalledWith('ws-1', 'wf_shared')
+  })
+
+  it('resolves a bare wf_ id against the chat-owned rows when the workspace misses', async () => {
+    mockResolveWorkspaceFileRef.mockResolvedValue(null)
+    mockResolveChatFileRecordById.mockResolvedValue(OUTPUT_RECORD)
+
+    const record = await resolveToolInputFile({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      path: 'wf_output',
+    })
+
+    expect(record).toBe(OUTPUT_RECORD)
+    expect(mockResolveChatFileRecordById).toHaveBeenCalledWith('chat-1', 'wf_output')
+  })
+
+  it('returns null for a wf_ id unknown to both the workspace and the chat', async () => {
+    mockResolveWorkspaceFileRef.mockResolvedValue(null)
+
+    const record = await resolveToolInputFile({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      path: 'wf_missing',
+    })
+
+    expect(record).toBeNull()
+  })
+
+  it('never tries the chat by-id fallback for non-id references or without a chat', async () => {
+    mockResolveWorkspaceFileRef.mockResolvedValue(null)
+
+    const byName = await resolveToolInputFile({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      path: 'files/missing.pdf',
+    })
+    const noChat = await resolveToolInputFile({ workspaceId: 'ws-1', path: 'wf_output' })
+
+    expect(byName).toBeNull()
+    expect(noChat).toBeNull()
+    expect(mockResolveChatFileRecordById).not.toHaveBeenCalled()
   })
 })

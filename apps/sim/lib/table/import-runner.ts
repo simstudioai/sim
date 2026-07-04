@@ -30,6 +30,7 @@ import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
+import type { StorageContext } from '@/lib/uploads/shared/types'
 import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportRunner')
@@ -68,6 +69,12 @@ export interface TableImportPayload {
    * survive the import.
    */
   deleteSourceFile?: boolean
+  /**
+   * Storage context of the source object. Defaults to 'workspace' (the UI
+   * routes and pre-existing enqueued payloads); Mothership table imports may
+   * source a chat-scoped upload/output instead.
+   */
+  fileContext?: StorageContext
 }
 
 /**
@@ -80,6 +87,7 @@ export interface TableImportPayload {
  */
 export async function runTableImport(payload: TableImportPayload): Promise<void> {
   const { importId, tableId, workspaceId, userId, fileKey, fileName, delimiter, mode } = payload
+  const fileContext = payload.fileContext ?? 'workspace'
   const requestId = generateId().slice(0, 8)
   // Hoisted so `finally` can destroy it on any failure — otherwise the storage HTTP body leaks
   // open until it times out.
@@ -92,10 +100,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
-    const totalBytes = (await headObject(fileKey, 'workspace'))?.size ?? 0
+    const totalBytes = (await headObject(fileKey, fileContext))?.size ?? 0
 
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
-    source = await downloadFileStream({ key: fileKey, context: 'workspace' })
+    source = await downloadFileStream({ key: fileKey, context: fileContext })
 
     // Append must continue after the existing rows; create/replace start empty. Read once up
     // front (the import is the table's sole writer) and assign contiguous positions / threaded
@@ -377,7 +385,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // import is terminal so the workspace bucket doesn't accumulate. Best-effort. Skipped for
     // persistent workspace files (deleteSourceFile: false).
     if (payload.deleteSourceFile !== false) {
-      await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
+      await deleteFile({ key: fileKey, context: fileContext }).catch((err) => {
         logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
       })
     }

@@ -1710,6 +1710,19 @@ export const workspaceFiles = pgTable(
     chatDisplayNameUnique: uniqueIndex('workspace_files_chat_display_name_unique')
       .on(table.chatId, table.displayName)
       .where(sql`${table.context} = 'mothership' AND ${table.chatId} IS NOT NULL`),
+    /**
+     * Output twin of the index above: one display name per chat for agent-generated
+     * `outputs/` files, same full-lifetime scope and rationale (a name the model has
+     * been told must never silently re-resolve). A SEPARATE partial index — not a
+     * widened `context IN (...)` — because uploads/ and outputs/ are independent
+     * per-chat namespaces; an upload named report.png must not block an output
+     * named report.png. Closes the concurrent-generation race in the output
+     * name allocation (SELECT-then-INSERT); `uploadChatOutput` retries on this
+     * constraint like `trackChatUpload` does on its twin.
+     */
+    chatOutputDisplayNameUnique: uniqueIndex('workspace_files_chat_output_display_name_unique')
+      .on(table.chatId, table.displayName)
+      .where(sql`${table.context} = 'output' AND ${table.chatId} IS NOT NULL`),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),

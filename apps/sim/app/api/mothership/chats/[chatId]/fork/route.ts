@@ -9,8 +9,8 @@ import { parseRequest } from '@/lib/api/server'
 import { checkStorageQuota } from '@/lib/billing/storage'
 import {
   executeChatFileBlobCopies,
+  filterForkableChatFiles,
   listDuplicableChatFiles,
-  listForkableChatFiles,
   planChatFileCopies,
 } from '@/lib/copilot/chat/fork-chat-files'
 import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
@@ -47,21 +47,23 @@ const logger = createLogger('ForkChatAPI')
  * Creates a new chat copied from the given chat, in one of two modes.
  *
  * Branch (upToMessageId set): keeps messages up to and including the specified
- * message, along with the chat's uploads born at-or-before the fork point.
- * Agent-generated outputs/ stay behind, and the copy is titled "Fork | <name>".
+ * message, along with the chat's uploads AND agent-generated outputs born
+ * at-or-before the fork point (a file travels iff the user message that
+ * carried/requested it is kept). The copy is titled "Fork | <name>".
  *
  * Whole-chat duplicate (upToMessageId omitted): keeps every message, copies
- * uploads AND outputs, titles the copy "<name> (Copy)", and asks the copilot
- * service for its whole-chat clone mode (compacted working memory preserved
- * verbatim — nothing is cut, so nothing can leak across a cut).
+ * every upload and output with no cut, titles the copy "<name> (Copy)", and
+ * asks the copilot service for its whole-chat clone mode (compacted working
+ * memory preserved verbatim — nothing is cut, so nothing can leak across a
+ * cut).
  *
  * In both modes every copied file gets a fresh row id and storage key, bytes
  * are physically copied and counted against the storage quota, and every
  * in-transcript file reference is re-pointed at the copies so the new chat
  * survives deletion of the source chat. File resources whose chat-owned file
- * was NOT copied (a branch fork leaves outputs and post-cut uploads behind)
- * are dropped from the new chat's resources rather than left as ghosts
- * pointing at the source chat's files.
+ * was NOT copied (a branch fork leaves post-cut uploads/outputs behind) are
+ * dropped from the new chat's resources rather than left as ghosts pointing
+ * at the source chat's files.
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
@@ -112,13 +114,14 @@ export const POST = withRouteHandler(
         forkedMessages = messages.slice(0, forkIdx + 1)
       }
 
-      // The timeline cut for files: a branch copies uploads born in any kept
-      // message (uploads born after the fork point stay behind); a whole-chat
-      // duplicate keeps everything, so it copies all uploads AND outputs with
-      // no cut.
+      // Single workspace_files read per fork: every chat-owned file (uploads +
+      // outputs). A whole-chat duplicate copies all of them; a branch fork
+      // timeline-cuts to the kept message slice in memory (files born after
+      // the fork point stay behind).
+      const chatOwnedFiles = await listDuplicableChatFiles(db, chatId)
       const sourceFiles = isWholeChatDuplicate
-        ? await listDuplicableChatFiles(db, chatId)
-        : await listForkableChatFiles(db, chatId, new Set(forkedMessages.map((m) => m.id)))
+        ? chatOwnedFiles
+        : filterForkableChatFiles(chatOwnedFiles, new Set(forkedMessages.map((m) => m.id)))
       const totalFileBytes = sourceFiles.reduce((sum, row) => sum + row.size, 0)
       if (totalFileBytes > 0) {
         const quotaCheck = await checkStorageQuota(userId, totalFileBytes)
@@ -129,21 +132,16 @@ export const POST = withRouteHandler(
 
       // Resources are stored as a jsonb array on the chat row. They carry no
       // timestamps, so they can't be timeline-cut like messages — instead,
-      // file resources whose chat-owned file is NOT copied (outputs on a
-      // branch fork, uploads born after the cut) are dropped in the rewrite
-      // below; everything else is copied.
+      // file resources whose chat-owned file is NOT copied (uploads/outputs
+      // born after a branch fork's cut) are dropped in the rewrite below;
+      // everything else is copied.
       const parentResources = Array.isArray(parent.resources)
         ? (parent.resources as MothershipResource[])
         : []
 
       // The source chat's chat-owned file ids (uploads + outputs, no cut) —
-      // the "is this resource a ghost?" test set for the rewrite. On a
-      // whole-chat duplicate sourceFiles already IS that full set.
-      const chatOwnedFileIds = new Set(
-        (isWholeChatDuplicate ? sourceFiles : await listDuplicableChatFiles(db, chatId)).map(
-          (row) => row.id
-        )
-      )
+      // the "is this resource a ghost?" test set for the rewrite.
+      const chatOwnedFileIds = new Set(chatOwnedFiles.map((row) => row.id))
 
       const newId = generateId()
       const baseTitle = (parent.title ?? 'New chat').replace(/^Fork \| /, '')

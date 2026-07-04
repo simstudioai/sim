@@ -3,14 +3,19 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateKey, mockDownloadFile, mockUploadFile, mockIncrementStorageUsage } = vi.hoisted(
-  () => ({
-    mockGenerateKey: vi.fn(),
-    mockDownloadFile: vi.fn(),
-    mockUploadFile: vi.fn(),
-    mockIncrementStorageUsage: vi.fn(),
-  })
-)
+const {
+  mockGenerateKey,
+  mockDownloadFile,
+  mockUploadFile,
+  mockHeadObject,
+  mockIncrementStorageUsage,
+} = vi.hoisted(() => ({
+  mockGenerateKey: vi.fn(),
+  mockDownloadFile: vi.fn(),
+  mockUploadFile: vi.fn(),
+  mockHeadObject: vi.fn(),
+  mockIncrementStorageUsage: vi.fn(),
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   generateWorkspaceFileKey: mockGenerateKey,
@@ -19,6 +24,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFile: mockDownloadFile,
   uploadFile: mockUploadFile,
+  headObject: mockHeadObject,
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -28,6 +34,7 @@ vi.mock('@/lib/billing/storage', () => ({
 import {
   executeChatFileBlobCopies,
   type ForkableChatFileRow,
+  filterForkableChatFiles,
   planChatFileCopies,
 } from '@/lib/copilot/chat/fork-chat-files'
 
@@ -173,6 +180,8 @@ describe('executeChatFileBlobCopies', () => {
     vi.clearAllMocks()
     mockDownloadFile.mockResolvedValue(Buffer.from('0123456789'))
     mockUploadFile.mockResolvedValue(undefined)
+    // Local-storage behavior: headObject resolves null, so the copy proceeds.
+    mockHeadObject.mockResolvedValue(null)
     mockIncrementStorageUsage.mockResolvedValue(undefined)
   })
 
@@ -208,5 +217,52 @@ describe('executeChatFileBlobCopies', () => {
     // The first task's download failed — its copy id comes back for row cleanup.
     expect(result).toEqual({ copied: 1, failed: 1, failedCopyIds: ['wf_copy'] })
     expect(mockIncrementStorageUsage).toHaveBeenCalledTimes(1)
+  })
+
+  it('replay guard: an already-landed target blob is skipped without re-copying or re-charging', async () => {
+    // A retried fork run finds the first task's target object already exists
+    // (an earlier attempt landed it). It counts as copied, but bytes are not
+    // downloaded/uploaded again and the quota is not double-charged.
+    mockHeadObject.mockResolvedValueOnce({ size: 10 })
+
+    const result = await executeChatFileBlobCopies(
+      [task, { ...task, copyId: 'wf_copy2', targetKey: 'workspace/ws-1/3-cat.png' }],
+      { userId: 'user-1', workspaceId: 'ws-1' }
+    )
+
+    expect(result).toEqual({ copied: 2, failed: 0, failedCopyIds: [] })
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+    expect(mockUploadFile).toHaveBeenCalledTimes(1)
+    expect(mockIncrementStorageUsage).toHaveBeenCalledTimes(1)
+  })
+
+  it('copies every task even when the batch exceeds the concurrency bound', async () => {
+    const tasks = Array.from({ length: 9 }, (_, i) => ({
+      ...task,
+      copyId: `wf_copy${i}`,
+      targetKey: `workspace/ws-1/${i}-cat.png`,
+    }))
+
+    const result = await executeChatFileBlobCopies(tasks, { userId: 'user-1' })
+
+    expect(result.copied).toBe(9)
+    expect(mockUploadFile).toHaveBeenCalledTimes(9)
+    expect(new Set(mockUploadFile.mock.calls.map((c) => c[0].customKey)).size).toBe(9)
+  })
+})
+
+describe('filterForkableChatFiles', () => {
+  it('keeps rows born in the kept slice plus NULL-birthdate legacy rows', () => {
+    const preCut = makeRow({ id: 'wf_pre', messageId: 'msg-1' })
+    const postCut = makeRow({ id: 'wf_post', messageId: 'msg-3' })
+    const legacy = makeRow({ id: 'wf_legacy', messageId: null })
+    const preCutOutput = makeRow({ id: 'wf_out', context: 'output', messageId: 'msg-2' })
+
+    const kept = filterForkableChatFiles(
+      [preCut, postCut, legacy, preCutOutput],
+      new Set(['msg-1', 'msg-2'])
+    )
+
+    expect(kept.map((r) => r.id)).toEqual(['wf_pre', 'wf_legacy', 'wf_out'])
   })
 })

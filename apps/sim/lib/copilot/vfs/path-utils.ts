@@ -48,6 +48,46 @@ export function canonicalizeVfsPath(path: string): string {
   return encodeVfsPathSegments(decodeVfsPathSegments(path))
 }
 
+/**
+ * Chat-scoped VFS namespaces: `uploads/` (user attachments) and `outputs/`
+ * (agent-generated one-off files, write-once). Both are flat — the first
+ * segment after the prefix is the file; anything deeper is ignored by readers.
+ */
+export type ChatScopedVfsNamespace = 'uploads' | 'outputs'
+
+function stripPathPrefixNoise(path: string): string {
+  return path.trim().replace(/^\/+/, '')
+}
+
+/** True when a path/name targets the chat-scoped `uploads/` namespace. */
+export function isUploadsPath(path: string | null | undefined): boolean {
+  return !!path && stripPathPrefixNoise(path).startsWith('uploads/')
+}
+
+/**
+ * True when a path/name targets the chat-scoped `outputs/` namespace
+ * (write-once, non-editable). Tolerates leading slashes/whitespace so the
+ * test cannot be dodged by spelling variants — always call this on the RAW
+ * caller-supplied path, before any `files/` prefixing or rewriting.
+ */
+export function isOutputsPath(path: string | null | undefined): boolean {
+  return !!path && stripPathPrefixNoise(path).startsWith('outputs/')
+}
+
+/**
+ * The file segment of a chat-scoped path: the first segment after the
+ * namespace prefix, returned raw (still percent-encoded if the caller passed
+ * an encoded path — the chat-file readers accept both spellings). Both
+ * namespaces are flat, so trailing segments (e.g. a `/content` suffix added
+ * out of habit) are ignored. Returns '' when the path is not in the namespace.
+ */
+export function chatScopedLeafSegment(path: string, namespace: ChatScopedVfsNamespace): string {
+  const normalized = stripPathPrefixNoise(path)
+  const prefix = `${namespace}/`
+  if (!normalized.startsWith(prefix)) return ''
+  return normalized.slice(prefix.length).split('/')[0] ?? ''
+}
+
 export function canonicalWorkspaceFilePath(parts: {
   folderPath?: string | null
   name: string

@@ -2,12 +2,23 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import {
+  grepChatOutput,
+  grepChatUpload,
+  listChatOutputs,
+  listChatUploads,
+  readChatOutput,
+  readChatUpload,
+} from '@/lib/copilot/tools/handlers/chat-file-reader'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
-import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
-import { grepChatOutput, listChatOutputs, readChatOutput } from './output-file-reader'
-import { grepChatUpload, listChatUploads, readChatUpload } from './upload-file-reader'
+import {
+  chatScopedLeafSegment,
+  encodeVfsSegment,
+  isOutputsPath,
+  isUploadsPath,
+} from '@/lib/copilot/vfs/path-utils'
 
 const logger = createLogger('VfsTools')
 
@@ -197,7 +208,7 @@ export async function executeVfsGlob(
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
     let files = vfs.glob(pattern)
 
-    if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
+    if (context.chatId && isUploadsPath(pattern)) {
       const uploads = await listChatUploads(context.chatId)
       // Encode per segment so uploads/ paths match the files/ convention; the
       // upload resolver accepts both the encoded path and the raw display name.
@@ -206,7 +217,7 @@ export async function executeVfsGlob(
     }
 
     // Chat outputs are opt-in like uploads: only explicit outputs/ patterns include them.
-    if (context.chatId && (pattern === 'outputs/*' || pattern.startsWith('outputs/'))) {
+    if (context.chatId && isOutputsPath(pattern)) {
       const outputs = await listChatOutputs(context.chatId)
       const outputPaths = outputs.map((f) => `outputs/${encodeUploadSegment(f.name)}`)
       files = [...files, ...outputPaths]
@@ -264,11 +275,11 @@ export async function executeVfsRead(
     // Uploads are flat and have no metadata/content split like files/ — the upload
     // IS the first path segment after uploads/. Any trailing segment (e.g. a
     // /content suffix added out of habit) is ignored so the read resolves either way.
-    if (path.startsWith('uploads/')) {
+    if (isUploadsPath(path)) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
-      const filename = path.slice('uploads/'.length).split('/')[0]
+      const filename = chatScopedLeafSegment(path, 'uploads')
       const uploadResult = await readChatUpload(filename, context.chatId)
       if (uploadResult) {
         const isAttachment = hasModelAttachment(uploadResult)
@@ -308,11 +319,11 @@ export async function executeVfsRead(
 
     // Chat-scoped agent outputs via the outputs/ virtual prefix (twin of uploads/).
     // Flat and read directly; any trailing segment after the leaf is ignored.
-    if (path.startsWith('outputs/')) {
+    if (isOutputsPath(path)) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for outputs/' }
       }
-      const filename = path.slice('outputs/'.length).split('/')[0]
+      const filename = chatScopedLeafSegment(path, 'outputs')
       const outputResult = await readChatOutput(filename, context.chatId)
       if (outputResult) {
         const isAttachment = hasModelAttachment(outputResult)

@@ -8,7 +8,7 @@ import {
   authenticateCopilotRequestSessionOnly,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { listChatOutputs } from '@/lib/copilot/tools/handlers/output-file-reader'
+import { listChatOutputs } from '@/lib/copilot/tools/handlers/chat-file-reader'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('MothershipChatOutputsAPI')

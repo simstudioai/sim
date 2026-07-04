@@ -556,11 +556,15 @@ export async function trackChatUpload(
 
 const MAX_CHAT_OUTPUT_NAME_RETRIES = 1000
 
+/** Postgres constraint name for the partial unique index on `(chat_id, display_name)` for outputs. */
+export const CHAT_OUTPUT_DISPLAY_NAME_INDEX = 'workspace_files_chat_output_display_name_unique'
+
 /**
  * Whether an active chat-scoped output already uses this VFS name in the chat.
- * Advisory only — there is no DB unique index for outputs (by design: no migration) —
- * so a rare concurrent insert can still produce duplicate names, in which case the
- * reader resolves the most recent. Good enough for one-off generated files.
+ * Fast-path check only — the `workspace_files_chat_output_display_name_unique`
+ * partial index is the real guarantee; a concurrent insert that slips past
+ * this SELECT surfaces as a 23505 that {@link uploadChatOutput} retries with
+ * the next suffix.
  */
 async function chatOutputNameExists(chatId: string, name: string): Promise<boolean> {
   const rows = await db
@@ -576,17 +580,6 @@ async function chatOutputNameExists(chatId: string, name: string): Promise<boole
     )
     .limit(1)
   return rows.length > 0
-}
-
-/** Pick a collision-free `displayName` within the chat's outputs (suffixes ` (2)`, ` (3)`, ...). */
-async function allocateChatOutputName(chatId: string, baseName: string): Promise<string> {
-  for (let n = 1; n <= MAX_CHAT_OUTPUT_NAME_RETRIES; n++) {
-    const candidate = suffixedName(baseName, n)
-    if (!(await chatOutputNameExists(chatId, candidate))) {
-      return candidate
-    }
-  }
-  throw new FileConflictError(baseName)
 }
 
 /**
@@ -606,8 +599,15 @@ export async function uploadChatOutput(args: {
   fileBuffer: Buffer
   fileName: string
   contentType: string
+  /**
+   * User message id of the turn that generated this output. Drives the branch
+   * fork's timeline cut (an output travels with a fork iff the message that
+   * requested it is kept), like `message_id` on uploads. NULL rows predate the
+   * stamping and are copied into every fork of their chat.
+   */
+  messageId?: string
 }): Promise<UserFile> {
-  const { workspaceId, userId, chatId, fileBuffer, fileName, contentType } = args
+  const { workspaceId, userId, chatId, fileBuffer, fileName, contentType, messageId } = args
   logger.info(`Uploading chat output file: ${fileName} for chat ${chatId}`)
 
   const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
@@ -617,8 +617,9 @@ export async function uploadChatOutput(args: {
     throw new Error(quotaCheck.error || 'Storage limit exceeded')
   }
 
-  const displayName = await allocateChatOutputName(chatId, normalizedFileName)
-  const storageKey = generateWorkspaceFileKey(workspaceId, displayName)
+  // The key has its own timestamp+random component, so it stays unique (and
+  // valid) if a name collision below lands the row on a suffixed display name.
+  const storageKey = generateWorkspaceFileKey(workspaceId, normalizedFileName)
   const fileId = `wf_${generateShortId()}`
 
   try {
@@ -637,18 +638,47 @@ export async function uploadChatOutput(args: {
       customKey: storageKey,
     })
 
-    await db.insert(workspaceFiles).values({
-      id: fileId,
-      key: uploadResult.key,
-      userId,
-      workspaceId,
-      context: 'output',
-      chatId,
-      originalName: displayName,
-      displayName,
-      contentType,
-      size: fileBuffer.length,
-    })
+    // Mirrors trackChatUpload: the SELECT in chatOutputNameExists is only a fast
+    // path; the partial unique index arbitrates concurrent generations racing
+    // for the same name, and the loser retries with the next ` (n)` suffix.
+    let displayName: string | null = null
+    for (let n = 1; n <= MAX_CHAT_OUTPUT_NAME_RETRIES; n++) {
+      const candidate = suffixedName(normalizedFileName, n)
+      if (await chatOutputNameExists(chatId, candidate)) {
+        continue
+      }
+      try {
+        await db.insert(workspaceFiles).values({
+          id: fileId,
+          key: uploadResult.key,
+          userId,
+          workspaceId,
+          context: 'output',
+          chatId,
+          messageId: messageId ?? null,
+          originalName: candidate,
+          displayName: candidate,
+          contentType,
+          size: fileBuffer.length,
+        })
+        displayName = candidate
+        break
+      } catch (error) {
+        if (
+          getPostgresErrorCode(error) === '23505' &&
+          getPostgresConstraintName(error) === CHAT_OUTPUT_DISPLAY_NAME_INDEX
+        ) {
+          logger.warn(
+            `Chat output displayName collision on attempt ${n} for "${candidate}" in chat ${chatId}, retrying with suffix`
+          )
+          continue
+        }
+        throw error
+      }
+    }
+    if (!displayName) {
+      throw new FileConflictError(normalizedFileName)
+    }
 
     try {
       await incrementStorageUsage(userId, fileBuffer.length, workspaceId)

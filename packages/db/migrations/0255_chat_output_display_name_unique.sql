@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "workspace_files_chat_output_display_name_unique" ON "workspace_files" USING btree ("chat_id","display_name") WHERE "workspace_files"."context" = 'output' AND "workspace_files"."chat_id" IS NOT NULL;
