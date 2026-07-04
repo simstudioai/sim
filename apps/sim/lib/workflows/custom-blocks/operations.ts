@@ -3,6 +3,8 @@ import { customBlock, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -10,6 +12,21 @@ import type { CustomBlockOutput, CustomBlockRow } from '@/blocks/custom/build-co
 import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
 
 const logger = createLogger('CustomBlocksOperations')
+
+/**
+ * Resolve a workspace's organization ONLY when custom blocks are enabled for it —
+ * the same gate the REST list/publish routes apply (`deploy-as-block` flag +
+ * enterprise plan). Applying it in every org-scoped resolver keeps execution, the
+ * copilot VFS, and workspace context from surfacing blocks the API withholds (e.g.
+ * after an org drops off the enterprise plan). Returns `null` when ineligible.
+ */
+async function eligibleOrgForWorkspace(workspaceId: string): Promise<string | null> {
+  const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+  if (!ws?.organizationId) return null
+  if (!(await isFeatureEnabled('deploy-as-block', { orgId: ws.organizationId }))) return null
+  if (!(await isOrganizationOnEnterprisePlan(ws.organizationId))) return null
+  return ws.organizationId
+}
 
 /** A persisted custom block plus its live-derived Start input fields. */
 export interface CustomBlockWithInputs {
@@ -70,9 +87,9 @@ export async function getCustomBlockRowsForOrg(organizationId: string): Promise<
 export async function getCustomBlockRowsForWorkspace(
   workspaceId: string
 ): Promise<CustomBlockRow[]> {
-  const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-  if (!ws?.organizationId) return []
-  return getCustomBlockRowsForOrg(ws.organizationId)
+  const organizationId = await eligibleOrgForWorkspace(workspaceId)
+  if (!organizationId) return []
+  return getCustomBlockRowsForOrg(organizationId)
 }
 
 /**
@@ -83,9 +100,9 @@ export async function getCustomBlockRowsForWorkspace(
 export async function listCustomBlocksWithInputsForWorkspace(
   workspaceId: string
 ): Promise<CustomBlockWithInputs[]> {
-  const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-  if (!ws?.organizationId) return []
-  return listCustomBlocksWithInputs(ws.organizationId)
+  const organizationId = await eligibleOrgForWorkspace(workspaceId)
+  if (!organizationId) return []
+  return listCustomBlocksWithInputs(organizationId)
 }
 
 /**
@@ -95,8 +112,8 @@ export async function listCustomBlocksWithInputsForWorkspace(
 export async function listCustomBlockSummariesForWorkspace(
   workspaceId: string
 ): Promise<Array<{ type: string; name: string; description: string }>> {
-  const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-  if (!ws?.organizationId) return []
+  const organizationId = await eligibleOrgForWorkspace(workspaceId)
+  if (!organizationId) return []
   return db
     .select({
       type: customBlock.type,
@@ -104,7 +121,7 @@ export async function listCustomBlockSummariesForWorkspace(
       description: customBlock.description,
     })
     .from(customBlock)
-    .where(and(eq(customBlock.organizationId, ws.organizationId), eq(customBlock.enabled, true)))
+    .where(and(eq(customBlock.organizationId, organizationId), eq(customBlock.enabled, true)))
 }
 
 /** The org's custom blocks with live-derived input fields (client overlay + list API). */
