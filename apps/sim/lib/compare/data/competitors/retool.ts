@@ -824,7 +824,7 @@ export const retoolProfile: CompetitorProfile = {
             label: 'Advanced permissions in Retool: The Fundamentals',
             asOf: '2026-07-02',
           },
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-04' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
         ],
       },
       whiteLabeling: {

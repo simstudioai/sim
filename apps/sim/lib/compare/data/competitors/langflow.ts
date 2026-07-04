@@ -450,7 +450,7 @@ export const langflowProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'No dedicated fan-out/fan-in feature is documented. Langflow builds a flow into a Directed Acyclic Graph and executes nodes in dependency order, each node run using the results of the nodes it depends on: sequential DAG traversal, not a native concurrent-branch-then-join primitive.',
+          'No: no dedicated fan-out/fan-in feature is documented. Langflow builds a flow into a Directed Acyclic Graph and executes nodes in dependency order, each node run using the results of the nodes it depends on: sequential DAG traversal, not a native concurrent-branch-then-join primitive.',
         shortValue: 'Not documented, execution model is sequential DAG traversal',
         confidence: 'estimated',
         sources: [

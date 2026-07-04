@@ -1275,9 +1275,9 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sec.gov/Archives/edgar/data/0000789019/000119312526191457/msft-ex99_1.htm',
-            label: 'Microsoft Corp 8-K FY2026 filing',
-            asOf: '2026-07-02',
+            url: 'https://www.microsoft.com/en-us/investor/earnings/fy-2026-q3/press-release-webcast',
+            label: 'FY26 Q3 - Press Releases - Investor Relations - Microsoft',
+            asOf: '2026-07-04',
           },
           {
             url: 'https://stockanalysis.com/stocks/msft/market-cap/',

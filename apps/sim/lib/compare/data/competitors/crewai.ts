@@ -781,16 +781,17 @@ export const crewaiProfile: CompetitorProfile = {
         ],
       },
       auditLogging: {
-        value: 'Yes: audit trails are listed among CrewAI AMP Enterprise security features',
+        value:
+          'Partial: immutable audit trails are described as part of CrewAI AMP Enterprise IAM, but not by a first-party source',
         detail:
-          "CrewAI Enterprise lists audit trails alongside PII detection/masking, secret manager integration, and SSO as built-in Enterprise-tier security features. CrewAI's own pricing page does not itemize audit-log retention windows or export formats.",
-        shortValue: 'Yes, as an AMP Enterprise feature; retention details unconfirmed',
+          "Third-party CrewAI production write-ups describe Enterprise-tier IAM as including SSO, RBAC, and immutable audit trails, alongside PII redaction and secret manager integration, but CrewAI's own docs and pricing page do not independently itemize audit-log retention windows or export formats, so this is treated as unconfirmed by a first-party source.",
+        shortValue: 'Partial, described in third-party write-ups; not independently confirmed',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://cybernews.com/ai-tools/crewai-review/',
-            label: 'CrewAI Review 2026 - CyberNews',
-            asOf: '2026-07-02',
+            url: 'https://techjacksolutions.com/ai-tools/crewai/crewai-production-guide/',
+            label: 'CrewAI in Production: Deployment, Monitoring & Scaling - TechJack Solutions',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -824,16 +825,16 @@ export const crewaiProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          'Yes: AMP Enterprise documents secret manager integration for governing stored credentials',
+          'Yes: AMP Enterprise documents secret manager integrations (e.g. Google Cloud Secret Manager) for governing stored credentials',
         detail:
-          "CrewAI Enterprise lists secret manager integration among its built-in security features, implying centralized credential storage/access rather than credentials embedded in code. Fine-grained per-role restriction of which specific credential a role may use is not itemized in CrewAI's own documentation.",
+          "CrewAI's own docs describe connecting a cloud secret manager (documented for Google Cloud Secret Manager) so secrets are stored centrally rather than embedded in code, with RBAC permissions (secret_providers: manage) gating which org members can configure these integrations. Fine-grained per-role restriction of which specific credential a role may use beyond that permission is not itemized in CrewAI's own documentation.",
         shortValue: 'Yes, secret manager integration (Enterprise); role-level detail unconfirmed',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://cybernews.com/ai-tools/crewai-review/',
-            label: 'CrewAI Review 2026 - CyberNews',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/enterprise/features/secrets-manager/gcp',
+            label: 'Google Cloud Secret Manager - CrewAI Docs',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -855,16 +856,16 @@ export const crewaiProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          'Yes: PII detection and masking is a documented CrewAI AMP Enterprise security feature',
+          'Yes: PII Redaction for Traces is a documented CrewAI AMP Enterprise security feature',
         detail:
-          "CrewAI Enterprise lists 'PII detection and masking' among its built-in security features, alongside audit trails and secret manager integration. Separately, the framework's LLM-based task guardrails can be configured to check for PII exposure as one of several natural-language validation criteria, though that is a general-purpose guardrail, not dedicated PII tooling.",
-        shortValue: 'Yes, PII detection/masking is an AMP Enterprise feature',
-        confidence: 'estimated',
+          "CrewAI's own docs describe PII Redaction for Traces, an Enterprise-tier feature that automatically detects and masks personally identifiable information (credit card numbers, social security numbers, emails, names) in crew and flow execution traces, with support for custom recognizers. Separately, the framework's LLM-based task guardrails can be configured to check for PII exposure as one of several natural-language validation criteria, though that is a general-purpose guardrail, not dedicated PII tooling.",
+        shortValue: 'Yes, PII Redaction for Traces is an AMP Enterprise feature',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://cybernews.com/ai-tools/crewai-review/',
-            label: 'CrewAI Review 2026 - CyberNews',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/enterprise/features/pii-trace-redactions',
+            label: 'PII Redaction for Traces - CrewAI Docs',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1090,9 +1091,9 @@ export const crewaiProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.crewai.com/en/concepts/agents',
-            label: 'Agents - CrewAI Docs',
-            asOf: '2026-07-02',
+            url: 'https://learn.crewai.com',
+            label: 'CrewAI Academy (learn.crewai.com)',
+            asOf: '2026-07-04',
           },
         ],
       },

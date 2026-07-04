@@ -1177,9 +1177,8 @@ export const powerAutomateProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/unattended-mode-cloud-flow',
-            label:
-              'Run desktop flows unattended via cloud flows - Power Automate | Microsoft Learn',
+            url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/run-unattended-desktop-flows',
+            label: 'Run unattended desktop flows - Power Automate | Microsoft Learn',
             asOf: '2026-07-04',
           },
         ],

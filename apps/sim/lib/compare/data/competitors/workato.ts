@@ -11,7 +11,7 @@ export const workatoProfile: CompetitorProfile = {
     selfFramed: true,
     colors: ['#62dfd2', '#418484', '#151716'],
     description:
-      'Workato is a Palo Alto‑based integration and automation platform that enables enterprises to orchestrate applications, data, and processes using AI‑driven agents. Leveraging its proprietary Enterprise Model Context Protocol (MCP), Workato delivers secure, scalable, and accurate AI agents that move from the edge of business operations to the core, allowing real‑time, enterprise‑wide automation. Trusted by over half of the Fortune 500, the platform connects every application and data source, providing end‑to‑end workflow automation and intelligent orchestration for the agentic era.',
+      'Workato is a Palo Alto-based integration and automation platform that enables enterprises to orchestrate applications, data, and processes using AI-driven agents. Leveraging its proprietary Enterprise Model Context Protocol (MCP), Workato delivers secure, scalable, and accurate AI agents that move from the edge of business operations to the core, allowing real-time, enterprise-wide automation. Trusted by over half of the Fortune 500, the platform connects every application and data source, providing end-to-end workflow automation and intelligent orchestration for the agentic era.',
     industries: [
       'Software (B2B)',
       'Developer Tools & APIs',
@@ -235,9 +235,9 @@ export const workatoProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.workato.com/platform-cli/use-cases.html',
-            label: 'Workato Platform CLI example use cases',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/platform-cli.html',
+            label: 'Workato Platform CLI | Workato docs',
+            asOf: '2026-07-04',
           },
         ],
       },

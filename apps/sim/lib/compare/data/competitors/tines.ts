@@ -916,9 +916,9 @@ export const tinesProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://www.tines.com/docs/actions/overview',
+            url: 'https://www.tines.com/docs/actions/',
             label: 'Actions overview | Docs | Tines',
-            asOf: '2026-07-02',
+            asOf: '2026-07-04',
           },
         ],
       },
