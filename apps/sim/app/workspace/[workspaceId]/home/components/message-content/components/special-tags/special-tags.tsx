@@ -97,7 +97,7 @@ export interface FileTagData {
   content: string
 }
 
-export const QUESTION_TYPES = ['single_select', 'confirm', 'text'] as const
+export const QUESTION_TYPES = ['single_select', 'multi_select'] as const
 
 export type QuestionType = (typeof QUESTION_TYPES)[number]
 
@@ -107,14 +107,15 @@ export interface QuestionOption {
 }
 
 /**
- * One question in a `<question>` tag. `options` is required for
- * `single_select` and `confirm`; `text` questions render only a free-text
- * input. `single_select` always additionally offers a free-text "Other" row.
+ * One question in a `<question>` tag. Both types require at least one option;
+ * the card always appends its own free-text "Something else" row, so
+ * agent-supplied catch-all options ("Other", "Something else", ...) are
+ * stripped during parsing.
  */
 export interface QuestionItem {
   type: QuestionType
   prompt: string
-  options?: QuestionOption[]
+  options: QuestionOption[]
 }
 
 /** Normalized `<question>` payload: single-object bodies become a one-element array. */
@@ -255,6 +256,19 @@ function isQuestionOption(value: unknown): value is QuestionOption {
   return typeof value.id === 'string' && typeof value.label === 'string'
 }
 
+/**
+ * Catch-all labels the agent must not supply as options — the card renders
+ * its own free-text "Something else" row. Matching options are stripped; a
+ * question left with no real options is invalid.
+ */
+const SELF_PROVIDED_OPTION_LABELS = new Set([
+  'other',
+  'others',
+  'something else',
+  'none of the above',
+  'none of these',
+])
+
 function isQuestionItem(value: unknown): value is QuestionItem {
   if (!isRecord(value)) return false
   if (
@@ -264,8 +278,6 @@ function isQuestionItem(value: unknown): value is QuestionItem {
     return false
   }
   if (typeof value.prompt !== 'string' || value.prompt.trim().length === 0) return false
-  // text questions carry no options; select/confirm require at least one.
-  if (value.type === 'text') return true
   return (
     Array.isArray(value.options) &&
     value.options.length > 0 &&
@@ -273,18 +285,44 @@ function isQuestionItem(value: unknown): value is QuestionItem {
   )
 }
 
+/** Strips agent-supplied catch-all options; null when none remain. */
+function sanitizeQuestionItem(item: QuestionItem): QuestionItem | null {
+  const options = item.options.filter(
+    (option) => !SELF_PROVIDED_OPTION_LABELS.has(option.label.trim().toLowerCase())
+  )
+  if (options.length === 0) return null
+  return options.length === item.options.length ? item : { ...item, options }
+}
+
 /**
  * Parses a `<question>` tag body. Accepts a single question object or a
  * non-empty array of them; single objects are normalized to a one-element
  * array so the renderer only handles the array shape.
  */
+/**
+ * Extracts the last complete `<question>` tag payload from raw message
+ * content. Used by the chat list to pair an assistant question card with the
+ * user message that answered it.
+ */
+export function parseLastQuestionTag(content: string): QuestionTagData | null {
+  const matches = content.match(/<question>([\s\S]*?)<\/question>/g)
+  if (!matches || matches.length === 0) return null
+  const last = matches[matches.length - 1]
+  return parseQuestionTagBody(last.slice('<question>'.length, -'</question>'.length))
+}
+
 export function parseQuestionTagBody(body: string): QuestionTagData | null {
   try {
     const parsed = JSON.parse(body) as unknown
-    if (Array.isArray(parsed)) {
-      return parsed.length > 0 && parsed.every(isQuestionItem) ? parsed : null
+    const items = Array.isArray(parsed) ? parsed : [parsed]
+    if (items.length === 0 || !items.every(isQuestionItem)) return null
+    const sanitized: QuestionItem[] = []
+    for (const item of items) {
+      const clean = sanitizeQuestionItem(item)
+      if (!clean) return null
+      sanitized.push(clean)
     }
-    return isQuestionItem(parsed) ? [parsed] : null
+    return sanitized
   } catch {
     return null
   }
@@ -467,6 +505,8 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
 
 interface SpecialTagsProps {
   segment: Exclude<ContentSegment, { type: 'text' }>
+  /** Transcript-derived answers for this message's question card (renders the recap). */
+  questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
@@ -477,6 +517,7 @@ interface SpecialTagsProps {
  */
 export function SpecialTags({
   segment,
+  questionAnswers,
   onOptionSelect,
   onWorkspaceResourceSelect,
 }: SpecialTagsProps) {
@@ -494,7 +535,9 @@ export function SpecialTags({
     case 'workspace_resource':
       return <WorkspaceResourceDisplay data={segment.data} onSelect={onWorkspaceResourceSelect} />
     case 'question':
-      return <QuestionDisplay data={segment.data} onSelect={onOptionSelect} />
+      return (
+        <QuestionDisplay data={segment.data} answers={questionAnswers} onSelect={onOptionSelect} />
+      )
     default:
       return null
   }
