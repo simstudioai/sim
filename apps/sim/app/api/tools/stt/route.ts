@@ -300,13 +300,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] STT proxy error:`, error)
-    const errorMessage = isPayloadSizeLimitError(error)
+    const isSizeLimit = isPayloadSizeLimitError(error)
+    const errorMessage = isSizeLimit
       ? 'Audio file exceeds the maximum supported size'
       : getErrorMessage(error, 'Unknown error')
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
-    )
+    return NextResponse.json({ error: errorMessage }, { status: isSizeLimit ? 413 : 500 })
   }
 })
 
