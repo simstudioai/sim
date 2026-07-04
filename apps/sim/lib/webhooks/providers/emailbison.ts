@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  type SecureFetchResponse,
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -147,7 +152,14 @@ export const emailBisonHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(emailBisonUrl('/api/webhook-url', {}, apiBaseUrl), {
+    const targetUrl = emailBisonUrl('/api/webhook-url', {}, apiBaseUrl)
+    const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+    if (!urlValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`)
+      throw new Error('Email Bison Instance URL could not be validated.')
+    }
+
+    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
       method: 'POST',
       headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
       body: JSON.stringify({
@@ -211,13 +223,24 @@ export const emailBisonHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(
-        emailBisonUrl(`/api/webhook-url/${encodeURIComponent(externalId)}`, {}, apiBaseUrl),
-        {
-          method: 'DELETE',
-          headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
-        }
+      const targetUrl = emailBisonUrl(
+        `/api/webhook-url/${encodeURIComponent(externalId)}`,
+        {},
+        apiBaseUrl
       )
+      const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+      if (!urlValidation.isValid) {
+        logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`, {
+          webhookId: webhook.id,
+        })
+        if (ctx.strict) throw new Error('Email Bison Instance URL could not be validated.')
+        return
+      }
+
+      const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+        method: 'DELETE',
+        headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
+      })
 
       if (!response.ok && response.status !== 404) {
         const responseBody = await parseJsonResponse(response)
@@ -243,7 +266,9 @@ export const emailBisonHandler: WebhookProviderHandler = {
   },
 }
 
-async function parseJsonResponse(response: Response): Promise<Record<string, unknown> | null> {
+async function parseJsonResponse(
+  response: SecureFetchResponse
+): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await response.json()
     return isRecordLike(body) ? body : null
