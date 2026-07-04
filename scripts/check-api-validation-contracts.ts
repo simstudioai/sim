@@ -9,8 +9,10 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 884,
-  zodRoutes: 884,
+  // 884 -> 885: GET /api/mothership/chats/[chatId]/outputs (contract-bound via
+  // listChatOutputsContract; lists a chat's agent-generated output files).
+  totalRoutes: 885,
+  zodRoutes: 885,
   nonZodRoutes: 0,
 } as const
 
