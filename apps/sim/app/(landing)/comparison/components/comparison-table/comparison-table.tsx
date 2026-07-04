@@ -10,6 +10,29 @@ export interface ComparisonTableProps {
   competitor: CompetitorProfile
 }
 
+/**
+ * Pins the row-label column during horizontal scroll at tablet width and up
+ * (the standard pattern for responsive data tables, e.g. Stripe/GitHub/Notion
+ * comparison tables) so a reader keeps row context while scrolling to see the
+ * Sim/competitor values. Below `sm` the table switches to a stacked layout
+ * instead (see `MOBILE_STACK`), so sticky positioning is scoped to `sm:` only.
+ * The shadow is a permanent CSS-only affordance (no scroll-position JS) so
+ * this stays a zero-hydration server component.
+ */
+const STICKY_LABEL_COL = 'sm:sticky sm:left-0 sm:z-10 sm:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]'
+
+/**
+ * Below `sm` (640px) a 3-column grid has no room to be legible even with a
+ * pinned label column, so each fact instead stacks as label -> Sim's value ->
+ * the competitor's value, with a small name tag on each value since the
+ * column headers are no longer directly above. Applied to the label cell.
+ */
+const MOBILE_STACK_LABEL = 'max-sm:border-r-0 max-sm:border-b-0 max-sm:pt-3 max-sm:pb-1'
+
+/** Applied to a value cell (Sim's or the competitor's) in the stacked mobile layout. */
+const MOBILE_STACK_VALUE =
+  'max-sm:flex-col max-sm:items-start max-sm:gap-0.5 max-sm:border-r-0 max-sm:px-4'
+
 function ColumnHeader({
   name,
   iconTile,
@@ -49,12 +72,16 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
       <div
         role='table'
         aria-label={`Sim vs ${competitor.name} feature comparison`}
-        className='grid min-w-[560px] grid-cols-[minmax(140px,max-content)_1fr_1fr]'
+        className='grid grid-cols-1 sm:min-w-[560px] sm:grid-cols-[minmax(140px,max-content)_1fr_1fr]'
       >
         <div className='contents' role='row'>
           <div
             role='columnheader'
-            className='flex min-w-0 flex-col justify-center border-[var(--border)] border-r border-b bg-[var(--surface-1)] px-4 py-4'
+            className={cn(
+              'flex min-w-0 flex-col justify-center border-[var(--border)] border-r border-b bg-[var(--surface-1)] px-4 py-4',
+              STICKY_LABEL_COL,
+              'max-sm:border-r-0'
+            )}
           >
             <span className='truncate font-medium text-[var(--text-primary)] text-base'>
               Compare
@@ -91,6 +118,8 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                   role='columnheader'
                   className={cn(
                     'border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-2',
+                    STICKY_LABEL_COL,
+                    'max-sm:border-r-0',
                     sectionIdx > 0 && 'border-[var(--border-1)] border-t'
                   )}
                 >
@@ -101,7 +130,7 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                 <div
                   role='presentation'
                   className={cn(
-                    'col-span-2 bg-[var(--surface-1)]',
+                    'col-span-2 bg-[var(--surface-1)] max-sm:hidden',
                     sectionIdx > 0 && 'border-[var(--border-1)] border-t'
                   )}
                 />
@@ -118,27 +147,41 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
                       role='rowheader'
                       className={cn(
                         'flex min-w-0 items-center border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-2.5',
+                        STICKY_LABEL_COL,
+                        MOBILE_STACK_LABEL,
                         isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
-                      <span className='text-[var(--text-body)] text-small'>{row.label}</span>
+                      <span className='text-[var(--text-body)] text-small max-sm:font-medium max-sm:text-[var(--text-primary)]'>
+                        {row.label}
+                      </span>
                     </div>
                     <div
                       role='cell'
                       className={cn(
-                        'flex min-w-0 items-center border-[var(--border)] border-r bg-[var(--surface-2)] px-3 py-2.5',
+                        'flex min-w-0 items-center gap-1 border-[var(--border)] border-r bg-[var(--surface-2)] px-3 py-2.5',
+                        MOBILE_STACK_VALUE,
+                        'max-sm:border-b-0 max-sm:pt-1 max-sm:pb-1',
                         isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
+                      <span className='font-medium text-[var(--text-muted)] text-caption sm:hidden'>
+                        {sim.name}
+                      </span>
                       <FactValue fact={simFact} />
                     </div>
                     <div
                       role='cell'
                       className={cn(
-                        'flex min-w-0 items-center bg-[var(--surface-2)] px-3 py-2.5',
+                        'flex min-w-0 items-center gap-1 bg-[var(--surface-2)] px-3 py-2.5',
+                        MOBILE_STACK_VALUE,
+                        'max-sm:pt-1 max-sm:pb-3',
                         isNotLastRow && 'border-[var(--border-1)] border-b'
                       )}
                     >
+                      <span className='font-medium text-[var(--text-muted)] text-caption sm:hidden'>
+                        {competitor.name}
+                      </span>
                       <FactValue fact={competitorFact} />
                     </div>
                   </div>
