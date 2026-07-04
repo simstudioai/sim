@@ -1,1 +1,5 @@
-export { formatQuestionAnswerMessage, QuestionDisplay } from './question'
+export {
+  formatQuestionAnswerMessage,
+  parseQuestionAnswerMessage,
+  QuestionDisplay,
+} from './question'

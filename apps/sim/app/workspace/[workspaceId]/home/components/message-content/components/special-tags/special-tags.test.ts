@@ -16,8 +16,8 @@ const SINGLE_SELECT = {
   ],
 }
 
-const CONFIRM = {
-  type: 'confirm',
+const YES_NO = {
+  type: 'single_select',
   prompt: 'Delete 4 archived workflows?',
   options: [
     { id: 'yes', label: 'Delete them' },
@@ -25,7 +25,15 @@ const CONFIRM = {
   ],
 }
 
-const TEXT = { type: 'text', prompt: 'What time zone should the daily report run in?' }
+const MULTI_SELECT = {
+  type: 'multi_select',
+  prompt: 'Which channels should the report go to?',
+  options: [
+    { id: 'slack', label: 'Slack' },
+    { id: 'email', label: 'Email' },
+    { id: 'sheet', label: 'Google Sheet' },
+  ],
+}
 
 describe('parseQuestionTagBody', () => {
   it('normalizes a single object body to a one-element array', () => {
@@ -33,12 +41,12 @@ describe('parseQuestionTagBody', () => {
   })
 
   it('preserves array order for multi-step bodies', () => {
-    const parsed = parseQuestionTagBody(JSON.stringify([SINGLE_SELECT, CONFIRM, TEXT]))
-    expect(parsed).toEqual([SINGLE_SELECT, CONFIRM, TEXT])
+    const parsed = parseQuestionTagBody(JSON.stringify([SINGLE_SELECT, YES_NO, MULTI_SELECT]))
+    expect(parsed).toEqual([SINGLE_SELECT, YES_NO, MULTI_SELECT])
   })
 
-  it('accepts text questions without options', () => {
-    expect(parseQuestionTagBody(JSON.stringify(TEXT))).toEqual([TEXT])
+  it('accepts multi_select questions', () => {
+    expect(parseQuestionTagBody(JSON.stringify(MULTI_SELECT))).toEqual([MULTI_SELECT])
   })
 
   it('rejects single_select without options', () => {
@@ -47,16 +55,37 @@ describe('parseQuestionTagBody', () => {
     )
   })
 
-  it('rejects confirm with empty options', () => {
+  it('rejects empty options', () => {
     expect(
-      parseQuestionTagBody(JSON.stringify({ type: 'confirm', prompt: 'Sure?', options: [] }))
+      parseQuestionTagBody(JSON.stringify({ type: 'single_select', prompt: 'Sure?', options: [] }))
     ).toBe(null)
   })
 
-  it('rejects an unknown question type', () => {
-    expect(parseQuestionTagBody(JSON.stringify({ ...SINGLE_SELECT, type: 'multi_select' }))).toBe(
+  it('rejects the removed text and confirm types', () => {
+    expect(parseQuestionTagBody(JSON.stringify({ type: 'text', prompt: 'What time zone?' }))).toBe(
       null
     )
+    expect(parseQuestionTagBody(JSON.stringify({ ...YES_NO, type: 'confirm' }))).toBe(null)
+  })
+
+  it('strips agent-supplied catch-all options (the card provides its own)', () => {
+    const withOther = {
+      ...SINGLE_SELECT,
+      options: [...SINGLE_SELECT.options, { id: 'other', label: 'Something else' }],
+    }
+    expect(parseQuestionTagBody(JSON.stringify(withOther))).toEqual([SINGLE_SELECT])
+  })
+
+  it('rejects a question whose every option is a catch-all', () => {
+    const onlyOther = {
+      type: 'single_select',
+      prompt: 'Pick one',
+      options: [
+        { id: 'a', label: 'Other' },
+        { id: 'b', label: 'None of the above' },
+      ],
+    }
+    expect(parseQuestionTagBody(JSON.stringify(onlyOther))).toBe(null)
   })
 
   it('rejects an empty prompt', () => {
@@ -70,7 +99,9 @@ describe('parseQuestionTagBody', () => {
   })
 
   it('rejects an array containing one invalid question', () => {
-    expect(parseQuestionTagBody(JSON.stringify([TEXT, { type: 'text' }]))).toBe(null)
+    expect(parseQuestionTagBody(JSON.stringify([SINGLE_SELECT, { type: 'single_select' }]))).toBe(
+      null
+    )
   })
 
   it('rejects empty arrays and non-JSON bodies', () => {
@@ -92,9 +123,9 @@ describe('parseSpecialTags with <question>', () => {
   })
 
   it('extracts a multi-step array body as one segment', () => {
-    const content = `<question>${JSON.stringify([SINGLE_SELECT, CONFIRM, TEXT])}</question>`
+    const content = `<question>${JSON.stringify([SINGLE_SELECT, YES_NO, MULTI_SELECT])}</question>`
     const { segments } = parseSpecialTags(content, false)
-    expect(segments).toEqual([{ type: 'question', data: [SINGLE_SELECT, CONFIRM, TEXT] }])
+    expect(segments).toEqual([{ type: 'question', data: [SINGLE_SELECT, YES_NO, MULTI_SELECT] }])
   })
 
   it('flags an unclosed question tag as pending while streaming', () => {
