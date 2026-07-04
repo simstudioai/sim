@@ -55,12 +55,14 @@ function ColumnHeader({
   return (
     <div
       className={cn(
-        'flex flex-col items-center gap-2 border-[var(--border-1)] border-b px-3 py-4 text-center',
+        'flex min-w-0 flex-col items-center gap-2 border-[var(--border-1)] border-b px-3 py-4 text-center',
         isSim ? 'bg-[var(--surface-2)]' : 'bg-[var(--surface-1)]'
       )}
     >
       {iconTile}
-      <span className='font-medium text-[var(--text-primary)] text-base'>{name}</span>
+      <span className='w-full truncate font-medium text-[var(--text-primary)] text-base'>
+        {name}
+      </span>
     </div>
   )
 }
