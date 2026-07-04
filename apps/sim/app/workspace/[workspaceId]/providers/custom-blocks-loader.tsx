@@ -21,22 +21,27 @@ export function CustomBlocksLoader() {
 
   useEffect(() => {
     hydrateClientCustomBlocks(
-      (data ?? []).map((block) =>
-        buildCustomBlockConfig(
-          {
-            type: block.type,
-            name: block.name,
-            description: block.description,
-            workflowId: block.workflowId,
-            exposedOutputs: block.exposedOutputs,
-          },
-          block.inputFields,
-          {
-            icon: getCustomBlockIcon(block.iconUrl),
-            bgColor: block.iconUrl ? 'transparent' : undefined,
-          }
+      // Only enabled blocks are resolvable/executable server-side, so the client
+      // overlay (toolbar, canvas, palette) must exclude disabled ones too — else
+      // the block is offered but every run fails.
+      (data ?? [])
+        .filter((block) => block.enabled)
+        .map((block) =>
+          buildCustomBlockConfig(
+            {
+              type: block.type,
+              name: block.name,
+              description: block.description,
+              workflowId: block.workflowId,
+              exposedOutputs: block.exposedOutputs,
+            },
+            block.inputFields,
+            {
+              icon: getCustomBlockIcon(block.iconUrl),
+              bgColor: block.iconUrl ? 'transparent' : undefined,
+            }
+          )
         )
-      )
     )
   }, [data])
 

@@ -113,7 +113,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     let loadUserId = ctx.userId
     let exposedOutputs: CustomBlockOutput[] = []
     if (isCustomBlock) {
-      const authority = await getCustomBlockAuthority(blockTypeId as string)
+      const authority = await getCustomBlockAuthority(blockTypeId as string, ctx.workspaceId)
       if (!authority) {
         throw new Error('This custom block is no longer available')
       }
@@ -163,7 +163,14 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Child workflow ${workflowId} not found`)
       }
 
-      this.assertChildWorkflowInWorkspace(workflowId, childWorkflow.workspaceId, ctx.workspaceId)
+      // Custom blocks are org-scoped and deliberately cross-workspace: the source
+      // workflow lives in the publisher's workspace, not the consumer's. Their
+      // boundary is the org overlay + `getCustomBlockAuthority`, so the
+      // same-workspace assert (which guards regular workflow blocks) must be
+      // skipped or every custom-block invocation from another workspace throws.
+      if (!isCustomBlock) {
+        this.assertChildWorkflowInWorkspace(workflowId, childWorkflow.workspaceId, ctx.workspaceId)
+      }
 
       childWorkflowName = childWorkflow.name || 'Unknown Workflow'
 

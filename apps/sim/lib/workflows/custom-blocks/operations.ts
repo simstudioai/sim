@@ -140,12 +140,22 @@ export async function getCustomBlockById(id: string) {
  * deletes the workflow → the custom_block row, so there is never an orphaned block.
  * `null` when no enabled block matches the type.
  */
-export async function getCustomBlockAuthority(type: string): Promise<{
+export async function getCustomBlockAuthority(
+  type: string,
+  consumerWorkspaceId: string | undefined
+): Promise<{
   workflowId: string
   organizationId: string
   ownerUserId: string
   exposedOutputs: CustomBlockOutput[]
 } | null> {
+  // Scope resolution to the consumer's org: `(organizationId, type)` is the unique
+  // key, so without the org filter a `custom_block_*` type smuggled in from another
+  // org's serialized workflow could resolve and run that org's block.
+  if (!consumerWorkspaceId) return null
+  const consumerWs = await getWorkspaceWithOwner(consumerWorkspaceId)
+  if (!consumerWs?.organizationId) return null
+
   const [row] = await db
     .select({
       workflowId: customBlock.workflowId,
@@ -156,7 +166,9 @@ export async function getCustomBlockAuthority(type: string): Promise<{
     })
     .from(customBlock)
     .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
-    .where(eq(customBlock.type, type))
+    .where(
+      and(eq(customBlock.type, type), eq(customBlock.organizationId, consumerWs.organizationId))
+    )
     .limit(1)
 
   if (!row || !row.enabled) return null

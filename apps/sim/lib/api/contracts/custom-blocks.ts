@@ -3,6 +3,9 @@ import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primiti
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const inputFieldSchema = z.object({
+  /** Stable per-field id — preserved so client block configs key sub-blocks on it
+   *  (rename-safe wiring) instead of the display name. Absent on legacy fields. */
+  id: z.string().optional(),
   name: z.string(),
   type: z.string(),
   description: z.string().optional(),
