@@ -550,6 +550,7 @@ export async function getUsageCreditsByLogId(
     .select({ id: usageLog.id, cost: usageLog.cost })
     .from(usageLog)
     .where(and(...buildUsageLogConditions(userId, filter)))
+    .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
 
   return apportionCredits(
     rows.map((row) => ({ key: row.id, dollars: Number.parseFloat(row.cost) }))

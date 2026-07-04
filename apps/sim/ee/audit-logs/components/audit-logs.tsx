@@ -297,8 +297,15 @@ export function AuditLogs() {
     }
   }, [debouncedSearch, selectedTypes, timeRange, customStartDate, customEndDate])
 
-  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, refetch } =
-    useAuditLogs(filters)
+  const {
+    data,
+    isLoading,
+    isPlaceholderData,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useAuditLogs(filters)
 
   const allEntries = useMemo(() => {
     if (!data?.pages) return []
@@ -403,7 +410,7 @@ export function AuditLogs() {
           text: 'Export',
           icon: Download,
           onSelect: () => void handleExportCsv(),
-          disabled: allEntries.length === 0 || isExporting,
+          disabled: allEntries.length === 0 || isExporting || isPlaceholderData,
         },
       ]}
     >
