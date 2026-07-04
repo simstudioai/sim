@@ -25,7 +25,7 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import {
@@ -46,6 +46,7 @@ import {
   resolveBatchInsertOrderKeys,
   resolveInsertOrderKey,
 } from '@/lib/table/rows/ordering'
+import { trimRowsToByteBudget } from '@/lib/table/rows/paging'
 import { buildFilterClause, buildSortClause, escapeLikePattern } from '@/lib/table/sql'
 import { fireTableTrigger } from '@/lib/table/trigger'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
@@ -1028,7 +1029,12 @@ export async function queryRows(
           .then((r) => Number(r[0].count))
     : null
 
-  const [rows, totalCount] = await Promise.all([rowsPromise, countPromise])
+  const [fetchedRows, totalCount] = await Promise.all([rowsPromise, countPromise])
+
+  // Dev-preview byte cut (TABLE_MAX_PAGE_BYTES, off by default): clients terminate on
+  // empty page / totalCount, never page fullness, so a short page is safe to return.
+  const maxPageBytes = getMaxPageBytes()
+  const rows = maxPageBytes === null ? fetchedRows : trimRowsToByteBudget(fetchedRows, maxPageBytes)
 
   const executionsByRow = withExecutions
     ? await loadExecutionsByRow(

@@ -310,6 +310,13 @@ export function encodeRfc2047(value: string): string {
 }
 
 /**
+ * Strips CR/LF so a value can't introduce extra lines when placed into a MIME header.
+ */
+export function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ')
+}
+
+/**
  * Encode string or buffer to base64url format (URL-safe base64)
  * Gmail API requires base64url encoding for the raw message field
  */
@@ -432,20 +439,23 @@ export function buildSimpleEmailMessage(params: {
   const boundary = generateBoundary()
   const { plain, html } = buildBodyAlternatives(body, contentType)
 
-  const emailHeaders = ['MIME-Version: 1.0', `To: ${to}`]
+  const emailHeaders = ['MIME-Version: 1.0', `To: ${sanitizeHeaderValue(to)}`]
 
   if (cc) {
-    emailHeaders.push(`Cc: ${cc}`)
+    emailHeaders.push(`Cc: ${sanitizeHeaderValue(cc)}`)
   }
   if (bcc) {
-    emailHeaders.push(`Bcc: ${bcc}`)
+    emailHeaders.push(`Bcc: ${sanitizeHeaderValue(bcc)}`)
   }
 
-  emailHeaders.push(`Subject: ${encodeRfc2047(subject || '')}`)
+  emailHeaders.push(`Subject: ${encodeRfc2047(sanitizeHeaderValue(subject || ''))}`)
 
   if (inReplyTo) {
-    emailHeaders.push(`In-Reply-To: ${inReplyTo}`)
-    const referencesChain = references ? `${references} ${inReplyTo}` : inReplyTo
+    const sanitizedInReplyTo = sanitizeHeaderValue(inReplyTo)
+    emailHeaders.push(`In-Reply-To: ${sanitizedInReplyTo}`)
+    const referencesChain = references
+      ? `${sanitizeHeaderValue(references)} ${sanitizedInReplyTo}`
+      : sanitizedInReplyTo
     emailHeaders.push(`References: ${referencesChain}`)
   }
 
@@ -483,23 +493,28 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
   const messageParts: string[] = []
   const { plain, html } = buildBodyAlternatives(body, contentType)
 
-  messageParts.push(`To: ${to}`)
+  messageParts.push(`To: ${sanitizeHeaderValue(to)}`)
   if (cc) {
-    messageParts.push(`Cc: ${cc}`)
+    messageParts.push(`Cc: ${sanitizeHeaderValue(cc)}`)
   }
   if (bcc) {
-    messageParts.push(`Bcc: ${bcc}`)
+    messageParts.push(`Bcc: ${sanitizeHeaderValue(bcc)}`)
   }
-  messageParts.push(`Subject: ${encodeRfc2047(subject || '')}`)
+  messageParts.push(`Subject: ${encodeRfc2047(sanitizeHeaderValue(subject || ''))}`)
 
-  if (inReplyTo) {
-    messageParts.push(`In-Reply-To: ${inReplyTo}`)
+  const sanitizedInReplyTo = inReplyTo ? sanitizeHeaderValue(inReplyTo) : undefined
+  const sanitizedReferences = references ? sanitizeHeaderValue(references) : undefined
+
+  if (sanitizedInReplyTo) {
+    messageParts.push(`In-Reply-To: ${sanitizedInReplyTo}`)
   }
-  if (references) {
-    const referencesChain = inReplyTo ? `${references} ${inReplyTo}` : references
+  if (sanitizedReferences) {
+    const referencesChain = sanitizedInReplyTo
+      ? `${sanitizedReferences} ${sanitizedInReplyTo}`
+      : sanitizedReferences
     messageParts.push(`References: ${referencesChain}`)
-  } else if (inReplyTo) {
-    messageParts.push(`References: ${inReplyTo}`)
+  } else if (sanitizedInReplyTo) {
+    messageParts.push(`References: ${sanitizedInReplyTo}`)
   }
 
   messageParts.push('MIME-Version: 1.0')
@@ -518,8 +533,10 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
 
     for (const attachment of attachments) {
       messageParts.push(`--${mixedBoundary}`)
-      messageParts.push(`Content-Type: ${attachment.mimeType}`)
-      messageParts.push(`Content-Disposition: attachment; filename="${attachment.filename}"`)
+      messageParts.push(`Content-Type: ${sanitizeHeaderValue(attachment.mimeType)}`)
+      messageParts.push(
+        `Content-Disposition: attachment; filename="${sanitizeHeaderValue(attachment.filename)}"`
+      )
       messageParts.push('Content-Transfer-Encoding: base64')
       messageParts.push('')
 

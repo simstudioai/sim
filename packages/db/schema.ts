@@ -3699,8 +3699,13 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-// ─── Sim Academy ─────────────────────────────────────────────────────────────
-
+/**
+ * The application code that read/wrote this table (Academy) was removed in
+ * the same PR that would have dropped it here — deferred to a follow-up PR
+ * once that removal has actually shipped, per the expand/contract migration
+ * safety check (`check:migrations`), since a same-deploy drop would break
+ * any pod still running the old code during a rolling deploy.
+ */
 export const academyCertStatusEnum = pgEnum('academy_cert_status', ['active', 'revoked', 'expired'])
 
 /** Partner certification records issued on course completion */

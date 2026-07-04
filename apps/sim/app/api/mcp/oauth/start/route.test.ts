@@ -17,8 +17,10 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMcpAuth } = vi.hoisted(() => ({
+const { mockMcpAuth, mockCreateSsrfGuardedMcpFetch, mockGuardedFetch } = vi.hoisted(() => ({
   mockMcpAuth: vi.fn(),
+  mockCreateSsrfGuardedMcpFetch: vi.fn(),
+  mockGuardedFetch: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -30,6 +32,9 @@ vi.mock('drizzle-orm', () => ({
 }))
 vi.mock('@modelcontextprotocol/sdk/client/auth.js', () => ({
   auth: mockMcpAuth,
+}))
+vi.mock('@/lib/mcp/pinned-fetch', () => ({
+  createSsrfGuardedMcpFetch: mockCreateSsrfGuardedMcpFetch,
 }))
 vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
@@ -73,6 +78,21 @@ describe('MCP OAuth start route', () => {
     })
     mcpOauthMockFns.mockLoadPreregisteredClient.mockResolvedValue(undefined)
     mockMcpAuth.mockRejectedValue(new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize'))
+    mockCreateSsrfGuardedMcpFetch.mockReturnValue(mockGuardedFetch)
+  })
+
+  it('routes OAuth discovery through the SSRF-guarded fetch', async () => {
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
+    )
+
+    await GET(request)
+
+    expect(mockCreateSsrfGuardedMcpFetch).toHaveBeenCalledTimes(1)
+    expect(mockMcpAuth).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ serverUrl: 'https://mcp.exa.ai/mcp', fetchFn: mockGuardedFetch })
+    )
   })
 
   it('requires workspace write permission via MCP auth middleware', async () => {

@@ -237,6 +237,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^4.1.0",
     "autoprefixer": "10.4.21",
+    "critters": "0.0.25",
     "jsdom": "^26.0.0",
     "postcss": "^8",
     "react-email": "4.3.2",

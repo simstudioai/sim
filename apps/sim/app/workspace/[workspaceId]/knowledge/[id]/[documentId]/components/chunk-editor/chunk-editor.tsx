@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { handleKeyboardActivation, Label, Switch } from '@sim/emcn'
+import { handleKeyboardActivation, Label, Switch, toast } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
@@ -59,6 +59,7 @@ export function ChunkEditor({
 
   const [editedContent, setEditedContent] = useState(isCreateMode ? '' : chunkContent)
   const [savedContent, setSavedContent] = useState(chunkContent)
+  const validationToastIdRef = useRef<string | null>(null)
   const [tokenizerOn, setTokenizerOn] = useState(false)
   const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
   const savedContentRef = useRef(chunkContent)
@@ -108,8 +109,18 @@ export function ChunkEditor({
   const handleSave = useCallback(async () => {
     const content = editedContentRef.current
     const trimmed = content.trim()
-    if (trimmed.length === 0) throw new Error('Content cannot be empty')
-    if (trimmed.length > 10000) throw new Error('Content exceeds maximum length')
+    /** Toast every failed attempt, replacing the previous validation toast so retries refresh instead of stack. */
+    const failValidation = (message: string): never => {
+      if (validationToastIdRef.current) toast.dismiss(validationToastIdRef.current)
+      validationToastIdRef.current = toast.error(message)
+      throw new Error(message)
+    }
+    if (trimmed.length === 0) failValidation('Content cannot be empty')
+    if (trimmed.length > 10000) failValidation('Content exceeds maximum length (10,000 characters)')
+    if (validationToastIdRef.current) {
+      toast.dismiss(validationToastIdRef.current)
+      validationToastIdRef.current = null
+    }
 
     if (isCreateMode) {
       const created = await createChunk({
