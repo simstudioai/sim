@@ -194,8 +194,8 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
               <Calendar
                 mode='range'
                 showTime
-                startDate={startDate}
-                endDate={endDate}
+                startDate={startDate ?? undefined}
+                endDate={endDate ?? undefined}
                 onRangeChange={handleDateRangeApply}
                 onCancel={handleDatePickerCancel}
               />

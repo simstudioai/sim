@@ -7,12 +7,14 @@ import { usageLogPeriodSchema } from '@/lib/api/contracts/user'
  * - `period` shares its literal values with {@link usageLogPeriodSchema} so
  *   the URL parser can never drift from the API contract it filters.
  * - `startDate`/`endDate` are the applied custom range bounds, only
- *   meaningful when `period` is `'custom'`.
+ *   meaningful when `period` is `'custom'`. No static default makes sense for
+ *   them, so they're left nullable rather than defaulted to `''` — matching
+ *   the equivalent fields in the main Logs page's search-params.ts.
  */
 export const creditUsageParsers = {
   period: parseAsStringLiteral(usageLogPeriodSchema.options).withDefault('30d'),
-  startDate: parseAsString.withDefault(''),
-  endDate: parseAsString.withDefault(''),
+  startDate: parseAsString,
+  endDate: parseAsString,
 } as const
 
 /** Filter view-state: clean URLs, no back-stack churn. */
