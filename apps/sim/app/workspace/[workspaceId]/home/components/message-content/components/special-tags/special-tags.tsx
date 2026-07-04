@@ -97,7 +97,7 @@ export interface FileTagData {
   content: string
 }
 
-export const QUESTION_TYPES = ['single_select'] as const
+export const QUESTION_TYPES = ['single_select', 'multi_select'] as const
 
 export type QuestionType = (typeof QUESTION_TYPES)[number]
 
@@ -107,10 +107,10 @@ export interface QuestionOption {
 }
 
 /**
- * One question in a `<question>` tag: a single_select with at least one real
- * option. The card always appends its own free-text "Something else" row, so
- * agent-supplied catch-all options ("Other", "Something else", ...) are
- * stripped during parsing.
+ * One question in a `<question>` tag: a single_select or multi_select with at
+ * least one real option. The card always appends its own free-text "Something
+ * else" row, so agent-supplied catch-all options ("Other", "Something else",
+ * ...) are stripped during parsing.
  */
 export interface QuestionItem {
   type: QuestionType
