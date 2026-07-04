@@ -39,7 +39,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   return (
     <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/TechArticle'>
       <JsonLd data={graphJsonLd} />
-      <header className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+      <header className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
         <div className='mb-6'>
           <BackLink href='/blog' label='Back to Blog' />
         </div>
@@ -118,7 +118,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
       <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-      <div className='mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'>
+      <div className='mx-auto w-full max-w-[1460px] px-20 max-sm:px-5 max-lg:px-8'>
         <div className='border-[var(--border)] border-x'>
           <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
             <div className='prose prose-lg max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--border)] prose-headings:font-season prose-a:text-[var(--text-primary)] prose-blockquote:text-[var(--text-muted)] prose-code:text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-li:text-[var(--text-body)] prose-p:text-[var(--text-body)] prose-strong:text-[var(--text-primary)] prose-headings:tracking-[-0.02em]'>

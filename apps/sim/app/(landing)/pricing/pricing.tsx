@@ -51,7 +51,7 @@ export default function Pricing() {
       <section
         id='pricing'
         aria-labelledby='pricing-heading'
-        className='mx-auto flex w-full max-w-[1446px] flex-col gap-7 px-12 pt-8 max-sm:px-5 max-lg:px-8'
+        className='mx-auto flex w-full max-w-[1460px] flex-col gap-7 px-20 pt-8 max-sm:px-5 max-lg:px-8'
       >
         <PricingPlans heading={PRICING_HEADING} />
       </section>

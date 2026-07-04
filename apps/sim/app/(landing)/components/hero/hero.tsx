@@ -1,57 +1,60 @@
-import { chipBorderShadowRing, cn } from '@sim/emcn'
-import { HeroVisual } from '@/app/(landing)/components/hero/components/hero-visual/hero-visual'
+import Image from 'next/image'
+import { HeroPlatformLoop } from '@/app/(landing)/components/hero/components/hero-platform-loop'
+import { HeroStat } from '@/app/(landing)/components/hero/components/hero-stat'
 import { HeroCta } from '@/app/(landing)/components/hero-cta'
 import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 
 /**
  * Landing hero - the only `<h1>` on the page.
  *
- * The section is the relative positioning context for two absolute panels that
- * split the viewport down the middle - a visual panel on the right, a
- * customer-logo block on the left - over a left-aligned text column.
+ * A single stacked flow (no split panels): headline and the sign-up row sit
+ * left-aligned at the top; below them a full-width media frame
+ * previews the platform UI; the customer-logo row closes the section centered
+ * underneath. The section is capped and centered at the shared `max-w-[1460px]`
+ * (`mx-auto`) with the `px-20 max-lg:px-8 max-sm:px-5` gutter so the headline
+ * starts on the navbar wordmark's vertical line.
  *
- * The section is capped and centered at the shared `max-w-[1446px]` (`mx-auto`)
- * - 1350px content plus the two 48px gutters - so on wide screens the whole hero
- * (text column and both absolute panels, which anchor to this box) stays
- * contained and centered rather than stretching edge to edge.
- *
- * Text column (top → bottom, left-aligned): 112px top padding, headline,
- * description, then the sign-up row. Horizontal padding (`px-12`) matches the
- * navbar so the hero text starts on the same vertical line as the wordmark;
- * blocks are stacked a uniform 22px apart (`gap-[22px]`).
+ * Text blocks stack a uniform 22px apart (`gap-[22px]`); the media frame and
+ * logo row carry their own larger top margins to read as separate bands.
  *
  * The sign-up row is the shared {@link HeroCta} - the single source of truth for
  * the email-capture bar and the "Book a demo" / "Sign up" chips - reused
  * verbatim by every platform and solutions hero so the primary CTA never drifts.
  *
- * The headline is split across two lines with a hard break; the reading-order
- * text content is unaffected.
+ * The media frame: the painted landscape backdrop (`hero-backdrop.jpg`,
+ * rendered via `next/image` `fill` + `object-cover` with `priority` - it is the
+ * LCP element) behind a white window (a soft three-part shadow stack:
+ * `0 0 0 1px rgba(0,0,0,0.08)` ring in place of a CSS border, plus
+ * `0 2px 6px rgba(0,0,0,0.05)` contact and `0 4px 42px rgba(0,0,0,0.06)`
+ * ambient shadows; no browser toolbar) filled edge to edge by the REAL
+ * platform UI - a 2x
+ * screenshot (`hero-platform-ui.png`, 2560x1470: a 1280x735 layout shown in
+ * the 1080x620 window, so the UI reads at 84.4% - the "mini app" type scale
+ * cursor.com's demo window uses) of the chat-everywhere two-pane (seeded
+ * Mothership chat left, staged workflow right) captured from the
+ * `readme-tour-capture` route via
+ * `exports/readme-banner/capture-hero-platform.mjs`. The window is
+ * `rounded-[10px]` - matching cursor.com's demo window - and the shot's
+ * workspace container renders at the concentric inner radius `4px` (outer
+ * 10px - 6px gap; overridden at capture time from the chrome's 8px). Only the
+ * SIDEBAR
+ * remains visible from the shot: the {@link HeroPlatformLoop} island overlays
+ * the container interior (full-width chat that stages the workflow pane in,
+ * replaying the conversation with the goo ThinkingLoader; blocks stay
+ * draggable), inset a hair INSIDE the shot's own baked outlines so the visible
+ * chrome is the real UI's pixels - never re-drawn.
+ * The frame is `1300/720` and the window `1080/620` at `83.08%` width, centered
+ * - matching cursor.com's hero media proportions, with backdrop showing on all
+ * four sides. Decorative, `aria-hidden`; the `--surface-3` fill remains as the
+ * loading fallback under the backdrop.
  *
- * The section fills one fold - `calc(100vh-62px)`, the viewport minus the 62px
- * navbar - but capped at `960px` (`h-[min(…)]`) so on very tall monitors the
- * panels and bottom-anchored logos stay proportioned instead of stretching; the
- * two absolute panels anchor to its top and bottom.
+ * The headline/CTA column shares its row with the right-aligned
+ * {@link HeroStat} (the "Global work done by Sim" figure with its vertical
+ * progress rail and staggered page-load entrance), hidden below `lg` where
+ * the row has no room.
  *
- * The right-hand visual panel holds the {@link HeroVisual} - a looping,
- * `aria-hidden` product demo and the page's only client island. It is absolutely
- * positioned against the section: its left edge sits at the screen center
- * (`left-1/2`) and its right edge at the hero's right padding (`right-12`), so
- * its width is the right half. Vertically it is inset a uniform 32px from the
- * section's top and bottom (`top-8 bottom-8`) - equal breathing room above and
- * below, extending past the text column's 112px lines so the panel reads as the
- * taller media surface. Below `xl` the split collapses and the panel goes in-flow
- * (`max-xl:static`) with a stable aspect ratio so the stacked hero never shifts.
- * Chrome is the `border-shadow` chip surface - a `rounded-lg` panel on
- * `--surface-2` carrying the shared {@link chipBorderShadowRing} (a 1px hairline
- * ring plus a soft drop shadow); `overflow-hidden` clips the visual to the radius.
- *
- * The shared {@link TrustedBy} block (the muted "Trusted by technical teams at"
- * label above the customer-logo grid) sits in a bottom-anchored panel that
- * mirrors the visual panel on the left half (`left-12` → `right-1/2`, same
- * `top-8 bottom-8` frame). `flex flex-col justify-end` pins it to the bottom of
- * that frame, so the logos' bottom edge lines up exactly with the visual panel's
- * bottom edge (both rest on the shared `bottom-8` line). The frame overlays the
- * text column, so it is `pointer-events-none`.
+ * The shared {@link TrustedBy} block renders in its `row` layout - a centered
+ * muted label above a single centered row of bare wordmarks.
  *
  * Carries the sr-only ~50-word product summary for AI citation (CLAUDE.md → GEO).
  */
@@ -60,7 +63,7 @@ export function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='relative mx-auto flex h-[min(calc(100vh-62px),960px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left max-sm:px-5 max-sm:pt-12 max-lg:px-8 max-xl:h-auto max-xl:gap-5 max-xl:pt-20 max-xl:pb-4'
+      className='mx-auto flex w-full max-w-[1460px] flex-col items-start gap-[22px] px-20 pt-[112px] text-left max-sm:px-5 max-sm:pt-12 max-lg:px-8 max-xl:pt-20'
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
@@ -69,34 +72,55 @@ export function Hero() {
         production-ready for teams of every size.
       </p>
 
-      <h1
-        id='hero-heading'
-        className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] max-sm:text-[32px] max-xl:text-wrap max-xl:text-[40px] [&>br]:max-xl:hidden'
-      >
-        Sim is the AI workspace <br />
-        for agentic workflows.
-      </h1>
+      <div className='flex w-full items-end justify-between gap-8'>
+        <div className='flex flex-col gap-[22px]'>
+          <h1
+            id='hero-heading'
+            className='text-balance text-[64px] text-[var(--text-primary)] leading-[1.05] tracking-[-0.01em] max-sm:text-[36px] max-xl:text-[52px] [&>br]:max-sm:hidden'
+          >
+            Sim is your AI workspace <br />
+            for building agentic workflows.
+          </h1>
 
-      <p className='text-[var(--text-body)] text-lg leading-[1.5] max-sm:text-md [&>br]:max-xl:hidden'>
-        The open-source workspace to build, deploy <br /> and manage AI agents and workflows.
-      </p>
+          <p className='text-[var(--text-muted)] text-base leading-[1.5]'>
+            The open-source workspace where teams build, deploy, and manage AI agents.
+          </p>
 
-      <HeroCta />
+          <HeroCta />
+        </div>
+
+        <HeroStat />
+      </div>
 
       <div
         aria-hidden='true'
-        className={cn(
-          'absolute top-8 right-12 bottom-8 left-1/2 overflow-hidden rounded-lg bg-[var(--surface-2)]',
-          chipBorderShadowRing,
-          'max-sm:mt-3 max-sm:aspect-[5/4] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full'
-        )}
+        className='relative mt-[34px] aspect-[1300/720] w-full overflow-hidden rounded-lg bg-[var(--surface-3)] max-sm:aspect-[4/3]'
       >
-        <HeroVisual />
+        <Image
+          src='/landing/hero-backdrop.jpg'
+          alt=''
+          fill
+          priority
+          quality={90}
+          sizes='(max-width: 1460px) 100vw, 1300px'
+          className='object-cover'
+        />
+        <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex aspect-[1080/620] w-[83.08%] flex-col overflow-hidden rounded-[10px] bg-[var(--surface-1)] shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_6px_0_rgba(0,0,0,0.05),0_4px_42px_0_rgba(0,0,0,0.06)]'>
+          <div className='relative flex-1'>
+            <Image
+              src='/landing/hero-platform-ui.png'
+              alt=''
+              fill
+              priority
+              sizes='(max-width: 1460px) 83vw, 1080px'
+              className='object-cover object-top-left'
+            />
+            <HeroPlatformLoop />
+          </div>
+        </div>
       </div>
 
-      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end max-sm:mt-8 max-xl:static max-xl:mt-10 max-xl:w-full'>
-        <TrustedBy />
-      </div>
+      <TrustedBy layout='row' className='mt-[42px] w-full max-sm:mt-6' />
     </section>
   )
 }

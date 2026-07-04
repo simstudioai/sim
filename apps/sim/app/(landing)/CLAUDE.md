@@ -18,11 +18,11 @@ The landing page looks like the product. Its visual language is the workspace UI
 - **Never touch global styles.** No additions to `app/_styles/globals.css`. All styling is local Tailwind classes; `cn()` from `@/lib/core/utils/cn` for conditionals; no inline `style` attributes.
 - **Responsive - desktop is the source of truth, scaled down via `max-*` overrides.** The page is fully responsive (iPad + phone). The desktop layout stays the unprefixed baseline; smaller screens are handled by *layering* `max-*` overrides on top, so desktop renders byte-identically. Tiers:
   - `max-xl:` (≤1279) - the hero's two-panel split (absolute visual + logos) collapses to a stacked, in-flow column. The split needs ≥1280 to avoid the headline colliding with the visual panel; iPad-landscape (1024) therefore gets the stacked hero with the desktop nav.
-  - `max-lg:` (≤1023) - the desktop nav clusters hide (`hidden lg:flex`) and `MobileNav` (hamburger sheet) takes over; multi-column grids step down (mothership 4→2, footer 7→3); shared gutter `px-12 → max-lg:px-8`; section gaps tighten.
+  - `max-lg:` (≤1023) - the desktop nav clusters hide (`hidden lg:flex`) and `MobileNav` (hamburger sheet) takes over; multi-column grids step down (mothership 4→2, footer 7→3); shared gutter `px-20 → max-lg:px-8`; section gaps tighten.
   - `max-md:` (≤767) - Features beats drop the floating callout (`max-md:hidden`) and show the un-masked backdrop preview full-width.
   - `max-sm:` (≤639) - single-column grids, smallest type scale, `px-5` gutter, hero CTA row stacks.
 
-  When adding a new section, give it the same `px-12 max-lg:px-8 max-sm:px-5` gutter so the navbar wordmark stays aligned with section content at every width. Verify desktop is unchanged and there is zero horizontal overflow at 1280 / 1024 / 768 / 390 before shipping.
+  When adding a new section, give it the same `px-20 max-lg:px-8 max-sm:px-5` gutter so the navbar wordmark stays aligned with section content at every width. Verify desktop is unchanged and there is zero horizontal overflow at 1280 / 1024 / 768 / 390 before shipping.
 
 ## Performance - page speed is a feature
 

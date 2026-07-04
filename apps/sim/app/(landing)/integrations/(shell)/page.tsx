@@ -168,7 +168,7 @@ export default async function IntegrationsPage({
       <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
-      <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+      <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
         <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
           <h1
             id='integrations-heading'
@@ -187,8 +187,8 @@ export default async function IntegrationsPage({
       <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
       {/* Border-railed content */}
-      <div className='mx-auto w-full max-w-[1446px]'>
-        <div className='mx-12 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+      <div className='mx-auto w-full max-w-[1460px]'>
+        <div className='mx-20 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
           {/* Featured integrations - top */}
           {featured.length > 0 && (
             <>

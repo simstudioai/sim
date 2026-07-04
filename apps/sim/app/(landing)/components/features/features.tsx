@@ -1,102 +1,104 @@
-import {
-  CalloutFrame,
-  FeatureStage,
-} from '@/app/(landing)/components/features/components/feature-stage/feature-stage'
+import { CalloutFrame } from '@/app/(landing)/components/features/components/callout-frame'
+import { FeatureCard } from '@/app/(landing)/components/features/components/feature-card'
 import { FormationGraph } from '@/app/(landing)/components/features/components/formation-graph/formation-graph'
 import { IntegrationsCallout } from '@/app/(landing)/components/features/components/integrations-callout/integrations-callout'
 import { KnowledgeCallout } from '@/app/(landing)/components/features/components/knowledge-callout/knowledge-callout'
 import { LogsTablePreview } from '@/app/(landing)/components/features/components/logs-table-preview'
 
-/** Static callouts are hoisted so each keeps a stable element identity. */
-const INTEGRATIONS_CALLOUT = <IntegrationsCallout />
-const KNOWLEDGE_CALLOUT = <KnowledgeCallout />
-const FORMATION_CALLOUT = <FormationGraph />
-const MONITOR_CALLOUT = (
-  <CalloutFrame className='w-[480px]' bodyClassName='h-[300px]' fade>
-    <LogsTablePreview />
-  </CalloutFrame>
-)
+/**
+ * The shared backdrop painting behind a card's floating callout - the default
+ * for beats without their own art (Integrate carries a dedicated backdrop).
+ */
+const CARD_BACKDROP = '/landing/hero-backdrop.jpg'
 
 /**
  * Landing features - how Sim works, as a platform lifecycle. Four beats, in the
  * order you actually use Sim: bring your tools in (Integrate), give it data to
  * reason over (Context), build the agent logic (Build), then watch it run
- * (Monitor). Each beat uses one shared {@link FeatureStage} template: a copy
- * block over a static, edge-faded platform backdrop with an elevated real-UI
- * callout floating on the left.
+ * (Monitor). Each beat is a Cursor-style {@link FeatureCard}: one large
+ * outlined card holding a media stage (backdrop painting + elevated real-UI
+ * callout) and a copy column, with the media side alternating card to card.
  *
  * The section's `<h2>` is `sr-only` - each beat carries its own visible `<h3>`,
  * so the section heading exists only to anchor the heading hierarchy and give AI
  * crawlers an atomic summary.
  *
  * Inter-section spacing is owned by the `<main>` flex `gap` in `landing.tsx`;
- * this section carries no vertical padding. Horizontal padding (`px-12`) matches
- * the navbar and hero; the section is capped and centered at the shared
- * `max-w-[1446px]`.
+ * this section carries no vertical padding. The section itself is FULL-WIDTH so
+ * its bottom rule can bleed to the browser edges; the card grid inside carries
+ * the shared gutter (`px-20`) and the `max-w-[1460px]` cap. The last card
+ * squares its bottom corners (`flushBottom`) and sits exactly on the rule, so
+ * its outline merges into the full-bleed divider.
  *
- * The four beats sit in a one-column grid that, like the rest of the page,
- * scales down via `max-*` overrides. From `xl` up (and through the 1024-1279
- * band) they stay a single full-width column on the 120px inter-section rhythm,
- * so a beat break reads identically to a section break. At and below `lg`
- * (≤1023) they reflow into a compact 2x2 grid; on phones (≤639) they drop back to
- * a single column. {@link FeatureStage} hides its floating callout and drops its
- * edge masks at the same `lg` breakpoint, so each grid cell shows the un-masked
- * preview under its copy.
+ * The cards stack in a single column at every width on a 112px rhythm
+ * (matching Cursor's spacing between feature cards). Below `lg` each card
+ * internally reflows media-over-copy.
  *
  * Per-beat icons are still abstract placeholders (text eyebrows); distinct
  * abstract glyphs land in a later pass.
  */
 export function Features() {
   return (
-    <section
-      id='features'
-      aria-labelledby='features-heading'
-      className='relative mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'
-    >
+    <section id='features' aria-labelledby='features-heading' className='relative w-full'>
       <h2 id='features-heading' className='sr-only'>
         Integrate your tools, give Sim context, build agents, and monitor every run.
       </h2>
 
-      <div className='grid grid-cols-1 gap-[120px] max-sm:grid-cols-1 max-sm:gap-16 max-lg:grid-cols-2 max-lg:gap-x-8 max-lg:gap-y-12'>
+      <div className='mx-auto grid w-full max-w-[1460px] grid-cols-1 gap-28 px-20 max-sm:gap-12 max-sm:px-5 max-lg:px-8'>
         {/* Integrate: bring your stack in. */}
-        <FeatureStage
+        <FeatureCard
           eyebrow='Integrate'
           title='Connect the tools your work runs on.'
           description='Plug in 1,000+ integrations like Slack, HubSpot, Salesforce, and Notion, so Sim agents act across the stack you already use.'
-          view='workflow'
-          workflowId='wf-self-healing-crm'
-          callout={INTEGRATIONS_CALLOUT}
-        />
+          href='/integrations'
+          linkLabel='Explore integrations'
+          backdropSrc='/landing/feature-integrate-backdrop.jpg'
+        >
+          <IntegrationsCallout />
+        </FeatureCard>
 
         {/* Context: store data semantically. */}
-        <FeatureStage
+        <FeatureCard
           eyebrow='Context'
           title='Give Sim data it can reason over.'
           description='Sim stores your data semantically in tables, files, and knowledge bases your agents read from to ground every answer in your own data.'
-          view='tables'
-          callout={KNOWLEDGE_CALLOUT}
-        />
+          backdropSrc='/landing/feature-context-backdrop.jpg'
+          mediaSide='right'
+        >
+          <KnowledgeCallout />
+        </FeatureCard>
 
         {/* Build: wire agent logic in the visual builder. */}
-        <FeatureStage
+        <FeatureCard
           eyebrow='Build'
           title='Build agents that solve real problems.'
           description='Wire blocks, models, and integrations into agent logic on a visual builder, from one agent to many working in parallel.'
-          view='workflow'
-          workflowId='wf-customer-support'
-          callout={FORMATION_CALLOUT}
-        />
+          href='/workflows'
+          linkLabel='Explore the workflow builder'
+          backdropSrc={CARD_BACKDROP}
+        >
+          <FormationGraph />
+        </FeatureCard>
 
         {/* Monitor: watch every run. */}
-        <FeatureStage
+        <FeatureCard
           eyebrow='Monitor'
           title='Watch every run, end to end.'
           description='Trace each run block by block, with full logs and the real cost, so you always know what ran and why.'
-          view='workflow'
-          workflowId='wf-it-service'
-          callout={MONITOR_CALLOUT}
-        />
+          backdropSrc={CARD_BACKDROP}
+          mediaSide='right'
+          flushBottom
+        >
+          <CalloutFrame className='w-[480px]' bodyClassName='h-[300px]' fade>
+            <LogsTablePreview />
+          </CalloutFrame>
+        </FeatureCard>
       </div>
+
+      {/* Full-bleed rule the last card's squared bottom edge merges into -
+          spans the whole browser, past the content cap and gutter (the section
+          itself is full-width; only the card grid above is capped). */}
+      <div aria-hidden='true' className='absolute inset-x-0 bottom-0 h-px bg-[var(--border)]' />
     </section>
   )
 }
