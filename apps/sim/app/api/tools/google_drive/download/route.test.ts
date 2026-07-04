@@ -133,6 +133,30 @@ describe('POST /api/tools/google_drive/download', () => {
     expect(data.success).toBe(false)
   })
 
+  it('proceeds to the streamed download when metadata size is malformed', async () => {
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'file-abc',
+          name: 'report.pdf',
+          mimeType: 'application/pdf',
+          size: 'not-a-number',
+          capabilities: { canReadRevisions: false },
+        })
+      )
+      .mockResolvedValueOnce(fileResponse(1024))
+
+    const response = await POST(createMockRequest('POST', baseBody))
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as { success: boolean; output: { file: { size: number } } }
+    expect(data.success).toBe(true)
+    expect(data.output.file.size).toBe(1024)
+
+    // The early size check should be skipped, but the streaming cap must still apply.
+    const downloadCall = mockSecureFetchWithPinnedIP.mock.calls[1]
+    expect(downloadCall[2]).toMatchObject({ maxResponseBytes: MAX_FILE_SIZE })
+  })
+
   it('does not require a metadata size for Google Workspace exports', async () => {
     mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(
