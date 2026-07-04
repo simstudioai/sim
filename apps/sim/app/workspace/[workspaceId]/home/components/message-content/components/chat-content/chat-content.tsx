@@ -356,9 +356,34 @@ function ChatContentInner({
    * re-fade the entire already-visible message.
    */
   const streamedThisSession = useRef(false)
+  const [animationDrained, setAnimationDrained] = useState(false)
+  const fadeCutoffRef = useRef(false)
+
+  /**
+   * The per-session latches above outlive the content when React reuses this
+   * instance for a different logical message — parent rows key by turn
+   * position and text segments by run ordinal (both deliberately stable across
+   * the live→persisted id swap), so an ordinal shift or regeneration can hand
+   * a settled instance brand-new content whose stale `animationDrained` would
+   * silently render the new stream static. Reset the latches when the content
+   * is REPLACED (not an append of the previous string) after the instance has
+   * settled. A resumed turn only ever appends, so this never undoes the
+   * one-way drain; mid-stream sanitize rewrites are excluded by the
+   * `animationDrained` gate (the drain only fires after settle).
+   */
+  const prevDisplayContentRef = useRef(displayContent)
+  if (prevDisplayContentRef.current !== displayContent) {
+    const replaced = !displayContent.startsWith(prevDisplayContentRef.current)
+    prevDisplayContentRef.current = displayContent
+    if (replaced && animationDrained) {
+      streamedThisSession.current = false
+      fadeCutoffRef.current = false
+      setAnimationDrained(false)
+    }
+  }
+
   if (isStreaming) streamedThisSession.current = true
 
-  const [animationDrained, setAnimationDrained] = useState(false)
   useEffect(() => {
     if (isRevealing || animationDrained || !streamedThisSession.current) return
     const timeout = setTimeout(() => setAnimationDrained(true), ANIMATION_DRAIN_MS)
@@ -373,7 +398,6 @@ function ChatContentInner({
    * `animated` — a fresh animate plugin has no prev-content tracking and would
    * re-fade the entire visible segment.
    */
-  const fadeCutoffRef = useRef(false)
   if (streamedContent.length > FADE_MAX_REVEALED_CHARS) fadeCutoffRef.current = true
   const fadeActive = streamingTree && !fadeCutoffRef.current
 
