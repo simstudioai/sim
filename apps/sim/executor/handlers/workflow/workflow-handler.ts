@@ -336,6 +336,19 @@ export class WorkflowBlockHandler implements BlockHandler {
     } catch (error: unknown) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
+      // Custom blocks are an invocation boundary: on failure the consumer must not
+      // see the source workflow's name, nested error text (which names internal
+      // blocks), trace spans, or execution result — the success path hides all of
+      // these too. The real error is logged above for the publisher/ops; the
+      // consumer gets only a generic failure attributed to the block they placed.
+      if (isCustomBlock) {
+        throw new ChildWorkflowError({
+          message: 'Custom block execution failed',
+          childWorkflowName: block.metadata?.name || 'Custom block',
+          childWorkflowInstanceId: instanceId,
+        })
+      }
+
       let childTraceSpans: WorkflowTraceSpan[] = []
       let executionResult: ExecutionResult | undefined
 
