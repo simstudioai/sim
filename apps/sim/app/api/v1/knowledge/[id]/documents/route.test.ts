@@ -66,6 +66,28 @@ function buildFormData(file: File, workspaceId = 'ws-1'): FormData {
   return formData
 }
 
+/**
+ * Builds a pull-based stream that emits fixed-size chunks on demand, so the
+ * size-capped reader's `reader.cancel()` simply stops future `pull` calls
+ * instead of racing an external (e.g. undici FormData) chunk producer.
+ */
+function makeChunkedOverLimitBody(
+  chunkBytes: number,
+  chunkCount: number
+): ReadableStream<Uint8Array> {
+  let emitted = 0
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (emitted >= chunkCount) {
+        controller.close()
+        return
+      }
+      emitted++
+      controller.enqueue(new Uint8Array(chunkBytes))
+    },
+  })
+}
+
 describe('v1 knowledge document upload route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -108,11 +130,12 @@ describe('v1 knowledge document upload route', () => {
   })
 
   it('rejects a chunked body without content-length once the streamed size trips the cap', async () => {
-    const bigFile = new File(['x'.repeat(200 * 1024 * 1024)], 'file.txt', { type: 'text/plain' })
-    const formData = buildFormData(bigFile)
+    const body = makeChunkedOverLimitBody(1024 * 1024, 200)
     const req = new NextRequest('http://localhost:3000/api/v1/knowledge/kb-1/documents', {
       method: 'POST',
-      body: formData,
+      body,
+      // @ts-expect-error - duplex is required by undici for streamed bodies but missing from NextRequestInit types
+      duplex: 'half',
     })
     expect(req.headers.get('content-length')).toBeNull()
 
