@@ -379,12 +379,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   data,
   selected,
 }: NodeProps<WorkflowBlockProps>) {
-  const { type, config, name, isPending, isSandbox } = data
+  const { type, config, name, isPending } = data
 
   const contentRef = useRef<HTMLDivElement>(null)
 
   const params = useParams()
-  const workspaceId = isSandbox ? '' : (params.workspaceId as string)
+  const workspaceId = params.workspaceId as string
 
   const {
     currentWorkflow,
@@ -397,7 +397,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
-  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string) || activeWorkflowId || ''
+  const currentWorkflowId = (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
 

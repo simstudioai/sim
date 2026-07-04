@@ -46,7 +46,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     {
       title: 'Connector Registry admin console',
       description:
-        'A central admin console (beta) for managing pre-built connectors. Dropbox, Google Drive, SharePoint, Microsoft Teams. Plus third-party MCP servers across ChatGPT and the API.',
+        'A central admin console (beta) for managing pre-built connectors (Dropbox, Google Drive, SharePoint, Microsoft Teams) and third-party MCP servers across ChatGPT and the API.',
       shortDescription: 'Central admin console for pre-built and third-party MCP connectors.',
       source: {
         url: 'https://openai.com/index/introducing-agentkit/',
@@ -57,7 +57,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     {
       title: 'ChatKit embeddable chat UI',
       description:
-        'ChatKit ships prebuilt widget nodes (cards, lists, forms, buttons), theming, file attachments, and chain-of-thought visualization for embedding chat-based agents into a product. Unlike Agent Builder and Evals, ChatKit itself is not being deprecated. But its managed-backend integration is being eliminated in the Agent Builder winddown, leaving only the self-hosted-backend integration path supported.',
+        'ChatKit ships prebuilt widget nodes (cards, lists, forms, buttons), theming, file attachments, and chain-of-thought visualization for embedding chat-based agents into a product. Unlike Agent Builder and Evals, ChatKit itself is not being deprecated, but its managed-backend integration is being eliminated in the Agent Builder winddown, leaving only the self-hosted-backend path supported.',
       shortDescription: 'Embeddable chat UI with prebuilt widgets, theming, and file attachments.',
       source: {
         url: 'https://community.openai.com/t/deprecation-notice-agent-builder/1382650',
@@ -105,7 +105,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       title:
         'Usage-based, per-token/per-call pricing with no published flat plan for AgentKit itself',
       description:
-        'There is no dedicated AgentKit subscription tier; costs are the sum of underlying OpenAI API usage. Model tokens, Code Interpreter sessions billed $0.03-$1.92 per session by memory tier, and File Search at $0.10/GB-day storage plus $2.50 per 1,000 tool calls. This makes cost forecasting harder than a flat, seat-based plan.',
+        'There is no dedicated AgentKit subscription tier. Costs are the sum of model tokens, Code Interpreter sessions ($0.03-$1.92 per session by memory tier), and File Search ($0.10/GB-day storage plus $2.50 per 1,000 tool calls), which makes cost forecasting harder than a flat, seat-based plan.',
       shortDescription: 'No flat plan; costs scale with token and tool usage.',
       source: {
         url: 'https://developers.openai.com/api/docs/pricing',
@@ -139,7 +139,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       learningCurve: {
         value: 'Unknown',
         detail:
-          'No vendor-published learning-curve metric. Qualitatively, Agent Builder targeted low-code use and the Agents SDK targets Python/TypeScript developers, but no primary source quantifies the learning curve for either.',
+          'Agent Builder targeted low-code use and the Agents SDK targets Python/TypeScript developers, but no source quantifies the learning curve for either.',
         shortValue: 'Not publicly documented',
         confidence: 'unknown',
         sources: [],
@@ -209,7 +209,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'No dev/qa/prod-style environment promotion for full projects. Only single-workflow versioning and code export',
         detail:
-          "Agent Builder workflows can be exported as code (Agents SDK, Python or TypeScript) or as JSON templates, and templates can sync with a Git repo for reuse. But there's no built-in feature to clone a whole project and promote it between separate dev/qa/prod environments within the product itself. Promoting between environments means exporting to code and managing those environments yourself, which lines up with third-party reviews noting Agent Builder lacks production-grade deployment pipelines. Agent Builder is being deprecated (full shutdown November 30, 2026) in favor of the code-first Agents SDK or ChatGPT Workspace Agents.",
+          "Agent Builder workflows export as code (Agents SDK, Python or TypeScript) or JSON templates, and templates can sync with a Git repo for reuse, but there's no built-in feature to clone a whole project and promote it between dev/qa/prod environments. Promoting environments means exporting to code and managing them yourself, which lines up with third-party reviews noting Agent Builder lacks production-grade deployment pipelines. Agent Builder is being deprecated, with full shutdown November 30, 2026, in favor of the code-first Agents SDK or ChatGPT Workspace Agents.",
         shortValue: 'No built-in dev/qa/prod promotion',
         confidence: 'estimated',
         sources: [
@@ -229,7 +229,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Publish creates a major version snapshot; API can target older versions; autosave + manual checkpoints, but no documented rollback UI, diff/compare view, or branching',
         detail:
-          'Publishing a workflow in Agent Builder creates a new major version acting as a snapshot, and API calls can target an older version. The workspace autosaves continuously and supports manual version checkpoints. There is no rollback button, visual diff/compare-versions view, or branching documented. Third-party reviews note Agent Builder still lacks production-grade features like rollback, observability, and deployment pipelines.',
+          'Publishing a workflow in Agent Builder creates a new major version acting as a snapshot, and API calls can target an older version. The workspace autosaves continuously and supports manual version checkpoints, but there is no rollback button, visual diff/compare-versions view, or branching. Third-party reviews note Agent Builder still lacks production-grade features like rollback, observability, and deployment pipelines.',
         shortValue: 'Version snapshots, no rollback or diff view',
         confidence: 'estimated',
         sources: [
@@ -247,9 +247,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          'No: OpenAI has no official documentation describing live, multi-user editing of the same Agent Builder canvas with shared cursors or selections. Teams instead collaborate asynchronously, by importing/exporting workflow JSON, syncing with a Git repo, and publishing versioned snapshots.',
+          'No: OpenAI does not document live, multi-user editing of the same Agent Builder canvas with shared cursors or selections. Teams instead collaborate asynchronously, by importing/exporting workflow JSON, syncing with a Git repo, and publishing versioned snapshots.',
         detail:
-          "Some third-party blog posts loosely describe Agent Builder as supporting 'collaborative editing,' but this could not be confirmed against official OpenAI docs and likely refers to the async JSON/Git workflow sharing model.",
+          "Some third-party blog posts describe Agent Builder as supporting 'collaborative editing,' but this isn't confirmed in official OpenAI docs and likely refers to the async JSON/Git sharing model.",
         shortValue: 'No verified live multiplayer canvas editing',
         confidence: 'estimated',
         sources: [
@@ -303,7 +303,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       richTextEditor: {
         value:
-          "No: there's no evidence of a native, inline rich-text (WYSIWYG) editor for documents in Agent Builder/AgentKit. Text is written in plain node fields and prompts, and ChatKit widgets render structured cards, lists, and components rather than acting as a document editor.",
+          'No: Agent Builder/AgentKit has no native, inline rich-text (WYSIWYG) document editor. Text is written in plain node fields and prompts, and ChatKit widgets render structured cards, lists, and components rather than acting as a document editor.',
         shortValue: 'No native WYSIWYG document editor found',
         confidence: 'estimated',
         sources: [
@@ -323,7 +323,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           "No: Agent Builder's node reference (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no node that calls a separate saved workflow as a nested step and waits for it to finish. Composition across agents happens via handoffs between Agent nodes within the same workflow canvas, not by invoking another independently saved workflow as a reusable child step.",
         detail:
-          'A workflow can call other agents through handoffs (execution transfers to another Agent node, carrying conversation state), but that is agent-to-agent handoff inside one workflow graph, not a documented call-another-workflow-and-return block. The only way to reuse a workflow elsewhere is to export it as Agents SDK code and call that code from other code, which is a code-level reuse pattern rather than a visual sub-workflow step.',
+          'A workflow can call other agents through handoffs (execution transfers to another Agent node, carrying conversation state), but that is agent-to-agent handoff inside one workflow graph, not a call-another-workflow-and-return block. The only way to reuse a workflow elsewhere is to export it as Agents SDK code and call that code from other code, a code-level reuse pattern rather than a visual sub-workflow step.',
         shortValue: 'No dedicated call-sub-workflow node found',
         confidence: 'estimated',
         sources: [
@@ -429,7 +429,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           "Yes: dedicated 'Human approval' node in Agent Builder; SDK-level tool-approval interrupts in Agents SDK",
         detail:
-          "Agent Builder has a first-class Human approval logic node that lets a workflow pause for a person to approve or reject a step before continuing (e.g., approve/reject an agent-drafted email before an MCP node sends it). At the SDK level, tool calls flagged as needing approval pause the run and surface it as a pending interruption; the run resumes from its saved state once the developer approves or rejects it. Notifying the approver isn't a built-in channel (no native email/Slack alert): the surrounding app has to present the pending approval itself, though the resume mechanism is native.",
+          "Agent Builder has a first-class Human approval logic node that lets a workflow pause for a person to approve or reject a step before continuing (e.g., approve/reject an agent-drafted email before an MCP node sends it). At the SDK level, tool calls flagged as needing approval pause the run and surface as a pending interruption, then resume from saved state once the developer approves or rejects it. There's no built-in approver-notification channel (no native email/Slack alert); the surrounding app has to present the pending approval itself, though the resume mechanism is native.",
         shortValue: 'Dedicated approval node plus SDK interrupts',
         confidence: 'verified',
         sources: [
@@ -539,7 +539,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          "No dedicated node in the visual Agent Builder canvas. The published node palette (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no fan-out/fan-in or 'parallel branches' node; If/else and While are the only branching/looping constructs, and both execute sequentially. Concurrent multi-agent execution is only available by writing code against the separate Agents SDK (e.g. Python asyncio to run agents in parallel and merge results), not through the no-code builder.",
+          "No dedicated node in the visual Agent Builder canvas. Its node palette (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no fan-out/fan-in or 'parallel branches' node; If/else and While are the only branching/looping constructs, and both execute sequentially. Concurrent multi-agent execution requires writing code against the separate Agents SDK (e.g. Python asyncio to run agents in parallel and merge results), not the no-code builder.",
         detail:
           'OpenAI developer community threads on Agent Builder confirm the canvas lacks a fan-out block and point developers to the Agents SDK for true concurrent branch execution.',
         shortValue: 'No visual parallel-branch node; only via Agents SDK code',
@@ -736,7 +736,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Yes, partially: Agent Builder was free to design in, and ChatKit/File Search each include an initial 1 GB of free storage before per-GB-day charges apply',
         detail:
-          'Agent Builder let you design and iterate at zero cost until you ran a workflow. ChatKit includes 1 GB of free file/image storage per account per month before $0.10/GB-day applies. File Search includes a one-time free GB of storage before the $0.10/GB-day rate applies. A standing allowance rather than a recurring daily reset.',
+          'Agent Builder let you design and iterate at zero cost until you ran a workflow. ChatKit includes 1 GB of free file/image storage per account per month before $0.10/GB-day applies, and File Search includes a one-time free GB of storage before the same rate applies, a standing allowance rather than a recurring daily reset.',
         shortValue: 'Design-time free, plus limited storage credits',
         confidence: 'estimated',
         sources: [
@@ -800,9 +800,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       rbac: {
         value:
-          'Yes, at the organization level. The Global Admin Console gates access to the Connector Registry, and the Admin API lets Organization Owners assign custom roles and enable or disable specific apps and actions. Granular role-based access scoped to individual Agent Builder workflows is not documented.',
+          'Yes, at the organization level. The Global Admin Console gates access to the Connector Registry, and the Admin API lets Organization Owners assign custom roles and enable or disable specific apps and actions. Granular access scoped to individual Agent Builder workflows is not documented.',
         detail:
-          'The Global Admin Console manages access to the Connector Registry used by Agent Builder, and the Admin API lets Organization Owners centrally manage workspaces, assign custom roles to teams, and enable/disable specific apps and actions. This is org/admin-level RBAC, not workflow-scoped granular permissions within Agent Builder itself.',
+          'The Global Admin Console manages access to the Connector Registry used by Agent Builder, and the Admin API lets Organization Owners centrally manage workspaces, assign custom roles to teams, and enable/disable specific apps and actions. This is org/admin-level RBAC, not workflow-scoped permissions within Agent Builder itself.',
         shortValue: 'Org-level RBAC via Admin API and Console',
         confidence: 'estimated',
         sources: [
@@ -817,7 +817,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Yes, at the platform level. An Admin/Audit Logs API covers the API Platform (API key creation, role changes, login attempts, project changes), and a separate Compliance Logs Platform covers ChatGPT Enterprise/Edu workspaces (conversations, file uploads, admin actions, auth events, agent activity). No source ties audit logging specifically to individual Agent Builder workflow runs.',
         detail:
-          'OpenAI provides an Admin/Audit Logs API for the API Platform and a Compliance Logs Platform for ChatGPT Enterprise/Edu workspaces, covering admin actions, authentication events, and agent activity broadly. No documentation confirms audit logging scoped specifically to Agent Builder workflow executions.',
+          'OpenAI provides an Admin/Audit Logs API for the API Platform and a Compliance Logs Platform for ChatGPT Enterprise/Edu workspaces, covering admin actions, authentication events, and agent activity broadly, but no documentation confirms audit logging scoped specifically to Agent Builder workflow executions.',
         shortValue: 'Admin/Audit Logs API plus Compliance Logs',
         confidence: 'estimated',
         sources: [
@@ -832,7 +832,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019; supports customer HIPAA/GDPR/CCPA/FERPA compliance via DPA + BAA',
         detail:
-          "OpenAI's Trust Portal and security pages state SOC 2 Type 2 examination (Security, Availability, Confidentiality, Privacy criteria) covering the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team, plus ISO/IEC 27001:2022 and ISO/IEC 27701:2019 certifications for the same services. OpenAI states it supports customers' compliance with GDPR, CCPA, HIPAA, and FERPA, and offers a Data Processing Addendum and a Business Associate Agreement for HIPAA-regulated customers. This is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. No FedRAMP or PCI attestation was found for the AgentKit/API products.",
+          "OpenAI's SOC 2 Type 2 examination (Security, Availability, Confidentiality, Privacy criteria) covers the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team, alongside ISO/IEC 27001:2022 and ISO/IEC 27701:2019 certifications for the same services. OpenAI supports customers' compliance with GDPR, CCPA, HIPAA, and FERPA, and offers a Data Processing Addendum and a Business Associate Agreement for HIPAA-regulated customers. This is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. No FedRAMP or PCI attestation was found for the AgentKit/API products.",
         shortValue: 'SOC 2, ISO 27001/27701, HIPAA/GDPR support',
         confidence: 'verified',
         sources: [
@@ -858,7 +858,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          'Yes: ChatGPT Enterprise/Business workspaces support role-based access control (RBAC) that restricts which connectors/apps (and by extension their underlying stored credentials) a given custom role or permission group may use, on both a per-app and per-role basis, with all apps disabled by default until an admin enables them for specific roles.',
+          'Yes: ChatGPT Enterprise/Business workspaces support role-based access control (RBAC) that restricts which connectors/apps (and by extension their underlying stored credentials) a given custom role or permission group may use, per-app and per-role, with all apps disabled by default until an admin enables them for specific roles.',
         detail:
           'Granularity is at the connector/app level (e.g. this role may use Google Drive, that role may not) rather than restricting individual named credential instances within a connector type.',
         shortValue: 'Yes, RBAC restricts connector access by role',
@@ -878,7 +878,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       whiteLabeling: {
         value:
-          'No: ChatKit (the deployment surface for Agent Builder workflows) only supports surface-level theming, colors, typography, density, and rounded corners, not full white-labeling. Deeper brand replacement such as changing the chat bubble shape, header layout, or removing OpenAI product identity requires forking the ChatKit library.',
+          'No: ChatKit (the deployment surface for Agent Builder workflows) only supports surface-level theming, colors, typography, density, and rounded corners, not full white-labeling. Deeper brand replacement, such as changing the chat bubble shape, header layout, or removing OpenAI product identity, requires forking the ChatKit library.',
         detail:
           "A third-party technical review explicitly notes deep white-label branding is 'impossible without forking the entire ChatKit library.'",
         shortValue: 'No, only color/theme customization, not full white-label',
@@ -957,7 +957,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           "Partial: pre-built Connector Registry entries (Dropbox, Google Drive, SharePoint, Teams) and the ChatGPT Apps directory go through OpenAI identity verification and app review, but Agent Builder's MCP node and the Agents SDK can connect to any third-party MCP server with no vendor vetting pipeline documented",
         detail:
-          "OpenAI's own Connector Registry connectors and ChatGPT Apps directory submissions require developer identity verification and pass through an OpenAI app-review process before listing, per the App submission guidelines. But Agent Builder's MCP node and the Agents SDK let a builder point at any hosted MCP server, first-party or community-run, with no described OpenAI review of that server's code. This client-only MCP model mirrors the wider MCP ecosystem, where unreviewed community servers have shipped malicious behavior elsewhere (for example, an unofficial third-party Postmark MCP server was found in September 2025 silently BCC'ing all outgoing email to an attacker). No security incident specific to OpenAI's own Connector Registry, Apps directory, or Agent Builder MCP integration was found in public reporting as of this writing.",
+          "OpenAI's own Connector Registry connectors and ChatGPT Apps directory submissions require developer identity verification and pass through an OpenAI app-review process before listing, per the App submission guidelines. But Agent Builder's MCP node and the Agents SDK let a builder point at any hosted MCP server, first-party or community-run, with no OpenAI review of that server's code. This client-only MCP model mirrors the wider MCP ecosystem, where unreviewed community servers have shipped malicious behavior elsewhere (for example, an unofficial third-party Postmark MCP server was found in September 2025 silently BCC'ing all outgoing email to an attacker). No security incident specific to OpenAI's own Connector Registry, Apps directory, or Agent Builder MCP integration has been publicly reported.",
         shortValue: 'Partial: reviewed first-party catalog, but open MCP server connections',
         confidence: 'estimated',
         sources: [
@@ -989,7 +989,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Yes: per-run tracing with spans (model calls, tool calls, handoffs, guardrails, custom spans) in a customer-facing Traces dashboard; no dedicated metrics dashboard (latency percentiles/error rates) documented',
         detail:
-          "Tracing is on by default in the Agents SDK. Every run produces a structured trace with an ID, an optional group ID, and metadata tags, viewable in the Traces dashboard (Logs > Traces) for debugging and, via trace grading/agent evals, benchmarking. There's no evidence of an aggregate metrics dashboard surfacing latency percentiles or error-rate trends across runs: official docs emphasize single-run trace inspection plus eval-based benchmarking, not a fleet-wide metrics view.",
+          "Tracing is on by default in the Agents SDK. Every run produces a structured trace with an ID, an optional group ID, and metadata tags, viewable in the Traces dashboard (Logs > Traces) for debugging and, via trace grading/agent evals, benchmarking. There's no aggregate metrics dashboard surfacing latency percentiles or error-rate trends across runs: official docs cover single-run trace inspection plus eval-based benchmarking, not a fleet-wide metrics view.",
         shortValue: 'Per-run trace dashboard, no metrics view',
         confidence: 'estimated',
         sources: [
@@ -1014,7 +1014,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Opt-in retries, SDK-level checkpointing/resume of run state, but no one-click replay of a past production execution with original inputs from the Agent Builder UI',
         detail:
-          "The Agents SDK supports configurable automatic retries on transient failures (network errors, rate limits, server errors), off by default and requiring an explicit retry policy. The SDK also records each run's execution state so it can resume after an interruption (e.g., pending tool approval) or a process restart, giving checkpoint/resume for fault tolerance. This is a developer-invoked mechanism in code, not a dashboard 'replay this failed execution' button. There's no evidence of a UI-driven replay-with-original-inputs feature for past runs.",
+          "The Agents SDK supports configurable automatic retries on transient failures (network errors, rate limits, server errors), off by default and requiring an explicit retry policy. The SDK also records each run's execution state so it can resume after an interruption (e.g., pending tool approval) or a process restart, giving checkpoint/resume for fault tolerance. This is a developer-invoked mechanism in code, not a dashboard 'replay this failed execution' button, and there's no UI-driven replay-with-original-inputs feature for past runs.",
         shortValue: 'Opt-in retries and checkpoint/resume',
         confidence: 'estimated',
         sources: [
@@ -1089,7 +1089,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Unknown: OpenAI does not publish a fixed maximum duration for a single Agent Builder workflow run or Agents SDK execution, nor a concurrency cap specific to AgentKit. The only concrete numbers found are general API usage-tier limits (requests and tokens per minute/day, scaling from a $100/month allowance at Tier 1 up to $200,000/month at Tier 5) and a 300-requests-per-minute cap per vector store for file ingestion endpoints.',
         detail:
-          "Background mode responses are only retained about 10 minutes for polling, which acts as a practical window for checking back on a run, but that's a retention window, not a documented hard execution timeout. The one concrete node-level timeout found is the Agent Builder Approval node, which times out after 5 minutes and alerts a supervisor if unactioned. Actual RPM/TPM caps are account/model-specific and only visible in the OpenAI dashboard.",
+          'Background mode responses are only retained about 10 minutes for polling, a practical window for checking back on a run, but not a documented hard execution timeout. The one concrete node-level timeout is the Agent Builder Approval node, which times out after 5 minutes and alerts a supervisor if unactioned. Actual RPM/TPM caps are account/model-specific and only visible in the OpenAI dashboard.',
         shortValue: 'No published AgentKit-specific run/concurrency caps',
         confidence: 'estimated',
         sources: [
@@ -1109,7 +1109,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           "No: Agent Builder has no dedicated try/catch or fallback-path construct for a failing step. Error handling has to be built manually with a Guardrails node (a pass/fail checkpoint on a prior node's output) combined with If/Else logic nodes to branch on conditions. OpenAI's own guidance for a guardrail failure is to end the workflow or loop back to the previous step, not to continue the rest of the run on a separate error path.",
         detail:
-          'Guardrails nodes and If/Else logic nodes can be composed by the builder to approximate conditional routing around a failure, and a Human Approval node can pause for intervention, but none of these are documented as an automatic "catch this failing step and keep the rest of the run going" mechanism the way a dedicated error-handling path would be.',
+          'Guardrails nodes and If/Else logic nodes can be composed to approximate conditional routing around a failure, and a Human Approval node can pause for intervention, but none of these work as an automatic "catch this failing step and keep the rest of the run going" mechanism the way a dedicated error-handling path would.',
         shortValue: 'No built-in error branch, manual guardrail workaround only',
         confidence: 'estimated',
         sources: [
@@ -1182,7 +1182,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Founded 2015; ~9,000+ employees; $852B valuation after $122B round closed March 2026',
         detail:
-          "OpenAI was founded in December 2015 (originally as a nonprofit) by Sam Altman, Greg Brockman, Elon Musk, Ilya Sutskever, and others. On March 31, 2026, OpenAI closed a $122B funding round at an $852B post-money valuation, with Amazon ($50B, partly contingent on an IPO or reaching AGI), Nvidia ($30B), and SoftBank ($30B) as the largest backers, alongside co-investors including Andreessen Horowitz, D.E. Shaw Ventures, MGX, TPG, and T. Rowe Price-advised accounts; cumulative funding raised is around $180B+ across 15 rounds. Employee headcount estimates vary by source, with one tracker citing roughly 9,268 employees as of May 31, 2026 (other estimates range 3,800-8,000 depending on scope/date). This is a mature, well-capitalized company, though AgentKit/Agent Builder is a relatively new (October 2025) product line that is now being wound down. Agent Builder's shutdown is scheduled for November 30, 2026.",
+          'OpenAI was founded in December 2015 (originally as a nonprofit) by Sam Altman, Greg Brockman, Elon Musk, Ilya Sutskever, and others. On March 31, 2026, OpenAI closed a $122B funding round at an $852B post-money valuation, with Amazon ($50B, partly contingent on an IPO or reaching AGI), Nvidia ($30B), and SoftBank ($30B) as the largest backers, alongside co-investors including Andreessen Horowitz, D.E. Shaw Ventures, MGX, TPG, and T. Rowe Price-advised accounts; cumulative funding raised is around $180B+ across 15 rounds. Employee headcount estimates vary by source, with one tracker citing roughly 9,268 employees as of May 31, 2026 (other estimates range 3,800-8,000 depending on scope/date). This is a mature, well-capitalized company, though AgentKit/Agent Builder is a relatively new (October 2025) product line now being wound down, with shutdown scheduled for November 30, 2026.',
         shortValue: 'Founded 2015, $852B valuation, ~9,000 employees',
         confidence: 'verified',
         sources: [

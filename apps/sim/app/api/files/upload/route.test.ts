@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
   const mockGetStorageProvider = vi.fn()
   const mockIsUsingCloudStorage = vi.fn()
   const mockUploadFile = vi.fn()
+  const mockUploadExecutionFile = vi.fn()
 
   return {
     mockVerifyFileAccess,
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => {
     mockGetStorageProvider,
     mockIsUsingCloudStorage,
     mockUploadFile,
+    mockUploadExecutionFile,
   }
 })
 
@@ -80,6 +82,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   uploadWorkspaceFile: mocks.mockUploadWorkspaceFile,
+}))
+
+vi.mock('@/lib/uploads/contexts/execution', () => ({
+  uploadExecutionFile: mocks.mockUploadExecutionFile,
 }))
 
 vi.mock('@/lib/uploads', () => ({
@@ -147,6 +153,17 @@ function setupFileApiMocks(
     size: 100,
     type: 'text/plain',
     key: 'workspace/test-workspace-id/1234567890-test.txt',
+    uploadedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  })
+
+  mocks.mockUploadExecutionFile.mockResolvedValue({
+    id: 'test-execution-file-id',
+    name: 'test.txt',
+    url: '/api/files/serve/execution/test-workspace-id/test-file.txt',
+    size: 100,
+    type: 'text/plain',
+    key: 'execution/test-workspace-id/1234567890-test.txt',
     uploadedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   })
@@ -528,6 +545,130 @@ describe('File Upload Security Tests', () => {
       expect(response.status).toBe(400)
       const data = await response.json()
       expect(data.message).toContain("File type 'exe' is not allowed")
+    })
+  })
+
+  describe('Execution Context Permission Gate', () => {
+    const createExecutionFormData = (
+      file: File,
+      workspaceId: string | null = 'test-workspace-id'
+    ) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('context', 'execution')
+      formData.append('workflowId', 'test-workflow-id')
+      formData.append('executionId', 'test-execution-id')
+      if (workspaceId !== null) formData.append('workspaceId', workspaceId)
+      return formData
+    }
+
+    beforeEach(() => {
+      setupFileApiMocks({
+        cloudEnabled: false,
+        storageProvider: 'local',
+      })
+    })
+
+    it('rejects execution uploads without workspaceId', async () => {
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      const formData = createExecutionFormData(file, null)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      const response = await POST(req as unknown as NextRequest)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.message).toContain('workflowId, executionId, and workspaceId')
+      expect(mocks.mockUploadExecutionFile).not.toHaveBeenCalled()
+    })
+
+    it('rejects execution uploads for a read-only workspace member', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      const formData = createExecutionFormData(file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      const response = await POST(req as unknown as NextRequest)
+
+      expect(response.status).toBe(403)
+      const data = await response.json()
+      expect(data.error).toBe('Write or Admin access required for execution uploads')
+      expect(mocks.mockUploadExecutionFile).not.toHaveBeenCalled()
+    })
+
+    it('rejects execution uploads for a member with no workspace permission', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue(null)
+
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      const formData = createExecutionFormData(file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      const response = await POST(req as unknown as NextRequest)
+
+      expect(response.status).toBe(403)
+      expect(mocks.mockUploadExecutionFile).not.toHaveBeenCalled()
+    })
+
+    it('allows execution uploads for a write-permission workspace member', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      const formData = createExecutionFormData(file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      const response = await POST(req as unknown as NextRequest)
+
+      expect(response.status).toBe(200)
+      expect(mocks.mockUploadExecutionFile).toHaveBeenCalledWith(
+        {
+          workspaceId: 'test-workspace-id',
+          workflowId: 'test-workflow-id',
+          executionId: 'test-execution-id',
+        },
+        expect.anything(),
+        'test.pdf',
+        'application/pdf',
+        'test-user-id'
+      )
+    })
+
+    it('allows execution uploads for an admin-permission workspace member', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      const formData = createExecutionFormData(file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      const response = await POST(req as unknown as NextRequest)
+
+      expect(response.status).toBe(200)
+      expect(mocks.mockUploadExecutionFile).toHaveBeenCalled()
     })
   })
 

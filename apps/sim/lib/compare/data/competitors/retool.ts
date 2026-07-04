@@ -75,7 +75,7 @@ export const retoolProfile: CompetitorProfile = {
     {
       title: 'Proprietary, closed-source core',
       description:
-        'Retool itself is proprietary/closed-source software; the self-hosted (on-premise) deployment uses a codebase that can be forked/customized and bundles open-source dependencies, but a Retool-issued license key is still required to run it. There is no OSS license covering the product itself.',
+        'Retool is proprietary and closed-source. The self-hosted deployment can be forked and customized and bundles open-source dependencies, but still requires a Retool-issued license key to run. No OSS license covers the product itself.',
       shortDescription: 'Closed-source product; self-hosted still requires a Retool license key.',
       source: {
         url: 'https://docs.retool.com/legal/open-source-license-disclosure',
@@ -86,7 +86,7 @@ export const retoolProfile: CompetitorProfile = {
     {
       title: 'Docker self-hosted deployment explicitly not production-ready',
       description:
-        "Retool's own docs state that the Docker Compose self-hosted setup (with a bundled Postgres container, no SSL configured) is for local/non-production testing only; production self-hosting requires a Kubernetes/Helm deployment.",
+        'The Docker Compose self-hosted setup (bundled Postgres container, no SSL configured) is for local and non-production testing only. Production self-hosting requires a Kubernetes/Helm deployment.',
       shortDescription:
         'Docker Compose setup is for testing only; production needs Kubernetes/Helm.',
       source: {
@@ -98,14 +98,14 @@ export const retoolProfile: CompetitorProfile = {
     {
       title: 'No dedicated built-in eval/guardrail framework documented',
       description:
-        "Retool's AI/agent pages describe governance controls (audit logs, RBAC, enterprise access controls) but do not document a dedicated evaluation, testing, or guardrail framework for validating AI agent behavior/outputs before production use.",
+        'Retool documents governance controls (audit logs, RBAC, enterprise access controls) but no dedicated evaluation, testing, or guardrail framework for validating AI agent behavior or outputs before production use.',
       shortDescription: 'No dedicated evaluation or guardrail framework for AI output quality.',
       source: { url: 'https://retool.com/ai', label: 'Retool AI', asOf: '2026-07-02' },
     },
     {
       title: 'Agents billed separately by the hour, outside the AI-credit pool',
       description:
-        'Retool Agents usage is metered and billed hourly as a separate line item from the monthly AI-credit allocation used for app-building/AI actions, adding a second, less-predictable usage-based cost dimension on top of seat pricing.',
+        'Retool Agents usage is metered and billed hourly, separate from the monthly AI-credit allocation used for app-building and AI actions. This adds a second, less predictable usage-based cost on top of seat pricing.',
       shortDescription: 'Agents usage is billed hourly, separate from the AI-credit pool.',
       source: { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
     },
@@ -130,14 +130,14 @@ export const retoolProfile: CompetitorProfile = {
       },
       learningCurve: {
         value: 'Unknown',
-        detail: 'Retool does not publish a quantified or qualified learning-curve claim.',
+        detail: 'Retool has not published a learning-curve claim.',
         shortValue: 'Not publicly documented',
         confidence: 'unknown',
         sources: [],
       },
       selfHostOption: {
         value:
-          'Yes: self-hosted deployment available on Free, Team, and Business plans (pricing matches cloud); Enterprise required for unlimited users and advanced capabilities. Requires a Retool-issued license key even when self-hosted.',
+          'Yes: self-hosted deployment is available on Free, Team, and Business plans at the same pricing as cloud; Enterprise is required for unlimited users and advanced capabilities. A Retool-issued license key is required even when self-hosted.',
         detail:
           'Self-hosted Retool is deployable via Docker (non-production/testing only) or Kubernetes/Helm (production).',
         shortValue: 'Yes, on Free/Team/Business; license key required',
@@ -185,7 +185,7 @@ export const retoolProfile: CompetitorProfile = {
       license: {
         value: 'Proprietary',
         detail:
-          'Retool is closed-source/proprietary for both cloud and self-hosted versions; the self-hosted codebase can be forked/customized and bundles third-party open-source dependencies, but requires a Retool license key to run.',
+          'Retool is closed-source and proprietary for both cloud and self-hosted versions. The self-hosted codebase can be forked and customized and bundles third-party open-source dependencies, but requires a Retool license key to run.',
         shortValue: 'Closed-source, license key required',
         confidence: 'verified',
         sources: [
@@ -199,7 +199,7 @@ export const retoolProfile: CompetitorProfile = {
       environmentPromotion: {
         value: 'Yes: via Retool Source Control (Git-based) across separate instances/spaces',
         detail:
-          'Source Control lets teams branch an app, open pull requests, and merge changes across dev, staging/QA, and production. This runs on separate Retool instances (self-hosted Enterprise) or Retool Spaces (Cloud), moving whole apps between environments with per-app control over what syncs. It targets Enterprise/self-hosted customers and requires connecting an external Git provider (GitHub, GitLab, or CodeCommit).',
+          'Source Control lets teams branch an app, open pull requests, and merge changes across dev, staging/QA, and production, running on separate Retool instances (self-hosted Enterprise) or Retool Spaces (Cloud) with per-app control over what syncs. It targets Enterprise/self-hosted customers and requires connecting an external Git provider (GitHub, GitLab, or CodeCommit).',
         shortValue: 'Git-based branching across dev/staging/prod',
         confidence: 'estimated',
         sources: [
@@ -219,7 +219,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Branch-based editing, pull-request review, and release history for controlling which version is live, plus rollback and blue/green deployments.',
         detail:
-          'Source Control supports branch-based editing that isolates changes without overwriting teammates, pull-request review before merging into a live app, and Retool Releases to control which Git commit is live vs draft. No dedicated diff/compare view or client-vs-server undo/redo distinction is documented.',
+          'Source Control supports branch-based editing that isolates changes without overwriting teammates, pull-request review before merging into a live app, and Retool Releases to control which Git commit is live vs draft. No dedicated diff/compare view or client-vs-server undo/redo distinction exists.',
         shortValue: 'Branching, PR review, and release history',
         confidence: 'estimated',
         sources: [
@@ -238,8 +238,7 @@ export const retoolProfile: CompetitorProfile = {
       realtimeCollaboration: {
         value:
           'Yes: Retool Multiplayer lets multiple people edit the same app at once, with live avatars and highlights showing where each teammate is working. It is generally available on Cloud and in beta for self-hosted. Under the hood it uses conflict-free replicated data types (CRDTs) over WebSockets so simultaneous edits merge automatically instead of overwriting each other.',
-        detail:
-          'Self-hosted customers must sign up for beta access as of the last documented status.',
+        detail: 'Self-hosted customers must sign up for beta access.',
         shortValue: 'Yes, live co-editing (GA on Cloud, beta on self-hosted)',
         confidence: 'verified',
         sources: [
@@ -257,9 +256,9 @@ export const retoolProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          'Partial: Retool Storage is a native Retool-hosted file store (cloud orgs) supporting folder creation/rename/delete, file rename/move, and link-based access (public URLs or app-scoped private URLs). No documentation was found for password-protected/SSO-gated sharing links or a deleted-item/trash recovery mechanism for Retool Storage.',
+          'Partial: Retool Storage is a native Retool-hosted file store (cloud orgs) supporting folder creation/rename/delete, file rename/move, and link-based access (public URLs or app-scoped private URLs). No password-protected/SSO-gated sharing links or deleted-item/trash recovery mechanism is documented.',
         detail:
-          'Storage caps at a fixed capacity per docs and lacks the more advanced sharing/recovery controls the fact asks about.',
+          'Storage caps at a fixed capacity and lacks more advanced sharing and recovery controls.',
         shortValue: 'Partial, folders and links yes, no trash/recovery or password links found',
         confidence: 'verified',
         sources: [
@@ -279,7 +278,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           "Yes: Retool Database is a built-in, Postgres-backed data table (separate from connecting your own external database) with a spreadsheet-style Edit Table view for inline editing. Retool's Table component can also render and scroll through 100,000+ rows and hundreds of columns without slowing down.",
         detail:
-          "Specific hard row/column caps for Retool Database itself were not found in official docs (forum threads reference plan-dependent limits like 50,000 records, but this isn't confirmed as an official current limit); the Table UI component is documented as handling 100K+ rows.",
+          'Retool does not publish hard row/column caps for Retool Database itself (forum threads mention plan-dependent limits like 50,000 records, unconfirmed as current). The Table UI component is documented to handle 100K+ rows.',
         shortValue: 'Yes, Retool Database plus a Table component for large datasets',
         confidence: 'verified',
         sources: [
@@ -297,9 +296,9 @@ export const retoolProfile: CompetitorProfile = {
       },
       richTextEditor: {
         value:
-          "Partial/No for true WYSIWYG editing: Retool's Rich Text Editor component lets users type HTML-formatted text, and a separate Text component displays Markdown, but neither is a full what-you-see-is-what-you-get Markdown editor. Community members have had to build custom components (based on the CKEditor library) to get true WYSIWYG Markdown editing, which points to a real gap.",
+          "Not true WYSIWYG editing: Retool's Rich Text Editor component lets users type HTML-formatted text, and a separate Text component displays Markdown, but neither is a full WYSIWYG Markdown editor. Community members have built custom components (based on the CKEditor library) to get true WYSIWYG Markdown editing.",
         detail:
-          'Multiple long-running Retool forum feature requests ask for WYSIWYG markdown editing, unresolved as of the sources found.',
+          'Multiple long-running Retool forum feature requests ask for WYSIWYG markdown editing, still unresolved.',
         shortValue: 'No, native editor is HTML-input, not WYSIWYG markdown',
         confidence: 'verified',
         sources: [
@@ -345,8 +344,7 @@ export const retoolProfile: CompetitorProfile = {
       multiLlmSupport: {
         value:
           'Direct providers OpenAI, Anthropic, and Google; cloud service providers AWS (Bedrock) and Azure (OpenAI); plus a "bring your own model" option.',
-        detail:
-          "Retool's AI product page lists these categories without enumerating specific model versions.",
+        detail: 'Retool lists these categories without enumerating specific model versions.',
         shortValue: 'OpenAI, Anthropic, Google, Bedrock, Azure, or BYO model',
         confidence: 'verified',
         sources: [{ url: 'https://retool.com/ai', label: 'Retool AI', asOf: '2026-07-02' }],
@@ -415,7 +413,7 @@ export const retoolProfile: CompetitorProfile = {
       },
       evaluationGuardrails: {
         value:
-          'Partial: Retool provides governance-style guardrails. Enterprise access controls, monitoring, and audit trails for agent/workflow actions. But no dedicated evaluation or test-suite framework for validating AI output quality.',
+          'Partial: Retool provides governance-style guardrails, enterprise access controls, monitoring, and audit trails for agent and workflow actions, but no dedicated evaluation or test-suite framework for validating AI output quality.',
         detail:
           "Retool's guardrails are access and observability controls (enterprise access controls, monitoring, and audit trails), not a dedicated evals product.",
         shortValue: 'Access/audit controls only, no eval framework',
@@ -425,7 +423,7 @@ export const retoolProfile: CompetitorProfile = {
       humanInTheLoop: {
         value: 'Yes: dedicated human-in-the-loop approval tasks distinct from a delay/wait step',
         detail:
-          "Retool Agents/Workflows support an auditable, permissionable approval task that must be approved by one or more people in a designated permission group before a run proceeds (e.g., reviewing an agent's proposed tool call/action). Approvers can be notified via Retool app/task assignment or Slack/email through workflow blocks; the run resumes automatically once the decision is recorded, and every step is logged to the audit trail.",
+          "Retool Agents and Workflows support an auditable, permissionable approval task that must be approved by one or more people in a designated permission group before a run proceeds (for example, reviewing an agent's proposed tool call or action). Approvers can be notified via Retool app/task assignment or Slack/email through workflow blocks. The run resumes automatically once the decision is recorded, and every step is logged to the audit trail.",
         shortValue: 'Auditable approval tasks that gate agent runs',
         confidence: 'estimated',
         sources: [
@@ -445,7 +443,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Native image generation only. No native video generation, text-to-speech, or speech-to-text block.',
         detail:
-          'Retool\'s AI query block includes a native "Generate image" action (model options such as dall-e-2/gpt-image-1 via OpenAI) that returns a base64-encoded PNG. There is no native video-generation block, and no native text-to-speech or speech-to-text block; users build these via third-party APIs.',
+          'Retool\'s AI query block includes a native "Generate image" action (model options such as dall-e-2/gpt-image-1 via OpenAI) that returns a base64-encoded PNG. There is no native video-generation, text-to-speech, or speech-to-text block; users build these via third-party APIs.',
         shortValue: 'Image generation only, no video/TTS/STT',
         confidence: 'estimated',
         sources: [
@@ -477,18 +475,18 @@ export const retoolProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          "Unknown: no evidence found of a Retool feature for defining a reusable, named prompt or knowledge snippet once and reusing it across multiple agents by reference. Retool's agent docs describe per-agent instructions and system prompts, plus connecting Resources, Vectors, and MCP servers as tools, but not a shared 'skills library' construct.",
+          "Unknown: Retool has no feature for defining a reusable, named prompt or knowledge snippet once and reusing it across multiple agents by reference. Retool's agent docs describe per-agent instructions and system prompts, plus connecting Resources, Vectors, and MCP servers as tools, but not a shared 'skills library' construct.",
         detail:
-          "Retool markets reusable components and shared primitives for apps and workflows generally, but nothing documented specifically matches a cross-agent named prompt-snippet system, the kind Anthropic and Replit call 'Agent Skills'.",
+          "Retool has reusable components and shared primitives for apps and workflows generally, but nothing matches a cross-agent named prompt-snippet system, the kind Anthropic and Replit call 'Agent Skills'.",
         shortValue: 'Unknown, no shared skills-library feature found',
         confidence: 'unknown',
         sources: [],
       },
       nativeChatDeployment: {
         value:
-          "Estimated yes: Retool Agents include a chat interface for testing and interacting with an agent. Agents can also be embedded into deployed Retool apps via an Agent Chat component, giving end users a conversational surface, alongside other deployment targets like email and workflows/API. A public 'share thread' replay link also exists for individual conversations.",
+          "Estimated yes: Retool Agents include a chat interface for testing and interacting with an agent, and can be embedded into deployed Retool apps via an Agent Chat component, giving end users a conversational surface, alongside other deployment targets like email and workflows/API. A public 'share thread' replay link also exists for individual conversations.",
         detail:
-          'Evidence points to chat being delivered by embedding the Agent Chat component in a publicly-shared app rather than a single-click standalone public chat deployment; official docs describing a dedicated one-click public chat endpoint were not found.',
+          'Chat is delivered by embedding the Agent Chat component in a publicly-shared app rather than a single-click standalone public chat deployment; there is no dedicated one-click public chat endpoint.',
         shortValue: 'Estimated yes, via Agent Chat component embedded in apps',
         confidence: 'estimated',
         sources: [
@@ -506,9 +504,9 @@ export const retoolProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          'Estimated yes: Retool Vectors automatically splits uploaded text into smaller chunks for embedding. When a vector search runs in an AI action, it retrieves the specific matching chunk (with its source document or URL) and adds it to the model context. Community threads mention accessing this chunk-level data, but official docs do not show a dedicated debugging view listing the chunk index and content for a given query, the way some knowledge-base products do.',
+          'Estimated yes: Retool Vectors automatically splits uploaded text into smaller chunks for embedding. When a vector search runs in an AI action, it retrieves the specific matching chunk (with its source document or URL) and adds it to the model context. Community threads mention accessing this chunk-level data, but there is no dedicated debugging view listing the chunk index and content for a given query, the way some knowledge-base products offer.',
         detail:
-          'The Retool Vectors quickstart confirms automatic chunking and per-chunk retrieval, but no documented chunk-inspector or debug view was found.',
+          'The Retool Vectors quickstart confirms automatic chunking and per-chunk retrieval, but no chunk-inspector or debug view is documented.',
         shortValue: 'Estimated, chunk-level retrieval but no dedicated debug UI found',
         confidence: 'estimated',
         sources: [
@@ -526,7 +524,7 @@ export const retoolProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'Yes: Retool Workflows documents a Branch block that can output to multiple downstream blocks, creating separate paths that run at the same time, and a Loop block with a dedicated parallel execution mode for concurrent iteration. A block with multiple incoming connections waits for all of them to finish before running, which is how parallel paths join back together. Some older community forum reports describe blocks appearing to execute sequentially rather than concurrently in certain cases, so real-world concurrency may vary from the documented behavior.',
+          'Yes: Retool Workflows has a Branch block that outputs to multiple downstream blocks, creating separate paths that run at the same time, and a Loop block with a dedicated parallel execution mode for concurrent iteration. A block with multiple incoming connections waits for all of them to finish before running, which is how parallel paths join back together. Some older community forum reports describe blocks executing sequentially rather than concurrently in certain cases, so real-world concurrency may vary from the documented behavior.',
         detail:
           'Official docs describe multi-output blocks and a Loop block parallel mode; a small number of community forum threads report inconsistent concurrent execution in practice.',
         shortValue: 'Yes, Branch block fan-out plus Loop block parallel mode',
@@ -603,7 +601,7 @@ export const retoolProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value: 'Unknown',
-        detail: 'Not publicly documented in a single consolidated reference.',
+        detail: 'Not documented in a single consolidated reference.',
         shortValue: 'Not publicly documented',
         confidence: 'unknown',
         sources: [],
@@ -619,7 +617,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Enterprise plan includes "platform APIs" for managing/orchestrating Retool resources; Retool itself can also be exposed as an MCP server for programmatic/agent access.',
         detail:
-          'Platform APIs are listed as an Enterprise-tier pricing feature. Retool has not published a dedicated docs page detailing whether individual apps or workflows can be published as standalone REST endpoints.',
+          'Platform APIs are an Enterprise-tier pricing feature. Retool has not published whether individual apps or workflows can be published as standalone REST endpoints.',
         shortValue: 'Enterprise platform APIs plus MCP server access',
         confidence: 'estimated',
         sources: [
@@ -630,7 +628,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Custom Component dev kit (React/TypeScript) + CLI, plus a community Custom Component Gallery; no general-purpose client SDK for multiple languages found',
         detail:
-          "Retool provides a TypeScript API for building custom React components locally (using standard npm packages and Retool's `retool-ccl` command-line tool) that can add new properties and events to the app editor. Finished components can be published to the community Custom Component Gallery or shared privately as component libraries. There is no official multi-language client SDK, such as Python, Node, or Go REST client libraries, beyond this TypeScript toolkit and workflow webhook/REST triggers.",
+          "Retool provides a TypeScript API for building custom React components locally (using standard npm packages and Retool's `retool-ccl` CLI tool) that adds new properties and events to the app editor. Finished components can be published to the community Custom Component Gallery or shared privately as component libraries. There is no multi-language client SDK, such as Python, Node, or Go REST client libraries, beyond this TypeScript toolkit and workflow webhook/REST triggers.",
         shortValue: 'Custom Component React/TS kit, no multi-language SDK',
         confidence: 'estimated',
         sources: [
@@ -648,7 +646,7 @@ export const retoolProfile: CompetitorProfile = {
       },
       mcpPublishing: {
         value:
-          "No, not in the sense of turning one specific app into its own callable tool: Retool's MCP server (public beta) exposes Retool's own build and management actions (create/edit apps, run queries, manage users, inspect resources) so external AI tools like Claude or Cursor can operate the Retool platform itself. It does not let you take a single deployed app or workflow and publish just that as a standalone MCP tool for outside consumption.",
+          "No, not in the sense of turning one specific app into its own callable tool: Retool's MCP server (public beta) exposes Retool's own build and management actions (create/edit apps, run queries, manage users, inspect resources) so external AI tools like Claude or Cursor can operate the Retool platform itself. It does not let you publish a single deployed app or workflow as its own standalone MCP tool for outside consumption.",
         detail:
           'Retool agents can call external MCP servers as tools, and Retool itself is an MCP server for managing the workspace, but no documentation confirms publishing an individual workflow or app as its own MCP endpoint for external tool-calling.',
         shortValue: 'No, MCP exposes platform control, not per-app tools',
@@ -717,8 +715,7 @@ export const retoolProfile: CompetitorProfile = {
     },
     security: {
       soc2: {
-        value:
-          "Yes: SOC 2 Type 2, plus ISO/IEC 27001:2022, GDPR, and CCPA, per Retool's Trust Center.",
+        value: 'Yes: SOC 2 Type 2, plus ISO/IEC 27001:2022, GDPR, and CCPA.',
         detail:
           'Reports/certificates are downloadable via the self-serve Trust Center (SafeBase-powered).',
         shortValue: 'SOC 2 Type 2, ISO 27001, GDPR, CCPA',
@@ -770,9 +767,9 @@ export const retoolProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'SOC 2 Type II, ISO/IEC 27001:2022, GDPR, and CCPA are listed on the Trust Center; HIPAA is available via BAA on Enterprise.',
+          'SOC 2 Type II, ISO/IEC 27001:2022, GDPR, and CCPA certifications, plus HIPAA via BAA on Enterprise.',
         detail:
-          "The Trust Center (SafeBase-powered) displays SOC 2 Type 2, ISO/IEC 27001:2022, GDPR, and CCPA certifications. HIPAA compliance is available with a signed BAA on Enterprise (self-hosted) plans. PCI and FedRAMP are not confirmed on Retool's own trust page.",
+          'The Trust Center (SafeBase-powered) lists SOC 2 Type 2, ISO/IEC 27001:2022, GDPR, and CCPA certifications. HIPAA compliance is available with a signed BAA on Enterprise (self-hosted) plans. PCI and FedRAMP are not confirmed.',
         shortValue: 'SOC 2, ISO 27001, GDPR, CCPA; HIPAA via BAA',
         confidence: 'estimated',
         sources: [
@@ -849,7 +846,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'No: Retool Cloud has a fixed one-year audit log retention with only the most recent three months browsable in the UI; there is no documented org-configurable retention window on Cloud. Self-hosted orgs manage retention themselves via their own infrastructure, but that is operator-managed, not a Retool-provided configurable setting.',
         detail:
-          'No evidence of configurable retention windows for other resources like soft-deleted items either.',
+          'No configurable retention windows exist for other resources, like soft-deleted items, either.',
         shortValue: 'No, fixed 1-year retention on Cloud, not configurable',
         confidence: 'estimated',
         sources: [
@@ -862,7 +859,7 @@ export const retoolProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          "No: Retool does not document an automated PII-detection/redaction system for workflow content or logs. The closest documented control is manual, per-query 'Remove parameters from logs' in Advanced Options, which lets a builder exclude specific named parameters (which could include PII) from being written to audit logs, but this is manual exclusion, not automatic PII detection/redaction.",
+          "No: Retool has no automated PII-detection or redaction system for workflow content or logs. The closest control is the manual, per-query 'Remove parameters from logs' option in Advanced Options, which lets a builder exclude specific named parameters (which could include PII) from being written to audit logs. This is manual exclusion, not automatic PII detection or redaction.",
         shortValue: 'No, only manual log-parameter exclusion, not PII detection',
         confidence: 'verified',
         sources: [
@@ -877,7 +874,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Yes: Retool supports SAML 2.0 SSO (Business plan and above) compatible with Okta, Azure AD, Google Workspace, OneLogin and other SAML/OIDC providers, plus SCIM-based auto-provisioning (create/update/deactivate users automatically) available on Cloud or self-hosted 2.32.1+.',
         detail:
-          "Enterprise plan marketing copy separately lists 'Custom SSO' as an Enterprise feature, suggesting tiered SSO capability between Business and Enterprise.",
+          "The Enterprise plan separately lists 'Custom SSO' as a feature, suggesting tiered SSO capability between Business and Enterprise.",
         shortValue: 'Yes, SAML/OIDC SSO plus SCIM auto-provisioning',
         confidence: 'verified',
         sources: [
@@ -895,9 +892,9 @@ export const retoolProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Yes: Retool's built-in integrations (Resources) are a first-party catalog of roughly 50 databases/APIs/cloud services built and maintained by Retool itself, not an open marketplace of third-party-submitted connectors. Retool separately offers Custom Component Libraries, which let a customer's own developers pull in npm packages to build custom UI components, but these are private to the authoring organization by default (or explicitly made public by that org) and are not a shared registry where other Retool customers install code published by unrelated third parties.",
+          "Yes: Retool's built-in integrations (Resources) are a first-party catalog of roughly 50 databases, APIs, and cloud services built and maintained by Retool, not an open marketplace of third-party-submitted connectors. Retool separately offers Custom Component Libraries, which let a customer's own developers pull in npm packages to build custom UI components, but these are private to the authoring organization by default (or explicitly made public by that org), not a shared registry where other Retool customers install code published by unrelated third parties.",
         detail:
-          "Retool documents that a custom component loads into a sandboxed iframe, and its own custom-component-guide plus a community forum thread ('Custom Component Vulnerabilities') flag that developers should run npm audit on the dependencies they pull into their own component libraries. This is a supply-chain caution for self-authored code, not a documented incident involving a shared marketplace, since no such public component marketplace exists.",
+          "A custom component loads into a sandboxed iframe, and Retool's custom-component-guide plus a community forum thread ('Custom Component Vulnerabilities') flag that developers should run npm audit on dependencies pulled into their own component libraries. This is a supply-chain caution for self-authored code, not an incident involving a shared marketplace, since no public component marketplace exists.",
         shortValue: 'Yes, first-party integration catalog, no public component marketplace',
         confidence: 'verified',
         sources: [
@@ -919,7 +916,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Per-run/per-block execution logs and status in Run History; no native distributed tracing with spans. Latency percentile and error-rate dashboards require connecting Datadog or Sentry.',
         detail:
-          "Run History lists every workflow run with date/time/status and lets you drill into each block to find where a failure occurred, filterable by error/success/info. This is block-level status logging, not distributed tracing with spans. For latency percentile or error-rate dashboards, Retool's docs point to connecting an external tool like Datadog or Sentry rather than offering a built-in metrics dashboard.",
+          'Run History lists every workflow run with date/time/status and lets you drill into each block to find where a failure occurred, filterable by error/success/info. This is block-level status logging, not distributed tracing with spans. For latency percentile or error-rate dashboards, Retool points to connecting an external tool like Datadog or Sentry rather than offering a built-in metrics dashboard.',
         shortValue: 'Block-level run logs; tracing via Datadog/Sentry',
         confidence: 'estimated',
         sources: [
@@ -974,7 +971,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Yes: Retool Enterprise orgs (Cloud or self-hosted 3.38 Edge+) can continuously stream audit log events to Datadog, and self-hosted deployments can set LOG_AUDIT_EVENTS=true to output all audit events to stdout for ingestion by any external log pipeline.',
         detail:
-          'Cloud Business/Enterprise can also download audit logs from the UI (batch, not a live drain). No official Retool docs confirming direct S3/BigQuery/generic-webhook drains were found; Datadog and self-hosted stdout are the documented mechanisms.',
+          'Cloud Business/Enterprise can also download audit logs from the UI (batch, not a live drain). No direct S3/BigQuery/generic-webhook drains are documented; Datadog and self-hosted stdout are the documented mechanisms.',
         shortValue: 'Yes, audit log streaming to Datadog / stdout',
         confidence: 'verified',
         sources: [

@@ -19,7 +19,6 @@ const SEO_SCAN_DIRS = [
   LANDING_DIR,
   path.resolve(APP_DIR, 'changelog'),
   path.resolve(APP_DIR, 'changelog.xml'),
-  path.resolve(APP_DIR, 'academy'),
   path.resolve(SIM_ROOT, 'lib', 'blog'),
   path.resolve(SIM_ROOT, 'content', 'blog'),
 ]

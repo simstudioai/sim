@@ -41,7 +41,7 @@ export const n8nProfile: CompetitorProfile = {
     {
       title: 'Native MCP Client Tool and MCP Server Trigger nodes',
       description:
-        "n8n ships first-party nodes so any workflow's AI agent can call tools from an external MCP server (MCP Client Tool), and any n8n workflow can itself be exposed as MCP tools to external AI agents (MCP Server Trigger), using SSE/JSON-RPC with Bearer, header, or OAuth2 auth.",
+        "n8n ships first-party nodes so any workflow's AI agent can call tools from an external MCP server (MCP Client Tool), and any n8n workflow can itself be exposed as MCP tools to external AI agents (MCP Server Trigger), via SSE/JSON-RPC with Bearer, header, or OAuth2 auth.",
       shortDescription: 'First-party nodes to both call and expose MCP tools.',
       source: {
         url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp/',
@@ -63,7 +63,7 @@ export const n8nProfile: CompetitorProfile = {
     {
       title: 'Fair-code self-hostable core with source-available license',
       description:
-        'The core product is released under the Sustainable Use License v1.0. Source-available, free for internal/non-commercial use, modification requires attribution. With enterprise-only files gated behind a separate n8n Enterprise License, and can be fully self-hosted via Docker, Docker Compose, or the official Kubernetes Helm chart.',
+        'The core product is released under the Sustainable Use License v1.0: source-available, free for internal or non-commercial use, with attribution required for modifications. Enterprise-only files are gated behind a separate n8n Enterprise License. It can be fully self-hosted via Docker, Docker Compose, or the official Kubernetes Helm chart.',
       shortDescription: 'Source-available core, fully self-hostable via Docker or Kubernetes.',
       source: {
         url: 'https://raw.githubusercontent.com/n8n-io/n8n/master/LICENSE.md',
@@ -98,7 +98,7 @@ export const n8nProfile: CompetitorProfile = {
     {
       title: "No public SOC 2 report; only 'aligned to' SOC 2",
       description:
-        "n8n states its security program is 'aligned to' the SOC 2 framework with annual independent audits, and the SOC 2 report itself is only made available to enterprise customers via the Trust Center rather than published publicly.",
+        "n8n's security program is 'aligned to' the SOC 2 framework with annual independent audits, and the SOC 2 report is available to enterprise customers via the Trust Center, not published publicly.",
       shortDescription: 'SOC 2 report is available only on request to enterprise customers.',
       source: { url: 'https://trust.n8n.io/', label: 'n8n Trust Center', asOf: '2026-07-02' },
     },
@@ -106,7 +106,7 @@ export const n8nProfile: CompetitorProfile = {
       title:
         'SSO/SAML/LDAP, audit logging, and dedicated SLA support gated to paid/Enterprise tiers',
       description:
-        'Core governance features, SSO/SAML/LDAP, custom project roles, audit log export/SIEM streaming, and dedicated SLA-backed support, are not available on the Community (free, self-hosted) edition. They require the Business or Enterprise plans.',
+        'SSO/SAML/LDAP, custom project roles, audit log export/SIEM streaming, and dedicated SLA-backed support are not available on the Community (free, self-hosted) edition; they require the Business or Enterprise plans.',
       shortDescription: 'Governance features require Business or Enterprise, not the free tier.',
       source: { url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' },
     },
@@ -169,7 +169,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'Cloud (n8n-managed) and self-hosted via npm, Docker/Docker Compose, or Kubernetes (official Helm chart)',
         detail:
-          "Self-hosting can be run via npm, Docker, or a server per n8n's own docs. A separate n8n-io/n8n-hosting GitHub repo and Helm chart (oci://ghcr.io/n8n-io/n8n-helm-chart/n8n) provide reference deployments for Docker Compose and Kubernetes, and cloud deployment guides cover AWS, Azure, and GCP.",
+          'Self-hosting can be run via npm, Docker, or a server. A separate n8n-io/n8n-hosting GitHub repo and Helm chart (oci://ghcr.io/n8n-io/n8n-helm-chart/n8n) provide reference deployments for Docker Compose and Kubernetes, and cloud deployment guides cover AWS, Azure, and GCP.',
         shortValue: 'Cloud, npm, Docker Compose, or Kubernetes Helm',
         confidence: 'estimated',
         sources: [
@@ -188,7 +188,7 @@ export const n8nProfile: CompetitorProfile = {
       templates: {
         value: 'Yes: large public template library (thousands of workflows)',
         detail:
-          'n8n.io/workflows is a public directory of community-submitted workflow templates, reported at roughly 10,000+ templates as of mid-2026, with a dedicated AI-workflow category.',
+          'n8n.io/workflows is a public directory of community-submitted workflow templates, with roughly 10,000+ templates as of mid-2026 and a dedicated AI-workflow category.',
         shortValue: '10,000+ community workflow templates',
         confidence: 'estimated',
         sources: [
@@ -203,7 +203,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'Sustainable Use License v1.0 (source-available/"fair-code") + n8n Enterprise License for .ee. Files',
         detail:
-          'Core n8n code is under the Sustainable Use License v1.0: free for internal business, non-commercial, or personal use, with required attribution on modifications. Files with \'.ee.\' in the path require a separate proprietary n8n Enterprise License. N8n markets this combination as "fair-code," not OSI-approved open source.',
+          'Core n8n code is under the Sustainable Use License v1.0: free for internal business, non-commercial, or personal use, with required attribution on modifications. Files with \'.ee.\' in the path require a separate proprietary n8n Enterprise License. n8n calls this combination "fair-code"; it is not OSI-approved open source.',
         shortValue: 'Sustainable Use License plus Enterprise License',
         confidence: 'verified',
         sources: [
@@ -262,7 +262,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'No: n8n does not support live concurrent multi-user canvas editing with cursors/selections/synced operations. Collaboration is handled through async workflow sharing, project-based access, and Git-based source control (Enterprise), not real-time co-editing; community edition additionally lacks any workflow sharing at all.',
         detail:
-          'Enterprise adds Git source control and project sharing, but no evidence of live cursors or simultaneous canvas editing was found.',
+          'Enterprise adds Git source control and project sharing, but there is no live-cursor or simultaneous canvas editing support.',
         shortValue: 'No live co-editing, only async sharing + Git version control',
         confidence: 'verified',
         sources: [
@@ -473,7 +473,7 @@ export const n8nProfile: CompetitorProfile = {
       humanInTheLoop: {
         value: 'Yes: dedicated Human-in-the-Loop node built on Wait',
         detail:
-          "n8n has a dedicated Human-in-the-Loop node (a higher-level abstraction built on the underlying Wait node) that pauses an active workflow mid-run and waits on human approval or input, distinct from a plain delay. The approver is notified via a configurable channel. Gmail, Slack, Telegram, Discord, Microsoft Teams, WhatsApp, or n8n's built-in Chat. With 'Approve Only' or 'Approve and Disapprove' options. The run resumes when the reviewer responds via a button or webhook callback, and an optional timeout triggers a fallback path if no response arrives within the configured window (minutes up to a day).",
+          "n8n has a dedicated Human-in-the-Loop node (a higher-level abstraction built on the underlying Wait node) that pauses an active workflow mid-run and waits on human approval or input, distinct from a plain delay. The approver is notified via a configurable channel, Gmail, Slack, Telegram, Discord, Microsoft Teams, WhatsApp, or n8n's built-in Chat, with 'Approve Only' or 'Approve and Disapprove' options. The run resumes when the reviewer responds via a button or webhook callback, and an optional timeout triggers a fallback path if no response arrives within the configured window (minutes up to a day).",
         shortValue: 'Dedicated approval node with timeout fallback',
         confidence: 'verified',
         sources: [
@@ -595,9 +595,9 @@ export const n8nProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          "No: n8n's own documentation states that in the current (v1) execution order, the engine executes each branch in turn, completing one branch before starting another, rather than running them concurrently.",
+          'No: in the current (v1) execution order, n8n executes each branch in turn, completing one before starting another, rather than running them concurrently.',
         detail:
-          'n8n does offer a Merge node to recombine split branches, and community workaround patterns exist (e.g. triggering sub-workflows asynchronously and waiting for all to finish), but there is no documented native fan-out/fan-in node that runs branches concurrently.',
+          'n8n does offer a Merge node to recombine split branches, and community workaround patterns exist (e.g. triggering sub-workflows asynchronously and waiting for all to finish), but no native fan-out/fan-in node runs branches concurrently.',
         shortValue: 'No, branches execute sequentially by default',
         confidence: 'estimated',
         sources: [
@@ -615,9 +615,9 @@ export const n8nProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          "No: n8n's own blog describes A2A protocol support as coming from a community-published node, not a built-in feature of the core product.",
+          'No: A2A protocol support comes from a community-published node, not a built-in feature of the core product.',
         detail:
-          "n8n's official blog post on the Agent2Agent protocol states teams experimenting with A2A today rely on a community-published node for protocol-level communication; no first-party A2A node ships in n8n core.",
+          'Teams experimenting with A2A rely on a community-published node for protocol-level communication; no first-party A2A node ships in n8n core.',
         shortValue: 'No, community node only, not native',
         confidence: 'estimated',
         sources: [
@@ -651,9 +651,9 @@ export const n8nProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '1,921 integrations (per live n8n.io/integrations page)',
+        value: '1,921 integrations (per n8n.io/integrations)',
         detail:
-          "The n8n.io integrations directory page displays a live count of 1,921 integrations as of the check date. N8n's GitHub repo description separately advertises '400+ integrations' as a rounder marketing figure, so the two vendor sources disagree slightly.",
+          "The n8n.io integrations directory page lists 1,921 integrations. n8n's GitHub repo description separately advertises a rounder '400+ integrations,' so the two vendor sources disagree slightly.",
         shortValue: '1,921 listed integrations',
         confidence: 'verified',
         sources: [
@@ -707,7 +707,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'Yes: workflows can be triggered/exposed via Webhook trigger as a REST-style endpoint, and via MCP Server Trigger as MCP tools',
         detail:
-          "A workflow's Webhook trigger node gives it a callable HTTP endpoint that functions as a REST API surface for that workflow. Separately, the MCP Server Trigger node lets a workflow (or its component tools) be published for external AI agents to call over MCP. No distinct SDK-generation feature was found in vendor docs.",
+          "A workflow's Webhook trigger node gives it a callable HTTP endpoint that functions as a REST API surface for that workflow. Separately, the MCP Server Trigger node lets a workflow (or its component tools) be published for external AI agents to call over MCP. No distinct SDK-generation feature is documented.",
         shortValue: 'Webhook endpoints and MCP Server Trigger',
         confidence: 'estimated',
         sources: [
@@ -803,9 +803,9 @@ export const n8nProfile: CompetitorProfile = {
       },
       byok: {
         value:
-          'De facto yes: all Chat Model nodes require users\' own provider API credentials, though not framed as a named "BYOK" feature',
+          'De facto yes: all Chat Model nodes require users\' own provider API credentials, though n8n does not name this "BYOK"',
         detail:
-          "n8n's pricing page describes plan-included 'AI credits' (50/150/1,000 depending on tier) for its own hosted AI features, but does not explicitly state a bring-your-own-API-key policy. Because all Chat Model nodes require users to supply their own provider API credentials to call OpenAI, Anthropic, and others directly, BYOK is the de facto default for workflow-level LLM calls, though no vendor page names it as a distinct BYOK feature.",
+          "n8n's pricing page describes plan-included 'AI credits' (50/150/1,000 depending on tier) for its own hosted AI features, but doesn't name a bring-your-own-API-key policy. Since all Chat Model nodes require users to supply their own provider API credentials to call OpenAI, Anthropic, and others directly, BYOK is the de facto default for workflow-level LLM calls.",
         shortValue: 'De facto via provider API keys, not named',
         confidence: 'estimated',
         sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' }],
@@ -816,7 +816,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           "SOC 2: program 'aligned to' SOC 2 with annual third-party audits; report available to enterprise customers via Trust Center",
         detail:
-          "n8n operates a Trust Center (trust.n8n.io, powered by SafeBase) covering security, compliance, privacy, and reliability. Per n8n's own materials, its security program is aligned to the SOC 2 framework with continuous evaluation and annual independent audits, and the SOC 2 report itself is provided to enterprise customers on request rather than published openly.",
+          'n8n operates a Trust Center (trust.n8n.io, powered by SafeBase) covering security, compliance, privacy, and reliability. Its security program is aligned to the SOC 2 framework, with continuous evaluation and annual independent audits, and the SOC 2 report is provided to enterprise customers on request rather than published openly.',
         shortValue: 'Aligned to SOC 2, report on request',
         confidence: 'verified',
         sources: [
@@ -837,7 +837,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'Yes: achievable via self-hosting; specific cloud data-residency regions not confirmed',
         detail:
-          'Full self-hosting (Docker, Kubernetes, or npm, on any infrastructure including on-prem) gives complete control over where data lives. No source confirms specific selectable data-residency regions for n8n Cloud itself.',
+          "Full self-hosting (Docker, Kubernetes, or npm, on any infrastructure including on-prem) gives complete control over where data lives. n8n Cloud's own selectable data-residency regions are not documented.",
         shortValue: 'Via self-hosting; cloud regions unconfirmed',
         confidence: 'estimated',
         sources: [
@@ -874,7 +874,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'GDPR (as data processor) and SOC 2 Type II / SOC 3; no HIPAA, ISO 27001, PCI, or FedRAMP certification found',
         detail:
-          "n8n's Trust Center (SafeBase-hosted) and legal/security page list GDPR compliance (as a data processor with a standard DPA) and SOC 2 Type II plus a public SOC 3 report, with CAIQ self-assessment questionnaires available for both cloud and self-hosted deployments. No formal ISO 27001 certification, HIPAA certification/BAA, PCI-DSS, or FedRAMP was found on n8n's own trust materials. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as n8n holding those certifications itself.",
+          "n8n's Trust Center (SafeBase-hosted) and legal/security page list GDPR compliance (as a data processor with a standard DPA) and SOC 2 Type II plus a public SOC 3 report, with CAIQ self-assessment questionnaires available for both cloud and self-hosted deployments. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.",
         shortValue: 'GDPR, SOC 2 Type II, SOC 3',
         confidence: 'verified',
         sources: [
@@ -920,9 +920,9 @@ export const n8nProfile: CompetitorProfile = {
       },
       whiteLabeling: {
         value:
-          "No: n8n's own OEM/embed documentation explicitly states n8n branding stays visible in the editor when embedded, and full white-labeling is not supported through their OEM offering; only self-hosted customers doing manual source-code modification (editing design-system CSS/Vue components and i18n text) can rebrand it themselves.",
+          "No: n8n's OEM/embed documentation states n8n branding stays visible in the editor when embedded, and full white-labeling is not supported through their OEM offering; only self-hosted customers doing manual source-code modification (editing design-system CSS/Vue components and i18n text) can rebrand it themselves.",
         detail:
-          'n8n\'s own docs say: "If full white-labeling is a hard requirement for your product, OEM isn\'t the right fit." Full rebrand only possible via unsupported self-hosted source modification.',
+          'n8n\'s docs say: "If full white-labeling is a hard requirement for your product, OEM isn\'t the right fit." A full rebrand is only possible via unsupported self-hosted source modification.',
         shortValue: 'No, n8n branding stays visible even via OEM/embed',
         confidence: 'verified',
         sources: [
@@ -1007,7 +1007,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'Partial: n8n ships built-in first-party nodes plus an open community-node ecosystem published to public npm, where only a subset carry an official "verified" review',
         detail:
-          "Beyond its built-in nodes, n8n lets any developer publish a community node as a public npm package that other users install by name; only nodes n8n manually reviews for quality and security (and which forgo runtime dependencies) earn the verified shield icon and are installable/discoverable from n8n Cloud, while unverified community nodes can still be installed on self-hosted instances (or disabled via N8N_COMMUNITY_PACKAGES_ENABLED). n8n's own docs warn that community nodes run with the same level of access as n8n itself, including decrypted credentials during execution. In January 2026, researchers documented a real supply-chain attack in which malicious npm packages posing as n8n community nodes (one mimicking a Google Ads integration) stole OAuth tokens from the credential store; the primary malicious package had 4,241 downloads listed before removal.",
+          "Beyond its built-in nodes, n8n lets any developer publish a community node as a public npm package that other users install by name; only nodes n8n manually reviews for quality and security (and which forgo runtime dependencies) earn the verified shield icon and are installable/discoverable from n8n Cloud, while unverified community nodes can still be installed on self-hosted instances (or disabled via N8N_COMMUNITY_PACKAGES_ENABLED). n8n's docs warn that community nodes run with the same level of access as n8n itself, including decrypted credentials during execution. In January 2026, researchers documented a supply-chain attack in which malicious npm packages posing as n8n community nodes (one mimicking a Google Ads integration) stole OAuth tokens from the credential store; the primary malicious package had 4,241 downloads listed before removal.",
         shortValue: 'First-party nodes plus an open, lightly-vetted npm community marketplace',
         confidence: 'verified',
         sources: [
@@ -1134,7 +1134,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           "n8n publishes concrete configurable limits: EXECUTIONS_TIMEOUT (default -1, disabled) sets a default per-workflow timeout in seconds and EXECUTIONS_TIMEOUT_MAX (default 3600 seconds, i.e. 1 hour) caps how long any individual workflow's timeout override can be set to; concurrency is capped by N8N_CONCURRENCY_PRODUCTION_LIMIT for production (webhook/trigger-started) executions, with excess runs queued and processed FIFO once capacity frees up. In queue mode, each worker's parallel job count is configurable via a --concurrency flag.",
         detail:
-          "These are self-hosted environment-variable defaults from n8n's own docs; n8n Cloud plans may impose their own separate execution/concurrency caps that were not found on a currently-live docs page during this research. The specific default value of the worker --concurrency flag was not confirmed on a currently-live docs page.",
+          "These are self-hosted environment-variable defaults from n8n's own docs; n8n Cloud plans may impose their own separate execution/concurrency caps, which are not published. The worker --concurrency flag's default value is also not documented.",
         shortValue: 'Configurable timeout (max 3600s) and concurrency limits',
         confidence: 'verified',
         sources: [
@@ -1156,7 +1156,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'Yes: n8n lets you set a per-node "On Error" behavior of "Continue (using error output)," which routes that node\'s error down a separate error output branch while the rest of the workflow keeps running, in addition to "Continue" (proceed using last valid data) and "Stop Workflow" (halt entirely); separately, an entire workflow can have a designated Error Workflow (built from an Error Trigger node) that fires when the main workflow fails, for alerting/cleanup.',
         detail:
-          'Community bug reports (e.g. on the Sort and HTTP Request nodes) show the error-output routing does not always behave consistently for every node type, so this capability is real but not universally bulletproof across all nodes.',
+          'Community bug reports (e.g. on the Sort and HTTP Request nodes) show the error-output routing does not always behave consistently across every node type.',
         shortValue: 'Yes, via node-level error output branch',
         confidence: 'verified',
         sources: [

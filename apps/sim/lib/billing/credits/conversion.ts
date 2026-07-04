@@ -22,6 +22,18 @@ export function creditsToDollars(credits: number): number {
 }
 
 /**
+ * Pluralizes an already credit-denominated integer, e.g. `1234` -> `"1,234
+ * credits"`, `1` -> `"1 credit"`. Low-level building block for
+ * {@link formatCreditCost} — also useful directly for consumers that already
+ * hold precise integer credits (e.g. a server-converted `creditCost` value),
+ * which would otherwise double-convert by round-tripping back through
+ * dollars.
+ */
+export function formatCreditsLabel(credits: number): string {
+  return `${credits.toLocaleString()} ${credits === 1 ? 'credit' : 'credits'}`
+}
+
+/**
  * Single source of truth for rendering a dollar cost as a credit label.
  *
  * Both the billing cost breakdown and the trace view derive their credit
@@ -50,7 +62,7 @@ export function formatCreditCost(
     return opts?.emptyForZeroOrLess ? undefined : '0 credits'
   }
 
-  return `${credits.toLocaleString()} ${credits === 1 ? 'credit' : 'credits'}`
+  return formatCreditsLabel(credits)
 }
 
 /**

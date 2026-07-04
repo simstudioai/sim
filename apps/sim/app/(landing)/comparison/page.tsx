@@ -44,7 +44,7 @@ const faqItems = [
 ]
 
 export const metadata: Metadata = buildLandingMetadata({
-  title: 'Sim Comparisons: AI Agent & Workflow Platforms',
+  title: 'Sim Comparisons | Sim, the AI Workspace',
   description:
     'Compare Sim, the open-source AI workspace, to n8n, Zapier, Make, and other workflow automation and AI agent platforms. Sourced, dated, fact-checked.',
   path: '/comparison',

@@ -5,9 +5,17 @@ import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { buildCollectionPageJsonLd } from '@/lib/blog/seo'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { withFilteredNoindex } from '@/lib/landing/seo'
 import { Cta } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
+/**
+ * Filtered/paginated variants render genuinely different lists, but only the
+ * bare index is indexable — same policy as the integrations and models
+ * catalogs — so canonical always points at the unfiltered page and the
+ * variant itself is noindexed rather than asking Google to index every
+ * tag/page permutation.
+ */
 export async function generateMetadata({
   searchParams,
 }: {
@@ -25,42 +33,40 @@ export async function generateMetadata({
     ? `Sim blog posts tagged "${tag}": insights and guides for building AI agents.`
     : 'Announcements, insights, and guides from Sim, the open-source AI workspace, for building, deploying, and managing AI agents.'
 
-  const canonicalParams = new URLSearchParams()
-  if (tag) canonicalParams.set('tag', tag)
-  if (pageNum > 1) canonicalParams.set('page', String(pageNum))
-  const qs = canonicalParams.toString()
-  const canonical = `${SITE_URL}/blog${qs ? `?${qs}` : ''}`
+  const canonical = `${SITE_URL}/blog`
+  const isFiltered = Boolean(tag) || pageNum > 1
 
-  return {
-    title,
-    description,
-    alternates: { canonical },
-    openGraph: {
-      title: `${title} | Sim`,
+  return withFilteredNoindex(
+    {
+      title,
       description,
-      url: canonical,
-      siteName: 'Sim',
-      locale: 'en_US',
-      type: 'website',
-      images: [
-        {
-          url: `${SITE_URL}/logo/primary/medium.png`,
-          width: 1200,
-          height: 630,
-          alt: 'Sim Blog',
-        },
-      ],
+      alternates: { canonical },
+      openGraph: {
+        title: `${title} | Sim`,
+        description,
+        url: canonical,
+        siteName: 'Sim',
+        locale: 'en_US',
+        type: 'website',
+        images: [
+          {
+            url: `${SITE_URL}/logo/primary/medium.png`,
+            width: 1200,
+            height: 630,
+            alt: 'Sim Blog',
+          },
+        ],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${title} | Sim`,
+        description,
+        site: '@simdotai',
+      },
     },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${title} | Sim`,
-      description,
-      site: '@simdotai',
-    },
-  }
+    isFiltered
+  )
 }
-
-export const revalidate = 3600
 
 export default async function BlogIndex({
   searchParams,

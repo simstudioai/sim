@@ -325,6 +325,18 @@ const nextConfig: NextConfig = {
       }
     )
 
+    /**
+     * The marketing Academy course/lesson pages were removed; content is
+     * consolidated into the docs site instead. Old course/lesson slugs have
+     * no equivalent path there, so every sub-path collapses to the new
+     * landing page rather than forwarding to a path that may not exist.
+     */
+    redirects.push({
+      source: '/academy/:path*',
+      destination: 'https://docs.sim.ai/academy',
+      permanent: true,
+    })
+
     // Move root feeds to blog namespace
     redirects.push(
       {
@@ -354,6 +366,38 @@ const nextConfig: NextConfig = {
     redirects.push({
       source: '/integrations/incidentio',
       destination: '/integrations/incident-io',
+      permanent: true,
+    })
+
+    /**
+     * Legacy integration slug: the SAP block's display name was fixed from
+     * `SAP S/4HANA` to `SAP S4HANA`, which moved its catalog slug. Preserves
+     * the previously indexed landing URL.
+     */
+    redirects.push({
+      source: '/integrations/sap-s-4hana',
+      destination: '/integrations/sap-s4hana',
+      permanent: true,
+    })
+
+    /**
+     * Legacy integration slug: the Cal.com block's display name briefly
+     * shipped as `CalCom` before being fixed to `Cal Com`/`Cal.com`, which
+     * moved its catalog slug from `calcom` to `cal-com`.
+     */
+    redirects.push({
+      source: '/integrations/calcom',
+      destination: '/integrations/cal-com',
+      permanent: true,
+    })
+
+    /**
+     * The partner program page was removed; routes existing links/bookmarks
+     * to contact instead of leaving a dead, previously-indexed URL.
+     */
+    redirects.push({
+      source: '/partners',
+      destination: '/contact',
       permanent: true,
     })
 

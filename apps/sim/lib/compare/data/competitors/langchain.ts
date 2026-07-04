@@ -15,7 +15,7 @@ export const langchainProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'LangChain is an open-source Python/JavaScript framework for building LLM applications, paired with LangGraph (a low-level, code-first agent-orchestration library for stateful, long-running agents) and LangSmith (a commercial observability, evaluation, and deployment platform for both).',
+    'LangChain is an open-source Python/JavaScript framework for building LLM applications. LangGraph is its low-level, code-first agent-orchestration library for stateful, long-running agents, and LangSmith is the commercial observability, evaluation, and deployment platform for both.',
   standoutFeatures: [
     {
       title: 'Durable execution via checkpointed graph state',
@@ -32,7 +32,7 @@ export const langchainProfile: CompetitorProfile = {
     {
       title: 'Dynamic parallel fan-out via the Send API',
       description:
-        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer, a native map-reduce pattern rather than a fixed number of parallel branches wired at build time.',
+        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer. This is a native map-reduce pattern, not a fixed number of parallel branches wired at build time.',
       shortDescription:
         'Send API spawns a runtime-determined number of parallel branches that merge via a reducer.',
       source: {
@@ -117,7 +117,7 @@ export const langchainProfile: CompetitorProfile = {
     {
       title: 'Durability is checkpoint persistence, not automatic failure detection',
       description:
-        "LangGraph's checkpointer saves state after every node, but production commentary notes there is no automatic detection of a crashed process; the checkpointer only lets a resumed process recover from the last saved state. An operator (or external process supervisor) still has to notice the failure and trigger the resume.",
+        "LangGraph's checkpointer saves state after every node, but nothing automatically detects a crashed process; it only lets a resumed process recover from the last saved state. An operator (or external process supervisor) still has to notice the failure and trigger the resume.",
       shortDescription:
         'Checkpointer saves state on failure, but nothing automatically detects a crashed process.',
       source: {
@@ -155,7 +155,7 @@ export const langchainProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          'Code-first Python/JavaScript framework (LangChain) plus a low-level graph-orchestration library (LangGraph) for building agents in code, with LangGraph Studio providing a browser-based visual IDE to render, inspect, and debug an already-coded agent graph, and Deep Agents providing a batteries-included harness on top of both',
+          'Code-first Python/JavaScript framework (LangChain) plus a low-level graph-orchestration library (LangGraph) for building agents in code. LangGraph Studio adds a browser-based visual IDE to render, inspect, and debug an already-coded agent graph, and Deep Agents provides a batteries-included harness on top of both.',
         detail:
           'There is no drag-and-drop agent authoring surface; developers write Python or TypeScript against LangChain/LangGraph APIs, and Studio visualizes the resulting graph for debugging and time-travel, rather than authoring it visually from scratch.',
         shortValue:
@@ -178,7 +178,7 @@ export const langchainProfile: CompetitorProfile = {
         value:
           'Steep for non-developers; moderate to steep for developers new to graph-based state machines and LLM orchestration concepts',
         detail:
-          'The framework assumes Python or JavaScript proficiency and introduces its own concepts (Runnables, graphs, checkpointers, reducers, Send/Command primitives) that take real ramp-up time even for experienced engineers; LangChain Academy exists specifically to address this learning curve.',
+          'The framework assumes Python or JavaScript proficiency and introduces its own concepts (Runnables, graphs, checkpointers, reducers, Send/Command primitives) that take real ramp-up time even for experienced engineers. LangChain Academy exists specifically to address this learning curve.',
         shortValue: 'Requires coding proficiency; own vocabulary (graphs, checkpointers, reducers)',
         confidence: 'estimated',
         sources: [
@@ -191,9 +191,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'Yes: the LangChain/LangGraph open-source libraries run entirely self-hosted by default (no vendor service required), and LangGraph Platform (the deployment/runtime layer) can also be fully self-hosted so no agent data leaves the customer VPC',
+          'Yes: the LangChain/LangGraph open-source libraries run entirely self-hosted by default (no vendor service required). LangGraph Platform (the deployment/runtime layer) can also be fully self-hosted, so no agent data leaves the customer VPC.',
         detail:
-          'A basic LangGraph server can additionally be self-hosted for free on the Developer plan with up to 100k nodes executed per month; full self-hosting of the platform layer is typically an Enterprise offering.',
+          'A basic LangGraph server can additionally be self-hosted for free on the Developer plan with up to 100k nodes executed per month. Full self-hosting of the platform layer is typically an Enterprise offering.',
         shortValue: 'Yes, both the OSS libraries and LangGraph Platform can be fully self-hosted',
         confidence: 'verified',
         sources: [
@@ -206,9 +206,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       deploymentOptions: {
         value:
-          'Any environment that runs Python/Node for the open-source libraries themselves; LangGraph Platform (renamed LangSmith Deployment) additionally offers a managed cloud service, a standalone self-hosted container (Docker/Kubernetes/VM with a Redis + Postgres backend), and a hybrid model',
+          'Any environment that runs Python/Node for the open-source libraries themselves. LangGraph Platform (renamed LangSmith Deployment) additionally offers a managed cloud service, a standalone self-hosted container (Docker/Kubernetes/VM with a Redis + Postgres backend), and a hybrid model.',
         detail:
-          'Standalone container deployment requires a REDIS_URI (background task queue) and a DATABASE_URI (Postgres, for assistants/threads/runs/state); langgraph deploy (introduced March 2026) is the current production deployment path, superseding the older langgraph up Docker Compose flow.',
+          'Standalone container deployment requires a REDIS_URI (background task queue) and a DATABASE_URI (Postgres, for assistants/threads/runs/state). langgraph deploy (introduced March 2026) is the current production deployment path, superseding the older langgraph up Docker Compose flow.',
         shortValue: 'OSS libraries anywhere, plus managed cloud, self-hosted container, or hybrid',
         confidence: 'verified',
         sources: [
@@ -221,9 +221,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       templates: {
         value:
-          'Yes: a small, official set of LangGraph templates (RAG Chatbot, ReAct Agent, Data Enrichment Agent, plus a blank starter) available in Python and JavaScript, downloadable via LangGraph Studio or as standalone GitHub repos, alongside a much larger informal ecosystem of community-published starter repos',
+          'Yes: a small, official set of LangGraph templates (RAG Chatbot, ReAct Agent, Data Enrichment Agent, plus a blank starter) available in Python and JavaScript, downloadable via LangGraph Studio or as standalone GitHub repos. A much larger, informal ecosystem of community-published starter repos exists alongside them.',
         detail:
-          'The official template count is small and curated (four templates at launch) compared to marketplace-style template galleries seen on visual workflow builders; most reuse in practice comes from cloning community GitHub repos rather than an in-product template library.',
+          'The official template count is small and curated (four templates at launch) compared to marketplace-style template galleries seen on visual workflow builders. Most reuse in practice comes from cloning community GitHub repos rather than an in-product template library.',
         shortValue:
           'A handful of official templates (RAG, ReAct, Data Enrichment), plus community repos',
         confidence: 'verified',
@@ -257,9 +257,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       environmentPromotion: {
         value:
-          'Partial: LangGraph Platform assistants are versioned (every edit creates a new version, with instant rollback to a prior version), but this is deployment/version management within one deployed service, not a Git-backed promotion of a whole project between separate dev/test/prod environments',
+          'Partial: LangGraph Platform assistants are versioned (every edit creates a new version, with instant rollback to a prior version). But this is deployment/version management within one deployed service, not a Git-backed promotion of a whole project between separate dev/test/prod environments.',
         detail:
-          'A LangGraph Platform deployment automatically creates a default assistant per graph; the platform tracks assistant versions and lets an operator roll back, comparable to a single-service release history rather than a multi-environment promotion pipeline.',
+          'A LangGraph Platform deployment automatically creates a default assistant per graph. The platform tracks assistant versions and lets an operator roll back, comparable to a single-service release history rather than a multi-environment promotion pipeline.',
         shortValue:
           'Assistant versioning with rollback, not whole-project multi-environment promotion',
         confidence: 'estimated',
@@ -273,9 +273,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       versionControlDepth: {
         value:
-          'Standard Git-based source control for agent code (since agents are code), plus LangGraph Platform assistant-level versioning with instant rollback; no in-product visual diff/compare UI beyond what Git tooling itself provides',
+          'Standard Git-based source control for agent code (since agents are code), plus LangGraph Platform assistant-level versioning with instant rollback. No in-product visual diff/compare UI exists beyond what Git tooling itself provides.',
         detail:
-          "Because the agent logic lives in a codebase, teams get full Git history, branching, and diffing for free through their own repository, distinct from a workflow builder's in-app version history panel; LangGraph Platform layers assistant versioning on top for the deployed configuration.",
+          "Because the agent logic lives in a codebase, teams get full Git history, branching, and diffing for free through their own repository, distinct from a workflow builder's in-app version history panel. LangGraph Platform layers assistant versioning on top for the deployed configuration.",
         shortValue: 'Git for code; assistant versioning/rollback for deployed configs',
         confidence: 'estimated',
         sources: [
@@ -288,7 +288,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          "No: there is no live, concurrent multi-user editing surface, agents are authored as code in each developer's own editor/IDE and merged via standard Git workflows, not edited simultaneously inside a shared canvas",
+          "No: there is no live, concurrent multi-user editing surface. Agents are authored as code in each developer's own editor/IDE and merged via standard Git workflows, not edited simultaneously inside a shared canvas.",
         detail:
           'LangGraph Studio is a debugging/visualization tool for a single running graph, not a multiplayer authoring surface with visible cursors or synced edits.',
         shortValue: 'No, collaboration happens through Git, not live co-editing',
@@ -343,7 +343,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       subWorkflows: {
         value:
-          "Yes: LangGraph's subgraph feature lets a compiled graph be added directly as a node in a parent graph via add_node, the parent waits for the subgraph to finish before continuing, and when state keys overlap the subgraph reads from and writes to the parent's state channels automatically; when schemas differ, a wrapper node function maps parent state to subgraph input and back",
+          "Yes: LangGraph's subgraph feature lets a compiled graph be added directly as a node in a parent graph via add_node. The parent waits for the subgraph to finish before continuing, and when state keys overlap, the subgraph reads from and writes to the parent's state channels automatically. When schemas differ, a wrapper node function maps parent state to subgraph input and back.",
         detail:
           'This is a code-level composition primitive (one compiled graph nested inside another), not a drag-and-drop "call another workflow" block in a visual builder, but it satisfies the same synchronous parent-waits-for-child, data-in/data-out contract.',
         shortValue: 'Yes, LangGraph subgraphs: compiled graph nested as a node, parent waits',
@@ -375,7 +375,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       agentReasoningBlocks: {
         value:
-          'Yes: LangGraph is purpose-built low-level orchestration for stateful, reasoning-driven agents, distinct from a plain deterministic chain, supporting single-agent ReAct loops, multi-agent systems, and hierarchical/supervisor architectures within one graph-based framework',
+          'Yes: LangGraph is purpose-built low-level orchestration for stateful, reasoning-driven agents, distinct from a plain deterministic chain. It supports single-agent ReAct loops, multi-agent systems, and hierarchical/supervisor architectures within one graph-based framework.',
         detail:
           'Graphs model explicit decision points, conditional edges, and tool-calling loops as first-class constructs, giving low-level control over exactly how an agent reasons and branches, rather than a black-box agent abstraction.',
         shortValue:
@@ -416,7 +416,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       mcpSupport: {
         value:
-          'Yes: the official langchain-mcp-adapters library converts external MCP server tools into LangChain/LangGraph-compatible tools over stdio or streamable HTTP transport, letting an agent call tools across multiple MCP servers, and LangGraph agents can themselves be exposed for MCP consumption',
+          'Yes: the official langchain-mcp-adapters library converts external MCP server tools into LangChain/LangGraph-compatible tools over stdio or streamable HTTP transport, letting an agent call tools across multiple MCP servers. LangGraph agents can themselves be exposed for MCP consumption.',
         detail:
           'Interceptors give access to LangGraph runtime context during MCP tool execution, adding middleware-like control (modify requests, retries, dynamic headers) around MCP tool calls.',
         shortValue: 'Official langchain-mcp-adapters library, stdio and streamable HTTP',
@@ -548,7 +548,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'Yes: the Send API lets a routing function dynamically spawn N parallel branches at runtime (not just a fixed number configured ahead of time), each processing a slice of state, with results merged back through a state reducer once all branches complete, a native map-reduce/fan-out-fan-in pattern',
+          'Yes: the Send API lets a routing function dynamically spawn N parallel branches at runtime (not just a fixed number configured ahead of time), each processing a slice of state, with results merged back through a state reducer once all branches complete. This is a native map-reduce/fan-out-fan-in pattern.',
         detail:
           'This differs from a small, statically fixed number of parallel branches: the number of concurrent executions is determined by the routing function at run time, based on the size of whatever collection it is fanning out over.',
         shortValue:
@@ -564,7 +564,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          "Yes: LangChain shipped native A2A (Agent2Agent) support via langchain-adk (March 2026), letting any LangChain agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list; the local LangGraph dev server exposes A2A endpoints at /a2a/{assistant_id}",
+          "Yes: LangChain shipped native A2A (Agent2Agent) support via langchain-adk (March 2026), letting any LangChain agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list. The local LangGraph dev server exposes A2A endpoints at /a2a/{assistant_id}.",
         detail:
           "The LangSmith Deployment A2A endpoint maps the protocol's contextId to a LangGraph thread_id automatically, so A2A conversations get the same tracing/observability as native LangGraph runs.",
         shortValue: 'Yes, native A2A server/client support with auto-generated Agent Cards',
@@ -597,7 +597,7 @@ export const langchainProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          "1,000+ integrations across model providers, vector stores, document loaders, and tools (per LangChain's own marketing), with a unified interface to 100+ LLM providers specifically",
+          '1,000+ integrations across model providers, vector stores, document loaders, and tools, with a unified interface to 100+ LLM providers specifically',
         detail:
           'The langchain-community package hosts many additional community-maintained integrations beyond what is centrally documented, so the true count is larger and harder to pin to one authoritative live number, unlike a connector-count page some workflow builders publish.',
         shortValue: '1,000+ integrations; 100+ LLM providers via a unified interface',
@@ -612,7 +612,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value:
-          "Not a workflow-builder concept: agents are invoked programmatically (function/API call) or served over the LangGraph Agent Server's REST/SDK interface; the Agent Server also exposes protocol-level entry points (A2A, MCP) but there is no equivalent to a connector-event/schedule/webhook trigger picker",
+          "Not a workflow-builder concept: agents are invoked programmatically (function/API call) or served over the LangGraph Agent Server's REST/SDK interface. The Agent Server also exposes protocol-level entry points (A2A, MCP), but there is no equivalent to a connector-event/schedule/webhook trigger picker.",
         detail:
           'A developer wires up whatever trigger mechanism they need in their own application code (a cron job, a webhook handler, a queue consumer) that then calls the LangGraph SDK or REST API to start a run.',
         shortValue:
@@ -741,10 +741,9 @@ export const langchainProfile: CompetitorProfile = {
     },
     security: {
       soc2: {
-        value:
-          'Yes: LangSmith is SOC 2 Type II compliant, and LangGraph Platform separately achieved SOC 2 Type II compliance alongside LangSmith',
+        value: 'Yes: both LangSmith and LangGraph Platform are SOC 2 Type II compliant.',
         detail:
-          "Confirmed directly via LangChain's own changelog announcement and Trust Center; both LangSmith and LangGraph Platform (now branded LangSmith Deployment) carry the same SOC 2 Type II attestation.",
+          'Both LangSmith and LangGraph Platform (now branded LangSmith Deployment) carry the same SOC 2 Type II attestation.',
         shortValue: 'Yes, SOC 2 Type II for both LangSmith and LangGraph Platform',
         confidence: 'verified',
         sources: [
@@ -869,7 +868,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          'Yes: LangSmith supports masking sensitive data before it reaches the backend via environment-variable-level hiding of all inputs/outputs, custom masking functions for selective redaction, and regex-based anonymizers (with a reference implementation in langsmith-pii-removal) covering emails, IPs, phone numbers, credit cards, SSNs, and dates, plus integration points for third-party tools like Microsoft Presidio',
+          'Yes: LangSmith supports masking sensitive data before it reaches the backend via environment-variable-level hiding of all inputs/outputs, custom masking functions for selective redaction, and regex-based anonymizers (with a reference implementation in langsmith-pii-removal) covering emails, IPs, phone numbers, credit cards, SSNs, and dates. It also integrates with third-party tools like Microsoft Presidio.',
         detail:
           "Redaction happens client-side, before the trace payload is serialized and sent, via a create_anonymizer hook, so sensitive data is stripped in the customer's own process rather than being redacted after ingestion.",
         shortValue: 'Yes, client-side masking/anonymizer hooks with regex PII detection',
@@ -901,7 +900,7 @@ export const langchainProfile: CompetitorProfile = {
         value:
           "Partial: the core langchain and langchain-core packages plus a set of popular integrations are maintained and security-reviewed by LangChain's own team, but the much larger integration surface lives in the community-driven langchain-community package (and hundreds of separately published community PyPI packages), which LangChain's own security policy states is not eligible for its bug bounty program",
         detail:
-          "LangChain's published security policy explicitly excludes langchain-community from bug bounty eligibility due to its community-driven nature, while still accepting and addressing reports for it, indicating a lighter, best-effort review tier for community-contributed integration code compared to the core libraries and officially maintained popular integrations. No source found for a distinct, documented incident of a malicious or credential-stealing community-published LangChain integration package; the closest public security incident (CVE-2025-68664, a serialization-injection vulnerability nicknamed LangGrinch, CVSS 9.3) was in the core langchain-core library itself, not a third-party community integration.",
+          "LangChain's published security policy excludes langchain-community from bug bounty eligibility due to its community-driven nature, while still accepting and addressing reports for it. This is a lighter, best-effort review tier for community-contributed integration code compared to the core libraries and officially maintained popular integrations. No documented incident exists of a malicious or credential-stealing community-published LangChain integration package; the closest public security incident (CVE-2025-68664, a serialization-injection vulnerability nicknamed LangGrinch, CVSS 9.3) was in the core langchain-core library itself, not a third-party community integration.",
         shortValue:
           'Partial: core/popular integrations vendor-reviewed; langchain-community is community-maintained, excluded from bug bounty',
         confidence: 'verified',
@@ -938,9 +937,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       durabilityModel: {
         value:
-          'LangGraph\'s checkpointer snapshots full graph state after every node completes (a "super-step"), so a run resumes from the last checkpoint after an interruption, timeout, human-approval pause, or crash rather than restarting; RetryPolicy provides automatic per-node retries with backoff/jitter, and TimeoutPolicy caps a node attempt',
+          'LangGraph\'s checkpointer snapshots full graph state after every node completes (a "super-step"), so a run resumes from the last checkpoint after an interruption, timeout, human-approval pause, or crash rather than restarting. RetryPolicy provides automatic per-node retries with backoff/jitter, and TimeoutPolicy caps a node attempt.',
         detail:
-          'Production commentary notes checkpointing alone does not include automatic failure detection, an external process still needs to notice a crash and trigger the resume, so durability here is a resumable-state primitive, not a fully autonomous self-healing system.',
+          'Checkpointing alone does not include automatic failure detection; an external process still needs to notice a crash and trigger the resume. Durability here is a resumable-state primitive, not a fully autonomous self-healing system.',
         shortValue:
           'Checkpoint-based resume plus per-node RetryPolicy/TimeoutPolicy, no auto failure detection',
         confidence: 'verified',
@@ -978,7 +977,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          'Yes: the LangGraph Agent Server supports background/async execution, a run can be started and its result polled or streamed later via the SDK/REST API, and interrupt()-paused runs inherently execute asynchronously across a human-response gap by design',
+          'Yes: the LangGraph Agent Server supports background/async execution. A run can be started and its result polled or streamed later via the SDK/REST API, and interrupt()-paused runs inherently execute asynchronously across a human-response gap by design.',
         detail:
           "This is a natural consequence of the Agent Server's run/thread model, where a run's state persists server-side independent of any single blocking client connection.",
         shortValue: "Yes, via the Agent Server's run/thread API and checkpoint-backed pausing",
@@ -1056,7 +1055,7 @@ export const langchainProfile: CompetitorProfile = {
         value:
           'Large: 141,000+ GitHub stars on langchain-ai/langchain and 36,000+ on langchain-ai/langgraph, an active Community Slack, a dedicated LangChain Forum, and reported adoption by roughly 35% of the Fortune 500',
         detail:
-          "Star counts and Fortune 500 adoption figure are per LangChain's own reporting around its October 2025 Series B announcement.",
+          "Star counts and the Fortune 500 adoption figure are from LangChain's October 2025 Series B announcement.",
         shortValue: '141k+ and 36k+ GitHub stars; Slack and Forum communities',
         confidence: 'verified',
         sources: [
@@ -1081,7 +1080,7 @@ export const langchainProfile: CompetitorProfile = {
         value:
           'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $260M), with reported headcount in the roughly 260-325 employee range as of mid-2026',
         detail:
-          'Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reportedly a ~$200M valuation). Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.',
+          'Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.',
         shortValue:
           'Founded 2022; $125M Series B (Oct 2025) at $1.25B valuation; ~260-325 employees',
         confidence: 'verified',

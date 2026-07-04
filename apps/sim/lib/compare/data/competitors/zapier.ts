@@ -11,7 +11,7 @@ export const zapierProfile: CompetitorProfile = {
     selfFramed: true,
     colors: ['#fc4c06', '#fcac7c', '#241414'],
     description:
-      'Zapier is a cloud‑based automation platform that connects thousands of web applications, enabling users to create custom workflows without coding. By linking apps such as Gmail, Slack, Salesforce, and many more, Zapier automates repetitive tasks-moving data, triggering actions, and syncing information across services-so teams can focus on other work. Users build “Zaps” that define triggers and actions, allowing software to work together.',
+      'Zapier is a cloud-based automation platform that connects thousands of web applications, letting users build custom workflows without coding. Linking apps like Gmail, Slack, and Salesforce, it automates repetitive tasks: moving data, triggering actions, and syncing information across services. Users build "Zaps" that define triggers and actions, so software works together.',
     industries: [
       'Software (B2B)',
       'Developer Tools & APIs',
@@ -28,7 +28,7 @@ export const zapierProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Zapier is a cloud-based, proprietary no-code/low-code automation platform built around "Zaps": trigger-action workflows connecting thousands of web apps. It has recently added AI features on top, including Copilot for building, Agents for autonomous multi-step tasks, and an MCP server.',
+    'Zapier is a cloud-based, proprietary no-code/low-code automation platform built around "Zaps": trigger-action workflows connecting thousands of web apps. It recently added AI features, including Copilot for building, Agents for autonomous multi-step tasks, and an MCP server.',
   standoutFeatures: [
     {
       title: '9,000+ pre-built app integrations',
@@ -39,7 +39,7 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Hosted MCP server',
       description:
-        'Zapier MCP exposes 9,000+ app connections and 30,000+ actions as Model Context Protocol tools over Streamable HTTP, letting any MCP-compatible AI client call Zapier actions, at a cost of 2 tasks per tool call on all plans.',
+        'Zapier MCP exposes 9,000+ app connections and 30,000+ actions as Model Context Protocol tools over Streamable HTTP, letting any MCP-compatible AI client call Zapier actions. Each tool call costs 2 tasks on all plans.',
       shortDescription: 'Exposes 9,000+ apps and 30,000+ actions as MCP tools for any AI client.',
       source: {
         url: 'https://zapier.com/blog/zapier-mcp-guide/',
@@ -50,7 +50,7 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Zapier Copilot (natural-language build assistant)',
       description:
-        'Copilot lets users describe an automation or agent in plain language and generates a draft Zap or agent, including writing custom code steps to fill integration gaps. Currently in open beta.',
+        'Copilot lets users describe an automation or agent in plain language and generates a draft Zap or agent, including custom code steps to fill integration gaps. In open beta.',
       shortDescription: 'Describe an automation and Copilot builds the Zap or agent for you.',
       source: {
         url: 'https://zapier.com/blog/zapier-copilot-guide/',
@@ -61,7 +61,7 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Multi-provider LLM support across Zaps/Agents/Chatbots',
       description:
-        'Zapier lets users choose among OpenAI (GPT family), Anthropic (Claude family), and Google (Gemini family) models inside AI-powered steps and chatbots, including a BYOK option for OpenAI, Anthropic, Gemini, and Azure OpenAI keys.',
+        'Zapier lets users choose among OpenAI (GPT), Anthropic (Claude), and Google (Gemini) models inside AI-powered steps and chatbots, with BYOK for OpenAI, Anthropic, Gemini, and Azure OpenAI keys.',
       shortDescription: 'Choose OpenAI, Anthropic, or Google models, with BYOK support.',
       source: {
         url: 'https://zapier.com/blog/ai-models-on-zapier/',
@@ -74,7 +74,7 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'No self-hosting / on-prem option',
       description:
-        'Zapier is closed-source SaaS only, hosted on AWS in the US; there is no self-hosted, Docker, or on-prem deployment option, unlike open-source competitors such as n8n, Automatisch, or Sim.',
+        'Zapier is closed-source SaaS only, hosted on AWS in the US. There is no self-hosted, Docker, or on-prem deployment option, unlike open-source competitors such as n8n, Automatisch, or Sim.',
       shortDescription: 'Closed-source SaaS only, hosted on AWS in the US.',
       source: {
         url: 'https://zapier.com/security-compliance',
@@ -85,7 +85,7 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Task-based pricing scales quickly with usage',
       description:
-        'Every Zap action step (and every MCP tool call, at 2 tasks each) consumes a metered task, so pricing and plan tier are driven by execution volume rather than a flat seat or workflow count, and costs rise fast as usage grows.',
+        'Every Zap action step, and every MCP tool call at 2 tasks each, consumes a metered task, so pricing and plan tier are driven by execution volume rather than a flat seat or workflow count. Costs rise fast as usage grows.',
       shortDescription: 'Costs scale with execution volume, not a flat seat count.',
       source: {
         url: 'https://www.activepieces.com/blog/zapier-pricing',
@@ -96,7 +96,7 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Free plan is heavily restricted',
       description:
-        'The free plan is capped at 100 tasks/month and limited to two-step Zaps (one trigger, one action), which prevents building multi-step automations or agents without upgrading.',
+        'The free plan is capped at 100 tasks/month and limited to two-step Zaps (one trigger, one action), so multi-step automations or agents require an upgrade.',
       shortDescription: 'Capped at 100 tasks/month and two-step Zaps only.',
       source: {
         url: 'https://www.activepieces.com/blog/zapier-pricing',
@@ -120,7 +120,7 @@ export const zapierProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          'Visual, trigger-action ("Zap") builder with an AI natural-language layer (Copilot) on top; also offers a separate Agents builder for AI agents and low-code custom-code steps',
+          'Visual, trigger-action ("Zap") builder with an AI natural-language layer (Copilot) on top, plus a separate Agents builder for AI agents and low-code custom-code steps',
         shortValue: 'Visual Zap builder plus Copilot and Agents',
         confidence: 'verified',
         sources: [
@@ -135,7 +135,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Easy for basic two-step Zaps; steeper for multi-step, branching Zaps and custom code steps',
         detail:
-          'Basic Zaps are approachable for non-technical users, but multi-step and branching Zaps, along with code steps, require more technical skill to build well.',
+          'Basic Zaps are approachable for non-technical users, but multi-step and branching Zaps, and code steps, require more technical skill to build well.',
         shortValue: 'Easy for basic Zaps, steeper for advanced ones',
         confidence: 'unknown',
         sources: [],
@@ -143,7 +143,7 @@ export const zapierProfile: CompetitorProfile = {
       selfHostOption: {
         value: 'No',
         detail:
-          'Zapier is a proprietary hosted SaaS product with no self-hosted or on-prem deployment option, unlike open-source alternatives such as n8n and Automatisch.',
+          'Zapier is proprietary hosted SaaS with no self-hosted or on-prem deployment option, unlike open-source alternatives such as n8n and Automatisch.',
         shortValue: 'Cloud-only SaaS, no self-hosting',
         confidence: 'estimated',
         sources: [
@@ -169,7 +169,7 @@ export const zapierProfile: CompetitorProfile = {
       templates: {
         value: 'Yes',
         detail:
-          'Zapier publishes a large library of pre-built Zap templates and app-specific workflow templates across its app directory and marketing pages.',
+          'Zapier publishes a large library of pre-built Zap templates and app-specific workflow templates across its app directory.',
         shortValue: 'Large library of prebuilt templates',
         confidence: 'estimated',
         sources: [
@@ -191,7 +191,7 @@ export const zapierProfile: CompetitorProfile = {
       environmentPromotion: {
         value: 'No true environment-promotion model',
         detail:
-          'Zapier has no dev/QA/prod project-forking or push/pull-between-environments mechanism. It only offers per-Zap workarounds: "Workspaces" for team delegation (not environment tiers), integration-level environment variables to point a connection at staging vs. production URLs, and private/draft Zap versions used informally as a test tier. Teams typically work around this by duplicating Zaps, swapping environment variables per Zap, or publishing separate integration versions.',
+          'Zapier has no dev/QA/prod project-forking or push/pull-between-environments mechanism. It offers only per-Zap workarounds: "Workspaces" for team delegation (not environment tiers), integration-level environment variables to point a connection at staging vs. production URLs, and private/draft Zap versions used informally as a test tier. Teams typically work around this by duplicating Zaps, swapping environment variables per Zap, or publishing separate integration versions.',
         shortValue: 'No native dev/prod promotion; manual workarounds only',
         confidence: 'estimated',
         sources: [
@@ -216,7 +216,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Server-persisted version history, rollback, and diff/compare; no branching; no native undo/redo',
         detail:
-          'Zapier keeps a full Zap version history and lets you restore any prior version, which creates a new draft from that version. A compare view shows the currently published version next to the in-progress draft, and drafts let you edit a live Zap without turning it off. There is no branching model with named branches merged back, and no dedicated undo/redo inside the draft editor.',
+          'Zapier keeps a full Zap version history and lets you restore any prior version, creating a new draft from that version. A compare view shows the published version next to the in-progress draft, and drafts let you edit a live Zap without turning it off. There is no branching model with named branches merged back, and no dedicated undo/redo inside the draft editor.',
         shortValue: 'Version history, rollback, and diff. No branching or undo',
         confidence: 'verified',
         sources: [
@@ -244,9 +244,9 @@ export const zapierProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          'No: Zapier supports asynchronous sharing and collaboration (shared assets, folders, app connections, named versions), but not live, simultaneous multi-user editing on the same Zap at the same time.',
+          'No: Zapier supports asynchronous sharing and collaboration (shared assets, folders, app connections, named versions), but not live, simultaneous multi-user editing on the same Zap.',
         detail:
-          'Interfaces allow up to 10 members to be granted edit access, but this is shared access, not simultaneous live co-editing.',
+          'Interfaces allow up to 10 members to be granted edit access, but this is shared access, not live co-editing.',
         shortValue: 'No live multiplayer editing, async sharing only',
         confidence: 'verified',
         sources: [
@@ -265,7 +265,7 @@ export const zapierProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          "No: Zapier has no dedicated file-storage system with folder hierarchy, link-sharing options, and recycle-bin recovery. 'Storage by Zapier' is a key-value data store (up to 25 KB per key, 500 keys per account) for small pieces of workflow data, not files. Actual file handling is done per-step through connected apps like Google Drive or Dropbox.",
+          "No: Zapier has no dedicated file-storage system with folder hierarchy, link-sharing, and recycle-bin recovery. 'Storage by Zapier' is a key-value data store (up to 25 KB per key, 500 keys per account) for small pieces of workflow data, not files. File handling happens per-step through connected apps like Google Drive or Dropbox.",
         detail:
           'Zapier does offer folder-level permissions for organizing Zaps/Tables/Interfaces assets within the product, but that is asset organization, not a file-storage system for arbitrary documents.',
         shortValue: 'No: only a key-value store, not file storage',
@@ -287,7 +287,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Yes: Zapier Tables is a native, spreadsheet-like data table feature (distinct from external DB connectors), with a spreadsheet-style grid interface and plan-based record limits (Free plan up to 2,500 records). Deleted records and fields go to a Trash with a 30-day recovery window.',
         detail:
-          'Table components embedded in Interfaces/Forms display 20 rows by default (switchable to 10/20/50); exact keyboard-navigation parity with classic spreadsheets is not separately documented.',
+          'Table components embedded in Interfaces/Forms display 20 rows by default (switchable to 10/20/50); keyboard-navigation parity with classic spreadsheets is not separately documented.',
         shortValue: 'Yes: native Zapier Tables with record limits',
         confidence: 'verified',
         sources: [
@@ -305,9 +305,9 @@ export const zapierProfile: CompetitorProfile = {
       },
       richTextEditor: {
         value:
-          'Partial: Zapier supports markdown formatting (bold, italic, headings, lists, links, checkboxes) in specific surfaces like Canvas text boxes, Forms text components, and folder documentation notes, plus a Formatter step to convert between HTML and Markdown. This is markdown-syntax entry, not a true inline WYSIWYG rich-text editor for a stored document surface.',
+          'Partial: Zapier supports markdown formatting (bold, italic, headings, lists, links, checkboxes) in specific surfaces like Canvas text boxes, Forms text components, and folder documentation notes, plus a Formatter step to convert between HTML and Markdown. This is markdown-syntax entry, not an inline WYSIWYG rich-text editor for a stored document surface.',
         detail:
-          'No public documentation describes a true inline rich-text/WYSIWYG editor comparable to a document editor; formatting is markdown-based.',
+          'No public documentation describes an inline rich-text/WYSIWYG editor comparable to a document editor; formatting is markdown-based.',
         shortValue: 'Markdown syntax support, not a WYSIWYG editor',
         confidence: 'estimated',
         sources: [
@@ -327,7 +327,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Yes: Sub-Zaps by Zapier let a Zap call a saved Sub-Zap as a dedicated step ("Call a Sub-Zap" action). The parent Zap waits for the Sub-Zap to finish, sends data into it via a "Start a Sub-Zap" trigger, and receives data back via a "Return from Sub-Zap" step.',
         detail:
-          'Sub-Zaps are built once and reused across multiple parent Zaps, avoiding copy-paste duplication of the same step sequence.',
+          'Sub-Zaps are built once and reused across multiple parent Zaps, avoiding copy-paste duplication of the same steps.',
         shortValue: 'Yes, via Sub-Zaps (Call a Sub-Zap action)',
         confidence: 'verified',
         sources: [
@@ -366,7 +366,7 @@ export const zapierProfile: CompetitorProfile = {
       agentReasoningBlocks: {
         value: 'Yes',
         detail:
-          'Zapier Agents is a distinct product for building autonomous, multi-step AI agents, separate from plain trigger-action Zaps, that can reason across tasks and act across 9,000+ apps.',
+          'Zapier Agents is a distinct product for building autonomous, multi-step AI agents, separate from plain trigger-action Zaps, that reason across tasks and act across 9,000+ apps.',
         shortValue: 'Dedicated Agents product for multi-step AI tasks',
         confidence: 'estimated',
         sources: [
@@ -376,7 +376,7 @@ export const zapierProfile: CompetitorProfile = {
       naturalLanguageBuilding: {
         value: 'Yes',
         detail:
-          'Zapier Copilot (open beta) lets a user describe an automation or agent in plain language and generates a draft workflow, including writing custom code to fill integration gaps.',
+          'Zapier Copilot (open beta) lets a user describe an automation or agent in plain language and generates a draft workflow, including custom code to fill integration gaps.',
         shortValue: 'Copilot builds Zaps/agents from plain-language prompts',
         confidence: 'verified',
         sources: [
@@ -390,7 +390,7 @@ export const zapierProfile: CompetitorProfile = {
       knowledgeBaseRag: {
         value: 'Yes (limited)',
         detail:
-          "Zapier Agents/chatbots support adding FAQs, docs, and public links as a knowledge source so the agent can answer from that content, though the underlying retrieval implementation isn't detailed publicly.",
+          "Zapier Agents/chatbots support adding FAQs, docs, and public links as a knowledge source so the agent can answer from that content, though the retrieval implementation isn't detailed publicly.",
         shortValue: 'Agents can reference uploaded docs/FAQs as knowledge',
         confidence: 'estimated',
         sources: [
@@ -400,7 +400,7 @@ export const zapierProfile: CompetitorProfile = {
       mcpSupport: {
         value: 'Yes',
         detail:
-          'Zapier operates a hosted MCP server (Streamable HTTP) exposing 9,000+ app connections and 30,000+ actions to any MCP client, and also offers an "MCP Client by Zapier" integration for calling external MCP servers from within Zaps. Costs 2 tasks per tool call, available on all plans.',
+          'Zapier operates a hosted MCP server (Streamable HTTP) exposing 9,000+ app connections and 30,000+ actions to any MCP client, and also offers an "MCP Client by Zapier" integration for calling external MCP servers from within Zaps. Costs 2 tasks per tool call on all plans.',
         shortValue: 'Hosted MCP server plus an MCP client to call others',
         confidence: 'verified',
         sources: [
@@ -424,7 +424,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Yes: dedicated "Human in the Loop" app with a Request Approval action distinct from a delay/wait step',
         detail:
-          'Human in the Loop is a built-in (premium) app whose Request Approval action pauses the Zap run mid-workflow and asks one or more reviewers to approve, decline, or edit the submitted data before the run resumes. Reviewers are notified via email, Slack, or by routing the request to another Zap. Behavior on decline is configurable (continue or stop the run). This is separate from plain Delay/Filter steps, which have no approval semantics.',
+          'Human in the Loop is a built-in (premium) app whose Request Approval action pauses the Zap run mid-workflow and asks one or more reviewers to approve, decline, or edit the submitted data before the run resumes. Reviewers are notified via email, Slack, or by routing the request to another Zap, and behavior on decline is configurable (continue or stop the run). This is separate from plain Delay/Filter steps, which have no approval semantics.',
         shortValue: 'Dedicated approval step mid-workflow',
         confidence: 'verified',
         sources: [
@@ -491,9 +491,9 @@ export const zapierProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          'No: Zapier Agents use per-agent instructions and attachable knowledge sources (files, tables, webpages), but there is no documented feature for defining a reusable prompt or knowledge snippet once and reusing it by reference across multiple agents. Reuse happens informally, via templates and copy-adapt patterns, not a shared, reusable skill object.',
+          'No: Zapier Agents use per-agent instructions and attachable knowledge sources (files, tables, webpages), but there is no documented feature for defining a reusable prompt or knowledge snippet once and referencing it across multiple agents. Reuse happens informally, via templates and copy-adapt patterns, not a shared, reusable skill object.',
         detail:
-          "Zapier's own best-practices guidance recommends teams 'develop reusable patterns that team members can adapt' and use agent-to-agent calls, which implies there is no built-in mechanism for a single named skill referenced across agents.",
+          "Zapier's best-practices guidance recommends teams 'develop reusable patterns that team members can adapt' and use agent-to-agent calls, implying there is no built-in mechanism for a single named skill referenced across agents.",
         shortValue: 'No dedicated reusable skill object',
         confidence: 'estimated',
         sources: [
@@ -513,7 +513,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Yes: Zapier Chatbots let a builder create a conversational AI agent connected to knowledge sources and 9,000+ apps, then deploy it via a public shareable URL or embed it on a website, Slack, or Teams.',
         detail:
-          "Chatbots and Interfaces are public by default unless restricted on a paid plan; the 'Built on Zapier' footer label can be removed on paid plans.",
+          "Chatbots and Interfaces are public by default unless restricted on a paid plan; the 'Built on Zapier' footer label can be removed on paid plans as well.",
         shortValue: 'Yes: public chatbot URL or embed',
         confidence: 'verified',
         sources: [
@@ -531,7 +531,7 @@ export const zapierProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          "Unknown: Zapier documents how knowledge sources (files, tables, webpages) are attached and synced to Chatbots/AI by Zapier, and notes that a source's counted size is based on extracted text. No help article or blog post describes a chunk-level debugging view showing chunk index or individual chunk content in search results.",
+          "Unknown: Zapier documents how knowledge sources (files, tables, webpages) are attached and synced to Chatbots/AI by Zapier, and notes that a source's counted size is based on extracted text. No help article or blog post describes a chunk-level debugging view showing chunk index or content in search results.",
         detail:
           'Zapier discloses sync/size mechanics but not a retrieval debugging UI exposing individual chunks.',
         shortValue: 'Unknown, no chunk-level view documented',
@@ -542,7 +542,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'No dedicated fan-out/fan-in node. Paths lets multiple branches match and run at the same time, but Zapier is deprecating that behavior: new Paths only support sequential branch execution as of September 30, 2025, and existing Zaps are being migrated off parallel execution.',
         detail:
-          'Zapier documents Paths as either running all matching branches at once (legacy default) or one after another (sequential, now the only option for new Paths). There is no join step that fans a run out and merges branch results back into one output.',
+          'Paths either runs all matching branches at once (legacy default) or one after another (sequential, now the only option for new Paths). There is no join step that fans a run out and merges branch results back into one output.',
         shortValue: 'No, Paths is moving to sequential-only',
         confidence: 'verified',
         sources: [
@@ -560,9 +560,9 @@ export const zapierProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          'No documented support. Zapier has published an explainer on the Agent2Agent (A2A) protocol as an industry standard, but no Zapier help article, changelog, or product page states that Zapier Agents implement A2A or expose an Agent Card for peer-to-peer agent discovery.',
+          'No documented support. Zapier has published an explainer on the Agent2Agent (A2A) protocol as an industry standard, but no help article, changelog, or product page shows Zapier Agents implementing A2A or exposing an Agent Card for peer-to-peer agent discovery.',
         detail:
-          "Zapier's own A2A blog post describes the protocol generically and only references Zapier Agents' existing ability to connect to other apps, not A2A compliance.",
+          "Zapier's A2A blog post describes the protocol generically and only references Zapier Agents' existing ability to connect to other apps, not A2A compliance.",
         shortValue: 'No, not documented',
         confidence: 'estimated',
         sources: [
@@ -575,7 +575,7 @@ export const zapierProfile: CompetitorProfile = {
       },
       loopIteration: {
         value:
-          "Partial: Looping by Zapier provides a dedicated loop step that repeats a set of follow-up actions over a text list, line items, or a numeric range, up to 500 iterations. Zapier's own documentation states iterations execute concurrently in parallel by default, not sequentially, and this holds even when the loop is nested inside a Path configured to run sequentially. There is no official setting to force strictly sequential iteration order.",
+          'Partial: Looping by Zapier provides a dedicated loop step that repeats a set of follow-up actions over a text list, line items, or a numeric range, up to 500 iterations. Iterations execute concurrently in parallel by default, not sequentially, even when the loop is nested inside a Path configured to run sequentially. There is no setting to force strictly sequential iteration order.',
         detail:
           'Zapier\'s help center: "All iterations of the loop execute in parallel (simultaneously), not one after another" and "Loops always run in parallel (simultaneously). This happens even if the loop is nested within a Path configured to run sequentially." Community workarounds (incremental delay steps, webhook-based looping) exist but are not a native sequential mode.',
         shortValue: 'Yes, but iterations run in parallel by default, not sequentially',
@@ -597,8 +597,7 @@ export const zapierProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value: '9,000+ apps',
-        detail:
-          'Zapier\'s own app directory states "9,000+ apps" and "No-code automation across 9,000+ apps."',
+        detail: 'The app directory lists 9,000+ supported apps and connectors.',
         shortValue: '9,000+ apps',
         confidence: 'verified',
         sources: [
@@ -609,7 +608,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'App-event triggers (via 9,000+ app integrations), scheduled triggers, webhooks, and chat/agent triggers',
         detail:
-          "Zapier's core model is app-event triggers per integration; it also supports Webhooks by Zapier and Schedule by Zapier as generic trigger apps, plus chat-based triggers for Agents/Chatbots.",
+          "Zapier's core model is app-event triggers per integration. It also supports Webhooks by Zapier and Schedule by Zapier as generic trigger apps, plus chat-based triggers for Agents/Chatbots.",
         shortValue: 'App events, schedules, webhooks, and chat triggers',
         confidence: 'estimated',
         sources: [
@@ -619,7 +618,7 @@ export const zapierProfile: CompetitorProfile = {
       customCodeSteps: {
         value: 'Yes: JavaScript and Python code steps',
         detail:
-          "Zapier's Code by Zapier step lets users run custom JavaScript or Python within a Zap; Copilot can also auto-generate code steps to fill integration gaps.",
+          'Code by Zapier lets users run custom JavaScript or Python within a Zap; Copilot can also auto-generate code steps to fill integration gaps.',
         shortValue: 'JavaScript and Python code steps',
         confidence: 'estimated',
         sources: [
@@ -642,7 +641,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Official Zapier Platform CLI/SDK (Node.js/TypeScript) plus a low-code Platform UI builder, publishing to a public app marketplace',
         detail:
-          "Zapier's Developer Platform offers two paths: the visual Platform UI (low-code) and the Zapier Platform CLI/SDK (open-sourced on GitHub) for writing custom integrations in JavaScript/TypeScript, including custom auth and deployment. No separate SDK is offered in other languages. Completed integrations can be published to Zapier's public marketplace (9,000+ apps, 1M+ users) or kept private. A companion Workflow API also lets third parties embed Zapier's automation marketplace into their own products.",
+          "Zapier's Developer Platform offers two paths: the visual Platform UI (low-code) and the Zapier Platform CLI/SDK (open-sourced on GitHub) for writing custom integrations in JavaScript/TypeScript, including custom auth and deployment. No SDK is offered in other languages. Completed integrations can be published to Zapier's public marketplace (9,000+ apps, 1M+ users) or kept private. A companion Workflow API also lets third parties embed Zapier's automation marketplace into their own products.",
         shortValue: 'Platform CLI/SDK (Node/TS) plus low-code builder',
         confidence: 'verified',
         sources: [
@@ -672,7 +671,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           "No: Zapier MCP works in one direction only. It runs a hosted MCP server that exposes Zapier's own library of 9,000+ app actions for external AI clients (Claude, Cursor, etc.) to call, but there is no documented feature letting a user publish their own Zap or workflow as a callable MCP endpoint for outside consumers.",
         detail:
-          "All Zapier MCP documentation frames the flow as 'connect your AI client into Zapier's actions', never the reverse of exposing a user's Zap as an MCP server.",
+          "Zapier MCP documentation frames the flow as connecting your AI client into Zapier's actions, never the reverse of exposing a user's Zap as an MCP server.",
         shortValue: 'No: MCP is Zapier-to-client only, not publishable',
         confidence: 'verified',
         sources: [
@@ -714,7 +713,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Professional plan, from $19.99/month (annual billing) or $29.99/month (monthly billing) for 750 tasks',
         detail:
-          "Includes unlimited Zaps, multi-step Zaps, and premium app access beyond the free tier's 2-step limit.",
+          "Includes unlimited Zaps, multi-step Zaps, and premium app access, beyond the free tier's 2-step limit.",
         shortValue: 'Professional plan from $19.99/mo for 750 tasks',
         confidence: 'estimated',
         sources: [
@@ -740,7 +739,7 @@ export const zapierProfile: CompetitorProfile = {
       byok: {
         value: 'Yes, for Chatbots/AI steps',
         detail:
-          "Zapier Chatbots default to GPT-4.1 mini but let users add their own API key for OpenAI, Anthropic Claude, Google Gemini, or Azure OpenAI, with usage billed directly to the user's own provider account.",
+          "Zapier Chatbots default to GPT-4.1 mini but let users add their own API key for OpenAI, Anthropic Claude, Google Gemini, or Azure OpenAI, with usage billed directly to the user's provider account.",
         shortValue: 'Bring your own key for Chatbots/AI steps',
         confidence: 'verified',
         sources: [
@@ -756,7 +755,7 @@ export const zapierProfile: CompetitorProfile = {
       soc2: {
         value: 'SOC 2 Type II and SOC 3 certified',
         detail:
-          'Reports are published and available via the Zapier Trust Center (trust.zapier.com); Zapier also references GDPR and CCPA compliance.',
+          'Reports are published and available via the Zapier Trust Center (trust.zapier.com). Zapier also maintains GDPR and CCPA compliance.',
         shortValue: 'SOC 2 Type II and SOC 3 certified',
         confidence: 'verified',
         sources: [
@@ -771,7 +770,7 @@ export const zapierProfile: CompetitorProfile = {
       dataResidency: {
         value: 'No selectable data residency documented',
         detail:
-          "Zapier's security page states its infrastructure runs on AWS in the United States, with no alternative region or EU-hosting option documented for standard customers.",
+          "Zapier's infrastructure runs on AWS in the United States, with no alternative region or EU-hosting option documented for standard customers.",
         shortValue: 'No selectable region; US-only (AWS)',
         confidence: 'estimated',
         sources: [
@@ -785,7 +784,7 @@ export const zapierProfile: CompetitorProfile = {
       rbac: {
         value: 'Yes',
         detail:
-          'Team-based access controls, app allowlisting/blocklisting, endpoint-level action restrictions, domain restrictions, and workspace/federated governance on Team/Enterprise plans.',
+          'Team-based access controls, app allowlisting/blocklisting, endpoint-level action restrictions, domain restrictions, and workspace/federated governance, on Team/Enterprise plans.',
         shortValue: 'Team-based access controls and app allowlisting',
         confidence: 'estimated',
         sources: [
@@ -799,7 +798,7 @@ export const zapierProfile: CompetitorProfile = {
       auditLogging: {
         value: 'Yes',
         detail:
-          'Zapier describes immutable audit records tracking every workflow, change, and data flow; plan-level gating (Team vs. Enterprise) is not specified.',
+          'Audit records are immutable and track every workflow, change, and data flow; plan-level gating (Team vs. Enterprise) is not specified.',
         shortValue: 'Immutable audit records across workflows and changes',
         confidence: 'estimated',
         sources: [
@@ -812,9 +811,9 @@ export const zapierProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          "SOC 2 Type II, SOC 3, GDPR, and CCPA compliant. Not HIPAA-compliant (no BAAs, PHI unsupported). Some third-party sources also cite ISO 27001 and PCI DSS, though these aren't confirmed on Zapier's own trust page.",
+          "SOC 2 Type II, SOC 3, GDPR, and CCPA compliant. Not HIPAA-compliant (no BAAs, PHI unsupported). Some third-party sources also cite ISO 27001 and PCI DSS, though these aren't confirmed on Zapier's trust page.",
         detail:
-          "Zapier's security page states it maintains SOC 2 Type II, SOC 3, GDPR, and CCPA compliance, with enterprise customers auto-opted-out of AI data training and full reports available via the Zapier Trust Center. Zapier explicitly does not support regulated healthcare or PHI data under HIPAA and will not sign BAAs. It also certifies to the EU-US/UK/Swiss-US Data Privacy Framework. ISO 27001 and PCI DSS are cited by secondary sources only, and are not listed on Zapier's own trust or security page.",
+          "Zapier maintains SOC 2 Type II, SOC 3, GDPR, and CCPA compliance, with enterprise customers auto-opted-out of AI data training and full reports available via the Zapier Trust Center. Zapier does not support regulated healthcare or PHI data under HIPAA and will not sign BAAs. It also certifies to the EU-US/UK/Swiss-US Data Privacy Framework. ISO 27001 and PCI DSS are cited by secondary sources only and are not listed on Zapier's trust or security page.",
         shortValue: 'SOC 2, SOC 3, GDPR, CCPA. Not HIPAA-compliant',
         confidence: 'verified',
         sources: [
@@ -849,7 +848,7 @@ export const zapierProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          "Yes, but coarser than per-role credential controls: Zapier lets an owner share a specific app connection with chosen users or teams (Enterprise), and Enterprise 'managed apps' let admins mark specific apps as admin-only, so only admins can create or share connections for that app while members can still use admin-shared ones. This governs connections at the app/sharing level, not a fine-grained per-role permission matrix over individual stored credentials.",
+          "Yes, but coarser than per-role credential controls: Zapier lets an owner share a specific app connection with chosen users or teams (Enterprise), and Enterprise 'managed apps' let admins mark specific apps as admin-only, so only admins can create or share connections for that app while members still use admin-shared ones. This governs connections at the app/sharing level, not a fine-grained per-role permission matrix over individual stored credentials.",
         detail:
           'Admins can also globally restrict connection sharing account-wide via a toggle in the Admin Center.',
         shortValue: 'Coarse: connection sharing plus admin-managed apps',
@@ -869,7 +868,7 @@ export const zapierProfile: CompetitorProfile = {
       },
       whiteLabeling: {
         value:
-          "Yes, but partial and tiered: Zapier offers a White Label product for embedding automation UI into a customer's own product (Company/Enterprise pricing). Separately, paid-plan customers can remove the 'Built on Zapier' label from Chatbots and Forms and apply custom brand colors and a logo to Forms. There is no full platform-wide white-labeling of the core Zap editor or workspace itself.",
+          "Yes, but partial and tiered: Zapier offers a White Label product for embedding automation UI into a customer's own product (Company/Enterprise pricing). Separately, paid-plan customers can remove the 'Built on Zapier' label from Chatbots and Forms and apply custom brand colors and a logo to Forms. There is no platform-wide white-labeling of the core Zap editor or workspace itself.",
         detail:
           'White Label is a distinct embedded product for SaaS builders; branding removal on Chatbots/Forms is a separate, narrower feature gated behind paid plans.',
         shortValue: 'Partial: White Label embed product, tiered branding removal',
@@ -904,7 +903,7 @@ export const zapierProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          "No: no dedicated PII detection/redaction feature is documented. Zapier's public data-privacy material addresses it as a data processor with SOC 2 Type 2 / SOC 3 certifications and explicitly states it does not support regulated PHI/HIPAA data or sign BAAs, but does not describe an automatic PII-scanning or redaction capability for workflow content or logs.",
+          "No: no dedicated PII detection or redaction feature is documented. Zapier's data-privacy material addresses it as a data processor with SOC 2 Type II and SOC 3 certification and states it does not support regulated PHI/HIPAA data or sign BAAs, but does not describe automatic PII-scanning or redaction for workflow content or logs.",
         detail:
           'Any PII handling would rely on third-party formatter steps or external tools, not a native Zapier guardrail.',
         shortValue: 'No documented PII detection or redaction',
@@ -944,9 +943,9 @@ export const zapierProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Partial: Zapier's App Directory is an open developer ecosystem, not a closed first-party catalog. Any developer can build an integration on the Zapier Developer Platform and submit it for public listing; Zapier's review checks publishing/technical requirements (HTTPS-only endpoints, no hardcoded credentials, OAuth verification) rather than a deep security audit, and Zapier explicitly tells customers these apps are 'owned and operated by third parties' and that users are responsible for evaluating trust in the developer.",
+          "Partial: Zapier's App Directory is an open developer ecosystem, not a closed first-party catalog. Any developer can build an integration on the Zapier Developer Platform and submit it for public listing. Zapier's review checks publishing/technical requirements (HTTPS-only endpoints, no hardcoded credentials, OAuth verification) rather than a deep security audit, and Zapier tells customers these apps are 'owned and operated by third parties' and that users are responsible for evaluating trust in the developer.",
         detail:
-          "Zapier's own Partner Program docs describe review turnaround of up to 21 business days against publishing standards, and OAuth verification is framed as 'a helpful start' rather than a guarantee of an app's suitability. No documented security incident specifically tied to a malicious third-party app published in the App Directory was found; separate publicly reported incidents (a 2025 repository breach exposing debug logs, and a 2025 npm supply-chain compromise of Zapier's own published packages) involved Zapier's internal infrastructure and package registry, not the App Directory's third-party integration ecosystem.",
+          "Zapier's Partner Program docs describe review turnaround of up to 21 business days against publishing standards, and OAuth verification is framed as 'a helpful start' rather than a guarantee of an app's suitability. No security incident tied to a malicious third-party app published in the App Directory was found; separate publicly reported incidents (a 2025 repository breach exposing debug logs, and a 2025 npm supply-chain compromise of Zapier's own published packages) involved Zapier's internal infrastructure and package registry, not the App Directory's third-party integration ecosystem.",
         shortValue: 'Partial: open app directory, lighter technical review',
         confidence: 'verified',
         sources: [
@@ -973,7 +972,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Customer-facing per-run/per-step execution detail (Zap History) plus an account-level Analytics dashboard with success/error rate and task-usage metrics; no distributed-tracing spans or latency-percentile metrics',
         detail:
-          "Zap History logs every Zap run (up to 60 days / 10,000 runs) with per-step input/output detail and run status. The Analytics dashboard (Team/Enterprise) shows success-vs-error run percentages and task usage over time. Log Streams push real-time webhook events to a customer's own endpoint for external monitoring or SIEM dashboards. There is no built-in latency-percentile view or distributed trace graph.",
+          "Zap History logs every Zap run (up to 60 days / 10,000 runs) with per-step input/output detail and run status. The Analytics dashboard (Team/Enterprise) shows success-vs-error run percentages and task usage over time. Log Streams push real-time webhook events to a customer's own endpoint for external monitoring or SIEM dashboards. There is no latency-percentile view or distributed trace graph.",
         shortValue: 'Per-run/step history and analytics, no distributed tracing',
         confidence: 'verified',
         sources: [
@@ -1003,7 +1002,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Automatic retries (Autoreplay) on a fixed backoff schedule, plus manual replay of a past run using its original captured input data. No arbitrary mid-run checkpointing',
         detail:
-          'Autoreplay (Professional plan and up) automatically retries an errored Zap run on a fixed schedule: 5 min, 30 min, 1 hr, 3 hr, and 6 hr after the initial failure (about a 10-hour window). Users can also manually replay any past Zap run from Zap History, which re-executes it using the exact original input data. Replay operates at the whole-run level, not an arbitrary intermediate checkpoint, and editing a Zap after a failure changes what a later Autoreplay attempt runs.',
+          'Autoreplay (Professional plan and up) automatically retries an errored Zap run on a fixed schedule: 5 min, 30 min, 1 hr, 3 hr, and 6 hr after the initial failure (about a 10-hour window). Users can also manually replay any past Zap run from Zap History, which re-executes it using the original input data. Replay operates at the whole-run level, not an intermediate checkpoint, and editing a Zap after a failure changes what a later Autoreplay attempt runs.',
         shortValue: 'Fixed-schedule autoretries plus manual replay of runs',
         confidence: 'verified',
         sources: [
@@ -1028,7 +1027,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Yes: proactive default email alerts on Zap errors, configurable per-app frequency, plus auto-turn-off warnings and a dedicated "Zapier Manager" app for routing failure and pause events anywhere',
         detail:
-          'By default, Zapier emails the account owner when a Zap errors, with per-app notification frequency configurable. If a Zap crosses a 95% error-rate threshold over 7 days, Zapier auto-turns it off, first sending a warning email with a grace period (24 hours on Team, 72 hours on Enterprise). The Zapier Manager app can trigger a Zap whenever any other Zap errors, is turned off, or is paused, so alerts can route to Slack, SMS, PagerDuty, or elsewhere. While Autoreplay is actively retrying, no error email is sent until the final attempt fails.',
+          'By default, Zapier emails the account owner when a Zap errors, with per-app notification frequency configurable. If a Zap crosses a 95% error-rate threshold over 7 days, Zapier auto-turns it off, first sending a warning email with a grace period (24 hours on Team, 72 hours on Enterprise). The Zapier Manager app can trigger a Zap whenever any other Zap errors, is turned off, or is paused, so alerts route to Slack, SMS, PagerDuty, or elsewhere. While Autoreplay is retrying, no error email is sent until the final attempt fails.',
         shortValue: 'Default error emails, shutoff warnings, routable alerts',
         confidence: 'verified',
         sources: [
@@ -1058,7 +1057,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           "Yes: Zapier offers 'Log streams' (Enterprise) that continuously stream Zap configuration-change and run-outcome events to an external SIEM/monitoring destination such as Datadog or Splunk, in addition to an in-product account-wide audit log with a Zap Runs API for pulling history.",
         detail:
-          "Log streams only capture events going forward from when they're configured, not historical backfill.",
+          "Log streams capture events only from when they're configured, not historical backfill.",
         shortValue: 'Yes: log streams to Datadog, Splunk, SIEM',
         confidence: 'verified',
         sources: [
@@ -1076,9 +1075,9 @@ export const zapierProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          "Yes: Zapier's webhook trigger is asynchronous by design. It returns an HTTP 200 immediately upon receipt, then runs the rest of the Zap in the background rather than holding the connection open until the workflow finishes. However, Zapier has no native way to poll for a specific run's later result inside that same Zap. Teams that need to check back for a result must build a second Zap plus a Zapier Table (or similar external store) to record and later retrieve completion status, per Zapier's own documentation and community guidance.",
+          "Yes: Zapier's webhook trigger is asynchronous by design. It returns an HTTP 200 immediately on receipt, then runs the rest of the Zap in the background rather than holding the connection open until the workflow finishes. Zapier has no native way to poll for a specific run's later result inside that same Zap. Teams that need to check back for a result must build a second Zap plus a Zapier Table (or similar external store) to record and later retrieve completion status.",
         detail:
-          "Zapier's Webhooks by Zapier trigger explicitly does not keep the request open to return final JSON from later steps. Zapier's own recommended pattern for checking a result later is two separate Zaps coordinated through a Table, not a built-in job-status or polling API.",
+          "Zapier's Webhooks by Zapier trigger does not keep the request open to return final JSON from later steps. Zapier's recommended pattern for checking a result later is two separate Zaps coordinated through a Table, not a built-in job-status or polling API.",
         shortValue: 'Fire-and-forget webhooks, no native result polling',
         confidence: 'verified',
         sources: [
@@ -1098,7 +1097,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           "Zapier publishes several concrete limits. A standard action or search step must finish in 30 seconds or it times out. Code by Zapier steps are capped at 10 seconds of script runtime on Starter plans and 30 seconds on Pro, Team, and Company plans. Zap workflows are capped at 100 total steps (including all steps within Paths). Instant triggers are rate-limited to 20,000 requests per 5 minutes per user (429 errors beyond that). Polling triggers on Free/Trial plans are limited to 200 requests per 10 minutes per Zap. Private-app API calls are limited to 100 requests per 60 seconds on Free/Professional plans and 5,000 requests per 60 seconds on Team/Enterprise plans. Zapier also applies 'flood protection' that holds and throttles trigger events when 100+ fire at once for the same Zap.",
         detail:
-          "Zapier does not publish a single named 'concurrency limit' per account/org the way some platforms do; concurrency is effectively bounded indirectly through the per-Zap/per-user rate limits and flood-protection holding above 100 simultaneous trigger events.",
+          "Zapier does not publish a single named 'concurrency limit' per account/org the way some platforms do; concurrency is bounded indirectly through the per-Zap/per-user rate limits and flood-protection holding above 100 simultaneous trigger events.",
         shortValue: '30s step timeout, 100-step cap, published rate limits',
         confidence: 'verified',
         sources: [
@@ -1122,9 +1121,9 @@ export const zapierProfile: CompetitorProfile = {
       },
       partialFailureHandling: {
         value:
-          "Yes: Zapier supports custom error handling. Adding an error handler to a step splits the Zap into a Success path and an Error path, and the Error path runs automatically in place of the normal flow whenever that specific step fails, letting the Zap take a defined alternate action instead of simply halting. This differs from the Zap's generic error-ratio auto-shutoff behavior for unhandled failures, and error handlers are only available on Professional, Team, and Enterprise plans, not Free.",
+          "Yes: Zapier supports custom error handling. Adding an error handler to a step splits the Zap into a Success path and an Error path; the Error path runs automatically in place of the normal flow whenever that step fails, letting the Zap take a defined alternate action instead of halting. This differs from the Zap's generic error-ratio auto-shutoff behavior for unhandled failures, and error handlers are only available on Professional, Team, and Enterprise plans, not Free.",
         detail:
-          'The failed step itself still produces no output and its fields are not passed downstream, but the error handler path executes as a defined replacement branch rather than the whole Zap simply stopping. This capability is plan-gated (not available on Free).',
+          'The failed step itself still produces no output and its fields are not passed downstream, but the error handler path executes as a defined replacement branch rather than the whole Zap stopping. This capability is plan-gated (not available on Free).',
         shortValue: 'Error handler paths reroute on step failure',
         confidence: 'verified',
         sources: [
@@ -1163,7 +1162,7 @@ export const zapierProfile: CompetitorProfile = {
       community: {
         value: 'Unknown exact size',
         detail:
-          'Zapier operates a public Community forum open to all without an account requirement, but no member-count figure is publicly published.',
+          'Zapier operates a public Community forum open to all without an account requirement, but no member-count figure is published.',
         shortValue: 'Public forum, member count not published',
         confidence: 'unknown',
         sources: [],
@@ -1172,7 +1171,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Founded 2011/2012 (Y Combinator), started in Columbia, MO and now remote-first; ~1,482 employees (as of May 2026); ~$5B valuation on only ~$1.4M total outside funding raised; profitable since 2014',
         detail:
-          'Zapier was founded in 2011 by Wade Foster, Bryan Helmig, and Mike Knoop, launching out of Y Combinator in 2012. It raised only about $1.2M in seed funding (Bessemer, DFJ, angels, Oct 2012), roughly $1.4M in total outside funding, while reaching a reported $5B valuation (as of Feb 2026) and maintaining profitability since 2014. Employee count is approximately 1,482 as of May 31, 2026, per third-party company data.',
+          'Zapier was founded in 2011 by Wade Foster, Bryan Helmig, and Mike Knoop, launching out of Y Combinator in 2012. It raised about $1.2M in seed funding (Bessemer, DFJ, angels, Oct 2012), roughly $1.4M in total outside funding, while reaching a reported $5B valuation (as of Feb 2026) and staying profitable since 2014. Employee count is approximately 1,482 as of May 31, 2026.',
         shortValue: 'Founded 2011, ~1,482 employees, profitable since 2014',
         confidence: 'estimated',
         sources: [
@@ -1202,7 +1201,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Yes: Zapier operates Zapier Academy (learn.zapier.com), a structured hub of self-paced courses, tutorials, and learning paths, plus a Certified Zapier Expert program with an application, an exam, and an expert directory listing.',
         detail:
-          'Zapier Academy covers beginner to advanced automation topics; certification is a separate application-based exam program leading to a badge and directory listing.',
+          'Zapier Academy covers beginner to advanced automation topics. Certification is a separate application-based exam program leading to a badge and directory listing.',
         shortValue: 'Yes: Academy plus expert certification program',
         confidence: 'verified',
         sources: [

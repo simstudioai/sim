@@ -176,6 +176,7 @@ export function useWorkspaceManagement({
         await switchWorkspace(newWorkspace)
       } catch (error) {
         logger.error('Error creating workspace:', error)
+        throw error
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -7,13 +7,13 @@ import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/compone
  * The canonical light, logo-only page frame - a Sim wordmark linking home, no
  * marketing menus, on the platform's light tokens (the `light` class pins
  * light mode regardless of visitor theme). It is the shared base for every
- * surface that wants minimal chrome: the global 404, the academy catalog, and
- * the `(interfaces)` group (which adds a support footer). The `(auth)` group
- * uses its own `AuthShell` with the same look.
+ * surface that wants minimal chrome: the global 404, and the `(interfaces)`
+ * group (which adds a support footer). The `(auth)` group uses its own
+ * `AuthShell` with the same look.
  *
  * Children decide their own layout: pass `center` for a single centered column
- * (404 message, simple gates); omit it for full-width content (catalogs, the
- * live chat overlay, which covers this frame entirely). An optional `footer`
+ * (404 message, simple gates); omit it for full-width content (the live chat
+ * overlay, which covers this frame entirely). An optional `footer`
  * slot renders pinned at the bottom.
  */
 interface LogoShellProps {

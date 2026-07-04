@@ -55,7 +55,7 @@ export async function generateMetadata({
   }
 
   return buildLandingMetadata({
-    title: `Sim vs ${competitor.name}: AI Workspace Comparison`,
+    title: `Sim vs ${competitor.name} | Sim, the AI Workspace`,
     description: `Compare Sim, the open-source AI workspace, to ${competitor.name} on platform, AI, integrations, pricing, security, and support. Sourced and dated facts.`,
     path: `/comparison/${competitor.id}`,
     keywords: [

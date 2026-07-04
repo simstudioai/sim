@@ -14,7 +14,7 @@ export const tinesProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Tines is a proprietary workflow automation platform, available cloud-hosted or self-hosted, originally built for security operations. Teams build event-driven "Stories" using a visual no/low-code canvas, natural language, or the API, and it has recently added native AI agent, MCP, and copilot capabilities.',
+    'Tines is a proprietary workflow automation platform, available cloud-hosted or self-hosted, originally built for security operations. Teams build event-driven "Stories" via a visual no/low-code canvas, natural language, or the API. It recently added native AI agent, MCP, and copilot capabilities.',
   standoutFeatures: [
     {
       title: 'ISO 42001 AI-governance certification',
@@ -41,7 +41,7 @@ export const tinesProfile: CompetitorProfile = {
     {
       title: 'API-centric integration model',
       description:
-        'Instead of relying on a fixed library of app connectors, Tines is built around a generic HTTP Request action that can call any API directly, which it argues gives "infinite" integration reach at the cost of more manual setup versus pre-built connectors.',
+        'Instead of a fixed library of app connectors, Tines is built around a generic HTTP Request action that calls any API directly, trading pre-built connectors for broader reach and more manual setup.',
       shortDescription:
         'A generic HTTP Request action reaches any API instead of fixed connectors.',
       source: {
@@ -142,7 +142,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       learningCurve: {
         value:
-          'Moderate. API-centric, action-based visual canvas; Tines favors direct HTTP/API actions over pre-built app connectors, giving flexibility but requiring more configuration knowledge than typical no-code tools',
+          'Moderate. Tines favors direct HTTP/API actions over pre-built app connectors, giving flexibility but requiring more configuration knowledge than typical no-code tools',
         shortValue: 'Moderate. API-centric, more setup than typical no-code',
         confidence: 'estimated',
         sources: [
@@ -200,7 +200,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       license: {
         value:
-          'Proprietary/closed-source commercial SaaS product; not open source. Offers a permanently free "Community Edition" tier, not an open-source license',
+          'Proprietary, closed-source commercial SaaS product. Offers a permanently free "Community Edition" tier, not an open-source license',
         shortValue: 'Proprietary SaaS; free Community Edition tier',
         confidence: 'verified',
         sources: [
@@ -213,7 +213,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       environmentPromotion: {
         value:
-          'No dedicated dev/qa/prod environment-promotion feature. Tines instead provides in-place "Change Control" (approval gating on edits to a single Story) and multi-team separation, not cross-environment promotion of a whole project',
+          'No dev/qa/prod environment-promotion feature. Tines provides in-place "Change Control" (approval gating on edits to a single Story) and multi-team separation instead of cross-environment promotion of a whole project',
         shortValue: 'No cross-environment promotion; in-place Change Control only',
         confidence: 'estimated',
         sources: [
@@ -231,7 +231,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       versionControlDepth: {
         value:
-          'Per-Story version history with auto-saved versions (every 5 min of inactivity or manual snapshot), preview/diff highlighting changes between versions, and one-click restore/rollback; scoped to a single Story, not a whole-project branch model',
+          'Per-Story version history with auto-saved versions (every 5 min of inactivity or manual snapshot), diff preview between versions, and one-click restore. Scoped to a single Story, not a whole-project branch model',
         shortValue: 'Per-Story auto-save, diff preview, one-click rollback',
         confidence: 'verified',
         sources: [
@@ -249,9 +249,9 @@ export const tinesProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          "No: no public Tines documentation describes live, concurrent multi-user editing of the same Story canvas (shared cursors, selections, synced changes in real time). Tines' collaboration model centers on Cases (async, ticket-like collaboration on top of Records) and Send to Story (passing execution between stories), not simultaneous canvas co-editing.",
+          'No: Tines has no live, concurrent multi-user editing of the same Story canvas (shared cursors, selections, synced changes in real time). Its collaboration model centers on Cases (async, ticket-like collaboration on top of Records) and Send to Story (passing execution between stories), not simultaneous canvas co-editing.',
         detail:
-          'Story editing appears to follow a draft/versioning model rather than Figma/Google-Docs-style live co-editing; no evidence found either way for a lock-based alternative.',
+          'Story editing follows a draft/versioning model rather than Figma/Google-Docs-style live co-editing. No evidence found of a lock-based alternative.',
         shortValue: 'No: no live multi-user canvas editing',
         confidence: 'estimated',
         sources: [
@@ -269,7 +269,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          'No: no public Tines documentation describes a native, standalone file storage system with folder hierarchy, link-based sharing with auth options, and deleted-item recovery. File handling in Tines is per-feature: any action/tool can return a file to a Workbench user, and Pages can display file-related content, but there is no dedicated file-storage product.',
+          'No: Tines has no native, standalone file storage system with folder hierarchy, link-based sharing with auth options, or deleted-item recovery. File handling is per-feature: any action/tool can return a file to a Workbench user, and Pages can display file-related content, but there is no dedicated file-storage product.',
         detail:
           "Workbench file returns are scoped to a single user's chat session, not a shared workspace file store with folders/trash.",
         shortValue: 'No: no dedicated file storage system',
@@ -284,9 +284,9 @@ export const tinesProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          'No: Tines has Records and Cases, a structured-data feature where record types define fields (text, number, boolean, timestamp, fixed values). A records table view lets you rearrange or filter columns and export to CSV, but there is no public documentation of spreadsheet-style keyboard navigation (arrow keys, copy-paste across cells) or explicit row/column limits like a true spreadsheet grid.',
+          'No: Records and Cases is a structured-data feature where record types define fields (text, number, boolean, timestamp, fixed values). Its table view lets you rearrange or filter columns and export to CSV, but lacks spreadsheet-style keyboard navigation (arrow keys, copy-paste across cells) and the row/column limits of a true spreadsheet grid.',
         detail:
-          'Closest analog is Records/Cases, described as a data table by record type with customizable row counts (e.g. up to 50 rows shown) but not a general-purpose spreadsheet.',
+          'The closest analog, Records/Cases, is a data table by record type with customizable row counts (e.g. up to 50 rows shown), not a general-purpose spreadsheet.',
         shortValue: 'No: structured records, not spreadsheet grid',
         confidence: 'estimated',
         sources: [
@@ -306,7 +306,7 @@ export const tinesProfile: CompetitorProfile = {
         value:
           "Yes: Tines Pages has a rich text page element (renamed from 'paragraph') that supports Markdown formatting, and Markdown is also supported inline within Pages table cells.",
         detail:
-          'This is Markdown-in-rich-text-element rather than a full WYSIWYG document editor, but it is an inline formatted-text authoring feature within the platform.',
+          'Markdown-based rich text, not a full WYSIWYG document editor, but a genuine inline formatted-text authoring feature within the platform.',
         shortValue: 'Yes: Markdown-based rich text in Pages',
         confidence: 'verified',
         sources: [
@@ -378,7 +378,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       naturalLanguageBuilding: {
         value:
-          "Story Copilot and Workbench are no longer separate products. Story Copilot was rebranded to 'Workbench for Storyboard' on June 2, 2026, and the same Workbench assistant now covers both general chat and in-story building/editing.",
+          "Story Copilot and Workbench are now one product. Story Copilot was rebranded 'Workbench for Storyboard' on June 2, 2026, and the same Workbench assistant covers both general chat and in-story building/editing.",
         shortValue: 'Workbench assistant builds and edits Stories from chat',
         confidence: 'verified',
         sources: [
@@ -422,7 +422,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       evaluationGuardrails: {
         value:
-          'Governance-oriented controls (policy-aligned MCP access, approvals, oversight) rather than a dedicated LLM-output evaluation/testing framework; no specific eval/guardrail product (e.g. output scoring, red-teaming) is documented',
+          'Governance-oriented controls (policy-aligned MCP access, approvals, oversight), not a dedicated LLM-output evaluation/testing framework. No eval/guardrail product (output scoring, red-teaming) is documented',
         shortValue: 'Governance controls, no dedicated eval/guardrail product',
         confidence: 'estimated',
         sources: [
@@ -449,7 +449,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       generativeMedia: {
         value:
-          "No dedicated built-in image, video, or TTS/STT generation blocks; Tines' documented AI surface is text-oriented (AI Action, Agents, Workbench) via LLM providers. Media generation would need to go through the generic HTTP Request action against a third-party API.",
+          "No built-in image, video, or TTS/STT generation blocks. Tines' AI surface is text-oriented (AI Action, Agents, Workbench) via LLM providers; media generation requires the generic HTTP Request action against a third-party API.",
         shortValue: 'No built-in image/video/TTS/STT generation blocks',
         confidence: 'estimated',
         sources: [
@@ -472,7 +472,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          "Yes: Tines Workbench supports Agent Skills, an open standard for packaging specialized knowledge or workflows as a SKILL.md file (name, description, instructions) that the AI loads on demand. Skills are created and managed in a team's Skills section alongside credentials and templates, are team-scoped, and can be toggled per preset for reuse across the team.",
+          "Yes: Tines Workbench supports Agent Skills, an open standard for packaging specialized knowledge or workflows as a SKILL.md file (name, description, instructions) that the AI loads on demand. Skills are created and managed in a team's Skills section alongside credentials and templates, are team-scoped, and toggle per preset for reuse across the team.",
         detail:
           'Distinct from Presets (which bundle templates/stories/instructions); Skills specifically are reusable named knowledge snippets loaded on demand.',
         shortValue: 'Yes: Workbench Agent Skills (SKILL.md)',
@@ -512,7 +512,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          "Unknown: no public Tines documentation was found describing a native knowledge-base feature with chunk-level indexing or a debugging view that exposes individual chunk index/content. Tines' AI Agent action can connect to external knowledge sources (e.g. Notion, Glean, Confluence), but the retrieval/chunk mechanics and any chunk-level visibility in the UI are not documented publicly.",
+          'Unknown: Tines has no documented native knowledge-base feature with chunk-level indexing or a debugging view exposing individual chunk index/content. Its AI Agent action can connect to external knowledge sources (e.g. Notion, Glean, Confluence), but the retrieval/chunk mechanics and any chunk-level visibility in the UI are undocumented.',
         detail:
           'Tines leans on external knowledge sources plus its AI Agent action rather than a first-party knowledge base UI with visible chunk debugging.',
         shortValue: 'Unknown: no documented chunk-level KB view',
@@ -521,7 +521,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'Yes: Tines supports native fan-out/fan-in via its Explode and Implode actions. An Explode action splits an array into individual events that flow through the rest of the story in parallel (concurrently, not sequentially) while sharing the same story run GUID; a downstream Implode action recombines those parallel branches back into a single event using that shared GUID plus an item count.',
+          'Yes: Tines supports native fan-out/fan-in via its Explode and Implode actions. Explode splits an array into individual events that flow through the rest of the story concurrently while sharing the same story run GUID; Implode recombines those parallel branches back into a single event using that shared GUID plus an item count.',
         detail:
           'Explode/Implode is Tines’ dedicated split-and-rejoin mechanism, distinct from a single sequential loop over an array.',
         shortValue: 'Yes: Explode/Implode fan-out and fan-in actions',
@@ -537,9 +537,9 @@ export const tinesProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          "No documented support found. Tines' AI Agent action documents integration with the Model Context Protocol (MCP) for connecting to remote tool servers, but no Tines documentation, changelog, or help center article describes support for the Agent2Agent (A2A) protocol or an Agent Card-based peer-to-peer agent discovery mechanism.",
+          "No documented support. Tines' AI Agent action integrates with the Model Context Protocol (MCP) for connecting to remote tool servers, but no Tines documentation, changelog, or help center article describes support for the Agent2Agent (A2A) protocol or an Agent Card-based peer-to-peer agent discovery mechanism.",
         detail:
-          'Tines documents MCP tool-calling explicitly; A2A is a distinct, newer standard for agent-to-agent (not agent-to-tool) communication and is not mentioned anywhere in Tines’ public docs as of this writing.',
+          'Tines documents MCP tool-calling explicitly. A2A is a distinct, newer standard for agent-to-agent (not agent-to-tool) communication and isn’t mentioned anywhere in Tines’ public docs.',
         shortValue: 'No documented A2A protocol support',
         confidence: 'estimated',
         sources: [
@@ -552,7 +552,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       loopIteration: {
         value:
-          'Yes: Tines actions (including Event Transform in message-only mode and Send to Story) support a Loop attribute that points at a list or object field on the incoming event and invokes the action once per element, exposing a LOOP object for the current item on each pass. This is a per-action for-each attribute rather than a separate visual loop container block, and executes one item at a time rather than concurrently, distinct from the separate Explode/Implode parallel fan-out mechanism.',
+          'Yes: Tines actions (including Event Transform in message-only mode and Send to Story) support a Loop attribute that points at a list or object field on the incoming event and invokes the action once per element, exposing a LOOP object for the current item on each pass. This is a per-action for-each attribute rather than a visual loop container block, and runs one item at a time rather than concurrently, distinct from the Explode/Implode parallel fan-out mechanism.',
         detail:
           'Tines caps a single loop at fewer than 20,000 elements. The dedicated concurrent-fan-out counterpart is Explode/Implode, documented separately as parallelExecution.',
         shortValue: 'Yes: per-action Loop attribute, for-each over a list',
@@ -574,7 +574,7 @@ export const tinesProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          'Tines does not market a fixed integration count; it is deliberately API-centric ("HTTP Request" action can call any API), while also offering "1000s of preconfigured Action templates" for common tools like Jira, Slack, and CrowdStrike',
+          'Tines does not market a fixed integration count. It is deliberately API-centric (the "HTTP Request" action can call any API) while also offering "1000s of preconfigured Action templates" for tools like Jira, Slack, and CrowdStrike',
         shortValue: 'API-centric; 1000s of preconfigured Action templates',
         confidence: 'verified',
         sources: [
@@ -615,7 +615,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       customCodeSteps: {
         value:
-          'No general-purpose custom-code (arbitrary script) action found; logic is expressed via built-in "Formulas"/functions and HTTP Request actions rather than a Python/JS code node',
+          'No general-purpose custom-code action. Logic is expressed via built-in "Formulas"/functions and HTTP Request actions rather than a Python/JS code node',
         shortValue: 'No general-purpose code step; Formulas and HTTP actions',
         confidence: 'estimated',
         sources: [
@@ -641,7 +641,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       extensibilitySdk: {
         value:
-          "Full REST API (https://<tenant>/api/v1/...) covering Stories, Actions, Cases, audit logs, etc.; no dedicated client SDK or third-party integration marketplace for community-built connectors. The platform's extensibility model is the generic HTTP Request action rather than an SDK/plugin marketplace",
+          'Full REST API (https://<tenant>/api/v1/...) covering Stories, Actions, Cases, audit logs, and more, but no dedicated client SDK or third-party integration marketplace. Extensibility runs through the generic HTTP Request action rather than an SDK/plugin marketplace',
         shortValue: 'Full REST API; no client SDK or marketplace',
         confidence: 'estimated',
         sources: [
@@ -686,7 +686,7 @@ export const tinesProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Tiered platform-fee model (Community / Business / Enterprise), with add-ons to expand capacity (flows, teams, apps, AI credits, tunnels); no self-serve published dollar pricing for paid tiers. Business/Enterprise are "Contact Tines"',
+          'Tiered platform-fee model (Community / Business / Enterprise) with add-ons to expand capacity (flows, teams, apps, AI credits, tunnels). No self-serve published dollar pricing; Business/Enterprise are "Contact Tines"',
         shortValue: 'Tiered platform fee; Business/Enterprise are quote-only',
         confidence: 'verified',
         sources: [
@@ -726,7 +726,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       byok: {
         value:
-          "Yes for AI/LLM keys. Customers can bring their own AI provider (OpenAI, Anthropic, or a custom AWS Bedrock account) instead of Tines' default Bedrock-hosted Claude; no explicit BYOK language appears on the pricing page itself",
+          "Yes, for AI/LLM keys. Customers can bring their own AI provider (OpenAI, Anthropic, or a custom AWS Bedrock account) instead of Tines' default Bedrock-hosted Claude, though the pricing page doesn't use the term BYOK",
         shortValue: 'Bring your own AI provider key',
         confidence: 'verified',
         sources: [
@@ -797,7 +797,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'ISO 27001, ISO 27701, and ISO 42001 (AI management systems), announced April 14, 2026 as the "ISO trifecta." No HIPAA, PCI, or FedRAMP certification. Tines says self-hosting can help meet regimes like FedRAMP, not that it is FedRAMP-certified',
+          'ISO 27001, ISO 27701, and ISO 42001 (AI management systems), announced April 14, 2026 as the "ISO trifecta." No HIPAA, PCI, or FedRAMP certification; Tines says self-hosting can help meet regimes like FedRAMP, not that it holds FedRAMP certification',
         shortValue: 'ISO 27001, 27701, and 42001 certified',
         confidence: 'verified',
         sources: [
@@ -822,9 +822,9 @@ export const tinesProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          "Yes: Tines credentials are scoped to Teams by default, and Team Admin/Editor roles control which teams a credential can be shared with. Sensitive credential settings like Access (where a credential can be used) and Domains (allowed outbound hosts/paths) are further restricted to Team Admins or the credential's creator. Custom roles can be built on top of the default viewer/builder/manager roles for finer-grained control.",
+          "Yes: credentials are scoped to Teams by default, and Team Admin/Editor roles control which teams a credential can be shared with. Sensitive settings like Access (where a credential can be used) and Domains (allowed outbound hosts/paths) are restricted to Team Admins or the credential's creator. Custom roles can extend the default viewer/builder/manager roles for finer-grained control.",
         detail:
-          "Governance is at the team/role level with per-credential Access and Domain restrictions, not a separate credential-set-to-role assignment matrix like Sim's credential governance, but achieves a similar restriction outcome.",
+          "Governance operates at the team/role level with per-credential Access and Domain restrictions, not a credential-set-to-role assignment matrix like Sim's, but reaches a similar outcome.",
         shortValue: 'Yes: team-scoped credential access rules',
         confidence: 'verified',
         sources: [
@@ -842,7 +842,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       whiteLabeling: {
         value:
-          "No: Tines' branding customization is scoped to Pages (custom logo, background/action colors, light/dark mode, saved Page themes), not replacing vendor branding across the whole workspace or product UI. No evidence of full white-labeling (e.g. removing the Tines name/logo tenant-wide) was found.",
+          'No: branding customization is scoped to Pages (custom logo, background/action colors, light/dark mode, saved Page themes), not the whole workspace or product UI. No evidence of full white-labeling (removing the Tines name/logo tenant-wide) was found.',
         detail:
           'Page themes let you brand individual deployed pages differently per audience, which is narrower than workspace-wide white-labeling.',
         shortValue: 'No: only per-Page branding, not full white-label',
@@ -857,7 +857,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       dataRetention: {
         value:
-          'No: Tines documents a fixed two-year retention period for audit logs, with no evidence of an org-configurable retention window for logs or soft-deleted resources. Self-hosted deployments expose configurable event/rate limits via environment variables, but not data retention windows.',
+          'No: audit logs have a fixed two-year retention period, with no org-configurable retention window for logs or soft-deleted resources. Self-hosted deployments expose configurable event/rate limits via environment variables, but not data retention windows.',
         detail:
           'Org can extend retention indirectly by exporting audit logs to their own S3 bucket, but the in-product retention period itself is not shown as configurable.',
         shortValue: 'No: fixed 2-year audit log retention',
@@ -872,14 +872,14 @@ export const tinesProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          'Unknown: no public Tines documentation was found describing built-in detection or redaction of PII (emails, SSNs, etc.) in workflow content or retained logs; Tines markets credential/secret protection and access controls, but a dedicated PII-scanning/redaction capability is not documented.',
+          'Unknown: no documented built-in detection or redaction of PII (emails, SSNs, etc.) in workflow content or retained logs. Tines markets credential/secret protection and access controls, but not a dedicated PII-scanning/redaction capability.',
         shortValue: 'Unknown: no documented PII redaction',
         confidence: 'unknown',
         sources: [],
       },
       sso: {
         value:
-          'Yes: Tines supports SSO via SAML or OIDC configured at the tenant Authentication settings, with certified integrations for Okta, Duo, and CyberArk among others; the docs describe validating the IdP connection and redirecting users to the identity provider on sign-in.',
+          'Yes: SSO via SAML or OIDC, configured at the tenant Authentication settings, with certified integrations for Okta, Duo, and CyberArk among others. Docs describe validating the IdP connection and redirecting users to the identity provider on sign-in.',
         detail:
           "Public docs describe the IdP handshake and setup steps but do not explicitly detail 'organization auto-provisioning on first login' (JIT provisioning) as a named capability.",
         shortValue: 'Yes: SAML and OIDC SSO',
@@ -899,9 +899,9 @@ export const tinesProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Yes: Tines' executable actions (HTTP Request, webhooks, email, Send to Story, AI Agent, etc.) are a fixed, first-party set built and maintained by Tines itself, not a plugin/node marketplace; integrations with third-party tools are done by pointing the generic HTTP Request action at that tool's API, or by importing a pre-built 'Story' (a workflow template/JSON config, not installable code) from the community Story Library. No mechanism exists for a third party to publish executable custom actions/nodes that other tenants install.",
+          "Yes: Tines' executable actions (HTTP Request, webhooks, email, Send to Story, AI Agent, etc.) are a fixed, first-party set built and maintained by Tines, not a plugin/node marketplace. Third-party integrations go through the generic HTTP Request action against that tool's API, or by importing a pre-built 'Story' (a workflow template/JSON config, not installable code) from the community Story Library. No mechanism lets a third party publish executable custom actions/nodes that other tenants install.",
         detail:
-          "The public Story Library has a 'Community selection' of user-submitted Story templates alongside Tines-authored ones, but these are shareable workflow configurations built from the same fixed first-party action set, not third-party executable plugins with their own code/dependencies (unlike n8n community nodes or a skill/plugin registry). No public vetting process for community Story submissions is documented, and no publicly documented security incident involving Tines' Story Library or action set was found.",
+          "The public Story Library has a 'Community selection' of user-submitted Story templates alongside Tines-authored ones, but these are shareable workflow configurations built from the same fixed first-party action set, not third-party executable plugins with their own code/dependencies (unlike n8n community nodes or a skill/plugin registry). No public vetting process for community Story submissions is documented, and no public security incident involving Tines' Story Library or action set was found.",
         shortValue: 'Yes: fixed first-party action set, no plugin marketplace',
         confidence: 'verified',
         sources: [
@@ -921,7 +921,7 @@ export const tinesProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Each workflow run ("Story run") gets a unique ID and a full, action-by-action event chain viewable in the UI or API. A Tenant Health dashboard (self-hosted) and Story/Action status views surface errors, run volume, and worker capacity, but this is not OpenTelemetry-style distributed tracing by default. A separate community guide shows customers wiring up their own OpenTelemetry dashboard',
+          'Each workflow run ("Story run") gets a unique ID and a full, action-by-action event chain viewable in the UI or API. A Tenant Health dashboard (self-hosted) and Story/Action status views surface errors, run volume, and worker capacity, but this isn\'t OpenTelemetry-style distributed tracing by default; a separate community guide shows customers wiring up their own OpenTelemetry dashboard',
         shortValue: 'Per-run GUID trace; no built-in OpenTelemetry dashboards',
         confidence: 'estimated',
         sources: [
@@ -944,7 +944,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       durabilityModel: {
         value:
-          'HTTP Request actions support configurable automatic retries, with "retry on status" behavior and a single notification only if the final retry fails. Story version history lets you restore a prior configuration, but no explicit feature to replay a past execution with its original captured inputs is confirmed',
+          'HTTP Request actions support configurable automatic retries with "retry on status" behavior, notifying only if the final retry fails. Story version history lets you restore a prior configuration, but no explicit feature to replay a past execution with its original captured inputs is confirmed',
         shortValue: 'Configurable HTTP retries; no confirmed execution replay',
         confidence: 'estimated',
         sources: [
@@ -980,7 +980,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       dataDrains: {
         value:
-          'No: Tines documents scheduled export of audit logs to Amazon S3 (running every 15 minutes), but there is no public documentation of a general-purpose, continuous data-drain feature for execution/workflow data to arbitrary destinations like BigQuery, Datadog, or generic webhooks.',
+          'No: Tines documents scheduled export of audit logs to Amazon S3 every 15 minutes, but no general-purpose, continuous data-drain feature for execution/workflow data to destinations like BigQuery, Datadog, or generic webhooks.',
         detail:
           'The audit-log-to-S3 export is the only continuous export destination found; broader execution-data drains are not documented.',
         shortValue: 'Partial: audit logs to S3 only',
@@ -1010,9 +1010,9 @@ export const tinesProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          'Tines publishes several concrete per-action/request timeout figures rather than one global run timeout: HTTP Request actions default to a 30-second timeout, AI Agent (LLM) actions default to a 30-second timeout, Run Script actions default to a 10-second timeout with a maximum of 110 seconds, and MCP server tool responses cannot exceed 30 seconds before the client sees a timeout error. For Workflows as APIs, an Exit Action must emit an event within 30 seconds of the API request or the call returns a 504 Gateway Timeout (story execution continues regardless). Tines also caps the number of simultaneous API requests to a story; when exceeded it returns HTTP 201 Created instead of 200, signaled via the X-Tines-Status and X-Tines-Limit-Reached headers, without publishing an exact numeric concurrency ceiling.',
+          'Tines publishes per-action timeout figures rather than one global run timeout: HTTP Request and AI Agent (LLM) actions default to a 30-second timeout, Run Script actions default to 10 seconds with a 110-second maximum, and MCP server tool responses cannot exceed 30 seconds before the client sees a timeout error. For Workflows as APIs, an Exit Action must emit an event within 30 seconds of the API request or the call returns a 504 Gateway Timeout (story execution continues regardless). Tines also caps the number of simultaneous API requests to a story; when exceeded it returns HTTP 201 Created instead of 200, signaled via the X-Tines-Status and X-Tines-Limit-Reached headers, without publishing an exact numeric concurrency ceiling.',
         detail:
-          "No single hard 'max execution time per run' number is published; limits are per action-type. The exact numeric concurrency ceiling for simultaneous story API requests is not disclosed in public docs, only that exceeding it changes the response status code.",
+          "No single 'max execution time per run' number is published; limits are per action-type. The exact numeric concurrency ceiling for simultaneous story API requests isn't disclosed in public docs, only that exceeding it changes the response status code.",
         shortValue: '30s per-action timeouts; concurrency capped, unpublished number',
         confidence: 'verified',
         sources: [
@@ -1045,7 +1045,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       partialFailureHandling: {
         value:
-          "Yes: Tines lets you connect a dedicated failure path from an action, so any action run with an error emits its event down that path to a separate error-handling action instead of halting the whole story. This is configured via the action's context menu ('set failure path') and pairs with retry logic (e.g. HTTP Request actions retry on configured status codes, up to 25 retries with exponential backoff plus jitter) and an emit_failure_event option that fires once retries are exhausted, so downstream actions can react to the failure while the rest of the run proceeds.",
+          "Yes: Tines lets you connect a dedicated failure path from an action, so any action that errors emits its event down that path to a separate error-handling action instead of halting the whole story. This is configured via the action's context menu ('set failure path') and pairs with retry logic (e.g. HTTP Request actions retry on configured status codes, up to 25 retries with exponential backoff plus jitter) and an emit_failure_event option that fires once retries are exhausted, so downstream actions can react while the rest of the run proceeds.",
         detail:
           "Historically a failed HTTP Request action after exhausted retries would stop the story; Tines added error-event emission plus explicit 'failure path' routing so the rest of the story is not forced to halt.",
         shortValue: 'Yes, dedicated failure paths per action',
@@ -1128,7 +1128,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       academy: {
         value:
-          'Yes: Tines offers a structured learning program called Tines University with free foundational courses (about 30 minutes each), instructor-led and self-paced Bootcamps (fundamentals and advanced), and two certification tiers (Core and Advanced) that builders can share on LinkedIn.',
+          'Yes: Tines offers a structured learning program, Tines University, with free foundational courses (about 30 minutes each), instructor-led and self-paced Bootcamps (fundamentals and advanced), and two certification tiers (Core and Advanced) that builders can share on LinkedIn.',
         detail:
           'Available free even on Community Edition; Advanced certification is hands-on labs, roughly 3 hours.',
         shortValue: 'Yes: University, bootcamps, certifications',

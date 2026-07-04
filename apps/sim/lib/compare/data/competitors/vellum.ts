@@ -42,7 +42,7 @@ export const vellumProfile: CompetitorProfile = {
     {
       title: 'SOC 2 Type 2 and HIPAA compliance with BAA',
       description:
-        'Vellum documents SOC 2 Type 2 attestation and HIPAA compliance, with enterprise customers able to sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study.',
+        'Vellum has SOC 2 Type 2 attestation and HIPAA compliance. Enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study.',
       shortDescription: 'SOC 2 Type 2 and HIPAA compliance with a signable BAA.',
       source: {
         url: 'https://drata.com/customers/vellum',
@@ -66,7 +66,7 @@ export const vellumProfile: CompetitorProfile = {
     {
       title: 'Brand/product ambiguity as of mid-2026',
       description:
-        "Vellum's homepage, pricing page, security docs, and several product pages now serve content for a new consumer 'Personal Intelligence' assistant (an open-source, MIT-licensed Mac app) rather than the original enterprise workflow, evaluations, and prompt-engineering platform. That makes current enterprise-specific details, like environment promotion, version-control depth, tracing, alerting, and integration counts, harder to verify from the public site alone.",
+        "Vellum's homepage, pricing page, security docs, and several product pages now serve content for a new consumer 'Personal Intelligence' assistant (an open-source, MIT-licensed Mac app) instead of the original enterprise workflow, evaluations, and prompt-engineering platform. That makes enterprise-specific details, like environment promotion, version-control depth, tracing, alerting, and integration counts, harder to verify from the public site alone.",
       shortDescription:
         'Public site now foregrounds a consumer product over the enterprise platform.',
       source: {
@@ -78,7 +78,7 @@ export const vellumProfile: CompetitorProfile = {
     {
       title: 'BYOK not documented on pricing',
       description:
-        "Vellum's pricing pages describe a prepaid-credit model where Vellum passes through LLM costs at cost, with no bring-your-own-API-key option mentioned as an alternative billing or configuration path.",
+        "Vellum's pricing pages describe a prepaid-credit model that passes through LLM costs at cost, with no bring-your-own-API-key option mentioned as an alternative.",
       shortDescription: 'No bring-your-own-key option mentioned on pricing pages.',
       source: { url: 'https://www.vellum.ai/pricing', label: 'Vellum Pricing', asOf: '2026-07-02' },
     },
@@ -167,8 +167,7 @@ export const vellumProfile: CompetitorProfile = {
         ],
       },
       templates: {
-        value:
-          'A templates page exists on vellum.ai, though its contents are not publicly detailed.',
+        value: 'A templates page exists on vellum.ai; contents are not publicly detailed.',
         shortValue: 'Exists; contents undocumented',
         confidence: 'unknown',
         sources: [],
@@ -190,7 +189,7 @@ export const vellumProfile: CompetitorProfile = {
       },
       environmentPromotion: {
         value:
-          "Vellum has Development/Staging/Production environments, each with isolated API keys, Release histories, and environment variables/secrets. Promotion works via a 'Promote' button on a Release to move a tested version to another environment, or by deploying directly to multiple environments at once. Sandboxes (prompt/workflow definitions) are shared across environments. Deployments and releases are environment-scoped.",
+          "Vellum has Development/Staging/Production environments, each with isolated API keys, release histories, and environment variables/secrets. A 'Promote' button moves a tested Release to another environment, or you can deploy directly to multiple environments at once. Sandboxes (prompt/workflow definitions) are shared across environments; deployments and releases are environment-scoped.",
         detail:
           'Promotion operates at the level of individual workflow/prompt releases rather than whole-workspace forking.',
         shortValue: 'Dev/Staging/Prod with one-click promotion',
@@ -205,7 +204,7 @@ export const vellumProfile: CompetitorProfile = {
       },
       versionControlDepth: {
         value:
-          'Vellum maintains per-environment Release history with instant one-click rollback (no code changes required) and supports semantic-versioned Release Tags or a rolling LATEST tag. Version comparison is mentioned, but a dedicated diff/side-by-side comparison view is not explicitly documented.',
+          'Vellum maintains per-environment Release history with instant one-click rollback (no code changes required) and semantic-versioned Release Tags or a rolling LATEST tag. Version comparison is mentioned, but a dedicated diff/side-by-side view is not documented.',
         shortValue: 'Release history with one-click rollback',
         confidence: 'verified',
         sources: [
@@ -225,7 +224,7 @@ export const vellumProfile: CompetitorProfile = {
         value:
           "No: Vellum's collaboration model is asynchronous, not live multi-user editing. Prompt Sandbox lets team members see each other's history, tag entries, and share/invite others, but there is no documented live-cursor or simultaneous editing of the same workflow or prompt.",
         detail:
-          'Vellum documentation describes shared visibility into sandbox history and sharing/invite mechanisms, explicitly framed around sequential iteration rather than simultaneous editing.',
+          'Vellum documents shared visibility into sandbox history and sharing/invite mechanisms, framed around sequential iteration rather than simultaneous editing.',
         shortValue: 'Async collaboration, no live co-editing',
         confidence: 'estimated',
         sources: [
@@ -238,9 +237,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          "No: Vellum's document handling is scoped to Document Indexes for RAG (upload, indexing, search), not a general-purpose file storage system. No documentation of folder hierarchy, shareable links with password/SSO auth, or a trash/recovery feature was found.",
+          "No: Vellum's document handling is scoped to Document Indexes for RAG (upload, indexing, search), not general-purpose file storage. No folder hierarchy, shareable links with password/SSO auth, or trash/recovery feature is documented.",
         detail:
-          "Documents are described as 'Environment-scoped', uploaded for indexing with size limits (e.g. up to 32MB) and supported formats (PDF, DOCX, CSV, etc.), but folder hierarchy, link-sharing with auth, and deleted-item recovery are not documented.",
+          'Documents are environment-scoped, uploaded for indexing with size limits (up to 32MB) and supported formats (PDF, DOCX, CSV, etc.), but folder hierarchy, link-sharing with auth, and deleted-item recovery are not documented.',
         shortValue: 'RAG document indexes only, not general file storage',
         confidence: 'estimated',
         sources: [
@@ -253,9 +252,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          "No: no evidence of a native spreadsheet-like data table feature (with row/column limits and spreadsheet keyboard navigation) as a standalone platform primitive. Vellum's tabular-data handling is limited to processing uploaded CSV/XLS files and extracting or generating structured output within workflow nodes.",
+          'No: Vellum has no native spreadsheet-like data table primitive (row/column limits, spreadsheet keyboard navigation). Its tabular-data handling is limited to processing uploaded CSV/XLS files and extracting or generating structured output within workflow nodes.',
         detail:
-          'Vellum documents document upload support for CSV/XLS and structured JSON extraction, and blog content about converting PDFs to CSV, but not an editable in-platform spreadsheet/data-table object comparable to a native DB feature.',
+          'Vellum supports CSV/XLS upload and structured JSON extraction, and has blog content on converting PDFs to CSV, but no editable in-platform spreadsheet/data-table object comparable to a native DB feature.',
         shortValue: 'No native spreadsheet-style data table feature',
         confidence: 'estimated',
         sources: [
@@ -273,9 +272,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       richTextEditor: {
         value:
-          'Unknown: no documentation was found describing an inline rich-text/WYSIWYG markdown editor for documents stored within the B2B Vellum workflow platform (docs.vellum.ai). Prompt/node inputs in Workflows appear to be plain text/code fields.',
+          'Unknown: no documentation describes an inline rich-text/WYSIWYG markdown editor for documents stored within the B2B Vellum workflow platform (docs.vellum.ai). Prompt/node inputs in Workflows appear to be plain text/code fields.',
         detail:
-          'A rich-text/Markdown document editor is documented for the separate, distinct Vellum personal-assistant product (vellum.ai, a 2026 pivot product), not confirmed for the B2B workflow/agent development platform being compared to Sim.',
+          'A rich-text/Markdown document editor is documented for the separate Vellum personal-assistant product (vellum.ai, a 2026 pivot product), but not confirmed for the B2B workflow/agent platform compared here.',
         shortValue: 'Unknown for the workflow platform',
         confidence: 'unknown',
         sources: [],
@@ -317,7 +316,7 @@ export const vellumProfile: CompetitorProfile = {
       },
       agentReasoningBlocks: {
         value:
-          "Vellum has a documented 'Agent Node' (formerly 'Tool Calling Node') as its dedicated agent/reasoning-and-tool-execution block type within Workflows, supporting raw code, subworkflows, MCP tools, and Composio SaaS actions side by side in one node.",
+          "Vellum's 'Agent Node' (formerly 'Tool Calling Node') is its dedicated agent/reasoning-and-tool-execution block within Workflows, supporting raw code, subworkflows, MCP tools, and Composio SaaS actions side by side in one node.",
         shortValue: 'Agent Node handles reasoning + tool execution',
         confidence: 'verified',
         sources: [
@@ -426,9 +425,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          "No: no evidence found of a named, reusable prompt or knowledge-snippet feature invoked by reference across multiple agents. Vellum's reuse primitives are Subworkflows (reusable workflow logic blocks) and shared Prompt Sandboxes, not a discrete 'skill' object referenced by name across agents.",
+          "No: Vellum has no named, reusable prompt or knowledge-snippet feature invoked by reference across multiple agents. Its reuse primitives are Subworkflows (reusable workflow logic blocks) and shared Prompt Sandboxes, not a discrete 'skill' object referenced by name across agents.",
         detail:
-          "Reuse is achieved via Subflows/subworkflows and deployed prompts, which is a different mechanism than a discrete named prompt-snippet library referenced across agents. Note: the separate Vellum personal-assistant product (a distinct pivot product) does have a 'Skills' concept, but that is not documented as part of the B2B workflow platform being compared here.",
+          "Reuse happens via Subflows/subworkflows and deployed prompts, a different mechanism than a discrete named prompt-snippet library referenced across agents. The separate Vellum personal-assistant product does have a 'Skills' concept, but it is not documented as part of the B2B workflow platform compared here.",
         shortValue: 'Only subworkflows, no named skill objects',
         confidence: 'estimated',
         sources: [
@@ -446,7 +445,7 @@ export const vellumProfile: CompetitorProfile = {
       },
       nativeChatDeployment: {
         value:
-          'Yes: Vellum Agents can be built with a first-class Chat Message Trigger that maintains chat_history/conversation state across turns, and Workflows/Agents can be deployed with this chat interaction pattern rather than only form/API/webhook targets.',
+          'Yes: Vellum Agents can be built with a first-class Chat Message Trigger that maintains chat_history/conversation state across turns, and Workflows/Agents can be deployed with this chat pattern rather than only form/API/webhook targets.',
         detail:
           "Documented alongside RAG chatbot tutorials and the Agent Node's conversation-state handling; deployment surface details (e.g., a hosted public chat widget URL) were not independently confirmed beyond the trigger/state mechanism.",
         shortValue: 'Chat Message Trigger for deployed conversational agents',
@@ -466,7 +465,7 @@ export const vellumProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          "Yes: Vellum's Document Index search returns individual chunk-level results, and Advanced Chunking exposes per-chunk metadata (like the source page range) alongside configurable chunk size and overlap settings, giving chunk-level visibility for debugging retrieval quality.",
+          "Yes: Vellum's Document Index search returns individual chunk-level results, and Advanced Chunking exposes per-chunk metadata (like source page range) alongside configurable chunk size and overlap settings, giving chunk-level visibility for debugging retrieval quality.",
         detail:
           'Documented under the Document Indexes / Search API and RAG pipeline evaluation docs; each search result object represents one matching chunk, not a whole document.',
         shortValue: 'Search returns per-chunk results with metadata',
@@ -508,7 +507,7 @@ export const vellumProfile: CompetitorProfile = {
         value:
           'No: Vellum documentation and changelogs show no support for the Agent2Agent (A2A) protocol. Vellum has written about the related Google AP2 payments protocol, but has not documented an A2A implementation or Agent Card support.',
         detail:
-          'No mentions of "Agent2Agent" or "A2A" appear in Vellum product docs, help center, or changelog as of this review; this reflects the absence of public documentation, not a confirmed statement from Vellum that it will never support it.',
+          'No mentions of "Agent2Agent" or "A2A" appear in Vellum product docs, help center, or changelog. This reflects the absence of public documentation, not a statement from Vellum that it will never support it.',
         shortValue: 'Not documented',
         confidence: 'estimated',
         sources: [
@@ -528,7 +527,7 @@ export const vellumProfile: CompetitorProfile = {
         value:
           "No: Vellum's only documented list-iteration mechanism is the Map Node, which executes a subworkflow once per array item concurrently (up to 96 parallel executions) rather than as a dedicated sequential for-each/while container; no separate While/loop node is documented.",
         detail:
-          'The Map Node is already the mechanism counted under parallelExecution (concurrent fan-out plus Merge Strategy join). Vellum documentation does not describe a way to force single-lane sequential iteration or a distinct while/repeat-until construct.',
+          'The Map Node is already the mechanism counted under parallelExecution (concurrent fan-out plus Merge Strategy join). Vellum does not document a way to force single-lane sequential iteration or a distinct while/repeat-until construct.',
         shortValue: 'Only a concurrent Map Node, no sequential loop',
         confidence: 'estimated',
         sources: [
@@ -620,9 +619,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       mcpPublishing: {
         value:
-          "No: Vellum's documented MCP support runs in one direction only. Its Agent Node lets a workflow connect to and call external/remote MCP servers as tools (with auto-discovered schemas). No documentation describes the reverse: publishing a deployed Vellum workflow itself as a callable MCP server for external AI tools to consume.",
+          "No: Vellum's MCP support runs one direction only. Its Agent Node lets a workflow connect to and call external/remote MCP servers as tools (with auto-discovered schemas), but nothing documents the reverse: publishing a deployed Vellum workflow as a callable MCP server for external AI tools to consume.",
         detail:
-          "August 2025 changelog and blog content describe adding MCP servers as tools inside Agent nodes; a specific 'How does MCP work' Vellum blog post does not address exposing Vellum workflows as MCP endpoints. Some third-party sources conflate this with Vellum's separate personal-assistant product exposing its own MCP server, which is a different, non-workflow-platform product.",
+          "The August 2025 changelog and blog content describe adding MCP servers as tools inside Agent nodes; Vellum's 'How does MCP work' blog post does not address exposing Vellum workflows as MCP endpoints. Some third-party sources conflate this with Vellum's separate personal-assistant product exposing its own MCP server, a different, non-workflow-platform product.",
         shortValue: 'MCP client only, not MCP server publishing',
         confidence: 'estimated',
         sources: [
@@ -678,7 +677,7 @@ export const vellumProfile: CompetitorProfile = {
       byok: {
         value: 'Not mentioned on current pricing pages',
         detail:
-          'Pricing is structured around Vellum-provided credits passed through at cost, with no bring-your-own-API-key option described as an alternative.',
+          'Pricing is structured around Vellum-provided credits passed through at cost, with no bring-your-own-API-key option described.',
         shortValue: 'No BYOK option documented',
         confidence: 'unknown',
         sources: [
@@ -709,7 +708,7 @@ export const vellumProfile: CompetitorProfile = {
       dataResidency: {
         value: 'Unknown: no specific region/residency options documented',
         detail:
-          "Docs describe data being stored 'in Vellum's infrastructure, isolated in a dedicated, encrypted container' but do not specify selectable data-residency regions.",
+          "Docs describe data being stored 'in Vellum's infrastructure, isolated in a dedicated, encrypted container' but do not specify selectable residency regions.",
         shortValue: 'No selectable residency regions documented',
         confidence: 'unknown',
         sources: [
@@ -750,9 +749,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'HIPAA compliant (BAA available for enterprise customers); ISO 27001, GDPR-specific attestation, PCI, and FedRAMP not confirmed',
+          'HIPAA compliant, with a BAA available for enterprise customers; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
         detail:
-          'Docs and a third-party Drata case study both state Vellum is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). No mention of ISO 27001, PCI, or FedRAMP certification was found.',
+          "Vellum's docs and a third-party Drata case study state it is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). No mention of ISO 27001, PCI, or FedRAMP certification was found.",
         shortValue: 'HIPAA + BAA; no other certs confirmed',
         confidence: 'verified',
         sources: [
@@ -777,9 +776,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          'No: Vellum documents workspace-level Role-Based Access Control (Admin/Member style roles governing create/update/delete permissions) but no documentation was found for restricting which specific stored credentials/connections a role or permission group may use.',
+          'No: Vellum has workspace-level Role-Based Access Control (Admin/Member roles governing create/update/delete permissions), but nothing documents restricting which specific stored credentials or connections a role or permission group may use.',
         detail:
-          'RBAC docs describe workspace-wide role permissions (Admin vs Member) rather than credential-level allow/deny lists. A separate, unrelated Vellum personal-assistant product does describe per-credential allowedTools/allowedDomains scoping, but that is a different product from the B2B workflow platform being compared.',
+          'RBAC docs describe workspace-wide role permissions (Admin vs Member) rather than credential-level allow/deny lists. A separate Vellum personal-assistant product describes per-credential allowedTools/allowedDomains scoping, but it is a different product from the B2B workflow platform compared here.',
         shortValue: 'Workspace RBAC only, no per-credential scoping',
         confidence: 'verified',
         sources: [
@@ -792,7 +791,7 @@ export const vellumProfile: CompetitorProfile = {
       },
       whiteLabeling: {
         value:
-          "Unknown: no documentation was found describing replacing Vellum's own branding (logo, product name, theme) with a customer's branding across the workspace or deployed apps. Only generic 'white glove' Enterprise service language was found, and that refers to onboarding support, not white-label branding.",
+          "Unknown: no documentation describes replacing Vellum's own branding (logo, product name, theme) with a customer's branding across the workspace or deployed apps. Only generic 'white glove' Enterprise service language appears, and that refers to onboarding support, not white-label branding.",
         detail:
           "Vellum's own branding-guide page addresses Vellum's use of its own brand assets by others, not a customer-facing white-label capability.",
         shortValue: 'Unknown, no white-label branding docs found',
@@ -816,27 +815,27 @@ export const vellumProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          'Unknown: no documentation was found confirming or denying a dedicated PII detection/redaction feature distinct from generic Guardrail nodes for output validation.',
+          'Unknown: nothing confirms or denies a dedicated PII detection/redaction feature distinct from generic Guardrail nodes for output validation.',
         detail:
-          'Vellum documents a general Guardrail Node for workflow quality checks, but no page specifically describing PII detection/redaction (emails, SSNs, etc.) in workflow content or logs was found.',
+          'Vellum documents a general Guardrail Node for workflow quality checks, but no page specifically describes PII detection/redaction (emails, SSNs, etc.) in workflow content or logs.',
         shortValue: 'Unknown',
         confidence: 'unknown',
         sources: [],
       },
       sso: {
         value:
-          'Unknown: third-party summaries claim Vellum supports SSO/SAML, but no first-party Vellum documentation describing SAML/OIDC setup or auto-provisioning on first login could be located.',
+          'Unknown: third-party summaries claim Vellum supports SSO/SAML, but no first-party Vellum documentation describes SAML/OIDC setup or auto-provisioning on first login.',
         detail:
-          "Vellum's own security/data-privacy documentation page does not mention SSO/SAML, and a direct search of docs.vellum.ai for SSO/SAML configuration returned no dedicated setup page.",
+          "Vellum's security/data-privacy documentation does not mention SSO/SAML, and a search of docs.vellum.ai for SSO/SAML configuration returns no dedicated setup page.",
         shortValue: 'Claimed by third parties, undocumented directly',
         confidence: 'unknown',
         sources: [],
       },
       thirdPartyVetting: {
         value:
-          "Yes: Vellum's tool ecosystem is closed and vendor/partner controlled, not an open marketplace. Its own 100+ native integrations are built and maintained by Vellum, its Composio partnership adds access to Composio's curated tool library (not third-party developer submissions reviewed loosely), and 'Custom Nodes' are authored by the customer's own team for internal reuse rather than published to a shared public marketplace for other tenants to install.",
+          "Yes: Vellum's tool ecosystem is closed and vendor/partner controlled, not an open marketplace. Its 100+ native integrations are built and maintained by Vellum, its Composio partnership adds access to Composio's curated tool library, and 'Custom Nodes' are authored by the customer's own team for internal reuse rather than published to a shared marketplace for other tenants.",
         detail:
-          "No documentation was found describing a public marketplace or community-node/plugin registry where independent third-party developers publish executable code that other Vellum customers can browse and install, unlike ecosystems such as n8n community nodes. Custom Nodes extend a single customer's own workflows and are not distributed to other organizations. No publicly documented security incidents involving Vellum's integration or tool ecosystem were found.",
+          "No documentation describes a public marketplace or community-node/plugin registry where third-party developers publish executable code for other Vellum customers to install, unlike ecosystems such as n8n community nodes. Custom Nodes extend a single customer's own workflows and are not distributed to other organizations. No publicly documented security incidents involving Vellum's integration or tool ecosystem were found.",
         shortValue: 'Closed first-party/partner catalog, no open plugin marketplace',
         confidence: 'estimated',
         sources: [
@@ -894,9 +893,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       dataDrains: {
         value:
-          'Yes: Vellum supports streaming execution/monitoring events (workflow execution initiated/fulfilled/rejected, usage calculation, metric execution events) continuously to external systems via configurable webhooks, including documented support for forwarding to Datadog.',
+          'Yes: Vellum streams execution/monitoring events (workflow execution initiated/fulfilled/rejected, usage calculation, metric execution events) continuously to external systems via configurable webhooks, including documented support for forwarding to Datadog.',
         detail:
-          'Configured from Organization Settings; supports API key, Bearer token, and HMAC verification for webhook payloads. No explicit native S3 or BigQuery connector was found, but the generic webhook mechanism supports building such an export.',
+          'Configured from Organization Settings; supports API key, Bearer token, and HMAC verification for webhook payloads. No native S3 or BigQuery connector exists, but the generic webhook mechanism supports building such an export.',
         shortValue: 'Webhooks stream events to Datadog and custom systems',
         confidence: 'verified',
         sources: [
@@ -934,16 +933,16 @@ export const vellumProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          'Unknown: Vellum confirms a per-account concurrency limit exists, and that async executions automatically queue once it is exceeded, but does not publish the actual numbers. No max concurrent executions, max execution duration, or requests-per-minute rate limit is listed on its public docs or pricing pages.',
+          'Unknown: Vellum confirms a per-account concurrency limit exists and that async executions automatically queue once it is exceeded, but does not publish the actual numbers. No max concurrent executions, max execution duration, or requests-per-minute rate limit is listed on its public docs or pricing pages.',
         detail:
-          "The November 2025 changelog states executions 'automatically queue when you exceed your concurrency limit' but gives no figure. The public pricing page describes credit-based billing and machine sizes (vCPU/RAM tiers) but no execution timeout or concurrency figures. Third-party blog posts cite older per-day execution caps, but these aren't confirmed on Vellum's own current docs, so they aren't included as a verified figure.",
+          "The November 2025 changelog states executions 'automatically queue when you exceed your concurrency limit' but gives no figure. The pricing page describes credit-based billing and machine sizes (vCPU/RAM tiers) but no execution timeout or concurrency figures. Third-party blog posts cite older per-day execution caps, but Vellum's current docs do not confirm them, so they are not included as a verified figure.",
         shortValue: 'Concurrency limit exists, no public numbers',
         confidence: 'unknown',
         sources: [],
       },
       partialFailureHandling: {
         value:
-          "Yes: Vellum lets you wrap any workflow node with a Try or Retry node adornment for first-class error handling, so a single node's failure does not have to halt the entire run. The Try adornment attempts the node once and continues the workflow with an Error output if it fails, while the Retry adornment repeatedly re-invokes the node until it succeeds or a maximum attempt count is reached.",
+          "Yes: Vellum lets you wrap any workflow node with a Try or Retry adornment for first-class error handling, so a single node's failure does not have to halt the entire run. The Try adornment attempts the node once and continues with an Error output if it fails; the Retry adornment repeatedly re-invokes the node until it succeeds or hits a maximum attempt count.",
         detail:
           "Adornments are applied from the node's side panel and appear in monitoring as a single-node subworkflow, so downstream branches can consume the Error output and keep the rest of the run going instead of the whole execution stopping.",
         shortValue: 'Yes, via Try/Retry node adornments',
@@ -981,7 +980,7 @@ export const vellumProfile: CompetitorProfile = {
       sla: {
         value: 'Unknown: no SLA commitments or figures found on current public pages',
         detail:
-          "The enterprise and pricing pages now serve the consumer 'Personal Intelligence' product and contain no SLA language (uptime, response time, or otherwise). An earlier version of this page may have referenced named SLA features, but that could not be confirmed on the live site, so it is not included as a verified claim.",
+          "The enterprise and pricing pages now serve the consumer 'Personal Intelligence' product and contain no SLA language (uptime, response time, or otherwise). An earlier version of this page may have referenced named SLA features, but the live site does not confirm that, so it is not included as a verified claim.",
         shortValue: 'No SLA content found on current site',
         confidence: 'unknown',
         sources: [],
@@ -1023,7 +1022,7 @@ export const vellumProfile: CompetitorProfile = {
       },
       academy: {
         value:
-          'No: Vellum has not documented a structured Academy-style learning resource with courses or certification. It offers standard documentation (docs.vellum.ai), a blog, and webinars, but no dedicated course/certification program was found.',
+          'No: Vellum has no documented Academy-style learning resource with courses or certification. It offers standard documentation (docs.vellum.ai), a blog, and webinars, but no dedicated course or certification program.',
         detail:
           "Searches for 'Vellum academy', 'certification', 'courses' turned up only docs, blog posts, and webinars; no evidence of a structured curriculum.",
         shortValue: 'No structured academy or certification',

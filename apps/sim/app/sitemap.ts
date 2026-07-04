@@ -1,5 +1,4 @@
 import type { MetadataRoute } from 'next'
-import { COURSES } from '@/lib/academy/content'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
@@ -12,9 +11,9 @@ import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landin
 
 /**
  * Generate the public sitemap by composing static landing pages with the
- * dynamic catalogs (blog posts, authors, integrations, model providers,
- * individual models, and academy courses). Per-integration entries are
- * emitted under `/integrations/{slug}` to match the landing route at
+ * dynamic catalogs (blog posts, authors, integrations, model providers, and
+ * individual models). Per-integration entries are emitted under
+ * `/integrations/{slug}` to match the landing route at
  * `app/(landing)/integrations/[slug]`; slugs are guaranteed unique
  * by the catalog generator in `scripts/generate-docs.ts`.
  */
@@ -92,9 +91,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: latestModelDate,
     },
     {
-      url: `${baseUrl}/partners`,
-    },
-    {
       url: `${baseUrl}/terms`,
       lastModified: new Date('2024-10-14'),
     },
@@ -146,13 +142,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(model.pricing.updatedAt),
   }))
 
-  const academyPages: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/academy` },
-    ...COURSES.map((course) => ({
-      url: `${baseUrl}/academy/${course.slug}`,
-    })),
-  ]
-
   // Matches the max(Sim, competitor) verified-date logic each detail page's own
   // JSON-LD `dateModified` uses, so the sitemap timestamp never lags behind it.
   const competitorLastModified = (competitor: (typeof ALL_COMPETITORS)[number]) =>
@@ -178,7 +167,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...integrationPages,
     ...providerPages,
     ...modelEntries,
-    ...academyPages,
     ...comparisonPages,
   ]
 }

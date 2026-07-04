@@ -14,7 +14,7 @@ export const stackaiProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'StackAI is a proprietary, enterprise-focused visual platform for building, deploying, and governing AI agents. It connects LLMs and business systems through a drag-and-drop, low-code node builder.',
+    'StackAI is a proprietary, enterprise-focused visual platform for building, deploying, and governing AI agents, connecting LLMs and business systems through a drag-and-drop, low-code node builder.',
   standoutFeatures: [
     {
       title: 'Agentic Development Life Cycle (dev/staging/production promotion)',
@@ -76,7 +76,7 @@ export const stackaiProfile: CompetitorProfile = {
     {
       title: 'Not open source',
       description:
-        'StackAI is a proprietary, closed-source commercial SaaS platform; its GitHub organization contains only auxiliary tools/integrations, not the core platform, so there is no self-hostable OSS codebase to audit or fork.',
+        'StackAI is a proprietary, closed-source commercial SaaS platform. Its GitHub organization contains only auxiliary tools and integrations, not the core platform, so there is no self-hostable OSS codebase to audit or fork.',
       shortDescription: 'Closed-source SaaS with no auditable or forkable codebase.',
       source: {
         url: 'https://github.com/stackai',
@@ -87,7 +87,7 @@ export const stackaiProfile: CompetitorProfile = {
     {
       title: 'Free tier is very limited',
       description:
-        'The free plan caps usage at 500 runs/month, 2 projects, and 1 seat, with support limited to community Discord. Far below what a team evaluating agent workflows at scale would need.',
+        'The free plan caps usage at 500 runs/month, 2 projects, and 1 seat, with support limited to community Discord, well below what a team evaluating agent workflows at scale would need.',
       shortDescription: 'Free plan caps at 500 runs, 2 projects, 1 seat.',
       source: {
         url: 'https://www.stackai.com/pricing',
@@ -98,7 +98,7 @@ export const stackaiProfile: CompetitorProfile = {
     {
       title: 'No published self-serve/mid-tier pricing',
       description:
-        'Beyond the free tier, StackAI publishes only a custom-quote Enterprise plan with no visible mid-market pricing tier, making cost comparison opaque without contacting sales.',
+        'Beyond the free tier, StackAI publishes only a custom-quote Enterprise plan with no mid-market tier, so cost comparison requires contacting sales.',
       shortDescription: 'No mid-tier pricing. Only free or a custom Enterprise quote.',
       source: {
         url: 'https://www.stackai.com/pricing',
@@ -109,7 +109,7 @@ export const stackaiProfile: CompetitorProfile = {
     {
       title: 'HIPAA/GDPR not documented on the Trust Center itself',
       description:
-        'The public Trust Center page lists only SOC 2 Type II and ISO 27001. A separate blog post confirms StackAI was also audited against HIPAA, but GDPR compliance appears only on marketing/pricing pages (e.g. "SOC 2, HIPAA & GDPR compliance" on the Enterprise tier) with no dedicated audit evidence found. The compliance story is split across sources instead of consolidated in one place.',
+        'The public Trust Center page lists only SOC 2 Type II and ISO 27001. A separate blog post confirms StackAI was also audited against HIPAA, but GDPR compliance appears only on marketing/pricing pages (e.g. "SOC 2, HIPAA & GDPR compliance" on the Enterprise tier), with no dedicated audit evidence.',
       shortDescription:
         'HIPAA is audited but GDPR compliance is undocumented outside marketing pages.',
       source: {
@@ -231,7 +231,7 @@ export const stackaiProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          'Unknown: one third-party review vaguely claims "real-time collaboration features," but no official StackAI documentation confirms live, concurrent multi-user editing (synced cursors, selections, live edits) on the same workflow canvas.',
+          'Unknown: a third-party review mentions "real-time collaboration features," but StackAI\'s own documentation does not confirm live, concurrent multi-user editing (synced cursors, selections, live edits) on the same workflow canvas.',
         detail:
           'StackAI documents workspace and folder sharing with role-based access to projects. That is async collaboration, not verified simultaneous co-editing with presence indicators.',
         shortValue: 'Unknown, not confirmed in official docs',
@@ -240,7 +240,7 @@ export const stackaiProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          'No: the Files node is a per-workflow input for uploading a document as context for the LLM, not a persistent file store. Ongoing file access goes through Knowledge Base connectors to external storage like Google Drive, Dropbox, OneDrive, SharePoint, Box, S3, or Azure Blob. No evidence was found of a native file system with its own folder hierarchy, link-based sharing, or a trash/recovery feature.',
+          'No: the Files node is a per-workflow input for uploading a document as context for the LLM, not a persistent file store. Ongoing file access goes through Knowledge Base connectors to external storage like Google Drive, Dropbox, OneDrive, SharePoint, Box, S3, or Azure Blob. There is no native file system with its own folder hierarchy, link-based sharing, or a trash/recovery feature.',
         detail:
           'Workspace "folders" that exist in StackAI docs organize projects/permissions, not user files.',
         shortValue: 'No, relies on external storage connectors',
@@ -262,7 +262,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           "No: the Table node lets a workflow upload a CSV or XLSX file and query it with LLM-generated SQL, but only as a one-off input to that workflow run. That's different from a persistent, spreadsheet-like data table shared across a workspace, with defined row/column limits and spreadsheet-style keyboard navigation.",
         detail:
-          'No evidence of a standalone "Tables" product surface with persistent grid storage independent of a single workflow run.',
+          'There is no standalone "Tables" product surface with persistent grid storage independent of a single workflow run.',
         shortValue: 'No, only per-workflow CSV analysis',
         confidence: 'estimated',
         sources: [
@@ -275,7 +275,7 @@ export const stackaiProfile: CompetitorProfile = {
       },
       richTextEditor: {
         value:
-          'Unknown: no public StackAI documentation describes an inline rich-text or WYSIWYG markdown editor for documents stored in the platform. Searches only surfaced unrelated third-party products with similar names.',
+          'Unknown: StackAI has no documented inline rich-text or WYSIWYG markdown editor for documents stored in the platform. Other search results turned up only unrelated third-party products with similar names.',
         shortValue: 'Unknown, not publicly documented',
         confidence: 'unknown',
         sources: [],
@@ -284,7 +284,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           "Yes: an AI Agent node can invoke a separately saved StackAI workflow as a Subflow Tool. The parent agent passes input into the subflow, waits for it to run to completion, and receives the subflow's output node result back before continuing, rather than only firing an async webhook-triggered run.",
         detail:
-          'Subflow Tools are configured on the AI Agent node; each must connect to an output node to complete, and the docs describe subflows running "collaboratively" where one subflow\'s output can inform whether/how another is invoked. Whether a Subflow Tool can be reused unmodified across multiple different parent workflows was not independently confirmed.',
+          'Subflow Tools are configured on the AI Agent node; each must connect to an output node to complete, and the docs describe subflows running "collaboratively" where one subflow\'s output can inform whether/how another is invoked. Whether a Subflow Tool can be reused unmodified across multiple parent workflows is unconfirmed.',
         shortValue: 'Yes, via Subflow Tools on the AI Agent node',
         confidence: 'estimated',
         sources: [
@@ -300,7 +300,7 @@ export const stackaiProfile: CompetitorProfile = {
       multiLlmSupport: {
         value: 'Yes, broad support across major LLM providers',
         detail:
-          'Marketed as supporting a wide range of LLMs, with documented data processing agreements in place with OpenAI and Anthropic.',
+          'Supports a wide range of LLMs, with documented data processing agreements with OpenAI and Anthropic.',
         shortValue: 'Broad LLM provider support',
         confidence: 'estimated',
         sources: [
@@ -350,7 +350,7 @@ export const stackaiProfile: CompetitorProfile = {
       },
       evaluationGuardrails: {
         value:
-          "Guardrails such as retrieval grounding, tool-call validation, and output enforcement are covered in vendor guidance, but there's no dedicated first-party evaluation or guardrails product feature.",
+          'Retrieval grounding, tool-call validation, and output enforcement are covered in vendor guidance, but there is no dedicated first-party evaluation or guardrails feature.',
         shortValue: 'Guardrail guidance, no dedicated product',
         confidence: 'estimated',
         sources: [
@@ -443,7 +443,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           "Yes: StackAI's Knowledge Base nodes return retrieved chunks and let builders configure the chunking algorithm, chunk length, and chunk overlap. An output-format toggle switches between chunks, pages, and full documents, and a document preview view lets builders inspect indexed content.",
         detail:
-          "Confirms chunk-level granularity is exposed (algorithm, length, overlap, chunk vs page vs doc output); a dedicated chunk-index inline debugging pane specifically wasn't independently verified beyond the document preview.",
+          'Confirms chunk-level granularity is exposed (algorithm, length, overlap, chunk vs page vs doc output). A dedicated chunk-index debugging pane beyond the document preview is unconfirmed.',
         shortValue: 'Yes, chunk-level config and output',
         confidence: 'verified',
         sources: [
@@ -463,7 +463,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           "Partial: StackAI's core workflow builder is built around sequential and conditional (If/Else) branching rather than a dedicated deterministic fan-out/fan-in node. Concurrent execution shows up at the AI Agent node level, where the agent can call multiple Subflow Tools in parallel (e.g., checking several independent systems at once) and StackAI Project nodes can run in parallel under loop mode.",
         detail:
-          'No standalone "split into parallel paths" or "parallel branches" node was found in the core logic node set (If/Else, Loop Subflow); parallelism instead comes from agent-driven concurrent tool calls or parallel sub-project execution inside a loop, which is a narrower mechanism than a general-purpose fan-out/fan-in workflow node.',
+          'There is no standalone "split into parallel paths" or "parallel branches" node in the core logic node set (If/Else, Loop Subflow). Parallelism instead comes from agent-driven concurrent tool calls or parallel sub-project execution inside a loop, a narrower mechanism than a general-purpose fan-out/fan-in workflow node.',
         shortValue: 'Partial, via parallel tool calls and loop mode',
         confidence: 'estimated',
         sources: [
@@ -486,9 +486,9 @@ export const stackaiProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          'No: no public StackAI documentation, changelog, or blog post mentions support for the Agent2Agent (A2A) protocol or Agent Cards.',
+          "No: StackAI's documentation, changelog, and blog do not mention the Agent2Agent (A2A) protocol or Agent Cards.",
         detail:
-          'StackAI documents MCP-style tool integration and Subflow Tools/StackAI Project nodes for composing agents, but nothing referencing the A2A open standard was found as of this check.',
+          'StackAI documents MCP-style tool integration and Subflow Tools/StackAI Project nodes for composing agents, but nothing references the A2A open standard.',
         shortValue: 'Not documented',
         confidence: 'estimated',
         sources: [
@@ -691,9 +691,9 @@ export const stackaiProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'ISO 27001 certified. StackAI was also audited against HIPAA in the same review cycle as its SOC 2 Type II audit, though the public Trust Center page itself lists only SOC 2 and ISO 27001, not HIPAA',
+          'ISO 27001 certified, and audited against HIPAA in the same review cycle as its SOC 2 Type II audit, though the public Trust Center page itself lists only SOC 2 and ISO 27001, not HIPAA',
         detail:
-          'The Trust Center confirms SOC 2 Type II and ISO 27001, DPAs with OpenAI and Anthropic, and a May 2025 penetration test with a Low risk rating. A separate StackAI blog post states the company "was also audited against HIPAA standards during the same period as the SOC 2 Type II audit." GDPR compliance is referenced on the Enterprise pricing page but was not independently confirmed via a dedicated audit source.',
+          'The Trust Center confirms SOC 2 Type II and ISO 27001, DPAs with OpenAI and Anthropic, and a May 2025 penetration test with a Low risk rating. A separate StackAI blog post states the company "was also audited against HIPAA standards during the same period as the SOC 2 Type II audit." GDPR compliance is referenced on the Enterprise pricing page but has no dedicated audit source.',
         shortValue: 'ISO 27001 certified; HIPAA audited, GDPR marketing-only',
         confidence: 'estimated',
         sources: [
@@ -727,7 +727,7 @@ export const stackaiProfile: CompetitorProfile = {
       },
       whiteLabeling: {
         value:
-          'Unknown: no public documentation was found confirming that StackAI lets customers replace its logo/product name/theme colors across the workspace or deployed-app UI. Deployed chat interfaces can be styled/branded, but full workspace-level white-labeling was not confirmed.',
+          'Unknown: StackAI does not document letting customers replace its logo, product name, or theme colors across the workspace or deployed-app UI. Deployed chat interfaces can be styled/branded, but full workspace-level white-labeling is unconfirmed.',
         detail:
           "Marketing pages reference brand guidelines for StackAI's own brand, and chat widgets can be styled to match a customer's site, but no source confirms full white-label replacement of vendor branding.",
         shortValue: 'Unknown, not publicly documented',
@@ -776,7 +776,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           'Yes: StackAI supports Single Sign-On through a dedicated SSO settings page, integrating with identity providers like Okta and Entra ID to inherit groups and permissions. Newly provisioned SSO users get a default role, and admins can require SSO for all interfaces org-wide.',
         detail:
-          "Docs confirm SSO login and default-role auto-provisioning behavior; the specific SAML vs OIDC protocol labeling was not directly quotable from a live doc page (one target page 404'd), so protocol details are inferred from the Okta/Entra ID integration claim.",
+          'Docs confirm SSO login and default-role auto-provisioning behavior. SAML vs OIDC protocol details are not specified beyond the Okta/Entra ID integration.',
         shortValue: 'Yes, SSO with Okta/Entra ID',
         confidence: 'estimated',
         sources: [
@@ -796,7 +796,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           "Yes: StackAI's 70+ app integrations (databases, cloud storage, CRMs, communication tools) are built and maintained by StackAI's own team, not an open community marketplace. Users needing an unlisted service fall back to a built-in Custom API node or connect their own MCP servers, rather than installing code published by other third-party users.",
         detail:
-          'No public marketplace or community-node registry (like n8n community nodes) was found where outside developers publish installable integrations for other StackAI users. MCP support lets a workspace point at third-party MCP servers, but that is a user-configured connection to an external server the user chooses, not a shared plugin store with lighter vendor review. No StackAI-specific security incident involving its integrations or MCP connections was found in public sources.',
+          'There is no public marketplace or community-node registry (like n8n community nodes) where outside developers publish installable integrations for other StackAI users. MCP support lets a workspace point at third-party MCP servers, but that is a user-configured connection to an external server the user chooses, not a shared plugin store with lighter vendor review. No StackAI-specific security incident involving its integrations or MCP connections appears in public sources.',
         shortValue: 'Yes, first-party catalog only',
         confidence: 'estimated',
         sources: [
@@ -847,7 +847,7 @@ export const stackaiProfile: CompetitorProfile = {
       },
       dataDrains: {
         value:
-          'Unknown: no public documentation was found describing continuous export of StackAI execution/audit/usage data to an external destination such as S3, BigQuery, Datadog, or a generic webhook sink. Only per-run API access and project export/import were documented.',
+          'Unknown: StackAI does not document continuous export of execution, audit, or usage data to an external destination such as S3, BigQuery, Datadog, or a generic webhook sink. Only per-run API access and project export/import are documented.',
         detail:
           'Docs cover an API export view (calling a flow via POST) and project export/import, which are pull/one-shot mechanisms, not a continuous log-drain feature.',
         shortValue: 'Unknown, not publicly documented',
@@ -858,7 +858,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           "Partial: StackAI's Analytics API can list and filter runs by ID and by status (including pending, paused, resumed, completed, failed, and cancelled) after the fact, which supports a trigger-then-check-later pattern. But StackAI's docs don't describe an official async-trigger-plus-poll workflow for actually running a flow, the way some platforms document a job-queue API.",
         detail:
-          "The API used to run a flow only documents a request/response call that waits for the result, with no explicit async job or webhook pattern. The separate Analytics API does expose a run ID and status field, including a pending state, that can be queried after submission. That's evidence a run's status can be checked later, but it's inferred from the analytics endpoint rather than a documented async execution feature.",
+          "The API used to run a flow only documents a request/response call that waits for the result, with no explicit async job or webhook pattern. The separate Analytics API exposes a run ID and status field, including a pending state, that can be queried after submission, showing a run's status can be checked later, though this is inferred from the analytics endpoint rather than a documented async execution feature.",
         shortValue: 'Partial: run status queryable later, no documented async API',
         confidence: 'estimated',
         sources: [
@@ -878,7 +878,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           'Partial: the only concrete published number is a usage quota, not a timeout or concurrency limit. The Free plan caps usage at 500 runs per month (2 projects, 1 seat), while Enterprise plans get custom or unlimited run allowances. No public documentation states a maximum single-execution duration or a cap on concurrent executions.',
         detail:
-          "Checked the official pricing page and the API reference pages; none disclose a per-request timeout or a concurrent-execution cap. This is a gap in StackAI's public documentation, not a confirmed absence of limits.",
+          "Neither the pricing page nor the API reference pages disclose a per-request timeout or a concurrent-execution cap. This is a gap in StackAI's public documentation, not a confirmed absence of limits.",
         shortValue: '500 runs/month on Free tier; no published timeout/concurrency',
         confidence: 'estimated',
         sources: [
@@ -964,7 +964,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           'Yes: StackAI runs a structured StackAI Academy with step-by-step lessons and courses covering platform overview, building workflows, knowledge bases, and agent building, plus a separate enterprise offering for AI-driven skills testing and certification.',
         detail:
-          'Academy is lesson-based (multiple numbered courses); certification is offered as a distinct enterprise solution (skills testing and certification), not confirmed to be bundled into the core Academy itself.',
+          'Academy is lesson-based across multiple courses. Certification is a separate enterprise offering (skills testing and certification), not confirmed to be bundled into the core Academy itself.',
         shortValue: 'Yes, has StackAI Academy courses',
         confidence: 'verified',
         sources: [

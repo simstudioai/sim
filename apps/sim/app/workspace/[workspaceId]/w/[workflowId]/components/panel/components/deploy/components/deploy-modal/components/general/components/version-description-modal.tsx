@@ -30,7 +30,7 @@ const RichMarkdownField = dynamic(
   }
 )
 
-/** A high cap that only guards against abuse — no visible counter; normal descriptions never reach it. */
+/** A high cap that only guards against abuse — a counter message appears only when exceeded. */
 const MAX_DESCRIPTION_LENGTH = 50_000
 
 interface VersionDescriptionModalProps {
@@ -136,6 +136,11 @@ export function VersionDescriptionModal({
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </span>
             }
+            error={
+              isTooLong
+                ? `Description exceeds the ${MAX_DESCRIPTION_LENGTH.toLocaleString()}-character limit (currently ${description.length.toLocaleString()})`
+                : undefined
+            }
           >
             <RichMarkdownField
               value={description}
@@ -145,7 +150,7 @@ export function VersionDescriptionModal({
               maxHeight={420}
               disabled={isGenerating}
               isStreaming={isGenerating}
-              error={description.length > MAX_DESCRIPTION_LENGTH}
+              error={isTooLong}
               workspaceId={workspaceId}
               disableTagging
             />
