@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/contracts/contact'
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { getEnv } from '@/lib/core/config/env'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useSubmitContact } from '@/hooks/queries/contact'
 
@@ -175,6 +176,13 @@ export function ContactForm() {
     )
   }
 
+  const canSubmit =
+    quickValidateEmail(form.email.trim()).isValid &&
+    form.name.trim().length > 0 &&
+    form.topic.length > 0 &&
+    form.subject.trim().length > 0 &&
+    form.message.trim().length > 0
+
   const isBusy = contactMutation.isPending || isSubmitting
 
   const submitError = contactMutation.isError
@@ -336,7 +344,7 @@ export function ContactForm() {
           variant='primary'
           flush
           fullWidth
-          disabled={isBusy}
+          disabled={isBusy || !canSubmit}
           className='mt-1 justify-center [&>span]:flex-none'
         >
           {isBusy ? 'Sending…' : 'Send message'}

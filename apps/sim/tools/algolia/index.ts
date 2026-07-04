@@ -9,6 +9,7 @@ import { deleteRecordTool } from '@/tools/algolia/delete_record'
 import { getRecordTool } from '@/tools/algolia/get_record'
 import { getRecordsTool } from '@/tools/algolia/get_records'
 import { getSettingsTool } from '@/tools/algolia/get_settings'
+import { getTaskStatusTool } from '@/tools/algolia/get_task_status'
 import { listIndicesTool } from '@/tools/algolia/list_indices'
 import { partialUpdateRecordTool } from '@/tools/algolia/partial_update_record'
 import { searchTool } from '@/tools/algolia/search'
@@ -24,6 +25,7 @@ export const algoliaBrowseRecordsTool = browseRecordsTool
 export const algoliaBatchOperationsTool = batchOperationsTool
 export const algoliaListIndicesTool = listIndicesTool
 export const algoliaGetSettingsTool = getSettingsTool
+export const algoliaGetTaskStatusTool = getTaskStatusTool
 export const algoliaUpdateSettingsTool = updateSettingsTool
 export const algoliaDeleteIndexTool = deleteIndexTool
 export const algoliaCopyMoveIndexTool = copyMoveIndexTool

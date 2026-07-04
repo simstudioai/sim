@@ -1,25 +1,26 @@
 ---
 title: Tables
-description: Tables store structured data — columns as types, rows as entries — a spreadsheet or lightweight database your workflows read, write, and operate on at scale.
+description: Tables store structured data, columns as types, rows as entries, a spreadsheet or lightweight database your workflows read, write, and operate on at scale.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, TABLE_ENRICH_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Tables" title="Tables" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/tables-light-with-intro.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Tables" title="Tables" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/tables.mp4" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-A **table** stores structured data: columns are the types, rows are the entries. Think of it as giving your workflows a spreadsheet — or a lightweight database — for tracking and maintaining records.
+A **table** stores structured data: columns are the types, rows are the entries. Think of it as giving your workflows a spreadsheet, or a lightweight database, for tracking and maintaining records.
 
 <WhatYouWillLearn
   items={[
     {
       title: 'The shape of a table',
-      body: 'Columns define types, rows hold entries — the same mental model as a spreadsheet your workflows can read and write.',
+      body: 'Columns define types, rows hold entries: the same mental model as a spreadsheet your workflows can read and write.',
     },
     {
       title: 'Work as operations over data',
@@ -37,13 +38,15 @@ A **table** stores structured data: columns are the types, rows are the entries.
 <VideoChapters
   chapters={[
     { title: 'Introduction', time: '0:00' },
-    { title: 'What a table is', time: '0:26' },
-    { title: 'Rows and fields', time: '0:35' },
-    { title: 'Using it in a workflow', time: '0:42' },
-    { title: 'Reading rows', time: '0:51' },
-    { title: 'Writing rows', time: '1:01' },
-    { title: 'Seeing it in the logs', time: '1:12' },
-    { title: 'Tables as a queue', time: '1:21' },
+    { title: 'One fact', time: '0:26' },
+    { title: 'A record', time: '0:32' },
+    { title: 'Typed columns', time: '0:40' },
+    { title: 'The table', time: '0:49' },
+    { title: 'It fills', time: '0:57' },
+    { title: 'Growing the shape', time: '1:04' },
+    { title: 'A new column', time: '1:13' },
+    { title: 'It lives', time: '1:21' },
+    { title: 'Any shape', time: '1:28' },
   ]}
 />
 
@@ -53,7 +56,7 @@ A **table** stores structured data: columns are the types, rows are the entries.
 
 If you've used a spreadsheet, you already understand a table: columns with types, rows of entries. Your workflows read rows to work on, write rows they produce, and update rows in place.
 
-Here's the shape of it — a workflow that reads a table, operates on each record, and writes the result back:
+Here's the shape of it: a workflow that reads a table, operates on each record, and writes the result back:
 
 <WorkflowPreview workflow={TABLE_ENRICH_WORKFLOW} />
 
@@ -61,17 +64,24 @@ Here's the shape of it — a workflow that reads a table, operates on each recor
 
 A surprising amount of real business work decomposes into a few operations over structured records:
 
-- **A query** — "which leads are still unprocessed?"
-- **An update** — "mark these rows handled."
-- **A combination with logic** — "for each new signup, score it, then write the score back."
+- **A query**, "which leads are still unprocessed?"
+- **An update**, "mark these rows handled."
+- **A combination with logic**, "for each new signup, score it, then write the score back."
 
 Once you see a use case that way, building it in Sim is mostly wiring those operations together.
 
 ## A surface for scale
 
-Tables aren't only storage — they're a working surface for your AI systems. **Workflow columns** let you run an operation across every row at once, in parallel, so a table becomes the place you launch and track work in bulk.
+Tables aren't only storage, they're a working surface for your AI systems. **Workflow columns** let you run an operation across every row at once, in parallel, so a table becomes the place you launch and track work in bulk.
 
-That makes a table a powerful interface for automation — the place you manage and operate agentic processes at scale.
+That makes a table a powerful interface for automation: the place you manage and operate agentic processes at scale.
+
+<FAQ items={[
+  { question: "How is a Sim table different from a spreadsheet?", answer: "Every column has a declared type, so records keep a reliable shape: numbers sort as numbers, dates as dates, and booleans render as real checkboxes. It behaves like a lightweight database inside your workspace." },
+  { question: "What column types are available?", answer: "Text, Number, Boolean, Date, and JSON, plus workflow columns, which are filled by a workflow you attach rather than typed in." },
+  { question: "Can I add columns after the table has data?", answer: "Yes. New columns are added from the table header at any time, and existing rows simply gain the new field." },
+  { question: "What do teams use tables for?", answer: "Leads, support tickets, orders, inventory, evaluation scores: any structured record your workflows read from or write to. Tables are the working memory of an automated workspace." },
+]} />
 
 ## Related documentation
 

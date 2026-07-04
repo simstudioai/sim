@@ -78,7 +78,7 @@ export const createCommentTool: ToolConfig<
         content: params.content,
       }
 
-      if (params.parent) body.parent = params.parent
+      if (params.parent !== undefined) body.parent = params.parent
       if (params.authorName) body.author_name = params.authorName
       if (params.authorEmail) body.author_email = params.authorEmail
       if (params.authorUrl) body.author_url = params.authorUrl

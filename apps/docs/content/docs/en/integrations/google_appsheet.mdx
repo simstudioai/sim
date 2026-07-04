@@ -1,0 +1,135 @@
+---
+title: Google AppSheet
+description: Read, add, edit, and delete rows in a Google AppSheet table
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_appsheet"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google AppSheet](https://about.appsheet.com/) is Google's no-code app development platform that lets teams turn spreadsheets and databases into mobile and web apps, backed by data sources like Google Sheets, Excel, and cloud databases.
+
+With the Google AppSheet integration in Sim, you can:
+
+- **Find rows**: Query a table with an optional Selector expression (`Filter`, `OrderBy`, `Top`, and more) to narrow, sort, and limit the rows returned
+- **Add rows**: Insert new rows into a table, letting AppSheet generate the key column automatically or providing it explicitly
+- **Edit rows**: Update existing rows by key column, changing only the fields that need to change
+- **Delete rows**: Remove rows from a table by key column
+
+In Sim, the Google AppSheet integration enables your agents to read and write AppSheet app data as part of automated workflows — syncing order intake, routing leads, escalating tickets, or keeping a table in sync with another system, all without touching the AppSheet editor.
+
+### Getting Your Application Access Key
+
+Google AppSheet authenticates with a static Application Access Key rather than OAuth:
+
+1. Open your app in the [AppSheet editor](https://www.appsheet.com/)
+2. Go to **Settings > Integrations**
+3. Enable **IN: from cloud services to your app**
+4. Under **Application Access Keys**, create a key (or use an existing one) and copy it
+5. Use the Application Access Key, along with your App ID and table name, in the Sim block configuration
+
+The AppSheet API requires an Enterprise plan.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google AppSheet into your workflow. Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.
+
+
+
+## Actions
+
+### `google_appsheet_find_rows`
+
+Read rows from an AppSheet table. Omit the selector to return every row, or provide a Selector expression (Filter/Select/OrderBy/Top) to narrow and shape the results.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AppSheet Application Access Key |
+| `appId` | string | Yes | AppSheet app ID \(found in App &gt; Settings &gt; Integrations &gt; IN\) |
+| `tableName` | string | Yes | Name of the table to read from |
+| `region` | string | No | AppSheet region subdomain: "www" \(global, default\), "eu", or "asia-southeast" |
+| `selector` | string | No | Optional AppSheet expression to filter/sort/limit rows, e.g. Filter\(TableName, \[Age\] &gt;= 21\) or Top\(OrderBy\(Filter\(TableName, true\), \[LastName\], true\), 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Matching rows returned by AppSheet |
+| `metadata` | json | Operation metadata |
+|   ↳ `rowCount` | number | Number of rows returned |
+
+### `google_appsheet_add_rows`
+
+Add new rows to an AppSheet table. The key column value must be provided explicitly, or omitted when its Initial value expression generates it automatically (e.g. UNIQUEID()).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AppSheet Application Access Key |
+| `appId` | string | Yes | AppSheet app ID \(found in App &gt; Settings &gt; Integrations &gt; IN\) |
+| `tableName` | string | Yes | Name of the table to add rows to |
+| `region` | string | No | AppSheet region subdomain: "www" \(global, default\), "eu", or "asia-southeast" |
+| `rows` | json | Yes | Array of row objects to add, each a column-name/value map, e.g. \[\{ "FirstName": "Jan", "LastName": "Jones" \}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Rows added by AppSheet, including any generated key values |
+| `metadata` | json | Operation metadata |
+|   ↳ `rowCount` | number | Number of rows added |
+
+### `google_appsheet_edit_rows`
+
+Update existing rows in an AppSheet table. Each row must explicitly include the key column name and value, plus any columns to change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AppSheet Application Access Key |
+| `appId` | string | Yes | AppSheet app ID \(found in App &gt; Settings &gt; Integrations &gt; IN\) |
+| `tableName` | string | Yes | Name of the table to update rows in |
+| `region` | string | No | AppSheet region subdomain: "www" \(global, default\), "eu", or "asia-southeast" |
+| `rows` | json | Yes | Array of row objects to update, each including the key column and the columns to change, e.g. \[\{ "RowID": "123", "Status": "Done" \}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Rows updated by AppSheet |
+| `metadata` | json | Operation metadata |
+|   ↳ `rowCount` | number | Number of rows updated |
+
+### `google_appsheet_delete_rows`
+
+Delete rows from an AppSheet table. Each row only needs to include the key column name and value.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AppSheet Application Access Key |
+| `appId` | string | Yes | AppSheet app ID \(found in App &gt; Settings &gt; Integrations &gt; IN\) |
+| `tableName` | string | Yes | Name of the table to delete rows from |
+| `region` | string | No | AppSheet region subdomain: "www" \(global, default\), "eu", or "asia-southeast" |
+| `rows` | json | Yes | Array of row objects identifying rows to delete by key column, e.g. \[\{ "RowID": "123" \}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Rows deleted by AppSheet |
+| `metadata` | json | Operation metadata |
+|   ↳ `rowCount` | number | Number of rows deleted |
+
+

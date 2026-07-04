@@ -16,7 +16,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { isValidationError } from '@/lib/api/client/errors'
+import { extractValidationIssues, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
@@ -83,7 +83,6 @@ import type {
   TableDefinition,
   TableMetadata,
   TableRow,
-  TableRowsCursor,
   WorkflowGroup,
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
@@ -97,6 +96,10 @@ import {
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { type TableQueryScope, tableKeys } from '@/hooks/queries/utils/table-keys'
+import {
+  getNextTableRowsPageParam,
+  type TableRowsPageParam,
+} from '@/hooks/queries/utils/table-rows-pagination'
 
 const logger = createLogger('TableQueries')
 
@@ -105,12 +108,6 @@ type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
     filter?: Filter | null
     sort?: Sort | null
   }
-
-/**
- * Infinite-rows page param: a keyset cursor on the default `(order_key, id)` order, or a numeric
- * offset for sorted views / legacy rows without an order key. `0` doubles as the first page.
- */
-export type TableRowsPageParam = number | TableRowsCursor
 
 export type TableRowsResponse = Pick<
   ContractJsonResponse<typeof listTableRowsContract>['data'],
@@ -476,18 +473,13 @@ export function tableRowsInfiniteOptions({
       })
     },
     initialPageParam: 0 as TableRowsPageParam,
-    getNextPageParam: (lastPage, _allPages, lastPageParam): TableRowsPageParam | undefined => {
-      if (lastPage.rows.length < pageSize) return undefined
-      // Default order pages by keyset cursor — each page is an index seek on (order_key, id),
-      // where OFFSET would re-scan every prior row (O(N²) across a deep scroll / full drain).
-      // Sorted views (and legacy rows without an order key) fall back to offset paging.
-      if (!sort) {
-        const last = lastPage.rows[lastPage.rows.length - 1]
-        if (last?.orderKey) return { orderKey: last.orderKey, id: last.id }
-      }
-      const param = lastPageParam as TableRowsPageParam
-      return (typeof param === 'number' ? param : 0) + lastPage.rows.length
-    },
+    // Termination comes from hasMoreTableRows (empty page / totalCount covered) — never from
+    // rows.length < pageSize, so a short server page can't be misread as end-of-table.
+    // Default order pages by keyset cursor — each page is an index seek on (order_key, id),
+    // where OFFSET would re-scan every prior row (O(N²) across a deep scroll / full drain).
+    // Sorted views (and legacy rows without an order key) fall back to offset paging.
+    getNextPageParam: (_lastPage, allPages): TableRowsPageParam | undefined =>
+      getNextTableRowsPageParam(allPages, Boolean(sort)),
     staleTime: 30 * 1000,
   })
 }
@@ -519,9 +511,10 @@ export function useCreateTable(workspaceId: string) {
         body: { ...params, workspaceId },
       })
     },
+    // Unlike row writes, table naming has no inline validation surface — the
+    // issue message (e.g. the NAME_PATTERN rule) must reach the user as a toast.
     onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -565,9 +558,10 @@ export function useRenameTable(workspaceId: string) {
         body: { workspaceId, name },
       })
     },
+    // Inline rename reverts the field on failure with no message of its own, so
+    // the validation issue (e.g. the NAME_PATTERN rule) must surface as a toast.
     onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })

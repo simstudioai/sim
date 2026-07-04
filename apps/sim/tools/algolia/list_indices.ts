@@ -37,7 +37,7 @@ export const listIndicesTool: ToolConfig<AlgoliaListIndicesParams, AlgoliaListIn
   request: {
     method: 'GET',
     url: (params) => {
-      const base = `https://${params.applicationId}.algolia.net/1/indexes`
+      const base = `https://${params.applicationId}-dsn.algolia.net/1/indexes`
       const queryParams: string[] = []
       if (params.page !== undefined) queryParams.push(`page=${params.page}`)
       if (params.hitsPerPage !== undefined) queryParams.push(`hitsPerPage=${params.hitsPerPage}`)

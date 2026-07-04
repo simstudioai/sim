@@ -52,6 +52,7 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
     authorizationEndpoint: z.string().url().optional(),
     tokenEndpoint: z.string().url().optional(),
     userInfoEndpoint: z.string().url().optional(),
+    skipUserInfoEndpoint: z.boolean().default(false),
     jwksEndpoint: z.string().url().optional(),
   }),
   z.object({

@@ -34,7 +34,7 @@ export const invokeFunctionTool: ToolConfig<
   id: 'supabase_invoke_function',
   name: 'Supabase Invoke Edge Function',
   description: 'Invoke a Supabase Edge Function over HTTP',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {

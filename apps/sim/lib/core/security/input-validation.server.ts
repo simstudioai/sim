@@ -4,6 +4,7 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import * as ipaddr from 'ipaddr.js'
 import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
@@ -333,6 +334,8 @@ export interface SecureFetchOptions {
   maxRedirects?: number
   maxResponseBytes?: number
   signal?: AbortSignal
+  /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
+  stripAuthOnRedirect?: boolean
 }
 
 export class SecureFetchHeaders {
@@ -500,10 +503,16 @@ export async function secureFetchWithPinnedIP(
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
+            const redirectOptions = options.stripAuthOnRedirect
+              ? {
+                  ...options,
+                  headers: omit(options.headers ?? {}, ['Authorization', 'authorization']),
+                }
+              : options
             return secureFetchWithPinnedIP(
               redirectUrl,
               validation.resolvedIP!,
-              options,
+              redirectOptions,
               redirectCount + 1
             )
           })

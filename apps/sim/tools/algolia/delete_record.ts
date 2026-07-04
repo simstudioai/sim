@@ -38,7 +38,7 @@ export const deleteRecordTool: ToolConfig<AlgoliaDeleteRecordParams, AlgoliaDele
     request: {
       method: 'DELETE',
       url: (params) =>
-        `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/${encodeURIComponent(params.objectID)}`,
+        `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/${encodeURIComponent(params.objectID.trim())}`,
       headers: (params) => ({
         'x-algolia-application-id': params.applicationId,
         'x-algolia-api-key': params.apiKey,

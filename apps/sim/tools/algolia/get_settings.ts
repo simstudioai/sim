@@ -31,7 +31,7 @@ export const getSettingsTool: ToolConfig<AlgoliaGetSettingsParams, AlgoliaGetSet
   request: {
     method: 'GET',
     url: (params) =>
-      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/settings`,
+      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/settings`,
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,
       'x-algolia-api-key': params.apiKey,

@@ -30,7 +30,7 @@ export const cancelRunTool: ToolConfig<HexCancelRunParams, HexCancelRunResponse>
 
   request: {
     url: (params) =>
-      `https://app.hex.tech/api/v1/projects/${params.projectId}/runs/${params.runId}`,
+      `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}/runs/${params.runId.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

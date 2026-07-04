@@ -3,7 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ForkClearedRef } from '@/lib/api/contracts/workspace-fork'
-import { selectVisibleClearedRefs } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/cleared-refs-list'
+import {
+  forkBlockerResolution,
+  selectVisibleClearedRefs,
+  splitForkClearedRefs,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/cleared-refs-list'
 
 type ReferenceRef = Extract<ForkClearedRef, { cause: 'reference' }>
 type WorkflowRef = Extract<ForkClearedRef, { cause: 'workflow' }>
@@ -20,8 +24,9 @@ const base = {
 const referenceRef = (
   kind: ReferenceRef['kind'],
   sourceId: string,
-  fieldLabel = 'Field'
-): ReferenceRef => ({ ...base, fieldLabel, cause: 'reference', kind, sourceId })
+  fieldLabel = 'Field',
+  sourceDeleted = false
+): ReferenceRef => ({ ...base, fieldLabel, cause: 'reference', kind, sourceId, sourceDeleted })
 
 const workflowRef = (sourceId: string, fieldLabel = 'Workflow'): WorkflowRef => ({
   ...base,
@@ -116,5 +121,49 @@ describe('selectVisibleClearedRefs', () => {
     expect(
       selectVisibleClearedRefs([workflowReference], resolvedKeys('workflow:wf-other'))
     ).toEqual([workflowReference])
+  })
+})
+
+describe('splitForkClearedRefs', () => {
+  it('splits reference/workflow causes into blockers and dependents into informational', () => {
+    const tableReference = referenceRef('table', 'tbl-1')
+    const workflowReference = workflowRef('wf-other')
+    const labelDependent = dependentRef('credential', 'cred-1', 'Label')
+    const { blockers, informational } = splitForkClearedRefs([
+      tableReference,
+      workflowReference,
+      labelDependent,
+    ])
+    expect(blockers).toEqual([tableReference, workflowReference])
+    expect(informational).toEqual([labelDependent])
+  })
+
+  it('treats an unmapped MCP server and a source-deleted reference as blockers', () => {
+    const mcpReference = referenceRef('mcp-server', 'srv-1')
+    const deletedReference = referenceRef('skill', 'sk-gone', 'Skill', true)
+    const { blockers, informational } = splitForkClearedRefs([mcpReference, deletedReference])
+    expect(blockers).toEqual([mcpReference, deletedReference])
+    expect(informational).toEqual([])
+  })
+})
+
+describe('forkBlockerResolution', () => {
+  it('phrases each blocker reason with its actionable resolution', () => {
+    expect(forkBlockerResolution(referenceRef('table', 'tbl-1'))).toBe(
+      'map it to a target or select it for copy'
+    )
+    expect(forkBlockerResolution(referenceRef('mcp-server', 'srv-1'))).toBe(
+      'map it to an MCP server in the target workspace'
+    )
+    expect(forkBlockerResolution(referenceRef('knowledge-base', 'kb-gone', 'KB', true))).toBe(
+      'deleted in the source — map it to an existing knowledge base in the target'
+    )
+    expect(forkBlockerResolution(workflowRef('wf-other', 'Workflow'))).toBe(
+      'deploy "Source" in the source or remove the reference'
+    )
+  })
+
+  it('returns null for non-blocking dependent entries', () => {
+    expect(forkBlockerResolution(dependentRef('credential', 'cred-1'))).toBeNull()
   })
 })

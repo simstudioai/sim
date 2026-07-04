@@ -45,6 +45,7 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
           success: false,
           output: {
             id: '',
+            nodeId: '',
             name: '',
             hostname: '',
             user: '',
@@ -54,6 +55,8 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
             tags: [],
             authorized: false,
             blocksIncomingConnections: false,
+            keyExpiryDisabled: false,
+            expires: '',
             lastSeen: '',
             created: '',
             isExternal: false,
@@ -70,6 +73,7 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
         success: true,
         output: {
           id: data.id ?? null,
+          nodeId: data.nodeId ?? null,
           name: data.name ?? null,
           hostname: data.hostname ?? null,
           user: data.user ?? null,
@@ -79,6 +83,8 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
           tags: data.tags ?? [],
           authorized: data.authorized ?? false,
           blocksIncomingConnections: data.blocksIncomingConnections ?? false,
+          keyExpiryDisabled: data.keyExpiryDisabled ?? false,
+          expires: data.expires ?? null,
           lastSeen: data.lastSeen ?? null,
           created: data.created ?? null,
           isExternal: data.isExternal ?? false,
@@ -90,7 +96,8 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
     },
 
     outputs: {
-      id: { type: 'string', description: 'Device ID' },
+      id: { type: 'string', description: 'Legacy device ID' },
+      nodeId: { type: 'string', description: 'Preferred device ID', optional: true },
       name: { type: 'string', description: 'Device name' },
       hostname: { type: 'string', description: 'Device hostname' },
       user: { type: 'string', description: 'Associated user' },
@@ -102,6 +109,16 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
       blocksIncomingConnections: {
         type: 'boolean',
         description: 'Whether the device blocks incoming connections',
+      },
+      keyExpiryDisabled: {
+        type: 'boolean',
+        description: 'Whether the device key is exempt from expiring',
+        optional: true,
+      },
+      expires: {
+        type: 'string',
+        description: "The device's auth key expiration timestamp",
+        optional: true,
       },
       lastSeen: { type: 'string', description: 'Last seen timestamp' },
       created: { type: 'string', description: 'Creation timestamp' },

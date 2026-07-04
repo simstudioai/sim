@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { z } from 'zod'
 import type { forkRemapKindSchema } from '@/lib/api/contracts/workspace-fork'
@@ -33,6 +34,7 @@ import {
 } from '@/lib/workspaces/fork/remap/remap-files'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
+import { getSubBlocksDependingOnChange } from '@/blocks/utils'
 
 /**
  * Resource kinds the fork remapper rewrites across workspaces, derived from the
@@ -82,9 +84,11 @@ export const REGISTRY_KIND_TO_FORK_KIND: Partial<
 // map when its referenced document was copied into the fork; an unmapped document (its
 // parent KB wasn't copied, or the doc wasn't copyable) resolves to null and is cleared,
 // and `clearDependentsOnRemap` still clears it as a `knowledgeBaseId` dependent when the
-// parent KB itself is unmapped. `mcp-tool-selector` is cleared by `dependsOn` when its
-// `mcp-server-selector` parent is remapped - the tool list is server-scoped and may
-// differ in the target.
+// parent KB itself is unmapped. `mcp-tool-selector` follows its `mcp-server-selector`
+// parent's remap: mapping asserts the servers are equivalent, so the tool SELECTION is
+// kept (its embedded server id swapped to the target's, the tool name verbatim - see
+// {@link remapForkSubBlocks}) and `clearDependentsOnRemap` exempts it. When the server
+// is CLEARED (unmapped / fork-create) the tool still clears as a dependent.
 
 /** Matches `{{ENV_KEY}}` references inside subblock values; shared with cascade detection. */
 export const ENV_REF_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
@@ -128,6 +132,22 @@ export type ForkReferenceResolver = (
   sourceId: string
 ) => string | null | undefined
 
+/** Identity metadata of a mapped TARGET MCP server row (url is null for url-less transports). */
+export interface ForkMcpServerMeta {
+  name: string
+  url: string | null
+}
+
+/**
+ * Resolves a mapped TARGET MCP server id to its row metadata, so a remapped tool-input
+ * entry's embedded `serverUrl`/`serverName` are rewritten from the target server instead
+ * of carrying the source server's (which would show a false "URL changed" stale badge in
+ * the target UI). Undefined when the row is unknown - the entry's metadata is then left
+ * as-is. Threaded by promote (which batch-loads the mapped targets); scan-only callers
+ * omit it because they never persist the remapped value.
+ */
+export type ForkMcpServerMetaResolver = (targetServerId: string) => ForkMcpServerMeta | undefined
+
 export interface ForkReference {
   kind: ForkRemapKind
   sourceId: string
@@ -153,6 +173,8 @@ export interface RemapForkContext {
   blockType?: string
   /** Canonical-mode overrides (`block.data.canonicalModes`), picking the active member per pair. */
   canonicalModes?: CanonicalModeOverrides
+  /** Target MCP server row lookup for rewriting remapped tool-input entries' server metadata. */
+  resolveMcpServerMeta?: ForkMcpServerMetaResolver
 }
 
 function remapEnvInValue(
@@ -349,6 +371,8 @@ interface ForkToolInputOptions {
   /** Fork-create drops unresolved tools / clears params; promote keeps + records. */
   clearUnresolved: boolean
   record?: (kind: ForkRemapKind, sourceId: string, mapped: boolean) => void
+  /** Target MCP server row lookup for rewriting a remapped MCP entry's server metadata. */
+  resolveMcpServerMeta?: ForkMcpServerMetaResolver
 }
 
 /**
@@ -394,10 +418,22 @@ function remapForkToolInputValue(
           changed = true
           const toolName =
             typeof tool.params.toolName === 'string' ? tool.params.toolName : undefined
+          let nextParams: Record<string, unknown> = { ...tool.params, serverId: target }
+          // The entry embeds the server's identity metadata (`serverUrl`/`serverName`); rewrite
+          // it from the mapped TARGET row so the target UI never flags a false "URL changed"
+          // stale badge against the source server's url (a url-less target drops the stale key).
+          // The tool NAME stays verbatim - mapping asserts server equivalence; a name missing on
+          // the target degrades to the existing tool_not_found badge / runtime skip. Without a
+          // meta resolver (scan-only callers) the metadata is left as-is.
+          const meta = opts.resolveMcpServerMeta?.(target)
+          if (meta) {
+            nextParams = { ...omit(nextParams, ['serverUrl']), serverName: meta.name }
+            if (meta.url) nextParams.serverUrl = meta.url
+          }
           return [
             {
               ...tool,
-              params: { ...tool.params, serverId: target },
+              params: nextParams,
               toolId: toolName ? createMcpToolId(target, toolName) : tool.toolId,
             },
           ]
@@ -476,6 +512,8 @@ export function remapForkSubBlocks(
   const references = new Map<string, ForkReference>()
   const unmapped = new Map<string, ForkReference>()
   const remappedKeys = new Set<string>()
+  /** MCP server ids remapped to a DIFFERENT mapped target this pass (source id -> target id). */
+  const mcpServerRemaps = new Map<string, string>()
 
   const recordReference = (key: string, reference: ForkReference, mapped: boolean) => {
     if (mode !== 'promote') return
@@ -542,6 +580,7 @@ export function remapForkSubBlocks(
         if (!isDormant) recordReference(`${forkKind}:${ref.rawValue}`, reference, mapped)
         if (mapped) {
           if (target !== ref.rawValue) {
+            if (forkKind === 'mcp-server') mcpServerRemaps.set(ref.rawValue, target)
             const replaceResult = definition.codec.replace(value, ref.rawValue, target)
             if (replaceResult.success) value = replaceResult.nextValue
           }
@@ -591,7 +630,11 @@ export function remapForkSubBlocks(
         )
       value =
         subBlockType === 'tool-input'
-          ? remapForkToolInputValue(value, resolve, { clearUnresolved, record })
+          ? remapForkToolInputValue(value, resolve, {
+              clearUnresolved,
+              record,
+              resolveMcpServerMeta: context?.resolveMcpServerMeta,
+            })
           : remapForkSkillInputValue(value, resolve, { clearUnresolved, record })
     }
 
@@ -618,6 +661,32 @@ export function remapForkSubBlocks(
     result[subBlockKey] = { ...subBlock, value }
   }
 
+  // An MCP block's tool SELECTION follows its server's remap instead of clearing: the stored
+  // value embeds the server id (`mcp-<serverId>-<toolName>`), so swap the embedded id for the
+  // mapped target's and keep the tool NAME verbatim - mapping asserts the servers are
+  // equivalent, mirroring how tool-input MCP entries keep their tool name. A value that does
+  // not embed a remapped server id (a bare tool name) is already server-agnostic and kept
+  // as-is. Deliberately NOT added to `remappedKeys`: the selection is preserved, so its own
+  // dependents (the tool's arguments) must be preserved with it, and `clearDependentsOnRemap`
+  // exempts the selector under a remapped (non-cleared) server parent.
+  if (mcpServerRemaps.size > 0) {
+    for (const [subBlockKey, subBlock] of Object.entries(result)) {
+      if (!subBlock || typeof subBlock !== 'object') continue
+      if (subBlock.type !== 'mcp-tool-selector') continue
+      const toolValue = subBlock.value
+      if (typeof toolValue !== 'string' || !toolValue) continue
+      for (const [sourceServerId, targetServerId] of mcpServerRemaps) {
+        const sourcePrefix = createMcpToolId(sourceServerId, '')
+        if (!toolValue.startsWith(sourcePrefix)) continue
+        result[subBlockKey] = {
+          ...subBlock,
+          value: createMcpToolId(targetServerId, toolValue.slice(sourcePrefix.length)),
+        }
+        break
+      }
+    }
+  }
+
   return {
     subBlocks: result,
     references: Array.from(references.values()),
@@ -629,11 +698,17 @@ export function remapForkSubBlocks(
 /**
  * Clear every subblock whose `dependsOn` parent was remapped to a different
  * target this pass, so a child scoped to the old parent (a KB's document, a
- * Slack channel, a sheet tab) never carries a stale id into the target. Reuses
- * the search-replace dependent-clear walk (canonical-pair aware, transitive over
- * `dependsOn` chains) so fork/promote and in-editor search-replace clear
- * identically. Children of an unchanged parent are preserved; a no-op for
- * unknown block types or when nothing was remapped.
+ * Slack channel, a sheet tab) never carries a stale id into the target. Uses
+ * the same dependent walk as search-replace (canonical-pair aware, transitive
+ * over `dependsOn` chains) so fork/promote and in-editor search-replace clear
+ * identically - with ONE remap-specific exemption: an `mcp-tool-selector` under
+ * an `mcp-server-selector` parent that was REMAPPED to a mapped target (its
+ * post-remap value is non-empty) is preserved along with its own dependents
+ * (the tool's arguments), because mapping asserts the servers are equivalent
+ * and {@link remapForkSubBlocks} already followed the selection onto the target
+ * server. A CLEARED server (unmapped / fork-create) still clears its dependents.
+ * Children of an unchanged parent are preserved; a no-op for unknown block
+ * types or when nothing was remapped.
  */
 export function clearDependentsOnRemap(
   subBlocks: SubBlockRecord,
@@ -661,11 +736,50 @@ export function clearDependentsOnRemap(
     return (mode === 'advanced') !== group.advancedIds.includes(baseKey)
   }
 
+  // The exemption's parent test: an mcp-server selector whose POST-remap value is non-empty was
+  // remapped to a mapped target (a cleared one is empty), so its tool selection is preserved.
+  const configTypeById = new Map(
+    config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg.type])
+  )
+  const isRemappedMcpServerParent = (key: string): boolean => {
+    if (configTypeById.get(key.replace(/_\d+$/, '')) !== 'mcp-server-selector') return false
+    const parent = subBlocks[key]
+    return parent && typeof parent === 'object' ? isNonEmptyValue(parent.value) : false
+  }
+
+  // The preserve decision is hoisted out of the per-key walk and keyed on the SELECTOR (not on
+  // which remapped key reaches it): `toClear` is a union across per-key BFS passes (each with its
+  // own `visited`), so an in-loop exemption holds only against the exempting key - a second
+  // remapped key (or a longer dependsOn path) reaching the same tool selector would re-add it.
+  // Unreachable with today's registry (the tool selector's only dependsOn parent is its server),
+  // but this makes the exemption independent of key order and path by construction.
+  const preservedMcpToolSelectors = new Set<string>()
+  for (const key of remappedKeys) {
+    if (isDormantCanonicalMember(key) || !isRemappedMcpServerParent(key)) continue
+    for (const dependent of getSubBlocksDependingOnChange(config.subBlocks, key)) {
+      if (dependent.id && dependent.type === 'mcp-tool-selector') {
+        preservedMcpToolSelectors.add(dependent.id)
+      }
+    }
+  }
+
+  // Same BFS as `getWorkflowSearchDependentClears`, with the preserved tool selector's subtree
+  // pruned (skipping it keeps its own dependents - the arguments - out of the clear set too).
   const toClear = new Set<string>()
   for (const key of remappedKeys) {
     if (isDormantCanonicalMember(key)) continue
-    for (const clear of getWorkflowSearchDependentClears(config.subBlocks, key)) {
-      if (!remappedKeys.has(clear.subBlockId)) toClear.add(clear.subBlockId)
+    const visited = new Set<string>([key])
+    const queue = [key]
+    while (queue.length > 0) {
+      const current = queue.shift()
+      if (!current) continue
+      for (const dependent of getSubBlocksDependingOnChange(config.subBlocks, current)) {
+        if (!dependent.id || visited.has(dependent.id)) continue
+        if (preservedMcpToolSelectors.has(dependent.id)) continue
+        visited.add(dependent.id)
+        if (!remappedKeys.has(dependent.id)) toClear.add(dependent.id)
+        queue.push(dependent.id)
+      }
     }
   }
 
@@ -975,14 +1089,20 @@ export function remapSubBlocks(
 
 /** A `copyWorkflowStateIntoTarget` subBlock transform that rewrites references via the resolver. */
 export function createForkSubBlockTransform(
-  resolve: ForkReferenceResolver
+  resolve: ForkReferenceResolver,
+  options?: {
+    /** Mapped-target MCP server rows, so remapped tool-input entries rewrite their server metadata. */
+    resolveMcpServerMeta?: ForkMcpServerMetaResolver
+  }
 ): (
   subBlocks: SubBlockRecord,
   blockType: string,
   canonicalModes?: CanonicalModeOverrides
 ) => SubBlockRecord {
   return (subBlocks, blockType, canonicalModes) => {
-    const result = remapSubBlocks(subBlocks, resolve)
+    const result = remapSubBlocks(subBlocks, resolve, {
+      resolveMcpServerMeta: options?.resolveMcpServerMeta,
+    })
     return clearDependentsOnRemap(result.subBlocks, blockType, result.remappedKeys, canonicalModes)
   }
 }

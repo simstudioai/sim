@@ -1,19 +1,20 @@
 ---
 title: Branching
-description: Split a workflow into different paths based on the result of a step — the Condition block decides with a rule, the Router lets a model decide.
+description: "Split a workflow into different paths based on the result of a step: the Condition block decides with a rule, the Router lets a model decide."
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, CONDITION_ROUTE_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Workflows" title="Branching" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-branching-light-with-intro.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Workflows" title="Branching" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-branching.mp4" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-Branching is how a workflow **splits into different paths based on the result of a step**. Sim gives you two blocks for it — the **Condition** block, which decides with an explicit rule, and the **Router**, which lets a model decide from intent.
+Branching is how a workflow **splits into different paths based on the result of a step**. Sim gives you two blocks for it: the **Condition** block, which decides with an explicit rule, and the **Router**, which lets a model decide from intent.
 
 <WhatYouWillLearn
   items={[
@@ -53,21 +54,27 @@ Branching is how a workflow **splits into different paths based on the result of
 
 Most workflows you've seen run in a line. Branching adds a **fork**: at some point the run looks at the result of a step and takes one path or another. The paths can do completely different work.
 
-Here's the shape of a fork — one step decides, and the run takes one path or the other:
+Here's the shape of a fork: one step decides, and the run takes one path or the other:
 
 <WorkflowPreview workflow={CONDITION_ROUTE_WORKFLOW} />
 
-## The Condition block — decide with a rule
+## The Condition block, decide with a rule
 
-The **Condition** block branches on an **explicit rule** — a comparison over an earlier block's output, like priority equals "high". The matching branch runs; the others don't. It's deterministic and predictable.
+The **Condition** block branches on an **explicit rule**, a comparison over an earlier block's output, like priority equals "high". The matching branch runs; the others don't. It's deterministic and predictable.
 
-## The Router block — let a model decide
+## The Router block, let a model decide
 
-Sometimes the rule is fuzzy: "send billing questions one way, everything else another." The **Router** block hands the decision to a **model** — it reads the input, picks the branch that matches the intent, and the run continues down it. Same fork, but the decider is reasoning instead of a fixed rule.
+Sometimes the rule is fuzzy: "send billing questions one way, everything else another." The **Router** block hands the decision to a **model**: it reads the input, picks the branch that matches the intent, and the run continues down it. Same fork, but the decider is reasoning instead of a fixed rule.
 
 ## Still one workflow
 
 Whichever way it forks, it's **still one workflow**, and every run is recorded. Open the logs and you can see exactly which path a given run took, and why.
+
+<FAQ items={[
+  { question: "When should I use a Condition block versus a Router?", answer: "Use a Condition when a rule can decide, such as priority equals high. Use a Router when deciding takes judgment, like reading a message and choosing the right team: the Router lets a model decide." },
+  { question: "Can a workflow have more than two branches?", answer: "Yes. Conditions chain if and else paths, and a Router can route to any number of destinations." },
+  { question: "What happens to the branch that is not taken?", answer: "It simply does not run. The log records which path the run took, so branching stays fully inspectable." },
+]} />
 
 ## Related documentation
 

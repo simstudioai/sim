@@ -18,5 +18,5 @@ interface InterfacesShellProps {
 }
 
 export function InterfacesShell({ children }: InterfacesShellProps) {
-  return <LogoShell footer={<SupportFooter position='absolute' />}>{children}</LogoShell>
+  return <LogoShell footer={<SupportFooter position='static' />}>{children}</LogoShell>
 }
