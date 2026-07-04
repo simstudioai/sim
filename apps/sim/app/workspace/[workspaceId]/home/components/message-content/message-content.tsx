@@ -651,6 +651,8 @@ interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
   isStreaming: boolean
+  /** Transcript-derived answers for this message's question card (renders the recap). */
+  questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
   onPhaseChange?: (phase: MessagePhase) => void
 }
@@ -659,6 +661,7 @@ function MessageContentInner({
   blocks,
   fallbackContent,
   isStreaming = false,
+  questionAnswers,
   onOptionSelect,
   onPhaseChange,
 }: MessageContentProps) {
@@ -724,6 +727,7 @@ function MessageContentInner({
                   segmentIndex: i,
                   segmentCount: segments.length,
                 })}
+                questionAnswers={questionAnswers}
                 onOptionSelect={onOptionSelect}
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                 onRevealStateChange={

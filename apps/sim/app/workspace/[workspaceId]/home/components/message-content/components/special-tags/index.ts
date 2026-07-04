@@ -21,6 +21,7 @@ export {
   PendingTagIndicator,
   parseFileTag,
   parseJsonTagBody,
+  parseLastQuestionTag,
   parseQuestionTagBody,
   parseSpecialTags,
   parseTagAttributes,
