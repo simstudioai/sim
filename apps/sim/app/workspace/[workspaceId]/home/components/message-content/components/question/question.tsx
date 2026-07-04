@@ -10,8 +10,8 @@ import type { QuestionItem } from '@/app/workspace/[workspaceId]/home/components
  * `Prompt — Answer` line per question.
  */
 export function formatQuestionAnswerMessage(questions: QuestionItem[], answers: string[]): string {
-  if (questions.length === 1) return answers[0]
-  return questions.map((q, i) => `${q.prompt} — ${answers[i]}`).join('\n')
+  if (questions.length === 1) return answers[0] ?? ''
+  return questions.map((q, i) => `${q.prompt} — ${answers[i] ?? ''}`).join('\n')
 }
 
 /**
