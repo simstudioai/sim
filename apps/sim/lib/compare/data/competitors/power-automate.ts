@@ -1167,9 +1167,9 @@ export const powerAutomateProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-automate/overview-cloud',
+            label: 'Overview of cloud flows - Power Automate | Microsoft Learn',
+            asOf: '2026-07-04',
           },
           {
             url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing',

@@ -472,11 +472,10 @@ export const langchainProfile: CompetitorProfile = {
       },
       dynamicToolUse: {
         value:
-          'Yes, at parity with block-based function-calling agents: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of developer-selected tools to a model and lets the model choose, at each step, which of those bound tools (if any) to call based on its own reasoning, rather than following a fixed, pre-wired sequence of tool calls',
+          "No: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of developer-selected tools to a model at build time, and the model only chooses among that bound pool at each step, rather than browsing or picking from a broader catalog (e.g. an entire MCP server's full tool list) at inference time",
         detail:
-          "This per-step selection is the core mechanic LangGraph agent templates (e.g. the ReAct Agent template) are built around, and it is functionally the same tool-selection loop any function-calling agent block implements. The tool pool itself, including any MCP-provided tools, is still bound ahead of time by the developer; the model does not browse or pick from a broader, not-yet-wired catalog (e.g. an entire MCP server's full tool list) at inference time.",
-        shortValue:
-          'Yes, ReAct-style per-step selection among a bound tool pool, same as any function-calling agent',
+          "This is the same closed-list function-calling mechanism as Sim's Agent block: the tool pool, including any MCP-provided tools, is bound ahead of time by the developer, not browsed at runtime.",
+        shortValue: 'No, agent picks only among tools bound in at build time',
         confidence: 'verified',
         sources: [
           {
