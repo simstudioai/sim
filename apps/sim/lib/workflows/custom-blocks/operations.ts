@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { CustomBlockOutput, CustomBlockRow } from '@/blocks/custom/build-config'
 import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
@@ -25,11 +25,20 @@ export interface CustomBlockWithInputs {
   exposedOutputs: CustomBlockOutput[]
 }
 
-/** Derive a bound workflow's Start input fields from its current normalized state. */
+/**
+ * Derive a bound workflow's Start input fields from its LATEST DEPLOYMENT — the
+ * exact state execution runs. Deriving from the draft/editor tables would let the
+ * block advertise inputs the deployed child doesn't accept (or miss ones it still
+ * expects) whenever the publisher edits after deploying. Returns `[]` if the
+ * workflow has no active deployment.
+ */
 async function deriveInputFields(workflowId: string): Promise<WorkflowInputField[]> {
-  const data = await loadWorkflowFromNormalizedTables(workflowId)
-  if (!data) return []
-  return extractInputFieldsFromBlocks(data.blocks)
+  try {
+    const deployed = await loadDeployedWorkflowState(workflowId)
+    return extractInputFieldsFromBlocks(deployed.blocks)
+  } catch {
+    return []
+  }
 }
 
 /**
@@ -175,7 +184,10 @@ export async function getCustomBlockAuthority(
   // key, so without the org filter a `custom_block_*` type smuggled in from another
   // org's serialized workflow could resolve and run that org's block.
   if (!consumerWorkspaceId) return null
-  const consumerWs = await getWorkspaceWithOwner(consumerWorkspaceId)
+  // Match `getCustomBlockRowsForWorkspace` (which builds the overlay) — include
+  // archived so a workspace that can serialize a custom block can also execute it,
+  // instead of failing mid-run with "no longer available".
+  const consumerWs = await getWorkspaceWithOwner(consumerWorkspaceId, { includeArchived: true })
   if (!consumerWs?.organizationId) return null
 
   const [row] = await db

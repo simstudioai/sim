@@ -27,7 +27,7 @@ import {
   usePublishCustomBlock,
   useUpdateCustomBlock,
 } from '@/hooks/queries/custom-blocks'
-import { useWorkflowState } from '@/hooks/queries/workflows'
+import { useDeployedWorkflowState } from '@/hooks/queries/deployments'
 
 const OUTPUT_SEP = '::'
 const ICON_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
@@ -107,7 +107,10 @@ export function BlockDeploy({
     workspaceId,
   })
 
-  const workflowState = useWorkflowState(workflowId ?? undefined)
+  // Curate outputs from the DEPLOYED state — the block always runs the latest
+  // deployment, so draft-only blocks must not appear as pickable outputs (they'd
+  // resolve to `undefined` at runtime).
+  const workflowState = useDeployedWorkflowState(workflowId ?? null)
   const { outputGroups, labelByKey } = useMemo(() => {
     const state = workflowState.data as
       | { blocks?: Record<string, FlattenOutputsBlockInput>; edges?: FlattenOutputsEdgeInput[] }
