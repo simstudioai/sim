@@ -29,6 +29,15 @@ function rewriteText(text: string, maps: ChatFileRefMaps): string {
  * in the maps (shared workspace files, workflows, other chats) pass through
  * unchanged. Pure; returns the input array untouched when there is nothing to
  * rewrite.
+ *
+ * Pass-through cannot leave the fork pointing at uncopied CHAT-OWNED files:
+ * a message can only reference files that existed when it was written, every
+ * chat-owned file is stamped with the user message of the turn it was born in
+ * (NULL-stamped legacy rows are copied into every fork), and the fork copies
+ * every chat-owned file born at-or-before the cut — so any chat-owned file a
+ * kept message references is always in the maps. The only reachable leftovers
+ * are files soft-deleted before the fork, whose links are equally dead in the
+ * source chat.
  */
 export function rewriteMessageFileRefs(
   messages: PersistedMessage[],
