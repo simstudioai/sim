@@ -44,9 +44,9 @@ export const pipedreamProfile: CompetitorProfile = {
         "An 'Edit with AI' button in the workflow builder header or any code step lets users modify an existing workflow using natural-language instructions.",
       shortDescription: "An 'Edit with AI' button lets users modify workflows by prompt.",
       source: {
-        url: 'https://pipedream.com/blog/',
-        label: 'Pipedream Blog / Changelog',
-        asOf: '2026-07-02',
+        url: 'https://pipedream.com/blog/build-workflows-faster-with-ai/',
+        label: 'Pipedream Blog: Build workflows faster with AI',
+        asOf: '2026-07-04',
       },
     },
     {
@@ -358,7 +358,11 @@ export const pipedreamProfile: CompetitorProfile = {
         shortValue: "'Edit with AI' modifies workflows via prompt",
         confidence: 'estimated',
         sources: [
-          { url: 'https://pipedream.com/blog/', label: 'Pipedream Blog', asOf: '2026-07-02' },
+          {
+            url: 'https://pipedream.com/blog/build-workflows-faster-with-ai/',
+            label: 'Pipedream Blog: Build workflows faster with AI',
+            asOf: '2026-07-04',
+          },
         ],
       },
       knowledgeBaseRag: {
@@ -369,9 +373,9 @@ export const pipedreamProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://pipedream.com/blog/',
-            label: 'Pipedream Blog (RAG implementation post)',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/blog/build-your-own-chat-bot-with-openai-and-pipedream/',
+            label: 'Pipedream Blog: Build your own chat bot with OpenAI and Pipedream',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -550,9 +554,9 @@ export const pipedreamProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs-proxy.pipedream.net/docs/sources/',
-            label: 'Pipedream Docs: Sources',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/sources',
+            label: 'Pipedream Docs: Triggers (event sources)',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -869,16 +873,21 @@ export const pipedreamProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          'No: Pipedream is built around an open component registry where any developer can publish integration components to the public pipedreamhq/pipedream GitHub repo for anyone else to run, and users can also write and execute their own arbitrary custom code steps.',
+          "No: Pipedream's 3,000+ app integrations are backed by a public component registry (pipedreamhq/pipedream on GitHub) where any developer can fork the repo, write a trigger or action, and submit it as a pull request for anyone else's workflows to run; users can also write and execute their own arbitrary custom code steps.",
         detail:
-          'Community-contributed components go through automated checks (linting and other CI checks a contributor can also run locally via pnpm) rather than a manual first-party security review before a submission becomes runnable by other users. No security incident specific to a malicious or compromised Pipedream component is publicly documented.',
-        shortValue: 'No, open community component registry',
+          "Pipedream's own contributing docs describe the merge path as: submit a PR, the code runs through automated checks (linting, dependency install, and other CI a contributor can also run locally via pnpm), the Pipedream team reviews it against published Component Guidelines & Patterns, and once approved the PR is merged to master and the component becomes runnable by every Pipedream user. That review step is functional/style-focused (code structure, error handling, README quality), not a documented formal security audit, static-analysis security scan, or sandboxed vulnerability assessment distinct from ordinary code review. This is the inverse of Sim's model: Sim has no public marketplace where an arbitrary third party can publish and have other users install executable tool code, whereas Pipedream's whole integration catalog is built on exactly that open, PR-based contribution model. No security incident specific to a malicious or compromised Pipedream component is publicly documented.",
+        shortValue: 'No, open PR-based community component registry',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://pipedream.com/docs/components/guidelines',
             label: 'Pipedream Docs: Components Guidelines & Patterns',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://pipedream.com/docs/apps/contributing',
+            label: 'Pipedream Docs: Contributing to the Pipedream Registry',
+            asOf: '2026-07-04',
           },
           {
             url: 'https://pipedream.com/community',
@@ -1019,6 +1028,21 @@ export const pipedreamProfile: CompetitorProfile = {
             url: 'https://pipedream.com/community/t/how-to-continue-steps-in-workflow-if-one-step-fails/7604',
             label: 'Pipedream Community: how to continue steps if one step fails',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: scheduled (cron), webhook, and app-event triggered workflows run as deployed jobs on Pipedream's own serverless infrastructure, not in a session tied to a client device",
+        detail:
+          'Pipedream\'s own docs state it plainly: "Once you save a workflow, we deploy it to our servers. Each event triggers the workflow code, whether you have the workflow open in your browser, or not." No desktop app, browser tab, or active session needs to stay open for a scheduled or triggered run to fire or complete.',
+        shortValue: 'Runs server-side; no dependency on a client device staying open',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workflows',
+            label: 'Pipedream Docs: What Are Workflows?',
+            asOf: '2026-07-04',
           },
         ],
       },

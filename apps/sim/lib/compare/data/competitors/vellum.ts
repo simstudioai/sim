@@ -18,6 +18,17 @@ export const vellumProfile: CompetitorProfile = {
     'Vellum is an enterprise AI development platform for building, evaluating, and deploying LLM prompts, workflows, and agents.',
   standoutFeatures: [
     {
+      title: 'SOC 2 Type 2 and HIPAA compliance with BAA',
+      description:
+        'Vellum has SOC 2 Type 2 attestation and HIPAA compliance. Enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study.',
+      shortDescription: 'SOC 2 Type 2 and HIPAA compliance with a signable BAA.',
+      source: {
+        url: 'https://drata.com/customers/vellum',
+        label: 'Vellum Case Study: Drata',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'Self-hosted / VPC enterprise deployment',
       description:
         "Enterprise customers can run the platform inside their own AWS, Azure, or GCP VPC (or on-prem) via a Replicated-based install, keeping prompts and documents inside the customer's network perimeter.",
@@ -36,17 +47,6 @@ export const vellumProfile: CompetitorProfile = {
       source: {
         url: 'https://www.vellum.ai/blog/introducing-vellum-for-agents',
         label: 'Introducing Vellum for Agents',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'SOC 2 Type 2 and HIPAA compliance with BAA',
-      description:
-        'Vellum has SOC 2 Type 2 attestation and HIPAA compliance. Enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study.',
-      shortDescription: 'SOC 2 Type 2 and HIPAA compliance with a signable BAA.',
-      source: {
-        url: 'https://drata.com/customers/vellum',
-        label: 'Vellum Case Study: Drata',
         asOf: '2026-07-02',
       },
     },
@@ -252,10 +252,10 @@ export const vellumProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          'No: Vellum has no native spreadsheet-like data table primitive (row/column limits, spreadsheet keyboard navigation). Its tabular-data handling is limited to processing uploaded CSV/XLS files and extracting or generating structured output within workflow nodes.',
+          'No: Vellum has no native, spreadsheet-like data-table feature (persistent rows/columns, keyboard navigation, per-row writes from workflows) comparable to a built-in database. Its only tabular-data handling is uploading CSV/XLS files and extracting or generating structured output within workflow nodes.',
         detail:
-          'Vellum supports CSV/XLS upload and structured JSON extraction, and has blog content on converting PDFs to CSV, but no editable in-platform spreadsheet/data-table object comparable to a native DB feature.',
-        shortValue: 'No native spreadsheet-style data table feature',
+          'Vellum supports CSV/XLS upload and structured JSON extraction, and has blog content on converting PDFs to CSV, but no editable in-platform spreadsheet/data-table object exists; Executions tables are read-only run logs, not a general-purpose data store.',
+        shortValue: 'No native table/spreadsheet feature; CSV upload and extraction only',
         confidence: 'estimated',
         sources: [
           {
@@ -425,10 +425,11 @@ export const vellumProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          "No: Vellum has no named, reusable prompt or knowledge-snippet feature invoked by reference across multiple agents. Its reuse primitives are Subworkflows (reusable workflow logic blocks) and shared Prompt Sandboxes, not a discrete 'skill' object referenced by name across agents.",
+          "No: Vellum's B2B workflow/agent platform (docs.vellum.ai) has no named, reusable prompt or skill object invoked by reference across multiple agents. Its reuse primitives are Subworkflows (reusable workflow logic blocks) and shared Prompt Sandboxes, not a discrete 'skill' package referenced by name.",
         detail:
-          "Reuse happens via Subflows/subworkflows and deployed prompts, a different mechanism than a discrete named prompt-snippet library referenced across agents. The separate Vellum personal-assistant product does have a 'Skills' concept, but it is not documented as part of the B2B workflow platform compared here.",
-        shortValue: 'Only subworkflows, no named skill objects',
+          "Reuse happens via Subflows/subworkflows and deployed prompts, a different mechanism than a discrete named skill library referenced across agents. Vellum's separate consumer 'Personal Intelligence' assistant product (vellum.ai/docs, a different product from the B2B workflow platform compared here) does have a 'Skills' feature, built on the same open convention as other agent platforms: a directory containing a SKILL.md file (YAML frontmatter plus a markdown instruction body, with optional bundled scripts/reference files), extended with Vellum-namespaced metadata fields like metadata.vellum.display-name.",
+        shortValue:
+          'Only subworkflows on the workflow platform; open SKILL.md format lives in a separate consumer product',
         confidence: 'estimated',
         sources: [
           {
@@ -440,6 +441,11 @@ export const vellumProfile: CompetitorProfile = {
             url: 'https://www.vellum.ai/blog/built-in-tool-calling-for-complex-agent-workflows',
             label: 'Built-In Tool Calling for Complex Agent Workflows',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.vellum.ai/docs/extensibility/skills',
+            label: 'Skills - Vellum Docs (Personal Intelligence consumer product)',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -641,37 +647,52 @@ export const vellumProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Prepaid/pay-as-you-go credits ($1 credit = $1 of underlying LLM/API cost, no markup) plus a tiered monthly subscription for compute/storage',
+          "Not publicly listed for the B2B enterprise platform: Vellum's current pricing page has been fully replaced by the unrelated consumer 'Personal Intelligence' product's plans. A September 2025 third-party pricing analysis, published before that switch, described the enterprise platform as execution-credit-based with per-tier seat caps (Free, Pro, Enterprise) rather than the prepaid-credit model now shown.",
         detail:
-          "Current pricing pages describe the consumer 'Personal Intelligence' product's plans (Base/Free and Pro $50/mo tiers with configurable vCPU/RAM/storage add-ons) rather than the original enterprise workflow platform's seat/usage-based pricing.",
-        shortValue: 'Pass-through LLM credits + subscription',
-        confidence: 'verified',
+          "Current pricing pages (vellum.ai/pricing, vellum.ai/docs/pricing) describe the consumer 'Personal Intelligence' product's plans (Base/Free and Pro $50/mo tiers with configurable vCPU/RAM/storage add-ons), not the enterprise workflow platform. The last third-party description of the enterprise platform's model itself states Vellum 'does not publicly list pricing details on its website,' so the figures below are third-party estimates, not Vellum-published prices.",
+        shortValue: 'Not publicly listed; third-party analysis describes credit-based tiers',
+        confidence: 'unknown',
         sources: [
-          { url: 'https://www.vellum.ai/pricing', label: 'Vellum Pricing', asOf: '2026-07-02' },
           {
-            url: 'https://www.vellum.ai/docs/pricing',
-            label: 'Vellum Docs: Pricing',
+            url: 'https://www.zenml.io/blog/vellum-ai-pricing',
+            label: 'Vellum AI Pricing: ZenML Blog',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://www.vellum.ai/pricing',
+            label: 'Vellum Pricing (now shows the consumer product)',
             asOf: '2026-07-02',
           },
         ],
       },
       entryPaidPlan: {
-        value: 'Around $50/month for a typical Pro-tier setup, plus usage credits',
+        value:
+          'Unconfirmed: a third-party analysis reports a Pro tier around $500/month for the enterprise platform, but Vellum does not publish this figure itself',
         detail:
-          "The Pro plan has a $10/month platform fee (includes custom subdomain and priority support). Actual monthly cost depends on the compute tier chosen ($35-$125/mo) and storage tier chosen ($5-$120/mo); Vellum's own example configuration totals $50/month before usage credits.",
-        shortValue: '~$50/mo example configuration plus usage credits',
-        confidence: 'verified',
+          "The cited third-party breakdown describes Pro at roughly $500/month with 5,000 prompt executions/day, 250 workflow executions/day, RBAC, and monitoring integrations, still capped at 5 users; Enterprise tiers above that are custom/'Contact us' pricing. None of this is confirmed on Vellum's own site, which currently shows only the unrelated consumer product's $50/mo Pro plan.",
+        shortValue: '~$500/mo reported by a third party, unconfirmed by Vellum',
+        confidence: 'unknown',
         sources: [
-          { url: 'https://www.vellum.ai/pricing', label: 'Vellum Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.zenml.io/blog/vellum-ai-pricing',
+            label: 'Vellum AI Pricing: ZenML Blog',
+            asOf: '2026-07-04',
+          },
         ],
       },
       freeTier: {
         value:
-          "Yes: free 'Base' plan with small fixed compute and 4 GiB storage, no credit card required",
-        shortValue: 'Free Base plan, no card required',
-        confidence: 'verified',
+          "Reportedly yes: a third-party analysis describes a Free tier (50 prompt executions/day, 25 workflow executions/day, up to 5 users, no RBAC) for the enterprise platform, but this is not confirmed on Vellum's current site",
+        detail:
+          "Vellum's own pricing page no longer shows this tier; it now presents only the unrelated consumer 'Personal Intelligence' product's free 'Base' plan.",
+        shortValue: 'Reported by a third party, unconfirmed by Vellum',
+        confidence: 'unknown',
         sources: [
-          { url: 'https://www.vellum.ai/pricing', label: 'Vellum Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.zenml.io/blog/vellum-ai-pricing',
+            label: 'Vellum AI Pricing: ZenML Blog',
+            asOf: '2026-07-04',
+          },
         ],
       },
       byok: {
@@ -960,6 +981,26 @@ export const vellumProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          "Yes, by inference: Scheduled Triggers (cron-based) and Integration Triggers (webhook-based, introduced November 2025) fire a deployed Workflow automatically on Vellum's own Cloud, self-hosted, or VPC infrastructure, the same server-side execution path already documented for API and async calls. No Vellum documentation for the B2B workflow/agent platform ties a scheduled or triggered run's reliability to a client device, browser tab, or desktop app staying open.",
+        detail:
+          "Vellum's changelog states a deployed Workflow Deployment containing a Trigger 'executes automatically based on that configuration' but does not spell out the runtime location in those words. This is inferred from the deployment/API execution model (deploymentOptions, apiPublishing, asyncExecution facts) rather than an explicit doc statement. Note Vellum's separate consumer 'Personal Intelligence' assistant product explicitly ties its own schedule reliability to a locally running daemon on self-hosted installs; that client-dependent model is a different product from the B2B workflow platform compared here.",
+        shortValue: 'Runs server-side on deployment infra; no documented client dependency',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/changelog/2025/2025-11',
+            label: 'Vellum Changelog, November 2025 (Scheduled and Integration Triggers)',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/workflows/api-integration',
+            label: 'Vellum Docs: Easy Integration with Vellum API for Workflows',
+            asOf: '2026-07-04',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -999,9 +1040,9 @@ export const vellumProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Founded 2023 (Y Combinator W23) by Noa Flaherty, Sidd Seethepalli, and Akash Sharma. Raised a $5M seed (2023) and a $20M Series A (July 2025, led by Leaders Fund), for about $25.5M total. Based in New York City, with 150+ reported customers as of the Series A announcement.',
-        shortValue: 'YC W23, ~$25.5M raised, NYC-based',
-        confidence: 'verified',
+          'Founded 2023 (Y Combinator W23) by Noa Flaherty, Sidd Seethepalli, and Akash Sharma. Raised a $5M seed (2023) and a $20M Series A (July 2025, led by Leaders Fund). Crunchbase reports $25.5M raised in total across three funding rounds, implying additional undisclosed funding beyond these two rounds. Based in New York City, with 150+ reported customers as of the Series A announcement.',
+        shortValue: 'YC W23, ~$25.5M raised across 3 rounds, NYC-based',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://www.vellum.ai/blog/announcing-our-20m-series-a',

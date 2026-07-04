@@ -577,7 +577,8 @@ export const claudeCoworkProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '200+ connectors (third-party estimate; Anthropic does not publish an exact figure)',
+        value:
+          "200+ connectors (estimated from Anthropic's own Connectors Directory; Anthropic does not publish an exact figure)",
         detail:
           "Anthropic's Connectors Directory lists connectors like Linear, Slack, Google Drive, Google Workspace, and Microsoft 365, but no primary Anthropic page states a total count.",
         shortValue: '200+ connectors (estimated)',
@@ -876,10 +877,10 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          'Partial: Anthropic maintains first-party catalogs (anthropics/skills, anthropics/knowledge-work-plugins, the 11 plugins bundled into Cowork), but the plugin/skill ecosystem is open by design. Any developer can host a plugin marketplace as a git repo, and users add it via `/plugin marketplace add`, with no Anthropic approval queue or review gate before installation.',
+          "Partial: Anthropic maintains first-party catalogs (anthropics/skills, anthropics/knowledge-work-plugins, the 11 plugins bundled into Cowork), but the plugin/skill ecosystem is open by design. Any developer can host a plugin marketplace as a git repo, and users add it via `/plugin marketplace add`, with no Anthropic approval queue or review gate before installation. A third-party security audit has already found malicious entries in that broader ecosystem: Snyk's ToxicSkills research scanned ~3,984 skills on ClawHub and skills.sh (third-party marketplaces that also serve Claude Code users) and confirmed 76 malicious skills, with 1,467 flagged for security issues.",
         detail:
-          'Third-party community sites (ClawHub, skills.sh, and others) distribute unvetted, community-authored skills for Claude Code/Cowork. Snyk\'s ToxicSkills audit of ~3,984 skills on ClawHub and skills.sh found 1,467 with security flaws and confirmed 76 active malicious payloads built for credential theft, backdoors, and data exfiltration. Koi Security separately audited all 2,857 skills on ClawHub and flagged 341 as malicious, 335 tied to one coordinated campaign ("ClawHavoc"). These incidents sit in the broader Claude Skills/plugin ecosystem, not Anthropic\'s own first-party catalog.',
-        shortValue: 'Partial: first-party catalog + open, unvetted plugin ecosystem',
+          "This incident sits in the broader Agent Skills ecosystem across third-party marketplaces, not Anthropic's own first-party catalog, but it shows real, sourced supply-chain risk adjacent to Cowork's installable-skill model. By contrast, every one of Sim's blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable block code without going through Sim's own review.",
+        shortValue: 'Partial: open plugin ecosystem with a documented malicious-skill incident',
         confidence: 'verified',
         sources: [
           {
@@ -1041,6 +1042,21 @@ export const claudeCoworkProfile: CompetitorProfile = {
             url: 'https://github.com/anthropics/claude-code/issues/60577',
             label:
               'Transient 529 Overloaded API errors abort long-running tasks with no auto-recovery (GitHub issue)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          'No: scheduled tasks require the Claude Desktop app open and the computer awake on the client device',
+        detail:
+          "There is no server-side execution path independent of the client. A scheduled/recurring task only fires while the desktop app is running and the machine is awake; if the device sleeps or the app is closed when a run is due, that run is skipped and auto-executed on next wake, with a notification, rather than firing on schedule from infrastructure independent of the user's machine.",
+        shortValue: 'No: requires desktop app open and computer awake',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
+            label: 'Schedule recurring tasks in Claude Cowork',
             asOf: '2026-07-02',
           },
         ],

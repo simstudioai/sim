@@ -17,11 +17,11 @@ export const flowiseProfile: CompetitorProfile = {
     'Flowise is an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, available self-hosted or as a managed cloud service, and owned by Workday since August 2025.',
   standoutFeatures: [
     {
-      title: 'Native RAG / Document Store pipeline',
+      title: 'Choice of vector-store backend, with the broadest native text-splitter menu',
       description:
-        "Flowise's Document Store handles the full RAG pipeline in one place: multiple document loaders, the broadest range of native text-splitter types (character, token, recursive character, markdown, code, HTML-to-markdown) with configurable chunk size and overlap, a live preview before processing, per-chunk editing, and upsert into a wide range of vector store backends.",
+        "Flowise's Document Store lets a builder pick from a wide range of vector store backends to upsert into (Pinecone, Weaviate, Milvus, FAISS, and more), and offers the broadest range of native text-splitter types (character, token, recursive character, markdown, code, HTML-to-markdown) with configurable chunk size and overlap, a live preview before processing, and per-chunk editing.",
       shortDescription:
-        'Native RAG pipeline with the broadest built-in text-splitter and chunking options.',
+        'Pick your own vector-store backend, with the broadest built-in text-splitter menu.',
       source: {
         url: 'https://docs.flowiseai.com/using-flowise/document-stores',
         label: 'Flowise Docs: Document Stores',
@@ -85,7 +85,7 @@ export const flowiseProfile: CompetitorProfile = {
           'Flowise is primarily a drag-and-drop visual canvas for wiring chatflow and agentflow nodes together, supplemented by Custom JS Function nodes for arbitrary code and a Custom Tool node for JS-based tools. There is no natural-language "describe it and I\'ll build it" flow generator.',
         detail: 'No natural-language workflow generation feature.',
         shortValue: 'Visual canvas plus custom-code nodes',
-        confidence: 'verified',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
@@ -153,8 +153,8 @@ export const flowiseProfile: CompetitorProfile = {
       },
       license: {
         value:
-          "Flowise's Community Edition is licensed under the Apache License, Version 2.0. Enterprise-only modules (SSO, RBAC, audit logs, organization workspaces) ship under a separate Commercial License.",
-        shortValue: 'Apache 2.0 (core), commercial license for enterprise modules',
+          "Flowise's Community Edition is licensed under the Apache License, Version 2.0. Paid-tier-only modules ship under a separate Commercial License: RBAC, audit/login-activity logs, and organization workspaces are available on both the Cloud and Enterprise plans, while SSO is restricted to the Enterprise plan only.",
+        shortValue: 'Apache 2.0 (core); RBAC/audit on Cloud+Enterprise, SSO Enterprise-only',
         confidence: 'verified',
         sources: [
           {
@@ -268,10 +268,16 @@ export const flowiseProfile: CompetitorProfile = {
       },
       naturalLanguageBuilding: {
         value:
-          'Unknown: no documented feature lets a user describe an automation in plain language and have Flowise generate or edit the flow automatically.',
-        shortValue: 'Unknown, not documented',
-        confidence: 'unknown',
-        sources: [],
+          'No: no documented feature lets a user describe an automation in plain language and have Flowise generate or edit the flow automatically. Flowise is primarily a drag-and-drop visual canvas, supplemented by Custom JS Function nodes for arbitrary code, with no natural-language "describe it and I\'ll build it" flow generator.',
+        shortValue: 'No, not documented as a feature',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
+            label: 'Flowise Docs: Custom JS Function',
+            asOf: '2026-07-02',
+          },
+        ],
       },
       knowledgeBaseRag: {
         value:
@@ -723,9 +729,9 @@ export const flowiseProfile: CompetitorProfile = {
         value:
           "Yes: Flowise's nodes (LLMs, tools, vector stores, document loaders) live in the packages/components/nodes folder of the core FlowiseAI/Flowise monorepo. New nodes are contributed via GitHub pull request and reviewed/merged by the Flowise team before shipping in an official release, rather than published independently by third parties into an open, unreviewed marketplace. The separate Marketplace feature distributes JSON chatflow/agentflow templates, not installable executable code.",
         detail:
-          'Flowise has still had first-party security issues: CVE-2025-59528 (CVSS 10.0) was a critical unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor. It was patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. This was a bug in vetted, first-party code, not a malicious third-party community node.',
+          "That PR-review process has not stopped a critical incident in vetted, first-party code: CVE-2025-59528 (CVSS 10.0) was an unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor. Patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. By contrast, Sim documents its own thirdPartyVetting fact as every one of its 302 blocks being first-party authored and code-reviewed with no public marketplace for third-party executable code either, so the two products share the same no-open-marketplace posture; the difference is that Flowise's own review pipeline has already shipped one CVSS-10 RCE into a first-party node, which is the concrete cost of that model rather than of an unreviewed community ecosystem.",
         shortValue:
-          'Yes, nodes are PR-reviewed into the core repo, no open community-node marketplace',
+          'Yes, PR-reviewed into the core repo, but that pipeline already shipped a CVSS-10 RCE',
         confidence: 'verified',
         sources: [
           {
@@ -818,6 +824,26 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
             label: 'Flowise Docs: Agentflow V2',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          'Yes, for the triggers Flowise has: a chat message, a REST API prediction call, or an MCP tool invocation all execute entirely on the Flowise server (self-hosted or Flowise Cloud), with no dependency on a client device staying open, awake, or connected. Flowise has no dedicated cron/schedule trigger of its own, so a genuinely unattended, time-based run has to come from an external scheduler (e.g. a cron job or another system calling the prediction API) rather than a built-in scheduling engine.',
+        detail:
+          'Once a run is invoked by any supported means, closing the browser tab or disconnecting the calling client has no effect on that run completing server-side; the caveat is only that Flowise itself cannot originate a scheduled run without an outside trigger.',
+        shortValue: 'Yes for triggered runs; no built-in scheduler to originate one unattended',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://agentsapis.com/flowise-api/',
+            label: 'Flowise API: Complete Developer Guide',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
+            label: 'Flowise Docs: Running Flowise using Queue',
             asOf: '2026-07-02',
           },
         ],

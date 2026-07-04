@@ -41,13 +41,12 @@ export const powerAutomateProfile: CompetitorProfile = {
     {
       title: 'MCP support in Copilot Studio agents',
       description:
-        'Copilot Studio agents (the agent-building surface adjacent to Power Automate) connect to external Model Context Protocol servers as tools, and Microsoft ships an MCP server capability for Power Automate flows themselves (public preview March 2025, GA May 2025).',
-      shortDescription:
-        'Agents connect to external MCP servers, and flows can expose MCP tools themselves.',
+        'Copilot Studio agents (the agent-building surface adjacent to Power Automate) can connect to external Model Context Protocol servers and add their tools/resources to an agent. This is consumption only: there is no feature that publishes a Power Automate flow itself as an MCP server for external AI clients to call.',
+      shortDescription: 'Agents can connect to external MCP servers as tools, consumption only.',
       source: {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent',
         label: 'Connect your agent to an existing MCP server - Microsoft Learn',
-        asOf: '2026-07-02',
+        asOf: '2026-07-04',
       },
     },
     {
@@ -170,9 +169,14 @@ export const powerAutomateProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/data-integration/gateway/service-gateway-onprem',
+            label: 'What is an on-premises data gateway? - Microsoft Learn',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/introduction',
+            label: 'Introduction to desktop flows - Power Automate | Microsoft Learn',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -424,10 +428,10 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       mcpSupport: {
         value:
-          'Yes: Copilot Studio agents can connect to external MCP servers as tools (public preview March 2025, GA May 2025), and Power Automate flows can themselves be exposed as MCP tools/resources',
+          'No, only consumption: Copilot Studio agents can connect to external MCP servers and add their tools/resources, but Power Automate has no feature that publishes a flow as its own MCP server for external AI clients to call. See integrations.mcpPublishing for the reverse-direction detail.',
         detail:
-          'Requires generative orchestration to be enabled on the agent; tools/resources dynamically update as the connected MCP server changes.',
-        shortValue: 'Agents connect to external MCP servers; flows can expose MCP tools',
+          'Requires generative orchestration to be enabled on the agent; tools/resources dynamically update as the connected MCP server changes. The separate Power Apps MCP Server is a fixed, Microsoft-defined server with a small predefined toolset, not a way to publish a custom flow as an MCP endpoint.',
+        shortValue: 'Consumes external MCP servers only; cannot publish a flow as one',
         confidence: 'verified',
         sources: [
           {
@@ -504,17 +508,23 @@ export const powerAutomateProfile: CompetitorProfile = {
         value:
           'Yes: Copilot Studio automatically falls back to the default OpenAI GPT-4o model when a selected alternate model (such as Anthropic Claude) is disabled or unavailable',
         detail:
-          "This fallback behavior is documented for Copilot Studio's multi-model support; a separate confirmation specific to Power Automate flows was not found.",
+          "Documented directly for Copilot Studio's multi-model support ('If Anthropic models are disabled, agents built with it will automatically switch to the default model, OpenAI GPT-4o, with no additional configuration required'); a separate confirmation specific to Power Automate flows themselves was not found.",
         shortValue: 'Falls back to default OpenAI GPT-4o model',
-        confidence: 'unknown',
-        sources: [],
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.microsoft.com/en-us/microsoft-copilot/blog/copilot-studio/anthropic-joins-the-multi-model-lineup-in-microsoft-copilot-studio/',
+            label: 'Anthropic joins the multi-model lineup in Microsoft Copilot Studio',
+            asOf: '2026-07-04',
+          },
+        ],
       },
       agentSkills: {
         value:
-          "Yes: Microsoft Copilot Studio (the Power Platform's agent-building surface) supports 'Skills', reusable capabilities defined once (name, description, Markdown instructions), exported as portable Markdown/ZIP packages, and reused across multiple agents, distinct from a one-off system prompt.",
+          "Yes: Microsoft Copilot Studio (the same agent layer Power Automate's agentic flows build on) supports 'Skills', reusable capabilities defined once (name, description, Markdown instructions) using the same open, portable Markdown/SKILL.md-style format underlying the broader Agent Skills ecosystem, exported as Markdown/ZIP packages and reused across multiple agents, distinct from a one-off system prompt.",
         detail:
-          'This is a preview feature in the new Copilot Studio agent experience (part of the Power Platform, adjacent to Power Automate); skills are self-contained instruction sets separate from tools/knowledge.',
-        shortValue: "Copilot Studio 'Skills' are reusable, named, cross-agent",
+          'This is a preview feature in the new Copilot Studio agent experience (part of the Power Platform, adjacent to Power Automate); skills are self-contained, portable instruction sets separate from tools/knowledge, the same open-format approach Sim uses, rather than a proprietary lock-in format.',
+        shortValue: "Copilot Studio 'Skills': reusable, portable, cross-agent (open format)",
         confidence: 'verified',
         sources: [
           {
@@ -1145,6 +1155,32 @@ export const powerAutomateProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/power-automate/guidance/coding-guidelines/error-handling',
             label: 'Employ robust error handling - Power Automate | Microsoft Learn',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes for cloud flows: scheduled, connector-event, and webhook-triggered cloud flows run entirely on Microsoft's multi-tenant cloud service, with no dependency on any client device staying open, awake, or connected. Desktop flows (RPA) are the documented exception: unattended desktop flows still require a persistent Windows machine, either a customer-managed on-premises machine kept logged in, or a Microsoft-hosted unattended bot (the $215/bot/month tier) that removes the customer-managed-device requirement but is still a distinct, higher-cost execution mode from ordinary cloud flows.",
+        detail:
+          'Cloud flows are the default and most common Power Automate scenario; desktop flows only apply when automating legacy desktop/UI-based applications via RPA, and even the Microsoft-hosted unattended option runs on a machine instance rather than a lightweight, always-on cloud function.',
+        shortValue: 'Yes for cloud flows; unattended RPA needs a persistent machine',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
+            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing',
+            label: 'Power Automate pricing page',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/unattended-mode-cloud-flow',
+            label:
+              'Run desktop flows unattended via cloud flows - Power Automate | Microsoft Learn',
+            asOf: '2026-07-04',
           },
         ],
       },

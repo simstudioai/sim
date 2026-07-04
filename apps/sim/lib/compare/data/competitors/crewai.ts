@@ -18,6 +18,17 @@ export const crewaiProfile: CompetitorProfile = {
   },
   standoutFeatures: [
     {
+      title: 'Large, fast-growing open-source community',
+      description:
+        'The crewAIInc/crewAI GitHub repository has surpassed 54,800 stars and is MIT licensed, one of the most-starred open-source multi-agent orchestration frameworks. CrewAI reports its open-source framework executes over 10 million agents per month and is used by roughly half of the Fortune 500.',
+      shortDescription: '54,800+ GitHub stars, MIT licensed, widely adopted.',
+      source: {
+        url: 'https://github.com/crewAIInc/crewAI',
+        label: 'crewAIInc/crewAI (GitHub)',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'Dual programming model: autonomous Crews plus event-driven Flows',
       description:
         'CrewAI gives developers two composable abstractions: Crews, teams of role-based agents with autonomy over how a task gets done, and Flows, an event-driven layer (Python decorators like @start, @listen, @router) for deterministic control over state and execution order. Flows can orchestrate one or more Crews, mixing free-form agent reasoning with explicit procedural logic in the same application.',
@@ -36,17 +47,6 @@ export const crewaiProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.crewai.com/en/concepts/llms',
         label: 'LLMs - CrewAI Docs',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Large, fast-growing open-source community',
-      description:
-        'The crewAIInc/crewAI GitHub repository has surpassed 54,800 stars and is MIT licensed, one of the most-starred open-source multi-agent orchestration frameworks. CrewAI reports its open-source framework executes over 10 million agents per month and is used by roughly half of the Fortune 500.',
-      shortDescription: '54,800+ GitHub stars, MIT licensed, widely adopted.',
-      source: {
-        url: 'https://github.com/crewAIInc/crewAI',
-        label: 'crewAIInc/crewAI (GitHub)',
         asOf: '2026-07-02',
       },
     },
@@ -999,6 +999,26 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://towardsdatascience.com/how-to-implement-guardrails-for-your-ai-agents-with-crewai-80b8cb55fa43/',
             label: 'How to Implement Guardrails for Your AI Agents with CrewAI',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          'Yes for crews deployed to CrewAI AMP; the self-hosted open-source framework has no built-in scheduler of its own',
+        detail:
+          "A crew deployed to CrewAI AMP runs as a server-side job on CrewAI's own infrastructure, triggered by its kickoff API, a webhook, or a third-party scheduler (ActivePieces, Zapier, Make.com) calling that API; no client device needs to stay open for that run to fire or complete. The self-hosted open-source framework, by contrast, has no first-party scheduling daemon: a crew or flow only runs when something (a cron job, a long-running script, or a developer's own process) invokes it on a machine the operator keeps running, so unattended execution there depends on infrastructure the developer sets up themselves, not a client device.",
+        shortValue: 'Yes on AMP (server-side); self-hosted OSS needs your own scheduler/server',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.crewai.com/en/enterprise/guides/webhook-automation',
+            label: 'Webhook Automation - CrewAI Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.crewai.com/enterprise/guides/use-crew-api',
+            label: 'Trigger Deployed Crew API - CrewAI Docs',
             asOf: '2026-07-02',
           },
         ],

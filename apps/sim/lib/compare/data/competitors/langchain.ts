@@ -133,9 +133,9 @@ export const langchainProfile: CompetitorProfile = {
       shortDescription:
         'Multimodal generation happens only through provider integrations, not a dedicated first-party block.',
       source: {
-        url: 'https://docs.langchain.com/oss/python/langchain/mcp',
-        label: 'Model Context Protocol (MCP) - Docs by LangChain',
-        asOf: '2026-07-02',
+        url: 'https://docs.langchain.com/oss/python/langchain/models',
+        label: 'Models - Docs by LangChain',
+        asOf: '2026-07-04',
       },
     },
     {
@@ -472,10 +472,11 @@ export const langchainProfile: CompetitorProfile = {
       },
       dynamicToolUse: {
         value:
-          'Yes: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of tools to a model and lets the model choose, at each step, which tool (if any) to call based on its own reasoning, rather than following a fixed, pre-wired sequence of tool calls',
+          'Yes, at parity with block-based function-calling agents: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of developer-selected tools to a model and lets the model choose, at each step, which of those bound tools (if any) to call based on its own reasoning, rather than following a fixed, pre-wired sequence of tool calls',
         detail:
-          'This dynamic selection is the core mechanic LangGraph agent templates (e.g. the ReAct Agent template) are built around, and extends to MCP-provided tools loaded at runtime.',
-        shortValue: 'Yes, ReAct-style agents dynamically pick from a bound tool pool at each step',
+          "This per-step selection is the core mechanic LangGraph agent templates (e.g. the ReAct Agent template) are built around, and it is functionally the same tool-selection loop any function-calling agent block implements. The tool pool itself, including any MCP-provided tools, is still bound ahead of time by the developer; the model does not browse or pick from a broader, not-yet-wired catalog (e.g. an entire MCP server's full tool list) at inference time.",
+        shortValue:
+          'Yes, ReAct-style per-step selection among a bound tool pool, same as any function-calling agent',
         confidence: 'verified',
         sources: [
           {
@@ -548,11 +549,11 @@ export const langchainProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'Yes: the Send API lets a routing function dynamically spawn N parallel branches at runtime (not just a fixed number configured ahead of time), each processing a slice of state, with results merged back through a state reducer once all branches complete. This is a native map-reduce/fan-out-fan-in pattern.',
+          'Yes: the Send API lets a routing function dynamically spawn one parallel branch per item in a collection of unknown length at runtime, each processing a slice of state, with results merged back through a state reducer once all branches complete. This is a native map-reduce/fan-out-fan-in pattern.',
         detail:
-          'This differs from a small, statically fixed number of parallel branches: the number of concurrent executions is determined by the routing function at run time, based on the size of whatever collection it is fanning out over.',
+          "This is a code-level equivalent of a 'fan out one branch per list item' pattern: the number of concurrent executions is determined by the routing function at run time, based on the size of whatever collection it is fanning out over, the same run-time-determined-count model that block-based parallel constructs also support alongside a fixed-count mode.",
         shortValue:
-          'Yes, Send API dynamically fans out to N parallel branches, merged via a reducer',
+          'Yes, Send API fans out one branch per list item at runtime, merged via a reducer',
         confidence: 'verified',
         sources: [
           {
@@ -644,8 +645,13 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://forum.langchain.com/t/langgraph-platform-deployment-failing/443',
-            label: 'LangGraph Platform - forum reference on deployment interfaces',
+            url: 'https://docs.langchain.com/langsmith/agent-server',
+            label: 'Agent Server - Docs by LangChain',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/server-a2a',
+            label: 'A2A endpoint in Agent Server - Docs by LangChain',
             asOf: '2026-07-02',
           },
         ],
@@ -1014,6 +1020,26 @@ export const langchainProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          'Yes, once deployed: a run started against the LangGraph Agent Server (managed LangSmith Deployment cloud, a self-hosted container, or hybrid) executes entirely server-side against its Redis/Postgres backend, with no dependency on a client device staying open, awake, or connected; interrupt()-paused runs likewise sit server-side across an arbitrary human-response gap.',
+        detail:
+          "This requires the graph to already be deployed to the Agent Server; LangChain/LangGraph itself has no built-in trigger picker (schedule, webhook, connector event), so a developer's own cron job, webhook handler, or queue consumer is what calls the Agent Server API to start the run in the first place. Once that call is made, the run's execution has no further tie to the caller's device.",
+        shortValue: 'Yes once deployed to the Agent Server; the trigger itself is hand-wired',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/assistants',
+            label: 'Assistants - Docs by LangChain',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/langchain-ai/langgraph/blob/main/docs/docs/cloud/deployment/standalone_container.md',
+            label: 'Standalone container deployment docs (langgraph GitHub)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1078,9 +1104,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $260M), with reported headcount in the roughly 260-325 employee range as of mid-2026',
+          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $160M across seed, Series A, and Series B), with reported headcount in the roughly 260-325 employee range as of mid-2026',
         detail:
-          'Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.',
+          "Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). $10M + $25M + $125M totals approximately $160M; some third-party trackers report a higher ~$260M cumulative figure, which appears to double-count TechCrunch's July 2025 report of an in-progress raise (at a reported $1.1B valuation) as a separate round from its October 2025 close (the same round, at $1.25B) rather than an additional close, so $160M is the figure directly supported by LangChain's own funding announcement and primary reporting. Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.",
         shortValue:
           'Founded 2022; $125M Series B (Oct 2025) at $1.25B valuation; ~260-325 employees',
         confidence: 'verified',

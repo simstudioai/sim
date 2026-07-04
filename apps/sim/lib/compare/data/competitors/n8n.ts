@@ -72,14 +72,15 @@ export const n8nProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Natural-language AI Workflow Builder',
+      title: 'Instance-level MCP server lets any external AI client build workflows',
       description:
-        "A beta 'AI Workflow Builder' converts a plain-text description into a draft, editable node workflow, with multi-turn refinement via chat. Currently available on Cloud (Trial/Starter/Pro), with Enterprise and self-hosted availability planned for later.",
-      shortDescription: 'Generates an editable draft workflow from a plain-text prompt.',
+        "A native, instance-level MCP server (Public Preview) exposes tools to create, validate, test, and publish n8n workflows over MCP, so any MCP-compatible AI client, such as Claude Desktop, ChatGPT, Cursor, or Windsurf, can build and iterate on workflows directly, not just n8n's own in-app chat. It ships in every edition, including Cloud, Enterprise, and the free self-hosted Community Edition.",
+      shortDescription:
+        'MCP server lets Claude, ChatGPT, Cursor, or Windsurf build workflows directly.',
       source: {
-        url: 'https://docs.n8n.io/advanced-ai/ai-workflow-builder/',
-        label: 'n8n AI Workflow Builder docs',
-        asOf: '2026-07-02',
+        url: 'https://blog.n8n.io/n8n-mcp-server/',
+        label: "n8n Blog: n8n's MCP server can now build workflows",
+        asOf: '2026-07-04',
       },
     },
   ],
@@ -722,7 +723,7 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'No broad multi-language official SDK; extensibility is via the public REST API, the official n8n CLI, and a node-development toolkit',
         detail:
-          "There is no first-party Python/Go/Java client. Instead, extensibility centers on four things: an official TypeScript package (@n8n/rest-api-client) that wraps n8n's public REST API; an n8n CLI for scripting, CI/CD, or agent use; a node-development kit (the n8n-node CLI plus scaffolding and code-standards docs) for building custom or community nodes in TypeScript, with an official verification program for submission; and a large community-nodes ecosystem, installable per self-hosted instance, alongside 400+ built-in integrations. n8n's own 2026 AI Agent Development Tools report scores n8n 0 out of 2 on \"A2A protocol\" (Agent2Agent interop), versus Sim's 2 out of 2, backed by Sim's dedicated A2A block.",
+          "There is no first-party Python/Go/Java client. Instead, extensibility centers on four things: an official TypeScript package (@n8n/rest-api-client) that wraps n8n's public REST API; an n8n CLI for scripting, CI/CD, or agent use; a node-development kit (the n8n-node CLI plus scaffolding and code-standards docs) for building custom or community nodes in TypeScript, with an official verification program for submission; and a large community-nodes ecosystem, installable per self-hosted instance, alongside 400+ built-in integrations.",
         shortValue: 'REST API, CLI, and node-development kit',
         confidence: 'verified',
         sources: [
@@ -739,11 +740,6 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://docs.n8n.io/integrations/creating-nodes/build/reference/code-standards/',
             label: 'Code standards | n8n Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-            label: 'n8n: 2026 AI Agent Development Tools report (A2A protocol score)',
             asOf: '2026-07-02',
           },
         ],
@@ -865,29 +861,36 @@ export const n8nProfile: CompetitorProfile = {
       auditLogging: {
         value: 'Yes: audit logging available, primarily an Enterprise-tier feature',
         detail:
-          "n8n collects and centrally stores server/audit logs queryable by authorized users, retaining at least 12 months of history, with SIEM export/log streaming. Per the pricing page, unlimited execution log retention and enforced audit logging are listed under the Enterprise tier's feature set.",
-        shortValue: 'Mainly an Enterprise-tier feature',
-        confidence: 'estimated',
-        sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' }],
+          "n8n's security page states audit log history and historical activity records are kept for at least 12 months, with at least the last three months immediately available for analysis, and collects/centrally stores these logs for authorized users with SIEM export/log streaming. Per the pricing page, unlimited execution log retention and enforced audit logging are listed under the Enterprise tier's feature set.",
+        shortValue: 'Mainly an Enterprise-tier feature, 12+ months retention',
+        confidence: 'verified',
+        sources: [
+          { url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://n8n.io/legal/security/',
+            label: 'Security | n8n (audit log retention)',
+            asOf: '2026-07-04',
+          },
+        ],
       },
       additionalCompliance: {
         value:
-          'GDPR (as data processor) and SOC 2 Type II / SOC 3; no HIPAA, ISO 27001, PCI, or FedRAMP certification found',
+          'GDPR (as data processor) and a publicly downloadable SOC 3 report; SOC 2 report available on request, not a certified SOC 2 Type II; no HIPAA, ISO 27001, PCI, or FedRAMP certification found',
         detail:
-          "n8n's Trust Center (SafeBase-hosted) and legal/security page list GDPR compliance (as a data processor with a standard DPA) and SOC 2 Type II plus a public SOC 3 report, with CAIQ self-assessment questionnaires available for both cloud and self-hosted deployments. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.",
-        shortValue: 'GDPR, SOC 2 Type II, SOC 3',
+          "n8n's Trust Center (SafeBase-hosted) and legal/security page list GDPR compliance (as a data processor with a standard DPA), CAIQ self-assessment questionnaires for both cloud and self-hosted deployments, and a SOC 3 report that is publicly downloadable from the Security page. Its security program is aligned to the SOC 2 framework with annual independent audits, but n8n does not claim a certified SOC 2 Type II attestation, and the SOC 2 report itself is provided to enterprise customers on request rather than published. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.",
+        shortValue: 'GDPR, public SOC 3, SOC 2 aligned (report on request)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://trust.n8n.io/',
             label: 'n8n Trust Center | Powered by SafeBase',
-            asOf: '2026-07-02',
+            asOf: '2026-07-04',
           },
-          { url: 'https://n8n.io/legal/security/', label: 'Security | n8n', asOf: '2026-07-02' },
+          { url: 'https://n8n.io/legal/security/', label: 'Security | n8n', asOf: '2026-07-04' },
           {
             url: 'https://support.n8n.io/article/request-for-soc-2-report',
             label: 'Request for SOC-2 report | n8n Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1170,6 +1173,27 @@ export const n8nProfile: CompetitorProfile = {
             url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.errortrigger',
             label: 'n8n Docs: Error Trigger node',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: scheduled, webhook, and other trigger-based executions run on n8n's own servers (n8n Cloud) or on the self-hosted n8n server process, not on a user's local machine",
+        detail:
+          "On n8n Cloud, n8n operates the infrastructure, so a trigger-based workflow fires and completes with no dependency on any user's browser tab or device staying open. Self-hosted n8n instead depends on the operator's own server/container (Docker, Kubernetes, or a host machine) staying up, since n8n is a server process rather than a desktop app; as long as that server process is running, individual client devices can disconnect freely.",
+        shortValue:
+          "Runs on n8n's server (Cloud) or the operator's own server (self-hosted); no client device dependency",
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/choose-how-to-use-n8n.md',
+            label: 'n8n docs: Choose how to use n8n',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.n8n.io/hosting/',
+            label: 'n8n Docs: Hosting n8n',
+            asOf: '2026-07-04',
           },
         ],
       },

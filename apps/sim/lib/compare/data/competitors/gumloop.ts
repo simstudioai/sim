@@ -299,10 +299,10 @@ export const gumloopProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          'No: Gumloop does not appear to have a native, first-class spreadsheet-like data table with its own row/column limits and keyboard navigation. Tabular work runs through external integrations (Google Sheets, Airtable, Postgres, Supabase) and a "List of Lists" data type for passing table-shaped data between nodes, rather than an in-app database/table object.',
+          'No: Gumloop has no native, first-class spreadsheet-like data-grid primitive with its own typed columns, row/column limits, and keyboard navigation (arrow keys, Tab, copy-paste, undo) wired directly into agent runs. Tabular work instead runs through external connector nodes (Google Sheets, Airtable, Postgres, Supabase) and a "List of Lists" data type for passing table-shaped data between nodes, not an in-app database/table object a workflow can read from and write to as storage.',
         detail:
-          'Gumloop added "table support ... for better data visualization," per its changelog, but no documentation describes a persistent, spreadsheet-navigable data table entity comparable to a native DB feature.',
-        shortValue: 'No: relies on external Sheets/Airtable, no native tables',
+          'Gumloop added "table support ... for better data visualization," per its changelog, which is a display/rendering feature for showing tabular data in the UI, not a persistent, spreadsheet-navigable data table entity a workflow can use as its own storage layer. This is a real capability gap versus a native, spreadsheet-like data-grid feature built into the product.',
+        shortValue: 'No: no native data-grid; only external Sheets/Airtable connectors',
         confidence: 'estimated',
         sources: [
           {
@@ -761,7 +761,7 @@ export const gumloopProfile: CompetitorProfile = {
         value:
           'SOC 2 Type II attested; also HIPAA-compliant with BAAs available on eligible plans, and GDPR-aligned with EU-U.S. Data Privacy Framework (incl. UK Extension) certification',
         shortValue: 'SOC 2 Type II, HIPAA, GDPR-aligned',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/solutions/security',
@@ -835,12 +835,24 @@ export const gumloopProfile: CompetitorProfile = {
         ],
       },
       modelAndToolGovernance: {
-        value: 'Unknown',
+        value:
+          'Yes for models: an org-wide AI Model Control setting lets admins restrict members to an allow-list or block-list of models, set automatic fallback models (including a separate fallback for image generation), and override the default Recommended/Smartest/Fastest presets so all agents use consistent model choices. Tool governance is handled separately via the per-tool authorization policies covered under RBAC/ABAC, not a distinct model-and-tool control surface.',
         detail:
-          'Not documented as a distinct capability beyond the per-tool authorization policies covered under RBAC and the model allow/deny controls covered under generativeMedia.',
-        shortValue: 'Not separately documented',
-        confidence: 'unknown',
-        sources: [],
+          "Gumloop's docs describe AI Model Control as an Enterprise admin feature applying platform-wide to every member ('Allow Only Selected' or 'Block Selected' modes), not scoped per-team or per-agent. It covers only which LLMs are usable and their fallback/preset routing; it makes no mention of restricting access to non-model tools, which is instead covered by the RBAC/ABAC per-tool authorization policies documented separately.",
+        shortValue: 'Yes: org-wide model allow/deny with fallback; tool governance via RBAC',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/enterprise-features/ai_model_control',
+            label: 'Gumloop Docs: AI Model Control',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://www.gumloop.com/solutions/security',
+            label: 'Gumloop Security & Trust',
+            asOf: '2026-07-02',
+          },
+        ],
       },
       credentialGovernance: {
         value:
@@ -1058,6 +1070,26 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://docs.gumloop.com/nodes/flow_basics/error_shield',
             label: 'Gumloop Docs: Error Shield node',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: scheduled, webhook, and API-triggered runs execute on Gumloop's own cloud infrastructure with no dependency on a client device staying open, awake, or connected",
+        detail:
+          "Gumloop's own asyncExecution pattern confirms this: a POST to the start_pipeline API returns a run_id immediately and the run continues on Gumloop's servers, polled later via get_pl_run. Schedule, webhook, and API triggers documented under integrations.triggerTypes are server-side entry points into the same hosted platform, not a desktop app or local agent; there is no published requirement for a browser tab, desktop client, or local session to stay active for a triggered run to fire or finish.",
+        shortValue: 'Yes: runs execute on Gumloop servers, no client dependency',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/api-reference/getting-started',
+            label: 'Gumloop API Reference: Getting Started',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/workflow_triggers',
+            label: 'Gumloop docs: Workflow Triggers',
             asOf: '2026-07-02',
           },
         ],

@@ -5,7 +5,7 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const stackaiProfile: CompetitorProfile = {
   id: 'stack-ai',
   name: 'StackAI',
-  website: 'https://www.stack-ai.com',
+  website: 'https://www.stackai.com',
   brand: {
     icon: StackAIIcon,
     selfFramed: true,
@@ -16,6 +16,17 @@ export const stackaiProfile: CompetitorProfile = {
   oneLiner:
     'StackAI is a proprietary, enterprise-focused visual platform for building, deploying, and governing AI agents, connecting LLMs and business systems through a drag-and-drop, low-code node builder.',
   standoutFeatures: [
+    {
+      title: 'On-prem / VPC self-hosted deployment for enterprise',
+      description:
+        "The Enterprise plan supports on-premise or VPC deployment behind the customer's own VPN/network, alongside dedicated infrastructure and SSO/access controls.",
+      shortDescription: 'Enterprise-only on-prem or VPC deployment with dedicated infrastructure.',
+      source: {
+        url: 'https://www.stackai.com/pricing',
+        label: 'StackAI Pricing',
+        asOf: '2026-07-02',
+      },
+    },
     {
       title: 'Agentic Development Life Cycle (dev/staging/production promotion)',
       description:
@@ -46,17 +57,6 @@ export const stackaiProfile: CompetitorProfile = {
       source: {
         url: 'https://www.stackai.com/blog/introducing-stackai-human-in-the-loop-agentic-workflows-you-can-trust',
         label: 'Introducing StackAI Human-in-the-Loop - StackAI blog',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'On-prem / VPC self-hosted deployment for enterprise',
-      description:
-        "The Enterprise plan supports on-premise or VPC deployment behind the customer's own VPN/network, alongside dedicated infrastructure and SSO/access controls.",
-      shortDescription: 'Enterprise-only on-prem or VPC deployment with dedicated infrastructure.',
-      source: {
-        url: 'https://www.stackai.com/pricing',
-        label: 'StackAI Pricing',
         asOf: '2026-07-02',
       },
     },
@@ -300,10 +300,15 @@ export const stackaiProfile: CompetitorProfile = {
       multiLlmSupport: {
         value: 'Yes, broad support across major LLM providers',
         detail:
-          'Supports a wide range of LLMs, with documented data processing agreements with OpenAI and Anthropic.',
+          'The LLM node is provider-agnostic with a model dropdown, and StackAI docs confirm OpenAI models directly and via Azure hosting, plus AWS Bedrock-hosted models including Anthropic Claude, AI21, Cohere, and Amazon Titan. StackAI also documents data processing agreements with OpenAI and Anthropic.',
         shortValue: 'Broad LLM provider support',
         confidence: 'estimated',
         sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/llm-hosting-and-governance/llms-hosted-on-azure-and-aws-bedrock',
+            label: 'LLMs Hosted on Azure & AWS Bedrock - StackAI Docs',
+            asOf: '2026-07-04',
+          },
           {
             url: 'https://trust.stackai.com/',
             label: 'StackAI Trust Center (OpenAI/Anthropic DPAs)',
@@ -383,13 +388,13 @@ export const stackaiProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stack-ai.com/stack-ai/workflow-builder/outputs/image-node',
+            url: 'https://docs.stackai.com/workflow-builder/outputs/image-node',
             label: 'Image Node - StackAI Docs',
             asOf: '2026-07-02',
           },
           {
-            url: 'https://www.stack-ai.com/docs/builder-guide/actions/text-to-audio',
-            label: 'Text to Audio - StackAI Docs',
+            url: 'https://docs.stackai.com/workflow-builder/outputs/audio-node',
+            label: 'Audio Node - StackAI Docs',
             asOf: '2026-07-02',
           },
         ],
@@ -408,11 +413,11 @@ export const stackaiProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          'Yes: StackAI has a Prompt Library where builders save and reuse named prompts/instructions (e.g. a saved "Market Analyst Persona") across agents, rather than re-writing a one-off system prompt each time.',
+          'Yes, but proprietary and platform-locked: a Prompt Library where builders save and reuse named prompts/instructions (e.g. a saved "Market Analyst Persona") across agents, rather than re-writing a one-off system prompt each time.',
         detail:
-          'Documented as a prompt/instruction library, not explicitly branded as "skills" with structured knowledge attachments the way some competitors frame it.',
-        shortValue: 'Yes, via reusable Prompt Library',
-        confidence: 'verified',
+          "Documented as a prompt/instruction library stored inside a StackAI workspace, not an open, portable file format. StackAI's docs do not describe exporting a saved prompt as a standalone file or importing one from an external source or repository URL, the way some competitors build reusable skills on an open, version-controllable format. There is also no documented progressive-disclosure loading mechanism (only a short name/description surfaced until needed); the full prompt appears to load in full whenever it's attached.",
+        shortValue: 'Yes, but a proprietary Prompt Library, not an open/portable format',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/other-views/prompt-library',
@@ -478,7 +483,7 @@ export const stackaiProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.stack-ai.com/stack-ai/logic/if-else-node',
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/if-else-node',
             label: 'If/Else Node docs',
             asOf: '2026-07-02',
           },
@@ -517,15 +522,15 @@ export const stackaiProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '100+ enterprise integrations',
+        value: '70+ enterprise integrations',
         detail:
-          'Includes Notion, Airtable, AWS, BigQuery, GitHub, Google Workspace, HubSpot, MongoDB, and MCP.',
-        shortValue: '100+ integrations',
+          'StackAI documentation states it connects to 70+ apps and services, including Notion, Airtable, AWS, BigQuery, GitHub, Google Workspace, HubSpot, MongoDB, and MCP. Some marketing pages cite a higher "100+" figure, but the documented apps list supports 70+.',
+        shortValue: '70+ integrations',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.stackai.com/integrations',
-            label: 'StackAI Integrations page',
+            url: 'https://docs.stackai.com/workflow-builder/apps',
+            label: 'StackAI Apps documentation (70+ apps and services)',
             asOf: '2026-07-02',
           },
         ],
@@ -678,13 +683,21 @@ export const stackaiProfile: CompetitorProfile = {
         ],
       },
       auditLogging: {
-        value: 'Yes: automatic logs of every run, capturing input/output, token usage, and runtime',
-        shortValue: 'Automatic per-run execution logs',
-        confidence: 'verified',
+        value:
+          'Yes: automatic logs of every run, capturing input/output, token usage, and runtime, queryable through a pull-based Analytics API (filterable by run ID, status, user, and date range)',
+        detail:
+          'The Analytics API is request/response only: a builder calls it to list flow runs or an org-level run summary. There is no documented continuous push/export of these logs to an external destination such as S3, BigQuery, Datadog, or a generic webhook sink, and no separate public audit-log API distinct from execution logs.',
+        shortValue: 'Automatic per-run logs via a pull-based API, no export destination',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
             label: 'StackAI Platform Overview docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/analytics.md',
+            label: 'StackAI API Reference: Analytics',
             asOf: '2026-07-02',
           },
         ],
@@ -905,6 +918,26 @@ export const stackaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.stackai.com/guides-and-tips/stackai-hacks/handling-errors-and-fallback.md',
             label: 'StackAI: Handling Errors & Fallback (Fallback Branch, Retry on Failure)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: StackAI is a multi-tenant cloud SaaS (each org gets an isolated partition on shared AWS/Azure/GCP infrastructure, or a dedicated VPC/on-prem deployment on Enterprise), and scheduled, chat, form, Slack, Teams, and API-triggered runs are executed and logged (runtime, tokens, input/output) through that hosted infrastructure rather than a builder's own machine.",
+        detail:
+          "StackAI's docs do not use explicit language like 'no client device dependency' the way some competitors do; this is inferred from its documented deployment model (cloud SaaS or Enterprise VPC/on-prem) and its scheduled-workflow and execution-log features, none of which describe or require a desktop app, browser tab, or local session staying open.",
+        shortValue: 'Yes, inferred from its hosted SaaS/VPC execution model',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.stackai.com/solutions/self-hosted',
+            label: 'StackAI Self-Hosted Solutions page',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.stackai.com/insights/how-to-set-up-scheduled-ai-workflows-and-automated-reports-on-stackai',
+            label: 'Scheduled AI Workflows - StackAI insights',
             asOf: '2026-07-02',
           },
         ],

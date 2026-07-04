@@ -945,7 +945,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           "Partial: Zapier's App Directory is an open developer ecosystem, not a closed first-party catalog. Any developer can build an integration on the Zapier Developer Platform and submit it for public listing. Zapier's review checks publishing/technical requirements (HTTPS-only endpoints, no hardcoded credentials, OAuth verification) rather than a deep security audit, and Zapier tells customers these apps are 'owned and operated by third parties' and that users are responsible for evaluating trust in the developer.",
         detail:
-          "Zapier's Partner Program docs describe review turnaround of up to 21 business days against publishing standards, and OAuth verification is framed as 'a helpful start' rather than a guarantee of an app's suitability. No security incident tied to a malicious third-party app published in the App Directory was found; separate publicly reported incidents (a 2025 repository breach exposing debug logs, and a 2025 npm supply-chain compromise of Zapier's own published packages) involved Zapier's internal infrastructure and package registry, not the App Directory's third-party integration ecosystem.",
+          "Zapier's Partner Program docs describe review turnaround of up to 21 business days against publishing standards, and OAuth verification is framed as 'a helpful start' rather than a guarantee of an app's suitability. No security incident tied to a malicious third-party app published in the App Directory was found; separate publicly reported incidents (a February 2025 code-repository breach where customer data had been copied into repos for debugging, caused by a 2FA misconfiguration on an employee account, and a November 2025 npm supply-chain compromise of Zapier's own published developer-platform packages via the Shai-Hulud worm) involved Zapier's internal infrastructure and package registry, not the App Directory's third-party integration ecosystem.",
         shortValue: 'Partial: open app directory, lighter technical review',
         confidence: 'verified',
         sources: [
@@ -963,6 +963,16 @@ export const zapierProfile: CompetitorProfile = {
             url: 'https://help.zapier.com/hc/en-us/articles/17709950386573-Data-safety-when-using-Zapier-embedded-in-other-apps',
             label: 'Data safety when using Zapier embedded in other apps',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.zapier.com/platform/build-cli/inc-547',
+            label: 'Unauthorized Access to Zapier NPM Packages (official incident report)',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://www.scworld.com/brief/cyber-incident-potentially-compromises-zapier-customer-data',
+            label: 'Cyber incident potentially compromises Zapier customer data',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1134,6 +1144,26 @@ export const zapierProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          "Yes: scheduled, webhook, and polling-triggered Zaps run entirely on Zapier's own cloud servers, with no desktop app, local agent, or open browser tab required",
+        detail:
+          "Zapier is a cloud SaaS platform, not installed local software. Once a Zap is turned on, Zapier's servers poll connected apps or listen for pushed webhook events on its own infrastructure; the user's device can be closed or disconnected without affecting a scheduled or triggered run.",
+        shortValue: 'Runs server-side; no dependency on a client device staying open',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/37518970271245-What-is-Zapier',
+            label: 'What is Zapier?',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/8496244568589-How-Zap-triggers-work',
+            label: 'How Zap triggers work',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1152,11 +1182,17 @@ export const zapierProfile: CompetitorProfile = {
       },
       sla: {
         value:
-          'Tiered response-time targets: Professional ~8hr weekday/24hr weekend; Team ~1hr first response/4hr follow-up; Enterprise ~30min first response/15min for critical issues, with a Technical Account Manager offering ~6 hours/month of support',
+          'Tiered response-time targets (goals, not contractual guarantees): Professional ~8hr weekday/24hr weekend; Team ~1hr first response/4hr follow-up; Enterprise ~30min first response/1hr follow-up, with a Technical Account Manager offering ~6 hours/month of support',
+        detail:
+          "Zapier's help center states these targets are goals for support responses, not service-level guarantees, and actual response times may vary with volume and request complexity.",
         shortValue: 'Tiered response times, fastest on Enterprise',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
-          { url: 'https://zapier.com/enterprise', label: 'Zapier Enterprise', asOf: '2026-07-02' },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/8496213764877-Get-help-and-support-with-Zapier',
+            label: 'Get help and support with Zapier',
+            asOf: '2026-07-04',
+          },
         ],
       },
       community: {

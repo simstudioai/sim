@@ -89,7 +89,7 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'Smaller integration catalog than the largest generalist automation platforms',
       description:
-        "Sim ships 302 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (7,000+ apps) or Pipedream (1,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
+        "Sim ships 302 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (9,000+ apps) or Pipedream (3,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
       shortDescription:
         "302 blocks and ~3,900 tool actions, versus Zapier and Pipedream's larger raw app counts.",
       source: {
@@ -359,8 +359,9 @@ export const simProfile: CompetitorProfile = {
       },
       knowledgeBaseRag: {
         value:
-          'Yes: native hybrid vector (pgvector) + keyword search knowledge base, 11 supported file formats, configurable chunking',
-        shortValue: 'Hybrid vector + keyword search, 11 file formats',
+          'Yes: native hybrid vector (pgvector) + keyword search knowledge base, 11 supported file formats, configurable chunking, plus 51 connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload',
+        shortValue:
+          'Hybrid vector + keyword search, 11 file formats, 51 continuously-synced connectors',
         confidence: 'verified',
         sources: [
           {
@@ -372,6 +373,11 @@ export const simProfile: CompetitorProfile = {
             url: 'https://docs.sim.ai/knowledgebase',
             label: 'Sim Docs: Knowledge Base document types',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/connectors/registry.ts',
+            label: 'Sim codebase: connector registry (51 connectors)',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -594,14 +600,20 @@ export const simProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value:
-          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.)',
-        shortValue: 'Webhook, cron, chat, REST API, triggers for 61 apps',
+          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.), plus a native row-level trigger on Sim Tables that fires on insert/update with an optional column watch-list and emits a before/after diff',
+        shortValue:
+          'Webhook, cron, chat, REST API, 61 app triggers, plus a diff-aware Tables trigger',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/triggers',
             label: 'Sim Docs: Triggers overview',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/triggers/table/poller.ts',
+            label: 'Sim codebase: Table row trigger',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -642,10 +654,20 @@ export const simProfile: CompetitorProfile = {
       },
       extensibilitySdk: {
         value:
-          'No official client SDK. The API is REST-only via an x-api-key header. Extensibility instead comes from MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
-        shortValue: 'No SDK; MCP, code block, and A2A protocol instead',
+          'Official client SDKs exist for Python (simstudio-sdk, pip install simstudio-sdk) and TypeScript/JavaScript (simstudio-ts-sdk, npm install simstudio-ts-sdk), both wrapping the REST API (x-api-key header) with methods like execute_workflow / executeWorkflow, retry-with-backoff, and usage-limit lookups. Extensibility is further extended by MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
+        shortValue: 'Official Python and TypeScript SDKs, plus MCP, code block, and A2A protocol',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.sim.ai/api-reference/python',
+            label: 'Sim Docs: Python SDK',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.sim.ai/api-reference/typescript',
+            label: 'Sim Docs: TypeScript SDK',
+            asOf: '2026-07-04',
+          },
           {
             url: 'https://docs.sim.ai/mcp',
             label: 'Sim Docs: Using MCP Tools',
@@ -1053,6 +1075,26 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/execution/edge-manager.ts',
             label: 'Sim codebase: error-output edge routing',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: scheduled, webhook, and chat-triggered runs execute as background jobs on trigger.dev workers, entirely on Sim's servers",
+        detail:
+          'No client device needs to be open, awake, or connected for a run to fire or complete; closing the browser tab or shutting down a laptop has no effect on a scheduled or triggered workflow.',
+        shortValue: 'Runs server-side; no dependency on a client device staying open',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/core/async-jobs/backends/trigger-dev.ts',
+            label: 'Sim codebase: trigger.dev background job backend',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.sim.ai/triggers',
+            label: 'Sim Docs: Triggers',
             asOf: '2026-07-02',
           },
         ],
