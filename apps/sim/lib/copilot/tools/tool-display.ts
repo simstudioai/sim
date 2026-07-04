@@ -74,7 +74,6 @@ function workspaceFileTitle(args: ToolArgs): string {
 const TOOL_TITLES: Record<string, string> = {
   read: 'Reading file',
   search_library_docs: 'Searching library docs',
-  user_memory: 'Accessing memory',
   user_table: 'Managing table',
   run_code: 'Running code',
   query_user_table: 'Querying table',
