@@ -1,3 +1,5 @@
+'use client'
+
 import { Chip } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { CredentialDetailLayout } from '@/app/workspace/[workspaceId]/components/credential-detail'
