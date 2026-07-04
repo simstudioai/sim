@@ -534,6 +534,12 @@ export interface GetUsageLogsOptions {
   /** Cursor for pagination (log ID) */
   cursor?: string
   /**
+   * The cursor row's `createdAt`, when the caller already has it (e.g. a
+   * multi-page export loop holding the previous page's rows in memory).
+   * Skips the row lookup that would otherwise resolve it from `cursor`.
+   */
+  cursorCreatedAt?: Date
+  /**
    * Whether to compute the full-filter `summary` aggregate (default `true`).
    * A cursor-paginated caller collecting every page (e.g. a CSV export) only
    * needs `logs` from each page and would otherwise pay for the same
@@ -591,6 +597,7 @@ export async function getUserUsageLogs(
     endDate,
     limit = 50,
     cursor,
+    cursorCreatedAt,
     includeSummary = true,
   } = options
 
@@ -614,20 +621,24 @@ export async function getUserUsageLogs(
     }
 
     if (cursor) {
-      // Cursor resolution stays on the primary: the page itself reads a
-      // load-balanced replica, and a laggier sibling replica missing the cursor
-      // row would silently restart pagination from page 1.
-      const cursorLog = await db
-        .select({ createdAt: usageLog.createdAt })
-        .from(usageLog)
-        .where(eq(usageLog.id, cursor))
-        .limit(1)
+      let resolvedCursorCreatedAt = cursorCreatedAt
 
-      if (cursorLog.length > 0) {
-        const cursorCreatedAt = cursorLog[0].createdAt
+      if (!resolvedCursorCreatedAt) {
+        // Cursor resolution stays on the primary: the page itself reads a
+        // load-balanced replica, and a laggier sibling replica missing the
+        // cursor row would silently restart pagination from page 1.
+        const cursorLog = await db
+          .select({ createdAt: usageLog.createdAt })
+          .from(usageLog)
+          .where(eq(usageLog.id, cursor))
+          .limit(1)
+        resolvedCursorCreatedAt = cursorLog[0]?.createdAt
+      }
+
+      if (resolvedCursorCreatedAt) {
         const cursorCondition = or(
-          lt(usageLog.createdAt, cursorCreatedAt),
-          and(eq(usageLog.createdAt, cursorCreatedAt), lt(usageLog.id, cursor))
+          lt(usageLog.createdAt, resolvedCursorCreatedAt),
+          and(eq(usageLog.createdAt, resolvedCursorCreatedAt), lt(usageLog.id, cursor))
         )
         if (cursorCondition) conditions.push(cursorCondition)
       }

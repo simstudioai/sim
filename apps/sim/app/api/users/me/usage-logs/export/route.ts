@@ -43,6 +43,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const rows: Awaited<ReturnType<typeof getUserUsageLogs>>['logs'] = []
   let cursor: string | undefined
+  let cursorCreatedAt: Date | undefined
   let truncated = false
   while (rows.length < EXPORT_SAFETY_CAP) {
     const page = await getUserUsageLogs(auth.userId, {
@@ -52,12 +53,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       endDate: dateRange.endDate,
       limit: Math.min(EXPORT_PAGE_SIZE, EXPORT_SAFETY_CAP - rows.length),
       cursor,
+      cursorCreatedAt,
       includeSummary: false,
     })
     rows.push(...page.logs)
     if (!page.pagination.hasMore) break
     truncated = rows.length >= EXPORT_SAFETY_CAP
     cursor = page.pagination.nextCursor
+    const lastRow = page.logs[page.logs.length - 1]
+    cursorCreatedAt = lastRow ? new Date(lastRow.createdAt) : undefined
   }
 
   if (truncated) {

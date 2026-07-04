@@ -173,7 +173,10 @@ describe('GET /api/users/me/usage-logs/export', () => {
     expect(mockGetUserUsageLogs).toHaveBeenNthCalledWith(
       2,
       'user-1',
-      expect.objectContaining({ cursor: 'log-1' })
+      expect.objectContaining({
+        cursor: 'log-1',
+        cursorCreatedAt: new Date('2026-07-01T00:00:00.000Z'),
+      })
     )
     expect(csv.split('\n')).toHaveLength(3)
   })
