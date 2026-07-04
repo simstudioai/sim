@@ -428,10 +428,10 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       mcpSupport: {
         value:
-          'No, only consumption: Copilot Studio agents can connect to external MCP servers and add their tools/resources, but Power Automate has no feature that publishes a flow as its own MCP server for external AI clients to call. See integrations.mcpPublishing for the reverse-direction detail.',
+          'Yes, as a client: Copilot Studio agents can connect to external MCP servers and add their tools/resources. Power Automate has no feature that publishes a flow as its own MCP server for external AI clients to call; see integrations.mcpPublishing for that reverse-direction detail.',
         detail:
           'Requires generative orchestration to be enabled on the agent; tools/resources dynamically update as the connected MCP server changes. The separate Power Apps MCP Server is a fixed, Microsoft-defined server with a small predefined toolset, not a way to publish a custom flow as an MCP endpoint.',
-        shortValue: 'Consumes external MCP servers only; cannot publish a flow as one',
+        shortValue: 'Consumes external MCP servers as a client; cannot publish a flow as one',
         confidence: 'verified',
         sources: [
           {
