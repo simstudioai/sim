@@ -13,6 +13,7 @@ import { getSession } from '@/lib/auth'
 import {
   assertKnownSizeWithinLimit,
   isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -32,7 +33,6 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createErrorResponse, InvalidRequestError } from '@/app/api/files/utils'
 
 const ALLOWED_EXTENSIONS = new Set<string>(SUPPORTED_ATTACHMENT_EXTENSIONS)
-const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 function validateFileExtension(filename: string): boolean {
   const extension = filename.split('.').pop()?.toLowerCase()
