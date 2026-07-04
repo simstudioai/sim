@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { Music } from 'lucide-react'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
-import { getBrowserOrigin } from '@/lib/core/utils/urls'
+import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import type { ChatFile } from '@/app/(interfaces)/chat/components/message/message'
 
 const logger = createLogger('ChatFileDownload')
@@ -52,21 +52,6 @@ function isImageFile(mimeType: string): boolean {
 
 function getFileUrl(file: ChatFile): string {
   return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
-}
-
-/**
- * Validates that a URL uses an http(s) scheme before it is opened in a new window.
- * Rejects `javascript:`, `data:`, `blob:`, `vbscript:`, and other schemes that could
- * execute script in the chat origin, since `file.url` originates from untrusted
- * workflow/agent output.
- */
-export function isSafeHttpUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url, getBrowserOrigin() ?? undefined)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
 }
 
 async function triggerDownload(url: string, filename: string): Promise<void> {
