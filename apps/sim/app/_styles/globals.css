@@ -225,7 +225,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #1a5cf6;
-    --selection-muted: rgba(26, 92, 246, 0.28);
+    --selection-muted: #1a5cf647;
     --warning: #ea580c;
 
     /* Inverted surface (dark chrome on light page, e.g. tag dropdown) */
@@ -383,7 +383,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #4b83f7;
-    --selection-muted: rgba(75, 131, 247, 0.35);
+    --selection-muted: #4b83f759;
     --warning: #ff6600;
 
     /* Inverted surface (in dark mode, falls back to standard surfaces) */
