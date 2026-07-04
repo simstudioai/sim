@@ -111,6 +111,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const block = await publishCustomBlock({
       organizationId,
+      workspaceId,
       workflowId,
       userId,
       name,

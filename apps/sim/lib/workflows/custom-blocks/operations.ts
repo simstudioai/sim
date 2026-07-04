@@ -188,12 +188,16 @@ export class CustomBlockValidationError extends Error {
 }
 
 /**
- * Publish a deployed workflow as an org-wide custom block. Validates that the
- * source workflow belongs to `organizationId` and is deployed, then inserts the
- * row. Caller must have already authorized admin + enterprise.
+ * Publish a deployed workflow as an org-wide custom block. The source workflow
+ * must live in `workspaceId` — the workspace the caller was verified to admin —
+ * so a caller cannot publish another workspace's workflow (which then runs under
+ * that workspace owner's credentials and returns caller-chosen outputs). Also
+ * validates the workspace belongs to `organizationId` and the workflow is
+ * deployed, then inserts the row.
  */
 export async function publishCustomBlock(params: {
   organizationId: string
+  workspaceId: string
   workflowId: string
   userId: string
   name: string
@@ -201,7 +205,16 @@ export async function publishCustomBlock(params: {
   iconUrl?: string
   exposedOutputs?: CustomBlockOutput[]
 }): Promise<CustomBlockWithInputs> {
-  const { organizationId, workflowId, userId, name, description, iconUrl, exposedOutputs } = params
+  const {
+    organizationId,
+    workspaceId,
+    workflowId,
+    userId,
+    name,
+    description,
+    iconUrl,
+    exposedOutputs,
+  } = params
 
   const [wf] = await db
     .select({ id: workflow.id, workspaceId: workflow.workspaceId, isDeployed: workflow.isDeployed })
@@ -212,6 +225,13 @@ export async function publishCustomBlock(params: {
   if (!wf) throw new CustomBlockValidationError('Workflow not found')
   if (!wf.isDeployed) {
     throw new CustomBlockValidationError('Workflow must be deployed before publishing as a block')
+  }
+
+  // Authorization boundary: the caller proved admin on `workspaceId` (route), so
+  // the source workflow must actually live there. Without this a workspace admin
+  // could publish a different workspace's workflow in the same org.
+  if (wf.workspaceId !== workspaceId) {
+    throw new CustomBlockValidationError('You can only publish a workflow from its own workspace')
   }
 
   const ws = wf.workspaceId ? await getWorkspaceWithOwner(wf.workspaceId) : null
