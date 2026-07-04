@@ -219,7 +219,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
           hasApiBaseUrl: Boolean(apiBaseUrl),
           hasExternalId: Boolean(externalId),
         })
-        if (ctx.strict) throw new Error('Missing Email Bison webhook cleanup configuration')
+        if (ctx.strict)
+          throw new AlreadyLoggedError('Missing Email Bison webhook cleanup configuration')
         return
       }
 
@@ -233,7 +234,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`, {
           webhookId: webhook.id,
         })
-        if (ctx.strict) throw new Error('Email Bison Instance URL could not be validated.')
+        if (ctx.strict)
+          throw new AlreadyLoggedError('Email Bison Instance URL could not be validated.')
         return
       }
 
@@ -248,7 +250,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
           status: response.status,
           response: responseBody,
         })
-        if (ctx.strict) throw new Error(`Failed to delete Email Bison webhook: ${response.status}`)
+        if (ctx.strict)
+          throw new AlreadyLoggedError(`Failed to delete Email Bison webhook: ${response.status}`)
         return
       }
 
@@ -258,13 +261,22 @@ export const emailBisonHandler: WebhookProviderHandler = {
         webhookId: webhook.id,
       })
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Email Bison webhook`, {
-        message: toError(error).message,
-      })
+      if (!(error instanceof AlreadyLoggedError)) {
+        logger.warn(`[${requestId}] Error deleting Email Bison webhook`, {
+          message: toError(error).message,
+        })
+      }
       if (ctx.strict) throw error
     }
   },
 }
+
+/**
+ * Marks an error whose failure reason has already been logged with full context
+ * at the throw site, so the outer catch in `deleteSubscription` does not emit
+ * a second, redundant warning for the same failure.
+ */
+class AlreadyLoggedError extends Error {}
 
 async function parseJsonResponse(
   response: SecureFetchResponse

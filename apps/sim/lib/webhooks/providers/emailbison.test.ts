@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -36,6 +36,10 @@ describe('emailBisonHandler createSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com'
+  })
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = undefined
   })
 
   it('rejects an apiBaseUrl that resolves to a blocked address before making a request', async () => {
