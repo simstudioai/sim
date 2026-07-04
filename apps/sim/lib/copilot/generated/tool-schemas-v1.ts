@@ -10,7 +10,7 @@ export interface ToolRuntimeSchemaEntry {
 }
 
 export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
-  agent: {
+  ['agent']: {
     parameters: {
       properties: {
         request: {
@@ -23,7 +23,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  auth: {
+  ['auth']: {
     parameters: {
       properties: {
         request: {
@@ -36,7 +36,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  check_deployment_status: {
+  ['check_deployment_status']: {
     parameters: {
       type: 'object',
       properties: {
@@ -48,7 +48,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  complete_scheduled_task: {
+  ['complete_scheduled_task']: {
     parameters: {
       type: 'object',
       properties: {
@@ -61,7 +61,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  crawl_website: {
+  ['crawl_website']: {
     parameters: {
       type: 'object',
       properties: {
@@ -96,7 +96,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  create_file: {
+  ['create_file']: {
     parameters: {
       type: 'object',
       properties: {
@@ -162,7 +162,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  create_file_folder: {
+  ['create_file_folder']: {
     parameters: {
       type: 'object',
       properties: {
@@ -180,7 +180,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  create_workflow: {
+  ['create_workflow']: {
     parameters: {
       type: 'object',
       properties: {
@@ -205,7 +205,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  create_workspace_mcp_server: {
+  ['create_workspace_mcp_server']: {
     parameters: {
       type: 'object',
       properties: {
@@ -238,7 +238,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  delete_file: {
+  ['delete_file']: {
     parameters: {
       type: 'object',
       properties: {
@@ -268,7 +268,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  delete_file_folder: {
+  ['delete_file_folder']: {
     parameters: {
       type: 'object',
       properties: {
@@ -284,7 +284,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  delete_workflow: {
+  ['delete_workflow']: {
     parameters: {
       type: 'object',
       properties: {
@@ -300,7 +300,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  delete_workspace_mcp_server: {
+  ['delete_workspace_mcp_server']: {
     parameters: {
       type: 'object',
       properties: {
@@ -313,7 +313,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  deploy: {
+  ['deploy']: {
     parameters: {
       properties: {
         request: {
@@ -327,7 +327,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  deploy_api: {
+  ['deploy_api']: {
     parameters: {
       type: 'object',
       properties: {
@@ -411,7 +411,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  deploy_chat: {
+  ['deploy_chat']: {
     parameters: {
       type: 'object',
       properties: {
@@ -570,7 +570,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  deploy_mcp: {
+  ['deploy_mcp']: {
     parameters: {
       type: 'object',
       properties: {
@@ -686,7 +686,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['deploymentType', 'deploymentStatus'],
     },
   },
-  diff_workflows: {
+  ['diff_workflows']: {
     parameters: {
       type: 'object',
       properties: {
@@ -710,7 +710,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  download_to_workspace_file: {
+  ['download_to_workspace_file']: {
     parameters: {
       type: 'object',
       properties: {
@@ -759,7 +759,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  edit_content: {
+  ['edit_content']: {
     parameters: {
       type: 'object',
       properties: {
@@ -791,7 +791,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  edit_workflow: {
+  ['edit_workflow']: {
     parameters: {
       type: 'object',
       properties: {
@@ -830,7 +830,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  enrichment_run: {
+  ['enrichment_run']: {
     parameters: {
       type: 'object',
       properties: {
@@ -874,7 +874,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['matched', 'result'],
     },
   },
-  ffmpeg: {
+  ['ffmpeg']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1055,7 +1055,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  file: {
+  ['file']: {
     parameters: {
       properties: {
         prompt: {
@@ -1068,7 +1068,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  function_execute: {
+  ['function_execute']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1206,7 +1206,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  generate_api_key: {
+  ['generate_api_key']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1224,7 +1224,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  generate_audio: {
+  ['generate_audio']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1376,7 +1376,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  generate_image: {
+  ['generate_image']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1504,7 +1504,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  generate_video: {
+  ['generate_video']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1671,7 +1671,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_block_outputs: {
+  ['get_block_outputs']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1692,7 +1692,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_block_upstream_references: {
+  ['get_block_upstream_references']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1714,7 +1714,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_deployed_workflow_state: {
+  ['get_deployed_workflow_state']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1727,7 +1727,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_deployment_log: {
+  ['get_deployment_log']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1740,7 +1740,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_page_contents: {
+  ['get_page_contents']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1768,14 +1768,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_platform_actions: {
+  ['get_platform_actions']: {
     parameters: {
       type: 'object',
       properties: {},
     },
     resultSchema: undefined,
   },
-  get_scheduled_task_logs: {
+  ['get_scheduled_task_logs']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1800,7 +1800,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_workflow_data: {
+  ['get_workflow_data']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1819,7 +1819,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_workflow_run_options: {
+  ['get_workflow_run_options']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1832,7 +1832,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  glob: {
+  ['glob']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1851,7 +1851,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  grep: {
+  ['grep']: {
     parameters: {
       type: 'object',
       properties: {
@@ -1899,7 +1899,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  knowledge: {
+  ['knowledge']: {
     parameters: {
       properties: {
         request: {
@@ -1912,7 +1912,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  knowledge_base: {
+  ['knowledge_base']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2105,7 +2105,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  list_file_folders: {
+  ['list_file_folders']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2117,7 +2117,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  list_integration_tools: {
+  ['list_integration_tools']: {
     parameters: {
       properties: {
         integration: {
@@ -2131,14 +2131,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  list_user_workspaces: {
+  ['list_user_workspaces']: {
     parameters: {
       type: 'object',
       properties: {},
     },
     resultSchema: undefined,
   },
-  list_workspace_mcp_servers: {
+  ['list_workspace_mcp_servers']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2151,7 +2151,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  load_deployment: {
+  ['load_deployment']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2170,7 +2170,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  load_integration_tool: {
+  ['load_integration_tool']: {
     parameters: {
       properties: {
         tool_ids: {
@@ -2187,7 +2187,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  manage_credential: {
+  ['manage_credential']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2216,7 +2216,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  manage_custom_tool: {
+  ['manage_custom_tool']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2296,7 +2296,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  manage_folder: {
+  ['manage_folder']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2335,7 +2335,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  manage_mcp_tool: {
+  ['manage_mcp_tool']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2387,7 +2387,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  manage_scheduled_task: {
+  ['manage_scheduled_task']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2462,7 +2462,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  manage_skill: {
+  ['manage_skill']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2495,7 +2495,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  materialize_file: {
+  ['materialize_file']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2519,7 +2519,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  media: {
+  ['media']: {
     parameters: {
       properties: {
         prompt: {
@@ -2532,7 +2532,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  move_file: {
+  ['move_file']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2553,7 +2553,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  move_file_folder: {
+  ['move_file_folder']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2571,7 +2571,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  move_workflow: {
+  ['move_workflow']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2591,7 +2591,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  oauth_get_auth_link: {
+  ['oauth_get_auth_link']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2605,7 +2605,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  oauth_request_access: {
+  ['oauth_request_access']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2619,7 +2619,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  open_resource: {
+  ['open_resource']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2653,7 +2653,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  promote_to_live: {
+  ['promote_to_live']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2672,7 +2672,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  query_logs: {
+  ['query_logs']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2783,7 +2783,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  query_user_table: {
+  ['query_user_table']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2845,7 +2845,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  read: {
+  ['read']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2872,7 +2872,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  redeploy: {
+  ['redeploy']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2951,7 +2951,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  rename_file: {
+  ['rename_file']: {
     parameters: {
       type: 'object',
       properties: {
@@ -2987,7 +2987,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  rename_file_folder: {
+  ['rename_file_folder']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3004,7 +3004,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  rename_workflow: {
+  ['rename_workflow']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3021,7 +3021,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  respond: {
+  ['respond']: {
     parameters: {
       additionalProperties: true,
       properties: {
@@ -3044,7 +3044,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  restore_resource: {
+  ['restore_resource']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3062,7 +3062,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  run: {
+  ['run']: {
     parameters: {
       properties: {
         context: {
@@ -3079,7 +3079,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  run_block: {
+  ['run_block']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3111,7 +3111,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  run_code: {
+  ['run_code']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3204,7 +3204,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  run_from_block: {
+  ['run_from_block']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3236,7 +3236,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  run_workflow: {
+  ['run_workflow']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3274,7 +3274,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  run_workflow_until_block: {
+  ['run_workflow_until_block']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3317,7 +3317,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  scheduled_task: {
+  ['scheduled_task']: {
     parameters: {
       properties: {
         request: {
@@ -3330,7 +3330,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  scrape_page: {
+  ['scrape_page']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3351,7 +3351,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search: {
+  ['search']: {
     parameters: {
       properties: {
         task: {
@@ -3365,7 +3365,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search_documentation: {
+  ['search_documentation']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3382,7 +3382,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search_knowledge_base: {
+  ['search_knowledge_base']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3432,7 +3432,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  search_library_docs: {
+  ['search_library_docs']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3453,7 +3453,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search_online: {
+  ['search_online']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3493,7 +3493,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search_patterns: {
+  ['search_patterns']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3515,7 +3515,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  set_block_enabled: {
+  ['set_block_enabled']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3537,7 +3537,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  set_environment_variables: {
+  ['set_environment_variables']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3571,7 +3571,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  set_global_workflow_variables: {
+  ['set_global_workflow_variables']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3612,7 +3612,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  superagent: {
+  ['superagent']: {
     parameters: {
       properties: {
         task: {
@@ -3626,7 +3626,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  table: {
+  ['table']: {
     parameters: {
       properties: {
         request: {
@@ -3639,7 +3639,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  update_deployment_version: {
+  ['update_deployment_version']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3668,7 +3668,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  update_scheduled_task_history: {
+  ['update_scheduled_task_history']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3686,7 +3686,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  update_workspace_mcp_server: {
+  ['update_workspace_mcp_server']: {
     parameters: {
       type: 'object',
       properties: {
@@ -3711,56 +3711,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  user_memory: {
-    parameters: {
-      type: 'object',
-      properties: {
-        confidence: {
-          type: 'number',
-          description: 'Confidence level 0-1 (default 1.0 for explicit, 0.8 for inferred)',
-        },
-        correct_value: {
-          type: 'string',
-          description:
-            "The correct value to replace the wrong one (for 'correct' operation). Requires `key` (the memory to replace).",
-        },
-        key: {
-          type: 'string',
-          description: "Unique key for the memory (e.g., 'preferred_model', 'slack_credential')",
-        },
-        limit: {
-          type: 'number',
-          description: 'Number of results for search (default 10)',
-        },
-        memory_type: {
-          type: 'string',
-          description: "Type of memory: 'preference', 'entity', 'history', or 'correction'",
-          enum: ['preference', 'entity', 'history', 'correction'],
-        },
-        operation: {
-          type: 'string',
-          description: "Operation: 'add', 'search', 'delete', 'correct', or 'list'",
-          enum: ['add', 'search', 'delete', 'correct', 'list'],
-        },
-        query: {
-          type: 'string',
-          description: 'Search query to find relevant memories',
-        },
-        source: {
-          type: 'string',
-          description: "Source: 'explicit' (user told you) or 'inferred' (you observed)",
-          enum: ['explicit', 'inferred'],
-        },
-        value: {
-          type: 'string',
-          description: 'Value to remember',
-        },
-      },
-      required: ['operation'],
-    },
-    resultSchema: undefined,
-  },
-  user_table: {
+  ['user_table']: {
     parameters: {
       type: 'object',
       properties: {
@@ -4123,7 +4074,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  workflow: {
+  ['workflow']: {
     parameters: {
       properties: {
         prompt: {
@@ -4136,7 +4087,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  workspace_file: {
+  ['workspace_file']: {
     parameters: {
       type: 'object',
       properties: {
