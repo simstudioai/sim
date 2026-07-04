@@ -433,95 +433,89 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
-  const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
-  if (hasSpecialContent) {
-    type BlockSegment = Exclude<
-      ContentSegment,
-      { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }
-    >
-    type RenderGroup =
-      | { kind: 'inline'; markdown: string }
-      | { kind: 'block'; segment: BlockSegment; index: number }
+  type BlockSegment = Exclude<
+    ContentSegment,
+    { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }
+  >
+  type RenderGroup =
+    | { kind: 'inline'; markdown: string }
+    | { kind: 'block'; segment: BlockSegment; index: number }
 
-    const groups: RenderGroup[] = []
-    let pendingMarkdown = ''
+  const groups: RenderGroup[] = []
+  let pendingMarkdown = ''
 
-    const flushMarkdown = () => {
-      if (pendingMarkdown.trim()) {
-        groups.push({ kind: 'inline', markdown: pendingMarkdown })
-      }
-      pendingMarkdown = ''
+  const flushMarkdown = () => {
+    if (pendingMarkdown.trim()) {
+      groups.push({ kind: 'inline', markdown: pendingMarkdown })
     }
-
-    for (let i = 0; i < parsed.segments.length; i++) {
-      const s = parsed.segments[i]
-      const nextSegment = parsed.segments[i + 1]
-      if (s.type === 'workspace_resource') {
-        // Files are addressed by their encoded VFS path (copied verbatim from the tag);
-        // workflows/tables/KBs by id. The angle-bracket link destination keeps the path
-        // intact through markdown parsing (tolerates parens) without re-encoding it.
-        const ref = s.data.type === 'file' ? (s.data.path ?? s.data.id ?? '') : (s.data.id ?? '')
-        const label = s.data.title || ref
-        pendingMarkdown = appendInlineReferenceMarkdown(
-          pendingMarkdown,
-          `[${label}](<#wsres-${s.data.type}-${ref}>)`,
-          nextSegment
-        )
-      } else if (s.type === 'text' || s.type === 'thinking') {
-        pendingMarkdown += s.content
-      } else {
-        flushMarkdown()
-        groups.push({ kind: 'block', segment: s, index: i })
-      }
-    }
-    flushMarkdown()
-
-    return (
-      <div className='space-y-3'>
-        {groups.map((group, i) => {
-          if (group.kind === 'inline') {
-            return (
-              <div
-                key={`inline-${i}`}
-                className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
-              >
-                <Streamdown
-                  key={streamingTree ? 'stream' : 'settled'}
-                  mode={parserTree ? undefined : 'static'}
-                  animated={fadeActive ? STREAM_ANIMATION : false}
-                  isAnimating={streamingTree}
-                  components={MARKDOWN_COMPONENTS}
-                >
-                  {group.markdown}
-                </Streamdown>
-              </div>
-            )
-          }
-          return (
-            <SpecialTags
-              key={`special-${group.index}`}
-              segment={group.segment}
-              onOptionSelect={onOptionSelect}
-            />
-          )
-        })}
-        {parsed.hasPendingTag && isRevealing && <PendingTagIndicator />}
-      </div>
-    )
+    pendingMarkdown = ''
   }
 
+  for (let i = 0; i < parsed.segments.length; i++) {
+    const s = parsed.segments[i]
+    const nextSegment = parsed.segments[i + 1]
+    if (s.type === 'workspace_resource') {
+      // Files are addressed by their encoded VFS path (copied verbatim from the tag);
+      // workflows/tables/KBs by id. The angle-bracket link destination keeps the path
+      // intact through markdown parsing (tolerates parens) without re-encoding it.
+      const ref = s.data.type === 'file' ? (s.data.path ?? s.data.id ?? '') : (s.data.id ?? '')
+      const label = s.data.title || ref
+      pendingMarkdown = appendInlineReferenceMarkdown(
+        pendingMarkdown,
+        `[${label}](<#wsres-${s.data.type}-${ref}>)`,
+        nextSegment
+      )
+    } else if (s.type === 'text' || s.type === 'thinking') {
+      pendingMarkdown += s.content
+    } else {
+      flushMarkdown()
+      groups.push({ kind: 'block', segment: s, index: i })
+    }
+  }
+  flushMarkdown()
+
+  /**
+   * Plain text and special-tag content share ONE render structure. A message
+   * with no special tags is simply a single inline group — it must NOT get a
+   * dedicated JSX branch, because most replies gain a trailing `<options>` tag
+   * (suggested follow-ups) at the very end, and switching branches at that
+   * moment re-parents the Streamdown to a different tree position. React then
+   * remounts it with a fresh animate plugin and the ENTIRE message re-fades
+   * from transparent — the "flash at the conclusion". With the unified
+   * structure the leading text group keeps its position (`inline-0`) and only
+   * the new special block mounts.
+   */
   return (
-    <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-      <Streamdown
-        key={streamingTree ? 'stream' : 'settled'}
-        mode={parserTree ? undefined : 'static'}
-        animated={fadeActive ? STREAM_ANIMATION : false}
-        isAnimating={streamingTree}
-        components={MARKDOWN_COMPONENTS}
-      >
-        {streamedContent}
-      </Streamdown>
+    <div className='space-y-3'>
+      {groups.map((group, i) => {
+        if (group.kind === 'inline') {
+          return (
+            <div
+              key={`inline-${i}`}
+              className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
+            >
+              <Streamdown
+                key={streamingTree ? 'stream' : 'settled'}
+                mode={parserTree ? undefined : 'static'}
+                animated={fadeActive ? STREAM_ANIMATION : false}
+                isAnimating={streamingTree}
+                components={MARKDOWN_COMPONENTS}
+              >
+                {group.markdown}
+              </Streamdown>
+            </div>
+          )
+        }
+        return (
+          <SpecialTags
+            key={`special-${group.index}`}
+            segment={group.segment}
+            onOptionSelect={onOptionSelect}
+          />
+        )
+      })}
+      {parsed.hasPendingTag && isRevealing && <PendingTagIndicator />}
     </div>
   )
 }
