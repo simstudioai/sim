@@ -23,7 +23,7 @@ const QUESTIONS: QuestionItem[] = [
     ],
   },
   {
-    type: 'single_select',
+    type: 'multi_select',
     prompt: 'What time zone should the daily report run in?',
     options: [
       { id: 'est', label: 'EST' },
@@ -50,7 +50,7 @@ describe('formatQuestionAnswerMessage', () => {
 
 describe('parseQuestionAnswerMessage', () => {
   it('round-trips what formatQuestionAnswerMessage produces', () => {
-    const answers = ['Keep the newest entry', 'Cancel', 'EST']
+    const answers = ['Keep the newest entry', 'Cancel', 'EST, PST']
     const message = formatQuestionAnswerMessage(QUESTIONS, answers)
     expect(parseQuestionAnswerMessage(QUESTIONS, message)).toEqual(answers)
   })
