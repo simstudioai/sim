@@ -455,12 +455,13 @@ export const Toolbar = memo(
     const allBlocks = getBlocks()
     const allTools = getTools()
 
-    // Published custom blocks are their own section. Exclude the block bound to the
-    // CURRENT workflow — adding a workflow's own block would recurse into itself.
+    // Published custom blocks are their own section. Exclude disabled blocks (the
+    // server overlay drops them, so placing one would fail at run) and the block
+    // bound to the CURRENT workflow — adding a workflow's own block would recurse.
     const allCustomBlocks = useMemo(() => {
       if (!customBlocksData?.length) return []
       return customBlocksData
-        .filter((cb) => cb.workflowId !== currentWorkflowId)
+        .filter((cb) => cb.enabled && cb.workflowId !== currentWorkflowId)
         .map((cb) => {
           const icon = getCustomBlockIcon(cb.iconUrl)
           // Uploaded icons render on a transparent tile (no colored box); the
