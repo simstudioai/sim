@@ -18,14 +18,14 @@ interface CreditUsageSectionProps {
  * except Enterprise, which manages billing out-of-band.
  */
 export function CreditUsageSection({ workspaceId }: CreditUsageSectionProps) {
-  const { data: totalCredits, isPending } = useUsageSummary(SUMMARY_PERIOD)
+  const { data: totalCredits, isPending, isError } = useUsageSummary(SUMMARY_PERIOD)
 
   return (
     <SettingsSection label='Credit usage'>
       <div className='flex items-center justify-between px-2'>
         <div className='flex flex-col justify-center gap-[1px]'>
           <span className='text-[14px] text-[var(--text-body)] tabular-nums'>
-            {isPending ? '—' : formatCreditsLabel(totalCredits ?? 0)}
+            {isPending || isError ? '—' : formatCreditsLabel(totalCredits ?? 0)}
           </span>
           <span className='text-[12px] text-[var(--text-muted)]'>Last 30 days</span>
         </div>
