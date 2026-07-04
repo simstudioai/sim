@@ -13,29 +13,35 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   CustomBlockValidationError,
   deleteCustomBlock,
-  getCustomBlockById,
+  getCustomBlockManageContext,
   updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
-import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
+import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CustomBlockAPI')
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-/** Load the block and confirm the caller is an admin/owner of its organization. */
+/**
+ * Confirm the caller can manage (edit/delete) the block: admin of the block's
+ * SOURCE workflow's workspace — matching who could publish it. Org admins/owners
+ * hold admin on every org workspace, so they pass too; a workspace admin from a
+ * different workspace does not, so they cannot alter another workspace's block or
+ * its exposed outputs.
+ */
 async function authorizeManage(userId: string, id: string) {
-  const block = await getCustomBlockById(id)
-  if (!block) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+  const ctx = await getCustomBlockManageContext(id)
+  if (!ctx) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
 
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: block.organizationId }))) {
+  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ctx.organizationId }))) {
     return {
       error: NextResponse.json({ error: 'Deploy as block is not enabled' }, { status: 403 }),
     }
   }
-  if (!(await isOrganizationAdminOrOwner(userId, block.organizationId))) {
+  if (!ctx.sourceWorkspaceId || !(await hasWorkspaceAdminAccess(userId, ctx.sourceWorkspaceId))) {
     return { error: NextResponse.json({ error: 'Admin permissions required' }, { status: 403 }) }
   }
-  return { block }
+  return { error: null }
 }
 
 export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteContext) => {

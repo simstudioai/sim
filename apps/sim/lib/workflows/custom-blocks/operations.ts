@@ -130,6 +130,28 @@ export async function getCustomBlockById(id: string) {
 }
 
 /**
+ * Org + source-workspace context for manage (edit/delete) authorization. Managing
+ * a block is gated on admin of its SOURCE workflow's workspace — the same workspace
+ * publishing required — so only an admin of the workspace that owns the workflow
+ * (or an org admin, who holds admin on every org workspace) can change its outputs.
+ * `null` when no block matches.
+ */
+export async function getCustomBlockManageContext(
+  id: string
+): Promise<{ organizationId: string; sourceWorkspaceId: string | null } | null> {
+  const [row] = await db
+    .select({
+      organizationId: customBlock.organizationId,
+      sourceWorkspaceId: workflow.workspaceId,
+    })
+    .from(customBlock)
+    .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
+    .where(eq(customBlock.id, id))
+    .limit(1)
+  return row ?? null
+}
+
+/**
  * Execution authority for a custom block, resolved by its block type. Used by the
  * executor to run the bound workflow under the invocation-boundary model: the
  * consumer needs no permission on the source workflow. Returns the authoritative
