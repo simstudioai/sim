@@ -21,12 +21,14 @@ import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { Executor } from '@/executor'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
@@ -310,7 +312,22 @@ async function finalizeExecutionError(params: {
   }
 }
 
+/**
+ * Establish the custom-block registry overlay for the execution's organization,
+ * then run the core. Wrapping here — the shared choke point for the sync route and
+ * the background job — puts `custom_block_*` types in scope for serialization,
+ * execution, and any nested child-workflow serialization (ALS propagates to the
+ * whole async subtree).
+ */
 export async function executeWorkflowCore(
+  options: ExecuteWorkflowCoreOptions
+): Promise<ExecutionResult> {
+  const workspaceId = options.snapshot.metadata.workspaceId
+  const rows = workspaceId ? await getCustomBlockRowsForWorkspace(workspaceId) : []
+  return withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
+}
+
+async function executeWorkflowCoreImpl(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   const {
