@@ -140,7 +140,9 @@ export function QuestionDisplay({ data, onSelect }: QuestionDisplayProps) {
                 type='button'
                 variant='ghost'
                 onClick={() => goToStep(step + 1)}
-                disabled={isLast || answers[step] === null}
+                // Inert renders (older messages) browse freely; interactive ones
+                // gate forward movement on the current question being answered.
+                disabled={isLast || (!disabled && answers[step] === null)}
                 className={cn(
                   ICON_BUTTON_CLASSES,
                   'before:absolute before:inset-[-8px] before:content-[""] disabled:opacity-50'
