@@ -25,12 +25,13 @@ const YES_NO = {
   ],
 }
 
-const TIMEZONE = {
-  type: 'single_select',
-  prompt: 'What time zone should the daily report run in?',
+const MULTI_SELECT = {
+  type: 'multi_select',
+  prompt: 'Which channels should the report go to?',
   options: [
-    { id: 'est', label: 'EST' },
-    { id: 'pst', label: 'PST' },
+    { id: 'slack', label: 'Slack' },
+    { id: 'email', label: 'Email' },
+    { id: 'sheet', label: 'Google Sheet' },
   ],
 }
 
@@ -40,8 +41,12 @@ describe('parseQuestionTagBody', () => {
   })
 
   it('preserves array order for multi-step bodies', () => {
-    const parsed = parseQuestionTagBody(JSON.stringify([SINGLE_SELECT, YES_NO, TIMEZONE]))
-    expect(parsed).toEqual([SINGLE_SELECT, YES_NO, TIMEZONE])
+    const parsed = parseQuestionTagBody(JSON.stringify([SINGLE_SELECT, YES_NO, MULTI_SELECT]))
+    expect(parsed).toEqual([SINGLE_SELECT, YES_NO, MULTI_SELECT])
+  })
+
+  it('accepts multi_select questions', () => {
+    expect(parseQuestionTagBody(JSON.stringify(MULTI_SELECT))).toEqual([MULTI_SELECT])
   })
 
   it('rejects single_select without options', () => {
@@ -56,12 +61,11 @@ describe('parseQuestionTagBody', () => {
     ).toBe(null)
   })
 
-  it('rejects non-single_select types', () => {
+  it('rejects the removed text and confirm types', () => {
     expect(parseQuestionTagBody(JSON.stringify({ type: 'text', prompt: 'What time zone?' }))).toBe(
       null
     )
     expect(parseQuestionTagBody(JSON.stringify({ ...YES_NO, type: 'confirm' }))).toBe(null)
-    expect(parseQuestionTagBody(JSON.stringify({ ...YES_NO, type: 'multi_select' }))).toBe(null)
   })
 
   it('strips agent-supplied catch-all options (the card provides its own)', () => {
@@ -119,9 +123,9 @@ describe('parseSpecialTags with <question>', () => {
   })
 
   it('extracts a multi-step array body as one segment', () => {
-    const content = `<question>${JSON.stringify([SINGLE_SELECT, YES_NO, TIMEZONE])}</question>`
+    const content = `<question>${JSON.stringify([SINGLE_SELECT, YES_NO, MULTI_SELECT])}</question>`
     const { segments } = parseSpecialTags(content, false)
-    expect(segments).toEqual([{ type: 'question', data: [SINGLE_SELECT, YES_NO, TIMEZONE] }])
+    expect(segments).toEqual([{ type: 'question', data: [SINGLE_SELECT, YES_NO, MULTI_SELECT] }])
   })
 
   it('flags an unclosed question tag as pending while streaming', () => {
