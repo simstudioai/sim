@@ -17,13 +17,13 @@ export const stackaiProfile: CompetitorProfile = {
     'StackAI is a proprietary, enterprise-focused visual platform for building, deploying, and governing AI agents, connecting LLMs and business systems through a drag-and-drop, low-code node builder.',
   standoutFeatures: [
     {
-      title: 'On-prem / VPC self-hosted deployment for enterprise',
+      title: 'SOC 2 Type II and ISO 27001 certified, with a public Trust Center',
       description:
-        "The Enterprise plan supports on-premise or VPC deployment behind the customer's own VPN/network, alongside dedicated infrastructure and SSO/access controls.",
-      shortDescription: 'Enterprise-only on-prem or VPC deployment with dedicated infrastructure.',
+        'StackAI publishes a Trust Center (trust.stackai.com) documenting SOC 2 Type II and ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic.',
+      shortDescription: 'Public Trust Center with SOC 2, ISO 27001, and pen test results.',
       source: {
-        url: 'https://www.stackai.com/pricing',
-        label: 'StackAI Pricing',
+        url: 'https://trust.stackai.com/',
+        label: 'StackAI Trust Center',
         asOf: '2026-07-02',
       },
     },
@@ -61,13 +61,13 @@ export const stackaiProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'SOC 2 Type II and ISO 27001 certified, with a public Trust Center',
+      title: 'On-prem / VPC self-hosted deployment for enterprise',
       description:
-        'StackAI publishes a Trust Center (trust.stackai.com) documenting SOC 2 Type II and ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic.',
-      shortDescription: 'Public Trust Center with SOC 2, ISO 27001, and pen test results.',
+        "The Enterprise plan supports on-premise or VPC deployment behind the customer's own VPN/network, alongside dedicated infrastructure and SSO/access controls.",
+      shortDescription: 'Enterprise-only on-prem or VPC deployment with dedicated infrastructure.',
       source: {
-        url: 'https://trust.stackai.com/',
-        label: 'StackAI Trust Center',
+        url: 'https://www.stackai.com/pricing',
+        label: 'StackAI Pricing',
         asOf: '2026-07-02',
       },
     },

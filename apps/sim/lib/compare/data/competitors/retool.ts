@@ -25,11 +25,11 @@ export const retoolProfile: CompetitorProfile = {
     'Retool is a low-code platform for building, deploying, and managing internal software (apps, workflows, and AI agents) that connect to databases, APIs, and LLMs.',
   standoutFeatures: [
     {
-      title: 'Natural-language app generation (AppGen)',
+      title: 'Full internal business applications, not just agent workflows',
       description:
-        "Users describe an app in plain English and Retool generates pages, queries, components, data bindings, and event handlers already wired to production data and inheriting the org's existing SSO/RBAC/audit policies, rather than producing raw exportable code.",
+        "Retool builds custom internal UI screens, forms, admin panels, and dashboards backed by Retool Database, a genuine Postgres database with real SQL joins and foreign keys, not a spreadsheet-like grid, plus a mature React app runtime. AppGen lets users describe an app in plain English and Retool generates pages, queries, components, data bindings, and event handlers already wired to production data and inheriting the org's existing SSO/RBAC/audit policies.",
       shortDescription:
-        'Generates full apps from a prompt, wired to live data and existing security policies.',
+        'Builds full internal apps on a real relational database, not just agent workflows.',
       source: {
         url: 'https://retool.com/ai-app-generation',
         label: 'Retool AI App Generation',

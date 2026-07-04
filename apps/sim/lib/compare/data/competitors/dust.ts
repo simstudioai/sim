@@ -17,10 +17,10 @@ export const dustProfile: CompetitorProfile = {
     'Dust is an enterprise AI agent platform where teams build no-code agents connected to company data and tools in a shared, multiplayer workspace, then deploy them to chat, Slack, and other surfaces.',
   standoutFeatures: [
     {
-      title: 'GitOps sync for Skills and agent configurations via GitHub Action',
+      title: 'Purely no-code, form-based builder for non-technical teams',
       description:
-        'An official dust-github-action lets teams define Skills and agent configurations as files in a Git repository, then sync them into a Dust workspace from a CI/CD pipeline. This gives agent configuration the same change history, pull-request review, and rollback workflow as application code.',
-      shortDescription: 'Agent/Skill configs can live in Git with PR review and CI/CD sync.',
+        "Dust's Agent Builder is entirely form and text based, name, description, instructions, model, tools, knowledge, guided by a conversational 'Sidekick' assistant, with no visual canvas at all (its earlier block-based 'Dust Apps' product is deprecated). Agents deploy natively into a shared, multiplayer workspace and out to Slack, Teams, and other chat surfaces. A team that wants business users assembling agents from plain-language instructions and templates, with no drag-and-drop layer to learn, gets that directly. Teams that do want infrastructure-as-code can also define Skills and agent configurations as files in a Git repository and sync them via an official GitHub Action, with the same PR review and rollback workflow as application code.",
+      shortDescription: 'No-code, form-based builder for business teams, no visual canvas at all.',
       source: {
         url: 'https://docs.dust.tt/changelog/gitops-sync-for-skills-agent-configurations-with-github-action',
         label: 'GitOps sync for Skills & Agent configurations | Dust changelog',

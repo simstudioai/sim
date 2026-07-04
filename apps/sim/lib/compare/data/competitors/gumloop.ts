@@ -11,7 +11,7 @@ export const gumloopProfile: CompetitorProfile = {
     selfFramed: true,
     colors: ['#fb3e97', '#fc87c0', '#7c7c7c'],
     description:
-      'Gumloop is an AI automation platform that enables non‑technical teams to build their own AI agents without code or engineering support. Marketing, sales, operations, and support teams can create and deploy workflows instantly by simply typing. The platform lets users design, test, and run AI‑driven automations that streamline repetitive tasks, integrate with existing tools, and scale processes. Trusted by companies such as Shopify, DoorDash, Instacart, and Webflow, Gumloop helps organizations automate the workflows that matter most, accelerating productivity and reducing reliance on engineering tickets.',
+      'Gumloop is an AI automation platform that enables non-technical teams to build their own AI agents without code or engineering support. Marketing, sales, operations, and support teams can create and deploy workflows instantly by simply typing. The platform lets users design, test, and run AI-driven automations that streamline repetitive tasks, integrate with existing tools, and scale processes. Trusted by companies such as Shopify, DoorDash, Instacart, and Webflow, Gumloop helps organizations automate the workflows that matter most, accelerating productivity and reducing reliance on engineering tickets.',
     industries: ['Artificial Intelligence & Machine Learning', 'Software (B2B)'],
     socials: [
       { type: 'x', url: 'https://x.com/gumloop' },
@@ -203,11 +203,6 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://www.gumloop.com/templates',
             label: 'Gumloop Community Templates',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.gumloop.com/core-concepts/template_gallery',
-            label: 'Gumloop docs: Organization Templates',
             asOf: '2026-07-02',
           },
         ],

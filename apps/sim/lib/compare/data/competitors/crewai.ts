@@ -18,6 +18,17 @@ export const crewaiProfile: CompetitorProfile = {
   },
   standoutFeatures: [
     {
+      title: 'Code-first Python framework, not a visual builder',
+      description:
+        'CrewAI is written and configured entirely in Python. Developers get two composable abstractions in code: Crews, teams of role-based agents with autonomy over how a task gets done, and Flows, an event-driven layer (Python decorators like @start, @listen, @router) for deterministic control over state and execution order. There is no visual canvas in the open-source core; a team that wants full programmatic control over multi-agent orchestration logic, with no drag-and-drop layer at all, gets that directly.',
+      shortDescription: 'Fully code-based multi-agent orchestration, with no visual canvas at all.',
+      source: {
+        url: 'https://docs.crewai.com/en/concepts/flows',
+        label: 'Flows - CrewAI Docs',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'Large, fast-growing open-source community',
       description:
         'The crewAIInc/crewAI GitHub repository has surpassed 54,800 stars and is MIT licensed, one of the most-starred open-source multi-agent orchestration frameworks. CrewAI reports its open-source framework executes over 10 million agents per month and is used by roughly half of the Fortune 500.',
@@ -25,17 +36,6 @@ export const crewaiProfile: CompetitorProfile = {
       source: {
         url: 'https://github.com/crewAIInc/crewAI',
         label: 'crewAIInc/crewAI (GitHub)',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Dual programming model: autonomous Crews plus event-driven Flows',
-      description:
-        'CrewAI gives developers two composable abstractions: Crews, teams of role-based agents with autonomy over how a task gets done, and Flows, an event-driven layer (Python decorators like @start, @listen, @router) for deterministic control over state and execution order. Flows can orchestrate one or more Crews, mixing free-form agent reasoning with explicit procedural logic in the same application.',
-      shortDescription: 'Combines autonomous agent Crews with deterministic, event-driven Flows.',
-      source: {
-        url: 'https://docs.crewai.com/en/concepts/flows',
-        label: 'Flows - CrewAI Docs',
         asOf: '2026-07-02',
       },
     },

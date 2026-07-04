@@ -33,10 +33,10 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     "OpenAI AgentKit bundled a visual Agent Builder, ChatKit embeddable chat UI, Connector Registry, Guardrails, and Evals for building agentic workflows on OpenAI's models. But OpenAI is winding down Agent Builder and Evals, with full shutdown November 30, 2026, in favor of the code-first Agents SDK or ChatGPT Workspace Agents.",
   standoutFeatures: [
     {
-      title: 'Agents SDK open-source multi-agent framework',
+      title: 'Code-first, all-OpenAI stack with no visual builder going forward',
       description:
-        'The code-first alternative and successor, openai-agents-python, is open source under the MIT license with over 27,500 GitHub stars.',
-      shortDescription: 'Open-source multi-agent framework with 27,500+ GitHub stars.',
+        "With Agent Builder and Evals winding down (full shutdown November 30, 2026), OpenAI's path forward is the code-first Agents SDK, openai-agents-python, open source under the MIT license with over 27,500 GitHub stars, natively wired into OpenAI's own model lineup. A team fully committed to an all-OpenAI, code-first stack, with no visual builder layer, gets that directly.",
+      shortDescription: 'Open-source code-first framework, natively wired to OpenAI models.',
       source: {
         url: 'https://github.com/openai/openai-agents-python',
         label: 'GitHub: openai/openai-agents-python',

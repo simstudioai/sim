@@ -31,6 +31,17 @@ export const makeProfile: CompetitorProfile = {
     'Make (make.com) is a closed-source, cloud-only visual workflow-automation platform where users connect app "modules" on a canvas into scenarios. It now also offers AI Agent blocks, an MCP server, and a JS/Python code step, billed on a per-module-execution credit model.',
   standoutFeatures: [
     {
+      title: '8,000+ template gallery available on the free tier',
+      description:
+        "Make's public template gallery hosts over 8,000 pre-built scenarios spanning thousands of use cases, browsable and importable free on every plan including Free, with users paying only for the credits consumed when the imported scenario runs.",
+      shortDescription: '8,000+ importable scenario templates, free on every plan including Free.',
+      source: {
+        url: 'https://www.make.com/en/templates',
+        label: 'Make Templates gallery',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'Visual AI Agent reasoning panel',
       description:
         "AI Agent blocks run inside the same canvas as regular scenarios and expose a step-by-step 'Reasoning panel' showing every decision the agent makes, plus configurable manual-approval/stop points so agents run alongside deterministic logic rather than replacing it.",
@@ -71,17 +82,6 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://www.make.com/en/blog/make-code-app',
         label: 'Make blog: Make Code App',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: '8,000+ template gallery available on the free tier',
-      description:
-        "Make's public template gallery hosts over 8,000 pre-built scenarios spanning thousands of use cases, browsable and importable free on every plan including Free, with users paying only for the credits consumed when the imported scenario runs.",
-      shortDescription: '8,000+ importable scenario templates, free on every plan including Free.',
-      source: {
-        url: 'https://www.make.com/en/templates',
-        label: 'Make Templates gallery',
         asOf: '2026-07-02',
       },
     },
@@ -1212,7 +1212,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/on-prem-agents',
             label: 'Make on-prem agents page',
-            asOf: '2026-07-04',
+            asOf: '2026-07-02',
           },
         ],
       },

@@ -84,6 +84,17 @@ export const simProfile: CompetitorProfile = {
         asOf: '2026-07-02',
       },
     },
+    {
+      title: 'Live multiplayer canvas editing',
+      description:
+        'Real-time cursors, selection broadcasting, and synced concurrent edits over a dedicated realtime backend, so a team can build the same workflow together at the same time.',
+      shortDescription: 'Real-time cursors, selections, and synced edits on the same canvas.',
+      source: {
+        url: 'https://github.com/simstudioai/sim/blob/main/apps/realtime/src/handlers/presence.ts',
+        label: 'Sim codebase: realtime presence handler',
+        asOf: '2026-07-04',
+      },
+    },
   ],
   limitations: [
     {
@@ -318,10 +329,9 @@ export const simProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more)',
-        detail:
-          'apps/sim/providers/models.ts defines 21 provider entries; openrouter/litellm/vllm/ollama resolve models dynamically at runtime rather than from a hardcoded model list.',
-        shortValue: '21 providers incl. OpenAI, Anthropic, Google, Bedrock',
+          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more), with OpenRouter, LiteLLM, vLLM, and Ollama resolving models dynamically at runtime rather than from a fixed list, so effective model reach extends well beyond the 21 named providers',
+        detail: 'apps/sim/providers/models.ts defines 21 provider entries.',
+        shortValue: '21 providers plus dynamic-resolution aggregators (OpenRouter, LiteLLM, etc.)',
         confidence: 'verified',
         sources: [
           {
@@ -575,10 +585,11 @@ export const simProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '302 first-party blocks, ~3,900 underlying tool actions',
+        value:
+          '1,000+ integrations counting individual API actions, built from 302 first-party blocks and roughly 3,900 underlying tool actions',
         detail:
-          'Sim\'s landing page cites "1,000+ integrations," a broader figure counting individual API actions rather than top-level blocks. Both numbers describe the same integration surface.',
-        shortValue: '302 blocks, ~3,900 tool actions',
+          'Sim\'s landing page cites the "1,000+ integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.',
+        shortValue: '1,000+ integrations (302 blocks, ~3,900 tool actions)',
         confidence: 'verified',
         sources: [
           {

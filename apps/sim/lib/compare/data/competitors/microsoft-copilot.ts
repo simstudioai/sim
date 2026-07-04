@@ -17,6 +17,18 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     'Microsoft Copilot Studio is a low-code Microsoft tool for building, testing, and publishing conversational and autonomous AI agents with topics or LLM-driven generative orchestration, connectors, agent flows, and Dataverse-grounded knowledge.',
   standoutFeatures: [
     {
+      title: 'Broad, independently audited compliance certification list',
+      description:
+        'Copilot Studio is certified under HIPAA (BAA), HITRUST CSF, FedRAMP, SOC, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, each with an audit report on the Microsoft Service Trust Portal.',
+      shortDescription:
+        'HIPAA, FedRAMP, SOC, multiple ISO standards, PCI DSS, and more, each audited.',
+      source: {
+        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-certification',
+        label: 'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'Generative orchestration picks topics, tools, and knowledge dynamically',
       description:
         "Generative orchestration replaces fixed decision-tree topic flows with an LLM-driven planning layer. It interprets user intent, selects from an agent's topics, tools, knowledge sources, and child agents at runtime, and executes multistep plans, instead of requiring every path hand-authored with trigger phrases in advance.",
@@ -61,18 +73,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       source: {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/analytics-overview',
         label: 'Monitor an agent overview (preview) - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Broad, independently audited compliance certification list',
-      description:
-        'Copilot Studio is certified under HIPAA (BAA), HITRUST CSF, FedRAMP, SOC, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, each with an audit report on the Microsoft Service Trust Portal.',
-      shortDescription:
-        'HIPAA, FedRAMP, SOC, multiple ISO standards, PCI DSS, and more, each audited.',
-      source: {
-        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-certification',
-        label: 'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
         asOf: '2026-07-02',
       },
     },

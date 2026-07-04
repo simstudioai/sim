@@ -17,6 +17,18 @@ export const tinesProfile: CompetitorProfile = {
     'Tines is a proprietary workflow automation platform, available cloud-hosted or self-hosted, originally built for security operations. Teams build event-driven "Stories" via a visual no/low-code canvas, natural language, or the API. It recently added native AI agent, MCP, and copilot capabilities.',
   standoutFeatures: [
     {
+      title: 'API-centric integration model',
+      description:
+        'Instead of a fixed library of app connectors, Tines is built around a generic HTTP Request action that calls any API directly, trading pre-built connectors for broader reach and more manual setup.',
+      shortDescription:
+        'A generic HTTP Request action reaches any API instead of fixed connectors.',
+      source: {
+        url: 'https://www.tines.com/blog/solving-the-integrations-problem/',
+        label: 'Solving the integrations problem',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'ISO 42001 AI-governance certification',
       description:
         'Tines announced the "ISO trifecta" on April 14, 2026: ISO 27001, ISO 27701, and ISO 42001, the international standard for AI management systems.',
@@ -36,18 +48,6 @@ export const tinesProfile: CompetitorProfile = {
         url: 'https://www.tines.com/whats-new/workbench-for-stories/',
         label: "Tines What's New",
         asOf: '2026-07-04',
-      },
-    },
-    {
-      title: 'API-centric integration model',
-      description:
-        'Instead of a fixed library of app connectors, Tines is built around a generic HTTP Request action that calls any API directly, trading pre-built connectors for broader reach and more manual setup.',
-      shortDescription:
-        'A generic HTTP Request action reaches any API instead of fixed connectors.',
-      source: {
-        url: 'https://www.tines.com/blog/solving-the-integrations-problem/',
-        label: 'Solving the integrations problem',
-        asOf: '2026-07-02',
       },
     },
     {

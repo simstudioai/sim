@@ -11,7 +11,7 @@ export const n8nProfile: CompetitorProfile = {
     selfFramed: true,
     colors: ['#040404', '#eb4c74', '#e6a3bc'],
     description:
-      'n8n is a workflow automation platform that enables technical teams to build AI solutions and automate business processes. It combines the flexibility of code with the speed of no-code, allowing users to integrate with any app or API. With its open and self-hostable model, n8n provides a extendable tool for connecting various systems and applications, giving users the freedom to automate workflows at their own pace.',
+      'n8n is a workflow automation platform that enables technical teams to build AI solutions and automate business processes. It combines the flexibility of code with the speed of no-code, allowing users to integrate with any app or API. With its open and self-hostable model, n8n provides an extendable tool for connecting various systems and applications, giving users the freedom to automate workflows at their own pace.',
     industries: [
       'Software (B2B)',
       'Developer Tools & APIs',

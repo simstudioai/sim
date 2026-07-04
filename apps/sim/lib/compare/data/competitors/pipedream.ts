@@ -582,9 +582,9 @@ export const pipedreamProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://pipedream.com/docs/rest-api/workflows/',
-            label: 'Pipedream Docs: REST API Workflows',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/rest-api/examples/workflows',
+            label: 'Pipedream Docs: REST API Example - Create a Workflow',
+            asOf: '2026-07-04',
           },
         ],
       },

@@ -213,9 +213,9 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/langchain-ai/langgraph/blob/main/docs/docs/cloud/deployment/standalone_container.md',
-            label: 'Standalone container deployment docs (langgraph GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
+            label: 'Self-host standalone servers - Docs by LangChain',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1033,9 +1033,9 @@ export const langchainProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/langchain-ai/langgraph/blob/main/docs/docs/cloud/deployment/standalone_container.md',
-            label: 'Standalone container deployment docs (langgraph GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
+            label: 'Self-host standalone servers - Docs by LangChain',
+            asOf: '2026-07-04',
           },
         ],
       },
