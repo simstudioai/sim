@@ -58,7 +58,7 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
-import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
@@ -248,7 +248,7 @@ export async function routeExecution(
   const result =
     CUSTOM_BLOCK_OVERLAY_TOOLS.has(toolName) && context?.workspaceId
       ? await withCustomBlockOverlay(
-          await getCustomBlockRowsForWorkspace(context.workspaceId),
+          await listCustomBlocksWithInputsForWorkspace(context.workspaceId),
           runTool
         )
       : await runTool()

@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
+import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -56,6 +57,40 @@ function remapCustomBlockInputKeys(
     else if (field.name in mapping) remapped[field.name] = mapping[field.name]
   }
   return remapped
+}
+
+/**
+ * Canonical hosted-key spend of a child run: the model/tool cost the way the
+ * parent bills it (recursing nested/iteration spans and de-duping model
+ * breakdowns), minus the base execution charge the parent applies once itself.
+ * A naive top-level `cost.total` sum undercounts when spend sits on nested children.
+ */
+function aggregateChildCost(childTraceSpans: TraceSpan[]): number {
+  if (childTraceSpans.length === 0) return 0
+  const summary = calculateCostSummary(childTraceSpans)
+  return Math.max(0, summary.totalCost - summary.baseExecutionCharge)
+}
+
+/**
+ * A single cost-only span so a FAILED custom block still bills the hosted-key spend
+ * its child already consumed (`block-executor` bills `error.childTraceSpans`),
+ * without exposing any of the source workflow's internal spans. Empty when free.
+ */
+function buildCostCarrierSpans(childCost: number, blockName: string, type: string): TraceSpan[] {
+  if (childCost <= 0) return []
+  const now = new Date().toISOString()
+  return [
+    {
+      id: generateId(),
+      name: blockName,
+      type,
+      duration: 0,
+      startTime: now,
+      endTime: now,
+      status: 'error',
+      cost: { total: childCost },
+    },
+  ]
 }
 
 type WorkflowTraceSpan = TraceSpan & {
@@ -328,7 +363,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         // of the run's cost into billing — so roll their aggregate cost onto the
         // block itself. Custom blocks are org-scoped, so this bills the same org the
         // source workflow would bill if run directly, exactly as if it ran the key.
-        const childCost = childTraceSpans.reduce((sum, span) => sum + (span.cost?.total ?? 0), 0)
+        const childCost = aggregateChildCost(childTraceSpans)
         return this.projectCustomBlockOutput(executionResult, exposedOutputs, childCost)
       }
 
@@ -341,10 +376,29 @@ export class WorkflowBlockHandler implements BlockHandler {
       // blocks), trace spans, or execution result — the success path hides all of
       // these too. The real error is logged above for the publisher/ops; the
       // consumer gets only a generic failure attributed to the block they placed.
+      // But a child that failed AFTER consuming hosted keys still owes that spend,
+      // so capture the child's spans server-side, distill to the aggregate cost, and
+      // carry only that (no internals) so `block-executor` still bills it.
       if (isCustomBlock) {
+        let failedChildSpans: WorkflowTraceSpan[] = []
+        if (hasExecutionResult(error) && error.executionResult.logs) {
+          failedChildSpans = this.captureChildWorkflowLogs(
+            error.executionResult,
+            childWorkflowName,
+            ctx
+          )
+        } else if (ChildWorkflowError.isChildWorkflowError(error)) {
+          failedChildSpans = error.childTraceSpans
+        }
+        const blockName = block.metadata?.name || 'Custom block'
         throw new ChildWorkflowError({
           message: 'Custom block execution failed',
-          childWorkflowName: block.metadata?.name || 'Custom block',
+          childWorkflowName: blockName,
+          childTraceSpans: buildCostCarrierSpans(
+            aggregateChildCost(failedChildSpans),
+            blockName,
+            block.metadata?.id ?? 'custom_block'
+          ),
           childWorkflowInstanceId: instanceId,
         })
       }
