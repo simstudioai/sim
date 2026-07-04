@@ -2819,6 +2819,51 @@ export const workflowMcpTool = pgTable(
   })
 )
 
+/**
+ * Custom Blocks - a deployed workflow published as a reusable, org-wide block.
+ * Scoped to an organization: available across every workspace in the org. Bound to
+ * a source `workflowId` and always executes that workflow's latest deployment. Start
+ * input fields are derived live (not snapshotted). `type` is the stable lowercase
+ * block-type slug (`custom_block_<shortId>`) that flows into the block registry
+ * overlay, the palette, and permission-group `allowedIntegrations` access control.
+ */
+export const customBlock = pgTable(
+  'custom_block',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    /** Uploaded icon image URL (workspace storage), or null for the default icon. */
+    iconUrl: text('icon_url'),
+    /**
+     * Curated outputs exposed to consumers: `Array<{ blockId, path, name }>`. Each
+     * maps a child-workflow block output (blockId + dot-path) to a friendly output
+     * name on the block. Empty/absent → expose the child's whole `result`. Internal
+     * plumbing (child workflow id, trace spans) is never exposed.
+     */
+    outputs: json('outputs').$type<Array<{ blockId: string; path: string; name: string }>>(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('custom_block_organization_id_idx').on(table.organizationId),
+    workflowIdIdx: index('custom_block_workflow_id_idx').on(table.workflowId),
+    orgTypeUnique: uniqueIndex('custom_block_organization_type_unique').on(
+      table.organizationId,
+      table.type
+    ),
+  })
+)
+
 export const auditLog = pgTable(
   'audit_log',
   {

@@ -11,6 +11,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     FORKING_ENABLED: undefined as boolean | undefined,
+    DEPLOY_AS_BLOCK: undefined as boolean | undefined,
   },
   flagRef: { isAppConfigEnabled: false },
 }))
@@ -108,6 +109,7 @@ describe('isFeatureEnabled', () => {
     vi.clearAllMocks()
     flagRef.isAppConfigEnabled = false
     envRef.FORKING_ENABLED = undefined
+    envRef.DEPLOY_AS_BLOCK = undefined
   })
 
   describe('workspace-forking flag', () => {
@@ -126,6 +128,23 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('workspace-forking', { orgId: 'o1' })).toBe(true)
       expect(await isFeatureEnabled('workspace-forking', { userId: 'u9' })).toBe(true)
       expect(await isFeatureEnabled('workspace-forking', { orgId: 'o2', userId: 'u1' })).toBe(false)
+    })
+  })
+
+  describe('deploy-as-block flag', () => {
+    it('falls back to DEPLOY_AS_BLOCK when AppConfig is disabled', async () => {
+      envRef.DEPLOY_AS_BLOCK = undefined
+      expect(await isFeatureEnabled('deploy-as-block', { userId: 'u1', orgId: 'o1' })).toBe(false)
+
+      envRef.DEPLOY_AS_BLOCK = true
+      expect(await isFeatureEnabled('deploy-as-block', { userId: 'u1', orgId: 'o1' })).toBe(true)
+    })
+
+    it('targets specific orgs via AppConfig, ignoring the fallback secret', async () => {
+      envRef.DEPLOY_AS_BLOCK = undefined
+      withAppConfig({ 'deploy-as-block': { orgIds: ['o1'] } })
+      expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o1' })).toBe(true)
+      expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o2' })).toBe(false)
     })
   })
 

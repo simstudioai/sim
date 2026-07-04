@@ -61,6 +61,7 @@ import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
+import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
@@ -72,6 +73,7 @@ import {
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
@@ -838,12 +840,17 @@ async function handleExecutePost(
           variables: deployedVariables,
         }
 
-        const serializedWorkflow = new Serializer().serializeWorkflow(
-          workflowData.blocks,
-          workflowData.edges,
-          workflowData.loops,
-          workflowData.parallels,
-          false
+        // Custom blocks resolve only inside the org overlay; wrap this pre-execution
+        // serialize (used for input file-field discovery) the same way the core does.
+        const customBlockRows = await getCustomBlockRowsForWorkspace(workspaceId)
+        const serializedWorkflow = await withCustomBlockOverlay(customBlockRows, async () =>
+          new Serializer().serializeWorkflow(
+            workflowData.blocks,
+            workflowData.edges,
+            workflowData.loops,
+            workflowData.parallels,
+            false
+          )
         )
 
         const executionContext = {

@@ -5,6 +5,9 @@ import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chai
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
+import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
+import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import { type CustomBlockOutput, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
@@ -26,6 +29,34 @@ import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('WorkflowBlockHandler')
 
+/** Read a dot-path (e.g. `content.text`) out of a block output object. */
+function getValueAtPath(source: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>((acc, key) => {
+    if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[key]
+    return undefined
+  }, source)
+}
+
+/**
+ * Remap a custom block's resolved input mapping from source-field ids to the
+ * child workflow's current field names. The consumer's sub-block values are keyed
+ * by the stable field id (so renames don't cook them); the child is addressed by
+ * name. Legacy fields without an id are keyed by name and pass through unchanged.
+ * Keys that match no current field are dropped.
+ */
+function remapCustomBlockInputKeys(
+  mapping: Record<string, unknown>,
+  childBlocks: Record<string, unknown>
+): Record<string, unknown> {
+  const fields = extractInputFieldsFromBlocks(childBlocks)
+  const remapped: Record<string, unknown> = {}
+  for (const field of fields) {
+    if (field.id && field.id in mapping) remapped[field.name] = mapping[field.id]
+    else if (field.name in mapping) remapped[field.name] = mapping[field.name]
+  }
+  return remapped
+}
+
 type WorkflowTraceSpan = TraceSpan & {
   metadata?: Record<string, unknown>
   children?: WorkflowTraceSpan[]
@@ -41,7 +72,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
   canHandle(block: SerializedBlock): boolean {
     const id = block.metadata?.id
-    return id === BlockType.WORKFLOW || id === BlockType.WORKFLOW_INPUT
+    return id === BlockType.WORKFLOW || id === BlockType.WORKFLOW_INPUT || isCustomBlockType(id)
   }
 
   async execute(
@@ -69,11 +100,34 @@ export class WorkflowBlockHandler implements BlockHandler {
   ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing workflow block: ${block.id}`)
 
-    const workflowId = inputs.workflowId
+    const blockTypeId = block.metadata?.id
+    const isCustomBlock = isCustomBlockType(blockTypeId)
+
+    // Custom (deploy-as-block) blocks are an invocation boundary: resolve the bound
+    // workflow + authority from the DB (never trust the serialized value) and run the
+    // source workflow's LATEST deployment under its OWNER's authority — the same
+    // identity a normal deployed API/schedule/webhook run uses — so a cross-workspace
+    // consumer needs no permission on the source workflow. Owner deletion cascade-
+    // deletes the workflow → the custom_block row, so the block never orphans.
+    let workflowId = inputs.workflowId
+    let loadUserId = ctx.userId
+    let exposedOutputs: CustomBlockOutput[] = []
+    if (isCustomBlock) {
+      const authority = await getCustomBlockAuthority(blockTypeId as string)
+      if (!authority) {
+        throw new Error('This custom block is no longer available')
+      }
+      workflowId = authority.workflowId
+      loadUserId = authority.ownerUserId
+      exposedOutputs = authority.exposedOutputs
+    }
 
     if (!workflowId) {
       throw new Error('No workflow selected for execution')
     }
+
+    // Always run the latest deployment for custom blocks, even from a draft-context parent run.
+    const useDeployed = isCustomBlock || ctx.isDeployedContext
 
     let childWorkflowName = workflowId
 
@@ -92,8 +146,8 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     let childWorkflowSnapshotId: string | undefined
     try {
-      if (ctx.isDeployedContext) {
-        const hasActiveDeployment = await this.checkChildDeployment(workflowId, ctx.userId)
+      if (useDeployed) {
+        const hasActiveDeployment = await this.checkChildDeployment(workflowId, loadUserId)
         if (!hasActiveDeployment) {
           throw new Error(
             `Child workflow is not deployed. Please deploy the workflow before invoking it.`
@@ -101,8 +155,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
       }
 
-      const childWorkflow = ctx.isDeployedContext
-        ? await this.loadChildWorkflowDeployed(workflowId, ctx.userId)
+      const childWorkflow = useDeployed
+        ? await this.loadChildWorkflowDeployed(workflowId, loadUserId)
         : await this.loadChildWorkflow(workflowId, ctx.userId)
 
       if (!childWorkflow) {
@@ -121,10 +175,20 @@ export class WorkflowBlockHandler implements BlockHandler {
         const normalized = parseJSON(inputs.inputMapping, inputs.inputMapping)
 
         if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+          // Custom blocks key their mapping by the source field's stable id so a
+          // rename never orphans the consumer's value; remap id → current name
+          // before the child (which is addressed by name) receives it.
+          const remapped = isCustomBlock
+            ? remapCustomBlockInputKeys(
+                normalized as Record<string, unknown>,
+                childWorkflow.rawBlocks || {}
+              )
+            : (normalized as Record<string, unknown>)
+
           const cleanedMapping = await lazyCleanupInputMapping(
             ctx.workflowId || 'unknown',
             block.id,
-            normalized,
+            remapped,
             childWorkflow.rawBlocks || {}
           )
           childWorkflowInput = cleanedMapping as Record<string, any>
@@ -217,6 +281,18 @@ export class WorkflowBlockHandler implements BlockHandler {
         childTraceSpans,
         childWorkflowSnapshotId
       )
+
+      // Custom blocks expose only curated outputs — never the child workflow id,
+      // name, or trace spans. `mapChildOutputToParent` above still runs so failures
+      // surface identically; we just reshape the successful output.
+      if (isCustomBlock) {
+        // The child's spans are stripped for privacy, but they're the only carrier
+        // of the run's cost into billing — so roll their aggregate cost onto the
+        // block itself. Custom blocks are org-scoped, so this bills the same org the
+        // source workflow would bill if run directly, exactly as if it ran the key.
+        const childCost = childTraceSpans.reduce((sum, span) => sum + (span.cost?.total ?? 0), 0)
+        return this.projectCustomBlockOutput(executionResult, exposedOutputs, childCost)
+      }
 
       return mappedResult
     } catch (error: unknown) {
@@ -556,6 +632,34 @@ export class WorkflowBlockHandler implements BlockHandler {
   private isSyntheticWorkflowWrapper(span: TraceSpan | undefined): boolean {
     if (!span || span.type !== 'workflow') return false
     return !span.blockId
+  }
+
+  /**
+   * Shape a custom block's successful output. With curated `exposedOutputs`, each
+   * maps a child block output (blockId + dot-path, read from the child's per-block
+   * logs) to a named top-level field. With none, exposes the child's whole
+   * `result`. Never leaks child workflow id/name/trace spans.
+   */
+  private projectCustomBlockOutput(
+    executionResult: ExecutionResult,
+    exposedOutputs: CustomBlockOutput[],
+    childCost: number
+  ): BlockOutput {
+    // Aggregate child cost only (never the child's spans/model breakdown) so the
+    // run is billed while the source workflow's internals stay hidden.
+    const cost = childCost > 0 ? { cost: { total: childCost } } : {}
+    if (exposedOutputs.length === 0) {
+      return { success: true, result: executionResult.output ?? {}, ...cost }
+    }
+    const logs = executionResult.logs ?? []
+    const output: Record<string, unknown> = { success: true, ...cost }
+    for (const { blockId, path, name } of exposedOutputs) {
+      const log =
+        [...logs].reverse().find((l) => l.blockId === blockId && l.success) ??
+        [...logs].reverse().find((l) => l.blockId === blockId)
+      output[name] = log ? getValueAtPath(log.output, path) : undefined
+    }
+    return output as BlockOutput
   }
 
   private mapChildOutputToParent(

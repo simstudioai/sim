@@ -79,6 +79,7 @@ import {
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
+import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
@@ -2421,11 +2422,21 @@ const WorkflowContent = React.memo(
 
     const blockConfigCache = useRef<Map<string, any>>(new Map())
     const getBlockConfig = useCallback((type: string) => {
-      if (!blockConfigCache.current.has(type)) {
-        blockConfigCache.current.set(type, getBlock(type))
-      }
-      return blockConfigCache.current.get(type)
+      const cached = blockConfigCache.current.get(type)
+      if (cached) return cached
+      // Don't cache a miss: custom (deploy-as-block) blocks resolve only once the
+      // client overlay hydrates, so an early miss must re-resolve on a later render.
+      const config = getBlock(type)
+      if (config) blockConfigCache.current.set(type, config)
+      return config
     }, [])
+
+    // Bust cached custom-block node configs when the org overlay (hydrated by
+    // CustomBlocksLoader) changes, so renames/icon edits refresh existing nodes.
+    const { data: customBlocksData } = useCustomBlocks(workspaceId)
+    useEffect(() => {
+      for (const cb of customBlocksData ?? []) blockConfigCache.current.delete(cb.type)
+    }, [customBlocksData])
 
     const prevBlocksHashRef = useRef<string>('')
     const prevBlocksRef = useRef(blocks)
