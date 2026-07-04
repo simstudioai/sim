@@ -15,8 +15,8 @@ import {
 } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
-import { isSafeHttpUrl } from '@/app/(interfaces)/chat/components/message/components/file-download'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type {
   ChatMessageContext,
