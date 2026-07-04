@@ -3,8 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getUsageLogsContract } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
-import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
+import {
+  getUsageCreditsByLogId,
+  getUserUsageLogs,
+  type UsageLogSource,
+} from '@/lib/billing/core/usage-log'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
 
@@ -26,18 +30,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const dateRange = resolveDateRange(period, startDate, endDate)
 
-  const result = await getUserUsageLogs(auth.userId, {
+  const filter = {
     source: source as UsageLogSource | undefined,
     workspaceId,
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
-    limit,
-    cursor,
-  })
+  }
 
-  const creditsByLogId = apportionCredits(
-    result.logs.map((log) => ({ key: log.id, dollars: log.cost }))
-  )
+  const [result, creditsByLogId] = await Promise.all([
+    getUserUsageLogs(auth.userId, { ...filter, limit, cursor }),
+    getUsageCreditsByLogId(auth.userId, filter),
+  ])
 
   const logs = result.logs.map((log) => ({
     id: log.id,

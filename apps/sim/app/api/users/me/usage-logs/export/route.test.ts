@@ -3,13 +3,16 @@
  */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { apportionCredits } from '@/lib/billing/credits/conversion'
 
-const { mockGetUserUsageLogs } = vi.hoisted(() => ({
+const { mockGetUserUsageLogs, mockGetUsageCreditsByLogId } = vi.hoisted(() => ({
   mockGetUserUsageLogs: vi.fn(),
+  mockGetUsageCreditsByLogId: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
   getUserUsageLogs: mockGetUserUsageLogs,
+  getUsageCreditsByLogId: mockGetUsageCreditsByLogId,
 }))
 
 import { GET } from '@/app/api/users/me/usage-logs/export/route'
@@ -18,6 +21,7 @@ describe('GET /api/users/me/usage-logs/export', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetUsageCreditsByLogId.mockResolvedValue({})
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -43,6 +47,7 @@ describe('GET /api/users/me/usage-logs/export', () => {
       summary: { totalCost: 0.5, bySource: { copilot: 0.5 } },
       pagination: { hasMore: false },
     })
+    mockGetUsageCreditsByLogId.mockResolvedValue(apportionCredits([{ key: 'log-1', dollars: 0.5 }]))
 
     const response = await GET(createMockRequest('GET'))
     const csv = await response.text()
@@ -179,6 +184,34 @@ describe('GET /api/users/me/usage-logs/export', () => {
       })
     )
     expect(csv.split('\n')).toHaveLength(3)
+  })
+
+  it('apportions credits once over the whole filtered set, not per page', async () => {
+    mockGetUserUsageLogs
+      .mockResolvedValueOnce({
+        logs: [
+          { id: 'log-1', createdAt: '2026-07-01T00:00:00.000Z', source: 'copilot', cost: 0.002 },
+        ],
+        summary: { totalCost: 0, bySource: {} },
+        pagination: { hasMore: true, nextCursor: 'log-1' },
+      })
+      .mockResolvedValueOnce({
+        logs: [
+          { id: 'log-2', createdAt: '2026-06-30T00:00:00.000Z', source: 'copilot', cost: 0.002 },
+        ],
+        summary: { totalCost: 0, bySource: {} },
+        pagination: { hasMore: false },
+      })
+    mockGetUsageCreditsByLogId.mockResolvedValue(
+      apportionCredits([
+        { key: 'log-1', dollars: 0.002 },
+        { key: 'log-2', dollars: 0.002 },
+      ])
+    )
+
+    await GET(createMockRequest('GET'))
+
+    expect(mockGetUsageCreditsByLogId).toHaveBeenCalledTimes(1)
   })
 
   it('stops at exactly the safety cap without an extra wasted page fetch', async () => {

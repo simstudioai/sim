@@ -7,6 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
@@ -517,6 +518,44 @@ export async function recordCumulativeUsage(
   })
 }
 
+interface UsageLogFilter {
+  source?: UsageLogSource
+  workspaceId?: string
+  startDate?: Date
+  endDate?: Date
+}
+
+function buildUsageLogConditions(userId: string, filter: UsageLogFilter) {
+  const conditions = [eq(usageLog.userId, userId)]
+  if (filter.source) conditions.push(eq(usageLog.source, filter.source))
+  if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
+  if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
+  if (filter.endDate) conditions.push(lte(usageLog.createdAt, filter.endDate))
+  return conditions
+}
+
+/**
+ * Apportions credits across every log matching the filter (not just one
+ * page), so a row's `creditCost` is identical everywhere it's shown — the
+ * paginated list and the CSV export both call this rather than each
+ * apportioning their own subset, which would let the same row disagree
+ * between the two (or between pages of the same list) since apportionment
+ * depends on the complete set's total.
+ */
+export async function getUsageCreditsByLogId(
+  userId: string,
+  filter: UsageLogFilter
+): Promise<Record<string, number>> {
+  const rows = await dbReplica
+    .select({ id: usageLog.id, cost: usageLog.cost })
+    .from(usageLog)
+    .where(and(...buildUsageLogConditions(userId, filter)))
+
+  return apportionCredits(
+    rows.map((row) => ({ key: row.id, dollars: Number.parseFloat(row.cost) }))
+  )
+}
+
 /**
  * Options for querying usage logs
  */
@@ -602,23 +641,7 @@ export async function getUserUsageLogs(
   } = options
 
   try {
-    const conditions = [eq(usageLog.userId, userId)]
-
-    if (source) {
-      conditions.push(eq(usageLog.source, source))
-    }
-
-    if (workspaceId) {
-      conditions.push(eq(usageLog.workspaceId, workspaceId))
-    }
-
-    if (startDate) {
-      conditions.push(gte(usageLog.createdAt, startDate))
-    }
-
-    if (endDate) {
-      conditions.push(lte(usageLog.createdAt, endDate))
-    }
+    const conditions = buildUsageLogConditions(userId, { source, workspaceId, startDate, endDate })
 
     if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
@@ -685,11 +708,12 @@ export async function getUserUsageLogs(
     let totalCost = 0
 
     if (includeSummary) {
-      const summaryConditions = [eq(usageLog.userId, userId)]
-      if (source) summaryConditions.push(eq(usageLog.source, source))
-      if (workspaceId) summaryConditions.push(eq(usageLog.workspaceId, workspaceId))
-      if (startDate) summaryConditions.push(gte(usageLog.createdAt, startDate))
-      if (endDate) summaryConditions.push(lte(usageLog.createdAt, endDate))
+      const summaryConditions = buildUsageLogConditions(userId, {
+        source,
+        workspaceId,
+        startDate,
+        endDate,
+      })
 
       const summaryResult = await dbReplica
         .select({

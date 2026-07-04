@@ -3,8 +3,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { exportUsageLogsContract } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
-import { apportionCredits } from '@/lib/billing/credits/conversion'
+import {
+  getUsageCreditsByLogId,
+  getUserUsageLogs,
+  type UsageLogSource,
+} from '@/lib/billing/core/usage-log'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { formatCsvValue, toCsvRow } from '@/lib/table/export-format'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
@@ -40,6 +43,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const { source, workspaceId, period, startDate, endDate } = parsed.data.query
 
   const dateRange = resolveDateRange(period, startDate, endDate)
+  const filter = {
+    source: source as UsageLogSource | undefined,
+    workspaceId,
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+  }
 
   const rows: Awaited<ReturnType<typeof getUserUsageLogs>>['logs'] = []
   let cursor: string | undefined
@@ -47,10 +56,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   let truncated = false
   while (rows.length < EXPORT_SAFETY_CAP) {
     const page = await getUserUsageLogs(auth.userId, {
-      source: source as UsageLogSource | undefined,
-      workspaceId,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
+      ...filter,
       limit: Math.min(EXPORT_PAGE_SIZE, EXPORT_SAFETY_CAP - rows.length),
       cursor,
       cursorCreatedAt,
@@ -64,6 +70,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     cursorCreatedAt = lastRow ? new Date(lastRow.createdAt) : undefined
   }
 
+  const creditsByLogId = await getUsageCreditsByLogId(auth.userId, filter)
+
   if (truncated) {
     logger.error('Usage log export hit the safety cap — investigate this account', {
       userId: auth.userId,
@@ -71,8 +79,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       cap: EXPORT_SAFETY_CAP,
     })
   }
-
-  const creditsByLogId = apportionCredits(rows.map((log) => ({ key: log.id, dollars: log.cost })))
 
   const csvLines = rows.map((log) => {
     const type =

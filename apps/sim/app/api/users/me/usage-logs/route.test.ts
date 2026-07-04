@@ -3,13 +3,16 @@
  */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { apportionCredits } from '@/lib/billing/credits/conversion'
 
-const { mockGetUserUsageLogs } = vi.hoisted(() => ({
+const { mockGetUserUsageLogs, mockGetUsageCreditsByLogId } = vi.hoisted(() => ({
   mockGetUserUsageLogs: vi.fn(),
+  mockGetUsageCreditsByLogId: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
   getUserUsageLogs: mockGetUserUsageLogs,
+  getUsageCreditsByLogId: mockGetUsageCreditsByLogId,
 }))
 
 import { GET } from '@/app/api/users/me/usage-logs/route'
@@ -32,6 +35,7 @@ describe('GET /api/users/me/usage-logs', () => {
       summary: { totalCost: 0.5, bySource: { workflow: 0.5 } },
       pagination: { hasMore: false },
     })
+    mockGetUsageCreditsByLogId.mockResolvedValue(apportionCredits([{ key: 'log-1', dollars: 0.5 }]))
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -79,6 +83,9 @@ describe('GET /api/users/me/usage-logs', () => {
       summary: { totalCost: 0.01, bySource: { workflow: 0.01 } },
       pagination: { hasMore: false },
     })
+    mockGetUsageCreditsByLogId.mockResolvedValue(
+      apportionCredits([{ key: 'log-1', dollars: 0.01 }])
+    )
 
     const response = await GET(createMockRequest('GET'))
     const body = await response.json()
@@ -105,6 +112,13 @@ describe('GET /api/users/me/usage-logs', () => {
       summary: { totalCost: 0.006, bySource: { workflow: 0.006 } },
       pagination: { hasMore: false },
     })
+    mockGetUsageCreditsByLogId.mockResolvedValue(
+      apportionCredits([
+        { key: 'log-a', dollars: 0.002 },
+        { key: 'log-b', dollars: 0.002 },
+        { key: 'log-c', dollars: 0.002 },
+      ])
+    )
 
     const response = await GET(createMockRequest('GET'))
     const body = await response.json()
