@@ -26,7 +26,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(getUsageLogsContract, request, {})
   if (!parsed.success) return parsed.response
-  const { source, workspaceId, period, startDate, endDate, limit, cursor } = parsed.data.query
+  const { source, workspaceId, period, startDate, endDate, limit, cursor, includeCredits } =
+    parsed.data.query
 
   const dateRange = resolveDateRange(period, startDate, endDate)
 
@@ -39,7 +40,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const [result, creditsByLogId] = await Promise.all([
     getUserUsageLogs(auth.userId, { ...filter, limit, cursor }),
-    getUsageCreditsByLogId(auth.userId, filter),
+    includeCredits
+      ? getUsageCreditsByLogId(auth.userId, filter)
+      : Promise.resolve<Record<string, number>>({}),
   ])
 
   const logs = result.logs.map((log) => ({
@@ -47,7 +50,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     createdAt: log.createdAt,
     source: log.source,
     workflowName: log.workflowName ?? null,
-    creditCost: creditsByLogId[log.id],
+    creditCost: creditsByLogId[log.id] ?? 0,
     dollarCost: log.cost,
   }))
 

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 
@@ -309,6 +310,12 @@ export const usageLogsQuerySchema = usageLogsFilterSchema
   .extend({
     limit: z.coerce.number().min(1).max(100).optional().default(50),
     cursor: z.string().optional(),
+    /**
+     * The compact Billing summary glance (`limit: 1`) only reads
+     * `summary.totalCredits`, never a row's `creditCost` — set `false` to
+     * skip the whole-filter apportionment scan for that caller.
+     */
+    includeCredits: booleanQueryFlagSchema.optional().default(true),
   })
   .refine(
     (query) => query.period !== 'custom' || query.startDate !== undefined,

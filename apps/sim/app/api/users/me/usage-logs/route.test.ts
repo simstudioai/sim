@@ -139,6 +139,33 @@ describe('GET /api/users/me/usage-logs', () => {
     expect(mockGetUserUsageLogs).not.toHaveBeenCalled()
   })
 
+  it('skips the whole-filter credit apportionment scan when includeCredits=false', async () => {
+    await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/test?limit=1&includeCredits=false'
+      )
+    )
+
+    expect(mockGetUsageCreditsByLogId).not.toHaveBeenCalled()
+  })
+
+  it('defaults creditCost to 0 (not undefined) when credits were skipped', async () => {
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/test?limit=1&includeCredits=false'
+      )
+    )
+    const body = await response.json()
+
+    expect(body.logs[0].creditCost).toBe(0)
+  })
+
   it('resolves the start date from the period filter', async () => {
     await GET(createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/test?period=7d'))
 

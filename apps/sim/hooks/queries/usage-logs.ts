@@ -23,10 +23,11 @@ async function fetchUsageLogs(
   filter: UsagePeriodFilter,
   limit: number,
   cursor: string | undefined,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeCredits = true
 ): Promise<UsageLogsApiResponse> {
   return requestJson(getUsageLogsContract, {
-    query: { ...filter, limit, cursor },
+    query: { ...filter, limit, cursor, includeCredits },
     signal,
   })
 }
@@ -63,7 +64,7 @@ export function useUsageLogs({ period, startDate, endDate, enabled = true }: Use
 export function useUsageSummary(period: Exclude<UsageLogPeriod, 'custom'>) {
   return useQuery({
     queryKey: usageLogKeys.summary(period),
-    queryFn: ({ signal }) => fetchUsageLogs({ period }, 1, undefined, signal),
+    queryFn: ({ signal }) => fetchUsageLogs({ period }, 1, undefined, signal, false),
     staleTime: 30 * 1000,
     select: (data) => data.summary.totalCredits,
   })

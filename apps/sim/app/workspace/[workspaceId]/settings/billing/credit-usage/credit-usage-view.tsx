@@ -158,7 +158,11 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
         </ChipLink>
       }
       actions={
-        <Chip leftIcon={Download} onClick={() => void handleExport()} disabled={logs.length === 0}>
+        <Chip
+          leftIcon={Download}
+          onClick={() => void handleExport()}
+          disabled={logs.length === 0 || isPlaceholderData}
+        >
           Export
         </Chip>
       }
