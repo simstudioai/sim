@@ -23,7 +23,7 @@ const QUESTIONS: QuestionItem[] = [
     ],
   },
   {
-    type: 'multi_select',
+    type: 'single_select',
     prompt: 'What time zone should the daily report run in?',
     options: [
       { id: 'est', label: 'EST' },
