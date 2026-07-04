@@ -49,12 +49,17 @@ export function createSmoothBottomChase(
   let lastTop: number | null = null
 
   const park = () => {
+    if (raf !== null) cancelAnimationFrame(raf)
     raf = null
     lastTop = null
   }
 
   const step = () => {
-    raf = null
+    // `raf` deliberately keeps this (already-fired) frame's id while the step
+    // body runs: canceling a fired handle is a no-op, and a non-null `raf`
+    // means `isActive()` stays true and a reentrant `kick()` — e.g. from a
+    // target whose `setTop` fires synchronous scroll listeners, like Monaco's
+    // onDidScrollChange — cannot start a second parallel chain.
     if (!shouldContinue()) {
       park()
       return
@@ -70,6 +75,9 @@ export function createSmoothBottomChase(
       return
     }
     target.setTop(top + Math.max(1, gap * SMOOTH_CHASE_RATE))
+    // A synchronous side-effect of `setTop` may have called `cancel()`; honor
+    // it instead of re-queuing over it.
+    if (raf === null) return
     lastTop = target.getTop()
     raf = requestAnimationFrame(step)
   }
@@ -79,9 +87,6 @@ export function createSmoothBottomChase(
     kick: () => {
       if (raf === null) raf = requestAnimationFrame(step)
     },
-    cancel: () => {
-      if (raf !== null) cancelAnimationFrame(raf)
-      park()
-    },
+    cancel: park,
   }
 }
