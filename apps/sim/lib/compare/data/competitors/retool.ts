@@ -25,6 +25,18 @@ export const retoolProfile: CompetitorProfile = {
     'Retool is a low-code platform for building, deploying, and managing internal software (apps, workflows, and AI agents) that connect to databases, APIs, and LLMs.',
   standoutFeatures: [
     {
+      title: 'Full internal business applications, not just agent workflows',
+      description:
+        "Retool builds custom internal UI screens, forms, admin panels, and dashboards backed by Retool Database, a genuine Postgres database with real SQL joins and foreign keys, not a spreadsheet-like grid, plus a mature React app runtime. AppGen lets users describe an app in plain English and Retool generates pages, queries, components, data bindings, and event handlers already wired to production data and inheriting the org's existing SSO/RBAC/audit policies.",
+      shortDescription:
+        'Builds full internal apps on a real relational database, not just agent workflows.',
+      source: {
+        url: 'https://retool.com/ai-app-generation',
+        label: 'Retool AI App Generation',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'Retool Vectors (managed vector store)',
       description:
         "A Retool-managed vector database that automatically indexes uploaded text, PDFs, or web pages, so AI apps and agents can look up relevant content with one click instead of building a custom search pipeline. The lookups always run through OpenAI's embedding API, even when the chat model is a different provider.",
@@ -39,23 +51,12 @@ export const retoolProfile: CompetitorProfile = {
     {
       title: 'Bidirectional MCP support',
       description:
-        'Retool Agents can connect outbound to external MCP servers (a standard for plugging AI agents into outside tools) to pull in tools like GitHub or Jira. Retool also exposes its own workspace as an MCP server, so apps, workflows, and users can be managed directly from Claude, Cursor, Codex, or Kiro.',
-      shortDescription: 'Connects to external MCP servers and exposes Retool itself as one.',
+        'Retool Agents can connect outbound to external MCP servers (a standard for plugging AI agents into outside tools) to pull in tools like GitHub or Jira. Retool also exposes its own workspace as an MCP server (public beta), so build and management actions, such as creating apps, running queries, and managing users, can be performed directly from Claude, Cursor, Codex, or Kiro. This does not let you publish an individual deployed app or workflow as its own standalone MCP tool for outside consumption.',
+      shortDescription:
+        'Connects to external MCP servers and exposes workspace management actions as one.',
       source: {
         url: 'https://retool.com/blog/how-to-use-mcp-in-retool',
         label: 'How to use MCP in Retool',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Natural-language app generation (AppGen)',
-      description:
-        "Users describe an app in plain English and Retool generates pages, queries, components, data bindings, and event handlers already wired to production data and inheriting the org's existing SSO/RBAC/audit policies, rather than producing raw exportable code.",
-      shortDescription:
-        'Generates full apps from a prompt, wired to live data and existing security policies.',
-      source: {
-        url: 'https://retool.com/ai-app-generation',
-        label: 'Retool AI App Generation',
         asOf: '2026-07-02',
       },
     },
@@ -276,10 +277,11 @@ export const retoolProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          "Yes: Retool Database is a built-in, Postgres-backed data table (separate from connecting your own external database) with a spreadsheet-style Edit Table view for inline editing. Retool's Table component can also render and scroll through 100,000+ rows and hundreds of columns without slowing down.",
+          "Yes: Retool Database is a real, built-in Postgres-backed database (not a spreadsheet-like store), so tables can be queried with actual SQL and joined against other Resources, in addition to a spreadsheet-style Edit Table view for inline editing. Retool's Table UI component separately renders and scrolls through 100,000+ rows and hundreds of columns without slowing down.",
         detail:
-          'Retool does not publish hard row/column caps for Retool Database itself (forum threads mention plan-dependent limits like 50,000 records, unconfirmed as current). The Table UI component is documented to handle 100K+ rows.',
-        shortValue: 'Yes, Retool Database plus a Table component for large datasets',
+          "Because it's genuine Postgres under the hood, Retool Database supports relational features (foreign keys, SQL joins/queries) that a typed-column grid like Sim's Tables does not expose; Retool does not publish hard row/column caps for Retool Database itself (forum threads mention plan-dependent limits like 50,000 records, unconfirmed as current). The Table UI component is documented to handle 100K+ rows.",
+        shortValue:
+          'Yes, real Postgres database (SQL-queryable), plus a large-dataset Table component',
         confidence: 'verified',
         sources: [
           {
@@ -758,11 +760,18 @@ export const retoolProfile: CompetitorProfile = {
       },
       auditLogging: {
         value:
-          'Yes: available starting on the Business plan (audit logging listed as a Business-tier feature), with expanded audit logging on Enterprise.',
-        shortValue: 'From Business plan up, expanded on Enterprise',
+          'Yes: available starting on the Business plan (audit logging listed as a Business-tier feature), with expanded audit logging on Enterprise; Enterprise orgs can also continuously stream audit log events to Datadog, or output them to stdout for ingestion by any external pipeline on self-hosted deployments.',
+        detail:
+          'Cloud Business/Enterprise can additionally download audit logs from the UI in batch. No direct S3/BigQuery/generic-webhook drain is documented; Datadog streaming and self-hosted stdout are the only continuous-export mechanisms Retool publishes.',
+        shortValue: 'From Business plan up; continuous export limited to Datadog/stdout',
         confidence: 'verified',
         sources: [
           { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.retool.com/changelog/audit-logs-in-datadog',
+            label: 'Send audit log events to Datadog',
+            asOf: '2026-07-02',
+          },
         ],
       },
       additionalCompliance: {
@@ -796,7 +805,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Yes: Retool (Business/Enterprise plans) supports resource-level permissions with Use, Edit, and Own tiers. Enterprise orgs can go further and set per-environment permissions on the same resource (for example, allow Use on staging credentials but deny production credentials), independent of feature-level RBAC.',
         detail:
-          "Permission control for Resources requires the Enterprise plan; per-environment override requires selecting 'Define specific resource access' on a resource.",
+          "Permission control for Resources (Use/Edit/Own tiers) is available starting on the Business plan; per-environment override, selecting 'Define specific resource access' on a resource, is an Enterprise-only capability.",
         shortValue: 'Yes, Use/Edit/Own permissions per resource per env',
         confidence: 'verified',
         sources: [
@@ -815,6 +824,7 @@ export const retoolProfile: CompetitorProfile = {
             label: 'Advanced permissions in Retool: The Fundamentals',
             asOf: '2026-07-02',
           },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
         ],
       },
       whiteLabeling: {
@@ -1038,6 +1048,26 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/workflows/guides/error-handlers',
             label: 'Retool Docs: Configure workflow error handlers',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: scheduled and webhook-triggered Retool Workflow runs execute entirely on Retool's servers (Cloud) or the self-hosted deployment's own infrastructure, not on a builder's browser or device.",
+        detail:
+          'A triggered run continues executing after the initial request returns and can be polled later via the Get Workflow Run Details API, exactly as documented for asynchronous runs. No client device needs to stay open, awake, or connected for a scheduled or webhook-triggered run to fire or complete.',
+        shortValue: 'Yes, runs server-side; no client device dependency',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.retool.com/workflows/concepts/limits',
+            label: 'Retool Docs: Workflow limits (sync vs async execution modes)',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.retool.com/workflows/guides/webhooks',
+            label: 'Retool Docs: Trigger workflows with webhooks',
             asOf: '2026-07-02',
           },
         ],

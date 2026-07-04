@@ -18,24 +18,13 @@ export const crewaiProfile: CompetitorProfile = {
   },
   standoutFeatures: [
     {
-      title: 'Dual programming model: autonomous Crews plus event-driven Flows',
+      title: 'Code-first Python framework, not a visual builder',
       description:
-        'CrewAI gives developers two composable abstractions: Crews, teams of role-based agents with autonomy over how a task gets done, and Flows, an event-driven layer (Python decorators like @start, @listen, @router) for deterministic control over state and execution order. Flows can orchestrate one or more Crews, mixing free-form agent reasoning with explicit procedural logic in the same application.',
-      shortDescription: 'Combines autonomous agent Crews with deterministic, event-driven Flows.',
+        'CrewAI is written and configured entirely in Python. Developers get two composable abstractions in code: Crews, teams of role-based agents with autonomy over how a task gets done, and Flows, an event-driven layer (Python decorators like @start, @listen, @router) for deterministic control over state and execution order. There is no visual canvas in the open-source core; a team that wants full programmatic control over multi-agent orchestration logic, with no drag-and-drop layer at all, gets that directly.',
+      shortDescription: 'Fully code-based multi-agent orchestration, with no visual canvas at all.',
       source: {
         url: 'https://docs.crewai.com/en/concepts/flows',
         label: 'Flows - CrewAI Docs',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Independent of LangChain, built from scratch',
-      description:
-        'CrewAI is a standalone Python framework, independent of LangChain or other agent frameworks, with a lighter dependency footprint and its own LLM connection layer: native integrations for OpenAI, Anthropic, Gemini, and Bedrock, plus LiteLLM for 200+ additional providers.',
-      shortDescription: 'A standalone framework, not built on top of LangChain.',
-      source: {
-        url: 'https://docs.crewai.com/en/concepts/llms',
-        label: 'LLMs - CrewAI Docs',
         asOf: '2026-07-02',
       },
     },
@@ -47,6 +36,17 @@ export const crewaiProfile: CompetitorProfile = {
       source: {
         url: 'https://github.com/crewAIInc/crewAI',
         label: 'crewAIInc/crewAI (GitHub)',
+        asOf: '2026-07-02',
+      },
+    },
+    {
+      title: 'Independent of LangChain, built from scratch',
+      description:
+        'CrewAI is a standalone Python framework, independent of LangChain or other agent frameworks, with a lighter dependency footprint and its own LLM connection layer: native integrations for OpenAI, Anthropic, Gemini, and Bedrock, plus LiteLLM for 200+ additional providers.',
+      shortDescription: 'A standalone framework, not built on top of LangChain.',
+      source: {
+        url: 'https://docs.crewai.com/en/concepts/llms',
+        label: 'LLMs - CrewAI Docs',
         asOf: '2026-07-02',
       },
     },
@@ -781,16 +781,17 @@ export const crewaiProfile: CompetitorProfile = {
         ],
       },
       auditLogging: {
-        value: 'Yes: audit trails are listed among CrewAI AMP Enterprise security features',
+        value:
+          'Partial: immutable audit trails are described as part of CrewAI AMP Enterprise IAM, but not by a first-party source',
         detail:
-          "CrewAI Enterprise lists audit trails alongside PII detection/masking, secret manager integration, and SSO as built-in Enterprise-tier security features. CrewAI's own pricing page does not itemize audit-log retention windows or export formats.",
-        shortValue: 'Yes, as an AMP Enterprise feature; retention details unconfirmed',
+          "Third-party CrewAI production write-ups describe Enterprise-tier IAM as including SSO, RBAC, and immutable audit trails, alongside PII redaction and secret manager integration, but CrewAI's own docs and pricing page do not independently itemize audit-log retention windows or export formats, so this is treated as unconfirmed by a first-party source.",
+        shortValue: 'Partial, described in third-party write-ups; not independently confirmed',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://cybernews.com/ai-tools/crewai-review/',
-            label: 'CrewAI Review 2026 - CyberNews',
-            asOf: '2026-07-02',
+            url: 'https://techjacksolutions.com/ai-tools/crewai/crewai-production-guide/',
+            label: 'CrewAI in Production: Deployment, Monitoring & Scaling - TechJack Solutions',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -824,16 +825,16 @@ export const crewaiProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          'Yes: AMP Enterprise documents secret manager integration for governing stored credentials',
+          'Yes: AMP Enterprise documents secret manager integrations (e.g. Google Cloud Secret Manager) for governing stored credentials',
         detail:
-          "CrewAI Enterprise lists secret manager integration among its built-in security features, implying centralized credential storage/access rather than credentials embedded in code. Fine-grained per-role restriction of which specific credential a role may use is not itemized in CrewAI's own documentation.",
+          "CrewAI's own docs describe connecting a cloud secret manager (documented for Google Cloud Secret Manager) so secrets are stored centrally rather than embedded in code, with RBAC permissions (secret_providers: manage) gating which org members can configure these integrations. Fine-grained per-role restriction of which specific credential a role may use beyond that permission is not itemized in CrewAI's own documentation.",
         shortValue: 'Yes, secret manager integration (Enterprise); role-level detail unconfirmed',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://cybernews.com/ai-tools/crewai-review/',
-            label: 'CrewAI Review 2026 - CyberNews',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/enterprise/features/secrets-manager/gcp',
+            label: 'Google Cloud Secret Manager - CrewAI Docs',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -855,16 +856,16 @@ export const crewaiProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          'Yes: PII detection and masking is a documented CrewAI AMP Enterprise security feature',
+          'Yes: PII Redaction for Traces is a documented CrewAI AMP Enterprise security feature',
         detail:
-          "CrewAI Enterprise lists 'PII detection and masking' among its built-in security features, alongside audit trails and secret manager integration. Separately, the framework's LLM-based task guardrails can be configured to check for PII exposure as one of several natural-language validation criteria, though that is a general-purpose guardrail, not dedicated PII tooling.",
-        shortValue: 'Yes, PII detection/masking is an AMP Enterprise feature',
-        confidence: 'estimated',
+          "CrewAI's own docs describe PII Redaction for Traces, an Enterprise-tier feature that automatically detects and masks personally identifiable information (credit card numbers, social security numbers, emails, names) in crew and flow execution traces, with support for custom recognizers. Separately, the framework's LLM-based task guardrails can be configured to check for PII exposure as one of several natural-language validation criteria, though that is a general-purpose guardrail, not dedicated PII tooling.",
+        shortValue: 'Yes, PII Redaction for Traces is an AMP Enterprise feature',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://cybernews.com/ai-tools/crewai-review/',
-            label: 'CrewAI Review 2026 - CyberNews',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/enterprise/features/pii-trace-redactions',
+            label: 'PII Redaction for Traces - CrewAI Docs',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1003,6 +1004,26 @@ export const crewaiProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          'Yes for crews deployed to CrewAI AMP; the self-hosted open-source framework has no built-in scheduler of its own',
+        detail:
+          "A crew deployed to CrewAI AMP runs as a server-side job on CrewAI's own infrastructure, triggered by its kickoff API, a webhook, or a third-party scheduler (ActivePieces, Zapier, Make.com) calling that API; no client device needs to stay open for that run to fire or complete. The self-hosted open-source framework, by contrast, has no first-party scheduling daemon: a crew or flow only runs when something (a cron job, a long-running script, or a developer's own process) invokes it on a machine the operator keeps running, so unattended execution there depends on infrastructure the developer sets up themselves, not a client device.",
+        shortValue: 'Yes on AMP (server-side); self-hosted OSS needs your own scheduler/server',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.crewai.com/en/enterprise/guides/webhook-automation',
+            label: 'Webhook Automation - CrewAI Docs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.crewai.com/enterprise/guides/use-crew-api',
+            label: 'Trigger Deployed Crew API - CrewAI Docs',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1070,9 +1091,9 @@ export const crewaiProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.crewai.com/en/concepts/agents',
-            label: 'Agents - CrewAI Docs',
-            asOf: '2026-07-02',
+            url: 'https://learn.crewai.com',
+            label: 'CrewAI Academy (learn.crewai.com)',
+            asOf: '2026-07-04',
           },
         ],
       },

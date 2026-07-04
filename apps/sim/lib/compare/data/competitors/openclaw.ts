@@ -18,10 +18,11 @@ export const openClawProfile: CompetitorProfile = {
     "OpenClaw is a free, open-source, self-hosted personal AI agent that runs on a user's own machine or server and connects to messaging platforms (WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Microsoft Teams, and others) as its primary interface, extensible via a Skills plugin system and the ClawHub marketplace. It is not a visual workflow/automation builder like Sim, n8n, or Power Automate.",
   standoutFeatures: [
     {
-      title: '22+ messaging channels as the native interface',
+      title: '22+ messaging channels as the primary interface',
       description:
-        'OpenClaw ships a multi-channel inbox connecting one assistant to WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, Microsoft Teams, IRC, Matrix, Feishu, LINE, Mattermost, Nextcloud Talk, and more. Users talk to the same agent from whichever chat app they already use, not a dedicated web builder UI.',
-      shortDescription: 'One agent reachable from 22+ chat apps, not a dedicated builder UI.',
+        'OpenClaw ships a multi-channel inbox connecting one assistant to WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, and Microsoft Teams, plus bundled plugin channels (shipped by default, not separately installed) including IRC, Matrix, Feishu, LINE, Mattermost, Nextcloud Talk, Nostr, Twitch, Zalo, and more. Users talk to the same agent from whichever chat app they already use, not a dedicated web builder UI.',
+      shortDescription:
+        'One agent reachable from 22+ chat apps (core plus bundled plugins), not a dedicated builder UI.',
       source: {
         url: 'https://docs.openclaw.ai/start/openclaw',
         label: 'OpenClaw Docs: Personal assistant setup',
@@ -53,14 +54,14 @@ export const openClawProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Native MCP client over stdio and HTTP/SSE',
+      title: 'Dynamic runtime tool and skill dispatch, not pre-wired at build time',
       description:
-        'OpenClaw connects to external Model Context Protocol servers by adding an mcpServers block to its config, giving the agent tool access to any published MCP server (GitHub, Notion, Postgres, Slack, and others) without custom integration code.',
+        "OpenClaw's agent decides which tools, connectors, and installed Skills to use at runtime based on the incoming request, rather than following a pre-wired sequence of steps chosen when a workflow was built. Skills become eligible per session based on gating rules (OS, environment variables, config flags) and a documented precedence order, and the agent dispatches among them dynamically instead of a builder wiring each tool call in advance.",
       shortDescription:
-        'Connects to any MCP server (stdio or HTTP/SSE) by editing one config block.',
+        'Agent picks tools and skills dynamically at runtime, not pre-wired at build time.',
       source: {
-        url: 'https://docs.openclaw.ai/cli/mcp',
-        label: 'OpenClaw Docs: MCP',
+        url: 'https://docs.openclaw.ai/tools/skills',
+        label: 'OpenClaw Docs: Skills',
         asOf: '2026-07-02',
       },
     },
@@ -115,15 +116,15 @@ export const openClawProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'No deployable API/webhook endpoint or visual workflow builder',
+      title: 'No visual drag-and-drop workflow builder, though a bundled webhooks plugin exists',
       description:
-        'OpenClaw is a chat-interface agent gateway, not a workflow/automation platform. It has no feature to publish a configured agent, skill, or automation as a callable REST/webhook endpoint for external systems, and no drag-and-drop canvas for composing multi-step logic.',
+        'OpenClaw is a chat-interface agent gateway, not a visual workflow/automation platform: it has no drag-and-drop canvas for composing multi-step logic. It does ship an official Webhooks plugin that exposes authenticated inbound HTTP routes on the Gateway, letting external systems (Zapier, n8n, CI jobs, internal services) POST JSON to create, drive, and manage OpenClaw TaskFlows, so it can be triggered and controlled via a callable endpoint, just not through any visual builder.',
       shortDescription:
-        'No feature to publish an agent or automation as a callable API/webhook endpoint.',
+        'No visual builder/canvas; a bundled Webhooks plugin does expose callable inbound HTTP routes.',
       source: {
-        url: 'https://docs.openclaw.ai/',
-        label: 'OpenClaw Docs home',
-        asOf: '2026-07-02',
+        url: 'https://docs.openclaw.ai/plugins/webhooks',
+        label: 'OpenClaw Docs: Webhooks plugin',
+        asOf: '2026-07-04',
       },
     },
     {
@@ -531,14 +532,14 @@ export const openClawProfile: CompetitorProfile = {
         value:
           'N/A: OpenClaw\'s entire product is a chat surface (messaging-platform channels), so there is no separate "deploy as a public chat widget" feature the way a workflow builder has. Chat is the interface itself, not an optional deployment target.',
         detail:
-          'The agent is reached through the messaging channels the operator has connected it to (WhatsApp, Telegram, Slack, etc.) or a local Web Control UI. There is no feature to publish a standalone, unauthenticated public-facing chat widget for arbitrary website visitors.',
+          'The agent is reached through the messaging channels the operator has connected it to (WhatsApp, Telegram, Slack, etc.) or the built-in WebChat surface, which the docs describe as requiring authentication (a gateway auth path, shared-secret by default) rather than a standalone, unauthenticated public-facing chat widget for arbitrary website visitors.',
         shortValue: 'N/A: chat is the native interface, not a separate deploy target',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.openclaw.ai/',
-            label: 'OpenClaw Docs home',
-            asOf: '2026-07-02',
+            url: 'https://docs.openclaw.ai/web/webchat',
+            label: 'OpenClaw Docs: WebChat',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -627,16 +628,21 @@ export const openClawProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value:
-          'Inbound chat messages on connected channels, and cron-based scheduled jobs (main-session or isolated-session runs); no generic external webhook/event trigger',
+          'Inbound chat messages on connected channels, cron-based scheduled jobs (main-session or isolated-session runs), and inbound webhooks via the bundled Webhooks plugin',
         detail:
-          'Cron jobs run agent prompts on a schedule using Croner syntax, with either "main session" delivery (enqueues a system event, optionally wakes the heartbeat) or an isolated dedicated session per run, pruned after a 24-hour retention window by default.',
-        shortValue: 'Chat messages and cron schedules; no generic webhook trigger',
+          'Cron jobs run agent prompts on a schedule using Croner syntax, with either "main session" delivery (enqueues a system event, optionally wakes the heartbeat) or an isolated dedicated session per run, pruned after a 24-hour retention window by default. The Webhooks plugin adds authenticated inbound HTTP routes so an external system can POST to create, run, resume, cancel, or fail a TaskFlow, functioning as an external event trigger scoped to TaskFlow lifecycle actions rather than an arbitrary generic webhook.',
+        shortValue: 'Chat messages, cron schedules, and inbound webhooks (TaskFlow-scoped)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/automation/cron-jobs',
             label: 'OpenClaw Docs: Scheduled tasks (cron jobs)',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.openclaw.ai/plugins/webhooks',
+            label: 'OpenClaw Docs: Webhooks plugin',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -657,16 +663,16 @@ export const openClawProfile: CompetitorProfile = {
       },
       apiPublishing: {
         value:
-          'No: there is no mechanism to publish an OpenClaw agent, skill, or automation as a callable REST/webhook API endpoint for external systems to invoke.',
+          'Yes, via the official Webhooks plugin: it adds authenticated inbound HTTP routes on the Gateway so external systems (Zapier, n8n, a CI job, or an internal service) can POST JSON to a configured path to create, drive, and manage OpenClaw TaskFlows, the closest OpenClaw feature to publishing a callable REST/webhook endpoint.',
         detail:
-          'OpenClaw is reached through messaging channels or a local Web Control UI, not a deployable API surface. The Gateway itself exposes local control endpoints for its own CLI/UI, not a public API product feature.',
-        shortValue: 'No API endpoint deployment feature',
-        confidence: 'estimated',
+          'The plugin runs inside the Gateway process and is enabled via configuration (hooks.enabled, token/secret, path, defaultSessionKey, mappings). Requests authenticate with a shared secret (an Authorization: Bearer header or an x-openclaw-webhook-secret header) and accept documented action values including create_flow, get_flow, list_flows, find_latest_flow, resolve_flow, get_task_summary, set_waiting, resume_flow, finish_flow, fail_flow, request_cancel, cancel_flow, and run_task. This is narrower than a general-purpose custom-API-endpoint feature (only TaskFlow lifecycle operations are exposed, not arbitrary business logic), but it is a genuine callable inbound endpoint, not merely OpenClaw calling out to external webhooks.',
+        shortValue: 'Yes: bundled Webhooks plugin exposes authenticated inbound HTTP routes',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.openclaw.ai/',
-            label: 'OpenClaw Docs home',
-            asOf: '2026-07-02',
+            url: 'https://docs.openclaw.ai/plugins/webhooks',
+            label: 'OpenClaw Docs: Webhooks plugin',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -674,7 +680,7 @@ export const openClawProfile: CompetitorProfile = {
         value:
           'Skill-authoring specification (AgentSkills/SKILL.md) plus a plugin system for channels/providers, and an open-source GitHub organization (~70 repos spanning SDKs, hosted agents, crawlers, and skill registries), not one single unified SDK product',
         detail:
-          'The docs describe skill authoring (frontmatter, gating, tool dispatch), a plugin mechanism used for channels like Matrix/Nostr/Twitch/Zalo, and a broader open-source "federation" of related projects under the openclaw GitHub org.',
+          'The docs describe skill authoring (frontmatter, gating, tool dispatch), a plugin mechanism used for bundled-by-default channels like Matrix/Nostr/Twitch/Zalo (shipped in normal releases, not separately installed by the user), and a broader open-source "federation" of related projects under the openclaw GitHub org.',
         shortValue: 'Skill spec, plugin system, and a ~70-repo OSS ecosystem',
         confidence: 'estimated',
         sources: [
@@ -924,11 +930,10 @@ export const openClawProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          'No: Skills mainly come from ClawHub, an open marketplace where any third-party developer can publish and any user can install executable Markdown/code Skill packages, not a first-party catalog authored by OpenClaw. Researchers documented 283 ClawHub skills (about 7.1% of the registry) leaking API keys and other credentials, and a separate scan found 24 accounts distributing over 600 malicious skills before scanning existed.',
+          "No: researchers documented 283 ClawHub skills (about 7.1% of the registry) leaking API keys and other credentials, plus a separate scan finding 24 accounts distributing over 600 malicious skills before scanning existed, roughly 900 skills total with a documented credential-leak or malware finding. That is a direct consequence of ClawHub's structure: it is an open marketplace where any third-party developer can publish, and any user can install, an executable Markdown/code Skill package, not a first-party catalog authored and code-reviewed by OpenClaw itself. This is the opposite trust boundary from Sim, where all 302 blocks are first-party authored and code-reviewed through the standard pull-request process, with no public marketplace for installing arbitrary third-party executable code.",
         detail:
-          'OpenClaw has since added a ClawScan pipeline (static analysis, VirusTotal, and NVIDIA SkillSpector as of June 2026) that assigns each published skill a Clean/Suspicious/Malicious verdict and a Skill Card, but its docs still tell users to treat third-party skills as untrusted code, and the marketplace remains open to any publisher rather than vendor-authored.',
-        shortValue:
-          'No: open ClawHub marketplace, documented credential-leak and malware incidents',
+          'OpenClaw has since added a ClawScan pipeline (static analysis, VirusTotal, and NVIDIA SkillSpector as of June 2026) that assigns each published skill a Clean/Suspicious/Malicious verdict and a Skill Card, but its docs still tell users to treat third-party skills as untrusted code, and the marketplace remains open to any publisher rather than vendor-authored. Sim avoids this class of incident structurally: custom code steps run inside its own isolated-vm sandbox rather than as an installable third-party skill package.',
+        shortValue: 'No: ~900 ClawHub skills with a documented credential-leak or malware finding',
         confidence: 'verified',
         sources: [
           {
@@ -1047,6 +1052,26 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://docs.openclaw.ai/tools/subagents',
             label: 'OpenClaw Docs: Sub-agents',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Partial: cron-scheduled jobs run independently of any open chat window, but they still depend on the self-hosted Gateway process itself staying up on whatever machine the operator chose to run it on. If that machine is a personal laptop, the schedule requires the laptop to stay on, awake, and connected; only running the Gateway on an always-on server/VPS gets behavior comparable to a cloud-hosted platform's zero-client-dependency execution. There is no OpenClaw-managed cloud execution layer independent of the self-hosted process.",
+        detail:
+          'This mirrors the asyncExecution and durabilityModel facts above: OpenClaw has no separate hosted execution tier, so unattended reliability is entirely a function of the uptime of whichever machine the operator picked to run the Gateway on, not a property OpenClaw itself guarantees.',
+        shortValue: 'Partial: depends on the self-hosted Gateway machine staying up',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.openclaw.ai/automation/cron-jobs',
+            label: 'OpenClaw Docs: Scheduled tasks (cron jobs)',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.openclaw.ai/',
+            label: 'OpenClaw Docs home',
             asOf: '2026-07-02',
           },
         ],

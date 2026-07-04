@@ -142,6 +142,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'asyncExecution', label: 'Async execution' },
       { key: 'executionLimits', label: 'Execution limits' },
       { key: 'partialFailureHandling', label: 'Partial-failure handling' },
+      { key: 'unattendedExecution', label: 'Unattended execution' },
     ],
   }),
   defineSection({

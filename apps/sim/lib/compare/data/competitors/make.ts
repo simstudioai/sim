@@ -31,13 +31,13 @@ export const makeProfile: CompetitorProfile = {
     'Make (make.com) is a closed-source, cloud-only visual workflow-automation platform where users connect app "modules" on a canvas into scenarios. It now also offers AI Agent blocks, an MCP server, and a JS/Python code step, billed on a per-module-execution credit model.',
   standoutFeatures: [
     {
-      title: 'Native MCP Server',
+      title: '8,000+ template gallery available on the free tier',
       description:
-        'Make ships a first-party, cloud-hosted Model Context Protocol server that exposes any scenario as a callable tool to external AI agents/clients (Claude, Cursor, etc.) via a generated token and URL, with no local infrastructure to manage.',
-      shortDescription: 'Cloud-hosted MCP server exposes scenarios as tools with zero setup.',
+        "Make's public template gallery hosts over 8,000 pre-built scenarios spanning thousands of use cases, browsable and importable free on every plan including Free, with users paying only for the credits consumed when the imported scenario runs.",
+      shortDescription: '8,000+ importable scenario templates, free on every plan including Free.',
       source: {
-        url: 'https://www.make.com/en/blog/model-context-protocol-mcp-server',
-        label: 'Make blog: What is MCP Server?',
+        url: 'https://www.make.com/en/templates',
+        label: 'Make Templates gallery',
         asOf: '2026-07-02',
       },
     },
@@ -49,6 +49,17 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://www.make.com/en/ai-agents',
         label: 'Make AI Agents page',
+        asOf: '2026-07-02',
+      },
+    },
+    {
+      title: 'Native MCP Server',
+      description:
+        'Make ships a first-party, cloud-hosted Model Context Protocol server that exposes any scenario as a callable tool to external AI agents/clients (Claude, Cursor, etc.) via a generated token and URL, with no local infrastructure to manage.',
+      shortDescription: 'Cloud-hosted MCP server exposes scenarios as tools with zero setup.',
+      source: {
+        url: 'https://www.make.com/en/blog/model-context-protocol-mcp-server',
+        label: 'Make blog: What is MCP Server?',
         asOf: '2026-07-02',
       },
     },
@@ -71,17 +82,6 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://www.make.com/en/blog/make-code-app',
         label: 'Make blog: Make Code App',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: '8,000+ template gallery available on the free tier',
-      description:
-        "Make's public template gallery hosts over 8,000 pre-built scenarios spanning thousands of use cases, browsable and importable free on every plan including Free, with users paying only for the credits consumed when the imported scenario runs.",
-      shortDescription: '8,000+ importable scenario templates, free on every plan including Free.',
-      source: {
-        url: 'https://www.make.com/en/templates',
-        label: 'Make Templates gallery',
         asOf: '2026-07-02',
       },
     },
@@ -1196,6 +1196,26 @@ export const makeProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          "Yes: Make is a fully managed multi-tenant SaaS running on Amazon AWS, so scheduled, webhook, and MCP-triggered scenarios execute entirely on Make's own servers with zero dependency on any client device staying open, awake, or connected.",
+        detail:
+          "Scenario execution happens on Make's AWS infrastructure regardless of trigger type (scheduled, instant/webhook, or MCP tool call); closing the browser tab or shutting down a laptop has no effect on a scheduled or triggered scenario. The only local component Make offers is an optional on-premise agent that bridges Make's cloud to a private network for connectivity, not a requirement for scenarios themselves to run.",
+        shortValue: "Yes: runs server-side on Make's AWS infrastructure, no client dependency",
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.make.com/en/security',
+            label: 'Make Security page',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.make.com/en/on-prem-agents',
+            label: 'Make on-prem agents page',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1241,7 +1261,7 @@ export const makeProfile: CompetitorProfile = {
         value:
           'Founded 2012 (as Integromat, Prague, Czech Republic; bootstrapped, no VC rounds); acquired by Celonis for $100M+ in October 2020; rebranded to Make in 2022; operates as a business unit of Celonis, whose parent has raised ~$1.77B and is valued at ~$11-13B with 3,000+ employees (2024/2026 figures)',
         detail:
-          "Integromat was conceived in 2012 by Patrik Šimek in Prague and launched publicly in 2016. It grew to roughly $10M revenue and 11,000+ customers entirely bootstrapped, with no VC funding raised, before Celonis (Germany/US) acquired it in October 2020 for a reported $100M+. Sixteen months later, in February 2022, it was rebranded as 'Make' and now operates as a business unit within Celonis. Make has not disclosed separate headcount or funding figures as a standalone entity. Parent company Celonis (founded 2011 by Alex Rinke, Bastian Nominacher, and Martin Klenk) has raised approximately $1.77B in total funding, is valued at an estimated $11-13B, and reported 3,000+ staff across 20+ offices as of 2024.",
+          "Integromat was conceived in 2012 by Patrik Šimek in Prague and launched publicly in 2016. It grew to roughly $10M revenue entirely bootstrapped, with no VC funding raised, before Celonis (Germany/US) acquired it in October 2020 for a reported $100M+. TechCrunch's acquisition-day coverage cites 'more than 11,000 customers,' while a separate Latka estimate for the same year puts total registered users at 250K, a gap likely reflecting paying customers versus all signups rather than a contradiction. Sixteen months later, in February 2022, it was rebranded as 'Make' and now operates as a business unit within Celonis. Make has not disclosed separate headcount or funding figures as a standalone entity. Parent company Celonis (founded 2011 by Alex Rinke, Bastian Nominacher, and Martin Klenk) has raised approximately $1.77B in total funding, is valued at an estimated $11-13B, and reported 3,000+ staff across 20+ offices as of 2024.",
         shortValue: 'Founded 2012, acquired by Celonis in 2020',
         confidence: 'verified',
         sources: [

@@ -11,7 +11,7 @@ export const workatoProfile: CompetitorProfile = {
     selfFramed: true,
     colors: ['#62dfd2', '#418484', '#151716'],
     description:
-      'Workato is a Palo Alto‑based integration and automation platform that enables enterprises to orchestrate applications, data, and processes using AI‑driven agents. Leveraging its proprietary Enterprise Model Context Protocol (MCP), Workato delivers secure, scalable, and accurate AI agents that move from the edge of business operations to the core, allowing real‑time, enterprise‑wide automation. Trusted by over half of the Fortune 500, the platform connects every application and data source, providing end‑to‑end workflow automation and intelligent orchestration for the agentic era.',
+      'Workato is a Palo Alto-based integration and automation platform that enables enterprises to orchestrate applications, data, and processes using AI-driven agents. Leveraging its proprietary Enterprise Model Context Protocol (MCP), Workato delivers secure, scalable, and accurate AI agents that move from the edge of business operations to the core, allowing real-time, enterprise-wide automation. Trusted by over half of the Fortune 500, the platform connects every application and data source, providing end-to-end workflow automation and intelligent orchestration for the agentic era.',
     industries: [
       'Software (B2B)',
       'Developer Tools & APIs',
@@ -32,6 +32,18 @@ export const workatoProfile: CompetitorProfile = {
     'Workato is a cloud-based enterprise integration platform that extends its workflow automation engine with an AI-agent layer (Agent Studio, "Genies") and native Model Context Protocol (MCP) server support, for building, orchestrating, and governing AI agents across connected business systems.',
   standoutFeatures: [
     {
+      title: 'Broad compliance certification set',
+      description:
+        'Workato holds SOC 1/2/3, PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications, a wide footprint for an integration/agent platform.',
+      shortDescription:
+        'Wide compliance footprint spanning SOC, ISO, HIPAA, PCI-DSS, IRAP, and NIST.',
+      source: {
+        url: 'https://docs.workato.com/security/security-compliance.html',
+        label: 'Security compliance | Workato docs',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'Enterprise MCP server hosting',
       description:
         'Workato exposes existing recipes and workflows as MCP tools through pre-built and remote/cloud-hosted MCP servers, letting any MCP-compatible client (Claude, ChatGPT, Agent Studio) dynamically discover and call enterprise workflows as agent tools without custom integration code.',
@@ -51,18 +63,6 @@ export const workatoProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.workato.com/on-prem/agents.html',
         label: 'On-prem agent | Workato docs',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Broad compliance certification set',
-      description:
-        'Workato holds SOC 1/2/3, PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications, a wide footprint for an integration/agent platform.',
-      shortDescription:
-        'Wide compliance footprint spanning SOC, ISO, HIPAA, PCI-DSS, IRAP, and NIST.',
-      source: {
-        url: 'https://docs.workato.com/security/security-compliance.html',
-        label: 'Security compliance | Workato docs',
         asOf: '2026-07-02',
       },
     },
@@ -204,7 +204,11 @@ export const workatoProfile: CompetitorProfile = {
         shortValue: 'Proprietary',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.workato.com/', label: 'Workato homepage', asOf: '2026-07-02' },
+          {
+            url: 'https://www.workato.com/legal/terms-of-service',
+            label: 'Terms of Service | Workato',
+            asOf: '2026-07-04',
+          },
         ],
       },
       environmentPromotion: {
@@ -231,9 +235,9 @@ export const workatoProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.workato.com/platform-cli/use-cases.html',
-            label: 'Workato Platform CLI example use cases',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/platform-cli.html',
+            label: 'Workato Platform CLI | Workato docs',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -303,10 +307,10 @@ export const workatoProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          'Yes: Workato has a native Data Tables feature, a spreadsheet-like store with columns/rows supporting up to 1,000,000 records per table, plus filter/sort/hide-column controls in the UI, distinct from external database connectors.',
+          'Yes, a comparable feature exists: Workato has a native Data Tables feature, a spreadsheet-like store with columns/rows supporting up to 1,000,000 records per table, plus filter/sort/hide-column controls in the UI, distinct from external database connectors.',
         detail:
-          'Public docs describe filter, sort, and column visibility controls, but not full spreadsheet-style keyboard navigation (arrow-key cell traversal, multi-cell copy-paste) in the interface.',
-        shortValue: 'Yes: native Data Tables, up to 1M rows',
+          'Public docs describe filter, sort, and column visibility controls, but not full spreadsheet-style keyboard navigation (arrow-key cell traversal, multi-cell copy-paste, Cmd/Ctrl+Z undo) in the interface, so it is not confirmed to match a keyboard-driven spreadsheet editing experience feature-for-feature.',
+        shortValue: 'Yes: native Data Tables, up to 1M rows, keyboard nav unconfirmed',
         confidence: 'verified',
         sources: [
           {
@@ -514,10 +518,10 @@ export const workatoProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          "Yes: Workato Agent Studio has a 'Skills' concept where reusable recipes/skill definitions (with a structured skill prompt describing purpose, when to use/not use, inputs and outputs) can be assigned to and shared across multiple Genies and MCP servers within a project, avoiding duplication.",
+          "Yes, but proprietary and not portable: Workato Agent Studio's 'Skills' are reusable recipe-backed workflows (a Start-workflow trigger plus a Return-response step, with a structured skill prompt describing purpose, when to use/not use, inputs and outputs) that can be assigned to and shared across multiple Genies and MCP servers within a project, avoiding duplication.",
         detail:
-          'Skills are backed by recipes (750K+ reusable recipes/skills referenced) and include a templated skill-prompt format, matching the named reusable prompt/knowledge-snippet pattern.',
-        shortValue: 'Yes: reusable Skills shared across Genies',
+          "Skills are stored and versioned entirely inside Workato's own recipe system; the documentation describes no export, no standalone file format, and no way to move a Skill definition outside the platform. Reuse is internal to a Workato workspace/project, not a portable artifact like a SKILL.md file that could be checked into git or dropped into another vendor's agent.",
+        shortValue: 'Yes: reusable Skills, but proprietary and non-portable',
         confidence: 'verified',
         sources: [
           {
@@ -657,14 +661,9 @@ export const workatoProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.prowesssoft.com/workato-recipes/',
-            label: 'Workato Recipes Explained for Enterprise Automation',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.workato.com/recipes.html',
             label: 'Recipes | Workato docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -683,14 +682,14 @@ export const workatoProfile: CompetitorProfile = {
       },
       apiPublishing: {
         value:
-          'Yes: Workato supports "API recipes" that expose a recipe as a REST API endpoint, callable by external clients',
+          'Yes: Workato supports "API recipes" built on its API Platform, which expose a recipe as a REST API endpoint that external users, other recipes, or integrated systems can call to access and exchange data',
         shortValue: 'API recipes expose workflows as REST endpoints',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.prowesssoft.com/workato-recipes/',
-            label: 'Workato Recipes Explained for Enterprise Automation',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/api-management.html',
+            label: 'API Platform | Workato Docs',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -828,21 +827,21 @@ export const workatoProfile: CompetitorProfile = {
           },
           {
             url: 'https://www.workato.com/legal/security',
-            label: "Workato's security and compliance nature",
+            label: 'Workato Security Overview',
             asOf: '2026-07-02',
           },
         ],
       },
       dataResidency: {
         value:
-          'Workato operates multiple regional data centers (for example, an Israel data center that uses OpenAI GPT-4o mini instead of the Anthropic Sonnet 4 used elsewhere) and documents data-protection and residency options for customers. The on-prem agent additionally lets customers keep on-prem application data behind their own firewall, tunneling only authorized traffic to the Workato cloud.',
-        shortValue: 'Multiple regional data centers; on-prem agent option',
+          "Yes, at signup: customers choose one data residency region per account from Workato's regional data centers (US, EU/Frankfurt, UK, Japan, Singapore, Australia, Israel, China, South Korea). That choice is fixed once the account is created; data cannot later be migrated to another region, and there is no ongoing per-workspace or per-project residency toggle. Using more than one region requires signing up for and maintaining a separate Workato account in each desired region. The on-prem agent additionally lets customers keep on-prem application data behind their own firewall, tunneling only authorized traffic to the Workato cloud.",
+        shortValue: 'Region chosen once at signup, fixed per account, not ongoing/toggleable',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.workato.com/the-connector/data-protection-measures/',
-            label: 'A Guide to Workato Data Residency, Security, and Compliance',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/datacenter/datacenter-overview.html',
+            label: 'Data center overview | Workato Docs',
+            asOf: '2026-07-04',
           },
           {
             url: 'https://docs.workato.com/connectors/ai-by-workato.html',
@@ -1009,10 +1008,10 @@ export const workatoProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          'Partial: Workato has a large first-party catalog of native, Workato-built connectors, plus an open Community Library where any developer with Connector SDK access can build and publish a connector that other users install with no formal Workato security review, alongside an invite-only Partner Connector tier that does get Workato code review.',
+          'Partial: Workato has a large first-party catalog of native, Workato-built connectors, plus an open Community Library where any developer with Connector SDK access can build and publish a connector that other users install, alongside an invite-only Partner Connector tier that does get dedicated Workato code review. This is a genuine public marketplace for third-party executable connector code, unlike a vendor with no such marketplace at all.',
         detail:
-          "Workato's docs distinguish three tiers: native connectors are built and maintained by Workato directly; Partner Connectors go through Workato's partnership program with dedicated developer accounts and code review by Workato engineers on the initial version and subsequent updates; and Community Connectors are built by any community member and published to the Community Library with no formal Workato security review, explicitly labeled 'intended as examples only.' Installing a community connector requires full Connector SDK privileges, and Workato tells users to independently evaluate and test a community connector's code before releasing it workspace-wide, since 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' No publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) exists; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical, industry-wide concern rather than a Workato-specific incident.",
-        shortValue: 'Partial: first-party catalog plus open, lightly-vetted community library',
+          "Workato's docs distinguish three tiers: native connectors are built and maintained by Workato directly; Partner Connectors go through Workato's partnership program with dedicated developer accounts and code review by Workato engineers on the initial version and subsequent updates; and Community Connectors are built by any community member and published to the Community Library, reviewed within roughly one business day per Workato's own docs, but explicitly labeled 'intended as examples only.' Installing a community connector requires full Connector SDK privileges, and Workato tells users to independently evaluate and test a community connector's code before releasing it workspace-wide, since 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' Community connectors can also be published open-source (installable, viewable, and modifiable by anyone) or closed-source. This is structurally different from a vendor where every executable integration is first-party authored and code-reviewed through the vendor's own repository, with no public listing where an arbitrary third party can publish code for other users to install. No publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) exists; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical, industry-wide concern rather than a Workato-specific incident.",
+        shortValue: 'Partial: first-party catalog plus an open, lightly-vetted marketplace',
         confidence: 'verified',
         sources: [
           {
@@ -1029,6 +1028,11 @@ export const workatoProfile: CompetitorProfile = {
             url: 'https://www.workato.com/product-hub/community-connectors/',
             label: 'Workato Community Connectors: What you need to know',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.workato.com/developing-connectors/sdk/quickstart/sharing.html',
+            label: 'Workato Docs: Sharing a connector (open-source vs. closed-source)',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1194,6 +1198,31 @@ export const workatoProfile: CompetitorProfile = {
           {
             url: 'https://docs.workato.com/recipes/recipe-job-errors.html',
             label: 'Job errors (recipe execution errors)',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: Workato recipes are a cloud-hosted SaaS execution engine, so scheduled, webhook, and other triggered runs fire and complete as jobs on Workato's own servers, with no builder browser tab, desktop client, or session required to stay open.",
+        detail:
+          "The Scheduler trigger fires recipes on a defined interval, and every run creates a job tracked through Workato's cloud Jobs API, both entirely server-side. The only client-adjacent component is the optional on-prem agent, and even that is a persistent background service (not an interactive desktop app or user session) that bridges the Workato cloud to on-prem systems; the recipe's trigger, logic, and job state still live in Workato's cloud regardless of whether an on-prem agent is involved.",
+        shortValue: 'Yes: runs server-side on Workato cloud, no client session needed',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.workato.com/product-hub/scheduler-trigger-routine-custom-schedules/',
+            label: 'Scheduler Trigger: Kick-off recipes to run on routine and custom schedules',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.workato.com/workato-api/jobs.html',
+            label: 'Workato API - Jobs',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.workato.com/on-prem/agents.html',
+            label: 'On-prem agent | Workato docs',
             asOf: '2026-07-02',
           },
         ],
