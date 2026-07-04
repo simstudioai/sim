@@ -800,8 +800,11 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       rbac: {
-        value: 'Yes: admin/write/read workspace permissions, org-level admin/member roles',
-        shortValue: 'Workspace and org-level role permissions',
+        value:
+          'Yes: admin/write/read workspace permissions, org-level admin/member roles, plus Enterprise-tier permission groups that allow/deny-list specific models, tools, and integrations per group on top of those base roles',
+        detail:
+          'See modelAndToolGovernance and credentialGovernance for the finer-grained permission-groups layer.',
+        shortValue: 'Workspace/org roles, plus per-group model and tool allow/deny lists',
         confidence: 'verified',
         sources: [
           {
@@ -813,6 +816,11 @@ export const simProfile: CompetitorProfile = {
             url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
             label: 'Sim codebase: permissionTypeEnum, role columns',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            label: 'Sim codebase: permission groups',
+            asOf: '2026-07-04',
           },
         ],
       },
