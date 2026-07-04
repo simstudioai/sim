@@ -22,7 +22,7 @@ import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
 
-const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
+const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file|question'
 
 function toPlainText(raw: string): string {
   return (

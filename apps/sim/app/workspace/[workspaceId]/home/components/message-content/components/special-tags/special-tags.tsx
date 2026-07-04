@@ -19,6 +19,7 @@ import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
+import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type {
   ChatMessageContext,
   MothershipResource,
@@ -96,6 +97,29 @@ export interface FileTagData {
   content: string
 }
 
+export const QUESTION_TYPES = ['single_select', 'confirm', 'text'] as const
+
+export type QuestionType = (typeof QUESTION_TYPES)[number]
+
+export interface QuestionOption {
+  id: string
+  label: string
+}
+
+/**
+ * One question in a `<question>` tag. `options` is required for
+ * `single_select` and `confirm`; `text` questions render only a free-text
+ * input. `single_select` always additionally offers a free-text "Other" row.
+ */
+export interface QuestionItem {
+  type: QuestionType
+  prompt: string
+  options?: QuestionOption[]
+}
+
+/** Normalized `<question>` payload: single-object bodies become a one-element array. */
+export type QuestionTagData = QuestionItem[]
+
 export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'file'] as const
 
 export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
@@ -115,6 +139,7 @@ export type ContentSegment =
   | { type: 'credential'; data: CredentialTagData }
   | { type: 'mothership-error'; data: MothershipErrorTagData }
   | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
+  | { type: 'question'; data: QuestionTagData }
 
 export type RuntimeSpecialTagName =
   | 'thinking'
@@ -123,6 +148,7 @@ export type RuntimeSpecialTagName =
   | 'mothership-error'
   | 'file'
   | 'workspace_resource'
+  | 'question'
 
 export interface ParsedSpecialContent {
   segments: ContentSegment[]
@@ -136,6 +162,7 @@ const RUNTIME_SPECIAL_TAG_NAMES = [
   'mothership-error',
   'file',
   'workspace_resource',
+  'question',
 ] as const
 
 const SPECIAL_TAG_NAMES = [
@@ -145,6 +172,7 @@ const SPECIAL_TAG_NAMES = [
   'credential',
   'mothership-error',
   'workspace_resource',
+  'question',
 ] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -222,6 +250,46 @@ function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceT
   return id.length > 0
 }
 
+function isQuestionOption(value: unknown): value is QuestionOption {
+  if (!isRecord(value)) return false
+  return typeof value.id === 'string' && typeof value.label === 'string'
+}
+
+function isQuestionItem(value: unknown): value is QuestionItem {
+  if (!isRecord(value)) return false
+  if (
+    typeof value.type !== 'string' ||
+    !(QUESTION_TYPES as readonly string[]).includes(value.type)
+  ) {
+    return false
+  }
+  if (typeof value.prompt !== 'string' || value.prompt.trim().length === 0) return false
+  // text questions carry no options; select/confirm require at least one.
+  if (value.type === 'text') return true
+  return (
+    Array.isArray(value.options) &&
+    value.options.length > 0 &&
+    value.options.every(isQuestionOption)
+  )
+}
+
+/**
+ * Parses a `<question>` tag body. Accepts a single question object or a
+ * non-empty array of them; single objects are normalized to a one-element
+ * array so the renderer only handles the array shape.
+ */
+export function parseQuestionTagBody(body: string): QuestionTagData | null {
+  try {
+    const parsed = JSON.parse(body) as unknown
+    if (Array.isArray(parsed)) {
+      return parsed.length > 0 && parsed.every(isQuestionItem) ? parsed : null
+    }
+    return isQuestionItem(parsed) ? [parsed] : null
+  } catch {
+    return null
+  }
+}
+
 export function parseJsonTagBody<T>(
   body: string,
   isExpectedShape: (value: unknown) => value is T
@@ -270,6 +338,7 @@ function parseSpecialTagData(
   | { type: 'credential'; data: CredentialTagData }
   | { type: 'mothership-error'; data: MothershipErrorTagData }
   | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
+  | { type: 'question'; data: QuestionTagData }
   | null {
   if (tagName === 'thinking') {
     const content = parseTextTagBody(body)
@@ -299,6 +368,11 @@ function parseSpecialTagData(
   if (tagName === 'workspace_resource') {
     const data = parseJsonTagBody(body, isWorkspaceResourceTagData)
     return data ? { type: 'workspace_resource', data } : null
+  }
+
+  if (tagName === 'question') {
+    const data = parseQuestionTagBody(body)
+    return data ? { type: 'question', data } : null
   }
 
   return null
@@ -419,6 +493,8 @@ export function SpecialTags({
       return <MothershipErrorDisplay data={segment.data} />
     case 'workspace_resource':
       return <WorkspaceResourceDisplay data={segment.data} onSelect={onWorkspaceResourceSelect} />
+    case 'question':
+      return <QuestionDisplay data={segment.data} onSelect={onOptionSelect} />
     default:
       return null
   }
@@ -749,7 +825,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
         href={data.value}
         target='_blank'
         rel='noopener noreferrer'
-        className='flex items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
+        className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
       >
         {createElement(Icon, { className: 'size-[16px] shrink-0' })}
         <span className='flex-1 text-[var(--text-body)] text-sm'>Connect {data.provider}</span>
@@ -777,7 +853,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   return (
-    <div className='rounded-xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
+    <div className='rounded-2xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
       <div className='flex items-center gap-2'>
         <svg
           className='size-4 shrink-0 text-amber-600 dark:text-amber-400'
