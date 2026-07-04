@@ -9,7 +9,11 @@ import {
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isPayloadSizeLimitError, readFormDataWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
+  readFormDataWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getSharesForResources } from '@/lib/public-shares/share-manager'
@@ -25,7 +29,6 @@ import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkspaceFilesAPI')
-const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 /**
  * GET /api/workspaces/[id]/files

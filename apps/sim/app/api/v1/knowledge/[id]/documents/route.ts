@@ -6,7 +6,11 @@ import {
 } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
-import { isPayloadSizeLimitError, readFormDataWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
+  readFormDataWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSingleDocument,
@@ -24,7 +28,6 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 interface DocumentsRouteParams {
   params: Promise<{ id: string }>
