@@ -10,11 +10,13 @@ import {
   ChipSelect,
   type ComboboxOption,
   cn,
+  Download,
   Popover,
   PopoverAnchor,
   PopoverContent,
   RefreshCw,
   Search,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
@@ -266,6 +268,7 @@ export function AuditLogs() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
   const refreshTimersRef = useRef(new Set<number>())
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     const trimmed = searchTerm.trim()
@@ -360,8 +363,50 @@ export function AuditLogs() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
+  const handleExportCsv = async () => {
+    setIsExporting(true)
+    try {
+      const params = new URLSearchParams()
+      if (filters.search) params.set('search', filters.search)
+      if (filters.resourceType) params.set('resourceType', filters.resourceType)
+      if (filters.startDate) params.set('startDate', filters.startDate)
+      if (filters.endDate) params.set('endDate', filters.endDate)
+
+      // boundary-raw-fetch: downloads a CSV blob and reads a response header before saving — a plain anchor navigation can't do either
+      const response = await fetch(`/api/audit-logs/export?${params.toString()}`)
+      if (!response.ok) {
+        toast.error('Failed to export audit logs')
+        return
+      }
+      if (response.headers.get('X-Export-Truncated') === '1') {
+        toast.info('Export truncated — narrow the date range to see everything')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
-    <SettingsPanel>
+    <SettingsPanel
+      actions={[
+        {
+          text: 'Export',
+          icon: Download,
+          onSelect: () => void handleExportCsv(),
+          disabled: allEntries.length === 0 || isExporting,
+        },
+      ]}
+    >
       <div className='flex items-center gap-2'>
         <ChipInput
           icon={Search}
