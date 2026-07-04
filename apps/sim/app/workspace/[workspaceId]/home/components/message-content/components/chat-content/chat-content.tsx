@@ -347,8 +347,9 @@ function ChatContentInner({
    * position (`E`/`qe` in streamdown 2.5), so a re-parse of unchanged content
    * without the animate plugin bails at every unoverridden element (`p`,
    * `strong`, `tr`, headings, …) and leaves the stale per-char span DOM in
-   * place. Remounting also converges the settled DOM byte-for-byte with what a
-   * reloaded transcript renders.
+   * place. The settled instance keeps the streaming parser (`parserTree`
+   * below) so the remount only sheds the spans, never re-interprets the
+   * markdown.
    *
    * The drain is deliberately one-way: a stream that resumes afterwards
    * (reconnect/continuation) reveals paced but unfaded, because re-arming
@@ -390,7 +391,20 @@ function ChatContentInner({
     return () => clearTimeout(timeout)
   }, [isRevealing, animationDrained])
 
-  const streamingTree = (isRevealing || streamedThisSession.current) && !animationDrained
+  /**
+   * `parserTree` (drives `mode`) stays latched for the mount's life: streaming
+   * mode is the only one that applies remend/incomplete-markdown repair and
+   * block-split parsing, so a settled message must KEEP the streaming parser —
+   * swapping to `mode='static'` at drain re-parses the same source through a
+   * different pipeline (no remend, whole-doc parse) and visibly flashes on any
+   * reply with unbalanced markdown. `streamingTree` (drives the remount key
+   * and animation props) additionally drops at drain, so the settled instance
+   * re-renders through the SAME parser minus the per-word animation spans —
+   * byte-identical pixels. Only never-streamed mounts (reloaded history)
+   * render static.
+   */
+  const parserTree = isRevealing || streamedThisSession.current
+  const streamingTree = parserTree && !animationDrained
 
   /**
    * One-way fade cutoff (see {@link FADE_MAX_REVEALED_CHARS}). Latched so a
@@ -473,8 +487,8 @@ function ChatContentInner({
                 className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
               >
                 <Streamdown
-                  key={streamingTree ? 'stream' : 'static'}
-                  mode={streamingTree ? undefined : 'static'}
+                  key={streamingTree ? 'stream' : 'settled'}
+                  mode={parserTree ? undefined : 'static'}
                   animated={fadeActive ? STREAM_ANIMATION : false}
                   isAnimating={streamingTree}
                   components={MARKDOWN_COMPONENTS}
@@ -500,8 +514,8 @@ function ChatContentInner({
   return (
     <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
       <Streamdown
-        key={streamingTree ? 'stream' : 'static'}
-        mode={streamingTree ? undefined : 'static'}
+        key={streamingTree ? 'stream' : 'settled'}
+        mode={parserTree ? undefined : 'static'}
         animated={fadeActive ? STREAM_ANIMATION : false}
         isAnimating={streamingTree}
         components={MARKDOWN_COMPONENTS}
