@@ -225,6 +225,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #1a5cf6;
+    --selection-muted: rgba(26, 92, 246, 0.28);
     --warning: #ea580c;
 
     /* Inverted surface (dark chrome on light page, e.g. tag dropdown) */
@@ -382,6 +383,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #4b83f7;
+    --selection-muted: rgba(75, 131, 247, 0.35);
     --warning: #ff6600;
 
     /* Inverted surface (in dark mode, falls back to standard surfaces) */
@@ -496,6 +498,17 @@ html.sidebar-booting .sidebar-shell-inner {
   ::selection {
     background-color: var(--selection);
     color: var(--white);
+  }
+
+  /* Form controls keep their own text color. Chromium does not paint
+     ::selection color inside input/textarea, and the chat input renders a
+     transparent textarea over a styled mirror — forced white can never reach
+     those glyphs, which left black text on the solid brand blue. A translucent
+     highlight stays readable over any field text in every browser. */
+  input::selection,
+  textarea::selection {
+    background-color: var(--selection-muted);
+    color: currentColor;
   }
 
   body {
