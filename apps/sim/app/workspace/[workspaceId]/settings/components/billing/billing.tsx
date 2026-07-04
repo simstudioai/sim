@@ -42,6 +42,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -90,12 +91,23 @@ function formatInvoiceDate(createdSeconds: number): string {
   })
 }
 
+/** Cached currency formatters, keyed by upper-cased ISO currency code. */
+const invoiceAmountFormatters = new Map<string, Intl.NumberFormat>()
+
+/** Resolve (and memoize) an `Intl.NumberFormat` for a currency code. */
+function getInvoiceAmountFormatter(currency: string): Intl.NumberFormat {
+  const code = currency.toUpperCase()
+  let formatter = invoiceAmountFormatters.get(code)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency: code })
+    invoiceAmountFormatters.set(code, formatter)
+  }
+  return formatter
+}
+
 /** Format a minor-unit (e.g. cents) amount as a localized currency string. */
 function formatInvoiceAmount(amountMinor: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-  }).format(amountMinor / 100)
+  return getInvoiceAmountFormatter(currency).format(amountMinor / 100)
 }
 
 export function Billing() {
@@ -629,6 +641,8 @@ export function Billing() {
           </div>
         </SettingsSection>
       )}
+
+      {!subscription.isEnterprise && <CreditUsageSection />}
     </SettingsPanel>
   )
 }

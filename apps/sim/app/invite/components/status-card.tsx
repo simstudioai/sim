@@ -1,7 +1,8 @@
 'use client'
-import { cn, Loader } from '@sim/emcn'
+import { Chip, cn, Loader } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
-import { AUTH_PRIMARY_CTA_BASE } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
+import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
@@ -33,13 +34,13 @@ export function InviteStatusCard({
     return (
       <>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+          <h1 className='font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'>
             Loading
           </h1>
-          <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
+          <p className='font-[380] text-[var(--text-muted)]'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
-          <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
+          <Loader className='size-8 text-[var(--text-muted)]' animate />
         </div>
       </>
     )
@@ -48,40 +49,51 @@ export function InviteStatusCard({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+        <h1 className='font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'>
           {title}
         </h1>
-        <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
+        <p className='font-[380] text-[var(--text-muted)]'>{description}</p>
       </div>
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
         {isExpiredError && (
-          <button onClick={() => router.push('/')} className={`${AUTH_PRIMARY_CTA_BASE} w-full`}>
+          <AuthSubmitButton type='button' onClick={() => router.push('/')} loadingLabel=''>
             Request New Invitation
-          </button>
+          </AuthSubmitButton>
         )}
 
-        {actions.map((action, index) => (
-          <button
-            key={action.label}
-            onClick={action.onClick}
-            disabled={action.disabled || action.loading}
-            className={cn(
-              `${AUTH_PRIMARY_CTA_BASE} w-full`,
-              index !== 0 &&
-                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)] hover:text-[var(--landing-text)]'
-            )}
-          >
-            {action.loading ? (
-              <span className='flex items-center gap-2'>
-                <Loader className='size-4' animate />
-                {action.label}...
-              </span>
-            ) : (
-              action.label
-            )}
-          </button>
-        ))}
+        {actions.map((action, index) =>
+          index === 0 ? (
+            <AuthSubmitButton
+              key={action.label}
+              type='button'
+              onClick={action.onClick}
+              disabled={action.disabled}
+              loading={action.loading}
+              loadingLabel={`${action.label}...`}
+            >
+              {action.label}
+            </AuthSubmitButton>
+          ) : (
+            <Chip
+              key={action.label}
+              fullWidth
+              flush
+              onClick={action.onClick}
+              disabled={action.disabled || action.loading}
+              className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+            >
+              {action.loading ? (
+                <span className='flex items-center gap-2'>
+                  <Loader className='size-4' animate />
+                  {action.label}...
+                </span>
+              ) : (
+                action.label
+              )}
+            </Chip>
+          )
+        )}
       </div>
     </>
   )

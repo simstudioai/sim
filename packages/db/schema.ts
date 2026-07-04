@@ -1076,21 +1076,40 @@ export const chat = pgTable(
   }
 )
 
+/** Per-stage PII redaction policy stored on a {@link PiiRedactionRule}. */
+export interface PiiStagePolicy {
+  enabled: boolean
+  /** Presidio entity types to mask. Empty (or disabled) = redact nothing. */
+  entityTypes: string[]
+  /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
+  language?: string
+}
+
 /**
  * A single PII redaction rule. Lives in the org-level
  * {@link DataRetentionSettings.piiRedaction} rules list. Each rule targets one
  * scope — all workspaces (`workspaceId: null`) or a single workspace — and
  * `workspaceId` is unique across rules. Resolution is most-specific-wins: a
  * workspace's own rule overrides the all-workspaces rule (never unioned).
+ *
+ * New rules carry per-stage {@link stages} (input / blockOutputs / logs); legacy
+ * rows carry only the flat `entityTypes`/`language`, resolved as a logs-only
+ * rule. At least one of the two is present.
  */
 export interface PiiRedactionRule {
   id: string
   name?: string
-  /** Presidio entity types to mask. Empty = redact nothing for this scope. */
-  entityTypes: string[]
   /** `null` = all workspaces; otherwise the single targeted workspace. */
   workspaceId: string | null
-  /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
+  /** Per-stage policy (input redaction, block-output redaction, log redaction). */
+  stages?: {
+    input: PiiStagePolicy
+    blockOutputs: PiiStagePolicy
+    logs: PiiStagePolicy
+  }
+  /** Legacy flat policy (pre-stages). Presidio entity types masked at log persist. */
+  entityTypes?: string[]
+  /** Legacy flat language (pre-stages). */
   language?: string
 }
 
@@ -3725,8 +3744,13 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-// ─── Sim Academy ─────────────────────────────────────────────────────────────
-
+/**
+ * The application code that read/wrote this table (Academy) was removed in
+ * the same PR that would have dropped it here — deferred to a follow-up PR
+ * once that removal has actually shipped, per the expand/contract migration
+ * safety check (`check:migrations`), since a same-deploy drop would break
+ * any pod still running the old code during a rolling deploy.
+ */
 export const academyCertStatusEnum = pgEnum('academy_cert_status', ['active', 'revoked', 'expired'])
 
 /** Partner certification records issued on course completion */

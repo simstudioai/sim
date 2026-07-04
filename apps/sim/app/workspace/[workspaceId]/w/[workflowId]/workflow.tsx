@@ -219,8 +219,6 @@ interface WorkflowContentProps {
   workspaceId?: string
   workflowId?: string
   embedded?: boolean
-  /** Sandbox mode: full editing enabled but no workspace API calls (used by Sim Academy). */
-  sandbox?: boolean
 }
 
 const WorkflowContent = React.memo(
@@ -228,7 +226,6 @@ const WorkflowContent = React.memo(
     workspaceId: propWorkspaceId,
     workflowId: propWorkflowId,
     embedded,
-    sandbox,
   }: WorkflowContentProps = {}) => {
     const [isCanvasReady, setIsCanvasReady] = useState(false)
     const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
@@ -330,7 +327,7 @@ const WorkflowContent = React.memo(
     const snapToGridSize = useSnapToGridSize()
     const snapToGrid = snapToGridSize > 0
 
-    const isAutoConnectEnabled = useAutoConnect() && !sandbox
+    const isAutoConnectEnabled = useAutoConnect()
     const autoConnectRef = useRef(isAutoConnectEnabled)
     autoConnectRef.current = isAutoConnectEnabled
 
@@ -353,7 +350,7 @@ const WorkflowContent = React.memo(
       return blockList.length > 0 && blockList.every((b) => b.locked)
     }, [blocks])
     const workflowLocked = workflowRowLocked || workflowFolderLocked
-    const workflowReadOnly = workflowLocked && !sandbox
+    const workflowReadOnly = workflowLocked
     const canvasOpacityClass = isCanvasReady
       ? workflowReadOnly
         ? 'opacity-75'
@@ -2274,9 +2271,6 @@ const WorkflowContent = React.memo(
       !isWorkflowMapPlaceholderData && Boolean(workflows[workflowIdParam])
 
     useEffect(() => {
-      // In sandbox mode the stores are pre-hydrated externally; skip the API load.
-      if (sandbox) return
-
       const currentId = workflowIdParam
       // Wait for workflow data to be available before attempting to load
       if (
@@ -2349,13 +2343,13 @@ const WorkflowContent = React.memo(
       workspaceId,
     ])
 
-    useWorkspaceEnvironment(sandbox ? '' : workspaceId)
+    useWorkspaceEnvironment(workspaceId)
 
     const workflowCount = useMemo(() => Object.keys(workflows).length, [workflows])
 
     /** Handles navigation validation and redirects for invalid workflow IDs. */
     useEffect(() => {
-      if (embedded || sandbox) return
+      if (embedded) return
 
       if (
         isWorkflowMapLoading ||
@@ -2562,7 +2556,6 @@ const WorkflowContent = React.memo(
             isActive,
             isPending,
             ...(embedded && { isEmbedded: true }),
-            ...(sandbox && { isSandbox: true }),
             isWorkflowLocked: workflowReadOnly,
           },
           // Include dynamic dimensions for container resizing calculations (must match rendered size)
@@ -2583,7 +2576,6 @@ const WorkflowContent = React.memo(
       pendingBlocks,
       isDebugging,
       getBlockConfig,
-      sandbox,
       embedded,
       workflowReadOnly,
     ])
@@ -4238,9 +4230,9 @@ const WorkflowContent = React.memo(
           <Terminal />
         </div>
 
-        {(!embedded || sandbox) && <Panel workspaceId={sandbox ? workspaceId : undefined} />}
+        {!embedded && <Panel />}
 
-        {!embedded && !sandbox && oauthModal && (
+        {!embedded && oauthModal && (
           <ConnectOAuthModal
             mode='reauthorize'
             open={true}
@@ -4268,27 +4260,18 @@ interface WorkflowProps {
   workspaceId?: string
   workflowId?: string
   embedded?: boolean
-  /** Sandbox mode: full editing enabled but no workspace API calls (used by Sim Academy). */
-  sandbox?: boolean
 }
 
 /** Workflow page with ReactFlowProvider and error boundary wrapper. */
-const Workflow = React.memo(
-  ({ workspaceId, workflowId, embedded, sandbox }: WorkflowProps = {}) => {
-    return (
-      <ReactFlowProvider>
-        <ErrorBoundary>
-          <WorkflowContent
-            workspaceId={workspaceId}
-            workflowId={workflowId}
-            embedded={embedded}
-            sandbox={sandbox}
-          />
-        </ErrorBoundary>
-      </ReactFlowProvider>
-    )
-  }
-)
+const Workflow = React.memo(({ workspaceId, workflowId, embedded }: WorkflowProps = {}) => {
+  return (
+    <ReactFlowProvider>
+      <ErrorBoundary>
+        <WorkflowContent workspaceId={workspaceId} workflowId={workflowId} embedded={embedded} />
+      </ErrorBoundary>
+    </ReactFlowProvider>
+  )
+})
 
 Workflow.displayName = 'Workflow'
 

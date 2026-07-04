@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { withFilteredNoindex } from '@/lib/landing/seo'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
 import { ModelDirectory } from '@/app/(landing)/models/components/model-directory'
@@ -19,6 +21,17 @@ import {
 } from '@/app/(landing)/models/utils'
 
 const baseUrl = SITE_URL
+
+const FEATURED_PROVIDER_ORDER = ['anthropic', 'openai', 'google']
+
+const MODELS_BREADCRUMB_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+    { '@type': 'ListItem', position: 2, name: 'Models', item: `${baseUrl}/models` },
+  ],
+}
 
 const faqItems = [
   {
@@ -48,38 +61,56 @@ const faqItems = [
   },
 ]
 
-export const metadata: Metadata = {
-  title: 'AI Models Directory',
-  description: `Compare ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers in Sim's AI workspace. Compare pricing, context windows, and capabilities for your agents.`,
-  keywords: [
-    'AI models directory',
-    'AI model comparison',
-    'LLM model list',
-    'model pricing',
-    'context window comparison',
-    'OpenAI models',
-    'Anthropic models',
-    'Google Gemini models',
-    'xAI Grok models',
-    'Mistral models',
-    ...TOP_MODEL_PROVIDERS.map((provider) => `${provider} models`),
-  ],
-  // og:image/twitter:image come from the sibling opengraph-image.tsx -
-  // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
-  openGraph: {
-    title: 'AI Models Directory | Sim',
-    description: `Explore ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers with pricing, context windows, and capability details.`,
-    url: `${baseUrl}/models`,
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'AI Models Directory | Sim',
-    description: `Search ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers.`,
-  },
-  alternates: {
-    canonical: `${baseUrl}/models`,
-  },
+/**
+ * `q`/`provider` render a genuinely different server-rendered list (see
+ * search-params.ts), so filtered URLs are noindexed rather than
+ * self-canonicalized — keeps the single indexable URL as the bare directory
+ * page instead of asking Google to index every filter permutation.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}): Promise<Metadata> {
+  const { q, provider } = await modelsSearchParamsCache.parse(searchParams)
+  const isFiltered = Boolean(q || provider)
+
+  return withFilteredNoindex(
+    {
+      title: 'AI Models Directory',
+      description: `Compare ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers in Sim's AI workspace. Compare pricing, context windows, and capabilities for your agents.`,
+      keywords: [
+        'AI models directory',
+        'AI model comparison',
+        'LLM model list',
+        'model pricing',
+        'context window comparison',
+        'OpenAI models',
+        'Anthropic models',
+        'Google Gemini models',
+        'xAI Grok models',
+        'Mistral models',
+        ...TOP_MODEL_PROVIDERS.map((provider) => `${provider} models`),
+      ],
+      // og:image/twitter:image come from the sibling opengraph-image.tsx -
+      // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
+      openGraph: {
+        title: 'AI Models Directory | Sim',
+        description: `Explore ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers with pricing, context windows, and capability details.`,
+        url: `${baseUrl}/models`,
+        type: 'website',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: 'AI Models Directory | Sim',
+        description: `Search ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers.`,
+      },
+      alternates: {
+        canonical: `${baseUrl}/models`,
+      },
+    },
+    isFiltered
+  )
 }
 
 export default async function ModelsPage({
@@ -92,24 +123,14 @@ export default async function ModelsPage({
   const flatModels = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
     provider.models.map((model) => ({ provider, model }))
   )
-  const featuredProviderOrder = ['anthropic', 'openai', 'google']
-  const featuredProviders = featuredProviderOrder
-    .map((id) => MODEL_PROVIDERS_WITH_CATALOGS.find((p) => p.id === id))
-    .filter((p): p is (typeof MODEL_PROVIDERS_WITH_CATALOGS)[number] => p !== undefined)
+  const featuredProviders = FEATURED_PROVIDER_ORDER.map((id) =>
+    MODEL_PROVIDERS_WITH_CATALOGS.find((p) => p.id === id)
+  ).filter((p): p is (typeof MODEL_PROVIDERS_WITH_CATALOGS)[number] => p !== undefined)
   const featuredModels = featuredProviders
     .map((provider) =>
       provider.featuredModels[0] ? { provider, model: provider.featuredModels[0] } : null
     )
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-
-  const breadcrumbJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
-      { '@type': 'ListItem', position: 2, name: 'Models', item: `${baseUrl}/models` },
-    ],
-  }
 
   const itemListJsonLd = {
     '@context': 'https://schema.org',
@@ -156,18 +177,9 @@ export default async function ModelsPage({
 
   return (
     <>
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
-      />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
+      <JsonLd data={MODELS_BREADCRUMB_JSON_LD} />
+      <JsonLd data={itemListJsonLd} />
+      <JsonLd data={faqJsonLd} />
 
       <section className='bg-[var(--bg)]'>
         <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>

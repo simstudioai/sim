@@ -26,12 +26,19 @@ export const vercelGetProjectTool: ToolConfig<VercelGetProjectParams, VercelGetP
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
   },
 
   request: {
     url: (params: VercelGetProjectParams) => {
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
       return `https://api.vercel.com/v9/projects/${params.projectId.trim()}${qs ? `?${qs}` : ''}`
     },
@@ -50,6 +57,8 @@ export const vercelGetProjectTool: ToolConfig<VercelGetProjectParams, VercelGetP
         id: data.id,
         name: data.name,
         framework: data.framework ?? null,
+        rootDirectory: data.rootDirectory ?? null,
+        nodeVersion: data.nodeVersion ?? null,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
         link: data.link
@@ -67,6 +76,8 @@ export const vercelGetProjectTool: ToolConfig<VercelGetProjectParams, VercelGetP
     id: { type: 'string', description: 'Project ID' },
     name: { type: 'string', description: 'Project name' },
     framework: { type: 'string', description: 'Project framework', optional: true },
+    rootDirectory: { type: 'string', description: 'Root directory of the project', optional: true },
+    nodeVersion: { type: 'string', description: 'Node.js version', optional: true },
     createdAt: { type: 'number', description: 'Creation timestamp' },
     updatedAt: { type: 'number', description: 'Last updated timestamp' },
     link: {

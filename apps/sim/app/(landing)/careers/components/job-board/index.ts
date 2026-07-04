@@ -1,2 +1,3 @@
 export { JobBoard } from './job-board'
-export { filterPostings, groupByDepartment, hasActiveFilters, JobGroups } from './job-groups'
+export { JobGroups } from './job-groups'
+export { filterPostings, groupByDepartment, hasActiveFilters } from './utils'

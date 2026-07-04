@@ -31,7 +31,7 @@ export const deleteIndexTool: ToolConfig<AlgoliaDeleteIndexParams, AlgoliaDelete
   request: {
     method: 'DELETE',
     url: (params) =>
-      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}`,
+      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}`,
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,
       'x-algolia-api-key': params.apiKey,

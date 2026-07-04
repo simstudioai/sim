@@ -9,7 +9,6 @@ import {
   JobGroups,
 } from '@/app/(landing)/careers/components/job-board'
 import { careersSearchParamsCache } from '@/app/(landing)/careers/search-params'
-import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 
 interface CareersProps {
   searchParams: Promise<SearchParams>
@@ -35,8 +34,10 @@ interface CareersProps {
  * never flashes unfiltered before the client board hydrates.
  */
 export default async function Careers({ searchParams }: CareersProps) {
-  const { team, location } = await careersSearchParamsCache.parse(searchParams)
-  const postings = await getAshbyJobs()
+  const [{ team, location }, postings] = await Promise.all([
+    careersSearchParamsCache.parse(searchParams),
+    getAshbyJobs(),
+  ])
   const fallbackGroups = groupByDepartment(filterPostings(postings, team, location))
 
   return (
@@ -85,8 +86,6 @@ export default async function Careers({ searchParams }: CareersProps) {
         >
           <JobBoard postings={postings} />
         </Suspense>
-
-        <TrustedBy className='pt-6' />
       </section>
     </main>
   )

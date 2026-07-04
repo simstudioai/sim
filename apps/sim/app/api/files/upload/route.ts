@@ -111,16 +111,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       // Handle execution context
       if (context === 'execution') {
-        if (!workflowId || !executionId) {
+        if (!workflowId || !executionId || !workspaceId) {
           throw new InvalidRequestError(
-            'Execution context requires workflowId and executionId parameters'
+            'Execution context requires workflowId, executionId, and workspaceId parameters'
+          )
+        }
+
+        const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+        if (permission !== 'write' && permission !== 'admin') {
+          return NextResponse.json(
+            { error: 'Write or Admin access required for execution uploads' },
+            { status: 403 }
           )
         }
 
         const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
         const userFile = await uploadExecutionFile(
           {
-            workspaceId: workspaceId || '',
+            workspaceId,
             workflowId,
             executionId,
           },

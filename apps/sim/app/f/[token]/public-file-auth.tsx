@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label, Loader } from '@sim/emcn'
+import { cn, Input, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton } from '@/app/(auth)/components'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileAuth } from '@/hooks/queries/public-shares'
 
@@ -72,7 +72,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
             <button
               type='button'
               onClick={() => setShowPassword(!showPassword)}
-              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
+              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -81,20 +81,13 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
           {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
         </div>
 
-        <button
-          type='submit'
-          disabled={!password.trim() || authenticate.isPending}
-          className={AUTH_SUBMIT_BTN}
+        <AuthSubmitButton
+          disabled={!password.trim()}
+          loading={authenticate.isPending}
+          loadingLabel='Authenticating…'
         >
-          {authenticate.isPending ? (
-            <span className='flex items-center gap-2'>
-              <Loader className='size-4' animate />
-              Authenticating…
-            </span>
-          ) : (
-            'Continue'
-          )}
-        </button>
+          Continue
+        </AuthSubmitButton>
       </form>
     </PublicFileAuthShell>
   )

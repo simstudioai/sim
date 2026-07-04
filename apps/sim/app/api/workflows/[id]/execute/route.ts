@@ -529,6 +529,7 @@ async function handleExecutePost(
       startBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
+      parentWorkspaceId,
     } = validation.data
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
 
@@ -644,6 +645,7 @@ async function handleExecutePost(
               stopAfterBlockId: _stopAfterBlockId,
               runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
+              parentWorkspaceId: _parentWorkspaceId,
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
@@ -728,6 +730,25 @@ async function handleExecutePost(
       return NextResponse.json(
         { error: workflowAuthorization.message || 'Access denied' },
         { status: workflowAuthorization.status }
+      )
+    }
+
+    /**
+     * Workflow-in-workflow invocations (e.g. the agent `workflow_executor`
+     * tool) declare the parent execution's workspace. Reject execution when
+     * the target workflow lives in a different workspace so a stale or
+     * foreign workflow id cannot silently execute with the parent's context.
+     * The error intentionally omits the target's workspace id.
+     */
+    if (parentWorkspaceId && workflowAuthorization.workflow?.workspaceId !== parentWorkspaceId) {
+      reqLogger.warn('Blocked cross-workspace child workflow execution', {
+        parentWorkspaceId,
+      })
+      return NextResponse.json(
+        {
+          error: `Child workflow ${workflowId} belongs to a different workspace and cannot be executed`,
+        },
+        { status: 403 }
       )
     }
 

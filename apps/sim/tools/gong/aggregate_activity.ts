@@ -197,6 +197,7 @@ export const aggregateActivityTool: ToolConfig<
     cursor: {
       type: 'string',
       description: 'Pagination cursor for the next page',
+      optional: true,
     },
   },
 }

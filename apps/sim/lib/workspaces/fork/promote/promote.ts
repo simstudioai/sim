@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
-import type { PromoteCopyResources } from '@/lib/api/contracts/workspace-fork'
+import type { ForkSyncBlocker, PromoteCopyResources } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   enqueueWorkflowUndeploySideEffects,
@@ -32,6 +32,10 @@ import {
   loadSourceDeployedStates,
 } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import {
+  assertForkStorageHeadroom,
+  sumForkCopyBytes,
+} from '@/lib/workspaces/fork/copy/storage-quota'
+import {
   acquireForkEdgeLock,
   acquireForkTargetLock,
   type ForkEdge,
@@ -53,6 +57,8 @@ import {
   type ForkMappingUpsert,
   upsertEdgeMappings,
 } from '@/lib/workspaces/fork/mapping/mapping-store'
+import { getMcpServerMetaByIds } from '@/lib/workspaces/fork/mapping/resources'
+import { collectForkSyncBlockers } from '@/lib/workspaces/fork/promote/cleared-refs'
 import {
   augmentForkResolver,
   buildPromoteCopySelection,
@@ -71,6 +77,7 @@ import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-iden
 import {
   createForkSubBlockTransform,
   type ForkReference,
+  type ForkReferenceResolver,
 } from '@/lib/workspaces/fork/remap/remap-references'
 import { notifyForkWorkflowChanged } from '@/lib/workspaces/fork/socket'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
@@ -99,9 +106,10 @@ export interface PromoteForkParams {
     value: string
   }>
   /**
-   * Referenced-but-unmapped resources (by source id) the caller chose to copy into the target
-   * before the sync gate. Validated against the plan's copyable candidates, so an arbitrary id is
-   * ignored. Each copied resource's references then resolve to the new copy instead of blocking.
+   * Unmapped resources (by source id) the caller chose to copy into the target before the sync
+   * gate - referenced ones (their references then resolve to the new copy instead of blocking)
+   * and unreferenced ones (new in the source, brought along untouched). Validated against the
+   * plan's copyable candidates, so an arbitrary id is ignored.
    */
   copyResources?: PromoteCopyResources
   requestId?: string
@@ -120,7 +128,14 @@ export interface PromoteForkResult {
    */
   deployFailed: number
   unmappedRequired: Array<Pick<ForkReference, 'kind' | 'sourceId' | 'required' | 'blockName'>>
-  blocked: 'unmapped' | null
+  /**
+   * References the sync would have cleared in the target, so it was blocked without writing
+   * (`blocked: 'cleared-refs'`). The authoritative in-tx re-check of the diff's would-clear
+   * preview: normally the client blocks first, so a non-empty list means the state changed
+   * between preview and Sync.
+   */
+  blockers: ForkSyncBlocker[]
+  blocked: 'unmapped' | 'cleared-refs' | null
   /** Names of the workflows the sync changed, by action, for the activity report. */
   updatedNames: string[]
   createdNames: string[]
@@ -256,10 +271,9 @@ async function propagateCredentialAccess(
   }
 }
 
-interface PromoteTxBlocked {
-  blocked: 'unmapped'
-  unmappedRequired: PromoteForkResult['unmappedRequired']
-}
+type PromoteTxBlocked =
+  | { blocked: 'unmapped'; unmappedRequired: PromoteForkResult['unmappedRequired'] }
+  | { blocked: 'cleared-refs'; blockers: ForkSyncBlocker[] }
 
 interface PromoteTxApplied {
   blocked: null
@@ -329,7 +343,9 @@ function groupDependentOverrides(
  * propagated, and every promoted target is deployed. The plan is computed inside
  * the edge lock so concurrent promotes serialize. A sync always force-replaces the
  * target's deployed state (the modal confirms the overwrite up front); it blocks
- * without mutating only when required references are unmapped.
+ * without mutating when required references (credentials / secrets) are unmapped OR
+ * when any reference would clear in a synced target workflow (the zero-cleared-refs
+ * gate - every reference must be mapped, selected for copy, or carried by the sync).
  */
 export async function promoteFork(params: PromoteForkParams): Promise<PromoteForkResult> {
   const { edge, sourceWorkspaceId, targetWorkspaceId, direction, userId } = params
@@ -351,6 +367,19 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         }))
       )
     : null
+
+  // Copied blob bytes (selected workspace files + selected KBs' document blobs) are
+  // charged to the initiating user's storage scope exactly as if uploaded to the target
+  // workspace, so enforce headroom BEFORE the locked write transaction. The sums scope to
+  // the source workspace with the same filters the in-tx copy applies, so a requested id
+  // that is not actually copyable (stale/crafted) can only over-count and block - the
+  // validated in-tx selection is always a subset. Over quota fails the sync here with the
+  // upload path's error shape, before any lock or write.
+  const requestedCopyBytes = await sumForkCopyBytes(db, sourceWorkspaceId, {
+    fileKeys: params.copyResources?.files,
+    knowledgeBaseIds: params.copyResources?.knowledgeBases,
+  })
+  await assertForkStorageHeadroom({ userId, bytes: requestedCopyBytes })
 
   const targetMembers = (await getUsersWithPermissions(targetWorkspaceId)).map((m) => m.userId)
 
@@ -382,10 +411,10 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
 
     const now = new Date()
 
-    // Copy the selected referenced-but-unmapped resources into the target BEFORE the gate, so a
-    // user can copy rather than map each one. The gate is evaluated against the post-copy state
-    // (the copy resolves the selected refs), so the copy only runs when the sync will actually
-    // proceed - if required refs remain unmapped, we block without copying anything.
+    // Copy the selected unmapped resources (referenced and unreferenced) into the target BEFORE
+    // the gate, so a user can copy rather than map each one. The gate is evaluated against the
+    // post-copy state (the copy resolves the selected refs), so the copy only runs when the sync
+    // will actually proceed - if required refs remain unmapped, we block without copying anything.
     const { selection: copySelection, willResolve } = buildPromoteCopySelection(
       params.copyResources,
       plan.copyableUnmapped
@@ -407,16 +436,54 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       }
     }
 
+    // Resolve each source block to its counterpart's EXISTING id (via the persisted block
+    // map) instead of re-deriving, so a push keeps the parent's original block ids - and the
+    // webhook URLs derived from them - stable. Falls back to derive for blocks with no pair
+    // yet (added since the last sync). Loaded here (read-only) so the would-clear gate below
+    // and the write loop share one block map.
+    const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
+    const blockMap = await loadForkBlockMap(tx, edge.childWorkspaceId)
+    const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
+
+    // Zero-cleared-refs gate: the sync proceeds only when NO reference would clear in any
+    // synced target workflow (source fully operational -> target fully operational). Evaluated
+    // against the plan resolver overlaid with the validated copy selection (a selected copy
+    // resolves its references), BEFORE any write. Authoritative versus the diff's unlocked
+    // preview - state drift between preview and Sync re-blocks here (TOCTOU) - and it makes the
+    // in-tx remap's clear-unresolved behavior an unreachable defense-in-depth backstop. The
+    // plan's unmapped references are threaded through so the gate's happy path reuses the plan's
+    // scan (computed moments earlier over the same states, inside this same locked tx) instead of
+    // re-running the full per-block reference scan; the scan re-runs only when something blocks.
+    const gateResolver: ForkReferenceResolver = (kind, sourceId) =>
+      willResolve.has(`${kind}:${sourceId}`) ? sourceId : plan.resolver(kind, sourceId)
+    const blockers = await collectForkSyncBlockers({
+      executor: tx,
+      sourceWorkspaceId,
+      items: plan.items,
+      sourceStates,
+      resolver: gateResolver,
+      workflowIdMap: plan.workflowIdMap,
+      resolveBlockId,
+      planUnmapped: [...plan.unmappedRequired, ...plan.unmappedOptional],
+    })
+    if (blockers.length > 0) {
+      return { blocked: 'cleared-refs', blockers }
+    }
+
     // Resolve the source->target folder map BEFORE the copy so the folders already exist in the
     // target and the copy can rewrite `sim:folder/<id>` references inside copied skill / markdown
     // bodies (the post-commit content rewrite reads this map). Idempotent: it reuses target
-    // folders that already match by name within the same mapped parent.
+    // folders that already match by name within the same mapped parent. Creation is scoped to
+    // the folders that will hold a synced workflow (plus ancestors) - a folder whose subtree
+    // syncs nothing is never created empty in the target, though it still maps onto a matching
+    // existing target folder so prior syncs' refs keep resolving.
     const folderIdMap = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId,
       targetWorkspaceId,
       userId,
       now,
+      contentFolderIds: plan.items.map((item) => item.sourceMeta.folderId),
     })
 
     let resolver = plan.resolver
@@ -445,6 +512,9 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         workflowIdMap: plan.workflowIdMap,
         folderIdMap,
         resolver: plan.resolver,
+        // The block map loaded above backs this resolver; copied tables' workflow-group
+        // outputs must land on the same target block ids the workflow writes below assign.
+        resolveBlockId,
         referencedDocumentIds,
       })
       resolver = augmentForkResolver(plan.resolver, copyResult.copyIdMapByKind)
@@ -453,7 +523,29 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       copyContentBlobTasks = copyResult.blobTasks
     }
 
-    const transform = createForkSubBlockTransform(resolver)
+    // Target rows for the MAPPED MCP servers this sync references, so remapped tool-input
+    // entries rewrite their embedded `serverUrl`/`serverName` from the target server instead of
+    // carrying the source's (which would show a false "URL changed" stale badge in the target
+    // UI). Bounded: the plan's references are deduped per (kind, id), so this is one `inArray`
+    // read over the distinct referenced servers - external MCP servers are never copied, so the
+    // copy augmentation above cannot add mcp-server mappings and the plan resolver is complete.
+    const mappedMcpServerTargetIds = [
+      ...new Set(
+        plan.references
+          .filter((reference) => reference.kind === 'mcp-server')
+          .map((reference) => resolver('mcp-server', reference.sourceId))
+          .filter((targetId): targetId is string => targetId != null)
+      ),
+    ]
+    const mcpServerMetaById = await getMcpServerMetaByIds(
+      tx,
+      targetWorkspaceId,
+      mappedMcpServerTargetIds
+    )
+
+    const transform = createForkSubBlockTransform(resolver, {
+      resolveMcpServerMeta: (targetServerId) => mcpServerMetaById.get(targetServerId),
+    })
 
     // Batch every prior-version read (replace + archive targets) into one query before any
     // write, so the locked apply phase doesn't do N round-trips. Reads are pre-write, so
@@ -491,13 +583,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         await loadForkDependentValues(tx, edge.childWorkspaceId, replaceTargetIds)
       )
 
-    // Resolve each source block to its counterpart's EXISTING id (via the persisted block
-    // map) instead of re-deriving, so a push keeps the parent's original block ids - and the
-    // webhook URLs derived from them - stable. Falls back to derive for blocks with no pair
-    // yet (added since the last sync), which are recorded below.
-    const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
-    const blockMap = await loadForkBlockMap(tx, edge.childWorkspaceId)
-    const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
+    // New block pairs recorded by the write loop (blocks added since the last sync), using the
+    // block map + resolver loaded before the would-clear gate above.
     const blockPairs: ForkBlockPair[] = []
 
     const updatedSnapshots: PromoteRunWorkflowSnapshot[] = []
@@ -722,7 +809,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   })
 
   if (txResult.blocked !== null) {
-    const unmappedRequired = txResult.blocked === 'unmapped' ? txResult.unmappedRequired : []
     return {
       promoteRunId: '',
       updated: 0,
@@ -730,7 +816,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       archived: 0,
       redeployed: 0,
       deployFailed: 0,
-      unmappedRequired,
+      unmappedRequired: txResult.blocked === 'unmapped' ? txResult.unmappedRequired : [],
+      blockers: txResult.blocked === 'cleared-refs' ? txResult.blockers : [],
       blocked: txResult.blocked,
       updatedNames: [],
       createdNames: [],
@@ -889,6 +976,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     redeployed,
     deployFailed: deployFailures.length,
     unmappedRequired: [],
+    blockers: [],
     blocked: null,
     updatedNames: txResult.updatedNames,
     createdNames: txResult.createdNames,

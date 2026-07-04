@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="amplitude"
-  color="#1B1F3B"
+  color="#13294B"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -31,7 +31,7 @@ In Sim, the Amplitude integration enables powerful analytics automation scenario
 
 ## Usage Instructions
 
-Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, and retrieve revenue data.
+Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.
 
 
 
@@ -64,6 +64,7 @@ Track an event in Amplitude using the HTTP V2 API.
 | `revenue` | string | No | Revenue amount |
 | `productId` | string | No | Product identifier |
 | `revenueType` | string | No | Revenue type \(e.g., "purchase", "refund"\) |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -86,6 +87,7 @@ Set user properties in Amplitude using the Identify API. Supports $set, $setOnce
 | `userId` | string | No | User ID \(required if no device_id\) |
 | `deviceId` | string | No | Device ID \(required if no user_id\) |
 | `userProperties` | string | Yes | JSON object of user properties. Use operations like $set, $setOnce, $add, $append, $unset. |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -106,6 +108,7 @@ Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append,
 | `groupType` | string | Yes | Group classification \(e.g., "company", "org_id"\) |
 | `groupValue` | string | Yes | Specific group identifier \(e.g., "Acme Corp"\) |
 | `groupProperties` | string | Yes | JSON object of group properties. Use operations like $set, $setOnce, $add, $append, $unset. |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -125,6 +128,7 @@ Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard RES
 | `apiKey` | string | Yes | Amplitude API Key |
 | `secretKey` | string | Yes | Amplitude Secret Key |
 | `user` | string | Yes | User ID, Device ID, or Amplitude ID to search for |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -149,6 +153,7 @@ Get the event stream for a specific user by their Amplitude ID.
 | `offset` | string | No | Offset for pagination \(default 0\) |
 | `limit` | string | No | Maximum number of events to return \(default 1000, max 1000\) |
 | `direction` | string | No | Sort direction: "latest" or "earliest" \(default: latest\) |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -170,10 +175,12 @@ Get the event stream for a specific user by their Amplitude ID.
 |   ↳ `numSessions` | number | Total session count |
 |   ↳ `platform` | string | Primary platform |
 |   ↳ `country` | string | Country |
+|   ↳ `firstUsed` | string | Date the user first appeared |
+|   ↳ `lastUsed` | string | Date of most recent user activity |
 
 ### `amplitude_user_profile`
 
-Get a user profile including properties, cohort memberships, and computed properties.
+Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects.
 
 #### Input
 
@@ -212,7 +219,12 @@ Query event analytics data with segmentation. Get event counts, uniques, average
 | `metric` | string | No | Metric type: uniques, totals, pct_dau, average, histogram, sums, value_avg, or formula \(default: uniques\) |
 | `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
 | `groupBy` | string | No | Property name to group by \(prefix custom user properties with "gp:"\) |
+| `groupBy2` | string | No | Second property name to group by \(prefix custom user properties with "gp:"\) |
 | `limit` | string | No | Maximum number of group-by values \(max 1000\) |
+| `filters` | string | No | JSON array of filter objects applied to the event, e.g. \[\{"subprop_type":"event","subprop_key":"city","subprop_op":"is","subprop_value":\["San Francisco"\]\}\] |
+| `formula` | string | No | Required when metric is "formula", e.g. "UNIQUES\(A\)/UNIQUES\(B\)" |
+| `segment` | string | No | JSON segment definition\(s\) applied to the query |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -237,6 +249,9 @@ Get active or new user counts over a date range from the Dashboard REST API.
 | `end` | string | Yes | End date in YYYYMMDD format |
 | `metric` | string | No | Metric type: "active" or "new" \(default: active\) |
 | `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
+| `groupBy` | string | No | Property name to group by |
+| `segment` | string | No | JSON segment definition\(s\) applied to the query |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -256,6 +271,7 @@ Get real-time active user counts at 5-minute granularity for the last 2 days.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Amplitude API Key |
 | `secretKey` | string | Yes | Amplitude Secret Key |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -275,6 +291,7 @@ List all event types in the Amplitude project with their weekly totals and uniqu
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Amplitude API Key |
 | `secretKey` | string | Yes | Amplitude Secret Key |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -286,6 +303,8 @@ List all event types in the Amplitude project with their weekly totals and uniqu
 |   ↳ `totals` | number | Weekly total count |
 |   ↳ `hidden` | boolean | Whether the event is hidden |
 |   ↳ `deleted` | boolean | Whether the event is deleted |
+|   ↳ `nonActive` | boolean | Whether the event is excluded from active user calculations |
+|   ↳ `flowHidden` | boolean | Whether the event is hidden from user flow charts |
 
 ### `amplitude_get_revenue`
 
@@ -301,13 +320,83 @@ Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user count
 | `end` | string | Yes | End date in YYYYMMDD format |
 | `metric` | string | No | Metric: 0 \(ARPU\), 1 \(ARPPU\), 2 \(Total Revenue\), 3 \(Paying Users\) |
 | `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
+| `groupBy` | string | No | Property name to group by \(limit: one\) |
+| `segment` | string | No | JSON segment definition\(s\) applied to the query |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `series` | json | Array of revenue data series |
+| `series` | array | Revenue data series \[\{dates: \[YYYY-MM-DD\], values: \{&lt;date&gt;: \{r1d..r90d, count, paid, total_amount\}\}\}\] |
+|   ↳ `dates` | array | Dates covered by this series |
+|   ↳ `values` | json | Per-date metric values keyed by date \(r1d..r90d, count, paid, total_amount\) |
 | `seriesLabels` | array | Labels for each data series |
-| `xValues` | array | Date values for the x-axis |
+
+### `amplitude_funnels`
+
+Analyze conversion rates and drop-off between a sequence of events.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+| `events` | string | Yes | JSON array of event objects, one per funnel step in order, e.g. \[\{"event_type":"signup"\},\{"event_type":"purchase"\}\] |
+| `start` | string | Yes | Start date in YYYYMMDD format |
+| `end` | string | Yes | End date in YYYYMMDD format |
+| `mode` | string | No | Funnel ordering: "ordered", "unordered", or "sequential" \(default: ordered\) |
+| `userType` | string | No | User type: "new" or "active" \(default: active\) |
+| `interval` | string | No | Time interval: -300000 \(real-time\), -3600000 \(hourly\), 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
+| `conversionWindowSeconds` | string | No | Conversion window in seconds \(default: 2592000, i.e. 30 days\) |
+| `groupBy` | string | No | Property to group by \(limit: one; prefix custom properties with "gp:"\) |
+| `limit` | string | No | Maximum number of group-by values \(default: 100, max: 1000\) |
+| `segment` | string | No | JSON segment definition\(s\) applied to the query |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `funnels` | array | Funnel results, one entry per segment |
+|   ↳ `stepByStep` | json | Conversion count at each step |
+|   ↳ `cumulative` | json | Cumulative conversion percentage at each step |
+|   ↳ `cumulativeRaw` | json | Cumulative conversion count at each step |
+|   ↳ `medianTransTimes` | json | Median transition time between steps \(ms\) |
+|   ↳ `avgTransTimes` | json | Average transition time between steps \(ms\) |
+|   ↳ `events` | json | Event names for each funnel step |
+|   ↳ `dayFunnels` | json | Daily funnel breakdown \{series, xValues\} |
+
+### `amplitude_retention`
+
+Measure how many users return to perform an action after a starting action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+| `startEvent` | string | Yes | JSON starting event object, e.g. \{"event_type":"_new"\} or \{"event_type":"_active"\} |
+| `returnEvent` | string | Yes | JSON returning event object, e.g. \{"event_type":"_all"\} or \{"event_type":"_active"\} |
+| `start` | string | Yes | Start date in YYYYMMDD format |
+| `end` | string | Yes | End date in YYYYMMDD format |
+| `retentionMode` | string | No | Retention type: "bracket", "rolling", or "n-day" \(default: n-day\) |
+| `retentionBrackets` | string | No | Required when Retention Mode is "bracket". Day ranges, e.g. \[\[0,4\]\] |
+| `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
+| `groupBy` | string | No | Property to group by \(limit: one; prefix custom properties with "gp:"\) |
+| `segment` | string | No | JSON segment definition\(s\) applied to the query |
+| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | array | Retention data series \[\{dates, values: \{&lt;date&gt;: \[\{count, outof, incomplete\}\]\}, combined: \[\{count, outof, incomplete\}\]\}\] |
+|   ↳ `dates` | array | Cohort dates |
+|   ↳ `values` | json | Per-cohort-date retention counts keyed by date |
+|   ↳ `combined` | json | Deduplicated aggregate retention across all cohorts |
+| `seriesMeta` | array | Segment/event index metadata for each series entry |
 
 

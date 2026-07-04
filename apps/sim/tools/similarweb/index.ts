@@ -1,4 +1,5 @@
 export { similarwebBounceRateTool } from './bounce_rate'
+export { similarwebPageViewsTool } from './page_views'
 export { similarwebPagesPerVisitTool } from './pages_per_visit'
 export { similarwebTrafficVisitsTool } from './traffic_visits'
 export * from './types'

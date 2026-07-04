@@ -5,6 +5,7 @@ import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  listForkCopyableSourceResources,
   listForkResourceCandidates,
   loadForkCopyableResourceLabels,
 } from '@/lib/workspaces/fork/mapping/resources'
@@ -46,6 +47,75 @@ describe('listForkResourceCandidates', () => {
     // Documents are not a standalone mappable kind - they ride their KB via the reconfigure flow.
     expect(result['knowledge-document']).toEqual([])
     expect(result['env-var']).toEqual([{ id: 'API_KEY', label: 'API_KEY' }])
+  })
+})
+
+describe('listForkCopyableSourceResources', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('lists every sync-copyable kind, files keyed by storage key with folder grouping', async () => {
+    // The grouped queries resolve in Promise.all array order, each ending in `.limit()`:
+    // files (with folder), tables, knowledge bases, custom tools, skills.
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'file-row-1',
+          key: 'workspace/SRC/a.png',
+          label: 'a.png',
+          folderId: 'fld-1',
+          folderName: 'Images',
+        },
+        {
+          id: 'file-row-2',
+          key: 'workspace/SRC/root.txt',
+          label: 'root.txt',
+          folderId: null,
+          folderName: null,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'tbl-1', label: 'Table One' }])
+      .mockResolvedValueOnce([{ id: 'kb-1', label: 'KB One' }])
+      .mockResolvedValueOnce([{ id: 'ct-1', label: 'Tool One' }])
+      .mockResolvedValueOnce([{ id: 'sk-1', label: 'Skill One' }])
+
+    const result = await listForkCopyableSourceResources(executor, 'ws-src')
+
+    expect(result).toEqual([
+      // Files are addressed by STORAGE KEY (matching `file-upload` references + the promote copy
+      // selection), never by `workspace_files.id`, and carry their folder grouping.
+      {
+        kind: 'file',
+        sourceId: 'workspace/SRC/a.png',
+        label: 'a.png',
+        parentId: 'fld-1',
+        parentLabel: 'Images',
+      },
+      {
+        kind: 'file',
+        sourceId: 'workspace/SRC/root.txt',
+        label: 'root.txt',
+        parentId: null,
+        parentLabel: null,
+      },
+      { kind: 'table', sourceId: 'tbl-1', label: 'Table One', parentId: null, parentLabel: null },
+      {
+        kind: 'knowledge-base',
+        sourceId: 'kb-1',
+        label: 'KB One',
+        parentId: null,
+        parentLabel: null,
+      },
+      {
+        kind: 'custom-tool',
+        sourceId: 'ct-1',
+        label: 'Tool One',
+        parentId: null,
+        parentLabel: null,
+      },
+      { kind: 'skill', sourceId: 'sk-1', label: 'Skill One', parentId: null, parentLabel: null },
+    ])
   })
 })
 

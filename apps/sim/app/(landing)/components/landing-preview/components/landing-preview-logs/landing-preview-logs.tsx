@@ -201,6 +201,7 @@ export function LandingPreviewLogs() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder='Search logs...'
+              aria-label='Search logs'
               className='flex-1 bg-transparent text-[var(--text-body)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
             />
           </div>

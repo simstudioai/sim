@@ -1,54 +1,12 @@
 import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import type { CareerPosting } from '@/lib/ashby/jobs'
-import { ALL_FILTER_VALUE } from '@/app/(landing)/careers/search-params'
-
-export interface DepartmentGroup {
-  department: string
-  postings: CareerPosting[]
-}
-
-/**
- * Narrows postings to a selected Team and Location, treating {@link ALL_FILTER_VALUE}
- * as "any". Shared by the server-rendered fallback and the client board so a
- * deep-linked filter resolves to the exact same set on both sides.
- */
-export function filterPostings(
-  postings: CareerPosting[],
-  team: string,
-  location: string
-): CareerPosting[] {
-  return postings.filter(
-    (posting) =>
-      (team === ALL_FILTER_VALUE || posting.department === team) &&
-      (location === ALL_FILTER_VALUE || posting.location === location)
-  )
-}
-
-/** Whether either the Team or Location filter is narrowing the board. */
-export function hasActiveFilters(team: string, location: string): boolean {
-  return team !== ALL_FILTER_VALUE || location !== ALL_FILTER_VALUE
-}
+import type { DepartmentGroup } from '@/app/(landing)/careers/components/job-board/utils'
 
 /** Empty-state copy: distinguishes a truly empty board from a filtered-to-zero view. */
 const NO_OPEN_ROLES_MESSAGE = 'No open roles right now — check back soon.'
 const NO_MATCHING_ROLES_MESSAGE =
   'No roles match these filters right now. Try clearing them, or check back soon.'
-
-/**
- * Buckets postings by department, preserving their incoming order (the fetcher
- * pre-sorts by department then title). Shared by the interactive board and its
- * static Suspense fallback so the two can never render a different grouping.
- */
-export function groupByDepartment(postings: CareerPosting[]): DepartmentGroup[] {
-  const byDepartment = new Map<string, CareerPosting[]>()
-  for (const posting of postings) {
-    const bucket = byDepartment.get(posting.department)
-    if (bucket) bucket.push(posting)
-    else byDepartment.set(posting.department, [posting])
-  }
-  return Array.from(byDepartment, ([department, items]) => ({ department, postings: items }))
-}
 
 interface JobGroupsProps {
   groups: DepartmentGroup[]
@@ -125,8 +83,8 @@ function JobRow({ posting }: JobRowProps) {
       target='_blank'
       rel='noopener noreferrer'
       className={cn(
-        'group flex items-center justify-between gap-6 border-[var(--border)] border-t py-5',
-        'transition-colors hover:bg-[var(--surface-hover)]'
+        '-mx-3 group flex items-center justify-between gap-6 rounded-lg border-[var(--border)]',
+        'border-t px-3 py-5 transition-colors hover:bg-[var(--surface-hover)]'
       )}
     >
       <div className='flex min-w-0 flex-col gap-1.5'>

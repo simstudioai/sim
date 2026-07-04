@@ -135,8 +135,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         .join('/')
 
       const uploadUrl = driveId
-        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${encodedPath}:/content`
-        : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${encodedPath}:/content`
+        ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/root:${encodedPath}:/content`
+        : `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/drive/root:${encodedPath}:/content`
 
       logger.info(`[${requestId}] Uploading to: ${uploadUrl}`)
 

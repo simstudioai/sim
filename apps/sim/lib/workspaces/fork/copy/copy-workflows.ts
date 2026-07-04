@@ -45,13 +45,25 @@ interface ResolveForkFolderMappingParams {
   targetWorkspaceId: string
   userId: string
   now: Date
+  /**
+   * Source folder ids that will directly hold copied content (workflows); null entries
+   * (root-placed content) are ignored. A source folder is copied into the target only when
+   * its subtree contains at least one of these, so a fork/sync never creates folders that
+   * would end up empty. Copied workspace FILES never influence this set: they live in the
+   * separate `workspace_file_folders` entity and are flattened to root by the copy.
+   */
+  contentFolderIds: ReadonlyArray<string | null>
 }
 
 /**
- * Mirror the source workspace's folder tree into the target workspace, creating
- * folders as needed and reusing target folders that already match by name within
- * the same (mapped) parent. Returns a map from source folder id to target folder
- * id so copied workflows can be placed in the corresponding folder.
+ * Mirror into the target workspace the part of the source folder tree that will actually
+ * receive copied content: the folders in `contentFolderIds` plus their ancestor chains (so
+ * nesting stays intact). Target folders that already match by name within the same (mapped)
+ * parent are reused instead of duplicated. Folders whose subtree holds no copied content are
+ * pruned - never created - though a pruned folder still maps onto an existing target folder
+ * when one matches, so previously-synced content refs keep resolving. Returns a map from
+ * source folder id to target folder id; a copied workflow whose folder is absent from the
+ * map is placed at the target's root (see {@link copyWorkflowStateIntoTarget}).
  */
 export async function resolveForkFolderMapping({
   tx,
@@ -59,6 +71,7 @@ export async function resolveForkFolderMapping({
   targetWorkspaceId,
   userId,
   now,
+  contentFolderIds,
 }: ResolveForkFolderMappingParams): Promise<Map<string, string>> {
   const map = new Map<string, string>()
 
@@ -70,6 +83,20 @@ export async function resolveForkFolderMapping({
     )
 
   if (sourceFolders.length === 0) return map
+
+  const byId = new Map(sourceFolders.map((folder) => [folder.id, folder]))
+
+  // Kept = folders that directly hold copied content plus every ancestor; everything else
+  // would be empty in the target and is pruned. A dangling (archived) parent ends the walk,
+  // matching the re-root fallback below.
+  const kept = new Set<string>()
+  for (const folderId of contentFolderIds) {
+    let current = folderId ? byId.get(folderId) : undefined
+    while (current && !kept.has(current.id)) {
+      kept.add(current.id)
+      current = current.parentId ? byId.get(current.parentId) : undefined
+    }
+  }
 
   const targetFolders = await tx
     .select()
@@ -83,7 +110,6 @@ export async function resolveForkFolderMapping({
     targetByKey.set(`${folder.parentId ?? ''}::${folder.name}`, folder.id)
   }
 
-  const byId = new Map(sourceFolders.map((folder) => [folder.id, folder]))
   const ordered: typeof sourceFolders = []
   const seen = new Set<string>()
   const visit = (folder: (typeof sourceFolders)[number]) => {
@@ -97,13 +123,20 @@ export async function resolveForkFolderMapping({
 
   const newFolders: (typeof sourceFolders)[number][] = []
   for (const folder of ordered) {
+    const isKept = kept.has(folder.id)
     const mappedParentId = folder.parentId ? (map.get(folder.parentId) ?? null) : null
     const key = `${mappedParentId ?? ''}::${folder.name}`
     const existing = targetByKey.get(key)
     if (existing) {
-      map.set(folder.id, existing)
+      // A pruned folder may still MAP onto an existing target folder, but only when its
+      // parent chain actually resolved: an unmapped pruned parent aliases the key to root
+      // level, which could match an unrelated same-named root folder.
+      if (isKept || !folder.parentId || map.has(folder.parentId)) {
+        map.set(folder.id, existing)
+      }
       continue
     }
+    if (!isKept) continue
     const newFolderId = generateId()
     map.set(folder.id, newFolderId)
     targetByKey.set(key, newFolderId)

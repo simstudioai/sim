@@ -92,6 +92,7 @@ import { GmailBlock, GmailBlockMeta, GmailV2Block, GmailV2BlockMeta } from '@/bl
 import { GongBlock, GongBlockMeta } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock, GoogleSearchBlockMeta } from '@/blocks/blocks/google'
 import { GoogleAdsBlock, GoogleAdsBlockMeta } from '@/blocks/blocks/google_ads'
+import { GoogleAppsheetBlock, GoogleAppsheetBlockMeta } from '@/blocks/blocks/google_appsheet'
 import { GoogleBigQueryBlock, GoogleBigQueryBlockMeta } from '@/blocks/blocks/google_bigquery'
 import { GoogleBooksBlock, GoogleBooksBlockMeta } from '@/blocks/blocks/google_books'
 import {
@@ -204,7 +205,7 @@ import {
 import { MondayBlock, MondayBlockMeta } from '@/blocks/blocks/monday'
 import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
-import { MySQLBlock } from '@/blocks/blocks/mysql'
+import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
 import { NeverBounceBlock, NeverBounceBlockMeta } from '@/blocks/blocks/neverbounce'
 import { NewRelicBlock, NewRelicBlockMeta } from '@/blocks/blocks/new_relic'
@@ -230,7 +231,7 @@ import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
-import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
+import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
 import { ProfoundBlock, ProfoundBlockMeta } from '@/blocks/blocks/profound'
 import { ProspeoBlock, ProspeoBlockMeta } from '@/blocks/blocks/prospeo'
@@ -264,19 +265,19 @@ import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
 import { SerperBlock, SerperBlockMeta } from '@/blocks/blocks/serper'
 import { ServiceNowBlock, ServiceNowBlockMeta } from '@/blocks/blocks/servicenow'
 import { SESBlock, SESBlockMeta } from '@/blocks/blocks/ses'
-import { SftpBlock } from '@/blocks/blocks/sftp'
+import { SftpBlock, SftpBlockMeta } from '@/blocks/blocks/sftp'
 import { SharepointBlock, SharepointBlockMeta, SharepointV2Block } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock, ShopifyBlockMeta } from '@/blocks/blocks/shopify'
 import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
 import { SlackBlock, SlackBlockMeta } from '@/blocks/blocks/slack'
-import { SmtpBlock } from '@/blocks/blocks/smtp'
+import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SportmonksBlock, SportmonksBlockMeta } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta } from '@/blocks/blocks/sqs'
 import { SquareBlock, SquareBlockMeta } from '@/blocks/blocks/square'
-import { SSHBlock } from '@/blocks/blocks/ssh'
+import { SSHBlock, SSHBlockMeta } from '@/blocks/blocks/ssh'
 import { StagehandBlock, StagehandBlockMeta } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
@@ -429,6 +430,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   gmail_v2: GmailV2Block,
   gong: GongBlock,
   google_ads: GoogleAdsBlock,
+  google_appsheet: GoogleAppsheetBlock,
   google_bigquery: GoogleBigQueryBlock,
   google_books: GoogleBooksBlock,
   google_calendar: GoogleCalendarBlock,
@@ -725,6 +727,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   gmail_v2: GmailV2BlockMeta,
   gong: GongBlockMeta,
   google_ads: GoogleAdsBlockMeta,
+  google_appsheet: GoogleAppsheetBlockMeta,
   google_bigquery: GoogleBigQueryBlockMeta,
   google_books: GoogleBooksBlockMeta,
   google_calendar: GoogleCalendarBlockMeta,
@@ -793,6 +796,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mistral_parse: MistralParseBlockMeta,
   monday: MondayBlockMeta,
   mongodb: MongoDBBlockMeta,
+  mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
   neverbounce: NeverBounceBlockMeta,
   new_relic: NewRelicBlockMeta,
@@ -812,6 +816,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   polymarket: PolymarketBlockMeta,
+  postgresql: PostgreSQLBlockMeta,
   posthog: PostHogBlockMeta,
   profound: ProfoundBlockMeta,
   prospeo: ProspeoBlockMeta,
@@ -841,15 +846,18 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   serper: SerperBlockMeta,
   servicenow: ServiceNowBlockMeta,
   ses: SESBlockMeta,
+  sftp: SftpBlockMeta,
   sharepoint: SharepointBlockMeta,
   shopify: ShopifyBlockMeta,
   similarweb: SimilarwebBlockMeta,
   sixtyfour: SixtyfourBlockMeta,
   slack: SlackBlockMeta,
+  smtp: SmtpBlockMeta,
   sportmonks: SportmonksBlockMeta,
   spotify: SpotifyBlockMeta,
   sqs: SQSBlockMeta,
   square: SquareBlockMeta,
+  ssh: SSHBlockMeta,
   stagehand: StagehandBlockMeta,
   stripe: StripeBlockMeta,
   sts: STSBlockMeta,

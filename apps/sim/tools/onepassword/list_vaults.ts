@@ -97,7 +97,7 @@ export const listVaultsTool: ToolConfig<
           items: { type: 'number', description: 'Number of items in the vault' },
           type: {
             type: 'string',
-            description: 'Vault type (USER_CREATED, PERSONAL, EVERYONE, TRANSFER)',
+            description: 'Vault type (USER_CREATED, PERSONAL, or EVERYONE)',
           },
           createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
           updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },

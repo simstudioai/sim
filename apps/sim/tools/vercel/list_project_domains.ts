@@ -32,6 +32,12 @@ export const vercelListProjectDomainsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Team ID to scope the request',
     },
+    slug: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Team slug to scope the request (alternative to teamId)',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -44,6 +50,7 @@ export const vercelListProjectDomainsTool: ToolConfig<
     url: (params: VercelListProjectDomainsParams) => {
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
+      if (params.slug) query.set('slug', params.slug.trim())
       if (params.limit) query.set('limit', String(params.limit))
       const qs = query.toString()
       return `https://api.vercel.com/v9/projects/${params.projectId.trim()}/domains${qs ? `?${qs}` : ''}`

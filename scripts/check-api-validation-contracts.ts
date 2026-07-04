@@ -25,7 +25,7 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
   doubleCasts: 8,
-  rawJsonReads: 21,
+  rawJsonReads: 8,
   untypedResponses: 0,
   annotationsMissingReason: 0,
 } as const

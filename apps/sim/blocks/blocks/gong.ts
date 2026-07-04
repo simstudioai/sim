@@ -43,9 +43,13 @@ export const GongBlock: BlockConfig<GongResponse> = {
         { label: 'List Trackers', id: 'list_trackers' },
         { label: 'List Workspaces', id: 'list_workspaces' },
         { label: 'List Flows', id: 'list_flows' },
+        { label: 'Assign Flow Prospects', id: 'assign_flow_prospects' },
+        { label: 'Get Prospect Flows', id: 'get_prospect_flows' },
         { label: 'Get Coaching', id: 'get_coaching' },
         { label: 'Lookup Email', id: 'lookup_email' },
         { label: 'Lookup Phone', id: 'lookup_phone' },
+        { label: 'Purge Email Address', id: 'purge_email_address' },
+        { label: 'Purge Phone Number', id: 'purge_phone_number' },
       ],
       value: () => 'list_calls',
     },
@@ -239,6 +243,12 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       type: 'short-input',
       placeholder: 'Comma-separated call IDs (optional)',
       condition: { field: 'operation', value: ['get_call_transcript', 'get_extensive_calls'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong call IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the call IDs (e.g., "calls 123456 and 789012")...',
+      },
     },
     {
       id: 'transcriptFromDateTime',
@@ -289,6 +299,12 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       placeholder: 'Comma-separated user IDs (optional)',
       condition: { field: 'operation', value: 'get_extensive_calls' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong user IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the user IDs...',
+      },
     },
 
     // List Users inputs
@@ -405,6 +421,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         ],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong user IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the user IDs...',
+      },
     },
 
     // Aggregate by Period inputs
@@ -499,6 +521,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Comma-separated scorecard IDs (optional)',
       condition: { field: 'operation', value: 'answered_scorecards' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong scorecard IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the scorecard IDs...',
+      },
     },
     {
       id: 'reviewedUserIds',
@@ -507,6 +535,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Comma-separated user IDs (optional)',
       condition: { field: 'operation', value: 'answered_scorecards' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Gong user IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the reviewed user IDs...',
+      },
     },
 
     // Get Folder Content inputs
@@ -548,6 +582,38 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'user@example.com',
       condition: { field: 'operation', value: 'list_flows' },
       required: { field: 'operation', value: 'list_flows' },
+    },
+
+    // Assign Flow Prospects / Get Prospect Flows inputs
+    {
+      id: 'flowId',
+      title: 'Flow ID',
+      type: 'short-input',
+      placeholder: 'Enter the Gong Engage flow ID',
+      condition: { field: 'operation', value: 'assign_flow_prospects' },
+      required: { field: 'operation', value: 'assign_flow_prospects' },
+    },
+    {
+      id: 'crmProspectsIds',
+      title: 'CRM Prospect IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated CRM contact or lead IDs',
+      condition: { field: 'operation', value: ['assign_flow_prospects', 'get_prospect_flows'] },
+      required: { field: 'operation', value: ['assign_flow_prospects', 'get_prospect_flows'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of CRM prospect IDs based on the user's description.
+Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
+        placeholder: 'Describe the CRM prospect IDs...',
+      },
+    },
+    {
+      id: 'flowInstanceOwnerEmail',
+      title: 'Flow Instance Owner Email',
+      type: 'short-input',
+      placeholder: 'user@example.com',
+      condition: { field: 'operation', value: 'assign_flow_prospects' },
+      required: { field: 'operation', value: 'assign_flow_prospects' },
     },
 
     // Get Coaching inputs
@@ -610,24 +676,24 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       },
     },
 
-    // Lookup Email inputs
+    // Lookup Email / Purge Email Address inputs
     {
       id: 'emailAddress',
       title: 'Email Address',
       type: 'short-input',
       placeholder: 'user@example.com',
-      condition: { field: 'operation', value: 'lookup_email' },
-      required: { field: 'operation', value: 'lookup_email' },
+      condition: { field: 'operation', value: ['lookup_email', 'purge_email_address'] },
+      required: { field: 'operation', value: ['lookup_email', 'purge_email_address'] },
     },
 
-    // Lookup Phone inputs
+    // Lookup Phone / Purge Phone Number inputs
     {
       id: 'phoneNumber',
       title: 'Phone Number',
       type: 'short-input',
       placeholder: '+1234567890',
-      condition: { field: 'operation', value: 'lookup_phone' },
-      required: { field: 'operation', value: 'lookup_phone' },
+      condition: { field: 'operation', value: ['lookup_phone', 'purge_phone_number'] },
+      required: { field: 'operation', value: ['lookup_phone', 'purge_phone_number'] },
     },
 
     // Pagination cursor (shared)
@@ -692,9 +758,13 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       'gong_list_trackers',
       'gong_list_workspaces',
       'gong_list_flows',
+      'gong_assign_flow_prospects',
+      'gong_get_prospect_flows',
       'gong_get_coaching',
       'gong_lookup_email',
       'gong_lookup_phone',
+      'gong_purge_email_address',
+      'gong_purge_phone_number',
     ],
     config: {
       tool: (params) => `gong_${params.operation}`,
@@ -763,8 +833,20 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       type: 'string',
       description: 'Email of a Gong user to retrieve personal and company flows',
     },
-    emailAddress: { type: 'string', description: 'Email address to look up' },
-    phoneNumber: { type: 'string', description: 'Phone number to look up' },
+    flowId: { type: 'string', description: 'Gong Engage flow ID' },
+    crmProspectsIds: { type: 'string', description: 'Comma-separated CRM prospect IDs' },
+    flowInstanceOwnerEmail: {
+      type: 'string',
+      description: 'Email of the Gong user who owns the flow instance and its to-dos',
+    },
+    emailAddress: {
+      type: 'string',
+      description: 'Email address to look up or purge',
+    },
+    phoneNumber: {
+      type: 'string',
+      description: 'Phone number to look up or purge',
+    },
     cursor: { type: 'string', description: 'Pagination cursor' },
   },
   outputs: {
@@ -881,6 +963,18 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       type: 'json',
       description:
         'Gong Engage flows: [{id, name, folderId, folderName, visibility, creationDate, exclusive}]',
+    },
+
+    // assign_flow_prospects / get_prospect_flows
+    prospectsAssigned: {
+      type: 'json',
+      description:
+        'Prospects assigned to (or enrolled in) flows: [{flowId, flowName, crmProspectId, flowInstanceId, flowInstanceOwnerEmail, flowInstanceOwnerFullName, flowInstanceCreateDate, flowInstanceStatus, workspaceId, exclusive}]',
+    },
+    prospectsNotAssigned: {
+      type: 'json',
+      description:
+        'Prospects that failed to be assigned to a flow: [{flowId, crmProspectId, errorCode, errorMessage}]',
     },
 
     // get_coaching
