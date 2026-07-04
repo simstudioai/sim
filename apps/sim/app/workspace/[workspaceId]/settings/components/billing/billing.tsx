@@ -642,7 +642,7 @@ export function Billing() {
         </SettingsSection>
       )}
 
-      {!subscription.isEnterprise && <CreditUsageSection />}
+      {!subscription.isEnterprise && <CreditUsageSection workspaceId={workspaceId} />}
     </SettingsPanel>
   )
 }

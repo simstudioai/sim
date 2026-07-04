@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Tooltip } from '@sim/emcn'
+import { cn, Tooltip } from '@sim/emcn'
 import type { FactSource } from '@/lib/compare/data'
 
 export interface SourceLinkProps {
@@ -29,7 +29,7 @@ export function SourceLink({ source, children, className }: SourceLinkProps) {
           target='_blank'
           rel='noopener noreferrer'
           aria-label={`${source.label} (opens source)`}
-          className={className}
+          className={cn('block min-w-0', className)}
         >
           {children}
         </a>
