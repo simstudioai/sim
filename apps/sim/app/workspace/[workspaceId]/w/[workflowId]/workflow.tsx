@@ -3142,6 +3142,14 @@ const WorkflowContent = React.memo(
           updateContainerDimensionsDuringMove(node.id, node.position)
         }
 
+        // Embedded (mship panel) canvases allow repositioning but never
+        // re-parenting: skip container-intersection detection so a drag over a
+        // subflow neither highlights it nor arms potentialParentId. Both drag-stop
+        // paths bail when potentialParentId still equals the drag-start parent, so
+        // positions persist but a block can never be inserted into (or pulled out
+        // of) a loop/parallel from the embedded view.
+        if (embedded) return
+
         // Check if this is a starter block - starter blocks should never be in containers
         const isStarterBlock = node.data?.type === 'starter'
         if (isStarterBlock) {
@@ -3257,6 +3265,7 @@ const WorkflowContent = React.memo(
         getNodes,
         potentialParentId,
         blocks,
+        embedded,
         getNodeAbsolutePosition,
         getNodeDepth,
         isDescendantOf,
@@ -4109,7 +4118,9 @@ const WorkflowContent = React.memo(
                   edgesUpdatable={!embedded && effectivePermissions.canEdit}
                   className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
                   onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
-                  onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
+                  onNodeDragStop={
+                    !embedded && effectivePermissions.canEdit ? onNodeDragStop : undefined
+                  }
                   onSelectionDragStart={
                     effectivePermissions.canEdit ? onSelectionDragStart : undefined
                   }
@@ -4117,7 +4128,9 @@ const WorkflowContent = React.memo(
                   onSelectionDragStop={
                     effectivePermissions.canEdit ? onSelectionDragStop : undefined
                   }
-                  onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
+                  onNodeDragStart={
+                    !embedded && effectivePermissions.canEdit ? onNodeDragStart : undefined
+                  }
                   snapToGrid={snapToGrid}
                   snapGrid={snapGrid}
                   elevateEdgesOnSelect={false}
