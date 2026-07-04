@@ -356,9 +356,9 @@ function ChatContentInner({
    * mounts a fresh animate plugin with no prev-content tracking, which would
    * re-fade the entire already-visible message.
    */
-  const streamedThisSession = useRef(false)
+  const [streamedThisSession, setStreamedThisSession] = useState(false)
   const [animationDrained, setAnimationDrained] = useState(false)
-  const fadeCutoffRef = useRef(false)
+  const [fadeCutoff, setFadeCutoff] = useState(false)
 
   /**
    * The per-session latches above outlive the content when React reuses this
@@ -370,26 +370,28 @@ function ChatContentInner({
    * is REPLACED (not an append of the previous string) after the instance has
    * settled. A resumed turn only ever appends, so this never undoes the
    * one-way drain; mid-stream sanitize rewrites are excluded by the
-   * `animationDrained` gate (the drain only fires after settle).
+   * `animationDrained` gate (the drain only fires after settle). All latches
+   * are render-phase `useState` adjustments (prev-tracker idiom), not refs —
+   * they are read during render, and state is concurrent-safe where a
+   * render-phase ref mutation is not.
    */
-  const prevDisplayContentRef = useRef(displayContent)
-  if (prevDisplayContentRef.current !== displayContent) {
-    const replaced = !displayContent.startsWith(prevDisplayContentRef.current)
-    prevDisplayContentRef.current = displayContent
-    if (replaced && animationDrained) {
-      streamedThisSession.current = false
-      fadeCutoffRef.current = false
+  const [prevDisplayContent, setPrevDisplayContent] = useState(displayContent)
+  if (prevDisplayContent !== displayContent) {
+    setPrevDisplayContent(displayContent)
+    if (!displayContent.startsWith(prevDisplayContent) && animationDrained) {
+      setStreamedThisSession(false)
+      setFadeCutoff(false)
       setAnimationDrained(false)
     }
   }
 
-  if (isStreaming) streamedThisSession.current = true
+  if (isStreaming && !streamedThisSession) setStreamedThisSession(true)
 
   useEffect(() => {
-    if (isRevealing || animationDrained || !streamedThisSession.current) return
+    if (isRevealing || animationDrained || !streamedThisSession) return
     const timeout = setTimeout(() => setAnimationDrained(true), ANIMATION_DRAIN_MS)
     return () => clearTimeout(timeout)
-  }, [isRevealing, animationDrained])
+  }, [isRevealing, animationDrained, streamedThisSession])
 
   /**
    * `parserTree` (drives `mode`) stays latched for the mount's life: streaming
@@ -403,7 +405,7 @@ function ChatContentInner({
    * byte-identical pixels. Only never-streamed mounts (reloaded history)
    * render static.
    */
-  const parserTree = isRevealing || streamedThisSession.current
+  const parserTree = isRevealing || streamedThisSession
   const streamingTree = parserTree && !animationDrained
 
   /**
@@ -412,8 +414,8 @@ function ChatContentInner({
    * `animated` — a fresh animate plugin has no prev-content tracking and would
    * re-fade the entire visible segment.
    */
-  if (streamedContent.length > FADE_MAX_REVEALED_CHARS) fadeCutoffRef.current = true
-  const fadeActive = streamingTree && !fadeCutoffRef.current
+  if (!fadeCutoff && streamedContent.length > FADE_MAX_REVEALED_CHARS) setFadeCutoff(true)
+  const fadeActive = streamingTree && !fadeCutoff
 
   useEffect(() => {
     const handler = (e: Event) => {
