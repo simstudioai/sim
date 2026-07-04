@@ -7,10 +7,11 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Sort, TableSchema } from '@/lib/table'
+import { buildIdByName, predicateNamesToIds, sortSpecNamesToIds } from '@/lib/table/column-keys'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { parsePostgrestFilter, parsePostgrestOrder } from '@/lib/table/query-builder/postgrest'
 import { decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
-import { TableQueryValidationError } from '@/lib/table/sql'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -55,13 +56,25 @@ export const POST = withRouteHandler(
       const wire = rowWireTranslators(authResult.authType, schema)
       const cursor = body.cursor ? decodeCursor(body.cursor) : undefined
 
-      // PostgREST filter/order arrive as strings (column NAMES); parse with the
-      // schema for type coercion, then translate names → storage ids.
+      // A keyset cursor encodes a position on the DEFAULT `(order_key, id)`
+      // order; combining it with a custom order would silently return page 1
+      // of the sorted view relabeled as a next page.
+      if (cursor?.after && body.order) {
+        return NextResponse.json(
+          { error: 'Cursor is not valid for a sorted query. Restart paging without the cursor.' },
+          { status: 400 }
+        )
+      }
+
+      // PostgREST filter/order strings are column-NAME-keyed by construction
+      // (the parser validates against names), so translate names → storage ids
+      // unconditionally — unlike row data, this is not authType-dependent.
+      const idByName = buildIdByName(schema)
       const predicate = body.filter
-        ? wire.predicateIn(parsePostgrestFilter(body.filter, schema.columns))
+        ? predicateNamesToIds(parsePostgrestFilter(body.filter, schema.columns), idByName)
         : undefined
       const sortSpec = body.order
-        ? wire.sortSpecIn(parsePostgrestOrder(body.order, schema.columns))
+        ? sortSpecNamesToIds(parsePostgrestOrder(body.order, schema.columns), idByName)
         : undefined
       const sort: Sort | undefined = sortSpec?.length
         ? Object.fromEntries(sortSpec.map((s) => [s.field, s.direction]))
@@ -77,6 +90,9 @@ export const POST = withRouteHandler(
           offset: cursor?.offset,
           // Only the first page (no inbound cursor) pays for the total count.
           includeTotal: !body.cursor,
+          // Executions are grid UI state; the v2 surface returns row data only
+          // and the byte budget deliberately measures just `data`.
+          withExecutions: false,
         },
         requestId
       )

@@ -13,8 +13,10 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
     'Filter is a querystring fragment: `wins=gte.10&status=in.(active,pending)` (top-level params AND; ' +
     '`or=(a.eq.1,b.eq.2)` / `and=(...)` for groups). Operators: eq, neq, gt, gte, lt, lte, in, like, ilike, ' +
     'match, imatch, is.null (negate with not., e.g. not.in, not.is.null). ' +
-    'Order is PostgREST `order` (e.g. `wins.desc,name.asc`). To page, pass the nextCursor from the previous ' +
-    'response back as cursor; omit it for the first page.',
+    'Order is PostgREST `order` (e.g. `wins.desc,name.asc`). Omit limit to return the entire result — ' +
+    'the query fails if it exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, ' +
+    'a page can end early at the byte budget: a non-null nextCursor means more rows exist — pass it back ' +
+    'as cursor to continue; never infer completion from page size.',
   version: '1.0.0',
 
   params: {
@@ -41,7 +43,7 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
       type: 'number',
       required: false,
       description:
-        'Maximum rows to return. Omit to return every matching row (the server fails fast if the result exceeds 10MB). Set a limit to page with the cursor.',
+        'Maximum rows per page. Omit to return the entire matching result — fails if it exceeds the 5MB budget. With a limit, pages may byte-cut early and set nextCursor when more remain.',
       visibility: 'user-or-llm',
     },
     cursor: {

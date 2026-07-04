@@ -9,6 +9,7 @@ import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
 import { NAME_PATTERN } from '@/lib/table/constants'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
   ColumnDefinition,
   ConditionOperators,
@@ -20,17 +21,6 @@ import type {
   Sort,
   TablePredicate,
 } from '@/lib/table/types'
-
-/**
- * Error thrown when caller-supplied filter or sort input is malformed.
- * Routes should map this to HTTP 400 with the message preserved.
- */
-export class TableQueryValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'TableQueryValidationError'
-  }
-}
 
 type ColumnType = ColumnDefinition['type']
 type ColumnTypeMap = ReadonlyMap<string, ColumnType>
@@ -80,6 +70,8 @@ const ALLOWED_OPERATORS = new Set([
   '$endsWith',
   '$like',
   '$ilike',
+  '$nlike',
+  '$nilike',
   '$match',
   '$imatch',
   '$empty',
@@ -456,9 +448,19 @@ export function fieldPredicate(
       return buildLikeClause(tableName, field, value as string, 'endsWith')
 
     case 'like':
-      return buildPatternClause(tableName, field, value as string, false)
+      return buildPatternClause(tableName, field, value as string, { caseInsensitive: false })
     case 'ilike':
-      return buildPatternClause(tableName, field, value as string, true)
+      return buildPatternClause(tableName, field, value as string, { caseInsensitive: true })
+    case 'nlike':
+      return buildPatternClause(tableName, field, value as string, {
+        caseInsensitive: false,
+        negate: true,
+      })
+    case 'nilike':
+      return buildPatternClause(tableName, field, value as string, {
+        caseInsensitive: true,
+        negate: true,
+      })
 
     case 'isEmpty':
       return buildEmptyClause(tableName, field, true)
@@ -569,21 +571,29 @@ export function escapeLikePattern(value: string): string {
  * is the only wildcard — it maps to SQL `%`; any literal `%`/`_`/`\` in the
  * value is escaped so it matches itself. Empty/exact patterns are allowed (an
  * empty pattern matches only the empty string, not every row, so it's not the
- * footgun the positional `buildLikeClause` guards against). Cannot use the GIN
- * index; sequential scan bounded by the `table_id` btree prefix.
+ * footgun the positional `buildLikeClause` guards against). `negate` inverts
+ * the match and keeps null cells — "does not match" retains empty rows,
+ * mirroring `buildLikeClause`'s ncontains semantics. Cannot use the GIN index;
+ * sequential scan bounded by the `table_id` btree prefix.
  */
 function buildPatternClause(
   tableName: string,
   field: string,
   value: string,
-  caseInsensitive: boolean
+  options: { caseInsensitive: boolean; negate?: boolean }
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
   const pattern = String(value)
     .replace(/[\\%_]/g, '\\$&')
     .replace(/\*/g, '%')
   const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
-  return caseInsensitive ? sql`${cell} ILIKE ${pattern}` : sql`${cell} LIKE ${pattern}`
+  const match = options.caseInsensitive
+    ? sql`${cell} ILIKE ${pattern}`
+    : sql`${cell} LIKE ${pattern}`
+  if (!options.negate) return match
+  return options.caseInsensitive
+    ? sql`(${cell} IS NULL OR ${cell} NOT ILIKE ${pattern})`
+    : sql`(${cell} IS NULL OR ${cell} NOT LIKE ${pattern})`
 }
 
 /**

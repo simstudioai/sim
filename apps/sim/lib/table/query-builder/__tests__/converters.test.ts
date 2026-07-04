@@ -263,8 +263,9 @@ describe('filterRulesToPostgrest', () => {
     expect(
       filterRulesToPostgrest([rule({ column: 'name', operator: 'contains', value: 'jo' })])
     ).toBe('name=ilike.*jo*')
+    // isEmpty keeps its null-OR-empty-string semantics through the string form.
     expect(filterRulesToPostgrest([rule({ column: 'name', operator: 'isEmpty' })])).toBe(
-      'name=is.null'
+      'or=(name.is.null,name.eq."")'
     )
   })
 

@@ -121,7 +121,7 @@ describe('GET /api/table/[tableId]/rows/find', () => {
   })
 
   it('maps a TableQueryValidationError to 400', async () => {
-    const { TableQueryValidationError } = await import('@/lib/table/sql')
+    const { TableQueryValidationError } = await import('@/lib/table/errors')
     mockFindRowMatches.mockRejectedValueOnce(new TableQueryValidationError('Invalid field name'))
     const res = await callGet({ workspaceId: 'workspace-1', q: 'foo' })
     expect(res.status).toBe(400)

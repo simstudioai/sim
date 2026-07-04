@@ -549,13 +549,16 @@ export const listTableRowsContract = defineRouteContract({
         totalCount: z.number().nullable(),
         limit: z.number(),
         offset: z.number(),
+        /** Non-null when more rows exist — a page may be cut by the byte budget
+         *  before reaching `limit`, so page fullness is not a termination signal. */
+        nextCursor: z.string().nullable(),
       })
     ),
   },
 })
 
 /**
- * v2 query surface: structured predicate grammar + opaque cursor pagination.
+ * v2 query surface: PostgREST filter/order strings + opaque cursor pagination.
  * No `offset` (the cursor encodes paging state) and no after/sort refine (the
  * cursor carries the sort context). `filter`/`order` are PostgREST strings,
  * parsed server-side. POST so the (potentially long) filter rides the body.
@@ -564,8 +567,9 @@ export const queryTableRowsV2BodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: postgrestFilterSchema.optional(),
   order: postgrestOrderSchema.optional(),
-  // Omitted limit returns every matching row (bounded by the server's byte
-  // guard, not a row cap). An explicit limit is honored as-is for paging.
+  // Omitted limit returns the ENTIRE matching result, failing fast (400) when
+  // it exceeds the response byte budget. An explicit limit caps the page row
+  // count; the byte budget may still end a page early with nextCursor set.
   limit: z.preprocess(
     (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
     z

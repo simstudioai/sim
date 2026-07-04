@@ -6,11 +6,20 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockCheckAccess, mockInsertRow, mockValidateRowData, mockQueryRows } = vi.hoisted(() => ({
+const {
+  mockCheckAccess,
+  mockInsertRow,
+  mockValidateRowData,
+  mockQueryRows,
+  mockUpdateRowsByFilter,
+  mockDeleteRowsByFilter,
+} = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockInsertRow: vi.fn(),
   mockValidateRowData: vi.fn(),
   mockQueryRows: vi.fn(),
+  mockUpdateRowsByFilter: vi.fn(),
+  mockDeleteRowsByFilter: vi.fn(),
 }))
 
 vi.mock('@/app/api/table/utils', async () => {
@@ -31,9 +40,9 @@ vi.mock('@/lib/table', async () => {
     insertRow: mockInsertRow,
     batchInsertRows: vi.fn(),
     batchUpdateRows: vi.fn(),
-    deleteRowsByFilter: vi.fn(),
+    deleteRowsByFilter: mockDeleteRowsByFilter,
     deleteRowsByIds: vi.fn(),
-    updateRowsByFilter: vi.fn(),
+    updateRowsByFilter: mockUpdateRowsByFilter,
     validateBatchRows: vi.fn(),
     validateRowData: mockValidateRowData,
     validateRowSize: vi.fn(() => ({ valid: true })),
@@ -48,7 +57,7 @@ vi.mock('@/lib/table/sql', () => ({
   TableQueryValidationError: class TableQueryValidationError extends Error {},
 }))
 
-import { GET, POST } from '@/app/api/table/[tableId]/rows/route'
+import { DELETE, GET, POST, PUT } from '@/app/api/table/[tableId]/rows/route'
 
 function buildTable(): TableDefinition {
   return {
@@ -216,5 +225,57 @@ describe('GET /api/table/[tableId]/rows', () => {
 
     const body = await res.json()
     expect(body.data.rows[0].data).toEqual({ col_aaa: 'Ada', col_bbb: 36 })
+  })
+})
+
+describe('PUT/DELETE /api/table/[tableId]/rows — PostgREST string filters', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockUpdateRowsByFilter.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row_1'] })
+    mockDeleteRowsByFilter.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row_1'] })
+  })
+
+  function callPut(body: Record<string, unknown>) {
+    const req = new NextRequest('http://localhost:3000/api/table/tbl_1/rows', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return PUT(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+  }
+
+  function callDelete(body: Record<string, unknown>) {
+    const req = new NextRequest('http://localhost:3000/api/table/tbl_1/rows', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return DELETE(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+  }
+
+  it('PUT translates a name-keyed PostgREST string to an id-keyed filter under SESSION auth', async () => {
+    authAs('session')
+    const res = await callPut({
+      workspaceId: 'workspace-1',
+      filter: 'Name=eq.Ada',
+      data: { col_aaa: 'Grace' },
+    })
+
+    expect(res.status).toBe(200)
+    const args = mockUpdateRowsByFilter.mock.calls[0][1]
+    expect(args.filter).toEqual({ $and: [{ col_aaa: 'Ada' }] })
+  })
+
+  it('DELETE accepts the PostgREST string and rejects an invalid one with 400', async () => {
+    authAs('internal_jwt')
+    const ok = await callDelete({ workspaceId: 'workspace-1', filter: 'Age=gte.30' })
+    expect(ok.status).toBe(200)
+    const args = mockDeleteRowsByFilter.mock.calls[0][1]
+    expect(args.filter).toEqual({ $and: [{ col_bbb: { $gte: 30 } }] })
+
+    const bad = await callDelete({ workspaceId: 'workspace-1', filter: 'Age=bogus.1' })
+    expect(bad.status).toBe(400)
+    expect((await bad.json()).error).toMatch(/Unknown filter operator/)
   })
 })

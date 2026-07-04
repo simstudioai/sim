@@ -615,9 +615,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const sort = orderSpec?.length
             ? Object.fromEntries(orderSpec.map((s) => [s.field, s.direction]))
             : undefined
-          // No limit returns every matching row (bounded by the server's 10MB byte
-          // guard, which fails fast rather than truncating). An explicit limit is
-          // honored as-is so the model can still page with `offset` when it wants to.
+          // No limit returns the ENTIRE matching result, failing fast once the
+          // 5MB byte budget is exceeded (caught below → structured tool error
+          // the model can react to by adding a filter or a limit). An explicit
+          // limit pages; byte-cut pages set nextCursor and the message says how
+          // to continue with `offset`.
           const result = await queryRows(
             table,
             {
@@ -630,9 +632,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             requestId
           )
 
+          // nextCursor covers both cut kinds (explicit limit or the 5MB byte
+          // budget) — either way the truthful signal is "more rows exist".
+          const message = result.nextCursor
+            ? `Returned ${result.rows.length} of ${result.totalCount} rows (more available — pass offset=${result.offset + result.rows.length} to continue)`
+            : `Returned ${result.rows.length} of ${result.totalCount} rows`
           return {
             success: true,
-            message: `Returned ${result.rows.length} of ${result.totalCount} rows`,
+            message,
             data: {
               ...result,
               rows: result.rows.map((r) => ({ ...r, data: rowDataIdToName(r.data, nameById) })),

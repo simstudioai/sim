@@ -447,6 +447,8 @@ export type FilterOp =
   | 'endsWith'
   | 'like'
   | 'ilike'
+  | 'nlike'
+  | 'nilike'
   | 'match'
   | 'imatch'
   | 'isEmpty'
@@ -513,10 +515,15 @@ export interface QueryOptions {
    */
   predicate?: TablePredicate
   sort?: Sort
+  /** Page row cap. Omitted = return the ENTIRE matching result, failing fast if
+   *  it exceeds the response byte budget (`MAX_QUERY_RESULT_BYTES`). A bounded
+   *  page may byte-cut early with `nextCursor` set. Never an unbounded fetch —
+   *  the drain stops at the budget either way. */
   limit?: number
   offset?: number
   /** Keyset cursor for the default `(order_key, id)` order — see {@link TableRowsCursor}.
-   *  Mutually exclusive with `sort` and `offset`; takes precedence over `offset` when set. */
+   *  Mutually exclusive with `sort`. May be combined with `offset` (a compound
+   *  cursor seeks the anchor, then offsets past unkeyed rows consumed after it). */
   after?: TableRowsCursor
   /**
    * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
@@ -539,9 +546,10 @@ export interface QueryResult {
   limit: number
   offset: number
   /**
-   * Opaque cursor for the next page, or `null` on the last page (fewer rows than
-   * `limit`). The v2 surface exposes only this — callers echo it back as `cursor`
-   * and never construct keyset/offset state themselves. See `rows/cursor.ts`.
+   * Opaque cursor for the next page — non-null whenever more matching rows
+   * exist beyond this page, whether the page was cut by `limit` or by the
+   * response byte budget. Callers echo it back as `cursor` and never construct
+   * keyset/offset state themselves. See `rows/cursor.ts`.
    */
   nextCursor: string | null
 }

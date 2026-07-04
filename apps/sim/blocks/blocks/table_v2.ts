@@ -99,6 +99,28 @@ interface ParsedParams {
   conflictTarget?: string
 }
 
+/**
+ * Fail-fast limit parsing for bulk ops: an unparseable limit must never
+ * silently widen the operation to every matching row.
+ */
+function parseOptionalLimit(raw: string | undefined): number | undefined {
+  if (!raw) return undefined
+  const value = Number.parseInt(raw, 10)
+  if (Number.isNaN(value)) {
+    throw new Error(`Invalid Limit "${raw}" — expected a number.`)
+  }
+  return value
+}
+
+/**
+ * `<block.nextCursor>` interpolates the terminating page's `null` as the
+ * literal string "null" — treat those artifacts as "no cursor".
+ */
+function resolveCursor(raw: string | undefined): string | undefined {
+  if (!raw || raw === 'null' || raw === 'undefined') return undefined
+  return raw
+}
+
 const paramTransformers: Record<string, (params: TableBlockParams) => ParsedParams> = {
   insert_row: (params) => ({
     tableId: params.tableId,
@@ -127,7 +149,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     tableId: params.tableId,
     filter: resolveFilter(params),
     data: parseJSON(params.data, 'Row Data'),
-    limit: params.limit ? Number.parseInt(params.limit) : undefined,
+    limit: parseOptionalLimit(params.limit),
   }),
 
   delete_row: (params) => ({
@@ -138,7 +160,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
   delete_rows_by_filter: (params) => ({
     tableId: params.tableId,
     filter: resolveFilter(params),
-    limit: params.limit ? Number.parseInt(params.limit) : undefined,
+    limit: parseOptionalLimit(params.limit),
   }),
 
   get_row: (params) => ({
@@ -154,9 +176,10 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     tableId: params.tableId,
     filter: resolveFilter(params),
     order: resolveOrder(params),
-    // No limit → return all matching rows (server enforces a 10MB byte guard).
-    limit: params.limit ? Number.parseInt(params.limit) : undefined,
-    cursor: params.cursor || undefined,
+    // Omitted limit returns the entire result (server fails fast over 5MB);
+    // with a limit, nextCursor signals when more rows remain.
+    limit: parseOptionalLimit(params.limit),
+    cursor: resolveCursor(params.cursor),
   }),
 }
 
@@ -169,16 +192,16 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
     'Query Rows filters with a PostgREST querystring — `wins=gte.10&status=in.(active,pending)` (top-level ' +
     'params AND; `or=(a.eq.1,b.eq.2)` / `and=(...)` for groups). Operators: eq, neq, gt, gte, lt, lte, in, ' +
     'like, ilike, match, imatch, is.null (negate with not., e.g. not.in, not.is.null). Order is `wins.desc,name.asc`. ' +
-    'Query Rows returns every matching row by default (no row cap; the server fails fast if the result exceeds 10MB). ' +
-    'Set a limit to page — pass the nextCursor from a prior result to fetch the next page.',
+    'Query Rows returns every matching row when Limit is omitted (fails if the result exceeds 5MB — add a filter ' +
+    'or a Limit). With a Limit, responses page: a non-null nextCursor means more rows exist — pass it back as the cursor.',
   bestPractices: `
 - To fetch specific rows, use Query Rows with a PostgREST filter (e.g. slack_user_id=in.(U1,U2)) — do NOT read every row and filter downstream with a Condition block.
 - Use "Get Row by ID" only when you have the row's id; otherwise filter with the querystring.
 - Top-level params AND together; use or=(...) / and=(...) for explicit or nested logic.
 - Example: players who won ≥10 and are active → wins=gte.10&status=eq.active.
 - like/ilike use * as the wildcard (e.g. name=ilike.*jo*); match/imatch are regex.
-- Query Rows returns ALL matching rows by default — leave Limit empty unless you want a bounded page.
-- To page through a bounded result, set a Limit and pass the previous response's nextCursor back as the cursor; omit it for the first page.
+- Omit Limit to get the entire matching result in one response — the query fails with a clear error if it exceeds 5MB (narrow with a filter or set a Limit).
+- With a Limit, pages can end at the Limit or the 5MB byte budget, whichever comes first — pass nextCursor back as the cursor and loop until it is null; never infer completion from page size.
 - Columns are scalar (string/number/boolean/date) or opaque json — there are no array columns, so cs/cd/ov (containment/overlap) are unsupported; for substring use ilike.*x*.`,
   docsLink: 'https://docs.simstudio.ai/tools/table',
   category: 'blocks',
@@ -338,11 +361,10 @@ Return ONLY the rows array:`,
       title: 'Filter Conditions',
       type: 'filter-builder',
       paramVisibility: 'user-only',
-      required: {
-        field: 'operation',
-        value: ['update_rows_by_filter', 'delete_rows_by_filter'],
-        and: { field: 'filterMode', value: 'builder' },
-      },
+      // Deliberately NOT `required`: an agent can satisfy the bulk ops with the
+      // `filter` string while filterMode sits at its 'builder' default, and the
+      // serializer hard-blocks execution on missing required fields. The service
+      // itself fails closed when no filter resolves ("Filter is required...").
       condition: {
         field: 'operation',
         value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
@@ -422,7 +444,7 @@ Return ONLY the querystring:`,
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Leave empty for all rows',
+      placeholder: 'Leave empty for all rows (fails over 5MB)',
       condition: {
         field: 'operation',
         value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
@@ -495,7 +517,8 @@ Return ONLY the querystring:`,
     order: { type: 'string', description: 'PostgREST order, e.g. wins.desc,name.asc' },
     limit: {
       type: 'number',
-      description: 'Row limit; leave empty to return all matching rows (10MB byte cap)',
+      description:
+        'Page row limit (optional — omit to return the entire result, which fails if it exceeds 5MB); optional cap for bulk update/delete',
     },
     cursor: { type: 'string', description: 'Opaque pagination cursor from a prior query response' },
     conflictColumn: {

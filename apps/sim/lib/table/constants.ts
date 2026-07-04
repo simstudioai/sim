@@ -16,12 +16,16 @@ export const TABLE_LIMITS = {
   DEFAULT_QUERY_LIMIT: 100,
   MAX_QUERY_LIMIT: 1000,
   /**
-   * Byte ceiling for a single v2 query result. The v2 query returns every
-   * matching row by default (no row cap); this guard fails the query fast
-   * instead of streaming an unbounded payload. Measured against the serialized
-   * row data, not the full HTTP envelope.
+   * Byte budget for one query response. `queryRows` drains rows in bounded
+   * batches; an UNBOUNDED query (no limit) that outgrows the budget fails fast
+   * (the whole result was promised — a partial page would be silent truncation),
+   * while a BOUNDED page cuts early and returns the partial list with
+   * `nextCursor` set. At least one row is always returned on a bounded page.
+   * Measured against serialized row `data` only, not the full HTTP envelope.
    */
-  MAX_QUERY_RESULT_BYTES: 10 * 1024 * 1024, // 10MB
+  MAX_QUERY_RESULT_BYTES: 5 * 1024 * 1024, // 5MB
+  /** Hard row cap per internal fetch batch inside queryRows' bounded drain loop. */
+  QUERY_BATCH_MAX_ROWS: 10000,
   /** Batch size for bulk update operations */
   UPDATE_BATCH_SIZE: 100,
   /** Batch size for bulk delete operations */
@@ -66,17 +70,6 @@ export const DEFAULT_TABLE_PLAN_LIMITS = {
     maxRowsPerTable: 1000000,
   },
 } as const
-
-/**
- * Byte budget for one page of row reads, or null when disabled (the default).
- * Dev-preview of the byte-bounded pagination follow-up: set `TABLE_MAX_PAGE_BYTES`
- * to cut pages early once their serialized row data exceeds the budget. The
- * production version moves the cut into SQL — see the pagination-hardening plan.
- */
-export function getMaxPageBytes(): number | null {
-  const value = envNumber(env.TABLE_MAX_PAGE_BYTES, 0, { min: 0, integer: true })
-  return value > 0 ? value : null
-}
 
 /**
  * Maximum serialized size in bytes of a single row. Defaults to

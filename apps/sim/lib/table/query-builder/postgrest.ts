@@ -11,15 +11,21 @@
  *
  * Supported (PostgREST token → FilterOp): eq, neq→ne, gt, gte, lt, lte,
  * in, like, ilike, match, imatch, is.null→isNull. Negation `not.` is supported
- * for `eq`→ne, `in`→nin, and `is.null`→isNotNull. Logic: top-level `&` (AND),
- * `and=(...)`, `or=(...)`, and nested `and(...)`/`or(...)` inside groups.
+ * for `eq`→ne, `in`→nin, `is.null`→isNotNull, `like`→nlike, and `ilike`→nilike.
+ * Logic: top-level `&` (AND), `and=(...)`, `or=(...)`, and nested
+ * `and(...)`/`or(...)` inside groups.
+ *
+ * Values containing reserved characters are double-quoted; a literal `"` or `\`
+ * inside a quoted value is backslash-escaped (`\"`, `\\`). The builder-only
+ * emptiness ops have no single PostgREST form and serialize to desugared groups:
+ * isEmpty → `or=(f.is.null,f.eq."")`, isNotEmpty → `and=(f.not.is.null,f.neq."")`.
  *
  * Unsupported (clear error): cs, cd, ov, fts/plfts/phfts/wfts, sl/sr/nxr/nxl/adj
- * (no array/range/full-text columns), and `not.<op>` outside eq/in/is.null.
+ * (no array/range/full-text columns), and `not.<op>` outside eq/in/is.null/like/ilike.
  */
 
 import { NAME_PATTERN } from '@/lib/table/constants'
-import { TableQueryValidationError } from '@/lib/table/sql'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
   ColumnDefinition,
   FilterOp,
@@ -36,11 +42,15 @@ type ColumnType = ColumnDefinition['type']
 const MAX_FILTER_LENGTH = 4096
 
 /** Ops whose value is a text pattern — never coerced to number/boolean. */
-const TEXT_OPS = new Set<FilterOp>(['like', 'ilike', 'match', 'imatch'])
+const TEXT_OPS = new Set<FilterOp>(['like', 'ilike', 'nlike', 'nilike', 'match', 'imatch'])
 
 /* ------------------------------- parsing ------------------------------- */
 
-/** Splits on a delimiter at depth 0, respecting `(...)` nesting and `"..."` quotes. */
+/**
+ * Splits on a delimiter at depth 0, respecting `(...)` nesting and `"..."`
+ * quotes. Inside quotes, a backslash escapes the next character (`\"`, `\\`),
+ * matching what {@link serializeValue} emits.
+ */
 function splitTopLevel(input: string, delimiter: string): string[] {
   const parts: string[] = []
   let depth = 0
@@ -48,7 +58,10 @@ function splitTopLevel(input: string, delimiter: string): string[] {
   let current = ''
   for (let i = 0; i < input.length; i++) {
     const ch = input[i]
-    if (ch === '"') {
+    if (inQuotes && ch === '\\' && i + 1 < input.length) {
+      current += ch + input[i + 1]
+      i++
+    } else if (ch === '"') {
       inQuotes = !inQuotes
       current += ch
     } else if (inQuotes) {
@@ -74,6 +87,17 @@ function splitTopLevel(input: string, delimiter: string): string[] {
   return parts
 }
 
+/**
+ * Strips one layer of PostgREST double-quoting and unescapes `\"`/`\\`,
+ * the inverse of {@link serializeValue}.
+ */
+function unquote(raw: string): string {
+  if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
+    return raw.slice(1, -1).replace(/\\(["\\])/g, '$1')
+  }
+  return raw
+}
+
 function validateField(field: string): void {
   if (!NAME_PATTERN.test(field)) {
     throw new TableQueryValidationError(
@@ -84,11 +108,10 @@ function validateField(field: string): void {
 
 /** Coerces a raw PostgREST value string to the column's stored JSON type. */
 function coerceValue(raw: string, type: ColumnType | undefined): JsonValue {
-  // Strip one layer of PostgREST double-quoting (used to escape reserved chars).
-  const v = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw
+  const v = unquote(raw)
   if (type === 'number') {
     const n = Number(v)
-    if (v.trim() === '' || Number.isNaN(n)) {
+    if (v.trim() === '' || !Number.isFinite(n)) {
       throw new TableQueryValidationError(`Expected a number for column value, got "${v}"`)
     }
     return n
@@ -170,6 +193,11 @@ function parseLeaf(field: string, opSpec: string, typeByName: Map<string, Column
 
   if (token === 'in') {
     const items = parseList(rawValue).map((el) => coerceValue(el, type))
+    if (items.length === 0) {
+      // An empty list would compile to no condition at all and silently widen
+      // the match — reject instead.
+      throw new TableQueryValidationError(`Empty in.() list on column "${field}"`)
+    }
     return { field, op: negated ? 'nin' : 'in', value: items }
   }
 
@@ -191,8 +219,9 @@ function parseLeaf(field: string, opSpec: string, typeByName: Map<string, Column
     throw new TableQueryValidationError(`Unknown filter operator "${token}" on column "${field}".`)
   }
   if (negated) {
-    // Only eq/in/is.null negate cleanly into our op set.
     if (op === 'eq') return { field, op: 'ne', value: scalarValue(rawValue, op, type) }
+    if (op === 'like') return { field, op: 'nlike', value: scalarValue(rawValue, 'like', type) }
+    if (op === 'ilike') return { field, op: 'nilike', value: scalarValue(rawValue, 'ilike', type) }
     throw unsupportedNegation(token)
   }
   return { field, op, value: scalarValue(rawValue, op, type) }
@@ -200,15 +229,13 @@ function parseLeaf(field: string, opSpec: string, typeByName: Map<string, Column
 
 function scalarValue(raw: string, op: FilterOp, type: ColumnType | undefined): JsonValue {
   // Text/pattern ops keep the raw string (the `*` wildcard and regex are textual).
-  if (TEXT_OPS.has(op)) {
-    return raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw
-  }
+  if (TEXT_OPS.has(op)) return unquote(raw)
   return coerceValue(raw, type)
 }
 
 function unsupportedNegation(token: string): TableQueryValidationError {
   return new TableQueryValidationError(
-    `Negation "not.${token}" is not supported — only not.eq, not.in, and not.is.null.`
+    `Negation "not.${token}" is not supported — only not.eq, not.in, not.is.null, not.like, not.ilike.`
   )
 }
 
@@ -254,6 +281,10 @@ export function parsePostgrestFilter(input: string, columns: ColumnDefinition[])
 
     if (key === 'and' || key === 'or') {
       const members = parseList(rhs)
+      if (members.length === 0) {
+        // An empty group compiles to no condition — a silent no-op filter.
+        throw new TableQueryValidationError(`Empty ${key}=() group in filter`)
+      }
       // re-parse as group items (parseList split top-level commas already)
       const parsed = members.map((m) => parseGroupItem(m, typeByName))
       nodes.push(key === 'and' ? { all: parsed } : { any: parsed })
@@ -273,12 +304,22 @@ export function parsePostgrestOrder(input: string, columns: ColumnDefinition[]):
   for (const part of input.split(',')) {
     const seg = part.trim()
     if (seg === '') continue
-    const [field, dirRaw = 'asc'] = seg.split('.')
+    const segments = seg.split('.')
+    if (segments.length > 2) {
+      throw new TableQueryValidationError(`Malformed sort "${seg}" — use column or column.desc`)
+    }
+    const [field, dirRaw = 'asc'] = segments
     validateField(field)
     if (!valid.has(field)) {
       throw new TableQueryValidationError(`Unknown sort column "${field}"`)
     }
-    const direction: SortDirection = dirRaw === 'desc' ? 'desc' : 'asc'
+    // Strict: a typo'd direction must not silently sort ascending.
+    if (dirRaw !== 'asc' && dirRaw !== 'desc') {
+      throw new TableQueryValidationError(
+        `Unknown sort direction "${dirRaw}" on "${field}" — use asc or desc (lowercase)`
+      )
+    }
+    const direction: SortDirection = dirRaw
     spec.push({ field, direction })
   }
   return spec
@@ -307,34 +348,79 @@ function leafToOpSpec(p: Predicate): string {
     case 'match':
     case 'imatch':
       return `${p.op}.${serializeValue(v)}`
-    // Builder-only ops map onto PostgREST text/null forms.
+    case 'nlike':
+      return `not.like.${serializeValue(v)}`
+    case 'nilike':
+      return `not.ilike.${serializeValue(v)}`
+    // Builder-only substring ops: build the whole wildcard pattern FIRST, then
+    // serialize it as ONE value, so quoting wraps the entire pattern and the
+    // parser's whole-value unquote recovers it (`ilike."*example.com*"`).
     case 'contains':
-      return `ilike.*${serializeValue(v)}*`
+      return `ilike.${serializeValue(`*${asText(v)}*`)}`
     case 'ncontains':
-      return `not.ilike.*${serializeValue(v)}*`
+      return `not.ilike.${serializeValue(`*${asText(v)}*`)}`
     case 'startsWith':
-      return `ilike.${serializeValue(v)}*`
+      return `ilike.${serializeValue(`${asText(v)}*`)}`
     case 'endsWith':
-      return `ilike.*${serializeValue(v)}`
+      return `ilike.${serializeValue(`*${asText(v)}`)}`
     case 'isNull':
-    case 'isEmpty':
       return 'is.null'
     case 'isNotNull':
-    case 'isNotEmpty':
       return 'not.is.null'
     default:
+      // isEmpty/isNotEmpty are desugared into groups before leaves serialize.
       throw new TableQueryValidationError(`Cannot serialize operator "${p.op}"`)
   }
 }
 
-/** Quotes values containing reserved chars so they survive a round-trip. */
+function asText(value: JsonValue | undefined): string {
+  return value === null || value === undefined ? '' : String(value)
+}
+
+/**
+ * Quotes values containing reserved chars (and the empty string) so they
+ * survive a round-trip; literal `"`/`\` inside a quoted value are escaped.
+ * Inverse of {@link unquote}.
+ */
 function serializeValue(value: JsonValue | undefined): string {
   const s = value === null || value === undefined ? 'null' : String(value)
-  return /[,.()&="]/.test(s) ? `"${s.replace(/"/g, '\\"')}"` : s
+  if (s === '') return '""'
+  if (!/[,.()&="\\]/.test(s)) return s
+  return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
 function isGroup(node: PredicateNode): node is TablePredicate {
   return 'all' in node || 'any' in node
+}
+
+/**
+ * Rewrites emptiness leaves into their PostgREST-expressible groups, preserving
+ * the legacy "null OR empty string" semantics through the string round-trip:
+ * isEmpty → `(f is null OR f = '')`, isNotEmpty → `(f not null AND f <> '')`.
+ */
+function desugarEmptiness(node: PredicateNode): PredicateNode {
+  if (isGroup(node)) {
+    return 'all' in node
+      ? { all: node.all.map(desugarEmptiness) }
+      : { any: node.any.map(desugarEmptiness) }
+  }
+  if (node.op === 'isEmpty') {
+    return {
+      any: [
+        { field: node.field, op: 'isNull' },
+        { field: node.field, op: 'eq', value: '' },
+      ],
+    }
+  }
+  if (node.op === 'isNotEmpty') {
+    return {
+      all: [
+        { field: node.field, op: 'isNotNull' },
+        { field: node.field, op: 'ne', value: '' },
+      ],
+    }
+  }
+  return node
 }
 
 /** Serializes a node as a group item (dot-form leaves, function-form groups). */
@@ -356,10 +442,11 @@ function nodeToGroupItem(node: PredicateNode): string {
  * `or=(...)`; nested groups use the function form.
  */
 export function predicateToPostgrest(predicate: TablePredicate): string {
-  if ('any' in predicate) {
-    return `or=(${predicate.any.map(nodeToGroupItem).join(',')})`
+  const desugared = desugarEmptiness(predicate) as TablePredicate
+  if ('any' in desugared) {
+    return `or=(${desugared.any.map(nodeToGroupItem).join(',')})`
   }
-  return predicate.all
+  return desugared.all
     .map((node) =>
       isGroup(node)
         ? `${'all' in node ? 'and' : 'or'}=(${(('all' in node ? node.all : node.any) as PredicateNode[]).map(nodeToGroupItem).join(',')})`

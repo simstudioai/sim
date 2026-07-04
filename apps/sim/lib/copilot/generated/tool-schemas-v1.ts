@@ -3620,9 +3620,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 'Canonical workspace file VFS path for create_from_file/import_file, e.g. files/{path}/{name}.',
             },
             filter: {
-              type: 'object',
+              type: 'string',
               description:
-                'Predicate-tree filter for query_rows, update_rows_by_filter, delete_rows_by_filter. A filter is { all: [...] } (AND) or { any: [...] } (OR) wrapping leaf nodes { field, op, value }; groups nest. Ops (bare, no $): eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, isEmpty, isNotEmpty. eq/ne/in/nin are case-sensitive; contains/ncontains/startsWith/endsWith are case-insensitive; isEmpty/isNotEmpty take no value; in/nin take an array. Example: { all: [{ field: "age", op: "gte", value: 18 }, { field: "status", op: "eq", value: "pending" }] }.',
+                'PostgREST querystring filter for query_rows, update_rows_by_filter, delete_rows_by_filter. A filter is a querystring fragment of field=op.value params joined by & (AND). Ops: eq, neq, gt, gte, lt, lte, in, like, ilike (use * as the wildcard), match, imatch (regex), is.null. Lists: in.(a,b,c) — never empty. Negate with a not. prefix (not.eq, not.in, not.is.null, not.like, not.ilike). Groups: or=(status.eq.active,status.eq.pending) and and=(...) — never empty; nest groups with the function form or(...)/and(...). Use ilike.*x* for case-insensitive substring match. Examples: "status=eq.active"; "wins=gte.18&status=eq.pending"; "or=(status.eq.active,status.eq.pending)"; "name=ilike.*jo*"; "slack_user_id=in.(U1,U2)".',
             },
             groupId: {
               type: 'string',
@@ -3659,7 +3659,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             limit: {
               type: 'number',
               description:
-                'Maximum rows to return or affect (optional, default 100). Omit on update_rows_by_filter / delete_rows_by_filter to act on every match.',
+                'Maximum rows per page for query_rows (optional). Omit to fetch the ENTIRE matching result in one response — the call fails if the result exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a page may end early at the byte budget with more remaining; a non-null nextCursor in the result means more rows exist (continue with offset). On update_rows_by_filter / delete_rows_by_filter, caps affected rows; omit to act on every match.',
             },
             mapping: {
               type: 'object',
@@ -3718,7 +3718,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             offset: {
               type: 'number',
-              description: 'Number of rows to skip (optional for query_rows, default 0)',
+              description:
+                'Number of rows to skip for query_rows (optional, default 0; works with or without limit). Use the offset from the previous result\'s "more available" message to fetch the next page.',
+            },
+            order: {
+              type: 'string',
+              description:
+                'PostgREST order string for query_rows (optional). Comma-separated column.dir terms where dir is asc or desc, e.g. "wins.desc,name.asc".',
             },
             outputColumnNames: {
               type: 'object',
@@ -3819,11 +3825,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description:
                 "Cancellation scope for cancel_table_runs. 'all' cancels in-flight runs across the whole table; 'row' cancels only the row identified by rowId.",
               enum: ['all', 'row'],
-            },
-            sort: {
-              type: 'object',
-              description:
-                "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
             },
             tableId: {
               type: 'string',

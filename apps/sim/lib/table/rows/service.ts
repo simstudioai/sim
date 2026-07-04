@@ -25,7 +25,8 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
-import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import { encodeCursor } from '@/lib/table/rows/cursor'
@@ -47,14 +48,12 @@ import {
   resolveBatchInsertOrderKeys,
   resolveInsertOrderKey,
 } from '@/lib/table/rows/ordering'
-import { trimRowsToByteBudget } from '@/lib/table/rows/paging'
 import {
   buildFilterClause,
   buildPredicateClause,
   buildSortClause,
   escapeLikePattern,
   fieldPredicate,
-  TableQueryValidationError,
 } from '@/lib/table/sql'
 import { fireTableTrigger } from '@/lib/table/trigger'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
@@ -1017,38 +1016,17 @@ export async function queryRows(
     whereClause = and(baseConditions, userClause)
   }
 
-  // Keyset page: seek past the cursor on the default `(order_key, id)` order instead of paying
-  // OFFSET's scan-and-discard of every prior row (O(N²) across a deep scroll / full drain). Only
-  // valid without a custom sort — the contract rejects `after` + `sort` together. The count below
-  // deliberately excludes the cursor: totals cover the whole view, not the remaining pages.
-  const pageWhere =
-    after && !sort
-      ? and(
-          whereClause,
-          sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${after.orderKey}, ${after.id})`
-        )
-      : whereClause
+  // Keyset seeks are only authoritative when the page order IS the
+  // `(order_key, id)` index order: no custom sort and fractional ordering on.
+  const keysetValid = !sort && fractionalOrdering
 
-  const buildPageQuery = (executor: DbExecutor) => {
-    const query = executor
-      .select()
-      .from(userTableRows)
-      .where(pageWhere ?? baseConditions)
-      .orderBy(buildRowOrderBySql(sort, tableName, columns, fractionalOrdering))
-    if (limit === undefined) return query
-    return after ? query.limit(limit) : query.limit(limit).offset(offset)
-  }
-
-  // Count and page fetch are independent reads — run them concurrently so the
+  // Count and page drain are independent reads — run them concurrently so the
   // `includeTotal` hot path doesn't pay two serial round-trips. Filtered counts
   // go through the tenant-bounded variant (see countRowsTenantBounded); the
   // unfiltered count already plans an index-only scan on the table_id prefix.
-  // Custom column sorts order by `data->>'col'` — unestimatable, so left alone
-  // the planner seq-scans and sorts the whole shared relation on every page
-  // (9.7s measured on a 1M-row table; 0.76s tenant-bounded). Default-order
-  // pages already stream the `(table_id, order_key, id)` index.
+  // The count uses the full-view WHERE (no cursor seek): totals cover the whole
+  // view, not the remaining pages.
   const hasFilter = Boolean(userClause)
-  const rowsPromise = sort ? withSeqscanOff(async (trx) => buildPageQuery(trx)) : buildPageQuery(db)
   const countPromise = includeTotal
     ? hasFilter
       ? countRowsTenantBounded(whereClause)
@@ -1059,12 +1037,22 @@ export async function queryRows(
           .then((r) => Number(r[0].count))
     : null
 
-  const [fetchedRows, totalCount] = await Promise.all([rowsPromise, countPromise])
+  // The inbound seek is honored whenever there's no custom sort (matching the
+  // pre-drain behavior even when fractional ordering is off); `keysetValid`
+  // only gates re-anchoring and plain-keyset cursor emission.
+  const drainPromise = fetchRowsBounded({
+    baseWhere: whereClause ?? baseConditions,
+    orderBy: buildRowOrderBySql(sort, tableName, columns, fractionalOrdering),
+    sorted: Boolean(sort),
+    keysetValid,
+    seek: !sort ? after : undefined,
+    startOffset: offset,
+    limit,
+    budgetBytes: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES,
+  })
 
-  // Dev-preview byte cut (TABLE_MAX_PAGE_BYTES, off by default): clients terminate on
-  // empty page / totalCount, never page fullness, so a short page is safe to return.
-  const maxPageBytes = getMaxPageBytes()
-  const rows = maxPageBytes === null ? fetchedRows : trimRowsToByteBudget(fetchedRows, maxPageBytes)
+  const [fetched, totalCount] = await Promise.all([drainPromise, countPromise])
+  const rows = fetched.rows
 
   const executionsByRow = withExecutions
     ? await loadExecutionsByRow(
@@ -1074,7 +1062,7 @@ export async function queryRows(
     : null
 
   logger.info(
-    `[${requestId}] Queried ${rows.length} rows from table ${table.id} (total: ${totalCount})`
+    `[${requestId}] Queried ${rows.length} rows from table ${table.id} (total: ${totalCount}, bytes: ${fetched.bytes}, more: ${fetched.hasMore})`
   )
 
   const mappedRows = rows.map((r) => ({
@@ -1087,25 +1075,21 @@ export async function queryRows(
     updatedAt: r.updatedAt,
   }))
 
-  // Fail fast if the result outgrows the byte budget instead of returning a
-  // silently truncated page — the caller narrows it with a filter or a limit.
-  let resultBytes = 0
-  for (const row of mappedRows) {
-    resultBytes += Buffer.byteLength(JSON.stringify(row.data))
-    if (resultBytes > TABLE_LIMITS.MAX_QUERY_RESULT_BYTES) {
-      throw new TableQueryValidationError(
-        `Query result exceeds the ${TABLE_LIMITS.MAX_QUERY_RESULT_BYTES / (1024 * 1024)}MB limit. Add a filter or a limit to narrow the result.`
-      )
-    }
-  }
-
-  // Opaque next-page cursor: only meaningful for a bounded page that filled up.
-  // An unbounded query returns everything, so there is never a next page.
+  // Opaque next-page cursor: non-null whenever more matching rows exist beyond
+  // this page — whether the page was cut by `limit` or by the byte budget. The
+  // drain loop proves `hasMore` with a fetched-but-unreturned witness row.
   const lastRow = mappedRows[mappedRows.length - 1]
   const nextCursor =
-    limit === undefined || mappedRows.length < limit || !lastRow
-      ? null
-      : encodeCursor({ lastRow, sort, nextOffset: offset + mappedRows.length })
+    fetched.hasMore && lastRow
+      ? encodeCursor({
+          lastRow,
+          keysetValid,
+          nextOffset: offset + mappedRows.length,
+          seekBase: fetched.anchor
+            ? { anchor: fetched.anchor, offsetFromAnchor: fetched.anchorOffset }
+            : undefined,
+        })
+      : null
 
   return {
     rows: mappedRows,
@@ -1114,6 +1098,152 @@ export async function queryRows(
     limit: limit ?? mappedRows.length,
     offset,
     nextCursor,
+  }
+}
+
+interface BoundedFetchParams {
+  /** Tenant + delete-mask + user filter — WITHOUT any seek predicate. */
+  baseWhere: SQL | undefined
+  orderBy: SQL
+  /** Custom sort present → per-batch withSeqscanOff (JSONB order is unestimatable). */
+  sorted: boolean
+  /** `(order_key, id)` order is authoritative → keyset re-anchoring + seeks. */
+  keysetValid: boolean
+  /** Inbound seek anchor (decoded keyset/compound cursor), if any. */
+  seek?: TableRowsCursor
+  /** Inbound offset — the whole-view offset, or the past-anchor offset of a compound cursor. */
+  startOffset: number
+  limit?: number
+  budgetBytes: number
+}
+
+interface BoundedFetchResult {
+  rows: Array<typeof userTableRows.$inferSelect>
+  bytes: number
+  /** Proven by a fetched-but-unreturned witness row — never inferred from page fullness. */
+  hasMore: boolean
+  /** Final keyset anchor, for compound-cursor emission when the last row is unkeyed. */
+  anchor?: TableRowsCursor
+  /** Rows consumed past `anchor` (0 when the anchor is the last returned row). */
+  anchorOffset: number
+}
+
+/** Belt-and-braces bound on drain iterations; unreachable in practice. */
+const MAX_QUERY_BATCHES = 1000
+
+/**
+ * Drains rows in adaptively-sized bounded batches until the caller's `limit`
+ * or the byte budget cuts the page. Never issues an unbounded SELECT: the
+ * first batch is capped so its worst-case bytes stay within ~4× the budget at
+ * the max row size, and later batches are sized from the observed average.
+ *
+ * Advance strategy: when `keysetValid`, the loop re-anchors on each consumed
+ * keyed row and seeks `(order_key, id) > (anchor)` — delete-tolerant and an
+ * index seek. Otherwise (custom sort, flag off) it advances by OFFSET from the
+ * inbound position; rows deleted mid-drain can skip/duplicate exactly as
+ * cross-request offset paging already does.
+ *
+ * Always returns at least one row when any match exists, even if that row
+ * alone exceeds the budget.
+ */
+async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetchResult> {
+  const { baseWhere, orderBy, sorted, keysetValid, limit, budgetBytes } = params
+
+  const firstBatchCap = Math.max(1, Math.floor((4 * budgetBytes) / TABLE_LIMITS.MAX_ROW_SIZE_BYTES))
+
+  const rows: Array<typeof userTableRows.$inferSelect> = []
+  let bytes = 0
+  let maxRowBytes = 0
+  let hasMore = false
+  let anchor = params.seek
+  let anchorOffset = params.startOffset
+  let consumedSinceAnchor = 0
+
+  const nextBatchRows = (): number => {
+    if (rows.length === 0) return Math.min(limit ?? firstBatchCap, firstBatchCap)
+    const avg = Math.max(1, bytes / rows.length)
+    const remaining = budgetBytes - bytes
+    const byAverage = Math.ceil(remaining / avg) + 1
+    const varianceCap = Math.ceil((8 * remaining) / Math.max(maxRowBytes, 1))
+    return Math.max(1, Math.min(byAverage, TABLE_LIMITS.QUERY_BATCH_MAX_ROWS, varianceCap))
+  }
+
+  const runBatch = (batchSeek: TableRowsCursor | undefined, batchOffset: number, ask: number) => {
+    const buildQuery = (executor: DbExecutor) => {
+      const seekWhere = batchSeek
+        ? and(
+            baseWhere,
+            sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${batchSeek.orderKey}, ${batchSeek.id})`
+          )
+        : baseWhere
+      const query = executor
+        .select()
+        .from(userTableRows)
+        .where(seekWhere)
+        .orderBy(orderBy)
+        .limit(ask)
+      return batchOffset > 0 ? query.offset(batchOffset) : query
+    }
+    // Custom column sorts order by `data->>'col'` — unestimatable, so left
+    // alone the planner seq-scans and sorts the whole shared relation on every
+    // page (9.7s measured on a 1M-row table; 0.76s tenant-bounded). One tx per
+    // batch: SET LOCAL dies with the tx, and holding a tx across JS accounting
+    // between batches would pin a pooled connection.
+    return sorted ? withSeqscanOff(async (trx) => buildQuery(trx)) : buildQuery(db)
+  }
+
+  for (let iteration = 0; iteration < MAX_QUERY_BATCHES; iteration++) {
+    const limitRemaining = limit === undefined ? Number.POSITIVE_INFINITY : limit - rows.length
+    const target = Math.min(nextBatchRows(), limitRemaining)
+    const ask = target + 1 // +1 = witness row proving more data exists past a cut
+    const batch = await runBatch(anchor, anchorOffset + consumedSinceAnchor, ask)
+    if (batch.length === 0) break
+
+    let cut = false
+    for (const row of batch) {
+      const rowBytes = Buffer.byteLength(JSON.stringify(row.data))
+      if (rows.length > 0 && bytes + rowBytes > budgetBytes) {
+        // Unbounded queries promise the ENTIRE result — a partial page would be
+        // silent truncation, so fail fast instead (the drain has only fetched
+        // ~budget bytes at this point, never the whole table).
+        if (limit === undefined) {
+          throw new TableQueryValidationError(
+            `Query result exceeds the ${Math.floor(budgetBytes / (1024 * 1024))}MB limit. Add a filter or a limit to narrow the result.`
+          )
+        }
+        // Bounded page: byte cut with `row` as the witness. Requires a
+        // non-empty page so a single over-budget row is still returned alone.
+        hasMore = true
+        cut = true
+        break
+      }
+      // Limit cut: `row` is the +1 peek witness.
+      if (rows.length === limit) {
+        hasMore = true
+        cut = true
+        break
+      }
+      rows.push(row)
+      bytes += rowBytes
+      consumedSinceAnchor++
+      if (rowBytes > maxRowBytes) maxRowBytes = rowBytes
+      if (keysetValid && row.orderKey) {
+        anchor = { orderKey: row.orderKey, id: row.id }
+        anchorOffset = 0
+        consumedSinceAnchor = 0
+      }
+    }
+    if (cut) break
+    // Short batch = the source is exhausted; hasMore stays false.
+    if (batch.length < ask) break
+  }
+
+  return {
+    rows,
+    bytes,
+    hasMore,
+    anchor,
+    anchorOffset: anchorOffset + consumedSinceAnchor,
   }
 }
 

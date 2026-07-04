@@ -7,6 +7,7 @@ import {
   tableGetRowTool,
   tableGetSchemaTool,
   tableInsertRowTool,
+  tableQueryRowsTool,
   tableQueryRowsV2Tool,
   tableUpdateRowsByFilterTool,
   tableUpdateRowTool,
@@ -25,7 +26,8 @@ import type { ToolConfig } from '@/tools/types'
 export const tools: Record<string, ToolConfig> = {
   http_request: httpRequestTool,
   function_execute: functionExecuteTool,
-  // Table v2 block operations (so the v2 Table block is runnable in minimal mode).
+  // Table block operations (v1 + v2 Table blocks are both runnable in minimal mode).
+  table_query_rows: tableQueryRowsTool,
   table_insert_row: tableInsertRowTool,
   table_batch_insert_rows: tableBatchInsertRowsTool,
   table_upsert_row: tableUpsertRowTool,

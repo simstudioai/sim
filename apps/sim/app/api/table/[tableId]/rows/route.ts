@@ -13,14 +13,7 @@ import { isZodError, validationErrorResponse } from '@/lib/api/server/validation
 import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type {
-  ColumnDefinition,
-  Filter,
-  RowData,
-  Sort,
-  TableRowsCursor,
-  TableSchema,
-} from '@/lib/table'
+import type { Filter, RowData, Sort, TableRowsCursor, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -32,22 +25,34 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
+import { buildIdByName, predicateNamesToIds } from '@/lib/table/column-keys'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import { parsePostgrestFilter } from '@/lib/table/query-builder/postgrest'
 import { queryRows } from '@/lib/table/rows/service'
-import { TableQueryValidationError } from '@/lib/table/sql'
-import { rowWireTranslators } from '@/app/api/table/row-wire'
+import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
 
 /**
- * Resolves a bulk-op filter to a name-keyed legacy `Filter`. v2 callers send a
- * PostgREST string (parsed → predicate → legacy Filter via the shared leaf);
- * v1 callers send the legacy object as-is. Caller then runs `wire.filterIn`.
+ * Resolves a bulk-op filter to a storage-id-keyed legacy `Filter`. PostgREST
+ * strings are column-NAME-keyed by construction (the parser validates against
+ * names), so they translate names → ids unconditionally — unlike the legacy
+ * object form, whose keying follows the caller's wire dialect (`wire.filterIn`:
+ * ids from the UI, names from workflow tools).
  */
-function resolveBulkFilter(raw: string | Filter, columns: ColumnDefinition[]): Filter {
-  return typeof raw === 'string' ? predicateToFilter(parsePostgrestFilter(raw, columns)) : raw
+function resolveBulkFilter(
+  raw: string | Filter,
+  schema: TableSchema,
+  wire: RowWireTranslators
+): Filter {
+  if (typeof raw === 'string') {
+    return predicateToFilter(
+      predicateNamesToIds(parsePostgrestFilter(raw, schema.columns), buildIdByName(schema))
+    )
+  }
+  return wire.filterIn(raw)
 }
 
 interface TableRowsRouteParams {
@@ -306,6 +311,7 @@ export const GET = withRouteHandler(
           totalCount: result.totalCount,
           limit: result.limit,
           offset: result.offset,
+          nextCursor: result.nextCursor,
         },
       })
     } catch (error) {
@@ -370,11 +376,10 @@ export const PUT = withRouteHandler(
       const result = await updateRowsByFilter(
         table,
         {
-          filter: wire.filterIn(
-            resolveBulkFilter(
-              validated.filter as string | Filter,
-              (table.schema as TableSchema).columns
-            )
+          filter: resolveBulkFilter(
+            validated.filter as string | Filter,
+            table.schema as TableSchema,
+            wire
           ),
           data: patchData,
           limit: validated.limit,
@@ -480,11 +485,10 @@ export const DELETE = withRouteHandler(
       const result = await deleteRowsByFilter(
         table,
         {
-          filter: wire.filterIn(
-            resolveBulkFilter(
-              validated.filter as string | Filter,
-              (table.schema as TableSchema).columns
-            )
+          filter: resolveBulkFilter(
+            validated.filter as string | Filter,
+            table.schema as TableSchema,
+            wire
           ),
           limit: validated.limit,
         },

@@ -113,7 +113,24 @@ describe('parsePostgrestFilter', () => {
   it('rejects unknown ops, bad fields, and unsupported negation', () => {
     expect(() => parsePostgrestFilter('wins=bogus.1', COLS)).toThrow(/Unknown filter operator/)
     expect(() => parsePostgrestFilter('bad name=eq.1', COLS)).toThrow(/Invalid filter column/)
-    expect(() => parsePostgrestFilter('name=not.ilike.x', COLS)).toThrow(/not supported/)
+    expect(() => parsePostgrestFilter('name=not.match.x', COLS)).toThrow(/not supported/)
+  })
+
+  it('parses not.like / not.ilike into the negated pattern ops', () => {
+    expect(parsePostgrestFilter('name=not.ilike.*jo*', COLS)).toEqual({
+      all: [{ field: 'name', op: 'nilike', value: '*jo*' }],
+    })
+    expect(parsePostgrestFilter('name=not.like.jo*', COLS)).toEqual({
+      all: [{ field: 'name', op: 'nlike', value: 'jo*' }],
+    })
+  })
+
+  it('rejects silent-widening inputs: empty groups, empty in-lists, non-finite numbers', () => {
+    expect(() => parsePostgrestFilter('wins=gte.1&or=()', COLS)).toThrow(/Empty or=\(\) group/)
+    expect(() => parsePostgrestFilter('and=()', COLS)).toThrow(/Empty and=\(\) group/)
+    expect(() => parsePostgrestFilter('status=in.()', COLS)).toThrow(/Empty in\.\(\) list/)
+    expect(() => parsePostgrestFilter('wins=eq.Infinity', COLS)).toThrow(/Expected a number/)
+    expect(() => parsePostgrestFilter('wins=eq.1e400', COLS)).toThrow(/Expected a number/)
   })
 
   it('rejects empty / malformed input', () => {
@@ -173,7 +190,64 @@ describe('predicateToPostgrest round-trips', () => {
   it('serializes builder-only ops onto PostgREST forms', () => {
     expect(leaf('contains', 'foo')).toBe('name=ilike.*foo*')
     expect(leaf('startsWith', 'foo')).toBe('name=ilike.foo*')
-    expect(leaf('isEmpty')).toBe('name=is.null')
+    expect(leaf('ncontains', 'foo')).toBe('name=not.ilike.*foo*')
+    // Emptiness desugars to groups preserving null-OR-empty-string semantics.
+    expect(leaf('isEmpty')).toBe('or=(name.is.null,name.eq."")')
+    expect(leaf('isNotEmpty')).toBe('and=(name.not.is.null,name.neq."")')
+  })
+
+  it('round-trips substring ops with reserved characters (whole-pattern quoting)', () => {
+    const str = leaf('contains', 'example.com')
+    expect(str).toBe('name=ilike."*example.com*"')
+    expect(parsePostgrestFilter(str, COLS)).toEqual({
+      all: [{ field: 'name', op: 'ilike', value: '*example.com*' }],
+    })
+
+    const ncontains = leaf('ncontains', 'a,b(c)=d')
+    expect(parsePostgrestFilter(ncontains, COLS)).toEqual({
+      all: [{ field: 'name', op: 'nilike', value: '*a,b(c)=d*' }],
+    })
+  })
+
+  it('round-trips embedded quotes and backslashes through escaping', () => {
+    const p: TablePredicate = {
+      all: [{ field: 'name', op: 'eq', value: 'She said "hi"' }],
+    }
+    expect(parsePostgrestFilter(predicateToPostgrest(p), COLS)).toEqual(p)
+
+    const list: TablePredicate = {
+      all: [{ field: 'status', op: 'in', value: ['a"b', 'c\\d'] }],
+    }
+    expect(parsePostgrestFilter(predicateToPostgrest(list), COLS)).toEqual(list)
+  })
+
+  it('round-trips emptiness ops to their semantically-equal group form', () => {
+    expect(parsePostgrestFilter(leaf('isEmpty'), COLS)).toEqual({
+      all: [
+        {
+          any: [
+            { field: 'name', op: 'isNull' },
+            { field: 'name', op: 'eq', value: '' },
+          ],
+        },
+      ],
+    })
+    expect(parsePostgrestFilter(leaf('isNotEmpty'), COLS)).toEqual({
+      all: [
+        {
+          all: [
+            { field: 'name', op: 'isNotNull' },
+            { field: 'name', op: 'ne', value: '' },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('rejects uppercase/typo sort directions instead of silently sorting asc', () => {
+    expect(() => parsePostgrestOrder('wins.DESC', COLS)).toThrow(/Unknown sort direction/)
+    expect(() => parsePostgrestOrder('wins.dsc', COLS)).toThrow(/Unknown sort direction/)
+    expect(() => parsePostgrestOrder('wins.desc.extra', COLS)).toThrow(/Malformed sort/)
   })
 
   it('order spec round-trips', () => {
