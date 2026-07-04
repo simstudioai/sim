@@ -188,11 +188,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.info(`[${requestId}] Downloading regular file`, { fileId, mimeType: fileMimeType })
 
       if (metadata.size) {
-        assertKnownSizeWithinLimit(
-          Number.parseInt(metadata.size, 10),
-          MAX_FILE_SIZE,
-          `Google Drive file ${fileId}`
-        )
+        const parsedSize = Number.parseInt(metadata.size, 10)
+        if (Number.isFinite(parsedSize)) {
+          assertKnownSizeWithinLimit(parsedSize, MAX_FILE_SIZE, `Google Drive file ${fileId}`)
+        }
       }
 
       const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`

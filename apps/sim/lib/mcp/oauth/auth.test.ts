@@ -51,4 +51,17 @@ describe('mcpAuthGuarded', () => {
       fetchFn: overrideFetch,
     })
   })
+
+  it('falls back to the SSRF-guarded fetch when fetchFn is explicitly undefined', async () => {
+    await mcpAuthGuarded(provider, {
+      serverUrl: 'https://mcp.example.com/mcp',
+      fetchFn: undefined,
+    })
+
+    expect(mockCreateSsrfGuardedMcpFetch).toHaveBeenCalledTimes(1)
+    expect(mockAuth).toHaveBeenCalledWith(provider, {
+      serverUrl: 'https://mcp.example.com/mcp',
+      fetchFn: mockGuardedFetch,
+    })
+  })
 })
