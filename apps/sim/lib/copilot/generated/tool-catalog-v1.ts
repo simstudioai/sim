@@ -101,7 +101,6 @@ export interface ToolCatalogEntry {
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
-    | 'user_memory'
     | 'user_table'
     | 'workflow'
     | 'workspace_file'
@@ -202,7 +201,6 @@ export interface ToolCatalogEntry {
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
-    | 'user_memory'
     | 'user_table'
     | 'workflow'
     | 'workspace_file'
@@ -3952,50 +3950,6 @@ export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
-export const UserMemory: ToolCatalogEntry = {
-  id: 'user_memory',
-  name: 'user_memory',
-  route: 'go',
-  mode: 'sync',
-  parameters: {
-    type: 'object',
-    properties: {
-      confidence: {
-        type: 'number',
-        description: 'Confidence level 0-1 (default 1.0 for explicit, 0.8 for inferred)',
-      },
-      correct_value: {
-        type: 'string',
-        description:
-          "The correct value to replace the wrong one (for 'correct' operation). Requires `key` (the memory to replace).",
-      },
-      key: {
-        type: 'string',
-        description: "Unique key for the memory (e.g., 'preferred_model', 'slack_credential')",
-      },
-      limit: { type: 'number', description: 'Number of results for search (default 10)' },
-      memory_type: {
-        type: 'string',
-        description: "Type of memory: 'preference', 'entity', 'history', or 'correction'",
-        enum: ['preference', 'entity', 'history', 'correction'],
-      },
-      operation: {
-        type: 'string',
-        description: "Operation: 'add', 'search', 'delete', 'correct', or 'list'",
-        enum: ['add', 'search', 'delete', 'correct', 'list'],
-      },
-      query: { type: 'string', description: 'Search query to find relevant memories' },
-      source: {
-        type: 'string',
-        description: "Source: 'explicit' (user told you) or 'inferred' (you observed)",
-        enum: ['explicit', 'inferred'],
-      },
-      value: { type: 'string', description: 'Value to remember' },
-    },
-    required: ['operation'],
-  },
-}
-
 export const UserTable: ToolCatalogEntry = {
   id: 'user_table',
   name: 'user_table',
@@ -4690,24 +4644,6 @@ export const SearchKnowledgeBaseOperationValues = [
   SearchKnowledgeBaseOperation.listTags,
 ] as const
 
-export const UserMemoryOperation = {
-  add: 'add',
-  search: 'search',
-  delete: 'delete',
-  correct: 'correct',
-  list: 'list',
-} as const
-
-export type UserMemoryOperation = (typeof UserMemoryOperation)[keyof typeof UserMemoryOperation]
-
-export const UserMemoryOperationValues = [
-  UserMemoryOperation.add,
-  UserMemoryOperation.search,
-  UserMemoryOperation.delete,
-  UserMemoryOperation.correct,
-  UserMemoryOperation.list,
-] as const
-
 export const UserTableOperation = {
   create: 'create',
   createFromFile: 'create_from_file',
@@ -4888,7 +4824,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
-  [UserMemory.id]: UserMemory,
   [UserTable.id]: UserTable,
   [Workflow.id]: Workflow,
   [WorkspaceFile.id]: WorkspaceFile,
