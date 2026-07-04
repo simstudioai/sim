@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ChipCombobox,
@@ -85,6 +85,20 @@ export function BlockDeploy({
   /** Curated outputs (with editable names); empty = expose the whole result. */
   const [outputs, setOutputs] = useState<CustomBlockOutput[]>(() => existing?.exposedOutputs ?? [])
   const [error, setError] = useState<string | null>(null)
+
+  // `existing` arrives async from useCustomBlocks; the useState seeds above only run
+  // on first render. Reseed when the resolved block identity changes (nothing →
+  // loaded, or unpublish → nothing) so the form reflects real data instead of
+  // staying empty and offering a duplicate publish. Keyed on the id (stable across
+  // refetches) so it never clobbers in-progress edits.
+  const existingId = existing?.id ?? null
+  const prevExistingIdRef = useRef(existingId)
+  if (prevExistingIdRef.current !== existingId) {
+    prevExistingIdRef.current = existingId
+    setName(existing?.name ?? '')
+    setDescription(existing?.description ?? '')
+    setOutputs(existing?.exposedOutputs ?? [])
+  }
 
   const iconUpload = useProfilePictureUpload({
     currentImage: existing?.iconUrl ?? null,

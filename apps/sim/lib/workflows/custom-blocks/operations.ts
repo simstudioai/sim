@@ -207,6 +207,17 @@ export async function publishCustomBlock(params: {
     throw new CustomBlockValidationError('Workflow does not belong to this organization')
   }
 
+  // One block per workflow: the (org, type) unique index doesn't prevent the same
+  // workflow being published under a fresh `custom_block_*` type, so guard here.
+  const [existing] = await db
+    .select({ id: customBlock.id })
+    .from(customBlock)
+    .where(eq(customBlock.workflowId, workflowId))
+    .limit(1)
+  if (existing) {
+    throw new CustomBlockValidationError('This workflow is already published as a block')
+  }
+
   const id = generateId()
   const type = `${CUSTOM_BLOCK_TYPE_PREFIX}${generateShortId(10).toLowerCase()}`
   const now = new Date()

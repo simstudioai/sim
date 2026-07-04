@@ -237,7 +237,10 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowVariables: childWorkflow.variables || {},
         contextExtensions: {
           isChildExecution: true,
-          isDeployedContext: ctx.isDeployedContext === true,
+          // Custom blocks always run the source's latest deployment, so the child
+          // context must be deployed too — otherwise its metadata treats the
+          // deployed graph as draft. `useDeployed` folds in the custom-block case.
+          isDeployedContext: useDeployed,
           enforceCredentialAccess: ctx.enforceCredentialAccess,
           workspaceId: ctx.workspaceId,
           userId: ctx.userId,

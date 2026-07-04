@@ -17,7 +17,6 @@ import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -34,6 +33,42 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('WhitelabelingSettings')
+
+interface DropZoneProps {
+  onDrop: (e: React.DragEvent) => void
+  children: React.ReactNode
+  className?: string
+}
+
+function DropZone({ onDrop, children, className }: DropZoneProps) {
+  const [isDragging, setIsDragging] = useState(false)
+
+  return (
+    <div
+      className={cn('relative', className)}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault()
+          setIsDragging(true)
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDragging(false)
+        }
+      }}
+      onDrop={(e) => {
+        setIsDragging(false)
+        onDrop(e)
+      }}
+    >
+      {children}
+      {isDragging && (
+        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand-accent)] border-dashed bg-[color-mix(in_srgb,var(--brand-accent)_8%,transparent)]' />
+      )}
+    </div>
+  )
+}
 
 interface ColorInputProps {
   label: string
