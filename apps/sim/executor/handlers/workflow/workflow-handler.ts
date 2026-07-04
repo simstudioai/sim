@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -239,10 +240,32 @@ export class WorkflowBlockHandler implements BlockHandler {
         )
       }
 
+      // A custom block is an invocation boundary: the child runs under the SOURCE
+      // workflow owner's identity, workspace, and environment — not the consumer's —
+      // so it resolves credentials/integrations/env exactly as published and the
+      // consumer needs no access to any of them. (Billing still lands on the
+      // consumer's org, aggregated onto the block above.) Regular workflow blocks
+      // keep running in the parent's context.
+      let childUserId = ctx.userId
+      let childWorkspaceId = ctx.workspaceId
+      let childEnvVarValues = ctx.environmentVariables
+      if (isCustomBlock) {
+        if (!loadUserId) {
+          throw new Error('Custom block source workflow has no owner')
+        }
+        if (!childWorkflow.workspaceId) {
+          throw new Error('Custom block source workflow has no workspace')
+        }
+        childUserId = loadUserId
+        childWorkspaceId = childWorkflow.workspaceId
+        const ownerEnv = await getPersonalAndWorkspaceEnv(loadUserId, childWorkflow.workspaceId)
+        childEnvVarValues = { ...ownerEnv.personalDecrypted, ...ownerEnv.workspaceDecrypted }
+      }
+
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
-        envVarValues: ctx.environmentVariables,
+        envVarValues: childEnvVarValues,
         workflowVariables: childWorkflow.variables || {},
         contextExtensions: {
           isChildExecution: true,
@@ -251,8 +274,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           // deployed graph as draft. `useDeployed` folds in the custom-block case.
           isDeployedContext: useDeployed,
           enforceCredentialAccess: ctx.enforceCredentialAccess,
-          workspaceId: ctx.workspaceId,
-          userId: ctx.userId,
+          workspaceId: childWorkspaceId,
+          userId: childUserId,
           executionId: ctx.executionId,
           abortSignal: ctx.abortSignal,
           // Propagate in-flight block-output redaction into child workflows so
