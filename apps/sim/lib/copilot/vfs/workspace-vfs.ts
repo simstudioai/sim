@@ -107,6 +107,7 @@ import {
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import {
   loadWorkflowDeploymentSnapshot,
@@ -122,12 +123,18 @@ import {
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
+import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { getAllBlocks } from '@/blocks/registry'
+import type { BlockIcon } from '@/blocks/types'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
+
+/** Placeholder icon for custom-block configs — `serializeBlockSchema` never reads it. */
+// double-cast-allowed: a no-op stands in for the unused SVG-typed BlockIcon slot
+const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 /** Static component files, computed once and shared across all VFS instances */
@@ -544,6 +551,7 @@ export class WorkspaceVFS {
               fileSummary,
               envSummary,
               toolsSummary,
+              customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
               taskSummary,
@@ -557,6 +565,7 @@ export class WorkspaceVFS {
               timed('files', this.materializeFiles(workspaceId)),
               timed('environment', this.materializeEnvironment(workspaceId, userId)),
               timed('custom_tools', this.materializeCustomTools(workspaceId, userId)),
+              timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
               timed('tasks', this.materializeTasks(workspaceId, userId)),
@@ -576,6 +585,7 @@ export class WorkspaceVFS {
               envVariables: envSummary.envVariables,
               tasks: taskSummary,
               customTools: toolsSummary,
+              customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
               skills: skillsSummary,
               jobs: jobsSummary,
@@ -1795,6 +1805,51 @@ export class WorkspaceVFS {
       return toolRows.map((t) => ({ id: t.id, name: t.title }))
     } catch (err) {
       logger.warn('Failed to materialize custom tools', {
+        workspaceId,
+        error: toError(err).message,
+      })
+      return []
+    }
+  }
+
+  /**
+   * Materialize the org's published custom (deploy-as-block) blocks as VFS
+   * component files — the same `components/blocks/<type>.json` path + serializer
+   * first-party blocks use — so the agent can grep/read them. Returns the summary
+   * for `WORKSPACE_CONTEXT.md`. Per-request/per-org, so it bypasses the frozen
+   * static component cache. Only enabled blocks are exposed.
+   */
+  private async materializeCustomBlocks(
+    workspaceId: string
+  ): Promise<NonNullable<WorkspaceMdData['customBlocks']>> {
+    try {
+      const blocks = await listCustomBlocksWithInputsForWorkspace(workspaceId)
+      const summary: NonNullable<WorkspaceMdData['customBlocks']> = []
+
+      for (const cb of blocks) {
+        if (!cb.enabled) continue
+        const config = buildCustomBlockConfig(
+          {
+            type: cb.type,
+            name: cb.name,
+            description: cb.description,
+            workflowId: cb.workflowId,
+            exposedOutputs: cb.exposedOutputs,
+          },
+          cb.inputFields,
+          { icon: PLACEHOLDER_BLOCK_ICON }
+        )
+        this.files.set(`components/blocks/${config.type}.json`, serializeBlockSchema(config))
+        summary.push({
+          type: cb.type,
+          name: cb.name,
+          ...(cb.description ? { description: cb.description } : {}),
+        })
+      }
+
+      return summary
+    } catch (err) {
+      logger.warn('Failed to materialize custom blocks', {
         workspaceId,
         error: toError(err).message,
       })

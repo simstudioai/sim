@@ -562,6 +562,19 @@ describe('File Upload Security Tests', () => {
       return formData
     }
 
+    const postExecutionUpload = async (workspaceId: string | null = 'test-workspace-id') => {
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      const formData = createExecutionFormData(file, workspaceId)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      return POST(req as unknown as NextRequest)
+    }
+
     beforeEach(() => {
       setupFileApiMocks({
         cloudEnabled: false,
@@ -570,16 +583,7 @@ describe('File Upload Security Tests', () => {
     })
 
     it('rejects execution uploads without workspaceId', async () => {
-      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
-      const formData = createExecutionFormData(file, null)
-
-      const req = new Request('http://localhost/api/files/upload', {
-        method: 'POST',
-        headers: { 'content-length': '1024' },
-        body: formData,
-      })
-
-      const response = await POST(req as unknown as NextRequest)
+      const response = await postExecutionUpload(null)
 
       expect(response.status).toBe(400)
       const data = await response.json()
@@ -590,16 +594,7 @@ describe('File Upload Security Tests', () => {
     it('rejects execution uploads for a read-only workspace member', async () => {
       permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
 
-      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
-      const formData = createExecutionFormData(file)
-
-      const req = new Request('http://localhost/api/files/upload', {
-        method: 'POST',
-        headers: { 'content-length': '1024' },
-        body: formData,
-      })
-
-      const response = await POST(req as unknown as NextRequest)
+      const response = await postExecutionUpload()
 
       expect(response.status).toBe(403)
       const data = await response.json()
@@ -610,16 +605,7 @@ describe('File Upload Security Tests', () => {
     it('rejects execution uploads for a member with no workspace permission', async () => {
       permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue(null)
 
-      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
-      const formData = createExecutionFormData(file)
-
-      const req = new Request('http://localhost/api/files/upload', {
-        method: 'POST',
-        headers: { 'content-length': '1024' },
-        body: formData,
-      })
-
-      const response = await POST(req as unknown as NextRequest)
+      const response = await postExecutionUpload()
 
       expect(response.status).toBe(403)
       expect(mocks.mockUploadExecutionFile).not.toHaveBeenCalled()
@@ -628,16 +614,7 @@ describe('File Upload Security Tests', () => {
     it('allows execution uploads for a write-permission workspace member', async () => {
       permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
 
-      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
-      const formData = createExecutionFormData(file)
-
-      const req = new Request('http://localhost/api/files/upload', {
-        method: 'POST',
-        headers: { 'content-length': '1024' },
-        body: formData,
-      })
-
-      const response = await POST(req as unknown as NextRequest)
+      const response = await postExecutionUpload()
 
       expect(response.status).toBe(200)
       expect(mocks.mockUploadExecutionFile).toHaveBeenCalledWith(
@@ -656,16 +633,7 @@ describe('File Upload Security Tests', () => {
     it('allows execution uploads for an admin-permission workspace member', async () => {
       permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
 
-      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
-      const formData = createExecutionFormData(file)
-
-      const req = new Request('http://localhost/api/files/upload', {
-        method: 'POST',
-        headers: { 'content-length': '1024' },
-        body: formData,
-      })
-
-      const response = await POST(req as unknown as NextRequest)
+      const response = await postExecutionUpload()
 
       expect(response.status).toBe(200)
       expect(mocks.mockUploadExecutionFile).toHaveBeenCalled()

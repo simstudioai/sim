@@ -9,7 +9,9 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type { GoogleDriveFile, GoogleDriveRevision } from '@/tools/google_drive/types'
 import {
   ALL_FILE_FIELDS,
@@ -160,7 +162,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const exportResponse = await secureFetchWithPinnedIP(
         exportUrl,
         exportUrlValidation.resolvedIP!,
-        { headers: { Authorization: authHeader } }
+        { headers: { Authorization: authHeader }, maxResponseBytes: MAX_FILE_SIZE }
       )
 
       if (!exportResponse.ok) {
@@ -185,6 +187,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } else {
       logger.info(`[${requestId}] Downloading regular file`, { fileId, mimeType: fileMimeType })
 
+      if (metadata.size) {
+        const parsedSize = Number.parseInt(metadata.size, 10)
+        if (Number.isFinite(parsedSize)) {
+          assertKnownSizeWithinLimit(parsedSize, MAX_FILE_SIZE, `Google Drive file ${fileId}`)
+        }
+      }
+
       const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`
       const downloadUrlValidation = await validateUrlWithDNS(downloadUrl, 'downloadUrl')
       if (!downloadUrlValidation.isValid) {
@@ -197,7 +206,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const downloadResponse = await secureFetchWithPinnedIP(
         downloadUrl,
         downloadUrlValidation.resolvedIP!,
-        { headers: { Authorization: authHeader } }
+        { headers: { Authorization: authHeader }, maxResponseBytes: MAX_FILE_SIZE }
       )
 
       if (!downloadResponse.ok) {
@@ -274,7 +283,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         success: false,
         error: getErrorMessage(error, 'Unknown error occurred'),
       },
-      { status: 500 }
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
     )
   }
 })

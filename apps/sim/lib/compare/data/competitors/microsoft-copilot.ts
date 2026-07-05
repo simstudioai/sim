@@ -17,6 +17,31 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     'Microsoft Copilot Studio is a low-code Microsoft tool for building, testing, and publishing conversational and autonomous AI agents with topics or LLM-driven generative orchestration, connectors, agent flows, and Dataverse-grounded knowledge.',
   standoutFeatures: [
     {
+      title: 'Broad, independently audited compliance certification list',
+      description:
+        'Copilot Studio is certified under HIPAA (BAA), HITRUST CSF, FedRAMP, SOC, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, each with an audit report on the Microsoft Service Trust Portal.',
+      shortDescription:
+        'HIPAA, FedRAMP, SOC, multiple ISO standards, PCI DSS, and more, each audited.',
+      source: {
+        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-certification',
+        label: 'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
+        asOf: '2026-07-02',
+      },
+    },
+    {
+      title: 'Generative orchestration picks topics, tools, and knowledge dynamically',
+      description:
+        "Generative orchestration replaces fixed decision-tree topic flows with an LLM-driven planning layer. It interprets user intent, selects from an agent's topics, tools, knowledge sources, and child agents at runtime, and executes multistep plans, instead of requiring every path hand-authored with trigger phrases in advance.",
+      shortDescription:
+        'An LLM planning layer selects topics/tools/knowledge at runtime, not a fixed script.',
+      source: {
+        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/generative-orchestration',
+        label:
+          'Apply generative orchestration capabilities - Microsoft Copilot Studio | Microsoft Learn',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'Reusable, portable Agent Skills',
       description:
         'A Skill is a named capability defined once as a SKILL.md file (YAML front matter plus Markdown instructions, optionally bundled with scripts, templates, or reference documents into a ZIP package). Skills are authored in Copilot Studio or a text editor, attached to multiple agents, and exported to share with others, unlike a one-off system prompt tied to a single agent.',
@@ -48,31 +73,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       source: {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/analytics-overview',
         label: 'Monitor an agent overview (preview) - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Broad, independently audited compliance certification list',
-      description:
-        'Copilot Studio is certified under HIPAA (BAA), HITRUST CSF, FedRAMP, SOC, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, each with an audit report on the Microsoft Service Trust Portal.',
-      shortDescription:
-        'HIPAA, FedRAMP, SOC, multiple ISO standards, PCI DSS, and more, each audited.',
-      source: {
-        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-certification',
-        label: 'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Generative orchestration picks topics, tools, and knowledge dynamically',
-      description:
-        "Generative orchestration replaces fixed decision-tree topic flows with an LLM-driven planning layer. It interprets user intent, selects from an agent's topics, tools, knowledge sources, and child agents at runtime, and executes multistep plans, instead of requiring every path hand-authored with trigger phrases in advance.",
-      shortDescription:
-        'An LLM planning layer selects topics/tools/knowledge at runtime, not a fixed script.',
-      source: {
-        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/generative-orchestration',
-        label:
-          'Apply generative orchestration capabilities - Microsoft Copilot Studio | Microsoft Learn',
         asOf: '2026-07-02',
       },
     },
@@ -124,9 +124,9 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       shortDescription:
         'No on-premises option; agents run only on Microsoft-operated cloud infrastructure.',
       source: {
-        url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-        label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-        asOf: '2026-07-02',
+        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
+        label: 'US Government customers - Microsoft Copilot Studio | Microsoft Learn',
+        asOf: '2026-07-04',
       },
     },
     {
@@ -197,14 +197,20 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         value:
           'No: Copilot Studio has no self-hosted deployment of its authoring or orchestration/runtime engine; it runs only as a Microsoft-operated cloud service (commercial or government cloud)',
         detail:
-          'Copilot Studio is an Online Service across Commercial, GCC, GCC High, and DoD environments, all Microsoft-operated. No on-premises or customer-hosted runtime exists.',
+          "Copilot Studio is an Online Service, defined as such in the Online Services Terms, running only across Commercial, GCC, GCC High, and DoD environments, all Microsoft-operated. The US Government plans documentation describes the service as running 'in a manner consistent with a multitenant, public cloud deployment model,' with no on-premises or customer-hosted runtime offered.",
         shortValue: 'No, Microsoft-operated cloud service only',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-certification',
+            label:
+              'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
+            label: 'US Government customers - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -212,14 +218,14 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         value:
           'Commercial multi-tenant cloud, plus Office 365 GCC, GCC High, and DoD sovereign/government cloud environments',
         detail:
-          "Microsoft's SOC 2 compliance documentation lists Copilot Studio among the Power Platform services in scope for Commercial and GCC environments.",
+          "Copilot Studio's US Government customers documentation describes GCC as compliant with FedRAMP High and available since December 2019, and GCC High as available to eligible customers since February 2022 for DISA SRG IL4-aligned workloads, all still running on Microsoft-operated (not customer-operated) infrastructure.",
         shortValue: 'Commercial cloud plus GCC/GCC High/DoD government clouds',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
+            label: 'US Government customers - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -649,16 +655,23 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          "No native support: Copilot Studio does not ship a first-party Agent2Agent (A2A) implementation today. Third-party custom connectors can wrap an external A2A agent's JSON-RPC/HTTP+JSON endpoints, and Microsoft has stated native A2A support is planned for Copilot Studio and Azure AI Foundry, but no built-in Agent Card discovery or native peer-to-peer A2A calling ships today.",
+          'Yes: Copilot Studio ships a first-party Agent2Agent (A2A) connection type, generally available since April 2026, that lets an agent delegate tasks to any external agent implementing the open A2A protocol via an endpoint URL, with automatic Agent Card discovery and API key or OAuth 2.0 authentication.',
         detail:
-          'Available A2A connectors today are community-built, translating Power Platform requests into A2A protocol calls, not a first-party Copilot Studio feature.',
-        shortValue: 'No native A2A yet; only third-party custom connectors, native support planned',
-        confidence: 'estimated',
+          'This covers connecting a Copilot Studio agent out to an external A2A agent (first-party, second-party, or third-party). There is no documented feature to publish a Copilot Studio agent itself as a callable A2A server for other systems to reach, the same one-directional pattern as its MCP support.',
+        shortValue: 'Yes, native A2A connections to external agents, GA since April 2026',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://troystaylor.com/power%20platform/custom%20connectors/2026-05-05-agent-to-agent-a2a-connector-work-iq.html',
-            label: 'Agent-to-Agent (A2A) connector for Copilot Studio and Power Automate',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/add-agent-agent-to-agent',
+            label:
+              'Connect to an agent over the Agent2Agent (A2A) protocol - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://www.microsoft.com/en-us/microsoft-copilot/blog/copilot-studio/new-and-improved-multi-agent-orchestration-connected-experiences-and-faster-prompt-iteration/',
+            label:
+              "What's new in Copilot Studio: Updates to multi-agent systems | Microsoft Copilot Blog",
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -688,7 +701,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       integrationCount: {
         value: '1,000+ pre-built connectors',
         detail:
-          'Copilot Studio shares the same underlying connector catalog Power Automate uses, whose product page cites 1,400+ certified connectors as a broader Power Platform-wide figure.',
+          'Copilot Studio shares the same underlying Power Platform connector catalog that Power Automate and Power Apps use, split into standard connectors (included with all plans) and premium connectors (available on select plans), plus custom connectors for any other API.',
         shortValue: '1,000+ connectors from the shared Power Platform catalog',
         confidence: 'estimated',
         sources: [
@@ -696,7 +709,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
             label:
               'Use connectors in Copilot Studio agents - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -851,17 +864,22 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     security: {
       soc2: {
         value:
-          'Yes: Copilot Studio is audited SOC-compliant, with audit reports available from the Microsoft Service Trust Portal',
+          'Yes: Copilot Studio (listed by its former name, "Copilot Studios") is one of the Microsoft online services explicitly in scope of the Office 365 SOC 2 Type 2 attestation report, with audit reports available from the Microsoft Service Trust Portal',
         detail:
-          "Copilot Studio's admin-certification documentation confirms SOC compliance without specifying SOC 1 vs SOC 2 vs report Type on that page. The underlying Power Platform SOC 2 Type 2 attestation separately covers Commercial and GCC environments.",
-        shortValue: 'Audited SOC compliant, reports via Microsoft Service Trust Portal',
+          'Copilot Studio\'s own admin-certification page confirms SOC compliance without naming the specific report type, but Microsoft\'s dedicated SOC 2 Type 2 compliance offering page lists "Copilot Studios" by name among the in-scope Office 365 services, resolving which SOC report type applies.',
+        shortValue: 'Yes, named in scope of the SOC 2 Type 2 attestation report',
         confidence: 'verified',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-certification',
             label:
               'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
+            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1092,13 +1110,19 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       failureAlerting: {
         value:
-          "Partial: proactive failure alerting is reachable through Azure Monitor Application Insights alerts on exceptions/latency once telemetry is wired up, but there is no Copilot Studio-native, automatic per-run failure-email or weekly-digest feature comparable to Power Automate's flow-failure notifications.",
+          "Partial: proactive failure alerting is reachable through Azure Monitor alert rules (email, SMS, or webhook action groups) on Application Insights exceptions/latency once telemetry is wired up, but no Copilot Studio-specific documentation describes an automatic, built-in per-run failure-email or weekly-digest feature comparable to Power Automate's flow-failure notifications.",
         detail:
-          "Copilot Studio's Analytics area is dashboard/lookup-based, so a maker must open it to see failures, while pushing a notification depends on separately configuring Application Insights alert rules.",
+          "Copilot Studio's Analytics area is dashboard/lookup-based, so a maker must open it to see failures, while pushing a notification depends on separately configuring Azure Monitor alert rules on the Application Insights resource. Confidence is marked unknown for the negative half of this claim: no Microsoft Learn page was found that explicitly confirms or rules out a native failure-alert feature inside Copilot Studio itself.",
         shortValue:
-          'Alerting requires configuring Application Insights; no native failure-email feature found',
+          'Alerting requires configuring Azure Monitor; no native failure-email feature confirmed',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/azure/azure-monitor/alerts/alerts-overview',
+            label: 'Overview of Azure Monitor alerts - Azure Monitor | Microsoft Learn',
+            asOf: '2026-07-04',
+          },
+        ],
       },
       dataDrains: {
         value:
@@ -1168,6 +1192,26 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          "Yes: autonomous event-triggered agent runs and agent flows execute on Microsoft-operated cloud infrastructure (the same Commercial/GCC/GCC High/DoD environments Copilot Studio's authoring and runtime services run in), not on a maker's own device or browser session",
+        detail:
+          "Autonomous triggers let an agent proactively respond to a connector event or schedule without a live conversation open, and agent flows run on the Power Automate flow engine's server-side runtime. Closing the authoring browser tab or shutting down a laptop has no effect on a published agent's ability to fire on a trigger or complete a run.",
+        shortValue: 'Yes, runs server-side on Microsoft-operated infrastructure',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
+            label: 'US Government customers - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://adoption.microsoft.com/files/copilot-studio/Autonomous-agents-with-Microsoft-Copilot-Studio.pdf',
+            label: 'Autonomous Agents with Microsoft Copilot Studio',
+            asOf: '2026-07-04',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1188,12 +1232,23 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       sla: {
         value:
-          'Not publicly documented as a Copilot Studio-specific, financially backed SLA; general Microsoft Online Services SLA terms (covering Azure, Dynamics 365, Office 365) apply, with a widely cited 99.9% uptime commitment for other core Microsoft 365 services',
+          "Not publicly documented as a Copilot Studio-specific, financially backed SLA: Microsoft's Service Level Agreements for Online Services document lists uptime terms for Azure, Dynamics 365, Office 365, and Intune, but names neither Copilot Studio nor Power Virtual Agents, while core services like Exchange Online, SharePoint Online, and Teams carry a widely cited 99.9% financially backed uptime guarantee",
         detail:
-          'Reporting on Copilot outages has noted enterprise customers lack the same financially backed SLA protection for Copilot that exists for core services like Exchange Online or file storage.',
-        shortValue: 'No product-specific SLA found; general Online Services SLA applies',
-        confidence: 'unknown',
-        sources: [],
+          'Independent reporting on the June 2026 Microsoft 365 Copilot outages noted enterprise customers lack the same financially backed SLA protection for Copilot that exists for core services like Exchange Online, since many enterprise agreements do not explicitly define uptime commitments for AI components.',
+        shortValue: 'No Copilot Studio-specific SLA found in the Online Services SLA document',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.microsoft.com/licensing/docs/view/Service-Level-Agreements-SLA-for-Online-Services?lang=1',
+            label: 'Service Level Agreements (SLA) for Online Services - Microsoft Licensing',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://windowsnews.ai/article/microsoft-365-copilot-outage-exposes-ai-reliability-gaps-in-enterprise-slas.425641',
+            label: 'Microsoft 365 Copilot Outage Exposes AI Reliability Gaps in Enterprise SLAs',
+            asOf: '2026-07-04',
+          },
+        ],
       },
       community: {
         value:
@@ -1220,9 +1275,9 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sec.gov/Archives/edgar/data/0000789019/000119312526191457/msft-ex99_1.htm',
-            label: 'Microsoft Corp 8-K FY2026 filing',
-            asOf: '2026-07-02',
+            url: 'https://www.microsoft.com/en-us/investor/earnings/fy-2026-q3/press-release-webcast',
+            label: 'FY26 Q3 - Press Releases - Investor Relations - Microsoft',
+            asOf: '2026-07-04',
           },
           {
             url: 'https://stockanalysis.com/stocks/msft/market-cap/',

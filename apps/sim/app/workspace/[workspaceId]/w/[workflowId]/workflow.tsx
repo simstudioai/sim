@@ -79,6 +79,7 @@ import {
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
+import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
@@ -2415,11 +2416,21 @@ const WorkflowContent = React.memo(
 
     const blockConfigCache = useRef<Map<string, any>>(new Map())
     const getBlockConfig = useCallback((type: string) => {
-      if (!blockConfigCache.current.has(type)) {
-        blockConfigCache.current.set(type, getBlock(type))
-      }
-      return blockConfigCache.current.get(type)
+      const cached = blockConfigCache.current.get(type)
+      if (cached) return cached
+      // Don't cache a miss: custom (deploy-as-block) blocks resolve only once the
+      // client overlay hydrates, so an early miss must re-resolve on a later render.
+      const config = getBlock(type)
+      if (config) blockConfigCache.current.set(type, config)
+      return config
     }, [])
+
+    // Bust cached custom-block node configs when the org overlay (hydrated by
+    // CustomBlocksLoader) changes, so renames/icon edits refresh existing nodes.
+    const { data: customBlocksData } = useCustomBlocks(workspaceId)
+    useEffect(() => {
+      for (const cb of customBlocksData ?? []) blockConfigCache.current.delete(cb.type)
+    }, [customBlocksData])
 
     const prevBlocksHashRef = useRef<string>('')
     const prevBlocksRef = useRef(blocks)
@@ -3142,6 +3153,14 @@ const WorkflowContent = React.memo(
           updateContainerDimensionsDuringMove(node.id, node.position)
         }
 
+        // Embedded (mship panel) canvases allow repositioning but never
+        // re-parenting: skip container-intersection detection so a drag over a
+        // subflow neither highlights it nor arms potentialParentId. Both drag-stop
+        // paths bail when potentialParentId still equals the drag-start parent, so
+        // positions persist but a block can never be inserted into (or pulled out
+        // of) a loop/parallel from the embedded view.
+        if (embedded) return
+
         // Check if this is a starter block - starter blocks should never be in containers
         const isStarterBlock = node.data?.type === 'starter'
         if (isStarterBlock) {
@@ -3257,6 +3276,7 @@ const WorkflowContent = React.memo(
         getNodes,
         potentialParentId,
         blocks,
+        embedded,
         getNodeAbsolutePosition,
         getNodeDepth,
         isDescendantOf,
@@ -4109,7 +4129,9 @@ const WorkflowContent = React.memo(
                   edgesUpdatable={!embedded && effectivePermissions.canEdit}
                   className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
                   onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
-                  onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
+                  onNodeDragStop={
+                    !embedded && effectivePermissions.canEdit ? onNodeDragStop : undefined
+                  }
                   onSelectionDragStart={
                     effectivePermissions.canEdit ? onSelectionDragStart : undefined
                   }
@@ -4117,7 +4139,9 @@ const WorkflowContent = React.memo(
                   onSelectionDragStop={
                     effectivePermissions.canEdit ? onSelectionDragStop : undefined
                   }
-                  onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
+                  onNodeDragStart={
+                    !embedded && effectivePermissions.canEdit ? onNodeDragStart : undefined
+                  }
                   snapToGrid={snapToGrid}
                   snapGrid={snapGrid}
                   elevateEdgesOnSelect={false}

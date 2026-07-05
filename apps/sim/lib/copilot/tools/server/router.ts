@@ -58,6 +58,8 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
+import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
@@ -67,6 +69,12 @@ const ExecuteResponseSuccessSchema = z.object({
 })
 
 const logger = createLogger('ServerToolRouter')
+
+/**
+ * Tools that resolve blocks through the registry (`getBlock`/`getAllBlocks`) and
+ * must run inside the custom-block overlay so `custom_block_*` types resolve.
+ */
+const CUSTOM_BLOCK_OVERLAY_TOOLS = new Set(['edit_workflow', 'get_blocks_metadata'])
 
 const WRITE_ACTIONS: Record<string, string[]> = {
   [KnowledgeBase.id]: [
@@ -232,8 +240,18 @@ export async function routeExecution(
 
   assertServerToolNotAborted(context, `User stop signal aborted ${toolName} after validation`)
 
-  // Execute
-  const result = await tool.execute(args, context)
+  // Execute. The registry-dependent tools resolve blocks via getBlock/getAllBlocks;
+  // wrap them in the custom-block overlay for the workspace's org so `custom_block_*`
+  // types resolve (metadata lookup + edit-workflow validation) instead of being
+  // rejected as unknown. Other tools skip the extra query.
+  const runTool = () => tool.execute(args, context)
+  const result =
+    CUSTOM_BLOCK_OVERLAY_TOOLS.has(toolName) && context?.workspaceId
+      ? await withCustomBlockOverlay(
+          await listCustomBlocksWithInputsForWorkspace(context.workspaceId),
+          runTool
+        )
+      : await runTool()
 
   // Validate output if tool declares a schema; otherwise fall back to the
   // generated JSON schema contract emitted from Go.

@@ -33,13 +33,13 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     "OpenAI AgentKit bundled a visual Agent Builder, ChatKit embeddable chat UI, Connector Registry, Guardrails, and Evals for building agentic workflows on OpenAI's models. But OpenAI is winding down Agent Builder and Evals, with full shutdown November 30, 2026, in favor of the code-first Agents SDK or ChatGPT Workspace Agents.",
   standoutFeatures: [
     {
-      title: 'Guardrails open-source safety layer',
+      title: 'Code-first, all-OpenAI stack with no visual builder going forward',
       description:
-        'Agent Builder shipped an open-source, modular guardrails layer that can mask/flag PII, detect jailbreaks, and apply other safety checks around agent behavior.',
-      shortDescription: 'Open-source guardrails layer masks PII and detects jailbreaks.',
+        "With Agent Builder and Evals winding down (full shutdown November 30, 2026), OpenAI's path forward is the code-first Agents SDK, openai-agents-python, open source under the MIT license with over 27,500 GitHub stars, natively wired into OpenAI's own model lineup. A team fully committed to an all-OpenAI, code-first stack, with no visual builder layer, gets that directly.",
+      shortDescription: 'Open-source code-first framework, natively wired to OpenAI models.',
       source: {
-        url: 'https://openai.com/index/introducing-agentkit/',
-        label: 'Introducing AgentKit (via search excerpt)',
+        url: 'https://github.com/openai/openai-agents-python',
+        label: 'GitHub: openai/openai-agents-python',
         asOf: '2026-07-02',
       },
     },
@@ -66,13 +66,13 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Agents SDK open-source multi-agent framework',
+      title: 'Guardrails open-source safety layer',
       description:
-        'The code-first alternative and successor, openai-agents-python, is open source under the MIT license with over 27,500 GitHub stars.',
-      shortDescription: 'Open-source multi-agent framework with 27,500+ GitHub stars.',
+        'Agent Builder shipped an open-source, modular guardrails layer that can mask/flag PII, detect jailbreaks, and apply other safety checks around agent behavior.',
+      shortDescription: 'Open-source guardrails layer masks PII and detects jailbreaks.',
       source: {
-        url: 'https://github.com/openai/openai-agents-python',
-        label: 'GitHub: openai/openai-agents-python',
+        url: 'https://openai.com/index/introducing-agentkit/',
+        label: 'Introducing AgentKit (via search excerpt)',
         asOf: '2026-07-02',
       },
     },
@@ -163,14 +163,18 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'OpenAI-hosted cloud only for Agent Builder/Evals (being shut down); Agents SDK code can be deployed anywhere that runs Python/TypeScript (e.g., AWS Lambda, Cloudflare Workers, FastAPI servers)',
         detail:
-          'There is no official Docker/Kubernetes distribution of AgentKit itself; deployment flexibility comes from the open-source Agents SDK being ordinary application code.',
+          'There is no official Docker/Kubernetes distribution of AgentKit itself; deployment flexibility comes from the open-source Agents SDK being ordinary application code, as demonstrated by third-party deployment guides running it on Cloudflare Workers/Durable Objects and on AWS Lambda behind a FastAPI wrapper.',
         shortValue: 'OpenAI-hosted only; Agents SDK deploys anywhere',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://community.openai.com/t/deprecation-notice-agent-builder/1382650',
-            label:
-              'OpenAI Community: Deprecation notice - Agent Builder (community-reported deployment patterns)',
+            url: 'https://blog.cloudflare.com/building-agents-with-openai-and-cloudflares-agents-sdk/',
+            label: 'Cloudflare Blog: Building agents with OpenAI and Cloudflare Agents SDK',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://developers.openai.com/api/docs/guides/agents',
+            label: 'OpenAI API: Agents SDK guide',
             asOf: '2026-07-02',
           },
         ],
@@ -285,8 +289,10 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          "No: Agent Builder's 'State' and 'Data' nodes function as global/persistent variables and data-reshaping steps within a workflow, not a native spreadsheet-like data table UI with defined row/column limits or spreadsheet keyboard navigation (arrow keys, copy-paste across cells).",
-        shortValue: 'No, state/data nodes are variables, not a spreadsheet',
+          "No: AgentKit has no equivalent to a native Tables feature. Agent Builder's 'State' and 'Data' nodes are in-workflow variables and data-reshaping steps scoped to a single run, not a persistent, spreadsheet-like data store with typed columns, rows, or keyboard navigation (arrow keys, copy-paste across cells) that other workflows or runs can read and write.",
+        detail:
+          'Set State defines counters, flags, or contextual values referenced by later nodes in the same run; Data nodes reshape outputs (e.g., object to array) or define global variables for that run. Neither persists rows across separate workflow executions or exposes a spreadsheet UI. Structured, persistent storage that outlives a single run has to come from an external system reached through a connector or MCP server (e.g., a Google Sheets or database connector), not a database or table feature built into AgentKit itself.',
+        shortValue: 'No, state/data nodes are per-run variables, not a persistent table store',
         confidence: 'estimated',
         sources: [
           {
@@ -298,6 +304,11 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             url: 'https://developers.openai.com/api/docs/guides/agent-builder',
             label: 'Agent Builder | OpenAI API',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://community.openai.com/t/agent-builder-while-loop-transform-and-set-state-an-example/1362386',
+            label: 'OpenAI Community: Agent Builder - While Loop, Transform and Set State example',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -342,16 +353,27 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     },
     aiCapabilities: {
       multiLlmSupport: {
-        value: 'OpenAI models only (GPT-5 family, e.g. gpt-5.5, gpt-5.4, gpt-5.4-mini)',
+        value:
+          "Agent Builder's Agent node model selector is OpenAI models only (GPT-5 family, e.g. gpt-5.5, gpt-5.4, gpt-5.4-mini); the separate, code-first Agents SDK is provider-agnostic, with built-in extension points plus best-effort beta LiteLLM/Any-LLM adapters covering 100+ providers (Anthropic, Google, Mistral, and others)",
         detail:
-          "AgentKit and the Agents SDK are built around OpenAI's own model lineup; no vendor documentation offers native first-party support for non-OpenAI LLM providers (e.g., Anthropic, Google) inside Agent Builder or ChatKit.",
-        shortValue: 'OpenAI models only',
+          "Agent Builder's visual canvas only lets you pick from OpenAI's own model lineup. The Agents SDK is a different product: it ships official, built-in provider-integration points (set_default_openai_client, a custom ModelProvider, or per-agent Agent.model) for calling any OpenAI-compatible endpoint, plus best-effort beta adapters for LiteLLM and Any-LLM that route to 100+ non-OpenAI providers. OpenAI's own docs note that adapters add a compatibility layer, so feature support and request semantics can vary by provider and should be validated independently.",
+        shortValue: 'Agent Builder: OpenAI only. Agents SDK: provider-agnostic via adapters',
         confidence: 'verified',
         sources: [
           {
             url: 'https://developers.openai.com/api/docs/pricing',
             label: 'OpenAI API Pricing (model list)',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://openai.github.io/openai-agents-python/models/',
+            label: 'OpenAI Agents SDK: Models (provider integration points)',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://openai.github.io/openai-agents-python/models/litellm/',
+            label: 'OpenAI Agents SDK: LiteLLM extension (beta, 100+ providers)',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -654,7 +676,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Official Agents SDK (Python + TypeScript/JS); Apps SDK (MCP-based) for building integrations; ChatGPT Apps directory as a community marketplace',
         detail:
-          "Agents SDK ships as open-source client libraries for Python (openai-agents-python) and TypeScript/JavaScript (openai-agents-js), provider-agnostic (works with 100+ LLMs via the Responses/Chat Completions APIs). Custom integrations are built as MCP servers using the Apps SDK, an open standard on the Model Context Protocol; Agent Builder's MCP node connects to any third-party MCP server. A Connector Registry centralizes admin-managed connectors (Dropbox, Google Drive, SharePoint, Teams) plus third-party MCPs. Community apps go through a dashboard-based submission and review flow and, once approved, are listed in the ChatGPT Apps directory.",
+          "Agents SDK ships as open-source client libraries for Python (openai-agents-python) and TypeScript/JavaScript (openai-agents-js). It defaults to OpenAI's own Responses/Chat Completions APIs but is provider-agnostic in practice: built-in provider-integration points plus best-effort beta LiteLLM/Any-LLM adapters let it call 100+ non-OpenAI providers (this is a code-level capability, distinct from Agent Builder's OpenAI-only model selector). Custom integrations are built as MCP servers using the Apps SDK, an open standard on the Model Context Protocol; Agent Builder's MCP node connects to any third-party MCP server. A Connector Registry centralizes admin-managed connectors (Dropbox, Google Drive, SharePoint, Teams) plus third-party MCPs. Community apps go through a dashboard-based submission and review flow and, once approved, are listed in the ChatGPT Apps directory.",
         shortValue: 'Agents SDK, Apps SDK, and app directory',
         confidence: 'verified',
         sources: [
@@ -667,6 +689,11 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             url: 'https://github.com/openai/openai-agents-python',
             label: 'openai-agents-python GitHub repo',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://openai.github.io/openai-agents-python/models/litellm/',
+            label: 'OpenAI Agents SDK: LiteLLM extension (beta, 100+ providers)',
+            asOf: '2026-07-04',
           },
           {
             url: 'https://developers.openai.com/apps-sdk',
@@ -808,7 +835,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         sources: [
           {
             url: 'https://developers.openai.com/api/docs/guides/admin-apis',
-            label: 'OpenAI AgentKit verification source',
+            label: 'Admin APIs | OpenAI API',
             asOf: '2026-07-02',
           },
         ],
@@ -823,7 +850,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         sources: [
           {
             url: 'https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform',
-            label: 'OpenAI AgentKit verification source',
+            label: 'Admin and Audit Logs API for the API Platform | OpenAI Help Center',
             asOf: '2026-07-02',
           },
         ],
@@ -1123,6 +1150,31 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             url: 'https://platform.openai.com/docs/guides/agent-builder-safety',
             label: 'OpenAI: Safety in building agents (guardrail failure handling guidance)',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "No native scheduler ships with AgentKit; a scheduled or triggered run only executes with zero dependency on a client device if the developer deploys their own Agents SDK code on always-on server or serverless infrastructure themselves. Agent Builder's own trigger surface covers API calls and ChatKit chat sessions, not a built-in cron/schedule trigger",
+        detail:
+          "Neither Agent Builder's node reference nor its documented trigger types include a schedule/cron trigger; time-based, run-without-a-human execution is described for a separate product, ChatGPT Workspace Agents, not AgentKit. Because Agents SDK code is ordinary Python/TypeScript, whether a run survives a closed laptop or a disconnected client depends entirely on where the developer hosts that code (e.g. AWS Lambda, a container, or a cron-triggered server process) and whether they add a third-party durability layer, such as Temporal, Dapr, Restate, or DBOS, for crash recovery and long-running execution. There is no first-party, always-on worker fleet or scheduler bundled with AgentKit itself.",
+        shortValue: 'No native scheduler; depends on the developer hosting it themselves',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://developers.openai.com/api/docs/guides/node-reference',
+            label: 'Node reference | OpenAI API',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://openai.github.io/openai-agents-js/guides/running-agents/',
+            label: 'OpenAI Agents SDK: Running agents',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://temporal.io/blog/announcing-openai-agents-sdk-integration',
+            label: 'Temporal: Production-ready agents with the OpenAI Agents SDK',
+            asOf: '2026-07-04',
           },
         ],
       },

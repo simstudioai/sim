@@ -17,7 +17,7 @@ vi.mock('@sim/db/schema', () => ({
 }))
 
 import { canonicalWorkflowVfsDir } from '@/lib/copilot/vfs/path-utils'
-import { buildWorkspaceMd, type WorkspaceMdData } from './workspace-context'
+import { buildVfsSnapshot, buildWorkspaceMd, type WorkspaceMdData } from './workspace-context'
 
 function baseData(overrides: Partial<WorkspaceMdData> = {}): WorkspaceMdData {
   return {
@@ -268,5 +268,28 @@ describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
     )
     expect(a).toBe(b)
     expect(a).not.toContain('rows')
+  })
+})
+
+describe('custom blocks', () => {
+  const customBlocks = [
+    { type: 'custom_block_abc', name: 'Invoice Parser', description: 'Parses invoices' },
+  ]
+
+  it('renders a Custom Blocks section in the workspace markdown', () => {
+    const md = buildWorkspaceMd(baseData({ customBlocks }))
+    expect(md).toContain('## Custom Blocks (1)')
+    expect(md).toContain('- **Invoice Parser** (custom_block_abc) — Parses invoices')
+  })
+
+  it('omits the section when there are no custom blocks', () => {
+    expect(buildWorkspaceMd(baseData())).not.toContain('## Custom Blocks')
+  })
+
+  it('never leaks custom blocks into the typed snapshot Go diffs (diff-safety)', () => {
+    const withBlocks = buildVfsSnapshot(baseData({ customBlocks }))
+    const without = buildVfsSnapshot(baseData())
+    expect('customBlocks' in withBlocks).toBe(false)
+    expect(JSON.stringify(withBlocks)).toBe(JSON.stringify(without))
   })
 })

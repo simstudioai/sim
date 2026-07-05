@@ -1,4 +1,5 @@
 export { ApiDeploy } from './api'
+export { BlockDeploy } from './block'
 export { ChatDeploy, type ExistingChat } from './chat'
 export { DeployUpgradeGate } from './deploy-upgrade-gate'
 export { GeneralDeploy } from './general'

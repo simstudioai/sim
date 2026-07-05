@@ -1,3 +1,4 @@
+export { mcpAuthGuarded } from './auth'
 export type {
   McpOauthCallbackMessage,
   McpOauthCallbackReason,
