@@ -395,7 +395,7 @@ export const WorkflowList = memo(function WorkflowList({
         </div>
       )
     },
-    [dropIndicator, isWorkflowActive, createWorkflowDragHandlers]
+    [workspaceId, dropIndicator, isWorkflowActive, createWorkflowDragHandlers]
   )
 
   const renderFolderSection = useCallback(
@@ -480,6 +480,7 @@ export const WorkflowList = memo(function WorkflowList({
       )
     },
     [
+      workspaceId,
       workflowsByFolder,
       expandedFolders,
       dropIndicator,
