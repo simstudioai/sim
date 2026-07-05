@@ -376,6 +376,48 @@ export async function getWorkspaceMemberProfiles(
   return rows
 }
 
+export interface WorkspacePermissionsForViewer {
+  users: WorkspaceMemberWithRole[]
+  total: number
+  viewer: {
+    userId: string
+    isAdmin: boolean
+    permissionType: PermissionType
+  }
+}
+
+/**
+ * Builds the workspace permissions payload for a viewer: the full member list plus
+ * the viewer's own resolved permission. Returns `null` when the workspace doesn't
+ * exist or the viewer lacks access, mirroring the 404 branch in the permissions
+ * route. Shared by `GET /api/workspaces/[id]/permissions` and the sidebar prefetch
+ * so the two never drift.
+ *
+ * @param workspaceId - The workspace ID to build permissions for
+ * @param userId - The viewer's user ID
+ */
+export async function getWorkspacePermissionsForViewer(
+  workspaceId: string,
+  userId: string
+): Promise<WorkspacePermissionsForViewer | null> {
+  const isAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
+  const access = await checkWorkspaceAccess(workspaceId, userId)
+
+  if (!access.exists || (!isAdmin && !access.hasAccess)) {
+    return null
+  }
+
+  const explicitPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+  const viewerPermissionType: PermissionType = isAdmin ? 'admin' : (explicitPermission ?? 'read')
+  const users = await getUsersWithPermissions(workspaceId)
+
+  return {
+    users,
+    total: users.length,
+    viewer: { userId, isAdmin, permissionType: viewerPermissionType },
+  }
+}
+
 /**
  * Check if a user has admin access to a specific workspace
  *
