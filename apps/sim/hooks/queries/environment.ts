@@ -15,6 +15,9 @@ const logger = createLogger('EnvironmentQueries')
 /**
  * Query key factories for environment variable queries
  */
+export const PERSONAL_ENVIRONMENT_STALE_TIME = 60 * 1000
+export const WORKSPACE_ENVIRONMENT_STALE_TIME = 60 * 1000
+
 export const environmentKeys = {
   all: ['environment'] as const,
   personal: () => [...environmentKeys.all, 'personal'] as const,
@@ -29,7 +32,7 @@ export function usePersonalEnvironment() {
   return useQuery({
     queryKey: environmentKeys.personal(),
     queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
-    staleTime: 60 * 1000,
+    staleTime: PERSONAL_ENVIRONMENT_STALE_TIME,
   })
 }
 
@@ -44,7 +47,7 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
     queryKey: environmentKeys.workspace(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: WORKSPACE_ENVIRONMENT_STALE_TIME,
     placeholderData: keepPreviousData,
     ...options,
   })

@@ -10,6 +10,8 @@ import {
   updateCustomBlockContract,
 } from '@/lib/api/contracts/custom-blocks'
 
+export const CUSTOM_BLOCK_LIST_STALE_TIME = 60 * 1000
+
 export const customBlockKeys = {
   all: ['custom-blocks'] as const,
   lists: () => [...customBlockKeys.all, 'list'] as const,
@@ -36,7 +38,7 @@ function useCustomBlocksQuery<T>(
     queryKey: customBlockKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchCustomBlocks(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: CUSTOM_BLOCK_LIST_STALE_TIME,
     select,
   })
 }

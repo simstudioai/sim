@@ -102,6 +102,21 @@ export const workflowSearchReplaceKeys = {
     ] as const,
 }
 
+export const WORKFLOW_SEARCH_OAUTH_DETAIL_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_KNOWLEDGE_DETAIL_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_TABLE_DETAIL_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_FILE_LIST_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_MCP_SERVER_LIST_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_MCP_TOOL_LIST_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_SELECTOR_DETAIL_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_OAUTH_REPLACEMENT_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_KNOWLEDGE_REPLACEMENT_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_TABLE_REPLACEMENT_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_FILE_REPLACEMENT_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_MCP_SERVER_REPLACEMENT_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_MCP_TOOL_REPLACEMENT_STALE_TIME = 60 * 1000
+export const WORKFLOW_SEARCH_SELECTOR_REPLACEMENT_STALE_TIME = 60 * 1000
+
 function uniqueMatches(
   matches: WorkflowSearchMatch[],
   kind: WorkflowSearchMatch['kind']
@@ -172,7 +187,7 @@ export function useWorkflowSearchOAuthCredentialDetails(
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchOAuthCredentialDetail(match.rawValue, workflowId, signal),
       enabled: Boolean(match.rawValue),
-      staleTime: 60 * 1000,
+      staleTime: WORKFLOW_SEARCH_OAUTH_DETAIL_STALE_TIME,
       select: (credentials: Credential[]): WorkflowSearchResolvedResource => {
         const credential = credentials[0]
         return {
@@ -195,7 +210,7 @@ export function useWorkflowSearchKnowledgeBaseDetails(matches: WorkflowSearchMat
       queryKey: workflowSearchReplaceKeys.knowledgeDetail(match.rawValue),
       queryFn: ({ signal }: { signal: AbortSignal }) => fetchKnowledgeBase(match.rawValue, signal),
       enabled: Boolean(match.rawValue),
-      staleTime: 60 * 1000,
+      staleTime: WORKFLOW_SEARCH_KNOWLEDGE_DETAIL_STALE_TIME,
       select: (knowledgeBase: KnowledgeBaseData): WorkflowSearchResolvedResource => ({
         matchRawValue: match.rawValue,
         resourceGroupKey: match.resource?.resourceGroupKey,
@@ -223,7 +238,7 @@ export function useWorkflowSearchTableDetails(
           signal,
         }),
       enabled: Boolean(workspaceId && match.rawValue),
-      staleTime: 60 * 1000,
+      staleTime: WORKFLOW_SEARCH_TABLE_DETAIL_STALE_TIME,
       select: (response: GetTableResponse): WorkflowSearchResolvedResource => ({
         matchRawValue: match.rawValue,
         resourceGroupKey: match.resource?.resourceGroupKey,
@@ -254,7 +269,7 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
         signal,
       }),
     enabled: Boolean(workspaceId && fileMatches.length > 0),
-    staleTime: 60 * 1000,
+    staleTime: WORKFLOW_SEARCH_FILE_LIST_STALE_TIME,
   })
 
   return useMemo(
@@ -293,7 +308,7 @@ export function useWorkflowSearchMcpServerDetails(
         signal,
       }),
     enabled: Boolean(workspaceId && serverMatches.length > 0),
-    staleTime: 60 * 1000,
+    staleTime: WORKFLOW_SEARCH_MCP_SERVER_LIST_STALE_TIME,
   })
 
   return useMemo(
@@ -330,7 +345,7 @@ export function useWorkflowSearchMcpToolDetails(
         signal,
       }),
     enabled: Boolean(workspaceId && toolMatches.length > 0),
-    staleTime: 60 * 1000,
+    staleTime: WORKFLOW_SEARCH_MCP_TOOL_LIST_STALE_TIME,
   })
 
   return useMemo(
@@ -382,7 +397,7 @@ export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[])
           return options.find((option) => option.id === match.rawValue) ?? null
         },
         enabled: Boolean(selectorKey && match.rawValue && baseEnabled),
-        staleTime: definition.staleTime ?? 60 * 1000,
+        staleTime: definition.staleTime ?? WORKFLOW_SEARCH_SELECTOR_DETAIL_STALE_TIME,
         select: (option: SelectorOption | null): WorkflowSearchResolvedResource => ({
           matchRawValue: match.rawValue,
           resourceGroupKey: match.resource?.resourceGroupKey,
@@ -420,7 +435,7 @@ export function useWorkflowSearchOAuthReplacementOptions(
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchOAuthCredentials({ providerId, workspaceId, workflowId }, signal),
       enabled: Boolean(providerId && workspaceId),
-      staleTime: 60 * 1000,
+      staleTime: WORKFLOW_SEARCH_OAUTH_REPLACEMENT_STALE_TIME,
       select: (credentials: Credential[]): WorkflowSearchReplacementOption[] =>
         credentials.map((credential) => ({
           kind: 'oauth-credential',
@@ -449,7 +464,7 @@ export function useWorkflowSearchKnowledgeReplacementOptions(
         queryFn: ({ signal }: { signal: AbortSignal }) =>
           fetchKnowledgeBases(workspaceId, 'active', signal),
         enabled: Boolean(workspaceId && knowledgeGroups.length > 0),
-        staleTime: 60 * 1000,
+        staleTime: WORKFLOW_SEARCH_KNOWLEDGE_REPLACEMENT_STALE_TIME,
         placeholderData: (previous: KnowledgeBaseData[] | undefined) => previous,
         select: (knowledgeBases: KnowledgeBaseData[]): WorkflowSearchReplacementOption[] =>
           knowledgeGroups.flatMap((match) =>
@@ -481,7 +496,7 @@ export function useWorkflowSearchTableReplacementOptions(
             signal,
           }),
         enabled: Boolean(workspaceId && tableGroups.length > 0),
-        staleTime: 60 * 1000,
+        staleTime: WORKFLOW_SEARCH_TABLE_REPLACEMENT_STALE_TIME,
         select: (response: ListTablesResponse): WorkflowSearchReplacementOption[] =>
           tableGroups.flatMap((match) =>
             response.data.tables.map((table) => ({
@@ -516,7 +531,7 @@ export function useWorkflowSearchFileReplacementOptions(
             signal,
           }),
         enabled: Boolean(workspaceId && fileGroups.length > 0),
-        staleTime: 60 * 1000,
+        staleTime: WORKFLOW_SEARCH_FILE_REPLACEMENT_STALE_TIME,
         select: (response: ListWorkspaceFilesResponse): WorkflowSearchReplacementOption[] =>
           fileGroups.flatMap((match) =>
             response.files.map((file) => ({
@@ -553,7 +568,7 @@ export function useWorkflowSearchMcpServerReplacementOptions(
             signal,
           }),
         enabled: Boolean(workspaceId && serverGroups.length > 0),
-        staleTime: 60 * 1000,
+        staleTime: WORKFLOW_SEARCH_MCP_SERVER_REPLACEMENT_STALE_TIME,
         select: (response: ListMcpServersResponse): WorkflowSearchReplacementOption[] =>
           serverGroups.flatMap((match) =>
             response.data.servers.map((server) => ({
@@ -601,7 +616,7 @@ export function useWorkflowSearchMcpToolReplacementOptions(
             signal,
           }),
         enabled: Boolean(workspaceId && toolGroups.length > 0),
-        staleTime: 60 * 1000,
+        staleTime: WORKFLOW_SEARCH_MCP_TOOL_REPLACEMENT_STALE_TIME,
         select: (response: DiscoverMcpToolsResponse): WorkflowSearchReplacementOption[] =>
           buildWorkflowSearchMcpToolReplacementOptions(toolGroups, response.data.tools),
       },
@@ -626,7 +641,7 @@ export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSea
         queryFn: ({ signal }: { signal: AbortSignal }) =>
           loadAllSelectorOptions(definition, { ...queryArgs, signal }),
         enabled: Boolean(selectorKey && baseEnabled),
-        staleTime: definition.staleTime ?? 60 * 1000,
+        staleTime: definition.staleTime ?? WORKFLOW_SEARCH_SELECTOR_REPLACEMENT_STALE_TIME,
         select: (options: SelectorOption[]): WorkflowSearchReplacementOption[] =>
           options.map((option) => ({
             kind: match.kind,

@@ -39,6 +39,13 @@ export type {
   CredentialSetMembership,
 }
 
+export const CREDENTIAL_SET_LIST_STALE_TIME = 60 * 1000
+export const CREDENTIAL_SET_DETAIL_STALE_TIME = 60 * 1000
+export const CREDENTIAL_SET_MEMBERSHIP_STALE_TIME = 60 * 1000
+export const CREDENTIAL_SET_INVITATION_LIST_STALE_TIME = 30 * 1000
+export const CREDENTIAL_SET_MEMBER_LIST_STALE_TIME = 30 * 1000
+export const CREDENTIAL_SET_INVITATION_DETAIL_STALE_TIME = 30 * 1000
+
 export const credentialSetKeys = {
   all: ['credentialSets'] as const,
   lists: () => [...credentialSetKeys.all, 'list'] as const,
@@ -71,7 +78,7 @@ export function useCredentialSets(organizationId?: string, enabled = true) {
     queryKey: credentialSetKeys.list(organizationId),
     queryFn: ({ signal }) => fetchCredentialSets(organizationId ?? '', signal),
     enabled: Boolean(organizationId) && enabled,
-    staleTime: 60 * 1000,
+    staleTime: CREDENTIAL_SET_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -81,7 +88,7 @@ export function useCredentialSetDetail(id?: string, enabled = true) {
     queryKey: credentialSetKeys.detail(id),
     queryFn: ({ signal }) => fetchCredentialSetById(id ?? '', signal),
     enabled: Boolean(id) && enabled,
-    staleTime: 60 * 1000,
+    staleTime: CREDENTIAL_SET_DETAIL_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -93,7 +100,7 @@ export function useCredentialSetMemberships() {
       const data = await requestJson(listCredentialSetMembershipsContract, { signal })
       return data.memberships ?? []
     },
-    staleTime: 60 * 1000,
+    staleTime: CREDENTIAL_SET_MEMBERSHIP_STALE_TIME,
   })
 }
 
@@ -104,7 +111,7 @@ export function useCredentialSetInvitations() {
       const data = await requestJson(listCredentialSetInvitationsContract, { signal })
       return data.invitations ?? []
     },
-    staleTime: 30 * 1000,
+    staleTime: CREDENTIAL_SET_INVITATION_LIST_STALE_TIME,
   })
 }
 
@@ -178,7 +185,7 @@ export function useCredentialSetMembers(credentialSetId?: string) {
       return data.members ?? []
     },
     enabled: Boolean(credentialSetId),
-    staleTime: 30 * 1000,
+    staleTime: CREDENTIAL_SET_MEMBER_LIST_STALE_TIME,
   })
 }
 
@@ -262,7 +269,7 @@ export function useCredentialSetInvitationsDetail(credentialSetId?: string) {
       return (data.invitations ?? []).filter((inv) => inv.status === 'pending')
     },
     enabled: Boolean(credentialSetId),
-    staleTime: 30 * 1000,
+    staleTime: CREDENTIAL_SET_INVITATION_DETAIL_STALE_TIME,
   })
 }
 
