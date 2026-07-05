@@ -8,6 +8,8 @@ export interface WorkspaceMembership {
   ownerId: string | null
   /** All workspace members: the owner plus everyone with a workspace permission. */
   memberUserIds: string[]
+  /** Subset of memberUserIds with admin-level workspace permission (owner + explicit admins). */
+  adminUserIds: Set<string>
 }
 
 /**
@@ -23,18 +25,22 @@ export async function getWorkspaceMembership(workspaceId: string): Promise<Works
       .where(eq(workspace.id, workspaceId))
       .limit(1),
     db
-      .select({ userId: permissions.userId })
+      .select({ userId: permissions.userId, permissionType: permissions.permissionType })
       .from(permissions)
       .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))),
   ])
 
   const ownerId = workspaceRows[0]?.ownerId ?? null
   const memberUserIds = new Set<string>(permissionRows.map((row) => row.userId))
+  const adminUserIds = new Set<string>(
+    permissionRows.filter((row) => row.permissionType === 'admin').map((row) => row.userId)
+  )
   if (ownerId) {
     memberUserIds.add(ownerId)
+    adminUserIds.add(ownerId)
   }
 
-  return { ownerId, memberUserIds: Array.from(memberUserIds) }
+  return { ownerId, memberUserIds: Array.from(memberUserIds), adminUserIds }
 }
 
 export interface WorkspaceEnvKeyAdminAccess {
@@ -122,7 +128,8 @@ export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
 async function ensureWorkspaceCredentialMemberships(
   credentialId: string,
   memberUserIds: string[],
-  invitedBy: string
+  invitedBy: string,
+  adminUserIds: Set<string>
 ) {
   if (!memberUserIds.length) return
 
@@ -151,7 +158,7 @@ async function ensureWorkspaceCredentialMemberships(
     id: generateId(),
     credentialId,
     userId: memberUserId,
-    role: 'member' as const,
+    role: (adminUserIds.has(memberUserId) ? 'admin' : 'member') as 'admin' | 'member',
     status: 'active' as const,
     joinedAt: now,
     invitedBy,
@@ -180,7 +187,7 @@ export async function syncWorkspaceEnvCredentials(params: {
   actingUserId: string
 }) {
   const { workspaceId, envKeys, actingUserId } = params
-  const { ownerId, memberUserIds } = await getWorkspaceMembership(workspaceId)
+  const { ownerId, memberUserIds, adminUserIds } = await getWorkspaceMembership(workspaceId)
 
   if (!ownerId) return
 
@@ -231,7 +238,7 @@ export async function syncWorkspaceEnvCredentials(params: {
   }
 
   for (const credentialId of credentialIdsToEnsureMembership) {
-    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, ownerId)
+    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, ownerId, adminUserIds)
   }
 
   if (normalizedKeys.length > 0) {
@@ -265,7 +272,7 @@ export async function createWorkspaceEnvCredentials(params: {
   const keys = Array.from(new Set(newKeys.filter(Boolean)))
   if (keys.length === 0) return
 
-  const { ownerId, memberUserIds } = await getWorkspaceMembership(workspaceId)
+  const { ownerId, memberUserIds, adminUserIds } = await getWorkspaceMembership(workspaceId)
 
   if (!ownerId) return
 
@@ -297,7 +304,7 @@ export async function createWorkspaceEnvCredentials(params: {
       id: generateId(),
       credentialId,
       userId: memberUserId,
-      role: (memberUserId === actingUserId ? 'admin' : 'member') as 'admin' | 'member',
+      role: (adminUserIds.has(memberUserId) ? 'admin' : 'member') as 'admin' | 'member',
       status: 'active' as const,
       joinedAt: now,
       invitedBy: actingUserId,

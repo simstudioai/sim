@@ -507,7 +507,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const now = new Date()
     const credentialId = generateId()
-    const { ownerId: workspaceOwnerId, memberUserIds: workspaceMemberUserIds } =
+    const { ownerId: workspaceOwnerId, memberUserIds: workspaceMemberUserIds, adminUserIds: workspaceAdminUserIds } =
       await getWorkspaceMembership(workspaceId)
 
     await db.transaction(async (tx) => {
@@ -543,12 +543,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if ((type === 'env_workspace' || type === 'service_account') && workspaceOwnerId) {
         if (workspaceMemberUserIds.length > 0) {
           for (const memberUserId of workspaceMemberUserIds) {
-            const isAdmin = memberUserId === session.user.id
             await tx.insert(credentialMember).values({
               id: generateId(),
               credentialId,
               userId: memberUserId,
-              role: isAdmin ? 'admin' : 'member',
+              role: workspaceAdminUserIds.has(memberUserId) ? 'admin' : 'member',
               status: 'active',
               joinedAt: now,
               invitedBy: session.user.id,
