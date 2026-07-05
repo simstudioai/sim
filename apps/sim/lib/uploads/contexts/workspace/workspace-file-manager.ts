@@ -710,14 +710,26 @@ export async function uploadChatOutput(args: {
   } catch (error) {
     // When the insert never landed, no row references the just-uploaded blob —
     // delete it (best-effort) so it can't orphan in the bucket forever (chat
-    // cleanup iterates DB rows and would never find it).
+    // cleanup iterates DB rows and would never find it). An insert error does
+    // NOT prove the row didn't commit (the ack can be lost on a connection
+    // reset after commit), so verify no row references the key first; if the
+    // check itself fails, prefer an orphaned blob over a broken live file.
     if (blobUploaded && !displayName) {
-      await deleteFile({ key: storageKey, context: 'output' }).catch((cleanupError) => {
-        logger.warn('Failed to clean up orphaned chat output blob', {
-          storageKey,
-          error: getErrorMessage(cleanupError, 'Unknown error'),
+      const rowReferencesBlob = await db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.key, storageKey))
+        .limit(1)
+        .then((rows) => rows.length > 0)
+        .catch(() => true)
+      if (!rowReferencesBlob) {
+        await deleteFile({ key: storageKey, context: 'output' }).catch((cleanupError) => {
+          logger.warn('Failed to clean up orphaned chat output blob', {
+            storageKey,
+            error: getErrorMessage(cleanupError, 'Unknown error'),
+          })
         })
-      })
+      }
     }
     if (error instanceof FileConflictError) {
       throw error

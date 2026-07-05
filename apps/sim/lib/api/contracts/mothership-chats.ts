@@ -182,7 +182,10 @@ const reorderMothershipChatResourcesBodySchema = z.object({
 const removeMothershipChatResourceBodySchema = z.object({
   chatId: z.string().min(1),
   resourceType: z.string().min(1),
-  resourceId: z.string().min(1),
+  // Permissive resourceId (no min) so legacy empty-id rows can still be
+  // deleted — mirrors removeCopilotChatResourceBodySchema, which the shim
+  // route delegates to (hydration cleans those rows up via this contract).
+  resourceId: z.string(),
 })
 
 export const addMothershipChatResourceContract = defineRouteContract({
