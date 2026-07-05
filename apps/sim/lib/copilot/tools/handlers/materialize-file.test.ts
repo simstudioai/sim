@@ -15,6 +15,7 @@ vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/copilot/tools/handlers/chat-file-reader', () => ({
   findMothershipUploadRowByChatAndName: mockFindUpload,
   findChatOutputRowByChatAndName: mockFindOutput,
+  resolveChatUploadRecord: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads', () => ({
@@ -28,6 +29,16 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 
 vi.mock('@/lib/copilot/vfs/path-utils', () => ({
   canonicalWorkspaceFilePath: vi.fn(),
+  // Real (pure) namespace helpers so save's prefix/ambiguity routing runs.
+  isUploadsPath: (p: string) => !!p && p.trim().replace(/^\/+/, '').startsWith('uploads/'),
+  isOutputsPath: (p: string) => !!p && p.trim().replace(/^\/+/, '').startsWith('outputs/'),
+  chatScopedLeafSegment: (p: string, ns: 'uploads' | 'outputs') => {
+    const normalized = p.trim().replace(/^\/+/, '')
+    const prefix = `${ns}/`
+    return normalized.startsWith(prefix)
+      ? (normalized.slice(prefix.length).split('/')[0] ?? '')
+      : ''
+  },
 }))
 
 vi.mock('@/lib/workflows/operations/import-export', () => ({ parseWorkflowJson: vi.fn() }))

@@ -322,13 +322,20 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const kbWorkspaceId: string = targetKb.workspaceId
+          // Chat-scoped refs (uploads/, outputs/, chat wf_ ids) may only feed
+          // KBs in the chat's own workspace — the same boundary open_resource
+          // enforces — so chat-private content can't silently become durable
+          // knowledge in ANOTHER workspace. Workspace files/ refs already
+          // scope to the KB's workspace via the resolver.
+          const chatIdForResolution =
+            context?.chatId && context.workspaceId === kbWorkspaceId ? context.chatId : undefined
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
 
           for (const fileRef of fileRefs) {
             const fileRecord = await resolveToolInputFile({
               workspaceId: kbWorkspaceId,
-              chatId: context?.chatId,
+              chatId: chatIdForResolution,
               path: fileRef,
             })
             if (!fileRecord) {

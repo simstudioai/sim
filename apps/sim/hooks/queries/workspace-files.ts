@@ -56,6 +56,9 @@ export const workspaceFilesKeys = {
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
   chatOutputsAll: () => [...workspaceFilesKeys.all, 'chatOutputs'] as const,
   chatOutputs: (chatId: string) => [...workspaceFilesKeys.chatOutputsAll(), chatId] as const,
+  byIds: () => [...workspaceFilesKeys.all, 'byId'] as const,
+  byId: (workspaceId: string, fileId: string) =>
+    [...workspaceFilesKeys.byIds(), workspaceId, fileId] as const,
 }
 
 /**
@@ -119,7 +122,7 @@ export function useChatOutputs(chatId: string | undefined) {
  */
 export function useWorkspaceFileById(workspaceId: string, fileId: string, enabled: boolean) {
   return useQuery({
-    queryKey: [...workspaceFilesKeys.all, 'byId', workspaceId, fileId] as const,
+    queryKey: workspaceFilesKeys.byId(workspaceId, fileId),
     queryFn: async ({ signal }): Promise<WorkspaceFileRecord | null> => {
       try {
         const data = await requestJson(getWorkspaceFileByIdContract, {

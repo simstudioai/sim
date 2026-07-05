@@ -70,11 +70,15 @@ describe('resolveToolInputFile', () => {
     expect(mockResolveChatUploadRecord).toHaveBeenCalledWith('chat-1', 'ref.jpg')
   })
 
-  it('returns null for chat-scoped paths without a chat', async () => {
+  it('falls through to the workspace resolver for chat-scoped paths without a chat', async () => {
+    // No chat namespace can exist without a chat, so a real workspace folder
+    // literally named uploads/outputs stays addressable by its bare spelling.
     const upload = await resolveToolInputFile({ workspaceId: 'ws-1', path: 'uploads/ref.jpg' })
     const output = await resolveToolInputFile({ workspaceId: 'ws-1', path: 'outputs/gen.png' })
-    expect(upload).toBeNull()
-    expect(output).toBeNull()
+    expect(upload).toBe(WORKSPACE_RECORD)
+    expect(output).toBe(WORKSPACE_RECORD)
+    expect(mockResolveWorkspaceFileRef).toHaveBeenCalledWith('ws-1', 'uploads/ref.jpg')
+    expect(mockResolveWorkspaceFileRef).toHaveBeenCalledWith('ws-1', 'outputs/gen.png')
     expect(mockResolveChatUploadRecord).not.toHaveBeenCalled()
     expect(mockResolveChatOutputRecord).not.toHaveBeenCalled()
   })

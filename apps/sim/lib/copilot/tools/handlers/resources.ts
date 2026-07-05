@@ -53,6 +53,15 @@ async function resolveResource(
       path: fileRef,
     })
     if (!record) return { error: `No file found for "${fileRef}".` }
+    // Chat uploads resolve as tool INPUTS, but no client surface can preview
+    // a context='mothership' row (the by-id preview endpoint deliberately
+    // whitelists workspace + output) — opening one would mint a permanently
+    // broken tab. Steer to materialization instead.
+    if (record.storageContext === 'mothership') {
+      return {
+        error: `"${fileRef}" is a chat upload and cannot be opened as a resource. Materialize it to the workspace first (materialize_file save), then open its files/ path.`,
+      }
+    }
     resourceId = record.id
     title = record.name
     return {

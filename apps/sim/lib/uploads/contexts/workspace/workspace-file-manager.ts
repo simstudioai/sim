@@ -560,26 +560,29 @@ const MAX_CHAT_OUTPUT_NAME_RETRIES = 1000
 export const CHAT_OUTPUT_DISPLAY_NAME_INDEX = 'workspace_files_chat_output_display_name_unique'
 
 /**
- * Whether an active chat-scoped output already uses this VFS name in the chat.
- * Fast-path check only — the `workspace_files_chat_output_display_name_unique`
- * partial index is the real guarantee; a concurrent insert that slips past
- * this SELECT surfaces as a 23505 that {@link uploadChatOutput} retries with
- * the next suffix.
+ * The chat's existing active output display names, read once so suffix
+ * allocation picks a free name in memory instead of one SELECT per candidate.
+ * The `workspace_files_chat_output_display_name_unique` partial index is the
+ * real guarantee — a concurrent racer, or a soft-deleted tombstone this
+ * active-rows read can't see (the index spans the row's whole lifetime),
+ * surfaces as a 23505 that {@link uploadChatOutput} retries past.
  */
-async function chatOutputNameExists(chatId: string, name: string): Promise<boolean> {
+async function listChatOutputNames(chatId: string): Promise<Set<string>> {
   const rows = await db
-    .select({ id: workspaceFiles.id })
+    .select({ displayName: workspaceFiles.displayName })
     .from(workspaceFiles)
     .where(
       and(
         eq(workspaceFiles.chatId, chatId),
         eq(workspaceFiles.context, 'output'),
-        eq(workspaceFiles.displayName, name),
         isNull(workspaceFiles.deletedAt)
       )
     )
-    .limit(1)
-  return rows.length > 0
+  const names = new Set<string>()
+  for (const row of rows) {
+    if (row.displayName) names.add(row.displayName)
+  }
+  return names
 }
 
 /**
@@ -621,6 +624,8 @@ export async function uploadChatOutput(args: {
   // valid) if a name collision below lands the row on a suffixed display name.
   const storageKey = generateWorkspaceFileKey(workspaceId, normalizedFileName)
   const fileId = `wf_${generateShortId()}`
+  let blobUploaded = false
+  let displayName: string | null = null
 
   try {
     // NOTE: do NOT pass `metadata` here. When `uploadFile` receives `metadata` it
@@ -637,14 +642,16 @@ export async function uploadChatOutput(args: {
       preserveKey: true,
       customKey: storageKey,
     })
+    blobUploaded = true
 
-    // Mirrors trackChatUpload: the SELECT in chatOutputNameExists is only a fast
-    // path; the partial unique index arbitrates concurrent generations racing
-    // for the same name, and the loser retries with the next ` (n)` suffix.
-    let displayName: string | null = null
+    // One read of the chat's existing names, then pick the first free suffix
+    // in memory. The partial unique index arbitrates what the read can't see
+    // (concurrent racers, soft-deleted tombstones); the loser advances to the
+    // next ` (n)` suffix — same retry contract as trackChatUpload.
+    const existingNames = await listChatOutputNames(chatId)
     for (let n = 1; n <= MAX_CHAT_OUTPUT_NAME_RETRIES; n++) {
       const candidate = suffixedName(normalizedFileName, n)
-      if (await chatOutputNameExists(chatId, candidate)) {
+      if (existingNames.has(candidate)) {
         continue
       }
       try {
@@ -701,6 +708,17 @@ export async function uploadChatOutput(args: {
       context: 'output',
     }
   } catch (error) {
+    // When the insert never landed, no row references the just-uploaded blob —
+    // delete it (best-effort) so it can't orphan in the bucket forever (chat
+    // cleanup iterates DB rows and would never find it).
+    if (blobUploaded && !displayName) {
+      await deleteFile({ key: storageKey, context: 'output' }).catch((cleanupError) => {
+        logger.warn('Failed to clean up orphaned chat output blob', {
+          storageKey,
+          error: getErrorMessage(cleanupError, 'Unknown error'),
+        })
+      })
+    }
     if (error instanceof FileConflictError) {
       throw error
     }
@@ -731,12 +749,17 @@ function mapWorkspaceFileRecord(
   folderPaths: Map<string, string>
 ): WorkspaceFileRecord {
   const pathPrefix = getServePathPrefix()
+  // Listings only ever map context='workspace' rows, but the by-id preview
+  // path (getPreviewableWorkspaceFile) also maps chat-scoped 'output' rows —
+  // their serve URL and storageContext must carry the row's real context or
+  // downstream download/serve resolves against the wrong storage context.
+  const storageContext = (file.context ?? 'workspace') as WorkspaceFileRecord['storageContext']
   return {
     id: file.id,
     workspaceId: file.workspaceId || workspaceId,
     name: file.originalName,
     key: file.key,
-    path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
+    path: `${pathPrefix}${encodeURIComponent(file.key)}?context=${storageContext}`,
     size: file.size,
     type: file.contentType,
     uploadedBy: file.userId,
@@ -745,6 +768,7 @@ function mapWorkspaceFileRecord(
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
+    storageContext,
   }
 }
 

@@ -151,6 +151,16 @@ const QUEUED_SEND_HANDOFF_CLAIM_TTL_MS = 30_000
 const QUEUED_SEND_HANDOFF_RETRY_BASE_MS = 1000
 const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
 
+/**
+ * A resource is real (persistable, sendable, reorderable) iff it has an id
+ * and isn't the streaming-file placeholder. One predicate for every filter —
+ * legacy empty-id rows and placeholders must be excluded consistently or a
+ * site that admits them poisons sends/reorders.
+ */
+function isPersistedChatResource(resource: { id: string }): boolean {
+  return Boolean(resource.id) && resource.id !== 'streaming-file'
+}
+
 // Stable empty array — sharing one reference keeps the selector from
 // re-rendering on unrelated store writes.
 const EMPTY_MESSAGE_QUEUE: QueuedMothershipMessage[] = []
@@ -1790,13 +1800,29 @@ export function useChat(
       }).catch(() => {})
     }
 
+    // Legacy empty-id rows (persisted before ids were validated) are filtered
+    // out of local state below, which means the reorder route's exact-match
+    // check would 400 forever while they sit in storage — delete them
+    // server-side too (the remove contract keeps a permissive resourceId for
+    // exactly this).
+    const legacyEmptyIdTypes = new Set(
+      chatHistory.resources.filter((r) => !r.id).map((r) => r.type)
+    )
+    for (const resourceType of legacyEmptyIdTypes) {
+      requestJson(removeMothershipChatResourceContract, {
+        body: {
+          chatId: chatHistory.id,
+          resourceType,
+          resourceId: '',
+        },
+      }).catch(() => {})
+    }
+
     flushPendingResources(chatHistory.id)
 
-    // Also drop legacy empty-id rows (persisted before ids were validated) so
-    // they can't re-enter local state and poison sends/reorders.
-    const persistedResources = chatHistory.resources.filter(
-      (r) => r.id && r.id !== 'streaming-file'
-    )
+    // Also drop legacy empty-id rows so they can't re-enter local state and
+    // poison sends/reorders.
+    const persistedResources = chatHistory.resources.filter(isPersistedChatResource)
     const serverKeys = new Set(persistedResources.map((r) => `${r.type}:${r.id}`))
     const localOnly = resourcesRef.current.filter(
       (r) => r.id !== 'streaming-file' && !serverKeys.has(`${r.type}:${r.id}`)
@@ -3245,9 +3271,7 @@ export function useChat(
         const currentActiveId = activeResourceIdRef.current
         // Placeholder/broken tabs (streaming-file, empty id) fail the chat
         // POST's attachment validation server-side — never send them.
-        const currentResources = resourcesRef.current.filter(
-          (r) => r.id && r.id !== 'streaming-file'
-        )
+        const currentResources = resourcesRef.current.filter(isPersistedChatResource)
         const resourceAttachments =
           currentResources.length > 0
             ? currentResources.map((r) => ({
@@ -3332,7 +3356,10 @@ export function useChat(
                 ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
               })
             }
-            return consumedByTranscript
+            // Rolled back ⇒ NOT consumed: a queued dispatch only restores its
+            // queue item when this returns false (the superseded-409 branch
+            // above encodes the same contract).
+            return false
           }
           throw new Error(errorData.error || `Request failed: ${response.status}`)
         }
@@ -3404,11 +3431,13 @@ export function useChat(
           if (succeeded) return consumedByTranscript
         }
 
+        let rolledBack = false
         if (!streamStarted && (gen === undefined || streamGenRef.current === gen)) {
           // The POST itself failed — no server-side stream exists, so undo the
           // optimistic message and the cache's phantom activeStreamId instead
           // of leaving state that later hydrations would try to "reconnect" to.
           rollbackOptimisticSend()
+          rolledBack = true
         }
 
         setError(getErrorMessage(err, 'Failed to send message'))
@@ -3418,7 +3447,8 @@ export function useChat(
             ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
           })
         }
-        return consumedByTranscript
+        // Rolled back ⇒ NOT consumed, so a queued dispatch restores its item.
+        return rolledBack ? false : consumedByTranscript
       }
       return consumedByTranscript
     },

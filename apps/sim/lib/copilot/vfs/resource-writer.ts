@@ -1,6 +1,8 @@
 import {
   canonicalWorkspaceFilePath,
+  chatScopedLeafSegment,
   decodeVfsPathSegments,
+  decodeVfsSegment,
   encodeVfsSegment,
   isOutputsPath,
 } from '@/lib/copilot/vfs/path-utils'
@@ -323,11 +325,19 @@ export async function writeWorkspaceFileByPath(args: {
   // of the workspace. Outputs are flat and write-once (non-editable) — the agent
   // materializes one to `files/` first if it needs to edit it.
   if (isOutputsPath(args.target.path)) {
-    // Outputs are flat (no folders), so collapse to the leaf name.
-    const normalizedTargetPath = args.target.path.trim().replace(/^\/+/, '')
-    const decoded = decodeVfsPathSegments(normalizedTargetPath.slice('outputs/'.length))
-    const leafName = normalizeWorkspaceFileItemName(decoded.at(-1) ?? '', 'File')
-    if (!leafName) {
+    // Outputs are flat: the file is the FIRST segment after the prefix and
+    // trailing segments are ignored — the same rule the readers apply
+    // (chatScopedLeafSegment), so a write is always readable back at its own
+    // path spelling.
+    const rawLeaf = chatScopedLeafSegment(args.target.path, 'outputs')
+    let decodedLeaf = rawLeaf
+    try {
+      decodedLeaf = decodeVfsSegment(rawLeaf)
+    } catch {
+      decodedLeaf = rawLeaf
+    }
+    const leafName = normalizeWorkspaceFileItemName(decodedLeaf, 'File')
+    if (!rawLeaf || !leafName) {
       throw new Error('outputs/ path must include a file name')
     }
 
@@ -337,7 +347,7 @@ export async function writeWorkspaceFileByPath(args: {
     // file (the exact input the interactive branch rejects).
     if (args.target.mode === 'overwrite') {
       throw new Error(
-        'outputs/ files are write-once and cannot be overwritten. Generate a new output, or materialize it to files/ to edit.'
+        'outputs/ files are write-once and cannot be overwritten. Generate a new output, or materialize it to files/ to edit. If you meant a workspace file inside a folder named "outputs", use its files/outputs/… path.'
       )
     }
 

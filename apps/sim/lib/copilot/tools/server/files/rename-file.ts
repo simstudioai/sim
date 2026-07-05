@@ -6,6 +6,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { isOutputsPath, isUploadsPath } from '@/lib/copilot/vfs/path-utils'
 import {
   getWorkspaceFile,
   resolveWorkspaceFileReference,
@@ -53,6 +54,17 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
 
     const nameError = validateFlatWorkspaceFileName(newName)
     if (nameError) return { success: false, message: nameError }
+
+    // Chat-scoped names must stay stable for the model's session — reject
+    // with the policy instead of a misleading "File not found" from the
+    // workspace-only resolver below.
+    if (isOutputsPath(path) || isUploadsPath(path)) {
+      return {
+        success: false,
+        message:
+          'Chat-scoped uploads/ and outputs/ files are read-only and cannot be renamed — materialize the file to files/ first. For a workspace file inside a folder literally named "outputs" or "uploads", use its files/… path.',
+      }
+    }
 
     const existingFile = path
       ? await resolveWorkspaceFileReference(workspaceId, path)

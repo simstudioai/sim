@@ -132,11 +132,10 @@ export async function executeVfsGrep(
         return { success: false, error: `No chat context available for ${chatScopedNamespace}/` }
       }
       // The file is the first segment after the namespace; any trailing segment
-      // (e.g. a /content suffix) is ignored, mirroring the read path.
-      const filename = (rawPath ?? '')
-        .replace(/^\/+/, '')
-        .replace(chatScopedNamespace === 'uploads' ? /^uploads\/?/ : /^outputs\/?/, '')
-        .split('/')[0]
+      // (e.g. a /content suffix) is ignored, mirroring the read path. Bare
+      // namespace paths ('uploads') yield '' here just like the old inline
+      // parser did, hitting the single-file error below.
+      const filename = chatScopedLeafSegment(rawPath ?? '', chatScopedNamespace)
       if (!filename) {
         return {
           success: false,
@@ -271,93 +270,58 @@ export async function executeVfsRead(
       }
     }
 
-    // Handle chat-scoped uploads via the uploads/ virtual prefix.
-    // Uploads are flat and have no metadata/content split like files/ — the upload
-    // IS the first path segment after uploads/. Any trailing segment (e.g. a
-    // /content suffix added out of habit) is ignored so the read resolves either way.
-    if (isUploadsPath(path)) {
+    // Chat-scoped namespaces (uploads/ = user attachments, outputs/ = agent
+    // one-offs) share one read pipeline: both are flat (the file IS the first
+    // segment after the prefix; a trailing /content suffix added out of habit
+    // is ignored) and have no metadata/content split like files/.
+    const readNamespace: 'uploads' | 'outputs' | null = isUploadsPath(path)
+      ? 'uploads'
+      : isOutputsPath(path)
+        ? 'outputs'
+        : null
+    if (readNamespace) {
       if (!context.chatId) {
-        return { success: false, error: 'No chat context available for uploads/' }
+        return { success: false, error: `No chat context available for ${readNamespace}/` }
       }
-      const filename = chatScopedLeafSegment(path, 'uploads')
-      const uploadResult = await readChatUpload(filename, context.chatId)
-      if (uploadResult) {
-        const isAttachment = hasModelAttachment(uploadResult)
+      const noun = readNamespace === 'uploads' ? 'Upload' : 'Output'
+      const filename = chatScopedLeafSegment(path, readNamespace)
+      const readResult =
+        readNamespace === 'uploads'
+          ? await readChatUpload(filename, context.chatId)
+          : await readChatOutput(filename, context.chatId)
+      if (readResult) {
+        const isAttachment = hasModelAttachment(readResult)
         if (
           !isAttachment &&
-          (isOversizedReadPlaceholder(uploadResult.content) ||
-            serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
+          (isOversizedReadPlaceholder(readResult.content) ||
+            serializedResultSize(readResult) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
-          logger.warn('Upload read result too large', {
+          logger.warn(`${noun} read result too large`, {
             path,
             hasAttachment: isAttachment,
-            contentLength: uploadResult.content.length,
-            serializedSize: serializedResultSize(uploadResult),
+            contentLength: readResult.content.length,
+            serializedSize: serializedResultSize(readResult),
           })
           return {
             success: false,
-            error: isOversizedReadPlaceholder(uploadResult.content)
-              ? uploadResult.content
+            error: isOversizedReadPlaceholder(readResult.content)
+              ? readResult.content
               : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
           }
         }
-        const windowedUpload = applyWindow(uploadResult)
-        logger.debug('vfs_read resolved chat upload', {
+        const windowed = applyWindow(readResult)
+        logger.debug(`vfs_read resolved chat ${readNamespace} file`, {
           path,
-          totalLines: uploadResult.totalLines,
+          totalLines: readResult.totalLines,
           hasAttachment: isAttachment,
           offset,
           limit,
         })
-        return { success: true, output: windowedUpload }
+        return { success: true, output: windowed }
       }
       return {
         success: false,
-        error: `Upload not found: ${path}. Use glob("uploads/*") to list available uploads.`,
-      }
-    }
-
-    // Chat-scoped agent outputs via the outputs/ virtual prefix (twin of uploads/).
-    // Flat and read directly; any trailing segment after the leaf is ignored.
-    if (isOutputsPath(path)) {
-      if (!context.chatId) {
-        return { success: false, error: 'No chat context available for outputs/' }
-      }
-      const filename = chatScopedLeafSegment(path, 'outputs')
-      const outputResult = await readChatOutput(filename, context.chatId)
-      if (outputResult) {
-        const isAttachment = hasModelAttachment(outputResult)
-        if (
-          !isAttachment &&
-          (isOversizedReadPlaceholder(outputResult.content) ||
-            serializedResultSize(outputResult) > TOOL_RESULT_MAX_INLINE_CHARS)
-        ) {
-          logger.warn('Output read result too large', {
-            path,
-            hasAttachment: isAttachment,
-            contentLength: outputResult.content.length,
-            serializedSize: serializedResultSize(outputResult),
-          })
-          return {
-            success: false,
-            error: isOversizedReadPlaceholder(outputResult.content)
-              ? outputResult.content
-              : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit.',
-          }
-        }
-        const windowedOutput = applyWindow(outputResult)
-        logger.debug('vfs_read resolved chat output', {
-          path,
-          totalLines: outputResult.totalLines,
-          hasAttachment: isAttachment,
-          offset,
-          limit,
-        })
-        return { success: true, output: windowedOutput }
-      }
-      return {
-        success: false,
-        error: `Output not found: ${path}. Use glob("outputs/*") to list available outputs.`,
+        error: `${noun} not found: ${path}. Use glob("${readNamespace}/*") to list available ${readNamespace}.`,
       }
     }
 

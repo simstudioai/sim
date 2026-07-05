@@ -184,12 +184,9 @@ export const POST = withRouteHandler(
         const maps = { fileIds: idMap, fileKeys: keyMap }
         const newChatResources = rewriteResourceFileRefs(parentResources, maps, chatOwnedFileIds)
         // Skip the redundant update only when the rewrite changed nothing:
-        // no ids re-pointed AND no ghost resources dropped.
-        if (
-          idMap.size > 0 ||
-          keyMap.size > 0 ||
-          newChatResources.length !== parentResources.length
-        ) {
+        // no ids re-pointed AND no ghost resources dropped. (idMap and keyMap
+        // are populated in lockstep, so idMap alone decides the first half.)
+        if (idMap.size > 0 || newChatResources.length !== parentResources.length) {
           await tx
             .update(copilotChats)
             .set({ resources: newChatResources })

@@ -4,9 +4,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { incrementStorageUsage } from '@/lib/billing/storage'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
@@ -111,6 +112,7 @@ export async function planChatFileCopies(params: {
   const idMap = new Map<string, string>()
   const keyMap = new Map<string, string>()
   const blobTasks: ChatBlobCopyTask[] = []
+  const copyRows: (typeof workspaceFiles.$inferInsert)[] = []
 
   for (const row of rows) {
     if (!row.workspaceId) {
@@ -119,7 +121,7 @@ export async function planChatFileCopies(params: {
     }
     const copyId = `wf_${generateShortId()}`
     const targetKey = generateWorkspaceFileKey(row.workspaceId, row.originalName)
-    await tx.insert(workspaceFiles).values({
+    copyRows.push({
       ...row,
       id: copyId,
       key: targetKey,
@@ -139,6 +141,12 @@ export async function planChatFileCopies(params: {
       fileName: row.originalName,
       contentType: row.contentType,
     })
+  }
+
+  // Ids and keys are generated client-side, so one multi-row insert suffices —
+  // no per-row round trips while the fork transaction is held open.
+  if (copyRows.length > 0) {
+    await tx.insert(workspaceFiles).values(copyRows)
   }
 
   return { idMap, keyMap, blobTasks }
@@ -165,16 +173,11 @@ export async function executeChatFileBlobCopies(
 
   const copyOne = async (task: ChatBlobCopyTask): Promise<void> => {
     try {
-      // Replay guard (mirrors the workspace-fork copy): target keys are freshly
-      // generated per fork, so an existing object can only mean an earlier
-      // attempt already landed this exact copy. Skip without incrementing — a
-      // replay must never double-charge. `headObject` returns null on local
-      // storage, where the copy is simply repeated (same bytes to the same key).
-      const existing = await headObject(task.targetKey, task.context)
-      if (existing) {
-        copied += 1
-        return
-      }
+      // No replay guard here, unlike the workspace-fork copy this is modeled
+      // on: that path persists its task list in a trigger.dev job payload
+      // (replayable), while these tasks exist only in this request's memory
+      // and target keys are freshly minted per request — a HEAD check could
+      // never find an earlier attempt's object.
       const buffer = await downloadFile({
         key: task.sourceKey,
         context: task.context,
@@ -216,18 +219,7 @@ export async function executeChatFileBlobCopies(
     }
   }
 
-  let nextIndex = 0
-  const workers = Array.from(
-    { length: Math.min(CHAT_BLOB_COPY_CONCURRENCY, blobTasks.length) },
-    async () => {
-      while (nextIndex < blobTasks.length) {
-        const task = blobTasks[nextIndex]
-        nextIndex += 1
-        await copyOne(task)
-      }
-    }
-  )
-  await Promise.all(workers)
+  await mapWithConcurrency(blobTasks, CHAT_BLOB_COPY_CONCURRENCY, copyOne)
 
   return { copied, failed: failedCopyIds.length, failedCopyIds }
 }

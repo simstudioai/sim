@@ -592,23 +592,29 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath, chatId }: Embedded
     router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(file?.id ?? fileId)}`)
   }
 
+  // The Files page lists only context='workspace' rows — navigating a
+  // chat-scoped output there dead-ends on the plain list, so hide the action.
+  const canOpenInFiles = !file?.storageContext || file.storageContext === 'workspace'
+
   return (
     <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenInFiles}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open in files'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open in files</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      {canOpenInFiles && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='subtle'
+              onClick={handleOpenInFiles}
+              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+              aria-label='Open in files'
+            >
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open in files</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button

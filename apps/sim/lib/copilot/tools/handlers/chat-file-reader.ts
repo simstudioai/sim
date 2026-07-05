@@ -113,12 +113,26 @@ async function findChatFileRowByChatAndName(
   chatId: string,
   fileName: string
 ): Promise<ChatFileRow | null> {
-  const nameMatch: SQL | undefined = ns.legacyOriginalNameFallback
-    ? or(
-        eq(workspaceFiles.displayName, fileName),
-        and(isNull(workspaceFiles.displayName), eq(workspaceFiles.originalName, fileName))
-      )
-    : eq(workspaceFiles.displayName, fileName)
+  // Glob emits percent-encoded segments and the model passes them back
+  // verbatim, while rows store the raw display name — try the decoded
+  // spelling in the same indexed query so encoded names don't deterministically
+  // fall through to the full-namespace scan below.
+  let decodedName = fileName
+  try {
+    decodedName = decodeVfsSegment(fileName)
+  } catch {
+    decodedName = fileName
+  }
+  const nameCandidates = decodedName === fileName ? [fileName] : [fileName, decodedName]
+  const nameClauses = nameCandidates.flatMap((name) => {
+    const clauses: SQL[] = [eq(workspaceFiles.displayName, name)]
+    if (ns.legacyOriginalNameFallback) {
+      const legacy = and(isNull(workspaceFiles.displayName), eq(workspaceFiles.originalName, name))
+      if (legacy) clauses.push(legacy)
+    }
+    return clauses
+  })
+  const nameMatch: SQL | undefined = nameClauses.length === 1 ? nameClauses[0] : or(...nameClauses)
 
   const exactRows = await db
     .select()

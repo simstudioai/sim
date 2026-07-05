@@ -208,7 +208,7 @@ describe('executeOpenResource', () => {
     })
   })
 
-  it('opens a chat-scoped upload referenced by bare wf_ id with an uploads/ resource path', async () => {
+  it('rejects chat uploads (no client surface can preview mothership rows)', async () => {
     resolveToolInputFileMock.mockResolvedValue({
       id: 'wf_up',
       name: 'ref.jpg',
@@ -227,9 +227,9 @@ describe('executeOpenResource', () => {
       }
     )
 
-    expect(result).toMatchObject({
-      success: true,
-      resources: [{ type: 'file', id: 'wf_up', title: 'ref.jpg', path: 'uploads/ref.jpg' }],
-    })
+    expect(result).toMatchObject({ success: false })
+    expect((result.output as { errors: string[] }).errors[0]).toContain(
+      'chat upload and cannot be opened as a resource'
+    )
   })
 })

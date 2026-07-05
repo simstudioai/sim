@@ -93,10 +93,9 @@ export function useAvailableResources(
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
     // Merge workspace files with this chat's outputs, deduped by id (a materialized
     // output becomes a workspace file with the same id, so it must not appear twice).
+    const fileIds = new Set(files.map((f) => f.id))
     const fileList =
-      chatOutputs.length > 0
-        ? [...files, ...chatOutputs.filter((o) => !files.some((f) => f.id === o.id))]
-        : files
+      chatOutputs.length > 0 ? [...files, ...chatOutputs.filter((o) => !fileIds.has(o.id))] : files
     const groups: AvailableItemsByType[] = [
       {
         type: 'workflow' as const,

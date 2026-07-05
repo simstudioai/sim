@@ -9,9 +9,14 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import {
   findChatOutputRowByChatAndName,
   findMothershipUploadRowByChatAndName,
+  resolveChatUploadRecord,
 } from '@/lib/copilot/tools/handlers/chat-file-reader'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { getServePathPrefix } from '@/lib/uploads'
+import {
+  canonicalWorkspaceFilePath,
+  chatScopedLeafSegment,
+  isOutputsPath,
+  isUploadsPath,
+} from '@/lib/copilot/vfs/path-utils'
 import {
   allocateUniqueWorkspaceFileName,
   fetchWorkspaceFileBuffer,
@@ -23,32 +28,37 @@ import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('MaterializeFile')
 
-function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
-  const pathPrefix = getServePathPrefix()
-  return {
-    id: row.id,
-    workspaceId: row.workspaceId || '',
-    name: row.displayName ?? row.originalName,
-    key: row.key,
-    path: `${pathPrefix}${encodeURIComponent(row.key)}?context=mothership`,
-    size: row.size,
-    type: row.contentType,
-    uploadedBy: row.userId,
-    deletedAt: row.deletedAt,
-    uploadedAt: row.uploadedAt,
-    updatedAt: row.updatedAt,
-    storageContext: 'mothership' as const,
-  }
-}
-
 async function executeSave(fileName: string, chatId: string): Promise<ToolCallResult> {
   // `save` promotes a chat-scoped file into the permanent workspace. The source is
   // either a user upload (`uploads/`, context 'mothership') or an agent-generated
   // one-off output (`outputs/`, context 'output') — both live in workspace_files and
   // promote identically (flip context to 'workspace', detach from the chat).
-  const row =
-    (await findMothershipUploadRowByChatAndName(chatId, fileName)) ??
-    (await findChatOutputRowByChatAndName(chatId, fileName))
+  //
+  // The two are independent per-chat namespaces (separate unique indexes), so
+  // one chat can hold BOTH uploads/report.png and outputs/report.png. A
+  // namespaced spelling targets one explicitly; a bare name that exists in
+  // both is ambiguous and errors rather than silently promoting one.
+  let row: typeof workspaceFiles.$inferSelect | null
+  if (isUploadsPath(fileName)) {
+    row = await findMothershipUploadRowByChatAndName(
+      chatId,
+      chatScopedLeafSegment(fileName, 'uploads')
+    )
+  } else if (isOutputsPath(fileName)) {
+    row = await findChatOutputRowByChatAndName(chatId, chatScopedLeafSegment(fileName, 'outputs'))
+  } else {
+    const [uploadRow, outputRow] = await Promise.all([
+      findMothershipUploadRowByChatAndName(chatId, fileName),
+      findChatOutputRowByChatAndName(chatId, fileName),
+    ])
+    if (uploadRow && outputRow) {
+      return {
+        success: false,
+        error: `"${fileName}" exists as both a chat upload and a generated output. Specify which to save: "uploads/${fileName}" or "outputs/${fileName}".`,
+      }
+    }
+    row = uploadRow ?? outputRow
+  }
   if (!row) {
     return {
       success: false,
@@ -119,15 +129,15 @@ async function executeImport(
   workspaceId: string,
   userId: string
 ): Promise<ToolCallResult> {
-  const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
-  if (!row) {
+  const record = await resolveChatUploadRecord(chatId, fileName)
+  if (!record) {
     return {
       success: false,
       error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
     }
   }
 
-  const buffer = await fetchWorkspaceFileBuffer(toFileRecord(row))
+  const buffer = await fetchWorkspaceFileBuffer(record)
   const content = buffer.toString('utf-8')
 
   let parsed: unknown

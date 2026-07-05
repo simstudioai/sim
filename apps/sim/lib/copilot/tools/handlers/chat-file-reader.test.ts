@@ -23,7 +23,7 @@ import {
   readChatOutput,
   readChatUpload,
   resolveChatFileRecordById,
-} from './chat-file-reader'
+} from '@/lib/copilot/tools/handlers/chat-file-reader'
 
 const CHAT_ID = '11111111-1111-1111-1111-111111111111'
 const NOW = new Date('2026-05-05T00:00:00.000Z')
