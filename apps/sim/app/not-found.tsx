@@ -1,5 +1,5 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { LogoShell } from '@/app/(landing)/components'
 
 export const metadata: Metadata = {
@@ -17,12 +17,9 @@ export default function NotFound() {
         <p className='text-[var(--text-muted)] text-lg'>
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
-        <Link
-          href='/'
-          className='mt-3 inline-flex h-[40px] items-center rounded-[5px] bg-[var(--surface-inverted)] px-5 text-sm text-white transition-colors hover:bg-[var(--surface-inverted-hover)]'
-        >
+        <ChipLink variant='primary' href='/' className='mt-3'>
           Return home
-        </Link>
+        </ChipLink>
       </div>
     </LogoShell>
   )
