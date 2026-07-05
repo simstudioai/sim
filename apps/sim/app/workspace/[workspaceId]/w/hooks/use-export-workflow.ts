@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import {
@@ -17,6 +16,10 @@ const logger = createLogger('useExportWorkflow')
 
 interface UseExportWorkflowProps {
   /**
+   * Active workspace id
+   */
+  workspaceId: string | undefined
+  /**
    * Optional callback after successful export
    */
   onSuccess?: () => void
@@ -25,10 +28,8 @@ interface UseExportWorkflowProps {
 /**
  * Hook for managing workflow export to JSON or ZIP.
  */
-export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
+export function useExportWorkflow({ workspaceId, onSuccess }: UseExportWorkflowProps) {
   const [isExporting, setIsExporting] = useState(false)
-  const params = useParams()
-  const workspaceId = params.workspaceId as string | undefined
   const posthog = usePostHog()
 
   const onSuccessRef = useRef(onSuccess)
