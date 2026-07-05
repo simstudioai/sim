@@ -9,6 +9,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import {
   findChatOutputRowByChatAndName,
   findMothershipUploadRowByChatAndName,
+  resolveChatOutputRecord,
   resolveChatUploadRecord,
 } from '@/lib/copilot/tools/handlers/chat-file-reader'
 import {
@@ -129,11 +130,31 @@ async function executeImport(
   workspaceId: string,
   userId: string
 ): Promise<ToolCallResult> {
-  const record = await resolveChatUploadRecord(chatId, fileName)
+  // Same namespace routing as save: agent-generated workflow JSON lives in
+  // outputs/ just as legitimately as user uploads live in uploads/, and a
+  // bare name colliding across both is ambiguous rather than uploads-wins.
+  let record: Awaited<ReturnType<typeof resolveChatUploadRecord>>
+  if (isUploadsPath(fileName)) {
+    record = await resolveChatUploadRecord(chatId, chatScopedLeafSegment(fileName, 'uploads'))
+  } else if (isOutputsPath(fileName)) {
+    record = await resolveChatOutputRecord(chatId, chatScopedLeafSegment(fileName, 'outputs'))
+  } else {
+    const [uploadRecord, outputRecord] = await Promise.all([
+      resolveChatUploadRecord(chatId, fileName),
+      resolveChatOutputRecord(chatId, fileName),
+    ])
+    if (uploadRecord && outputRecord) {
+      return {
+        success: false,
+        error: `"${fileName}" exists as both a chat upload and a generated output. Specify which to import: "uploads/${fileName}" or "outputs/${fileName}".`,
+      }
+    }
+    record = uploadRecord ?? outputRecord
+  }
   if (!record) {
     return {
       success: false,
-      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
+      error: `File not found: "${fileName}". Use glob("uploads/*") or glob("outputs/*") to list available chat files.`,
     }
   }
 

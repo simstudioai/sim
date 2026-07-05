@@ -16,6 +16,7 @@ vi.mock('@/lib/copilot/tools/handlers/chat-file-reader', () => ({
   findMothershipUploadRowByChatAndName: mockFindUpload,
   findChatOutputRowByChatAndName: mockFindOutput,
   resolveChatUploadRecord: vi.fn(),
+  resolveChatOutputRecord: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads', () => ({
