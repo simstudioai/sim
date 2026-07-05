@@ -6,6 +6,9 @@ import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSetDetail } from '@/hooks/queries/credential-sets'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 
+export const OAUTH_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
+export const OAUTH_CREDENTIAL_DETAIL_STALE_TIME = 60 * 1000
+
 export const oauthCredentialKeys = {
   all: ['oauthCredentials'] as const,
   lists: () => [...oauthCredentialKeys.all, 'list'] as const,
@@ -102,7 +105,7 @@ export function useOAuthCredentials(
         signal
       ),
     enabled: Boolean(providerId) && enabled,
-    staleTime: 60 * 1000,
+    staleTime: OAUTH_CREDENTIAL_LIST_STALE_TIME,
   })
 }
 
@@ -115,7 +118,7 @@ export function useOAuthCredentialDetail(
     queryKey: oauthCredentialKeys.detail(credentialId, workflowId),
     queryFn: ({ signal }) => fetchOAuthCredentialDetail(credentialId ?? '', workflowId, signal),
     enabled: Boolean(credentialId) && enabled,
-    staleTime: 60 * 1000,
+    staleTime: OAUTH_CREDENTIAL_DETAIL_STALE_TIME,
   })
 }
 

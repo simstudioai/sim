@@ -16,6 +16,8 @@ import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 export type { WorkspaceFileFolderApi }
 
+export const WORKSPACE_FILE_FOLDERS_STALE_TIME = 30 * 1000
+
 export const workspaceFileFolderKeys = {
   all: ['workspaceFileFolders'] as const,
   lists: () => [...workspaceFileFolderKeys.all, 'list'] as const,
@@ -55,7 +57,7 @@ export function useWorkspaceFileFolders(
     queryKey: workspaceFileFolderKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchWorkspaceFileFolders(workspaceId, scope, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

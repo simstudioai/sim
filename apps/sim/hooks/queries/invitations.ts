@@ -21,6 +21,8 @@ export const invitationKeys = {
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
 }
 
+export const WORKSPACE_INVITATION_LIST_STALE_TIME = 30 * 1000
+
 export interface WorkspaceInvitation {
   email: string
   permissionType: 'admin' | 'write' | 'read'
@@ -61,7 +63,7 @@ export function usePendingInvitations(workspaceId: string | undefined) {
     queryKey: invitationKeys.list(workspaceId ?? ''),
     queryFn: ({ signal }) => fetchPendingInvitations(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_INVITATION_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

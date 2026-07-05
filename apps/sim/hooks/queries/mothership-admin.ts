@@ -70,6 +70,12 @@ async function byokFetch(url: string, init?: RequestInit) {
   return res.json()
 }
 
+export const MOTHERSHIP_BYOK_STALE_TIME = 30 * 1000
+export const MOTHERSHIP_REQUESTS_STALE_TIME = 60 * 1000
+export const MOTHERSHIP_USER_BREAKDOWN_STALE_TIME = 60 * 1000
+export const MOTHERSHIP_LICENSE_LIST_STALE_TIME = 60 * 1000
+export const MOTHERSHIP_LICENSE_DETAIL_STALE_TIME = 60 * 1000
+
 export const mothershipKeys = {
   all: ['mothership-admin'] as const,
   requests: (env: MothershipEnv, start: string, end: string, userId?: string) =>
@@ -97,7 +103,7 @@ export function useMothershipByokKeys(workspaceId: string) {
     queryFn: ({ signal }) =>
       byokFetch(`${BYOK_BASE}?workspaceId=${encodeURIComponent(workspaceId)}`, { signal }),
     enabled: !!workspaceId,
-    staleTime: 30 * 1000,
+    staleTime: MOTHERSHIP_BYOK_STALE_TIME,
   })
 }
 
@@ -153,7 +159,7 @@ export function useMothershipRequests(
         signal
       ),
     enabled: !!start && !!end,
-    staleTime: 60 * 1000,
+    staleTime: MOTHERSHIP_REQUESTS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -163,7 +169,7 @@ export function useMothershipUserBreakdown(environment: MothershipEnv, start: st
     queryKey: mothershipKeys.userBreakdown(environment, start, end),
     queryFn: ({ signal }) => mothershipPost('user-breakdown', environment, { start, end }, signal),
     enabled: !!start && !!end,
-    staleTime: 60 * 1000,
+    staleTime: MOTHERSHIP_USER_BREAKDOWN_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -172,7 +178,7 @@ export function useMothershipLicenses(environment: MothershipEnv) {
   return useQuery({
     queryKey: mothershipKeys.licenses(environment),
     queryFn: ({ signal }) => mothershipGet('licenses', environment, undefined, signal),
-    staleTime: 60 * 1000,
+    staleTime: MOTHERSHIP_LICENSE_LIST_STALE_TIME,
   })
 }
 
@@ -194,7 +200,7 @@ export function useMothershipLicenseDetails(
         signal
       ),
     enabled: !!(id || name),
-    staleTime: 60 * 1000,
+    staleTime: MOTHERSHIP_LICENSE_DETAIL_STALE_TIME,
   })
 }
 

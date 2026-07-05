@@ -41,6 +41,11 @@ const logger = createLogger('McpQueries')
 
 export type { McpServerStatusConfig, McpTool, StoredMcpTool }
 
+export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
+export const MCP_SERVER_TOOLS_STALE_TIME = 30 * 1000
+export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
+export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
+
 export const mcpKeys = {
   all: ['mcp'] as const,
   servers: () => [...mcpKeys.all, 'servers'] as const,
@@ -91,7 +96,7 @@ export function useMcpServers(workspaceId: string) {
     queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
     enabled: !!workspaceId,
     retry: false,
-    staleTime: 60 * 1000,
+    staleTime: MCP_SERVER_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -147,7 +152,7 @@ export function useMcpToolsQuery(workspaceId: string) {
         fetchMcpTools(workspaceId, false, signal, serverId),
       enabled: !!workspaceId,
       retry: false,
-      staleTime: 30 * 1000,
+      staleTime: MCP_SERVER_TOOLS_STALE_TIME,
       refetchOnWindowFocus: false,
     })),
   })
@@ -441,7 +446,7 @@ export function useStoredMcpTools(workspaceId: string) {
     queryKey: mcpKeys.storedToolsList(workspaceId),
     queryFn: ({ signal }) => fetchStoredMcpTools(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000,
+    staleTime: MCP_STORED_TOOL_LIST_STALE_TIME,
   })
 }
 
@@ -595,6 +600,6 @@ export function useAllowedMcpDomains() {
   return useQuery<string[] | null>({
     queryKey: mcpKeys.allowedDomains(),
     queryFn: ({ signal }) => fetchAllowedMcpDomains(signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: MCP_ALLOWED_DOMAINS_STALE_TIME,
   })
 }
