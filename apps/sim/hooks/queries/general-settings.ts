@@ -21,6 +21,8 @@ export const generalSettingsKeys = {
   settings: () => [...generalSettingsKeys.all, 'settings'] as const,
 }
 
+export const GENERAL_SETTINGS_STALE_TIME = 60 * 60 * 1000
+
 /**
  * General settings type
  */
@@ -79,7 +81,7 @@ export function useGeneralSettings() {
       syncThemeToNextThemes(settings.theme)
       return settings
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }
 
@@ -95,7 +97,7 @@ export function prefetchGeneralSettings(queryClient: QueryClient) {
       syncThemeToNextThemes(settings.theme)
       return settings
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }
 

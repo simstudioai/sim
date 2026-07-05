@@ -2,8 +2,14 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { WorkspaceFileFolderApi } from '@/lib/api/contracts/workspace-file-folders'
 import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-files'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import {
+  WORKSPACE_FILE_FOLDERS_STALE_TIME,
+  workspaceFileFolderKeys,
+} from '@/hooks/queries/workspace-file-folders'
+import {
+  WORKSPACE_FILES_LIST_STALE_TIME,
+  workspaceFilesKeys,
+} from '@/hooks/queries/workspace-files'
 
 /**
  * Prefetches the Files browser's two lists — workspace files and file folders —
@@ -27,7 +33,7 @@ export async function prefetchFilesBrowser(
         )
         return data.success ? data.files : []
       },
-      staleTime: 30 * 1000,
+      staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({
       queryKey: workspaceFileFolderKeys.list(workspaceId, 'active'),
@@ -37,7 +43,7 @@ export async function prefetchFilesBrowser(
         )
         return data.folders ?? []
       },
-      staleTime: 30 * 1000,
+      staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
   ])
 }

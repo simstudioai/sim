@@ -1,12 +1,18 @@
 'use client'
 
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, type RefObject, useContext, useMemo } from 'react'
 
 interface SidebarListContextValue {
   /** Whether any drag operation is currently in progress */
   isAnyDragActive: boolean
   /** Whether item dragging is disabled (e.g. viewer permissions) */
   dragDisabled: boolean
+  /**
+   * Live id of the workflow open in the URL, held in a ref so rows read it at
+   * click/delete time without subscribing to `useParams` — which would re-render
+   * every row on each tab navigation and defeat their memoization.
+   */
+  activeWorkflowIdRef: RefObject<string | undefined>
   /** Selects a workflow on click (single or shift-range selection) */
   onWorkflowClick: (workflowId: string, shiftKey: boolean) => void
   /** Selects a folder on modifier-click (shift-range or cmd/ctrl-toggle selection) */
@@ -18,6 +24,7 @@ interface SidebarListContextValue {
 }
 
 const noop = () => {}
+const noopActiveWorkflowIdRef: RefObject<string | undefined> = { current: undefined }
 
 /**
  * Context for sharing list-item interaction handlers and drag state across
@@ -27,6 +34,7 @@ const noop = () => {}
 export const SidebarListContext = createContext<SidebarListContextValue>({
   isAnyDragActive: false,
   dragDisabled: false,
+  activeWorkflowIdRef: noopActiveWorkflowIdRef,
   onWorkflowClick: noop,
   onFolderClick: noop,
   onItemDragStart: noop,
@@ -55,6 +63,7 @@ export function useSidebarListContextValue(
   const {
     isAnyDragActive,
     dragDisabled,
+    activeWorkflowIdRef,
     onWorkflowClick,
     onFolderClick,
     onItemDragStart,
@@ -65,11 +74,20 @@ export function useSidebarListContextValue(
     () => ({
       isAnyDragActive,
       dragDisabled,
+      activeWorkflowIdRef,
       onWorkflowClick,
       onFolderClick,
       onItemDragStart,
       onItemDragEnd,
     }),
-    [isAnyDragActive, dragDisabled, onWorkflowClick, onFolderClick, onItemDragStart, onItemDragEnd]
+    [
+      isAnyDragActive,
+      dragDisabled,
+      activeWorkflowIdRef,
+      onWorkflowClick,
+      onFolderClick,
+      onItemDragStart,
+      onItemDragEnd,
+    ]
   )
 }

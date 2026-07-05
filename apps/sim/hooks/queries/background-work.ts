@@ -11,6 +11,8 @@ export const backgroundWorkKeys = {
   list: (workspaceId?: string) => [...backgroundWorkKeys.lists(), workspaceId ?? ''] as const,
 }
 
+export const BACKGROUND_WORK_STALE_TIME = 5_000
+
 async function fetchWorkspaceBackgroundWork(
   workspaceId: string,
   signal?: AbortSignal
@@ -36,7 +38,7 @@ export function useWorkspaceBackgroundWork(workspaceId?: string) {
     queryKey: backgroundWorkKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceBackgroundWork(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 5_000,
+    staleTime: BACKGROUND_WORK_STALE_TIME,
     refetchInterval: (query) => ((query.state.data ?? []).some(isActive) ? 5_000 : false),
     refetchOnWindowFocus: true,
   })

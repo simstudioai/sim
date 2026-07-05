@@ -35,13 +35,18 @@ export const forkKeys = {
   resources: (workspaceId?: string) => [...forkKeys.resourcesAll(), workspaceId ?? ''] as const,
 }
 
+export const WORKSPACE_FORK_RESOURCES_STALE_TIME = 30 * 1000
+export const WORKSPACE_FORK_LINEAGE_STALE_TIME = 30 * 1000
+export const WORKSPACE_FORK_MAPPING_STALE_TIME = 15 * 1000
+export const WORKSPACE_FORK_DIFF_STALE_TIME = 10 * 1000
+
 export function useForkResources(workspaceId?: string, enabled = true) {
   return useQuery({
     queryKey: forkKeys.resources(workspaceId),
     queryFn: ({ signal }) =>
       requestJson(getForkResourcesContract, { params: { id: workspaceId as string }, signal }),
     enabled: Boolean(workspaceId) && enabled,
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FORK_RESOURCES_STALE_TIME,
   })
 }
 
@@ -51,7 +56,7 @@ export function useForkLineage(workspaceId?: string, enabled = true) {
     queryFn: ({ signal }) =>
       requestJson(getForkLineageContract, { params: { id: workspaceId as string }, signal }),
     enabled: Boolean(workspaceId) && enabled,
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FORK_LINEAGE_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -100,7 +105,7 @@ export function useForkMapping(args: {
         signal,
       }),
     enabled: Boolean(args.workspaceId && args.otherWorkspaceId) && (args.enabled ?? true),
-    staleTime: 15 * 1000,
+    staleTime: WORKSPACE_FORK_MAPPING_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -132,7 +137,7 @@ export function useForkDiff(args: {
         signal,
       }),
     enabled: Boolean(args.workspaceId && args.otherWorkspaceId) && (args.enabled ?? true),
-    staleTime: 10 * 1000,
+    staleTime: WORKSPACE_FORK_DIFF_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
