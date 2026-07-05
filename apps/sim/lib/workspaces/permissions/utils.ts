@@ -388,18 +388,12 @@ export interface WorkspacePermissionsForViewer {
 
 /**
  * Builds the workspace permissions payload for a viewer: the full member list plus
- * the viewer's own resolved permission. Returns `null` when the workspace doesn't
- * exist or the viewer lacks access, mirroring the 404 branch in the permissions
- * route. Shared by `GET /api/workspaces/[id]/permissions` and the sidebar prefetch
- * so the two never drift.
- *
- * Resolves the workspace and the viewer's effective permission once — `checkWorkspaceAccess`,
- * `hasWorkspaceAdminAccess`, and `getUserEntityPermissions` each independently re-derive the
- * same `getWorkspaceWithOwner` + `getEffectiveWorkspacePermission` pair, which would triple
- * the DB round-trips for what is logically one permission lookup.
+ * the viewer's own resolved permission. Shared by `GET /api/workspaces/[id]/permissions`
+ * and the sidebar prefetch so the two never drift.
  *
  * @param workspaceId - The workspace ID to build permissions for
  * @param userId - The viewer's user ID
+ * @returns The permissions payload, or `null` if the workspace doesn't exist or the viewer lacks access
  */
 export async function getWorkspacePermissionsForViewer(
   workspaceId: string,
