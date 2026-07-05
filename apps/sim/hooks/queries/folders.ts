@@ -69,7 +69,7 @@ export function useFolders(workspaceId?: string, options?: { scope?: FolderQuery
     queryFn: ({ signal }) => fetchFolders(workspaceId as string, scope, signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
-    staleTime: 60 * 1000,
+    staleTime: FOLDER_LIST_STALE_TIME,
   })
 }
 
@@ -82,7 +82,7 @@ export function useFolderMap(workspaceId?: string) {
     queryFn: ({ signal }) => fetchFolders(workspaceId as string, 'active', signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
-    staleTime: 60 * 1000,
+    staleTime: FOLDER_LIST_STALE_TIME,
     select: selectFolderMap,
   })
 }
