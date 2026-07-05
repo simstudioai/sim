@@ -14,7 +14,7 @@ function toFolderApi(row: typeof workflowFolder.$inferSelect): FolderApi {
   }
 }
 
-/** Mirrors the query in `app/api/folders/route.ts` GET handler for server-side (non-HTTP) callers. */
+/** Shared by `GET /api/folders` and the sidebar prefetch so the query never drifts between them. */
 export async function listFoldersForWorkspace(
   workspaceId: string,
   scope: FolderQueryScope

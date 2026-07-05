@@ -393,6 +393,11 @@ export interface WorkspacePermissionsForViewer {
  * route. Shared by `GET /api/workspaces/[id]/permissions` and the sidebar prefetch
  * so the two never drift.
  *
+ * Resolves the workspace and the viewer's effective permission once — `checkWorkspaceAccess`,
+ * `hasWorkspaceAdminAccess`, and `getUserEntityPermissions` each independently re-derive the
+ * same `getWorkspaceWithOwner` + `getEffectiveWorkspacePermission` pair, which would triple
+ * the DB round-trips for what is logically one permission lookup.
+ *
  * @param workspaceId - The workspace ID to build permissions for
  * @param userId - The viewer's user ID
  */
@@ -400,21 +405,18 @@ export async function getWorkspacePermissionsForViewer(
   workspaceId: string,
   userId: string
 ): Promise<WorkspacePermissionsForViewer | null> {
-  const isAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
-  const access = await checkWorkspaceAccess(workspaceId, userId)
+  const ws = await getWorkspaceWithOwner(workspaceId)
+  if (!ws) return null
 
-  if (!access.exists || (!isAdmin && !access.hasAccess)) {
-    return null
-  }
+  const permission = await getEffectiveWorkspacePermission(userId, ws)
+  if (permission === null) return null
 
-  const explicitPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-  const viewerPermissionType: PermissionType = isAdmin ? 'admin' : (explicitPermission ?? 'read')
   const users = await getUsersWithPermissions(workspaceId)
 
   return {
     users,
     total: users.length,
-    viewer: { userId, isAdmin, permissionType: viewerPermissionType },
+    viewer: { userId, isAdmin: permission === 'admin', permissionType: permission },
   }
 }
 
