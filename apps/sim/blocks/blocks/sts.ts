@@ -356,7 +356,7 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
     durationSeconds: { type: 'string', description: 'Session duration in seconds' },
     policy: { type: 'string', description: 'JSON IAM session policy to restrict permissions' },
     policyArns: { type: 'string', description: 'Comma-separated managed policy ARNs' },
-    tags: { type: 'json', description: 'Session tags (Key/Value pairs) for ABAC' },
+    tags: { type: 'string', description: 'Session tags (Key/Value pairs) for ABAC' },
     transitiveTagKeys: {
       type: 'string',
       description: 'Comma-separated tag keys that propagate through role chaining',
