@@ -19,7 +19,7 @@ export const stackaiProfile: CompetitorProfile = {
     {
       title: 'ISO 27001 certified, with a public Trust Center detailing pen tests and DPAs',
       description:
-        'StackAI publishes a Trust Center (trust.stackai.com) documenting ISO 27001 certification (alongside its SOC 2 Type II audit), third-party penetration test results, and DPAs with OpenAI and Anthropic.',
+        'StackAI publishes a Trust Center (trust.stackai.com) documenting ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic. StackAI also holds a SOC 2 Type II audit, but so does Sim, so ISO 27001 is the actual point of difference here.',
       shortDescription: 'Public Trust Center with ISO 27001, pen test results, and DPAs.',
       source: {
         url: 'https://trust.stackai.com/',

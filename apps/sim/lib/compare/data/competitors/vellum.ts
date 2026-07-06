@@ -74,11 +74,12 @@ export const vellumProfile: CompetitorProfile = {
     {
       title: 'No native spreadsheet-style data tables',
       description:
-        'Vellum has no native, spreadsheet-like data-table feature with persistent rows/columns, keyboard navigation, or per-row writes from workflows. Its only tabular-data handling is uploading CSV/XLS files and extracting or generating structured output within workflow nodes, unlike Sim, which has a built-in Tables feature.',
-      shortDescription: 'No built-in table/spreadsheet feature; CSV upload and extraction only.',
+        'No Vellum documentation describes a native, spreadsheet-like data-table object with persistent rows/columns, keyboard navigation, or per-row writes from workflows; the closest documented tabular handling is uploading CSV/XLS files and extracting or generating structured output within workflow nodes, unlike Sim, which has a built-in Tables feature.',
+      shortDescription: 'No documented table/spreadsheet feature; CSV upload and extraction only.',
       source: {
         url: 'https://docs.vellum.ai/developers/workflows-sdk/tutorials/document-data-extraction',
-        label: 'Document Data Extraction - Vellum Documentation',
+        label:
+          'Vellum Docs: Document Data Extraction tutorial (the closest documented tabular-data handling)',
         asOf: '2026-07-02',
       },
     },

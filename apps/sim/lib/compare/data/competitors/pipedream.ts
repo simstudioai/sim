@@ -1088,10 +1088,10 @@ export const pipedreamProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Founded 2019, San Francisco; ~11-50 employees pre-acquisition; raised ~$22M across 2 rounds; being acquired by Workday (definitive agreement signed Nov 19, 2025)',
+          'Founded 2019, San Francisco; ~11-50 employees pre-acquisition; raised ~$22M across 2 rounds; agreed to be acquired by Workday (signed Nov 19, 2025), with no public confirmation the deal has closed as of mid-2026',
         detail:
-          "Per Crunchbase, Pipedream was founded in 2019 and headquartered in San Francisco, CA, with founders including Tod Sacerdoti (CEO), Dylan Sather, TJ Koblentz, and Pravin Savkar; it raised a total of ~$22M across 2 funding rounds (investors include Felicis and CRV) and had a headcount signal of 11-50 employees. Workday signed a definitive agreement to acquire Pipedream on November 19, 2025, with the transaction originally expected to close in Workday's Q4 FY2026 (by end of January 2026), subject to closing conditions; Pipedream is being positioned as Workday's integration layer for AI agent workflows across Workday and third-party apps. Neither company's own site had published a closing announcement as of this fact's last check, so whether the deal has formally closed needs reverification against Workday's or Pipedream's newsroom before publishing further updates.",
-        shortValue: 'Founded 2019; being acquired by Workday (deal signed Nov 2025)',
+          "Per Crunchbase, Pipedream was founded in 2019 and headquartered in San Francisco, CA, with founders including Tod Sacerdoti (CEO), Dylan Sather, TJ Koblentz, and Pravin Savkar; it raised a total of ~$22M across 2 funding rounds (investors include Felicis and CRV) and had a headcount signal of 11-50 employees. Workday signed a definitive agreement to acquire Pipedream on November 19, 2025, with the transaction originally expected to close in Workday's Q4 FY2026 (by end of January 2026), subject to closing conditions. That expected close date has now passed, and neither company's own site had published a closing announcement as of this fact's last check, so whether the deal has formally closed needs reverification against Workday's or Pipedream's newsroom before publishing further updates.",
+        shortValue: 'Founded 2019; agreed to be acquired by Workday, close unconfirmed',
         confidence: 'estimated',
         sources: [
           {

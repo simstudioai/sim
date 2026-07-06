@@ -127,7 +127,7 @@ export const workatoProfile: CompetitorProfile = {
     {
       title: 'SSO limited to SAML, no confirmed OIDC',
       description:
-        "Workato's documented single sign-on support covers SAML with just-in-time provisioning and SAML role sync; Workato's own documentation notes no public confirmation of native OIDC support alongside SAML. Sim supports both SAML 2.0 and OIDC single sign-on.",
+        "Workato's SSO documentation covers SAML with just-in-time provisioning and SAML role sync; it does not mention OIDC anywhere, so there is no public confirmation Workato supports it. Sim supports both SAML 2.0 and OIDC single sign-on.",
       shortDescription: 'Documented SSO is SAML-only, with no confirmed OIDC support.',
       source: {
         url: 'https://docs.workato.com/user-accounts-and-teams/single-sign-on.html',
