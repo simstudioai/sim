@@ -32,10 +32,10 @@ export const n8nProfile: CompetitorProfile = {
     'n8n is a fair-code workflow automation platform combining a visual, node-based builder with custom code and built-in AI/agent nodes, available as a self-hosted or cloud-hosted product.',
   standoutFeatures: [
     {
-      title: 'Execution-based pricing, not per-step or per-seat',
+      title: 'Unlimited users on every plan, including the entry tier',
       description:
-        'n8n bills by monthly workflow executions, not by operation, step, or user seat. A full run start-to-finish counts once, no matter how many nodes it contains, and unlimited users are included even on the Starter plan.',
-      shortDescription: 'Bills by monthly executions, not steps or seats, with unlimited users.',
+        'n8n includes unlimited users on every plan, including the €20/month Starter tier, and bills by monthly workflow executions rather than by user seat: a full run start-to-finish counts once no matter how many nodes it contains.',
+      shortDescription: 'Unlimited users on every tier, billed by monthly executions, not by seat.',
       source: { url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' },
     },
     {
@@ -767,9 +767,9 @@ export const n8nProfile: CompetitorProfile = {
     },
     pricing: {
       pricingModel: {
-        value: 'Per-workflow-execution pricing tiers (not per step, not per seat)',
+        value: 'Per-workflow-execution pricing tiers, unlimited users at every tier',
         detail:
-          "n8n's pricing page states workflows are billed by monthly execution count. A workflow that runs start-to-finish counts as one execution regardless of the number of steps or nodes, explicitly contrasted against competitors that charge per step or per user. Unlimited users are included at every paid tier.",
+          "n8n's pricing page states workflows are billed by monthly execution count. A workflow that runs start-to-finish counts as one execution regardless of the number of steps or nodes. Unlimited users are included at every paid tier.",
         shortValue: 'Billed by monthly workflow executions',
         confidence: 'verified',
         sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' }],
