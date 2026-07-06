@@ -7,6 +7,7 @@ import {
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
+import { resolveChatFileRecordById } from '@/lib/copilot/tools/handlers/chat-file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
   buildVfsFolderPathMap,
@@ -22,7 +23,6 @@ import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { getTableById } from '@/lib/table/service'
-import { resolveChatFileRecordById } from '@/lib/copilot/tools/handlers/chat-file-reader'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getSkillById } from '@/lib/workflows/skills/operations'
@@ -144,7 +144,7 @@ export async function processContextsServer(
         }
       }
       if (ctx.kind === 'file' && ctx.fileId && currentWorkspaceId) {
-        const result = await resolveFileResource(ctx.fileId, currentWorkspaceId)
+        const result = await resolveFileResource(ctx.fileId, currentWorkspaceId, chatId)
         if (!result) return null
         return {
           type: 'file',

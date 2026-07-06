@@ -36,14 +36,25 @@ every path not explicitly rewired for the third namespace.
   real storage context.
 - Presign-flow UUID upload ids never resolved as tool inputs — the chat
   by-id fallback in `resolveToolInputFile` dropped its `wf_` prefix gate.
-- Send-path double-send: a POST that died without a response was blindly
-  rolled back (re-queue → duplicate send) — the catch now probes resume
-  (`RECONNECT_PROBE_ATTEMPTS`) before rolling back; terminal 404 = never
-  arrived. No unit seam in `use-chat.ts` — verify live; extracting the
-  send/reconnect state machine is part of item 9's fast-follow.
+
+A client-side resume-probe fix for the send-path double-send was attempted
+and REVERTED after the gate re-review refuted its premise: run registration
+happens at response-construction time (`createRunSegment` inside
+`ReadableStream.start`, after the multi-second server prep), so a probe 404s
+terminally during exactly the ambiguous window it targets — and the await it
+inserted before the rollback opened a new lost-message window on Stop. See R0.
 
 **New fast-follows — correctness/silent-failure (fix in priority order):**
 
+- R0 `use-chat.ts:3436` + `lib/copilot/chat/post.ts` — double-send: a POST
+  that dies without a response is blindly rolled back; the queued dispatch
+  restores and re-sends a message the server may already be answering.
+  Correct fix is server-side: make the send idempotent by `userMessageId`
+  (dedupe in `persistUserMessage` / extend the pending-stream 409 to cover
+  the post-completion window) or register the run BEFORE prep so a client
+  probe can see it. A client probe is only sound after that lands, built on
+  an extracted, unit-testable send/reconnect state machine (pairs with
+  item 9's fast-follow).
 - R1 `workspace-file-manager.ts:500` — trackChatUpload's claim UPDATE has no
   "unclaimed" guard: any re-track of the same key moves `message_id` (fork-cut
   birthdate) to the later message; callers omitting messageId NULL it.
