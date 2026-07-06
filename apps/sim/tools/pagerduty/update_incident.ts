@@ -86,7 +86,12 @@ export const updateIncidentTool: ToolConfig<
       if (params.escalationLevel) {
         incident.escalation_level = Number(params.escalationLevel)
       }
-      if (params.resolution) incident.resolution = params.resolution
+      if (params.resolution) {
+        if (params.status !== 'resolved') {
+          throw new Error('resolution can only be set when status is resolved')
+        }
+        incident.resolution = params.resolution
+      }
       return { incident }
     },
   },
