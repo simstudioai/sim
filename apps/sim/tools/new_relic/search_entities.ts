@@ -76,6 +76,13 @@ export const newRelicSearchEntitiesTool: ToolConfig<
           guid
           name
           entityType
+          domain
+          reporting
+          alertSeverity
+          tags {
+            key
+            values
+          }
         }
       }
     }
@@ -119,6 +126,28 @@ export const newRelicSearchEntitiesTool: ToolConfig<
           guid: { type: 'string', description: 'Entity GUID', nullable: true },
           name: { type: 'string', description: 'Entity name', nullable: true },
           entityType: { type: 'string', description: 'Entity type', nullable: true },
+          domain: { type: 'string', description: 'Entity domain, e.g. APM, INFRA', nullable: true },
+          reporting: {
+            type: 'boolean',
+            description: 'Whether the entity is currently reporting data',
+            nullable: true,
+          },
+          alertSeverity: {
+            type: 'string',
+            description: 'Current alert severity for the entity',
+            nullable: true,
+          },
+          tags: {
+            type: 'array',
+            description: 'Entity tags',
+            items: {
+              type: 'object',
+              properties: {
+                key: { type: 'string', description: 'Tag key', nullable: true },
+                values: { type: 'array', description: 'Tag values', items: { type: 'string' } },
+              },
+            },
+          },
         },
       },
     },
