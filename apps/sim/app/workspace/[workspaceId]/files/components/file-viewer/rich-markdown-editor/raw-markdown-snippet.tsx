@@ -71,15 +71,20 @@ const OPEN_TAG_RE = new RegExp(`^<([a-z][\\w-]*)\\b${ATTRS_RE_SOURCE}\\s*(/)?>`,
  * open and close fence line so `> \`\`\`` and `   \`\`\`` both mask correctly. */
 const FENCE_PREFIX_SOURCE = '(?:[ ]{0,3}>[ ]?)*[ ]{0,3}'
 
+/** Same as {@link RAW_HTML_COMMENT_RE} but not anchored to the start of the string — used by
+ * {@link maskCodeRegions} to find a comment anywhere in the scanned text, not just at position 0. */
+const HTML_COMMENT_ANYWHERE_RE = /<!--[\s\S]*?-->/g
+
 /**
- * Mask fenced code blocks and inline code spans with same-length filler (newlines kept, everything
- * else replaced with a space) so a tag-like mention *inside code* — `` `</details>` ``, or a fenced
- * example showing HTML syntax — is never mistaken for a real balancing tag while scanning. Mirrors
+ * Mask fenced code blocks, inline code spans, and HTML comments with same-length filler (newlines
+ * kept, everything else replaced with a space) so a tag-like mention *inside one of these* —
+ * `` `</details>` ``, a fenced example showing HTML syntax, or a comment documenting the tag
+ * (`<!-- see </div> below -->`) — is never mistaken for a real balancing tag while scanning. Mirrors
  * the fenced/inline patterns `stripCode` in `./round-trip-safety.ts` matches (extended to also
  * tolerate an indented and/or blockquoted fence marker via {@link FENCE_PREFIX_SOURCE}, since a raw
  * HTML block can itself be indented or quoted), but preserves length/position (masks in place)
- * instead of deleting, so match indices still map
- * onto the original, unmodified `src` the caller slices from.
+ * instead of deleting, so match indices still map onto the original, unmodified `src` the caller
+ * slices from.
  */
 function maskCodeRegions(src: string): string {
   const fenceRe = new RegExp(
@@ -89,6 +94,7 @@ function maskCodeRegions(src: string): string {
   return src
     .replace(fenceRe, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/`+[^`\n]*`+/g, (m) => ' '.repeat(m.length))
+    .replace(HTML_COMMENT_ANYWHERE_RE, (m) => m.replace(/[^\n]/g, ' '))
 }
 
 /**

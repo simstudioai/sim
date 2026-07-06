@@ -194,6 +194,12 @@ describe('raw HTML block: does not fragment across blank lines', () => {
     expect(roundTrip(input)).toBe(input)
   })
 
+  it('does not mistake a tag name mentioned inside an HTML comment for a real closing tag', () => {
+    const input = '<div>\n\n<!-- see </div> below for the closing tag -->\n\nmore body\n\n</div>'
+    expect(topLevelTypes(input)).toEqual(['rawHtmlBlock'])
+    expect(roundTrip(input)).toBe(input)
+  })
+
   it('a bare (unescaped, un-fenced) tag-name mention never crashes and always converges to a stable save', () => {
     // Known, inherent limitation of regex-based (non-DOM) tag matching, shared by any HTML-block
     // scanner (and by real HTML parsers given the same ambiguous input) — a bare mention outside
