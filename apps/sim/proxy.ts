@@ -283,12 +283,6 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  // Every remaining matched route (landing/marketing pages, /demo, /pricing, etc.)
-  // needs the runtime CSP, not next.config.ts's build-time policy — the build-time
-  // policy bakes `isHosted` from whatever NEXT_PUBLIC_APP_URL was available at
-  // build/boot time, which silently drops the googletagmanager.com/google-analytics.com
-  // allowlist entries when that value wasn't resolved yet. Previously only '/' got this
-  // override, so GTM/GA loaded on the homepage but was CSP-blocked everywhere else.
   response.headers.set('Content-Security-Policy', generateRuntimeCSP())
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
