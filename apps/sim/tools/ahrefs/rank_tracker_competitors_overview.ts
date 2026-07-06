@@ -99,7 +99,7 @@ export const rankTrackerCompetitorsOverviewTool: ToolConfig<
         position: competitor.position ?? null,
         bestPositionKind: competitor.best_position_kind ?? null,
         traffic: competitor.traffic ?? null,
-        value: typeof competitor.value === 'number' ? competitor.value / 100 : null,
+        value: competitor.value ?? null,
       })),
     }))
 
@@ -154,7 +154,7 @@ export const rankTrackerCompetitorsOverviewTool: ToolConfig<
                 },
                 value: {
                   type: 'number',
-                  description: 'Estimated traffic value (USD)',
+                  description: 'Estimated traffic value',
                   optional: true,
                 },
               },

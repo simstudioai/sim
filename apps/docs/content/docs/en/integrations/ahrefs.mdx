@@ -244,7 +244,7 @@ Get the top pages of a target domain sorted by organic traffic. Returns page URL
 | --------- | ---- | -------- | ----------- |
 | `target` | string | Yes | The target domain to analyze. Example: "example.com" |
 | `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
-| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\). Example: "domain" |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
 | `date` | string | No | Date to report metrics on, in YYYY-MM-DD format \(defaults to today\) |
 | `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
@@ -633,7 +633,7 @@ Get competitor rankings for the keywords tracked in an Ahrefs Rank Tracker proje
 |     ↳ `position` | number | Current ranking position |
 |     ↳ `bestPositionKind` | string | Type of the best position achieved |
 |     ↳ `traffic` | number | Estimated traffic to the competitor |
-|     ↳ `value` | number | Estimated traffic value \(USD\) |
+|     ↳ `value` | number | Estimated traffic value |
 
 ### `ahrefs_rank_tracker_competitors_stats`
 
@@ -656,7 +656,7 @@ Get aggregate competitor stats for an Ahrefs Rank Tracker project: each competit
 | `competitorsStats` | array | Aggregate stats for each tracked competitor |
 |   ↳ `competitor` | string | The competitor's URL |
 |   ↳ `traffic` | number | Estimated monthly organic visits |
-|   ↳ `trafficValue` | number | Estimated monthly organic traffic value \(USD\) |
+|   ↳ `trafficValue` | number | Estimated monthly organic traffic value |
 |   ↳ `averagePosition` | number | Average top organic position across tracked keywords |
 |   ↳ `pos1To3` | number | Keywords ranking in top 3 positions |
 |   ↳ `pos4To10` | number | Keywords ranking in positions 4-10 |
