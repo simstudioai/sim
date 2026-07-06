@@ -1826,7 +1826,7 @@ export function useChat(
     const persistedResources = chatHistory.resources.filter(isPersistedChatResource)
     const serverKeys = new Set(persistedResources.map((r) => `${r.type}:${r.id}`))
     const localOnly = resourcesRef.current.filter(
-      (r) => r.id !== 'streaming-file' && !serverKeys.has(`${r.type}:${r.id}`)
+      (r) => isPersistedChatResource(r) && !serverKeys.has(`${r.type}:${r.id}`)
     )
     const mergedResources = [...persistedResources, ...localOnly]
 

@@ -701,10 +701,11 @@ export function useForkMothershipChat(workspaceId?: string) {
         const sourceName = sourceChat?.name ?? 'New chat'
         const baseName = sourceName.replace(/^Fork \| /, '')
         // Mirror the server's title choice so the optimistic row doesn't
-        // visibly rename itself when the list refetches.
+        // visibly rename itself when the list refetches (both modes strip a
+        // leading "Fork | ", matching the fork route).
         const optimisticName = variables.upToMessageId
           ? `Fork | ${baseName}`
-          : `${sourceName} (Copy)`
+          : `${baseName} (Copy)`
         const optimisticChat: MothershipChatMetadata = {
           id: data.id,
           name: optimisticName,
