@@ -35,8 +35,8 @@ export const flowiseProfile: CompetitorProfile = {
       shortDescription:
         'Built-in dataset-based batch evaluation with LLM-judge scoring and pass/fail reporting.',
       source: {
-        url: 'https://docs.flowiseai.com/tutorials/human-in-the-loop',
-        label: 'Flowise Docs: Human In The Loop',
+        url: 'https://docs.flowiseai.com/using-flowise/evaluations',
+        label: 'Flowise Docs: Evaluations',
         asOf: '2026-07-02',
       },
     },

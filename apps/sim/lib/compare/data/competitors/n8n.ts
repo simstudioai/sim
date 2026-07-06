@@ -676,18 +676,13 @@ export const n8nProfile: CompetitorProfile = {
       customCodeSteps: {
         value: 'Yes: JavaScript and Python via Code node, plus a Custom Code Tool for AI agents',
         detail:
-          "n8n's Code node supports both JavaScript and Python for custom logic inside a workflow. A separate Custom Code Tool node lets an AI Agent call arbitrary code as one of its tools. n8n's own 2026 AI Agent Development Tools report scores n8n 1 out of 2 on \"Sandboxing,\" versus Sim's 2 out of 2, backed by Sim's isolated-vm (V8 isolate) sandbox running in a separate child process.",
+          "n8n's Code node supports both JavaScript and Python for custom logic inside a workflow. A separate Custom Code Tool node lets an AI Agent call arbitrary code as one of its tools.",
         shortValue: 'JavaScript and Python via Code node',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent',
             label: 'n8n Tools Agent docs (mentions Custom Code Tool)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-            label: 'n8n: 2026 AI Agent Development Tools report (Sandboxing score)',
             asOf: '2026-07-02',
           },
         ],

@@ -50,7 +50,7 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Zapier Copilot (natural-language build assistant)',
       description:
-        "Copilot (open beta) lets users describe an automation or agent in plain language and generates a draft Zap or agent, including custom code steps to fill integration gaps. Zapier's answer to natural-language workflow building, which Sim also offers via Chat and in-editor Copilot.",
+        'Copilot (open beta) lets users describe an automation or agent in plain language and generates a draft Zap or agent, including custom code steps to fill integration gaps. Sim offers the same natural-language building capability via Chat and in-editor Copilot.',
       shortDescription: 'Describe an automation and Copilot builds the Zap or agent for you.',
       source: {
         url: 'https://zapier.com/blog/zapier-copilot-guide/',
@@ -97,9 +97,8 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'No documented data-residency choice',
       description:
-        "Zapier is closed-source SaaS only, hosted on AWS in the United States, with no way to keep data off Zapier's infrastructure. Unlike Zapier, Sim can be fully self-hosted via Docker or Kubernetes, so data never has to leave the customer's own infrastructure at all.",
-      shortDescription:
-        'Closed-source SaaS on AWS (US) only; Sim can be fully self-hosted instead.',
+        "Zapier's infrastructure runs on AWS in the United States, with no selectable regional data residency or EU-only hosting option for standard customers.",
+      shortDescription: 'No selectable region; standard customers are US-only (AWS).',
       source: {
         url: 'https://zapier.com/security-compliance',
         label: 'Zapier Security & Compliance (via search cache)',

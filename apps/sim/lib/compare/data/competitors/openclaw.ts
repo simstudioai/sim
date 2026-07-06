@@ -66,11 +66,11 @@ export const openClawProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Markdown-file memory instead of an opaque vector store',
+      title: 'Markdown-file memory with no ingestion pipeline',
       description:
         'Long-term memory is stored as plain, human-readable Markdown files (daily notes plus a curated MEMORY.md), layered with semantic search (memorySearch), instead of running an ingestion/chunking pipeline into a database. The files are natively git-trackable and editable in any text editor, with no separate KB module standing between the user and their own memory.',
       shortDescription:
-        'Long-term memory lives in editable Markdown files, not a hidden vector store.',
+        'Long-term memory lives in plain, git-trackable Markdown files, not a database-backed KB module.',
       source: {
         url: 'https://docs.openclaw.ai/concepts/memory',
         label: 'OpenClaw Docs: Memory overview',

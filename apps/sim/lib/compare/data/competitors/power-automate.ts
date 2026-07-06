@@ -78,11 +78,11 @@ export const powerAutomateProfile: CompetitorProfile = {
     {
       title: 'No live, concurrent multi-user editing in the flow designer',
       description:
-        "Power Automate's cloud flow designer supports sharing a flow with co-owners and commenting on steps, but not live, concurrent multi-user editing with visible cursors and synced changes on the same flow. Microsoft's live coauthoring feature exists for Power Apps Studio canvas apps, a separate product, not the Power Automate flow designer.",
-      shortDescription: 'No true live co-editing in the flow designer, only sharing and comments.',
+        "Power Automate's cloud flow designer supports sharing a flow with co-owners, but not live, concurrent multi-user editing with visible cursors and synced changes on the same flow. Microsoft's live coauthoring feature exists for Power Apps Studio canvas apps, a separate product, not the Power Automate flow designer.",
+      shortDescription: 'No true live co-editing in the flow designer, only owner-level sharing.',
       source: {
-        url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
-        label: 'Power Automate product page',
+        url: 'https://learn.microsoft.com/en-us/power-automate/guide-to-cloud-flow-sharing-permissions',
+        label: 'Guide to cloud flow sharing and permissions | Microsoft Learn',
         asOf: '2026-07-02',
       },
     },

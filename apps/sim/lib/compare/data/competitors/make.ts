@@ -31,10 +31,10 @@ export const makeProfile: CompetitorProfile = {
     'Make (make.com) is a closed-source, cloud-only visual workflow-automation platform where users connect app "modules" on a canvas into scenarios. It now also offers AI Agent blocks, an MCP server, and a JS/Python code step, billed on a per-module-execution credit model.',
   standoutFeatures: [
     {
-      title: '3,000+ integrations and an 8,000+ template gallery, since 2012',
+      title: '3,000+ integrations and an 8,000+ template gallery',
       description:
-        'Make lists 3,000+ integration apps and a public gallery of over 8,000 pre-built, importable scenario templates, free to browse on every plan including Free. The platform has been in market since 2012 (as Integromat, rebranded Make in 2022), giving it a larger and longer-running ecosystem than most workflow-automation competitors.',
-      shortDescription: '3,000+ integrations, 8,000+ templates, in market since 2012.',
+        'Make lists 3,000+ integration apps and a public gallery of over 8,000 pre-built, importable scenario templates, free to browse on every plan including Free.',
+      shortDescription: '3,000+ integrations and an 8,000+ template gallery, free on every plan.',
       source: {
         url: 'https://www.make.com/en/templates',
         label: 'Make Templates gallery',

@@ -30,7 +30,7 @@ export const stackaiProfile: CompetitorProfile = {
     {
       title: 'PR-gated approval workflow for promoting agents between environments',
       description:
-        'StackAI provides three default, isolated environments (development, staging, production), plus custom environments. Promotion between them requires a pull request that must be reviewed and approved, with an admin approval queue sitting before production deploys. Sim also supports forking a workspace into dev/qa/prod-style environments with diff and promote/rollback, but without a mandatory PR-review or approval gate.',
+        "StackAI provides three default, isolated environments (development, staging, production), plus custom environments. Promotion between them requires a pull request that must be reviewed and approved, with an admin approval queue sitting before production deploys. Sim also supports forking a workspace into dev/qa/prod-style environments with diff and promote/rollback, but without a mandatory PR-review or approval gate, and that capability is itself gated to Sim's Enterprise plan on hosted Sim (or a feature flag on self-hosted deployments).",
       shortDescription: 'PR-gated dev/staging/production promotion with admin approval queues.',
       source: {
         url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',

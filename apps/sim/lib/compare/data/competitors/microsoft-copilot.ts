@@ -44,7 +44,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     {
       title: 'Automatic fallback to a default model if a selected model is disabled',
       description:
-        'Agents can use OpenAI GPT models, Anthropic Claude Sonnet 4 and Opus 4.1, any model in the Azure AI Model Catalog, or a bring-your-own-model connection to an Azure AI Foundry deployment (endpoint URI, deployment name, and API key) for individual prompts. Admins enable or restrict non-default models tenant-wide, and if a selected model is disabled, the agent falls back to the default OpenAI model automatically rather than failing the request.',
+        "If an admin disables a non-default model tenant-wide, Copilot Studio automatically falls back to the default OpenAI model rather than failing the request. Admins choose among OpenAI GPT models, Anthropic Claude Sonnet 4 and Opus 4.1, any model in the Azure AI Model Catalog, or a bring-your-own-model connection to an Azure AI Foundry deployment, but Sim's own model-fallback only retries the same model with hosted keys, not a cross-model fallback like this.",
       shortDescription:
         'Falls back to the default OpenAI model automatically if a selected model is disabled.',
       source: {

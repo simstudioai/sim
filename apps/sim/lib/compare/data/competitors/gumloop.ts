@@ -86,7 +86,7 @@ export const gumloopProfile: CompetitorProfile = {
     {
       title: 'No public self-hosting of the core platform',
       description:
-        "Gumloop is only available as managed SaaS or an enterprise-managed VPC deployment operated by Gumloop inside a customer's cloud project. There is no downloadable, self-managed install of the Gumloop application itself; a separate community project, guMCP, is open source but is not the platform.",
+        "Gumloop is only available as managed SaaS or an enterprise-managed VPC deployment operated by Gumloop inside a customer's cloud project. There is no downloadable, self-managed install of the Gumloop application itself; Gumloop's own guMCP_template repo is a self-hosted MCP-server starter, not an install of the platform.",
       shortDescription: 'No downloadable self-hosted install. Only managed SaaS or enterprise VPC.',
       source: {
         url: 'https://www.gumloop.com/solutions/security',
@@ -161,7 +161,7 @@ export const gumloopProfile: CompetitorProfile = {
         value:
           'No public self-host option for the core Gumloop app; enterprise customers can get a managed Virtual Private Cloud (VPC) deployment into their own cloud (e.g. GCP) instead of full self-hosting',
         detail:
-          "Gumloop deploys and operates the platform inside the customer's cloud project rather than offering a downloadable, self-managed open-source install. A separate community open-source project, guMCP, provides self-hostable MCP servers but is not the Gumloop app itself.",
+          "Gumloop deploys and operates the platform inside the customer's cloud project rather than offering a downloadable, self-managed open-source install. Gumloop's own guMCP_template repo is an open-source starter for self-hosted MCP servers, but it is not an install of the Gumloop app itself.",
         shortValue: 'No self-host; VPC deployment only',
         confidence: 'estimated',
         sources: [
@@ -171,8 +171,8 @@ export const gumloopProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/gumloop/guMCP',
-            label: "guMCP (Gumloop's official open-source repo)",
+            url: 'https://github.com/gumloop/guMCP_template',
+            label: "guMCP_template (Gumloop's self-hosted MCP starter repo)",
             asOf: '2026-07-02',
           },
         ],
@@ -208,7 +208,7 @@ export const gumloopProfile: CompetitorProfile = {
       license: {
         value: 'Proprietary',
         detail:
-          'The core Gumloop application has no open-source license; it is a closed, hosted commercial SaaS product. A separate community MCP-server project, guMCP, is open source but is not the Gumloop platform.',
+          "The core Gumloop application has no open-source license; it is a closed, hosted commercial SaaS product. Gumloop's own guMCP_template repo is an open-source MCP-server starter, but it is not the Gumloop platform.",
         shortValue: 'Proprietary',
         confidence: 'estimated',
         sources: [
