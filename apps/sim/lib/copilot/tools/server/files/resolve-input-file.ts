@@ -13,10 +13,14 @@ import {
  * Resolve a tool input file reference across every VFS namespace the agent
  * can hold: chat-scoped `uploads/<name>` and `outputs/<name>` (resolved by
  * chat + VFS name, raw or percent-encoded), workspace `files/` paths, and
- * bare `wf_` ids. A `wf_` id resolves against the workspace first and then
- * against the chat's own uploads/outputs — {@link resolveWorkspaceFileReference}
+ * bare file ids. An id resolves against the workspace first and then against
+ * the chat's own uploads/outputs — {@link resolveWorkspaceFileReference}
  * pins `context='workspace'`, so a chat-scoped id would otherwise fail even
  * though the agent legitimately holds it (the reason this wrapper exists).
+ * The chat fallback is NOT gated on the `wf_` prefix: rows claimed from the
+ * presign flow keep their insert-time UUID ids, and the transcript's
+ * fileAttachments hand exactly those ids to the agent. A non-id reference
+ * just misses the by-id lookup and resolves to null as before.
  * Chat-scoped prefixes fall through to the workspace resolver when no chatId
  * exists (no chat namespace can shadow anything); both chat namespaces are
  * flat, so any trailing segment after the name is ignored.
@@ -46,7 +50,7 @@ export async function resolveToolInputFile(params: {
   if (workspaceRecord) return workspaceRecord
 
   const trimmed = path.trim()
-  if (chatId && trimmed.startsWith('wf_')) {
+  if (chatId && trimmed) {
     return resolveChatFileRecordById(chatId, trimmed)
   }
   return null

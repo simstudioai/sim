@@ -6,16 +6,22 @@ import { dbChainMock, dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatContext } from '@/stores/panel'
 
-const { getSkillById } = vi.hoisted(() => ({ getSkillById: vi.fn() }))
+const { getSkillById, getWorkspaceFile, resolveChatFileRecordById } = vi.hoisted(() => ({
+  getSkillById: vi.fn(),
+  getWorkspaceFile: vi.fn(),
+  resolveChatFileRecordById: vi.fn(),
+}))
 
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
+vi.mock('@/lib/copilot/tools/handlers/chat-file-reader', () => ({ resolveChatFileRecordById }))
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
  * controllable row data, which the stable `dbChainMockFns.limit` provides.
  */
 vi.mock('@sim/db', () => dbChainMock)
 
-import { processContextsServer } from './process-contents'
+import { processContextsServer, resolveActiveResourceContext } from './process-contents'
 
 describe('processContextsServer - skill contexts', () => {
   beforeEach(() => {
@@ -254,5 +260,76 @@ describe('processContextsServer - logs contexts', () => {
     )
 
     expect(result).toEqual([])
+  })
+})
+
+describe('resolveActiveResourceContext - file branch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('resolves a workspace file to its canonical files/ path', async () => {
+    getWorkspaceFile.mockResolvedValue({
+      id: 'wf_shared',
+      name: 'report.pdf',
+      folderPath: 'Q4 Docs',
+    })
+
+    const ctx = await resolveActiveResourceContext('file', 'wf_shared', 'ws-1', 'user-1', 'chat-1')
+
+    expect(ctx).toEqual({
+      type: 'active_resource',
+      tag: '@active_resource',
+      content: '',
+      path: 'files/Q4%20Docs/report.pdf',
+    })
+    expect(resolveChatFileRecordById).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Regression: getWorkspaceFile pins context='workspace', so an active tab
+   * pointing at a chat-scoped output resolved to null and the @active_resource
+   * pointer was silently dropped from the model payload — the model never saw
+   * the tab the user was looking at.
+   */
+  it('falls back to the chat-scoped row for an output tab and emits its outputs/ path', async () => {
+    getWorkspaceFile.mockResolvedValue(null)
+    resolveChatFileRecordById.mockResolvedValue({
+      id: 'wf_output',
+      name: 'chart 1.png',
+      storageContext: 'output',
+    })
+
+    const ctx = await resolveActiveResourceContext('file', 'wf_output', 'ws-1', 'user-1', 'chat-1')
+
+    expect(resolveChatFileRecordById).toHaveBeenCalledWith('chat-1', 'wf_output')
+    expect(ctx).toEqual({
+      type: 'active_resource',
+      tag: '@active_resource',
+      content: '',
+      path: 'outputs/chart%201.png',
+    })
+  })
+
+  it('emits the uploads/ path for a chat upload row', async () => {
+    getWorkspaceFile.mockResolvedValue(null)
+    resolveChatFileRecordById.mockResolvedValue({
+      id: 'wf_upload',
+      name: 'photo.jpg',
+      storageContext: 'mothership',
+    })
+
+    const ctx = await resolveActiveResourceContext('file', 'wf_upload', 'ws-1', 'user-1', 'chat-1')
+
+    expect(ctx?.path).toBe('uploads/photo.jpg')
+  })
+
+  it('returns null without a chat when the workspace lookup misses', async () => {
+    getWorkspaceFile.mockResolvedValue(null)
+
+    const ctx = await resolveActiveResourceContext('file', 'wf_output', 'ws-1', 'user-1')
+
+    expect(ctx).toBeNull()
+    expect(resolveChatFileRecordById).not.toHaveBeenCalled()
   })
 })

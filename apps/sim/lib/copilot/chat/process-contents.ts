@@ -14,7 +14,7 @@ import {
   canonicalKnowledgeBaseVfsDir,
   canonicalTableVfsPath,
   canonicalWorkflowVfsDir,
-  canonicalWorkspaceFilePath,
+  chatScopedOrWorkspacePath,
   encodeVfsPathSegments,
   encodeVfsSegment,
 } from '@/lib/copilot/vfs/path-utils'
@@ -22,6 +22,7 @@ import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { getTableById } from '@/lib/table/service'
+import { resolveChatFileRecordById } from '@/lib/copilot/tools/handlers/chat-file-reader'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getSkillById } from '@/lib/workflows/skills/operations'
@@ -728,7 +729,7 @@ export async function resolveActiveResourceContext(
         return await resolveTableResource(resourceId, workspaceId)
       }
       case 'file': {
-        return await resolveFileResource(resourceId, workspaceId)
+        return await resolveFileResource(resourceId, workspaceId, chatId)
       }
       case 'folder': {
         return await resolveFolderResource(resourceId, workspaceId)
@@ -796,15 +797,22 @@ async function resolveScheduledTaskResource(
 
 async function resolveFileResource(
   fileId: string,
-  workspaceId: string
+  workspaceId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  const record = await getWorkspaceFile(workspaceId, fileId)
+  // getWorkspaceFile pins context='workspace', so a chat-scoped tab (an
+  // agent-generated output the user opened from the resource picker) would
+  // resolve to null and be silently dropped from the model payload — fall
+  // back to the chat's own uploads/outputs rows.
+  const record =
+    (await getWorkspaceFile(workspaceId, fileId)) ??
+    (chatId ? await resolveChatFileRecordById(chatId, fileId) : null)
   if (!record) return null
   return {
     type: 'active_resource',
     tag: '@active_resource',
     content: '',
-    path: canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name }),
+    path: chatScopedOrWorkspacePath(record),
   }
 }
 

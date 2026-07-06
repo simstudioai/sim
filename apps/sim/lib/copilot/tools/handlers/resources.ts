@@ -4,33 +4,14 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
-import { canonicalWorkspaceFilePath, encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { chatScopedOrWorkspacePath } from '@/lib/copilot/vfs/path-utils'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import type { OpenResourceItem, OpenResourceParams, ValidOpenResourceParams } from './param-types'
 
 const VALID_OPEN_RESOURCE_TYPES = new Set(Object.values(MothershipResourceType))
-
-/**
- * VFS path for a resolved file resource: chat-scoped records live under their
- * flat `uploads/`/`outputs/` namespace (encoded like `files/` segments, raw
- * name as fallback for un-encodable names); workspace records use the
- * canonical folder path.
- */
-function chatScopedOrWorkspacePath(record: WorkspaceFileRecord): string {
-  if (record.storageContext === 'mothership' || record.storageContext === 'output') {
-    const prefix = record.storageContext === 'output' ? 'outputs' : 'uploads'
-    try {
-      return `${prefix}/${encodeVfsSegment(record.name)}`
-    } catch {
-      return `${prefix}/${record.name}`
-    }
-  }
-  return canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
-}
 
 async function resolveResource(
   item: ValidOpenResourceParams,

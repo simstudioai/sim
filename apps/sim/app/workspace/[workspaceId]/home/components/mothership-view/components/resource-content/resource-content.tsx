@@ -718,13 +718,18 @@ function EmbeddedFile({
     )
   }
 
+  // Chat-scoped outputs are write-once: the content-update pipeline resolves
+  // context='workspace' only, so an editor here would error (and lose the
+  // edit) on every save. Render them read-only.
+  const canEditFile = canEdit && (!file.storageContext || file.storageContext === 'workspace')
+
   return (
     <div className='flex h-full flex-col overflow-hidden'>
       <FileViewer
         key={file.id}
         file={file}
         workspaceId={workspaceId}
-        canEdit={canEdit}
+        canEdit={canEditFile}
         previewMode={previewMode}
         streamingContent={streamingContent}
         isAgentEditing={isAgentEditing}

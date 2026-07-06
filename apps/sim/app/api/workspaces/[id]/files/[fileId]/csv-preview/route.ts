@@ -5,7 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCsvPreviewSlice } from '@/lib/file-parsers/csv-preview-slice'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getPreviewableWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceCsvPreviewAPI')
@@ -33,15 +33,17 @@ export const GET = withRouteHandler(
 
     // Resolve the file record (active, in this workspace) and read from its authoritative key —
     // never the client-supplied one. This rejects archived/deleted files and keys with no live
-    // row, matching the access guarantees of /api/files/serve.
-    const record = await getWorkspaceFile(workspaceId, fileId)
+    // row, matching the access guarantees of /api/files/serve. Resolution goes through the
+    // previewable accessor (not getWorkspaceFile) so chat-scoped CSV outputs — which the resource
+    // panel resolves through the same accessor — preview too, with its owner-only gate applied.
+    const record = await getPreviewableWorkspaceFile(workspaceId, fileId, userId)
     if (!record || record.key !== key) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
     const slice = await getCsvPreviewSlice({
       key: record.key,
-      context: 'workspace',
+      context: record.storageContext ?? 'workspace',
       signal: request.signal,
     })
 

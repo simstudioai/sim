@@ -122,7 +122,40 @@ describe('resolveToolInputFile', () => {
     expect(record).toBeNull()
   })
 
-  it('never tries the chat by-id fallback for non-id references or without a chat', async () => {
+  /**
+   * Regression: presign-flow chat uploads keep their insert-time UUID ids
+   * (only trackChatUpload's INSERT arm mints wf_ ids), and the transcript's
+   * fileAttachments hand exactly those UUIDs to the agent — a wf_-prefix gate
+   * on the fallback made every such reference unresolvable.
+   */
+  it('resolves a legacy UUID id against the chat-owned rows when the workspace misses', async () => {
+    const uuidUpload = { id: '4d0b1c2e-9df3-4e57-8a30-1f2f6f9f0c11', storageContext: 'mothership' }
+    mockResolveWorkspaceFileRef.mockResolvedValue(null)
+    mockResolveChatFileRecordById.mockResolvedValue(uuidUpload)
+
+    const record = await resolveToolInputFile({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      path: '4d0b1c2e-9df3-4e57-8a30-1f2f6f9f0c11',
+    })
+
+    expect(record).toBe(uuidUpload)
+    expect(mockResolveChatFileRecordById).toHaveBeenCalledWith(
+      'chat-1',
+      '4d0b1c2e-9df3-4e57-8a30-1f2f6f9f0c11'
+    )
+  })
+
+  it('never tries the chat by-id fallback without a chat', async () => {
+    mockResolveWorkspaceFileRef.mockResolvedValue(null)
+
+    const noChat = await resolveToolInputFile({ workspaceId: 'ws-1', path: 'wf_output' })
+
+    expect(noChat).toBeNull()
+    expect(mockResolveChatFileRecordById).not.toHaveBeenCalled()
+  })
+
+  it('misses harmlessly when a non-id reference reaches the chat by-id fallback', async () => {
     mockResolveWorkspaceFileRef.mockResolvedValue(null)
 
     const byName = await resolveToolInputFile({
@@ -130,10 +163,8 @@ describe('resolveToolInputFile', () => {
       chatId: 'chat-1',
       path: 'files/missing.pdf',
     })
-    const noChat = await resolveToolInputFile({ workspaceId: 'ws-1', path: 'wf_output' })
 
     expect(byName).toBeNull()
-    expect(noChat).toBeNull()
-    expect(mockResolveChatFileRecordById).not.toHaveBeenCalled()
+    expect(mockResolveChatFileRecordById).toHaveBeenCalledWith('chat-1', 'files/missing.pdf')
   })
 })

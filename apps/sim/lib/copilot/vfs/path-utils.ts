@@ -100,6 +100,31 @@ export function canonicalWorkspaceFilePath(parts: {
 }
 
 /**
+ * VFS path for a resolved file record from ANY namespace: chat-scoped records
+ * (`storageContext` of `mothership`/`output`) live under their flat
+ * `uploads/`/`outputs/` namespace (encoded like `files/` segments, raw name as
+ * fallback for un-encodable names); workspace records use the canonical folder
+ * path. The single storageContext→prefix mapping — resolvers that can return
+ * records from either family must emit paths through here so the spelling
+ * cannot drift between call sites.
+ */
+export function chatScopedOrWorkspacePath(record: {
+  storageContext?: string | null
+  folderPath?: string | null
+  name: string
+}): string {
+  if (record.storageContext === 'mothership' || record.storageContext === 'output') {
+    const prefix = record.storageContext === 'output' ? 'outputs' : 'uploads'
+    try {
+      return `${prefix}/${encodeVfsSegment(record.name)}`
+    } catch {
+      return `${prefix}/${record.name}`
+    }
+  }
+  return canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
+}
+
+/**
  * Build a map from folderId to its canonical, per-segment-encoded VFS folder
  * path (e.g. `My%20Folder/Sub`), resolving nested folders via `parentId`.
  *

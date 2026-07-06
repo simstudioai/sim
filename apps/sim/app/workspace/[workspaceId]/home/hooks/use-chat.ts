@@ -138,6 +138,15 @@ export interface UseChatReturn {
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
 const MAX_RECONNECT_ATTEMPTS = 10
+/**
+ * Attempt budget for the ambiguous-POST probe: the send's fetch rejected
+ * without ANY response, so the server may or may not have accepted the
+ * message. One immediate try plus one short retry answers that cheaply —
+ * a registered stream recovers, an unregistered one 404s terminally — while
+ * a genuinely dead network fails fast instead of wedging for the full
+ * {@link MAX_RECONNECT_ATTEMPTS} backoff ladder.
+ */
+const RECONNECT_PROBE_ATTEMPTS = 1
 const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 30_000
 const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
@@ -2509,15 +2518,18 @@ export function useChat(
       gen: number
       targetChatId?: string
       shouldContinue?: () => boolean
+      /** Caps retry rounds below {@link MAX_RECONNECT_ATTEMPTS} (probe mode). */
+      maxAttempts?: number
     }): Promise<boolean> => {
       const { streamId, assistantId, gen, targetChatId, shouldContinue } = opts
+      const maxAttempts = opts.maxAttempts ?? MAX_RECONNECT_ATTEMPTS
 
       const isStaleReconnect = () =>
         streamGenRef.current !== gen ||
         abortControllerRef.current?.signal.aborted === true ||
         shouldContinue?.() === false
 
-      for (let attempt = 0; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
+      for (let attempt = 0; attempt <= maxAttempts; attempt++) {
         if (isStaleReconnect()) return true
 
         if (attempt > 0) {
@@ -2528,7 +2540,7 @@ export function useChat(
           logger.warn('Reconnect attempt', {
             streamId,
             attempt,
-            maxAttempts: MAX_RECONNECT_ATTEMPTS,
+            maxAttempts,
             delayMs,
           })
 
@@ -2622,7 +2634,7 @@ export function useChat(
 
       logger.error('All reconnect attempts exhausted', {
         streamId,
-        maxAttempts: MAX_RECONNECT_ATTEMPTS,
+        maxAttempts,
       })
       if (streamGenRef.current === gen) {
         setIsReconnecting(false)
@@ -3199,6 +3211,12 @@ export function useChat(
       // Flips once the chat POST returns OK — before that, streamIdRef holds
       // THIS send's own (never-registered) id, so "reconnect" is meaningless.
       let streamStarted = false
+      // Flips once the POST fetch resolves at all (any status). False in the
+      // catch means the request died on the wire WITHOUT a verdict — the
+      // server may have accepted it, so the send's fate must be probed
+      // (resume against userMessageId) before rolling back; rolling back a
+      // send the server is answering re-queues it and double-sends.
+      let postResponded = false
       try {
         if (pendingStop) {
           try {
@@ -3300,6 +3318,7 @@ export function useChat(
           }),
           signal: abortController.signal,
         })
+        postResponded = true
 
         // Capture for propagation on side-channel calls + non-React
         // tool-completion callbacks (via trace-context singleton).
@@ -3422,21 +3441,36 @@ export function useChat(
         }
 
         const activeStreamId = streamIdRef.current
-        if (streamStarted && activeStreamId && gen !== undefined && streamGenRef.current === gen) {
+        // streamStarted: the stream is known-live — spend the full reconnect
+        // budget. !postResponded: the POST died without a verdict, but the
+        // server registers the run under this send's userMessageId before
+        // responding, so a short resume probe distinguishes "accepted, keep
+        // the turn" (recovers) from "never arrived" (terminal 404 via
+        // StreamNotFoundError) — the case a blind rollback turns into a
+        // double-send when the queued dispatch restores and re-sends.
+        const probeAmbiguousPost = !streamStarted && !postResponded
+        if (
+          (streamStarted || probeAmbiguousPost) &&
+          activeStreamId &&
+          gen !== undefined &&
+          streamGenRef.current === gen
+        ) {
           const succeeded = await retryReconnect({
             streamId: activeStreamId,
             assistantId,
             gen,
             ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
+            ...(probeAmbiguousPost ? { maxAttempts: RECONNECT_PROBE_ATTEMPTS } : {}),
           })
           if (succeeded) return consumedByTranscript
         }
 
         let rolledBack = false
         if (!streamStarted && (gen === undefined || streamGenRef.current === gen)) {
-          // The POST itself failed — no server-side stream exists, so undo the
-          // optimistic message and the cache's phantom activeStreamId instead
-          // of leaving state that later hydrations would try to "reconnect" to.
+          // The POST failed with a definitive verdict (or the probe above
+          // found no server-side stream) — undo the optimistic message and
+          // the cache's phantom activeStreamId instead of leaving state that
+          // later hydrations would try to "reconnect" to.
           rollbackOptimisticSend()
           rolledBack = true
         }
