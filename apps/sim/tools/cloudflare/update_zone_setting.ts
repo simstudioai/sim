@@ -52,7 +52,15 @@ export const updateZoneSettingTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Wand-generated or block-reference values can arrive as a non-string
+      // A block reference can pass an already-structured array/object straight
+      // through despite the declared string param type — send it as-is rather
+      // than stringifying it (String([...]) comma-joins, String({...}) yields
+      // "[object Object]", neither of which is the JSON shape Cloudflare expects).
+      if (params.value !== null && typeof params.value === 'object') {
+        return { value: params.value }
+      }
+
+      // Wand-generated values can also arrive as a non-string primitive
       // (e.g. a number, or null/undefined) at runtime despite the declared
       // param type — coerce null/undefined to '' rather than the literal
       // "null"/"undefined" strings String() would otherwise produce.
