@@ -1,5 +1,22 @@
 # Open issues — chat-scoped outputs / fork PR (#5401)
 
+## Release triage decision (2026-07-05)
+
+All 11 findings below ship as **tracked fast-follows** — none are fixed on
+this branch. The feature releases behind the mothership flag via staged
+rollout. Conditions of this acceptance:
+
+- The two review-round fixes that landed without tests are now pinned
+  (`tool-call-state.test.ts`, `contracts/copilot.test.ts`). The hook-internal
+  half of the reconnect-wedge fix (`streamStarted` gating, terminal 404) has
+  no testable seam in `use-chat.ts`; extracting one is part of the issue 9
+  fast-follow.
+- Issues 1 (quota ratchet) and 3 (fork crash window) need monitoring during
+  rollout: alert on fork `failedFileCopies` counts and watch storage-quota
+  support signals.
+- Issues 6, 7, 8, 11 still need the product calls noted inline before their
+  fast-follows can be scoped.
+
 Working list of verified findings **not yet fixed on this branch**. These are
 candidates to resolve before merge or explicitly sign off on — being listed
 here is not acceptance. Each entry links the mechanism, the verified impact,
