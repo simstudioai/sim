@@ -52,7 +52,31 @@ function verbatimText(node: JSONContent): string {
 
 const RAW_HTML_COMMENT_RE = /^<!--[\s\S]*?-->/
 
-const OPEN_TAG_RE = /^<([a-z][\w-]*)\b[^>]*?(\/)?>/i
+/**
+ * One HTML attribute: `name` or `name="value"`/`name='value'`/`name=bare`. The quoted-value
+ * alternatives are what matter — `[^"]*`/`[^']*` consume a literal `>` inside the quotes as part of
+ * the value, so an attribute like `data-example="a > b"` is treated as one unit instead of ending
+ * the tag match at the internal `>`.
+ */
+const ATTRS_RE_SOURCE = String.raw`(?:\s+[^\s"'=<>\`]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>\`]+))?)*`
+
+/** Matches one opening HTML tag, attributes included (see {@link ATTRS_RE_SOURCE}). Group 1 is the
+ * tag name, group 2 is the self-closing `/` if present — shared by inline and block tokenizing. */
+const OPEN_TAG_RE = new RegExp(`^<([a-z][\\w-]*)\\b${ATTRS_RE_SOURCE}\\s*(/)?>`, 'i')
+
+/**
+ * Mask fenced code blocks and inline code spans with same-length filler (newlines kept, everything
+ * else replaced with a space) so a tag-like mention *inside code* — `` `</details>` ``, or a fenced
+ * example showing HTML syntax — is never mistaken for a real balancing tag while scanning. Reuses the
+ * same fenced/inline patterns `stripCode` in `./round-trip-safety.ts` matches, but preserves
+ * length/position (masks in place) instead of deleting, so match indices still map onto the
+ * original, unmodified `src` the caller slices from.
+ */
+function maskCodeRegions(src: string): string {
+  return src
+    .replace(/^([`~]{3,})[^\n]*\n[\s\S]*?^\1[`~]*[ \t]*$/gm, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/`+[^`\n]*`+/g, (m) => ' '.repeat(m.length))
+}
 
 /**
  * Find the end of the close tag that balances the open tag of `tag` ending at `src[0, fromIndex)`,
@@ -60,12 +84,22 @@ const OPEN_TAG_RE = /^<([a-z][\w-]*)\b[^>]*?(\/)?>/i
  * both levels instead of stopping at the first (inner) `</span>`. Returns -1 if unterminated. A
  * nested self-closing same-name tag (`<span/>`) is skipped — it neither opens nor closes a level.
  * Shared by the inline tokenizer (single line) and the block tokenizer (spans blank lines).
+ *
+ * Scans a {@link maskCodeRegions}-masked copy of `src` so a tag name mentioned inside code doesn't
+ * count as real markup — this narrows, but can't eliminate, the inherent ambiguity of regex-based
+ * (non-DOM) tag matching: a *bare, unescaped* mention of the same tag name in plain prose (not in
+ * code) is indistinguishable from a real closing tag here, exactly as it would be to a real HTML
+ * parser given the same ambiguous input (there is no valid way to "escape" a literal `</tag>` inside
+ * real HTML content other than an entity or code region). Verified this can't lose data even in that
+ * case — the result still reaches a stable fixpoint on save, just restructured — matching this file's
+ * "reject on doubt, but never require doubt-free input" gate (`isRoundTripSafe`).
  */
 function findBalancedCloseEnd(src: string, tag: string, fromIndex: number): number {
-  const tagRe = new RegExp(`<(/?)${tag}\\b[^>]*?(/)?>`, 'gi')
+  const masked = maskCodeRegions(src)
+  const tagRe = new RegExp(`<(/?)${tag}\\b${ATTRS_RE_SOURCE}\\s*(/)?>`, 'gi')
   tagRe.lastIndex = fromIndex
   let depth = 1
-  for (let match = tagRe.exec(src); match; match = tagRe.exec(src)) {
+  for (let match = tagRe.exec(masked); match; match = tagRe.exec(masked)) {
     const isClose = match[1] === '/'
     const isSelfClosing = Boolean(match[2])
     if (isSelfClosing) continue
@@ -225,21 +259,33 @@ const BLOCK_HTML_TAG_NAMES = new Set([
  * falls through to the existing `markdownTokenName: 'html'` handling below (marked's own block
  * tokenizer, unchanged). Comments are matched the same way as the inline case — marked's own comment
  * rule already spans blank lines correctly, but routing through one path keeps the two tokenizers
- * symmetric and independently testable.
+ * symmetric and independently testable. CommonMark allows up to 3 leading spaces before a block-HTML
+ * opening line, so the leading indent is split off, matched against separately, and stitched back
+ * onto `raw` — everything after that first line (including the tag's own body) can be indented
+ * however the author wrote it, since the balanced scan doesn't care about column position there.
  */
 function tokenizeRawHtmlBlockTag(src: string): MarkdownToken | undefined {
-  const comment = RAW_HTML_COMMENT_RE.exec(src)
-  if (comment) return { type: 'html', raw: comment[0], text: comment[0], block: true }
+  const indent = /^ {0,3}/.exec(src)?.[0] ?? ''
+  const rest = src.slice(indent.length)
 
-  const open = OPEN_TAG_RE.exec(src)
+  const comment = RAW_HTML_COMMENT_RE.exec(rest)
+  if (comment) {
+    const raw = indent + comment[0]
+    return { type: 'html', raw, text: raw, block: true }
+  }
+
+  const open = OPEN_TAG_RE.exec(rest)
   if (!open) return undefined
   const tag = open[1].toLowerCase()
   if (!BLOCK_HTML_TAG_NAMES.has(tag)) return undefined
-  if (open[2]) return { type: 'html', raw: open[0], text: open[0], block: true }
+  if (open[2]) {
+    const raw = indent + open[0]
+    return { type: 'html', raw, text: raw, block: true }
+  }
 
-  const end = findBalancedCloseEnd(src, tag, open[0].length)
+  const end = findBalancedCloseEnd(rest, tag, open[0].length)
   if (end < 0) return undefined
-  const raw = src.slice(0, end)
+  const raw = indent + rest.slice(0, end)
   return { type: 'html', raw, text: raw, block: true }
 }
 

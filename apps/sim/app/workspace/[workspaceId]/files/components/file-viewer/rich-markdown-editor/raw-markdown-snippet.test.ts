@@ -154,4 +154,61 @@ describe('raw HTML block: does not fragment across blank lines', () => {
       '<details>\n<summary>s</summary>\n\nbody\n\n</details>\n\n| a   | b   |\n| --- | --- |\n| 1   | 2   |\n\n```js\nconst x = 1\n```'
     expect(roundTrip(input)).toBe(input)
   })
+
+  it('preserves an indented (up to 3 spaces) block-HTML opening line', () => {
+    // `roundTrip`'s `.trim()` would strip the very leading indent this test verifies, so check the
+    // parsed node's own text (and the untrimmed serialization) instead of the trimmed helper.
+    for (const indent of [' ', '  ', '   ']) {
+      const input = `${indent}<details>\n<summary>x</summary>\n\nbody\n\n</details>`
+      const doc = parseMarkdownToDoc(input)
+      expect(doc.content?.map((n) => n.type)).toEqual(['rawHtmlBlock'])
+      expect(doc.content?.[0].content?.[0].text).toBe(input)
+      expect(serializeMarkdownDocument(input)).toBe(`${input}\n`)
+    }
+  })
+
+  it('preserves a quoted attribute value containing a literal >', () => {
+    const input = '<div data-example="a > b">\n\ncontent\n\n</div>'
+    expect(topLevelTypes(input)).toEqual(['rawHtmlBlock'])
+    expect(roundTrip(input)).toBe(input)
+    expect(roundTrip(roundTrip(input))).toBe(roundTrip(input))
+  })
+
+  it('a quoted attribute containing a nested same-tag mention does not confuse the balance scan', () => {
+    // Without attribute-aware matching, `<div>` inside the quoted value below would be miscounted as
+    // a real nested open tag, throwing off the depth count entirely.
+    const input = '<div title="a <div> b">\n\ncontent\n\n</div>'
+    expect(topLevelTypes(input)).toEqual(['rawHtmlBlock'])
+    expect(roundTrip(input)).toBe(input)
+  })
+
+  it('does not mistake a tag name mentioned inside an inline code span for a real closing tag', () => {
+    const input = '<details>\n<summary>x</summary>\n\nSee `</details>` in the docs.\n\n</details>'
+    expect(topLevelTypes(input)).toEqual(['rawHtmlBlock'])
+    expect(roundTrip(input)).toBe(input)
+  })
+
+  it('does not mistake a tag name mentioned inside a fenced code block for a real closing tag', () => {
+    const input = '<div>\n\nExample:\n\n```html\n<div>example</div>\n```\n\nmore body\n\n</div>'
+    expect(topLevelTypes(input)).toEqual(['rawHtmlBlock'])
+    expect(roundTrip(input)).toBe(input)
+  })
+
+  it('a bare (unescaped, un-fenced) tag-name mention never crashes and always converges to a stable save', () => {
+    // Known, inherent limitation of regex-based (non-DOM) tag matching, shared by any HTML-block
+    // scanner (and by real HTML parsers given the same ambiguous input) — a bare mention outside
+    // code can still be misread as the real closer. The bar this file holds itself to is: never
+    // crash, never lose text, and always settle to a fixpoint after one save (isRoundTripSafe's own
+    // documented tolerance for single-pass normalization) — not a perfect, DOM-aware parse.
+    const input =
+      '<details>\n<summary>x</summary>\n\nSee the literal text </details> in docs.\n\nmore body\n\n</details>'
+    expect(() => roundTrip(input)).not.toThrow()
+    const once = roundTrip(input)
+    const twice = roundTrip(once)
+    expect(once).toBe(twice)
+    // No word from the original is dropped, even though the structure/whitespace may be reflowed.
+    for (const word of ['See', 'the', 'literal', 'text', 'in', 'docs', 'more', 'body']) {
+      expect(once).toContain(word)
+    }
+  })
 })
