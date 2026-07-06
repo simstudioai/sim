@@ -24,6 +24,7 @@ import { parseMarkdownToDoc } from './markdown-parse'
 import { useEditorMentions } from './mention'
 import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
+import { TableBubbleMenu } from './menus/table-menu'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
 import '@sim/emcn/components/code/code.css'
@@ -412,6 +413,12 @@ export function LoadedRichMarkdownEditor({
           contentType: 'json',
           emitUpdate: false,
         })
+        // `setContent` maps any pre-existing selection onto the new doc rather than clearing it — a
+        // select-all survives as "select everything," permanently painting every divider/image with
+        // the `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks elsewhere. Collapse
+        // on every settle, not just the first; `setTextSelection` (not `.focus()`) so this never steals
+        // DOM focus from whatever the user is doing outside the editor.
+        editor.commands.setTextSelection(editor.state.doc.content.size)
       }
       editor.setEditable(canEdit && settledRef.current.verdict)
       if (isInitialSettle && autoFocus) editor.commands.focus('end')
@@ -433,6 +440,7 @@ export function LoadedRichMarkdownEditor({
       className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
       {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+      {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
       {editor && <LinkHoverCard editor={editor} />}
       <input
         ref={imageInputRef}

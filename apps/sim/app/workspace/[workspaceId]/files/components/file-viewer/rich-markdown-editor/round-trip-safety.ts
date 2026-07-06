@@ -15,12 +15,11 @@ const PROBE_SIZE_LIMIT = 256 * 1024
  * (Linked images `[![alt](img)](href)` are handled by the image node and verified separately by
  * the link-count check in {@link isRoundTripSafe}, not here.)
  *
- * - **Footnote** `[^id]` — not in the schema; the reference and definition serialize to escaped
- *   literal text, breaking the footnote.
- * - **HTML comment** `<!-- … -->` — dropped entirely.
- * - **Raw HTML tag** `<div>`, `<details>`, `<kbd>`, … — StarterKit has no HTML node, so the tag
- *   is stripped (content kept, structure lost). `<br>` and `<img>` are excluded: `<br>` outside a
- *   table converts to a hard break, and `<img>` is a first-class (resizable) image node.
+ * Footnotes, HTML comments, and raw HTML tags (`<div>`, `<details>`, `<kbd>`, …) used to be listed
+ * here — the schema had no node for any of them, so they were dropped or stripped (content kept,
+ * structure lost). `./raw-markdown-snippet.ts` now holds each construct's exact source text and
+ * re-emits it byte-for-byte, so none of them lose data on round-trip and none need a pattern below.
+ *
  * - **`<br>` inside a table cell** — a GFM cell can't hold a real line break, so the serializer
  *   flattens `one<br>two` to `one two`. Matched on a table-shaped line (≥2 pipes) containing a `<br>`.
  * - **Hard break inside a heading** (trailing two spaces or a backslash) — the serializer splits
@@ -30,9 +29,6 @@ const PROBE_SIZE_LIMIT = 256 * 1024
  *   `&` with no `;` is left alone (it re-renders identically, so it's harmless churn).
  */
 const STABLE_LOSS_PATTERNS: ReadonlyArray<RegExp> = [
-  /\[\^[^\]]+]/,
-  /<!--/,
-  /<\/?(?!(?:br|img)\b)[a-z][a-z0-9-]*(\s[^>]*)?\/?>/i,
   /^(?=(?:[^\n]*\|){2})[^\n]*<br\s*\/?>/im,
   /^#{1,6}\s.*(?: {2,}|\\)$/m,
   /&(?!(?:amp|lt|gt);)(?:#x?[0-9a-f]+|[a-z][a-z0-9]*);/i,
