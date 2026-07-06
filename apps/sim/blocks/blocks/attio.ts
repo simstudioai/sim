@@ -1491,13 +1491,23 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (op === 'create_task' && params.taskIsCompleted !== undefined)
           cleanParams.isCompleted =
             params.taskIsCompleted === 'true' || params.taskIsCompleted === true
-        if (
-          op === 'update_task' &&
-          params.taskIsCompletedUpdate !== undefined &&
-          params.taskIsCompletedUpdate !== 'unchanged'
-        )
-          cleanParams.isCompleted =
-            params.taskIsCompletedUpdate === 'true' || params.taskIsCompletedUpdate === true
+        if (op === 'update_task') {
+          // taskIsCompletedUpdate is the current control; taskIsCompleted is a fallback for blocks
+          // saved before the split, when that field applied to both create_task and update_task.
+          if (
+            params.taskIsCompletedUpdate !== undefined &&
+            params.taskIsCompletedUpdate !== 'unchanged'
+          ) {
+            cleanParams.isCompleted =
+              params.taskIsCompletedUpdate === 'true' || params.taskIsCompletedUpdate === true
+          } else if (
+            params.taskIsCompletedUpdate === undefined &&
+            params.taskIsCompleted !== undefined
+          ) {
+            cleanParams.isCompleted =
+              params.taskIsCompleted === 'true' || params.taskIsCompleted === true
+          }
+        }
         if (['create_task', 'update_task'].includes(op) && params.taskLinkedRecords)
           cleanParams.linkedRecords = params.taskLinkedRecords
         if (['create_task', 'update_task'].includes(op) && params.taskAssignees)
@@ -1550,12 +1560,18 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
           cleanParams.apiSlug = params.listApiSlug
         if (op === 'create_list' && params.listWorkspaceAccess)
           cleanParams.workspaceAccess = params.listWorkspaceAccess
-        if (
-          op === 'update_list' &&
-          params.listWorkspaceAccessUpdate &&
-          params.listWorkspaceAccessUpdate !== 'unchanged'
-        )
-          cleanParams.workspaceAccess = params.listWorkspaceAccessUpdate
+        if (op === 'update_list') {
+          // listWorkspaceAccessUpdate is the current control; listWorkspaceAccess is a fallback
+          // for blocks saved before the split, when that field applied to both create and update.
+          if (
+            params.listWorkspaceAccessUpdate &&
+            params.listWorkspaceAccessUpdate !== 'unchanged'
+          ) {
+            cleanParams.workspaceAccess = params.listWorkspaceAccessUpdate
+          } else if (!params.listWorkspaceAccessUpdate && params.listWorkspaceAccess) {
+            cleanParams.workspaceAccess = params.listWorkspaceAccess
+          }
+        }
 
         // List entry params
         if (
