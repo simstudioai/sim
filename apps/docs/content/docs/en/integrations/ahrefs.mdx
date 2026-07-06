@@ -302,7 +302,7 @@ Get a target domain's pages that receive paid search traffic, sorted by estimate
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" |
-| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" |
+| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
 | `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
 | `date` | string | No | Date to report metrics on, in YYYY-MM-DD format \(defaults to today\) |
 | `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
@@ -410,7 +410,7 @@ Get the historical organic and paid traffic trend for a target domain or URL ove
 | `dateTo` | string | No | End date of the historical period, in YYYY-MM-DD format \(defaults to today\) |
 | `volumeMode` | string | No | Search volume calculation: "monthly" or "average" \(default: "monthly"\) |
 | `historyGrouping` | string | No | Time interval for grouping data points: "daily", "weekly", or "monthly" \(default: "monthly"\) |
-| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" |
+| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
 | `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 
@@ -460,7 +460,7 @@ Get the historical organic keyword ranking distribution for a target domain or U
 | `dateFrom` | string | Yes | Start date of the historical period, in YYYY-MM-DD format |
 | `dateTo` | string | No | End date of the historical period, in YYYY-MM-DD format \(defaults to today\) |
 | `historyGrouping` | string | No | Time interval for grouping data points: "daily", "weekly", or "monthly" \(default: "monthly"\) |
-| `country` | string | No | Country code for search results. Example: "us", "gb", "de" |
+| `country` | string | No | Country code for search results. Example: "us", "gb", "de" \(default: "us"\) |
 | `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 
@@ -487,7 +487,7 @@ Get bulk SEO metrics (Domain Rating, backlinks, referring domains, organic traff
 | `targets` | string | Yes | Comma-separated list of domains or URLs to analyze. Example: "example.com,competitor.com" |
 | `mode` | string | No | Analysis mode applied to every target: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
 | `protocol` | string | No | Protocol applied to every target: "both" \(default\), "http", or "https" |
-| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" |
+| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
 | `volumeMode` | string | No | Search volume calculation: "monthly" or "average" \(default: "monthly"\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 

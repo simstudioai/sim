@@ -49,7 +49,7 @@ export const metricsHistoryTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Country code for traffic data. Example: "us", "gb", "de"',
+      description: 'Country code for traffic data. Example: "us", "gb", "de" (default: "us")',
     },
     mode: {
       type: 'string',
@@ -75,7 +75,7 @@ export const metricsHistoryTool: ToolConfig<
       url.searchParams.set('select', SELECT_FIELDS)
       url.searchParams.set('volume_mode', params.volumeMode || 'monthly')
       if (params.historyGrouping) url.searchParams.set('history_grouping', params.historyGrouping)
-      if (params.country) url.searchParams.set('country', params.country)
+      url.searchParams.set('country', params.country || 'us')
       if (params.mode) url.searchParams.set('mode', params.mode)
       return url.toString()
     },

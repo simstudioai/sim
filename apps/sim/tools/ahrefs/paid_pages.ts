@@ -21,7 +21,7 @@ export const paidPagesTool: ToolConfig<AhrefsPaidPagesParams, AhrefsPaidPagesRes
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Country code for traffic data. Example: "us", "gb", "de"',
+      description: 'Country code for traffic data. Example: "us", "gb", "de" (default: "us")',
     },
     mode: {
       type: 'string',
@@ -58,7 +58,7 @@ export const paidPagesTool: ToolConfig<AhrefsPaidPagesParams, AhrefsPaidPagesRes
       // Date is required - default to today if not provided
       const date = params.date || new Date().toISOString().split('T')[0]
       url.searchParams.set('date', date)
-      if (params.country) url.searchParams.set('country', params.country)
+      url.searchParams.set('country', params.country || 'us')
       if (params.mode) url.searchParams.set('mode', params.mode)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       return url.toString()

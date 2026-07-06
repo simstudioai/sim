@@ -37,7 +37,7 @@ export const batchAnalysisTool: ToolConfig<AhrefsBatchAnalysisParams, AhrefsBatc
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Country code for traffic data. Example: "us", "gb", "de"',
+        description: 'Country code for traffic data. Example: "us", "gb", "de" (default: "us")',
       },
       volumeMode: {
         type: 'string',
@@ -75,7 +75,7 @@ export const batchAnalysisTool: ToolConfig<AhrefsBatchAnalysisParams, AhrefsBatc
         return {
           select: SELECT_FIELDS.split(','),
           targets,
-          ...(params.country ? { country: params.country } : {}),
+          country: params.country || 'us',
           volume_mode: params.volumeMode || 'monthly',
         }
       },

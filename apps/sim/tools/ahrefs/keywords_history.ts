@@ -46,7 +46,7 @@ export const keywordsHistoryTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Country code for search results. Example: "us", "gb", "de"',
+      description: 'Country code for search results. Example: "us", "gb", "de" (default: "us")',
     },
     mode: {
       type: 'string',
@@ -71,7 +71,7 @@ export const keywordsHistoryTool: ToolConfig<
       url.searchParams.set('select', SELECT_FIELDS)
       if (params.historyGrouping) url.searchParams.set('history_grouping', params.historyGrouping)
       if (params.dateTo) url.searchParams.set('date_to', params.dateTo)
-      if (params.country) url.searchParams.set('country', params.country)
+      url.searchParams.set('country', params.country || 'us')
       if (params.mode) url.searchParams.set('mode', params.mode)
       return url.toString()
     },
