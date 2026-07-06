@@ -64,6 +64,10 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
         { label: 'Create Webhook', id: 'create_webhook' },
         { label: 'Update Webhook', id: 'update_webhook' },
         { label: 'Delete Webhook', id: 'delete_webhook' },
+        { label: 'List Attributes', id: 'list_attributes' },
+        { label: 'Get Attribute', id: 'get_attribute' },
+        { label: 'Create Attribute', id: 'create_attribute' },
+        { label: 'Update Attribute', id: 'update_attribute' },
       ],
       value: () => 'list_records',
     },
@@ -983,6 +987,180 @@ workspace-member.created
       },
     },
 
+    // Attribute fields
+    {
+      id: 'attributeTarget',
+      title: 'Target',
+      type: 'dropdown',
+      options: [
+        { label: 'Object', id: 'objects' },
+        { label: 'List', id: 'lists' },
+      ],
+      value: () => 'objects',
+      condition: {
+        field: 'operation',
+        value: ['list_attributes', 'get_attribute', 'create_attribute', 'update_attribute'],
+      },
+      required: {
+        field: 'operation',
+        value: ['list_attributes', 'get_attribute', 'create_attribute', 'update_attribute'],
+      },
+    },
+    {
+      id: 'attributeIdentifier',
+      title: 'Object or List ID/Slug',
+      type: 'short-input',
+      placeholder: 'e.g. people, companies',
+      condition: {
+        field: 'operation',
+        value: ['list_attributes', 'get_attribute', 'create_attribute', 'update_attribute'],
+      },
+      required: {
+        field: 'operation',
+        value: ['list_attributes', 'get_attribute', 'create_attribute', 'update_attribute'],
+      },
+    },
+    {
+      id: 'attributeId',
+      title: 'Attribute ID or Slug',
+      type: 'short-input',
+      placeholder: 'e.g. email_addresses',
+      condition: { field: 'operation', value: ['get_attribute', 'update_attribute'] },
+      required: { field: 'operation', value: ['get_attribute', 'update_attribute'] },
+    },
+    {
+      id: 'attributeTitle',
+      title: 'Title',
+      type: 'short-input',
+      placeholder: 'e.g. Lead Source',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      required: { field: 'operation', value: 'create_attribute' },
+    },
+    {
+      id: 'attributeApiSlug',
+      title: 'API Slug',
+      type: 'short-input',
+      placeholder: 'e.g. lead_source',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      required: { field: 'operation', value: 'create_attribute' },
+    },
+    {
+      id: 'attributeType',
+      title: 'Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Text', id: 'text' },
+        { label: 'Number', id: 'number' },
+        { label: 'Checkbox', id: 'checkbox' },
+        { label: 'Currency', id: 'currency' },
+        { label: 'Date', id: 'date' },
+        { label: 'Timestamp', id: 'timestamp' },
+        { label: 'Rating', id: 'rating' },
+        { label: 'Status', id: 'status' },
+        { label: 'Select', id: 'select' },
+        { label: 'Record Reference', id: 'record-reference' },
+        { label: 'Actor Reference', id: 'actor-reference' },
+        { label: 'Location', id: 'location' },
+        { label: 'Domain', id: 'domain' },
+        { label: 'Email Address', id: 'email-address' },
+        { label: 'Phone Number', id: 'phone-number' },
+      ],
+      condition: { field: 'operation', value: 'create_attribute' },
+      required: { field: 'operation', value: 'create_attribute' },
+    },
+    {
+      id: 'attributeDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Describe the attribute',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsRequired',
+      title: 'Required',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsUnique',
+      title: 'Unique',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsMultiselect',
+      title: 'Multiselect',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'create_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsArchived',
+      title: 'Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      condition: { field: 'operation', value: 'update_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeConfig',
+      title: 'Config',
+      type: 'code',
+      placeholder: '{"default_currency_code": "USD", "display_type": "text"}',
+      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `Generate Attio attribute type configuration as a JSON object.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the JSON object. No explanations, no markdown, no extra text.
+
+### EXAMPLES
+Currency: {"default_currency_code": "USD", "display_type": "text"}
+Record reference: {"allowed_objects": ["people", "companies"]}`,
+        placeholder: 'Describe the attribute configuration...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'attributeShowArchived',
+      title: 'Show Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'list_attributes' },
+      mode: 'advanced',
+    },
+
     // Shared limit
     {
       id: 'limit',
@@ -1000,6 +1178,7 @@ workspace-member.created
           'query_list_entries',
           'list_threads',
           'list_webhooks',
+          'list_attributes',
         ],
       },
     },
@@ -1018,8 +1197,22 @@ workspace-member.created
           'query_list_entries',
           'list_threads',
           'list_webhooks',
+          'list_attributes',
         ],
       },
+    },
+    {
+      id: 'taskSort',
+      title: 'Sort',
+      type: 'dropdown',
+      options: [
+        { label: 'Created At (asc)', id: 'created_at:asc' },
+        { label: 'Created At (desc)', id: 'created_at:desc' },
+        { label: 'Completed At (asc)', id: 'completed_at:asc' },
+        { label: 'Completed At (desc)', id: 'completed_at:desc' },
+      ],
+      condition: { field: 'operation', value: 'list_tasks' },
+      mode: 'advanced',
     },
     ...getTrigger('attio_record_created').subBlocks,
     ...getTrigger('attio_record_updated').subBlocks,
@@ -1116,6 +1309,10 @@ workspace-member.created
       'attio_create_webhook',
       'attio_update_webhook',
       'attio_delete_webhook',
+      'attio_list_attributes',
+      'attio_get_attribute',
+      'attio_create_attribute',
+      'attio_update_attribute',
     ],
     config: {
       tool: (params) => `attio_${params.operation}`,
@@ -1158,6 +1355,7 @@ workspace-member.created
         if (params.taskFilterAssignee) cleanParams.assignee = params.taskFilterAssignee
         if (params.taskFilterCompleted && params.taskFilterCompleted !== 'all')
           cleanParams.isCompleted = params.taskFilterCompleted === 'true'
+        if (params.taskSort) cleanParams.sort = params.taskSort
 
         // Object params
         if (params.objectIdOrSlug) cleanParams.object = params.objectIdOrSlug
@@ -1205,6 +1403,31 @@ workspace-member.created
         if (params.webhookId) cleanParams.webhookId = params.webhookId
         if (params.webhookTargetUrl) cleanParams.targetUrl = params.webhookTargetUrl
         if (params.webhookSubscriptions) cleanParams.subscriptions = params.webhookSubscriptions
+
+        // Attribute params
+        if (params.attributeTarget) cleanParams.target = params.attributeTarget
+        if (params.attributeIdentifier) cleanParams.identifier = params.attributeIdentifier
+        if (params.attributeId) cleanParams.attribute = params.attributeId
+        if (params.attributeTitle) cleanParams.title = params.attributeTitle
+        if (params.attributeApiSlug) cleanParams.apiSlug = params.attributeApiSlug
+        if (params.attributeType) cleanParams.type = params.attributeType
+        if (params.attributeDescription) cleanParams.description = params.attributeDescription
+        if (params.attributeIsRequired !== undefined)
+          cleanParams.isRequired =
+            params.attributeIsRequired === 'true' || params.attributeIsRequired === true
+        if (params.attributeIsUnique !== undefined)
+          cleanParams.isUnique =
+            params.attributeIsUnique === 'true' || params.attributeIsUnique === true
+        if (params.attributeIsMultiselect !== undefined)
+          cleanParams.isMultiselect =
+            params.attributeIsMultiselect === 'true' || params.attributeIsMultiselect === true
+        if (params.attributeIsArchived !== undefined)
+          cleanParams.isArchived =
+            params.attributeIsArchived === 'true' || params.attributeIsArchived === true
+        if (params.attributeConfig) cleanParams.config = params.attributeConfig
+        if (params.attributeShowArchived !== undefined)
+          cleanParams.showArchived =
+            params.attributeShowArchived === 'true' || params.attributeShowArchived === true
 
         // Shared params
         if (params.limit) cleanParams.limit = Number(params.limit)
@@ -1269,6 +1492,26 @@ workspace-member.created
     webhookId: { type: 'string', description: 'Webhook ID' },
     webhookTargetUrl: { type: 'string', description: 'Webhook target URL' },
     webhookSubscriptions: { type: 'json', description: 'Webhook event subscriptions' },
+    attributeTarget: {
+      type: 'string',
+      description: 'Whether the attribute is on an object or list',
+    },
+    attributeIdentifier: { type: 'string', description: 'The object or list ID or slug' },
+    attributeId: { type: 'string', description: 'The attribute ID or slug' },
+    attributeTitle: { type: 'string', description: 'The attribute display title' },
+    attributeApiSlug: { type: 'string', description: 'The attribute API slug' },
+    attributeType: { type: 'string', description: 'The attribute value type' },
+    attributeDescription: { type: 'string', description: 'The attribute description' },
+    attributeIsRequired: { type: 'string', description: 'Whether the attribute is required' },
+    attributeIsUnique: { type: 'string', description: 'Whether the attribute is unique' },
+    attributeIsMultiselect: { type: 'string', description: 'Whether the attribute is multiselect' },
+    attributeIsArchived: { type: 'string', description: 'Whether the attribute is archived' },
+    attributeConfig: { type: 'json', description: 'Type-dependent attribute configuration' },
+    attributeShowArchived: {
+      type: 'string',
+      description: 'Whether to include archived attributes',
+    },
+    taskSort: { type: 'string', description: 'Task list sort order' },
     limit: { type: 'string', description: 'Maximum number of results' },
     offset: { type: 'string', description: 'Number of results to skip for pagination' },
   },
@@ -1289,6 +1532,7 @@ workspace-member.created
     content: { type: 'string', description: 'Task or note content' },
     deadlineAt: { type: 'string', description: 'Task deadline' },
     isCompleted: { type: 'boolean', description: 'Task completion status' },
+    completedAt: { type: 'string', description: 'When the task was completed' },
     linkedRecords: { type: 'json', description: 'Linked records' },
     assignees: { type: 'json', description: 'Task assignees' },
     objects: { type: 'json', description: 'Array of objects' },
@@ -1322,6 +1566,32 @@ workspace-member.created
     deleted: { type: 'boolean', description: 'Whether the item was deleted' },
     createdAt: { type: 'string', description: 'When the item was created' },
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
+    attributes: { type: 'json', description: 'Array of attributes' },
+    attributeId: { type: 'string', description: 'The attribute ID' },
+    description: { type: 'string', description: 'The attribute description' },
+    type: { type: 'string', description: 'The attribute value type' },
+    isSystemAttribute: {
+      type: 'boolean',
+      description: 'Whether this is a built-in system attribute',
+    },
+    isWritable: { type: 'boolean', description: 'Whether the attribute can be written to' },
+    isRequired: { type: 'boolean', description: 'Whether the attribute is required' },
+    isUnique: { type: 'boolean', description: 'Whether the attribute enforces uniqueness' },
+    isMultiselect: { type: 'boolean', description: 'Whether the attribute is multiselect' },
+    isDefaultValueEnabled: {
+      type: 'boolean',
+      description: 'Whether this attribute has a default value enabled',
+    },
+    isArchived: { type: 'boolean', description: 'Whether the attribute is archived' },
+    defaultValue: {
+      type: 'json',
+      description: 'The default value for this attribute, if enabled',
+    },
+    relationship: {
+      type: 'json',
+      description: 'The related attribute, if this attribute is part of a relationship',
+    },
+    config: { type: 'json', description: 'Type-dependent attribute configuration' },
   },
 }
 

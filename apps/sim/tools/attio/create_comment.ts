@@ -91,12 +91,16 @@ export const attioCreateCommentTool: ToolConfig<
           type: params.authorType,
           id: params.authorId,
         },
-        entry: {
+      }
+      // Attio's comment body accepts exactly one of `thread_id` or `entry` — sending both is rejected.
+      if (params.threadId) {
+        data.thread_id = params.threadId
+      } else {
+        data.entry = {
           list: params.list,
           entry_id: params.entryId,
-        },
+        }
       }
-      if (params.threadId) data.thread_id = params.threadId
       if (params.createdAt) data.created_at = params.createdAt
       return { data }
     },

@@ -118,6 +118,7 @@ export const attioListTasksTool: ToolConfig<AttioListTasksParams, AttioListTasks
         content: (task.content_plaintext as string) ?? null,
         deadlineAt: (task.deadline_at as string) ?? null,
         isCompleted: (task.is_completed as boolean) ?? false,
+        completedAt: (task.completed_at as string) ?? null,
         linkedRecords,
         assignees,
         createdByActor: task.created_by_actor ?? null,
