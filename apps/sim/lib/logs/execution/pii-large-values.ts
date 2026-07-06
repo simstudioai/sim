@@ -109,6 +109,12 @@ const REF_CONCURRENCY = env.PII_REF_CONCURRENCY ?? 4
  * Dedupe the collected refs by identity, then replace each in parallel (bounded by
  * {@link REF_CONCURRENCY}). `Map.set` is synchronous, so concurrent workers writing
  * the shared map do not race.
+ *
+ * `mapWithConcurrency`'s `fn` must not reject (a rejection fails the pool
+ * non-deterministically), so the mapper is total: it catches per-ref errors and
+ * records the first one. In `onFailure: 'throw'` mode `replaceRef` throws, so after
+ * the pool drains we rethrow that first error — an unmaskable ref still aborts the
+ * run rather than passing through. In `'scrub'` mode `replaceRef` never throws.
  */
 async function resolveReplacements(
   refs: object[],
@@ -116,9 +122,15 @@ async function resolveReplacements(
 ): Promise<Map<object, unknown>> {
   const unique = [...new Set(refs)]
   const replacements = new Map<object, unknown>()
+  let firstError: unknown
   await mapWithConcurrency(unique, REF_CONCURRENCY, async (ref) => {
-    replacements.set(ref, await replaceRef(ref, options))
+    try {
+      replacements.set(ref, await replaceRef(ref, options))
+    } catch (error) {
+      if (firstError === undefined) firstError = error
+    }
   })
+  if (firstError !== undefined) throw firstError
   return replacements
 }
 
