@@ -6,12 +6,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { generateFalVideo } from '@/lib/media/falai-video'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateVideoTool')
 
@@ -62,7 +60,11 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
       if (refPath) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, refPath)
+        const fileRecord = await resolveToolInputFile({
+          workspaceId,
+          chatId: context.chatId,
+          path: refPath,
+        })
         if (!fileRecord) {
           return { success: false, message: `Reference image not found: ${refPath}` }
         }
@@ -90,6 +92,11 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       })
 
       const outputFile = params.outputs?.files?.[0]
+      // Omitted outputs.files keeps the pre-feature `files/` default. Chat-scoped
+      // one-offs are opt-in via an explicit "outputs/<name>" path — mothership's
+      // chat-scoped-outputs flag steers the agent to pass one (and resource-writer
+      // redirects outputs/ to files/ for non-interactive runs, which lack a
+      // persisted copilot_chats row).
       const outputPath = outputFile?.path || 'files/generated-video.mp4'
       const mode = outputFile?.mode ?? 'create'
 
@@ -97,6 +104,9 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
+        chatId: context.chatId,
+        interactive: context.interactive,
+        messageId: context.messageId,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,

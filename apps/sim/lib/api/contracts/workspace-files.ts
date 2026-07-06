@@ -65,7 +65,7 @@ export const workspaceFileRecordSchema = z.object({
   deletedAt: z.coerce.date().nullable().optional(),
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
-  storageContext: z.enum(['workspace', 'mothership']).optional(),
+  storageContext: z.enum(['workspace', 'mothership', 'output']).optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 
@@ -87,6 +87,18 @@ export const listWorkspaceFilesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: listWorkspaceFilesResponseSchema,
+  },
+})
+
+export const getWorkspaceFileByIdContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileSuccessSchema.extend({
+      file: workspaceFileRecordSchema,
+    }),
   },
 })
 

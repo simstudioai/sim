@@ -35,7 +35,7 @@ import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useChatOutputs, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 export interface AddResourceDropdownProps {
   workspaceId: string
@@ -44,6 +44,8 @@ export interface AddResourceDropdownProps {
   onSwitch?: (resourceId: string) => void
   /** Resource types to hide from the dropdown (e.g. `['folder', 'task']`). */
   excludeTypes?: readonly MothershipResourceType[]
+  /** Active chat id; when set, this chat's `output` files are listed under Files too. */
+  chatId?: string
 }
 
 export type AvailableItem = { id: string; name: string; isOpen?: boolean; [key: string]: unknown }
@@ -70,11 +72,15 @@ const LOG_DROPDOWN_FILTERS = {
 export function useAvailableResources(
   workspaceId: string,
   existingKeys: Set<string>,
-  excludeTypes?: readonly MothershipResourceType[]
+  excludeTypes?: readonly MothershipResourceType[],
+  chatId?: string
 ): AvailableItemsByType[] {
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
+  // Chat-scoped agent outputs aren't in the workspace list; surface them here so a
+  // generated `outputs/` file is pickable in the "+" menu and openable as a tab.
+  const { data: chatOutputs = [] } = useChatOutputs(chatId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
   const { data: fileFolders = [] } = useWorkspaceFileFolders(workspaceId)
@@ -85,6 +91,11 @@ export function useAvailableResources(
 
   return useMemo(() => {
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
+    // Merge workspace files with this chat's outputs, deduped by id (a materialized
+    // output becomes a workspace file with the same id, so it must not appear twice).
+    const fileIds = new Set(files.map((f) => f.id))
+    const fileList =
+      chatOutputs.length > 0 ? [...files, ...chatOutputs.filter((o) => !fileIds.has(o.id))] : files
     const groups: AvailableItemsByType[] = [
       {
         type: 'workflow' as const,
@@ -116,7 +127,7 @@ export function useAvailableResources(
       },
       {
         type: 'file' as const,
-        items: files.map((f) => ({
+        items: fileList.map((f) => ({
           id: f.id,
           name: f.name,
           folderId: f.folderId ?? null,
@@ -190,6 +201,7 @@ export function useAvailableResources(
     fileFolders,
     tables,
     files,
+    chatOutputs,
     knowledgeBases,
     tasks,
     schedules,
@@ -387,14 +399,17 @@ export function AddResourceDropdown({
   onAdd,
   onSwitch,
   excludeTypes,
+  chatId,
 }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const available = useAvailableResources(workspaceId, existingKeys, [
-    ...(excludeTypes ?? []),
-    'integration',
-  ])
+  const available = useAvailableResources(
+    workspaceId,
+    existingKeys,
+    [...(excludeTypes ?? []), 'integration'],
+    chatId
+  )
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (!next) {

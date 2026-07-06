@@ -15,6 +15,23 @@ import { isUuid } from '@/executor/constants'
 
 const logger = createLogger('FileAuthorization')
 
+/**
+ * Contexts this key lookup resolves for workspace-membership authorization:
+ * `workspace` (durable UI files) and `output` (chat-scoped agent outputs). Both
+ * share the `workspace/<id>/...` key shape and are authorized by workspace
+ * membership, so a by-key match on either is safe to grant to any member.
+ *
+ * `mothership` chat uploads ALSO share the bucket/key shape but are deliberately
+ * left OUT: today they authorize via the Priority-2 object-metadata fallback, and
+ * moving them onto this Priority-1 DB path would change how uploads work — an
+ * unrelated change deferred to its own PR (see outputs-vfs-followups.md #2).
+ * Owner-scoped contexts that also live in `workspace_files` (`copilot`,
+ * `knowledge-base`, `workspace-logos`) are excluded too: they have stricter
+ * per-owner rules and must never be granted through workspace membership on a
+ * key collision.
+ */
+const WORKSPACE_FILE_LOOKUP_CONTEXTS: StorageContext[] = ['workspace', 'output']
+
 /** Thrown by utility functions when file access is denied, so route handlers can return 404. */
 export class FileAccessDeniedError extends Error {
   constructor() {
@@ -44,6 +61,21 @@ function workspacePermissionSatisfies(
 }
 
 /**
+ * Chat-scoped `output` rows belong to a PRIVATE chat: workspace membership
+ * alone is not enough — the caller must also be the row's owner (stamped from
+ * the chat owner at creation and re-stamped on fork/duplicate). Without this,
+ * any workspace member who learns a file id or storage key could read another
+ * member's agent outputs, even though listing outputs requires chat ownership.
+ * Non-output contexts pass through unchanged.
+ */
+function outputOwnershipSatisfied(
+  record: { context: string; uploadedBy: string },
+  userId: string
+): boolean {
+  return record.context !== 'output' || record.uploadedBy === userId
+}
+
+/**
  * Lookup workspace file by storage key from database
  * @param key Storage key to lookup
  * @returns Workspace file info or null if not found
@@ -51,16 +83,26 @@ function workspacePermissionSatisfies(
 async function lookupWorkspaceFileByKey(
   key: string,
   options?: { includeDeleted?: boolean }
-): Promise<{ workspaceId: string; uploadedBy: string } | null> {
+): Promise<{ workspaceId: string; uploadedBy: string; context: string } | null> {
   try {
     const { includeDeleted = false } = options ?? {}
-    // Priority 1: Check new workspaceFiles table
-    const fileRecord = await getFileMetadataByKey(key, 'workspace', { includeDeleted })
+    // Priority 1: Check new workspaceFiles table. Look up by key across
+    // WORKSPACE_FILE_LOOKUP_CONTEXTS (`workspace` + `output`): both share the
+    // `workspace/<id>/...` key shape. `workspace` rows authorize by workspace
+    // membership; `output` rows additionally require ownership (see
+    // outputOwnershipSatisfied). Filtering to `workspace` alone made `output`
+    // files unservable (broken previews); scoping to this explicit set (rather
+    // than dropping the filter) keeps outputs servable while leaving upload
+    // (`mothership`) authorization and the owner-scoped contexts untouched.
+    const fileRecord = await getFileMetadataByKey(key, WORKSPACE_FILE_LOOKUP_CONTEXTS, {
+      includeDeleted,
+    })
 
     if (fileRecord) {
       return {
         workspaceId: fileRecord.workspaceId || '',
         uploadedBy: fileRecord.userId,
+        context: fileRecord.context,
       }
     }
 
@@ -83,6 +125,7 @@ async function lookupWorkspaceFileByKey(
         return {
           workspaceId: legacyFile.workspaceId,
           uploadedBy: legacyFile.uploadedBy,
+          context: 'workspace',
         }
       }
     } catch (legacyError) {
@@ -157,8 +200,15 @@ export async function verifyFileAccess(
       return true
     }
 
-    // 1. Workspace / mothership files: Check database first (most reliable for both local and cloud)
-    if (inferredContext === 'workspace' || inferredContext === 'mothership') {
+    // 1. Workspace / mothership / chat-output files: check database first (most
+    // reliable for both local and cloud). `output` shares the workspace key
+    // shape; explicitly routing it here (instead of letting it fall through to
+    // verifyRegularFileAccess) keeps its ownership rule applied on every path.
+    if (
+      inferredContext === 'workspace' ||
+      inferredContext === 'mothership' ||
+      inferredContext === 'output'
+    ) {
       return await verifyWorkspaceFileAccess(cloudKey, userId, customConfig, isLocal, requireWrite)
     }
 
@@ -218,6 +268,14 @@ async function verifyWorkspaceFileAccess(
     // Priority 1: Check database (most reliable, works for both local and cloud)
     const workspaceFileRecord = await lookupWorkspaceFileByKey(cloudKey)
     if (workspaceFileRecord) {
+      if (!outputOwnershipSatisfied(workspaceFileRecord, userId)) {
+        logger.warn('Chat output file access denied: caller is not the owning chat user', {
+          userId,
+          workspaceId: workspaceFileRecord.workspaceId,
+          cloudKey,
+        })
+        return false
+      }
       const permission = await getUserEntityPermissions(
         userId,
         'workspace',
@@ -647,6 +705,14 @@ async function verifyRegularFileAccess(
     // This handles legacy files that might not have metadata
     const workspaceFileRecord = await lookupWorkspaceFileByKey(cloudKey)
     if (workspaceFileRecord) {
+      if (!outputOwnershipSatisfied(workspaceFileRecord, userId)) {
+        logger.warn('Chat output file access denied: caller is not the owning chat user', {
+          userId,
+          workspaceId: workspaceFileRecord.workspaceId,
+          cloudKey,
+        })
+        return false
+      }
       const permission = await getUserEntityPermissions(
         userId,
         'workspace',

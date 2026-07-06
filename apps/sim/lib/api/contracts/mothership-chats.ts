@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { workspaceFileRecordSchema } from '@/lib/api/contracts/workspace-files'
 
 const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
   message: 'Expected a valid date string',
@@ -157,10 +158,21 @@ export const adminMothershipQuerySchema = z
   .passthrough()
 export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
 
+// RESPONSE items stay permissive: the server may still return legacy
+// empty-id rows until hydration cleans them up, and a strict response schema
+// would make requestJson reject those valid replies wholesale.
 const mothershipChatResourceItemSchema = z.object({
   type: z.string(),
   id: z.string(),
   title: z.string(),
+})
+
+// REQUEST items require a non-empty id, matching the delegated copilot
+// handlers' tightened schemas — the client contract must describe the real
+// boundary (legacy empty-id rows are DELETED via the permissive remove
+// contract, never re-added or reordered).
+const mothershipChatResourceRequestItemSchema = mothershipChatResourceItemSchema.extend({
+  id: z.string().min(1, 'resource id is required'),
 })
 
 const mothershipChatResourcesResponseSchema = z.object({
@@ -170,18 +182,21 @@ const mothershipChatResourcesResponseSchema = z.object({
 
 const addMothershipChatResourceBodySchema = z.object({
   chatId: z.string().min(1),
-  resource: mothershipChatResourceItemSchema,
+  resource: mothershipChatResourceRequestItemSchema,
 })
 
 const reorderMothershipChatResourcesBodySchema = z.object({
   chatId: z.string().min(1),
-  resources: z.array(mothershipChatResourceItemSchema),
+  resources: z.array(mothershipChatResourceRequestItemSchema),
 })
 
 const removeMothershipChatResourceBodySchema = z.object({
   chatId: z.string().min(1),
   resourceType: z.string().min(1),
-  resourceId: z.string().min(1),
+  // Permissive resourceId (no min) so legacy empty-id rows can still be
+  // deleted — mirrors removeCopilotChatResourceBodySchema, which the shim
+  // route delegates to (hydration cleans those rows up via this contract).
+  resourceId: z.string(),
 })
 
 export const addMothershipChatResourceContract = defineRouteContract({
@@ -262,7 +277,13 @@ export const deleteMothershipChatContract = defineRouteContract({
 })
 
 export const forkMothershipChatBodySchema = z.object({
-  upToMessageId: z.string().min(1, 'upToMessageId is required'),
+  /**
+   * The fork cut point: messages up to and including this id are kept, and the
+   * copy is titled "Fork | <name>". Omitted for a whole-chat duplicate: every
+   * message is kept, agent outputs/ rows come along, and the copy is titled
+   * "<name> (Copy)".
+   */
+  upToMessageId: z.string().min(1, 'upToMessageId cannot be empty').optional(),
 })
 export type ForkMothershipChatBody = z.input<typeof forkMothershipChatBodySchema>
 
@@ -276,6 +297,26 @@ export const forkMothershipChatContract = defineRouteContract({
     schema: z.object({
       success: z.literal(true),
       id: z.string(),
+      /**
+       * Present (and > 0) when some file blobs could not be byte-copied: the
+       * new chat exists and its transcript references those copies, but their
+       * bytes are missing (blob copies are best-effort, post-transaction).
+       * Callers should surface a warning.
+       */
+      failedFileCopies: z.number().optional(),
+    }),
+  },
+})
+
+export const listChatOutputsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]/outputs',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      files: z.array(workspaceFileRecordSchema),
     }),
   },
 })

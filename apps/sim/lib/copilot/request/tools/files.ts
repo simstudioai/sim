@@ -260,6 +260,14 @@ export async function maybeWriteOutputToFile(
           const written = await writeWorkspaceFileByPath({
             workspaceId: context.workspaceId!,
             userId: context.userId!,
+            // Without these, an interactive outputs/-addressed write would
+            // silently take the writer's headless files/ redirect — landing
+            // permanently in workspace Files while the agent references an
+            // outputs/ path that doesn't exist (the media tools thread the
+            // same three fields).
+            chatId: context.chatId,
+            interactive: context.interactive,
+            messageId: context.messageId,
             target: {
               path: outputFile.path,
               mode: outputFile.mode ?? 'create',

@@ -176,6 +176,7 @@ function getS3Config(context: StorageContext): StorageConfig {
         region: S3_EXECUTION_FILES_CONFIG.region,
       }
     case 'mothership':
+    case 'output':
     case 'workspace':
       return {
         bucket: S3_CONFIG.bucket,
@@ -238,6 +239,7 @@ function getBlobConfig(context: StorageContext): StorageConfig {
         containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
       }
     case 'mothership':
+    case 'output':
     case 'workspace':
       return {
         accountName: BLOB_CONFIG.accountName,

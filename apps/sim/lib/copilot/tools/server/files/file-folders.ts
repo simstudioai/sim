@@ -14,7 +14,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { decodeVfsPathSegments, isOutputsPath, isUploadsPath } from '@/lib/copilot/vfs/path-utils'
 import {
   findWorkspaceFileFolderIdByPath,
   getWorkspaceFileFolder,
@@ -157,6 +157,13 @@ async function resolveFileIdsFromPaths(
   const fileIds: string[] = []
   const failed: string[] = []
   for (const path of paths) {
+    // Chat-scoped files have no folders and are never workspace-movable —
+    // fail the ref instead of letting 'outputs/x' resolve against a workspace
+    // folder literally named "outputs" and move THAT file.
+    if (isOutputsPath(path) || isUploadsPath(path)) {
+      failed.push(path)
+      continue
+    }
     const file = await resolveWorkspaceFileReference(workspaceId, path)
     if (!file) {
       failed.push(path)

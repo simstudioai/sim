@@ -5,6 +5,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { isOutputsPath } from '@/lib/copilot/vfs/path-utils'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { inferContentType } from './workspace-file'
@@ -49,6 +50,16 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     const outputFile = params.outputs?.files?.[0]
     if (!outputFile?.path && !fileName) {
       return { success: false, message: 'create_file requires outputs.files[0].path or fileName' }
+    }
+    // Guard on the RAW target, before the files/ prefixing below: a bare
+    // fileName like "outputs/notes.md" would otherwise become
+    // files/outputs/notes.md and slip past an outputs/ check on the built path.
+    if (isOutputsPath(outputFile?.path ?? fileName)) {
+      return {
+        success: false,
+        message:
+          'create_file cannot target outputs/. The outputs/ folder holds single-shot generated files (images, downloads, media) and is not editable. Create editable files under files/ instead.',
+      }
     }
     const outputPath =
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)

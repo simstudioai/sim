@@ -6,9 +6,11 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { listChatOutputsContract } from '@/lib/api/contracts/mothership-chats'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   deleteWorkspaceFileContract,
+  getWorkspaceFileByIdContract,
   listWorkspaceFilesContract,
   registerWorkspaceFileContract,
   renameWorkspaceFileContract,
@@ -52,6 +54,11 @@ export const workspaceFilesKeys = {
       ...(storageKey ? [storageKey] : []),
     ] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
+  chatOutputsAll: () => [...workspaceFilesKeys.all, 'chatOutputs'] as const,
+  chatOutputs: (chatId: string) => [...workspaceFilesKeys.chatOutputsAll(), chatId] as const,
+  byIds: () => [...workspaceFilesKeys.all, 'byId'] as const,
+  byId: (workspaceId: string, fileId: string) =>
+    [...workspaceFilesKeys.byIds(), workspaceId, fileId] as const,
 }
 
 /**
@@ -78,6 +85,58 @@ export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
     enabled: !!workspaceId && !!fileId,
     staleTime: 30 * 1000,
     select: (files) => files.find((f) => f.id === fileId) ?? null,
+  })
+}
+
+/**
+ * List the chat-scoped `output` files (agent-generated one-offs) for a chat. These are
+ * NOT in {@link useWorkspaceFiles} (which is workspace-only), so the resource panel uses
+ * this to surface them alongside workspace files in the "+" picker and as open tabs.
+ * Returns the same `WorkspaceFileRecord` shape as the workspace file list.
+ */
+export function useChatOutputs(chatId: string | undefined) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.chatOutputs(chatId ?? ''),
+    queryFn: async ({ signal }): Promise<WorkspaceFileRecord[]> => {
+      if (!chatId) return []
+      // Let failures THROW: swallowing them into a successful [] would cache
+      // "no outputs" for the whole stale window (masking real outputs from
+      // path-based link resolution) and defeat React Query's retry. Consumers
+      // already default to [] via `data = []`.
+      const data = await requestJson(listChatOutputsContract, {
+        params: { chatId },
+        signal,
+      })
+      return data.files
+    },
+    enabled: !!chatId,
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Fallback hook to fetch a single file record by id directly from the API, including
+ * chat-scoped `output` files that never appear in the workspace Files list (and so are
+ * absent from {@link useWorkspaceFiles}). The resource panel uses this only when the
+ * list lookup misses, so a generated `outputs/` file can still be previewed.
+ */
+export function useWorkspaceFileById(workspaceId: string, fileId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.byId(workspaceId, fileId),
+    queryFn: async ({ signal }): Promise<WorkspaceFileRecord | null> => {
+      try {
+        const data = await requestJson(getWorkspaceFileByIdContract, {
+          params: { id: workspaceId, fileId },
+          signal,
+        })
+        return data.success ? data.file : null
+      } catch {
+        // 404 (deleted / not previewable) resolves to null — the panel treats it as a miss.
+        return null
+      }
+    },
+    enabled: enabled && !!workspaceId && !!fileId,
+    staleTime: 30 * 1000,
   })
 }
 

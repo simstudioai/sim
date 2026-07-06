@@ -3,18 +3,34 @@ import { workflowSchedule } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
+import { canonicalWorkspaceFilePath, encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
-import {
-  getWorkspaceFile,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import type { OpenResourceItem, OpenResourceParams, ValidOpenResourceParams } from './param-types'
 
 const VALID_OPEN_RESOURCE_TYPES = new Set(Object.values(MothershipResourceType))
+
+/**
+ * VFS path for a resolved file resource: chat-scoped records live under their
+ * flat `uploads/`/`outputs/` namespace (encoded like `files/` segments, raw
+ * name as fallback for un-encodable names); workspace records use the
+ * canonical folder path.
+ */
+function chatScopedOrWorkspacePath(record: WorkspaceFileRecord): string {
+  if (record.storageContext === 'mothership' || record.storageContext === 'output') {
+    const prefix = record.storageContext === 'output' ? 'outputs' : 'uploads'
+    try {
+      return `${prefix}/${encodeVfsSegment(record.name)}`
+    } catch {
+      return `${prefix}/${record.name}`
+    }
+  }
+  return canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
+}
 
 async function resolveResource(
   item: ValidOpenResourceParams,
@@ -28,19 +44,31 @@ async function resolveResource(
     if (!context.workspaceId)
       return { error: 'Opening a workspace file requires workspace context.' }
     const fileRef = item.path || item.id || ''
-    const record = item.path
-      ? await resolveWorkspaceFileReference(context.workspaceId, item.path)
-      : item.id
-        ? await getWorkspaceFile(context.workspaceId, item.id)
-        : null
-    if (!record) return { error: `No workspace file found for "${fileRef}".` }
+    // Resolves workspace files/ paths and wf_ ids, plus this chat's uploads/
+    // and outputs/ (by path or bare id) — the agent opens its own generated
+    // outputs as readily as shared workspace files.
+    const record = await resolveToolInputFile({
+      workspaceId: context.workspaceId,
+      chatId: context.chatId,
+      path: fileRef,
+    })
+    if (!record) return { error: `No file found for "${fileRef}".` }
+    // Chat uploads resolve as tool INPUTS, but no client surface can preview
+    // a context='mothership' row (the by-id preview endpoint deliberately
+    // whitelists workspace + output) — opening one would mint a permanently
+    // broken tab. Steer to materialization instead.
+    if (record.storageContext === 'mothership') {
+      return {
+        error: `"${fileRef}" is a chat upload and cannot be opened as a resource. Materialize it to the workspace first (materialize_file save), then open its files/ path.`,
+      }
+    }
     resourceId = record.id
     title = record.name
     return {
       type: resourceType,
       id: resourceId,
       title,
-      path: canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name }),
+      path: chatScopedOrWorkspacePath(record),
     }
   }
   if (resourceType === 'workflow') {

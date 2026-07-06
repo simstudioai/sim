@@ -2,11 +2,23 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import {
+  grepChatOutput,
+  grepChatUpload,
+  listChatOutputs,
+  listChatUploads,
+  readChatOutput,
+  readChatUpload,
+} from '@/lib/copilot/tools/handlers/chat-file-reader'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
-import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
-import { grepChatUpload, listChatUploads, readChatUpload } from './upload-file-reader'
+import {
+  chatScopedLeafSegment,
+  encodeVfsSegment,
+  isOutputsPath,
+  isUploadsPath,
+} from '@/lib/copilot/vfs/path-utils'
 
 const logger = createLogger('VfsTools')
 
@@ -38,6 +50,12 @@ function isWorkspaceFileGrepPath(path: string | undefined): path is string {
 function isChatUploadGrepPath(path: string | undefined): path is string {
   if (!path) return false
   return /^uploads(\/|$)/.test(path.replace(/^\/+/, ''))
+}
+
+/** True when a grep `path` targets the chat-scoped outputs namespace. */
+function isChatOutputGrepPath(path: string | undefined): path is string {
+  if (!path) return false
+  return /^outputs(\/|$)/.test(path.replace(/^\/+/, ''))
 }
 
 function serializedResultSize(value: unknown): number {
@@ -99,25 +117,35 @@ export async function executeVfsGrep(
     // Chat uploads are opt-in like recently-deleted/: they are never in the VFS
     // map, so an unscoped grep can't touch them — only an explicit uploads/<file>
     // path does, and only one upload at a time.
+    // uploads/ and outputs/ are both chat-scoped, single-file content greps (opt-in,
+    // never in the VFS map). Resolve which namespace once — computing it in a ternary
+    // (not chained if/else type guards) keeps rawPath typed as string | undefined.
+    const chatScopedNamespace: 'uploads' | 'outputs' | null = isChatUploadGrepPath(rawPath)
+      ? 'uploads'
+      : isChatOutputGrepPath(rawPath)
+        ? 'outputs'
+        : null
+
     let result: GrepMatch[] | string[] | GrepCountEntry[]
-    if (isChatUploadGrepPath(rawPath)) {
+    if (chatScopedNamespace) {
       if (!context.chatId) {
-        return { success: false, error: 'No chat context available for uploads/' }
+        return { success: false, error: `No chat context available for ${chatScopedNamespace}/` }
       }
-      // The upload is the first segment after uploads/; any trailing segment
-      // (e.g. a /content suffix) is ignored, mirroring the uploads read path.
-      const filename = rawPath
-        .replace(/^\/+/, '')
-        .replace(/^uploads\/?/, '')
-        .split('/')[0]
+      // The file is the first segment after the namespace; any trailing segment
+      // (e.g. a /content suffix) is ignored, mirroring the read path. Bare
+      // namespace paths ('uploads') yield '' here just like the old inline
+      // parser did, hitting the single-file error below.
+      const filename = chatScopedLeafSegment(rawPath ?? '', chatScopedNamespace)
       if (!filename) {
         return {
           success: false,
-          error:
-            'Grep over chat uploads must target a single upload (e.g. path: "uploads/report.json"). Use glob("uploads/*") to list uploads.',
+          error: `Grep over chat ${chatScopedNamespace} must target a single file (e.g. path: "${chatScopedNamespace}/report.json"). Use glob("${chatScopedNamespace}/*") to list them.`,
         }
       }
-      result = await grepChatUpload(filename, context.chatId, pattern, grepOptions)
+      result =
+        chatScopedNamespace === 'uploads'
+          ? await grepChatUpload(filename, context.chatId, pattern, grepOptions)
+          : await grepChatOutput(filename, context.chatId, pattern, grepOptions)
     } else {
       const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
       result = isWorkspaceFileGrepPath(rawPath)
@@ -179,12 +207,19 @@ export async function executeVfsGlob(
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
     let files = vfs.glob(pattern)
 
-    if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
+    if (context.chatId && isUploadsPath(pattern)) {
       const uploads = await listChatUploads(context.chatId)
       // Encode per segment so uploads/ paths match the files/ convention; the
       // upload resolver accepts both the encoded path and the raw display name.
       const uploadPaths = uploads.map((f) => `uploads/${encodeUploadSegment(f.name)}`)
       files = [...files, ...uploadPaths]
+    }
+
+    // Chat outputs are opt-in like uploads: only explicit outputs/ patterns include them.
+    if (context.chatId && isOutputsPath(pattern)) {
+      const outputs = await listChatOutputs(context.chatId)
+      const outputPaths = outputs.map((f) => `outputs/${encodeUploadSegment(f.name)}`)
+      files = [...files, ...outputPaths]
     }
 
     logger.debug('vfs_glob result', { pattern, fileCount: files.length })
@@ -235,49 +270,58 @@ export async function executeVfsRead(
       }
     }
 
-    // Handle chat-scoped uploads via the uploads/ virtual prefix.
-    // Uploads are flat and have no metadata/content split like files/ — the upload
-    // IS the first path segment after uploads/. Any trailing segment (e.g. a
-    // /content suffix added out of habit) is ignored so the read resolves either way.
-    if (path.startsWith('uploads/')) {
+    // Chat-scoped namespaces (uploads/ = user attachments, outputs/ = agent
+    // one-offs) share one read pipeline: both are flat (the file IS the first
+    // segment after the prefix; a trailing /content suffix added out of habit
+    // is ignored) and have no metadata/content split like files/.
+    const readNamespace: 'uploads' | 'outputs' | null = isUploadsPath(path)
+      ? 'uploads'
+      : isOutputsPath(path)
+        ? 'outputs'
+        : null
+    if (readNamespace) {
       if (!context.chatId) {
-        return { success: false, error: 'No chat context available for uploads/' }
+        return { success: false, error: `No chat context available for ${readNamespace}/` }
       }
-      const filename = path.slice('uploads/'.length).split('/')[0]
-      const uploadResult = await readChatUpload(filename, context.chatId)
-      if (uploadResult) {
-        const isAttachment = hasModelAttachment(uploadResult)
+      const noun = readNamespace === 'uploads' ? 'Upload' : 'Output'
+      const filename = chatScopedLeafSegment(path, readNamespace)
+      const readResult =
+        readNamespace === 'uploads'
+          ? await readChatUpload(filename, context.chatId)
+          : await readChatOutput(filename, context.chatId)
+      if (readResult) {
+        const isAttachment = hasModelAttachment(readResult)
         if (
           !isAttachment &&
-          (isOversizedReadPlaceholder(uploadResult.content) ||
-            serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
+          (isOversizedReadPlaceholder(readResult.content) ||
+            serializedResultSize(readResult) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
-          logger.warn('Upload read result too large', {
+          logger.warn(`${noun} read result too large`, {
             path,
             hasAttachment: isAttachment,
-            contentLength: uploadResult.content.length,
-            serializedSize: serializedResultSize(uploadResult),
+            contentLength: readResult.content.length,
+            serializedSize: serializedResultSize(readResult),
           })
           return {
             success: false,
-            error: isOversizedReadPlaceholder(uploadResult.content)
-              ? uploadResult.content
+            error: isOversizedReadPlaceholder(readResult.content)
+              ? readResult.content
               : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
           }
         }
-        const windowedUpload = applyWindow(uploadResult)
-        logger.debug('vfs_read resolved chat upload', {
+        const windowed = applyWindow(readResult)
+        logger.debug(`vfs_read resolved chat ${readNamespace} file`, {
           path,
-          totalLines: uploadResult.totalLines,
+          totalLines: readResult.totalLines,
           hasAttachment: isAttachment,
           offset,
           limit,
         })
-        return { success: true, output: windowedUpload }
+        return { success: true, output: windowed }
       }
       return {
         success: false,
-        error: `Upload not found: ${path}. Use glob("uploads/*") to list available uploads.`,
+        error: `${noun} not found: ${path}. Use glob("${readNamespace}/*") to list available ${readNamespace}.`,
       }
     }
 

@@ -151,17 +151,24 @@ export async function insertFileMetadataMany(
 }
 
 /**
- * Get file metadata by key with optional context filter
+ * Get file metadata by key with an optional context filter. `context` may be a
+ * single context or a list — pass a list to match any of several contexts that
+ * share a storage key shape (e.g. the workspace bucket's `workspace`/`mothership`/
+ * `output`). Omit it to match the key in any context.
  */
 export async function getFileMetadataByKey(
   key: string,
-  context?: StorageContext,
+  context?: StorageContext | StorageContext[],
   options?: { includeDeleted?: boolean }
 ): Promise<FileMetadataRecord | null> {
   const { includeDeleted = false } = options ?? {}
   const conditions = [eq(workspaceFiles.key, key)]
 
-  if (context) {
+  if (Array.isArray(context)) {
+    if (context.length > 0) {
+      conditions.push(inArray(workspaceFiles.context, context))
+    }
+  } else if (context) {
     conditions.push(eq(workspaceFiles.context, context))
   }
 

@@ -8,6 +8,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { isOutputsPath } from '@/lib/copilot/vfs/path-utils'
 import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
@@ -290,6 +291,11 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       if (!target || (target.kind !== 'path' && target.kind !== 'file_id')) {
         return { error: `${operationName} requires target.kind=path with target.path` }
       }
+      if (target.kind === 'path' && isOutputsPath(target.path)) {
+        return {
+          error: `${operationName} cannot target outputs/. outputs/ files are not editable — materialize the file to files/ first, then edit it there.`,
+        }
+      }
       let fileRecord: WorkspaceFileRecord | null = null
       let vfsPath: string | undefined
       if (target.kind === 'path') {
@@ -348,6 +354,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return {
               success: false,
               message: 'create requires target.kind=new_file with target.fileName',
+            }
+          }
+          if (isOutputsPath(target.fileName)) {
+            return {
+              success: false,
+              message:
+                'workspace_file cannot create files under outputs/. outputs/ holds single-shot generated files and is not editable; create editable files under files/ instead.',
             }
           }
 

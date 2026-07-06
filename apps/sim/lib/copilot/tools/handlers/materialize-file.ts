@@ -6,10 +6,22 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { getServePathPrefix } from '@/lib/uploads'
-import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  findChatOutputRowByChatAndName,
+  findMothershipUploadRowByChatAndName,
+  resolveChatOutputRecord,
+  resolveChatUploadRecord,
+} from '@/lib/copilot/tools/handlers/chat-file-reader'
+import {
+  canonicalWorkspaceFilePath,
+  chatScopedLeafSegment,
+  isOutputsPath,
+  isUploadsPath,
+} from '@/lib/copilot/vfs/path-utils'
+import {
+  allocateUniqueWorkspaceFileName,
+  fetchWorkspaceFileBuffer,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -17,43 +29,74 @@ import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('MaterializeFile')
 
-function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
-  const pathPrefix = getServePathPrefix()
-  return {
-    id: row.id,
-    workspaceId: row.workspaceId || '',
-    name: row.displayName ?? row.originalName,
-    key: row.key,
-    path: `${pathPrefix}${encodeURIComponent(row.key)}?context=mothership`,
-    size: row.size,
-    type: row.contentType,
-    uploadedBy: row.userId,
-    deletedAt: row.deletedAt,
-    uploadedAt: row.uploadedAt,
-    updatedAt: row.updatedAt,
-    storageContext: 'mothership' as const,
-  }
-}
-
 async function executeSave(fileName: string, chatId: string): Promise<ToolCallResult> {
-  const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
+  // `save` promotes a chat-scoped file into the permanent workspace. The source is
+  // either a user upload (`uploads/`, context 'mothership') or an agent-generated
+  // one-off output (`outputs/`, context 'output') — both live in workspace_files and
+  // promote identically (flip context to 'workspace', detach from the chat).
+  //
+  // The two are independent per-chat namespaces (separate unique indexes), so
+  // one chat can hold BOTH uploads/report.png and outputs/report.png. A
+  // namespaced spelling targets one explicitly; a bare name that exists in
+  // both is ambiguous and errors rather than silently promoting one.
+  let row: typeof workspaceFiles.$inferSelect | null
+  if (isUploadsPath(fileName)) {
+    row = await findMothershipUploadRowByChatAndName(
+      chatId,
+      chatScopedLeafSegment(fileName, 'uploads')
+    )
+  } else if (isOutputsPath(fileName)) {
+    row = await findChatOutputRowByChatAndName(chatId, chatScopedLeafSegment(fileName, 'outputs'))
+  } else {
+    const [uploadRow, outputRow] = await Promise.all([
+      findMothershipUploadRowByChatAndName(chatId, fileName),
+      findChatOutputRowByChatAndName(chatId, fileName),
+    ])
+    if (uploadRow && outputRow) {
+      return {
+        success: false,
+        error: `"${fileName}" exists as both a chat upload and a generated output. Specify which to save: "uploads/${fileName}" or "outputs/${fileName}".`,
+      }
+    }
+    row = uploadRow ?? outputRow
+  }
   if (!row) {
     return {
       success: false,
-      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
+      error: `File not found: "${fileName}". Use glob("uploads/*") or glob("outputs/*") to list available chat files.`,
     }
   }
 
+  // Chat-scoped names are unique only within their chat, so two chats can each hold a
+  // "generated-image.jpg". Promoting both to the workspace root would collide on the
+  // `workspace_files_workspace_folder_name_active_unique` index (context='workspace'),
+  // so disambiguate against existing workspace files first (e.g. "generated-image (1).jpg").
+  const desiredName = row.displayName ?? row.originalName
+  const uniqueName = row.workspaceId
+    ? await allocateUniqueWorkspaceFileName(row.workspaceId, desiredName, row.folderId ?? null)
+    : desiredName
+
   const [updated] = await db
     .update(workspaceFiles)
-    .set({ context: 'workspace', chatId: null, originalName: row.displayName ?? row.originalName })
+    .set({
+      context: 'workspace',
+      // A workspace file has no birth chat or message — clear both provenance
+      // fields so the row reads as workspace-owned, not stale chat-owned.
+      chatId: null,
+      messageId: null,
+      originalName: uniqueName,
+      displayName: uniqueName,
+    })
     .where(and(eq(workspaceFiles.id, row.id), isNull(workspaceFiles.deletedAt)))
     .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
 
   if (!updated) {
+    // The row resolved above but the guarded update matched nothing — it was
+    // deleted (or already promoted) in between. Namespace-agnostic message:
+    // the source may have been an upload OR an output.
     return {
       success: false,
-      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
+      error: `File no longer available: "${fileName}". Use glob("uploads/*") or glob("outputs/*") to list available chat files.`,
     }
   }
 
@@ -71,6 +114,10 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
     output: {
       message: `File "${updated.originalName}" materialized. It is now available at ${canonicalPath} and will persist independently of this chat.`,
       fileId: updated.id,
+      // `name` is the ACTUAL saved name, which may be disambiguated from the requested
+      // name (e.g. "generated-image (1).jpg") when a workspace file already uses it. The
+      // batch wrapper surfaces this so the agent reports the real name, not the input.
+      name: updated.originalName,
       path: canonicalPath,
     },
     resources: [{ type: 'file', id: updated.id, title: updated.originalName }],
@@ -83,15 +130,35 @@ async function executeImport(
   workspaceId: string,
   userId: string
 ): Promise<ToolCallResult> {
-  const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
-  if (!row) {
+  // Same namespace routing as save: agent-generated workflow JSON lives in
+  // outputs/ just as legitimately as user uploads live in uploads/, and a
+  // bare name colliding across both is ambiguous rather than uploads-wins.
+  let record: Awaited<ReturnType<typeof resolveChatUploadRecord>>
+  if (isUploadsPath(fileName)) {
+    record = await resolveChatUploadRecord(chatId, chatScopedLeafSegment(fileName, 'uploads'))
+  } else if (isOutputsPath(fileName)) {
+    record = await resolveChatOutputRecord(chatId, chatScopedLeafSegment(fileName, 'outputs'))
+  } else {
+    const [uploadRecord, outputRecord] = await Promise.all([
+      resolveChatUploadRecord(chatId, fileName),
+      resolveChatOutputRecord(chatId, fileName),
+    ])
+    if (uploadRecord && outputRecord) {
+      return {
+        success: false,
+        error: `"${fileName}" exists as both a chat upload and a generated output. Specify which to import: "uploads/${fileName}" or "outputs/${fileName}".`,
+      }
+    }
+    record = uploadRecord ?? outputRecord
+  }
+  if (!record) {
     return {
       success: false,
-      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
+      error: `File not found: "${fileName}". Use glob("uploads/*") or glob("outputs/*") to list available chat files.`,
     }
   }
 
-  const buffer = await fetchWorkspaceFileBuffer(toFileRecord(row))
+  const buffer = await fetchWorkspaceFileBuffer(record)
   const content = buffer.toString('utf-8')
 
   let parsed: unknown
@@ -158,7 +225,7 @@ async function executeImport(
       .where(eq(workflow.id, workflowId))
   }
 
-  logger.info('Imported workflow from upload', {
+  logger.info('Imported workflow from chat file', {
     fileName,
     workflowId,
     workflowName: dedupedName,
@@ -216,7 +283,9 @@ export async function executeMaterializeFile(
       error: `Unsupported materialize_file operation "${operation}". Use "save" or "import". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
     }
   }
-  const succeeded: string[] = []
+  // Report the ACTUAL saved name/path (which `save` may disambiguate from the requested
+  // name), so the agent tells the user the real filename instead of what it passed in.
+  const succeeded: Array<{ requested: string; name: string; path?: string }> = []
   const failed: Array<{ fileName: string; error: string }> = []
   const resources: NonNullable<ToolCallResult['resources']> = []
 
@@ -230,7 +299,16 @@ export async function executeMaterializeFile(
       }
 
       if (result.success) {
-        succeeded.push(fileName)
+        const out = (result.output ?? {}) as {
+          name?: string
+          path?: string
+          workflowName?: string
+        }
+        succeeded.push({
+          requested: fileName,
+          name: out.name ?? out.workflowName ?? fileName,
+          ...(out.path ? { path: out.path } : {}),
+        })
         if (result.resources) resources.push(...result.resources)
       } else {
         failed.push({ fileName, error: result.error ?? 'Failed to materialize file' })

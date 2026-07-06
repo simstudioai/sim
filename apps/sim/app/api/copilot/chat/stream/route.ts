@@ -197,7 +197,13 @@ async function handleResumeRequestBody({
   rootSpan: Span
   rootContext: Context
 }) {
+  // A transient DB error must NOT masquerade as "stream not found": the
+  // client treats 404 as terminal (StreamNotFoundError latches and kills all
+  // future reconnects for the stream), so 404 is reserved for a true miss and
+  // lookup failures return 503, which the client retries like any error.
+  let runLookupFailed = false
   const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
+    runLookupFailed = true
     logger.warn('Failed to fetch latest run for stream', {
       streamId,
       error: getErrorMessage(err),
@@ -211,6 +217,11 @@ async function handleResumeRequestBody({
     hasRun: !!run,
     runStatus: run?.status,
   })
+  if (runLookupFailed) {
+    markSpanForError(rootSpan, 'Stream run lookup failed')
+    rootSpan.end()
+    return NextResponse.json({ error: 'Stream lookup failed' }, { status: 503 })
+  }
   if (!run) {
     rootSpan.setAttribute(TraceAttr.CopilotResumeOutcome, CopilotResumeOutcome.StreamNotFound)
     rootSpan.end()

@@ -671,15 +671,19 @@ export function useCreateMothershipChat(workspaceId?: string) {
   })
 }
 
+/**
+ * With upToMessageId: branch fork, titled "Fork | <name>". Without it: a
+ * whole-chat duplicate, titled "<name> (Copy)" — the sidebar Duplicate action.
+ */
 async function forkChat(params: {
   chatId: string
-  upToMessageId: string
-}): Promise<{ id: string }> {
+  upToMessageId?: string
+}): Promise<{ id: string; failedFileCopies?: number }> {
   const data = await requestJson(forkMothershipChatContract, {
     params: { chatId: params.chatId },
-    body: { upToMessageId: params.upToMessageId },
+    body: params.upToMessageId ? { upToMessageId: params.upToMessageId } : {},
   })
-  return { id: data.id }
+  return { id: data.id, failedFileCopies: data.failedFileCopies }
 }
 
 export function useForkMothershipChat(workspaceId?: string) {
@@ -694,10 +698,17 @@ export function useForkMothershipChat(workspaceId?: string) {
       )
       if (existing) {
         const sourceChat = existing.find((t) => t.id === variables.chatId)
-        const baseName = (sourceChat?.name ?? 'New chat').replace(/^Fork \| /, '')
+        const sourceName = sourceChat?.name ?? 'New chat'
+        const baseName = sourceName.replace(/^Fork \| /, '')
+        // Mirror the server's title choice so the optimistic row doesn't
+        // visibly rename itself when the list refetches (both modes strip a
+        // leading "Fork | ", matching the fork route).
+        const optimisticName = variables.upToMessageId
+          ? `Fork | ${baseName}`
+          : `${baseName} (Copy)`
         const optimisticChat: MothershipChatMetadata = {
           id: data.id,
-          name: `Fork | ${baseName}`,
+          name: optimisticName,
           updatedAt: new Date(),
           isActive: false,
           isUnread: false,

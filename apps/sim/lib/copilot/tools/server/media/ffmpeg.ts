@@ -6,12 +6,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('FfmpegTool')
 
@@ -83,7 +81,11 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
     try {
       const mediaFiles: MediaFile[] = []
       for (const filePath of inputPaths) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
+        const fileRecord = await resolveToolInputFile({
+          workspaceId,
+          chatId: context.chatId,
+          path: filePath,
+        })
         if (!fileRecord) {
           return { success: false, message: `Input file not found: ${filePath}` }
         }
@@ -124,6 +126,11 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       }
 
       const outputFile = params.outputs?.files?.[0]
+      // Omitted outputs.files keeps the pre-feature `files/` default. Chat-scoped
+      // one-offs are opt-in via an explicit "outputs/<name>" path — mothership's
+      // chat-scoped-outputs flag steers the agent to pass one (and resource-writer
+      // redirects outputs/ to files/ for non-interactive runs, which lack a
+      // persisted copilot_chats row).
       const outputPath = outputFile?.path || `files/ffmpeg-${params.operation}.${result.ext}`
       const mode = outputFile?.mode ?? 'create'
 
@@ -131,6 +138,9 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
+        chatId: context.chatId,
+        interactive: context.interactive,
+        messageId: context.messageId,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType || 'application/octet-stream',

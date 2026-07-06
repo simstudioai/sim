@@ -177,6 +177,11 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       )
       const outputFile = params.outputs?.files?.[0]
       const fileName = inferOutputFileName(params.fileName, response.headers, params.url, mimeType)
+      // Omitted outputs.files keeps the pre-feature `files/` default. Chat-scoped
+      // one-offs are opt-in via an explicit "outputs/<name>" path — mothership's
+      // chat-scoped-outputs flag steers the agent to pass one (and resource-writer
+      // redirects outputs/ to files/ for non-interactive runs, which lack a
+      // persisted copilot_chats row).
       const outputPath = outputFile?.path ?? `files/${fileName}`
 
       assertServerToolNotAborted(context)
@@ -192,6 +197,9 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
+        chatId: context.chatId,
+        interactive: context.interactive,
+        messageId: context.messageId,
         target: {
           path: outputPath,
           mode: outputFile?.mode ?? 'create',

@@ -7,6 +7,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import {
@@ -80,10 +81,7 @@ import {
   deleteWorkflowGroupOutput,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   type FlattenedBlockOutput,
   flattenWorkflowOutputs,
@@ -105,11 +103,15 @@ type UserTableResult = {
 
 const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
 
-async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspaceId: string) {
-  const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
+async function resolveInputFileRecordOrThrow(
+  fileReference: string,
+  workspaceId: string,
+  chatId?: string
+) {
+  const record = await resolveToolInputFile({ workspaceId, chatId, path: fileReference })
   if (!record) {
     throw new Error(
-      `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
+      `File not found: "${fileReference}". Use glob("files/**") for workspace files, or glob("uploads/*") / glob("outputs/*") for this chat's files.`
     )
   }
   return record
@@ -1021,7 +1023,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const record = await resolveWorkspaceFileRecordOrThrow(fileReference, workspaceId)
+          const record = await resolveInputFileRecordOrThrow(
+            fileReference,
+            workspaceId,
+            context?.chatId
+          )
 
           // Large CSV/TSV: create a placeholder table whose creation claims the
           // job slot, then let the streaming import worker infer the schema and
@@ -1063,6 +1069,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 delimiter: record.name.toLowerCase().endsWith('.tsv') ? '\t' : ',',
                 mode: 'create',
                 deleteSourceFile: false,
+                fileContext: record.storageContext ?? 'workspace',
               })
             } catch (dispatchError) {
               // The user never saw the placeholder — archive it back out.
@@ -1209,7 +1216,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table is archived: ${tableId}` }
           }
 
-          const record = await resolveWorkspaceFileRecordOrThrow(fileReference, workspaceId)
+          const record = await resolveInputFileRecordOrThrow(
+            fileReference,
+            workspaceId,
+            context?.chatId
+          )
 
           // Large CSV/TSV: claim the table's one-write-job slot and hand the
           // file to the streaming import worker (mirrors
@@ -1232,6 +1243,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               mode,
               mapping: rawMapping,
               deleteSourceFile: false,
+              fileContext: record.storageContext ?? 'workspace',
             })
             return {
               success: true,

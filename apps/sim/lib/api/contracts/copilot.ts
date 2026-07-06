@@ -86,21 +86,31 @@ export const renameCopilotChatBodySchema = z.object({
 })
 export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
 
+// Must cover every MothershipResourceType (lib/copilot/resources/types.ts) —
+// the mothership resource routes delegate to the copilot handlers that parse
+// with this enum, and remove/reorder must accept every type a chat can
+// already HOLD (a missing member 400s valid stored rows, e.g. the hydration
+// cleanup of legacy resources). ADD is narrower on purpose: the POST handler
+// keeps its own VALID_RESOURCE_TYPES allow-list of addable types.
 const copilotResourceTypeSchema = z.enum([
   'table',
   'file',
   'workflow',
   'knowledgebase',
   'folder',
+  'filefolder',
+  'task',
   'scheduledtask',
   'log',
+  'integration',
+  'generic',
 ])
 
 export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
   resource: z.object({
     type: copilotResourceTypeSchema,
-    id: z.string(),
+    id: z.string().min(1, 'resource id is required'),
     title: z.string(),
   }),
 })
@@ -113,12 +123,14 @@ export const removeCopilotChatResourceBodySchema = z.object({
 })
 export type RemoveCopilotChatResourceBody = z.input<typeof removeCopilotChatResourceBodySchema>
 
+// `removeCopilotChatResourceBodySchema` above intentionally keeps a permissive
+// `resourceId` so legacy empty-id rows can still be deleted.
 export const reorderCopilotChatResourcesBodySchema = z.object({
   chatId: z.string(),
   resources: z.array(
     z.object({
       type: copilotResourceTypeSchema,
-      id: z.string(),
+      id: z.string().min(1, 'resource id is required'),
       title: z.string(),
     })
   ),

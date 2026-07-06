@@ -6,6 +6,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { isOutputsPath, isUploadsPath } from '@/lib/copilot/vfs/path-utils'
 import {
   getWorkspaceFile,
   resolveWorkspaceFileReference,
@@ -51,6 +52,17 @@ export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResu
 
     if (paths.length === 0 && legacyFileIds.length === 0) {
       return { success: false, message: 'paths is required' }
+    }
+
+    // Chat-scoped files are cleaned up with their chat, never by this tool —
+    // reject with the policy (and never let 'outputs/x' resolve against a
+    // workspace folder literally named "outputs" and delete THAT file).
+    const chatScoped = paths.filter((p) => isOutputsPath(p) || isUploadsPath(p))
+    if (chatScoped.length > 0) {
+      return {
+        success: false,
+        message: `Chat-scoped uploads/ and outputs/ files cannot be deleted (${chatScoped.join(', ')}) — they are cleaned up with the chat. For a workspace file inside a folder literally named "outputs" or "uploads", use its files/… path.`,
+      }
     }
 
     const deletable: { id: string; name: string }[] = []

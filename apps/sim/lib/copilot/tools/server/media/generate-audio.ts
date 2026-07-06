@@ -6,12 +6,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('GenerateAudioTool')
 
@@ -84,7 +82,11 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
     let voiceSampleDataUri: string | undefined
     const samplePath = params.inputs?.files?.[0]?.path
     if (samplePath) {
-      const sample = await resolveWorkspaceFileReference(workspaceId, samplePath)
+      const sample = await resolveToolInputFile({
+        workspaceId,
+        chatId: context.chatId,
+        path: samplePath,
+      })
       if (!sample) {
         return { success: false, message: `Voice sample not found: ${samplePath}` }
       }
@@ -114,6 +116,11 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
 
       const outputFile = params.outputs?.files?.[0]
       const ext = audioExtFromContentType(result.contentType)
+      // Omitted outputs.files keeps the pre-feature `files/` default. Chat-scoped
+      // one-offs are opt-in via an explicit "outputs/<name>" path — mothership's
+      // chat-scoped-outputs flag steers the agent to pass one (and resource-writer
+      // redirects outputs/ to files/ for non-interactive runs, which lack a
+      // persisted copilot_chats row).
       const outputPath = outputFile?.path || `files/generated-audio.${ext}`
       const mode = outputFile?.mode ?? 'create'
 
@@ -121,6 +128,9 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
+        chatId: context.chatId,
+        interactive: context.interactive,
+        messageId: context.messageId,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,

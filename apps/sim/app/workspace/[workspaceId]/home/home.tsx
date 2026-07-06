@@ -44,7 +44,7 @@ import {
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useChatOutputs, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -253,6 +253,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     })
   )
 
+  // Chat-scoped agent outputs aren't in the workspace list; used to resolve an
+  // `outputs/...` file reference (e.g. a #wsres-file link) to its real file id.
+  // Falls back to the stream-resolved chat id: on the home surface the route
+  // never changes (the URL is rewritten via history.replaceState), so `chatId`
+  // stays undefined even after the chat exists server-side.
+  const { data: chatOutputs = [] } = useChatOutputs(chatId ?? resolvedChatId)
+
   useEffect(() => {
     wasSendingRef.current = false
     if (resolvedChatId) {
@@ -418,19 +425,43 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         )
       })
 
-      if (!file) return resource
-      return {
-        ...resource,
-        id: file.id,
-        title: resource.title || file.name,
-        path: alias ? reference : resource.path,
+      if (file) {
+        return {
+          ...resource,
+          id: file.id,
+          title: resource.title || file.name,
+          path: alias ? reference : resource.path,
+        }
       }
+
+      // Not a workspace file — try this chat's outputs (excluded from the workspace
+      // list). Resolving to the real file id lets the panel open it normally and
+      // de-dupes against the tab the generator auto-opened.
+      let leaf = reference.split('/').pop() ?? reference
+      try {
+        leaf = decodeURIComponent(leaf)
+      } catch {
+        // keep raw leaf
+      }
+      const output = chatOutputs.find((o) => o.id === reference || o.name === leaf)
+      if (output) {
+        return { ...resource, id: output.id, title: resource.title || output.name }
+      }
+
+      return resource
     },
-    [workflowAliasEntries, workspaceFiles]
+    [workflowAliasEntries, workspaceFiles, chatOutputs]
   )
 
   function handleWorkspaceResourceSelect(resource: MothershipResource) {
     const resolvedResource = resolveFileResource(resource)
+    // A #wsres-file link carries only a path; if it didn't resolve to a real
+    // file id, adding it would persist a broken `{id: ''}` resource that later
+    // fails chat-send validation.
+    if (resolvedResource.type === 'file' && !resolvedResource.id) {
+      logger.warn('Ignoring file resource with unresolved id', { path: resolvedResource.path })
+      return
+    }
     const wasAdded = addResource(resolvedResource)
     if (!wasAdded) {
       setActiveResourceId(resolvedResource.id)

@@ -151,6 +151,16 @@ const QUEUED_SEND_HANDOFF_CLAIM_TTL_MS = 30_000
 const QUEUED_SEND_HANDOFF_RETRY_BASE_MS = 1000
 const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
 
+/**
+ * A resource is real (persistable, sendable, reorderable) iff it has an id
+ * and isn't the streaming-file placeholder. One predicate for every filter —
+ * legacy empty-id rows and placeholders must be excluded consistently or a
+ * site that admits them poisons sends/reorders.
+ */
+function isPersistedChatResource(resource: { id: string }): boolean {
+  return Boolean(resource.id) && resource.id !== 'streaming-file'
+}
+
 // Stable empty array — sharing one reference keeps the selector from
 // re-rendering on unrelated store writes.
 const EMPTY_MESSAGE_QUEUE: QueuedMothershipMessage[] = []
@@ -190,6 +200,17 @@ interface QueuedSendHandoffClaim {
 interface ActiveQueuedSendHandoffRecovery {
   id: string
   ownerId: string
+}
+
+/**
+ * The resume endpoint 404'd: no run row exists for this stream id. Terminal —
+ * retrying can never succeed, since runs are created before streaming begins.
+ */
+class StreamNotFoundError extends Error {
+  constructor(streamId: string) {
+    super(`Stream not found: ${streamId}`)
+    this.name = 'StreamNotFoundError'
+  }
 }
 
 function createTimeoutSignal(ms: number): AbortSignal | undefined {
@@ -1396,7 +1417,7 @@ export function useChat(
     if (pendingKeys.size === 0) return
     const flushPromises: Array<Promise<unknown>> = []
     for (const resource of resourcesRef.current) {
-      if (resource.id === 'streaming-file') continue
+      if (!isPersistedChatResource(resource)) continue
       const key = `${resource.type}:${resource.id}`
       if (!pendingKeys.has(key)) continue
       pendingKeys.delete(key)
@@ -1419,7 +1440,8 @@ export function useChat(
     reorderNeededAfterFlushRef.current = false
     const localOrder = resourcesRef.current.filter(
       (r) =>
-        r.id !== 'streaming-file' && !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
+        isPersistedChatResource(r) &&
+        !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
     )
     if (localOrder.length === 0) return
     requestJson(reorderMothershipChatResourcesContract, {
@@ -1469,6 +1491,11 @@ export function useChat(
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
   }, [chatHistory, pendingMessages])
   const addResource = useCallback((resource: MothershipResource): boolean => {
+    // An id-less resource can't be opened, persisted, or attached to a send —
+    // and once persisted it fails chat POST validation on every later message.
+    if (!resource.id) {
+      return false
+    }
     if (resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)) {
       return false
     }
@@ -1774,12 +1801,32 @@ export function useChat(
       }).catch(() => {})
     }
 
+    // Legacy empty-id rows (persisted before ids were validated) are filtered
+    // out of local state below, which means the reorder route's exact-match
+    // check would 400 forever while they sit in storage — delete them
+    // server-side too (the remove contract keeps a permissive resourceId for
+    // exactly this).
+    const legacyEmptyIdTypes = new Set(
+      chatHistory.resources.filter((r) => !r.id).map((r) => r.type)
+    )
+    for (const resourceType of legacyEmptyIdTypes) {
+      requestJson(removeMothershipChatResourceContract, {
+        body: {
+          chatId: chatHistory.id,
+          resourceType,
+          resourceId: '',
+        },
+      }).catch(() => {})
+    }
+
     flushPendingResources(chatHistory.id)
 
-    const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
+    // Also drop legacy empty-id rows so they can't re-enter local state and
+    // poison sends/reorders.
+    const persistedResources = chatHistory.resources.filter(isPersistedChatResource)
     const serverKeys = new Set(persistedResources.map((r) => `${r.type}:${r.id}`))
     const localOnly = resourcesRef.current.filter(
-      (r) => r.id !== 'streaming-file' && !serverKeys.has(`${r.type}:${r.id}`)
+      (r) => isPersistedChatResource(r) && !serverKeys.has(`${r.type}:${r.id}`)
     )
     const mergedResources = [...persistedResources, ...localOnly]
 
@@ -2109,6 +2156,9 @@ export function useChat(
             : {}),
         }
       )
+      if (response.status === 404) {
+        throw new StreamNotFoundError(streamId)
+      }
       if (!response.ok) {
         throw new Error(`Stream resume batch failed: ${response.status}`)
       }
@@ -2147,6 +2197,9 @@ export function useChat(
           if (chatId) return chatId
         } catch (error) {
           lastError = error
+          if (error instanceof StreamNotFoundError) {
+            break
+          }
           if (error instanceof Error && error.name === 'AbortError' && Date.now() >= deadline) {
             break
           }
@@ -2546,6 +2599,16 @@ export function useChat(
             })
             if (streamGenRef.current === gen) {
               setError(err.message)
+            }
+            return false
+          }
+          if (err instanceof StreamNotFoundError) {
+            logger.error('Reconnect halted: stream does not exist on the server', {
+              streamId,
+              attempt: attempt + 1,
+            })
+            if (streamGenRef.current === gen) {
+              setIsReconnecting(false)
             }
             return false
           }
@@ -3133,6 +3196,9 @@ export function useChat(
 
       let gen: number | undefined
       let streamTargetChatId: string | undefined
+      // Flips once the chat POST returns OK — before that, streamIdRef holds
+      // THIS send's own (never-registered) id, so "reconnect" is meaningless.
+      let streamStarted = false
       try {
         if (pendingStop) {
           try {
@@ -3204,7 +3270,9 @@ export function useChat(
         abortControllerRef.current = abortController
 
         const currentActiveId = activeResourceIdRef.current
-        const currentResources = resourcesRef.current
+        // Placeholder/broken tabs (streaming-file, empty id) fail the chat
+        // POST's attachment validation server-side — never send them.
+        const currentResources = resourcesRef.current.filter(isPersistedChatResource)
         const resourceAttachments =
           currentResources.length > 0
             ? currentResources.map((r) => ({
@@ -3277,16 +3345,27 @@ export function useChat(
               ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
             })
             if (succeeded) return consumedByTranscript
+            // The 409 means THIS send was never accepted, and the failed
+            // reconnect means the conflicting stream is gone too — undo the
+            // optimistic message and phantom activeStreamId (mirrors the
+            // generic pre-stream failure path) instead of leaving a stuck
+            // in-flight turn.
+            rollbackOptimisticSend()
             if (streamGenRef.current === gen) {
               finalize({
                 error: true,
                 ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
               })
             }
-            return consumedByTranscript
+            // Rolled back ⇒ NOT consumed: a queued dispatch only restores its
+            // queue item when this returns false (the superseded-409 branch
+            // above encodes the same contract).
+            return false
           }
           throw new Error(errorData.error || `Request failed: ${response.status}`)
         }
+
+        streamStarted = true
 
         if (queuedSendHandoff) {
           clearQueuedSendHandoffState(queuedSendHandoff.id)
@@ -3343,7 +3422,7 @@ export function useChat(
         }
 
         const activeStreamId = streamIdRef.current
-        if (activeStreamId && gen !== undefined && streamGenRef.current === gen) {
+        if (streamStarted && activeStreamId && gen !== undefined && streamGenRef.current === gen) {
           const succeeded = await retryReconnect({
             streamId: activeStreamId,
             assistantId,
@@ -3353,6 +3432,15 @@ export function useChat(
           if (succeeded) return consumedByTranscript
         }
 
+        let rolledBack = false
+        if (!streamStarted && (gen === undefined || streamGenRef.current === gen)) {
+          // The POST itself failed — no server-side stream exists, so undo the
+          // optimistic message and the cache's phantom activeStreamId instead
+          // of leaving state that later hydrations would try to "reconnect" to.
+          rollbackOptimisticSend()
+          rolledBack = true
+        }
+
         setError(getErrorMessage(err, 'Failed to send message'))
         if (gen !== undefined && streamGenRef.current === gen) {
           finalize({
@@ -3360,7 +3448,8 @@ export function useChat(
             ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
           })
         }
-        return consumedByTranscript
+        // Rolled back ⇒ NOT consumed, so a queued dispatch restores its item.
+        return rolledBack ? false : consumedByTranscript
       }
       return consumedByTranscript
     },

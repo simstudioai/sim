@@ -16,6 +16,7 @@ export type StorageContext =
   | 'chat'
   | 'copilot'
   | 'mothership'
+  | 'output'
   | 'execution'
   | 'workspace'
   | 'profile-pictures'

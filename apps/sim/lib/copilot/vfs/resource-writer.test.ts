@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
     resolveWorkspaceFileReference: vi.fn(),
     updateWorkspaceFileContent: vi.fn(),
     uploadWorkspaceFile: vi.fn(),
+    uploadChatOutput: vi.fn(),
   }
 })
 
@@ -41,6 +42,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
   updateWorkspaceFileContent: mocks.updateWorkspaceFileContent,
   uploadWorkspaceFile: mocks.uploadWorkspaceFile,
+  uploadChatOutput: mocks.uploadChatOutput,
 }))
 
 import { validateWorkspaceFileWriteTarget, writeWorkspaceFileByPath } from './resource-writer'
@@ -310,5 +312,107 @@ describe('resource writer workflow aliases', () => {
     ).rejects.toThrow(
       'File already exists at workflows/My%20Workflow/.plans/launch.md. Use mode "overwrite" to update it.'
     )
+  })
+})
+
+describe('resource writer outputs/ namespace', () => {
+  const baseArgs = {
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    buffer: Buffer.from('bytes'),
+    inferredMimeType: 'image/png',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue(null)
+    mocks.getWorkspaceFileByName.mockResolvedValue(null)
+    mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
+  })
+
+  it('rejects outputs/ + overwrite on interactive turns (write-once)', async () => {
+    await expect(
+      writeWorkspaceFileByPath({
+        ...baseArgs,
+        chatId: 'chat-1',
+        interactive: true,
+        target: { path: 'outputs/report.png', mode: 'overwrite' },
+      })
+    ).rejects.toThrow('outputs/ files are write-once')
+    expect(mocks.uploadChatOutput).not.toHaveBeenCalled()
+    expect(mocks.updateWorkspaceFileContent).not.toHaveBeenCalled()
+  })
+
+  it('rejects outputs/ + overwrite on headless runs too — never clobbers files/<name> via the redirect', async () => {
+    // Pre-fix, the headless redirect kept mode:'overwrite' and silently
+    // replaced an existing files/report.png. The write-once rejection now
+    // runs BEFORE the redirect, regardless of interactivity.
+    mocks.resolveWorkspaceFileReference.mockResolvedValue({
+      id: 'wf_existing',
+      name: 'report.png',
+      type: 'image/png',
+    })
+
+    await expect(
+      writeWorkspaceFileByPath({
+        ...baseArgs,
+        interactive: false,
+        target: { path: 'outputs/report.png', mode: 'overwrite' },
+      })
+    ).rejects.toThrow('outputs/ files are write-once')
+    expect(mocks.updateWorkspaceFileContent).not.toHaveBeenCalled()
+    expect(mocks.uploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('writes an interactive outputs/ create as a chat output, threading messageId', async () => {
+    mocks.uploadChatOutput.mockResolvedValue({
+      id: 'wf_out',
+      name: 'report.png',
+      size: 5,
+      type: 'image/png',
+      url: '/serve/report.png',
+      key: 'workspace/ws-1/1-report.png',
+      context: 'output',
+    })
+
+    const result = await writeWorkspaceFileByPath({
+      ...baseArgs,
+      chatId: 'chat-1',
+      interactive: true,
+      messageId: 'msg-1',
+      target: { path: 'outputs/report.png', mode: 'create' },
+    })
+
+    expect(mocks.uploadChatOutput).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId: 'chat-1', messageId: 'msg-1', fileName: 'report.png' })
+    )
+    expect(result).toMatchObject({ id: 'wf_out', vfsPath: 'outputs/report.png', mode: 'create' })
+  })
+
+  it('redirects a headless outputs/ create to a files/ create', async () => {
+    mocks.uploadWorkspaceFile.mockResolvedValue({
+      id: 'wf_redirected',
+      name: 'report.png',
+      size: 5,
+      type: 'image/png',
+      url: '/download',
+    })
+
+    const result = await writeWorkspaceFileByPath({
+      ...baseArgs,
+      interactive: false,
+      target: { path: 'outputs/report.png', mode: 'create' },
+    })
+
+    expect(mocks.uploadChatOutput).not.toHaveBeenCalled()
+    expect(mocks.uploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      baseArgs.buffer,
+      'report.png',
+      'image/png',
+      { folderId: null }
+    )
+    expect(result).toMatchObject({ id: 'wf_redirected', mode: 'create' })
   })
 })

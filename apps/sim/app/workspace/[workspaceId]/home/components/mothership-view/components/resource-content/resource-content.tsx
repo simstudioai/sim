@@ -56,7 +56,11 @@ import { useLogDetail } from '@/hooks/queries/logs'
 import { useScheduleById } from '@/hooks/queries/schedules'
 import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import {
+  useChatOutputs,
+  useWorkspaceFileById,
+  useWorkspaceFiles,
+} from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -280,9 +284,11 @@ export const ResourceContent = memo(function ResourceContent({
 interface ResourceActionsProps {
   workspaceId: string
   resource: MothershipResource
+  /** Active chat id — lets file actions resolve this chat's outputs by name, like the preview. */
+  chatId?: string
 }
 
-export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
+export function ResourceActions({ workspaceId, resource, chatId }: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
@@ -292,6 +298,7 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
           workspaceId={workspaceId}
           fileId={resource.id}
           filePath={resource.path}
+          chatId={chatId}
         />
       )
     case 'knowledgebase':
@@ -499,16 +506,23 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
 
 const fileLogger = createLogger('EmbeddedFileActions')
 
-interface EmbeddedFileActionsProps {
-  workspaceId: string
-  fileId: string
-  filePath?: string
-}
-
-function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
-  const router = useRouter()
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
+/**
+ * Resolve an embedded file reference three ways, in order: the workspace
+ * Files list (by id or canonical path), a direct by-id fetch (covers
+ * chat-scoped `output` rows, which the list excludes), and finally this
+ * chat's outputs by leaf name (covers outputs referenced by an `outputs/`
+ * path with no resolvable id). Shared by the preview (EmbeddedFile) and its
+ * header actions (EmbeddedFileActions) so the two can never disagree about
+ * whether a file exists.
+ */
+function useResolvedEmbeddedFile(
+  workspaceId: string,
+  fileId: string,
+  filePath?: string,
+  chatId?: string
+) {
+  const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
+  const listFile = useMemo(
     () =>
       files.find(
         (f) =>
@@ -518,6 +532,52 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActi
       ),
     [files, fileId, filePath]
   )
+
+  const listSettled = !isLoading && !isFetching
+  const { data: fallbackFile = null, isLoading: fallbackLoading } = useWorkspaceFileById(
+    workspaceId,
+    fileId,
+    listSettled && !listFile
+  )
+
+  // The agent may reference an output by PATH (e.g. an `outputs/generated-image.jpg`
+  // link) rather than by id, in which case both the list and the by-id fetch miss
+  // (by-id matches on the wf_ id, not a path). Resolve it against this chat's
+  // outputs by leaf name.
+  const { data: chatOutputs = [], isLoading: outputsLoading } = useChatOutputs(chatId)
+  const outputFallback = useMemo(() => {
+    if (listFile || fallbackFile) return null
+    const ref = filePath ?? (fileId || '')
+    if (!ref) return null
+    const rawLeaf = ref.split('/').pop() ?? ''
+    let leaf = rawLeaf
+    try {
+      leaf = decodeURIComponent(rawLeaf)
+    } catch {
+      leaf = rawLeaf
+    }
+    return chatOutputs.find((o) => o.id === fileId || o.name === leaf || o.name === rawLeaf) ?? null
+  }, [listFile, fallbackFile, chatOutputs, filePath, fileId])
+
+  const file = listFile ?? fallbackFile ?? outputFallback
+  const isResolving =
+    isLoading ||
+    (isFetching && !file) ||
+    (listSettled && !listFile && (fallbackLoading || outputsLoading))
+
+  return { file, isResolving }
+}
+
+interface EmbeddedFileActionsProps {
+  workspaceId: string
+  fileId: string
+  filePath?: string
+  chatId?: string
+}
+
+function EmbeddedFileActions({ workspaceId, fileId, filePath, chatId }: EmbeddedFileActionsProps) {
+  const router = useRouter()
+  const { file } = useResolvedEmbeddedFile(workspaceId, fileId, filePath, chatId)
 
   const handleDownload = async () => {
     if (!file) return
@@ -532,23 +592,29 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActi
     router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(file?.id ?? fileId)}`)
   }
 
+  // The Files page lists only context='workspace' rows — navigating a
+  // chat-scoped output there dead-ends on the plain list, so hide the action.
+  const canOpenInFiles = !file?.storageContext || file.storageContext === 'workspace'
+
   return (
     <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenInFiles}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open in files'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open in files</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      {canOpenInFiles && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='subtle'
+              onClick={handleOpenInFiles}
+              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+              aria-label='Open in files'
+            >
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open in files</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button
@@ -628,19 +694,15 @@ function EmbeddedFile({
   previewContextKey,
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
-  const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
-    () =>
-      files.find(
-        (f) =>
-          f.id === fileId ||
-          (filePath &&
-            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
-      ),
-    [files, fileId, filePath]
+  // `previewContextKey` is the active chat id in this surface.
+  const { file, isResolving } = useResolvedEmbeddedFile(
+    workspaceId,
+    fileId,
+    filePath,
+    previewContextKey
   )
 
-  if (isLoading || (isFetching && !file)) return LOADING_SKELETON
+  if (isResolving) return LOADING_SKELETON
 
   if (!file) {
     return (

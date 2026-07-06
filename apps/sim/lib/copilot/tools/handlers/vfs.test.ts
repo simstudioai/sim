@@ -9,19 +9,32 @@ const { getOrMaterializeVFS } = vi.hoisted(() => ({
   getOrMaterializeVFS: vi.fn(),
 }))
 
-const { readChatUpload, listChatUploads, grepChatUpload } = vi.hoisted(() => ({
+const {
+  readChatUpload,
+  listChatUploads,
+  grepChatUpload,
+  readChatOutput,
+  listChatOutputs,
+  grepChatOutput,
+} = vi.hoisted(() => ({
   readChatUpload: vi.fn(),
   listChatUploads: vi.fn(),
   grepChatUpload: vi.fn(),
+  readChatOutput: vi.fn(),
+  listChatOutputs: vi.fn(),
+  grepChatOutput: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/vfs', () => ({
   getOrMaterializeVFS,
 }))
-vi.mock('./upload-file-reader', () => ({
+vi.mock('@/lib/copilot/tools/handlers/chat-file-reader', () => ({
   readChatUpload,
   listChatUploads,
   grepChatUpload,
+  readChatOutput,
+  listChatOutputs,
+  grepChatOutput,
 }))
 
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
@@ -341,7 +354,7 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
     const result = await executeVfsGrep({ pattern: 'x', path: 'uploads/' }, GREP_CTX_CHAT)
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('single upload')
+    expect(result.error).toContain('single file')
     expect(grepChatUpload).not.toHaveBeenCalled()
   })
 

@@ -492,6 +492,8 @@ export interface PostHogEventMap {
   task_forked: {
     workspace_id: string
     source_chat_id: string
+    /** True for a whole-chat duplicate (sidebar Duplicate); false for a branch fork. */
+    whole_chat: boolean
   }
 
   task_marked_unread: {

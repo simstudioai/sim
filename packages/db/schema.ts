@@ -1661,6 +1661,16 @@ export const workspaceFiles = pgTable(
     }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
+    /**
+     * Logical id of the copilot message this file was born in (the user message the
+     * upload was attached to). Plain text with no FK: message ids are only unique per
+     * chat — the same id legitimately exists in the source chat and every fork of it,
+     * which is what lets a fork's "copy files at-or-before this message" cut match rows
+     * in both. NULL means "birth unknown / not tracked": rows predating this column and
+     * contexts that don't stamp it (e.g. 'output'). Nulled together with chatId when a
+     * file is materialized to the workspace.
+     */
+    messageId: text('message_id'),
     originalName: text('original_name').notNull(),
     /**
      * Collision-disambiguated name exposed to the copilot VFS as `uploads/<displayName>`.
@@ -1700,6 +1710,19 @@ export const workspaceFiles = pgTable(
     chatDisplayNameUnique: uniqueIndex('workspace_files_chat_display_name_unique')
       .on(table.chatId, table.displayName)
       .where(sql`${table.context} = 'mothership' AND ${table.chatId} IS NOT NULL`),
+    /**
+     * Output twin of the index above: one display name per chat for agent-generated
+     * `outputs/` files, same full-lifetime scope and rationale (a name the model has
+     * been told must never silently re-resolve). A SEPARATE partial index — not a
+     * widened `context IN (...)` — because uploads/ and outputs/ are independent
+     * per-chat namespaces; an upload named report.png must not block an output
+     * named report.png. Closes the concurrent-generation race in the output
+     * name allocation (SELECT-then-INSERT); `uploadChatOutput` retries on this
+     * constraint like `trackChatUpload` does on its twin.
+     */
+    chatOutputDisplayNameUnique: uniqueIndex('workspace_files_chat_output_display_name_unique')
+      .on(table.chatId, table.displayName)
+      .where(sql`${table.context} = 'output' AND ${table.chatId} IS NOT NULL`),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),

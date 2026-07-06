@@ -4,9 +4,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getWorkspaceFileMock, resolveWorkspaceFileReferenceMock } = vi.hoisted(() => ({
-  getWorkspaceFileMock: vi.fn(),
-  resolveWorkspaceFileReferenceMock: vi.fn(),
+const { resolveToolInputFileMock } = vi.hoisted(() => ({
+  resolveToolInputFileMock: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -15,9 +14,8 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('@sim/db/schema', () => ({}))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: getWorkspaceFileMock,
-  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+vi.mock('@/lib/copilot/tools/server/files/resolve-input-file', () => ({
+  resolveToolInputFile: resolveToolInputFileMock,
 }))
 
 vi.mock('@/lib/workflows/utils', () => ({
@@ -44,7 +42,7 @@ describe('executeOpenResource', () => {
   })
 
   it('opens workspace files with canonical non-UUID file ids', async () => {
-    getWorkspaceFileMock.mockResolvedValue({
+    resolveToolInputFileMock.mockResolvedValue({
       id: 'wf_qL_cfff-FskMsXtOdm599',
       name: 'MAC_Brand_Guidelines_May_2021 (1).docx',
       folderPath: null,
@@ -57,7 +55,11 @@ describe('executeOpenResource', () => {
       { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
     )
 
-    expect(getWorkspaceFileMock).toHaveBeenCalledWith('workspace-1', 'wf_qL_cfff-FskMsXtOdm599')
+    expect(resolveToolInputFileMock).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      chatId: undefined,
+      path: 'wf_qL_cfff-FskMsXtOdm599',
+    })
     expect(result).toMatchObject({
       success: true,
       output: { opened: 1, errors: [] },
@@ -73,7 +75,7 @@ describe('executeOpenResource', () => {
   })
 
   it('opens workspace files by canonical VFS path', async () => {
-    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+    resolveToolInputFileMock.mockResolvedValue({
       id: 'wf_qL_cfff-FskMsXtOdm599',
       name: 'MAC_Brand_Guidelines_May_2021 (1).docx',
       folderPath: 'Docs',
@@ -86,10 +88,11 @@ describe('executeOpenResource', () => {
       { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
     )
 
-    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
-      'workspace-1',
-      'files/Docs/MAC_Brand_Guidelines.docx'
-    )
+    expect(resolveToolInputFileMock).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      chatId: undefined,
+      path: 'files/Docs/MAC_Brand_Guidelines.docx',
+    })
     expect(result).toMatchObject({
       success: true,
       output: { opened: 1, errors: [] },
@@ -105,7 +108,7 @@ describe('executeOpenResource', () => {
   })
 
   it('opens workflow alias file paths through workspace file reference resolution', async () => {
-    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+    resolveToolInputFileMock.mockResolvedValue({
       id: 'wf_plan_file',
       name: 'implementation.md',
       folderPath: 'system/workflows/My Workflow/.plans',
@@ -118,10 +121,11 @@ describe('executeOpenResource', () => {
       { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
     )
 
-    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
-      'workspace-1',
-      'workflows/My%20Workflow/.plans/implementation.md'
-    )
+    expect(resolveToolInputFileMock).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      chatId: undefined,
+      path: 'workflows/My%20Workflow/.plans/implementation.md',
+    })
     expect(result).toMatchObject({
       success: true,
       resources: [
@@ -136,7 +140,7 @@ describe('executeOpenResource', () => {
   })
 
   it('opens root plan alias file paths through workspace file reference resolution', async () => {
-    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+    resolveToolInputFileMock.mockResolvedValue({
       id: 'wf_root_plan',
       name: 'root.md',
       folderPath: 'system/.plans',
@@ -149,7 +153,11 @@ describe('executeOpenResource', () => {
       { userId: 'user-1', workflowId: 'workflow-1', workspaceId: 'workspace-1' }
     )
 
-    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith('workspace-1', '.plans/root.md')
+    expect(resolveToolInputFileMock).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      chatId: undefined,
+      path: '.plans/root.md',
+    })
     expect(result).toMatchObject({
       success: true,
       resources: [
@@ -161,5 +169,67 @@ describe('executeOpenResource', () => {
         },
       ],
     })
+  })
+
+  it('opens chat-scoped outputs by path with an outputs/ resource path', async () => {
+    resolveToolInputFileMock.mockResolvedValue({
+      id: 'wf_gen',
+      name: 'generated chart.png',
+      storageContext: 'output',
+    })
+
+    const result = await executeOpenResource(
+      {
+        resources: [{ type: 'file', path: 'outputs/generated%20chart.png' }],
+      },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        chatId: 'chat-1',
+      }
+    )
+
+    expect(resolveToolInputFileMock).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      chatId: 'chat-1',
+      path: 'outputs/generated%20chart.png',
+    })
+    expect(result).toMatchObject({
+      success: true,
+      resources: [
+        {
+          type: 'file',
+          id: 'wf_gen',
+          title: 'generated chart.png',
+          path: 'outputs/generated%20chart.png',
+        },
+      ],
+    })
+  })
+
+  it('rejects chat uploads (no client surface can preview mothership rows)', async () => {
+    resolveToolInputFileMock.mockResolvedValue({
+      id: 'wf_up',
+      name: 'ref.jpg',
+      storageContext: 'mothership',
+    })
+
+    const result = await executeOpenResource(
+      {
+        resources: [{ type: 'file', id: 'wf_up' }],
+      },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        chatId: 'chat-1',
+      }
+    )
+
+    expect(result).toMatchObject({ success: false })
+    expect((result.output as { errors: string[] }).errors[0]).toContain(
+      'chat upload and cannot be opened as a resource'
+    )
   })
 })

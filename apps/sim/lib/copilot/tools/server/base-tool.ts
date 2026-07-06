@@ -13,6 +13,14 @@ export interface ServerToolContext {
    * intent. Undefined for main-agent tool calls (which never overlap).
    */
   parentToolCallId?: string
+  /**
+   * True only for genuine interactive chat turns (copilot/mothership UI), which
+   * always have a persisted `copilot_chats` row. False/undefined for headless
+   * runs (e.g. Mothership block execution) whose `chatId` is an ephemeral,
+   * non-persisted id. Only interactive turns may write chat-scoped `outputs/`
+   * files, since those carry a `chat_id` foreign key to `copilot_chats`.
+   */
+  interactive?: boolean
   abortSignal?: AbortSignal
   /** Fires only on explicit user stop, never on passive transport disconnect. */
   userStopSignal?: AbortSignal

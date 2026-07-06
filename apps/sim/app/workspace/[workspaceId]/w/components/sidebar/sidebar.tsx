@@ -17,6 +17,7 @@ import {
   Loader,
   Skeleton,
   Tooltip,
+  toast,
   Upload,
 } from '@sim/emcn'
 import {
@@ -35,6 +36,7 @@ import {
   Workflow,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { MoreHorizontal, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
@@ -92,6 +94,7 @@ import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import {
   useDeleteMothershipChat,
   useDeleteMothershipChats,
+  useForkMothershipChat,
   useMarkMothershipChatRead,
   useMarkMothershipChatUnread,
   useMothershipChats,
@@ -597,6 +600,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
 
   const deleteChatMutation = useDeleteMothershipChat(workspaceId)
   const deleteChatsMutation = useDeleteMothershipChats(workspaceId)
+  const forkChatMutation = useForkMothershipChat(workspaceId)
   const markChatReadMutation = useMarkMothershipChatRead(workspaceId)
   const markChatUnreadMutation = useMarkMothershipChatUnread(workspaceId)
   const renameChatMutation = useRenameMothershipChat(workspaceId)
@@ -962,6 +966,29 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     chatsHover.setLocked(true)
     chatFlyoutRename.startRename({ id: chatId, name: chat.name })
   }, [chatFlyoutRename, chats, chatsHover])
+
+  const handleDuplicateChat = useCallback(() => {
+    const { chatIds: ids } = contextMenuSelectionRef.current
+    if (ids.length !== 1) return
+    // No upToMessageId: the fork route treats this as a whole-chat duplicate.
+    forkChatMutation.mutate(
+      { chatId: ids[0] },
+      {
+        onSuccess: (result) => {
+          if (result.failedFileCopies) {
+            toast.warning(
+              `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the duplicate`
+            )
+          }
+          useFolderStore.getState().clearChatSelection()
+          navigateToPage(`/workspace/${workspaceId}/chat/${result.id}`)
+        },
+        onError: (error) => {
+          toast.error(getErrorMessage(error, 'Failed to duplicate chat'))
+        },
+      }
+    )
+  }, [navigateToPage, workspaceId])
 
   const handleToggleChatPin = useCallback(() => {
     const { chatIds: ids } = contextMenuSelectionRef.current
@@ -1686,6 +1713,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                   onMarkAsUnread={handleMarkChatAsUnread}
                   onTogglePin={handleToggleChatPin}
                   onRename={handleStartChatRename}
+                  onDuplicate={handleDuplicateChat}
                   onDelete={handleDeleteChat}
                   showOpenInNewTab={!isMultiChatContextMenu}
                   showMarkAsRead={!isMultiChatContextMenu && !!activeChatContextMenuItem?.isUnread}
@@ -1697,8 +1725,9 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                   showPin={!isMultiChatContextMenu && !!activeChatContextMenuItem}
                   isPinned={!!activeChatContextMenuItem?.isPinned}
                   showRename={!isMultiChatContextMenu}
-                  showDuplicate={false}
+                  showDuplicate={!isMultiChatContextMenu}
                   disableRename={!canEdit}
+                  disableDuplicate={!canEdit || forkChatMutation.isPending}
                   disableDelete={!canEdit}
                 />
 

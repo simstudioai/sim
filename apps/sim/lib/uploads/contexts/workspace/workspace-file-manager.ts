@@ -9,7 +9,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   checkStorageQuota,
@@ -71,8 +71,8 @@ export interface WorkspaceFileRecord {
   deletedAt?: Date | null
   uploadedAt: Date
   updatedAt: Date
-  /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
-  storageContext?: 'workspace' | 'mothership'
+  /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads, agent outputs). */
+  storageContext?: 'workspace' | 'mothership' | 'output'
   /** Public share state, attached at the API boundary. `null` when never shared. */
   share?: ShareRecord | null
 }
@@ -148,7 +148,7 @@ function withCopySuffix(fileName: string, n: number): string {
 /**
  * Picks a display name that does not collide with an active workspace file (`original_name`).
  */
-async function allocateUniqueWorkspaceFileName(
+export async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
   baseName: string,
   folderId?: string | null
@@ -487,14 +487,20 @@ export async function trackChatUpload(
   s3Key: string,
   fileName: string,
   contentType: string,
-  size: number
+  size: number,
+  messageId?: string
 ): Promise<{ displayName: string }> {
   for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
     const candidate = suffixedName(fileName, n)
     try {
       const updated = await db
         .update(workspaceFiles)
-        .set({ chatId, context: 'mothership', displayName: candidate })
+        .set({
+          chatId,
+          messageId: messageId ?? null,
+          context: 'mothership',
+          displayName: candidate,
+        })
         .where(
           and(
             eq(workspaceFiles.key, s3Key),
@@ -520,6 +526,7 @@ export async function trackChatUpload(
         workspaceId,
         context: 'mothership',
         chatId,
+        messageId: messageId ?? null,
         originalName: fileName,
         displayName: candidate,
         contentType,
@@ -547,6 +554,191 @@ export async function trackChatUpload(
   throw new FileConflictError(fileName)
 }
 
+const MAX_CHAT_OUTPUT_NAME_RETRIES = 1000
+
+/** Postgres constraint name for the partial unique index on `(chat_id, display_name)` for outputs. */
+export const CHAT_OUTPUT_DISPLAY_NAME_INDEX = 'workspace_files_chat_output_display_name_unique'
+
+/**
+ * The chat's existing active output display names, read once so suffix
+ * allocation picks a free name in memory instead of one SELECT per candidate.
+ * The `workspace_files_chat_output_display_name_unique` partial index is the
+ * real guarantee — a concurrent racer, or a soft-deleted tombstone this
+ * active-rows read can't see (the index spans the row's whole lifetime),
+ * surfaces as a 23505 that {@link uploadChatOutput} retries past.
+ */
+async function listChatOutputNames(chatId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ displayName: workspaceFiles.displayName })
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.chatId, chatId),
+        eq(workspaceFiles.context, 'output'),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+  const names = new Set<string>()
+  for (const row of rows) {
+    if (row.displayName) names.add(row.displayName)
+  }
+  return names
+}
+
+/**
+ * Persist an agent-generated one-off file as a chat-scoped output.
+ *
+ * Mirrors {@link trackChatUpload} (the user-upload equivalent) but for files the
+ * AGENT generates: same workspace storage bucket and `workspace_files` table, but
+ * tagged `context='output'` with the owning `chatId`. The copilot VFS exposes these
+ * under `outputs/<displayName>`; they never appear in the Files UI and are deleted
+ * with the chat (see CHAT_SCOPED_CONTEXTS in chat-cleanup). Outputs are write-once —
+ * there is no update path; to edit one the agent materializes it to `files/` first.
+ */
+export async function uploadChatOutput(args: {
+  workspaceId: string
+  userId: string
+  chatId: string
+  fileBuffer: Buffer
+  fileName: string
+  contentType: string
+  /**
+   * User message id of the turn that generated this output. Drives the branch
+   * fork's timeline cut (an output travels with a fork iff the message that
+   * requested it is kept), like `message_id` on uploads. NULL rows predate the
+   * stamping and are copied into every fork of their chat.
+   */
+  messageId?: string
+}): Promise<UserFile> {
+  const { workspaceId, userId, chatId, fileBuffer, fileName, contentType, messageId } = args
+  logger.info(`Uploading chat output file: ${fileName} for chat ${chatId}`)
+
+  const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
+
+  const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
+  if (!quotaCheck.allowed) {
+    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+  }
+
+  // The key has its own timestamp+random component, so it stays unique (and
+  // valid) if a name collision below lands the row on a suffixed display name.
+  const storageKey = generateWorkspaceFileKey(workspaceId, normalizedFileName)
+  const fileId = `wf_${generateShortId()}`
+  let blobUploaded = false
+  let displayName: string | null = null
+
+  try {
+    // NOTE: do NOT pass `metadata` here. When `uploadFile` receives `metadata` it
+    // ALSO inserts a `workspace_files` row (via insertFileMetadataHelper) keyed on
+    // the storage key. We do our own chat-scoped insert below (with chat_id +
+    // display_name + context 'output'), so passing metadata would produce a second
+    // row with the same key and fail the `workspace_files_key_active_unique` index
+    // (duplicate key, 23505). Upload the bytes only; this insert is the sole DB row.
+    const uploadResult = await uploadFile({
+      file: fileBuffer,
+      fileName: storageKey,
+      contentType,
+      context: 'output',
+      preserveKey: true,
+      customKey: storageKey,
+    })
+    blobUploaded = true
+
+    // One read of the chat's existing names, then pick the first free suffix
+    // in memory. The partial unique index arbitrates what the read can't see
+    // (concurrent racers, soft-deleted tombstones); the loser advances to the
+    // next ` (n)` suffix — same retry contract as trackChatUpload.
+    const existingNames = await listChatOutputNames(chatId)
+    for (let n = 1; n <= MAX_CHAT_OUTPUT_NAME_RETRIES; n++) {
+      const candidate = suffixedName(normalizedFileName, n)
+      if (existingNames.has(candidate)) {
+        continue
+      }
+      try {
+        await db.insert(workspaceFiles).values({
+          id: fileId,
+          key: uploadResult.key,
+          userId,
+          workspaceId,
+          context: 'output',
+          chatId,
+          messageId: messageId ?? null,
+          originalName: candidate,
+          displayName: candidate,
+          contentType,
+          size: fileBuffer.length,
+        })
+        displayName = candidate
+        break
+      } catch (error) {
+        if (
+          getPostgresErrorCode(error) === '23505' &&
+          getPostgresConstraintName(error) === CHAT_OUTPUT_DISPLAY_NAME_INDEX
+        ) {
+          logger.warn(
+            `Chat output displayName collision on attempt ${n} for "${candidate}" in chat ${chatId}, retrying with suffix`
+          )
+          continue
+        }
+        throw error
+      }
+    }
+    if (!displayName) {
+      throw new FileConflictError(normalizedFileName)
+    }
+
+    try {
+      await incrementStorageUsage(userId, fileBuffer.length, workspaceId)
+    } catch (storageError) {
+      logger.error('Failed to update storage tracking:', storageError)
+    }
+
+    const pathPrefix = getServePathPrefix()
+    const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=output`
+
+    logger.info(`Tracked chat output: ${displayName} for chat ${chatId}`)
+
+    return {
+      id: fileId,
+      name: displayName,
+      size: fileBuffer.length,
+      type: contentType,
+      url: serveUrl,
+      key: uploadResult.key,
+      context: 'output',
+    }
+  } catch (error) {
+    // When the insert never landed, no row references the just-uploaded blob —
+    // delete it (best-effort) so it can't orphan in the bucket forever (chat
+    // cleanup iterates DB rows and would never find it). An insert error does
+    // NOT prove the row didn't commit (the ack can be lost on a connection
+    // reset after commit), so verify no row references the key first; if the
+    // check itself fails, prefer an orphaned blob over a broken live file.
+    if (blobUploaded && !displayName) {
+      const rowReferencesBlob = await db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.key, storageKey))
+        .limit(1)
+        .then((rows) => rows.length > 0)
+        .catch(() => true)
+      if (!rowReferencesBlob) {
+        await deleteFile({ key: storageKey, context: 'output' }).catch((cleanupError) => {
+          logger.warn('Failed to clean up orphaned chat output blob', {
+            storageKey,
+            error: getErrorMessage(cleanupError, 'Unknown error'),
+          })
+        })
+      }
+    }
+    if (error instanceof FileConflictError) {
+      throw error
+    }
+    logger.error(`Failed to upload chat output file ${fileName}:`, error)
+    throw new Error(`Failed to upload output file: ${getErrorMessage(error, 'Unknown error')}`)
+  }
+}
+
 /**
  * Check if a file with the same name already exists in workspace
  */
@@ -569,12 +761,17 @@ function mapWorkspaceFileRecord(
   folderPaths: Map<string, string>
 ): WorkspaceFileRecord {
   const pathPrefix = getServePathPrefix()
+  // Listings only ever map context='workspace' rows, but the by-id preview
+  // path (getPreviewableWorkspaceFile) also maps chat-scoped 'output' rows —
+  // their serve URL and storageContext must carry the row's real context or
+  // downstream download/serve resolves against the wrong storage context.
+  const storageContext = (file.context ?? 'workspace') as WorkspaceFileRecord['storageContext']
   return {
     id: file.id,
     workspaceId: file.workspaceId || workspaceId,
     name: file.originalName,
     key: file.key,
-    path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
+    path: `${pathPrefix}${encodeURIComponent(file.key)}?context=${storageContext}`,
     size: file.size,
     type: file.contentType,
     uploadedBy: file.userId,
@@ -583,6 +780,7 @@ function mapWorkspaceFileRecord(
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
+    storageContext,
   }
 }
 
@@ -849,6 +1047,54 @@ export async function getWorkspaceFile(
     return mapSingleWorkspaceFileRecord(files[0], workspaceId)
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Fetch a single file record by id for PREVIEW, including the chat-scoped `output`
+ * context (agent-generated outputs) that never appears in the workspace Files list.
+ * Returns the same shape as {@link listWorkspaceFiles} so the resource panel can
+ * render an output that {@link getWorkspaceFile}/list would miss. Workspace
+ * membership is the caller's responsibility; chat-output OWNERSHIP is enforced
+ * here — `output` rows belong to a private chat, so only the owning chat's user
+ * may resolve them (non-owners get null, indistinguishable from a missing id).
+ *
+ * `mothership` chat uploads are intentionally not included here — surfacing uploads
+ * through this preview path is out of scope for the outputs feature (see
+ * outputs-vfs-followups.md #2/#7) and can be added later if wanted.
+ */
+export async function getPreviewableWorkspaceFile(
+  workspaceId: string,
+  fileId: string,
+  requestingUserId: string
+): Promise<WorkspaceFileRecord | null> {
+  try {
+    const [file] = await db
+      .select()
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          inArray(workspaceFiles.context, ['workspace', 'output']),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .limit(1)
+
+    if (!file) return null
+    if (file.context === 'output' && file.userId !== requestingUserId) {
+      logger.warn('Chat output preview denied: caller is not the owning chat user', {
+        fileId,
+        workspaceId,
+        requestingUserId,
+      })
+      return null
+    }
+    return mapSingleWorkspaceFileRecord(file, workspaceId)
+  } catch (error) {
+    logger.error(`Failed to get previewable workspace file ${fileId}:`, error)
     return null
   }
 }

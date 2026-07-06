@@ -622,6 +622,7 @@ export function ResourceTabs({
             onAdd={handleAdd}
             onSwitch={selectResource}
             excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+            chatId={chatId}
           />
         )}
       </div>

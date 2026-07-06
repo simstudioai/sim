@@ -12,6 +12,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { resolveToolInputFile } from '@/lib/copilot/tools/server/files/resolve-input-file'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
   createSingleDocument,
@@ -41,7 +42,6 @@ import {
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 import {
   checkDocumentWriteAccess,
@@ -322,19 +322,32 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const kbWorkspaceId: string = targetKb.workspaceId
+          // Chat-scoped refs (uploads/, outputs/, chat wf_ ids) may only feed
+          // KBs in the chat's own workspace — the same boundary open_resource
+          // enforces — so chat-private content can't silently become durable
+          // knowledge in ANOTHER workspace. Workspace files/ refs already
+          // scope to the KB's workspace via the resolver.
+          const chatIdForResolution =
+            context?.chatId && context.workspaceId === kbWorkspaceId ? context.chatId : undefined
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
 
           for (const fileRef of fileRefs) {
-            const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, fileRef)
+            const fileRecord = await resolveToolInputFile({
+              workspaceId: kbWorkspaceId,
+              chatId: chatIdForResolution,
+              path: fileRef,
+            })
             if (!fileRecord) {
               failedFiles.push(fileRef)
               continue
             }
 
+            // Chat-scoped uploads/outputs live in their own storage contexts —
+            // presign with the record's context, not a hardcoded 'workspace'.
             const presignedUrl = await StorageService.generatePresignedDownloadUrl(
               fileRecord.key,
-              'workspace',
+              fileRecord.storageContext ?? 'workspace',
               5 * 60
             )
 

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  getWorkspaceFileByIdContract,
   renameWorkspaceFileContract,
   workspaceFileParamsSchema,
 } from '@/lib/api/contracts/workspace-files'
@@ -10,6 +11,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { getPreviewableWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
   performDeleteWorkspaceFileItems,
   performRenameWorkspaceFile,
@@ -19,6 +21,51 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkspaceFileAPI')
+
+/**
+ * GET /api/workspaces/[id]/files/[fileId]
+ * Fetch a single file record by id, including chat-scoped `output` files that never
+ * appear in the workspace Files list. Used by the resource panel to preview an output
+ * the list-based lookup can't see. Requires workspace membership (read).
+ */
+export const GET = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
+    const requestId = generateRequestId()
+
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const parsed = await parseRequest(getWorkspaceFileByIdContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: workspaceId, fileId } = parsed.data.params
+
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
+      )
+      if (userPermission === null) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
+
+      const file = await getPreviewableWorkspaceFile(workspaceId, fileId, session.user.id)
+      if (!file) {
+        return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+      }
+
+      return NextResponse.json({ success: true, file })
+    } catch (error) {
+      logger.error(`[${requestId}] Error fetching workspace file:`, error)
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Failed to fetch file') },
+        { status: 500 }
+      )
+    }
+  }
+)
 
 /**
  * PATCH /api/workspaces/[id]/files/[fileId]
