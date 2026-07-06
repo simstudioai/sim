@@ -66,13 +66,18 @@ describe('table export route — id→name translation', () => {
     })
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
     // Row data is keyed by stable column id (`col_email`), not the display name.
-    mockQueryRows.mockResolvedValue({
-      rows: [{ id: 'r1', data: { col_email: 'a@b.c', legacy: 'x' }, executions: {}, position: 0 }],
-      rowCount: 1,
-      totalCount: 1,
-      limit: 1000,
-      offset: 0,
-    })
+    // The export loop terminates on an empty page, so the mock must drain.
+    mockQueryRows
+      .mockResolvedValueOnce({
+        rows: [
+          { id: 'r1', data: { col_email: 'a@b.c', legacy: 'x' }, executions: {}, position: 0 },
+        ],
+        rowCount: 1,
+        totalCount: 1,
+        limit: 1000,
+        offset: 0,
+      })
+      .mockResolvedValue({ rows: [], rowCount: 0, totalCount: 1, limit: 1000, offset: 0 })
   })
 
   it('CSV: header uses display names and cell values resolve from id-keyed data', async () => {
@@ -91,5 +96,73 @@ describe('table export route — id→name translation', () => {
     const parsed = JSON.parse(await res.text())
     expect(parsed).toEqual([{ email: 'a@b.c', legacy: 'x' }])
     expect(JSON.stringify(parsed)).not.toContain('col_email')
+  })
+})
+
+describe('table export route — keyset pagination', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'session',
+    })
+    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+  })
+
+  it('drives the after cursor from the last row instead of offset paging', async () => {
+    const page = (ids: string[]) => ({
+      rows: ids.map((id, i) => ({
+        id,
+        data: { col_email: `${id}@x`, legacy: 'x' },
+        executions: {},
+        position: i,
+        orderKey: `k-${id}`,
+      })),
+      rowCount: ids.length,
+      totalCount: null,
+      limit: 1000,
+      offset: 0,
+    })
+    mockQueryRows
+      .mockResolvedValueOnce(page(['r1']))
+      .mockResolvedValueOnce(page(['r2']))
+      .mockResolvedValue(page([]))
+
+    const res = await callGet('csv')
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body.trim().split('\n')).toEqual(['email,legacy', 'r1@x,x', 'r2@x,x'])
+
+    expect(mockQueryRows).toHaveBeenCalledTimes(3)
+    expect(mockQueryRows.mock.calls[0][1]).toMatchObject({ after: undefined, includeTotal: false })
+    expect(mockQueryRows.mock.calls[1][1]).toMatchObject({ after: { orderKey: 'k-r1', id: 'r1' } })
+    expect(mockQueryRows.mock.calls[2][1]).toMatchObject({ after: { orderKey: 'k-r2', id: 'r2' } })
+  })
+
+  it('falls back to offset paging for legacy rows without an order key', async () => {
+    const legacyPage = (ids: string[]) => ({
+      rows: ids.map((id, i) => ({
+        id,
+        data: { col_email: `${id}@x`, legacy: 'x' },
+        executions: {},
+        position: i,
+      })),
+      rowCount: ids.length,
+      totalCount: null,
+      limit: 1000,
+      offset: 0,
+    })
+    mockQueryRows
+      .mockResolvedValueOnce(legacyPage(['r1']))
+      .mockResolvedValueOnce(legacyPage(['r2']))
+      .mockResolvedValue(legacyPage([]))
+
+    const res = await callGet('csv')
+    expect(res.status).toBe(200)
+
+    expect(mockQueryRows).toHaveBeenCalledTimes(3)
+    expect(mockQueryRows.mock.calls[1][1]).toMatchObject({ after: undefined, offset: 1 })
+    expect(mockQueryRows.mock.calls[2][1]).toMatchObject({ after: undefined, offset: 2 })
   })
 })

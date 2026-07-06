@@ -1,7 +1,7 @@
 import { dbReplica } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type DashboardStatsResponse,
@@ -18,6 +18,13 @@ import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('LogsStatsAPI')
+
+/**
+ * Hard default window for open-ended stats requests. Production roles run with
+ * a 60s statement_timeout, so the aggregations must never scan a workspace's
+ * entire log history.
+ */
+const DEFAULT_STATS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 export const revalidate = 0
 
@@ -63,19 +70,37 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
 
       const commonFilters = buildFilterConditions(params, { useSimpleLevelFilter: true })
-      const whereCondition = commonFilters ? and(workspaceFilter, commonFilters) : workspaceFilter
 
-      const boundsQuery = await dbReplica
-        .select({
-          minTime: sql<string>`MIN(${workflowExecutionLogs.startedAt})`,
-          maxTime: sql<string>`MAX(${workflowExecutionLogs.startedAt})`,
-        })
-        .from(workflowExecutionLogs)
-        .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-        .where(whereCondition)
+      const now = new Date()
+      const windowEnd = params.endDate ? new Date(params.endDate) : now
+      const windowStart = params.startDate
+        ? new Date(params.startDate)
+        : new Date(windowEnd.getTime() - DEFAULT_STATS_WINDOW_MS)
+      const windowFilter = and(
+        gte(workflowExecutionLogs.startedAt, windowStart),
+        lte(workflowExecutionLogs.startedAt, windowEnd)
+      )
+      const whereCondition = commonFilters
+        ? and(workspaceFilter, windowFilter, commonFilters)
+        : and(workspaceFilter, windowFilter)
+
+      // The workflow join only matters when a filter references workflow columns.
+      const needsWorkflowJoin = Boolean(
+        params.workflowIds || params.folderIds || params.workflowName || params.folderName
+      )
+      const boundsSelection = {
+        minTime: sql<string>`MIN(${workflowExecutionLogs.startedAt})`,
+        maxTime: sql<string>`MAX(${workflowExecutionLogs.startedAt})`,
+      }
+      const boundsQuery = needsWorkflowJoin
+        ? await dbReplica
+            .select(boundsSelection)
+            .from(workflowExecutionLogs)
+            .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+            .where(whereCondition)
+        : await dbReplica.select(boundsSelection).from(workflowExecutionLogs).where(whereCondition)
 
       const bounds = boundsQuery[0]
-      const now = new Date()
 
       let startTime: Date
       let endTime: Date
