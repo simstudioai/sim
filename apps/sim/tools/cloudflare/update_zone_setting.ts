@@ -55,8 +55,9 @@ export const updateZoneSettingTool: ToolConfig<
       const trimmed = params.value.trim()
 
       // browser_cache_ttl is the one setting whose value must be a number.
+      // Number('') is 0, not NaN, so an empty value must be rejected explicitly.
       if (params.settingId === 'browser_cache_ttl') {
-        const numeric = Number(trimmed)
+        const numeric = trimmed === '' ? Number.NaN : Number(trimmed)
         return { value: Number.isNaN(numeric) ? params.value : numeric }
       }
 
