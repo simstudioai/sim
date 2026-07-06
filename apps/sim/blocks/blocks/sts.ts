@@ -22,6 +22,8 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Assume Role', id: 'assume_role' },
+        { label: 'Assume Role With Web Identity', id: 'assume_role_with_web_identity' },
+        { label: 'Assume Role With SAML', id: 'assume_role_with_saml' },
         { label: 'Get Caller Identity', id: 'get_caller_identity' },
         { label: 'Get Session Token', id: 'get_session_token' },
         { label: 'Get Access Key Info', id: 'get_access_key_info' },
@@ -41,7 +43,16 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['assume_role_with_web_identity', 'assume_role_with_saml'],
+        not: true,
+      },
+      required: {
+        field: 'operation',
+        value: ['assume_role_with_web_identity', 'assume_role_with_saml'],
+        not: true,
+      },
     },
     {
       id: 'secretAccessKey',
@@ -49,30 +60,92 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['assume_role_with_web_identity', 'assume_role_with_saml'],
+        not: true,
+      },
+      required: {
+        field: 'operation',
+        value: ['assume_role_with_web_identity', 'assume_role_with_saml'],
+        not: true,
+      },
     },
     {
       id: 'roleArn',
       title: 'Role ARN',
       type: 'short-input',
       placeholder: 'arn:aws:iam::123456789012:role/MyRole',
-      condition: { field: 'operation', value: 'assume_role' },
-      required: { field: 'operation', value: 'assume_role' },
+      condition: {
+        field: 'operation',
+        value: ['assume_role', 'assume_role_with_web_identity', 'assume_role_with_saml'],
+      },
+      required: {
+        field: 'operation',
+        value: ['assume_role', 'assume_role_with_web_identity', 'assume_role_with_saml'],
+      },
     },
     {
       id: 'roleSessionName',
       title: 'Session Name',
       type: 'short-input',
       placeholder: 'my-session',
-      condition: { field: 'operation', value: 'assume_role' },
-      required: { field: 'operation', value: 'assume_role' },
+      condition: {
+        field: 'operation',
+        value: ['assume_role', 'assume_role_with_web_identity'],
+      },
+      required: {
+        field: 'operation',
+        value: ['assume_role', 'assume_role_with_web_identity'],
+      },
+    },
+    {
+      id: 'webIdentityToken',
+      title: 'Web Identity Token',
+      type: 'long-input',
+      placeholder: 'OIDC/OAuth 2.0 token from the identity provider',
+      condition: { field: 'operation', value: 'assume_role_with_web_identity' },
+      required: { field: 'operation', value: 'assume_role_with_web_identity' },
+    },
+    {
+      id: 'providerId',
+      title: 'Provider ID',
+      type: 'short-input',
+      placeholder: 'www.amazon.com (legacy OAuth 2.0 providers only)',
+      condition: { field: 'operation', value: 'assume_role_with_web_identity' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'principalArn',
+      title: 'SAML Provider ARN',
+      type: 'short-input',
+      placeholder: 'arn:aws:iam::123456789012:saml-provider/MyProvider',
+      condition: { field: 'operation', value: 'assume_role_with_saml' },
+      required: { field: 'operation', value: 'assume_role_with_saml' },
+    },
+    {
+      id: 'samlAssertion',
+      title: 'SAML Assertion',
+      type: 'long-input',
+      placeholder: 'Base64-encoded SAML authentication response',
+      condition: { field: 'operation', value: 'assume_role_with_saml' },
+      required: { field: 'operation', value: 'assume_role_with_saml' },
     },
     {
       id: 'durationSeconds',
       title: 'Duration (Seconds)',
       type: 'short-input',
       placeholder: '3600',
-      condition: { field: 'operation', value: ['assume_role', 'get_session_token'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'assume_role',
+          'assume_role_with_web_identity',
+          'assume_role_with_saml',
+          'get_session_token',
+        ],
+      },
       required: false,
       mode: 'advanced',
     },
@@ -81,6 +154,39 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       title: 'Session Policy (JSON)',
       type: 'long-input',
       placeholder: '{"Version":"2012-10-17","Statement":[...]}',
+      condition: {
+        field: 'operation',
+        value: ['assume_role', 'assume_role_with_web_identity', 'assume_role_with_saml'],
+      },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'policyArns',
+      title: 'Managed Policy ARNs',
+      type: 'short-input',
+      placeholder: 'arn:aws:iam::123456789012:policy/One, arn:aws:iam::123456789012:policy/Two',
+      condition: {
+        field: 'operation',
+        value: ['assume_role', 'assume_role_with_web_identity', 'assume_role_with_saml'],
+      },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'tags',
+      title: 'Session Tags',
+      type: 'table',
+      columns: ['key', 'value'],
+      condition: { field: 'operation', value: 'assume_role' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'transitiveTagKeys',
+      title: 'Transitive Tag Keys',
+      type: 'short-input',
+      placeholder: 'Project, Cost-Center',
       condition: { field: 'operation', value: 'assume_role' },
       required: false,
       mode: 'advanced',
@@ -124,6 +230,8 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
   tools: {
     access: [
       'sts_assume_role',
+      'sts_assume_role_with_web_identity',
+      'sts_assume_role_with_saml',
       'sts_get_caller_identity',
       'sts_get_session_token',
       'sts_get_access_key_info',
@@ -133,6 +241,10 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
         switch (params.operation) {
           case 'assume_role':
             return 'sts_assume_role'
+          case 'assume_role_with_web_identity':
+            return 'sts_assume_role_with_web_identity'
+          case 'assume_role_with_saml':
+            return 'sts_assume_role_with_saml'
           case 'get_caller_identity':
             return 'sts_get_caller_identity'
           case 'get_session_token':
@@ -146,16 +258,12 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       params: (params) => {
         const { operation, durationSeconds, ...rest } = params
 
-        const connectionConfig = {
-          region: rest.region,
-          accessKeyId: rest.accessKeyId,
-          secretAccessKey: rest.secretAccessKey,
-        }
-
-        const result: Record<string, unknown> = { ...connectionConfig }
+        const result: Record<string, unknown> = { region: rest.region }
 
         switch (operation) {
           case 'assume_role':
+            result.accessKeyId = rest.accessKeyId
+            result.secretAccessKey = rest.secretAccessKey
             result.roleArn = rest.roleArn
             result.roleSessionName = rest.roleSessionName
             if (durationSeconds) {
@@ -166,10 +274,53 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
             if (rest.externalId) result.externalId = rest.externalId
             if (rest.serialNumber) result.serialNumber = rest.serialNumber
             if (rest.tokenCode) result.tokenCode = rest.tokenCode
+            if (rest.policyArns) result.policyArns = rest.policyArns
+            if (rest.transitiveTagKeys) result.transitiveTagKeys = rest.transitiveTagKeys
+            if (rest.tags) {
+              const rows = rest.tags
+              if (typeof rows === 'string') {
+                result.tags = rows
+              } else if (Array.isArray(rows)) {
+                const obj: Record<string, string> = {}
+                for (const row of rows) {
+                  const key = row.cells?.key
+                  const value = row.cells?.value
+                  if (key && value !== undefined) obj[key] = String(value)
+                }
+                if (Object.keys(obj).length > 0) result.tags = JSON.stringify(obj)
+              }
+            }
+            break
+          case 'assume_role_with_web_identity':
+            result.roleArn = rest.roleArn
+            result.roleSessionName = rest.roleSessionName
+            result.webIdentityToken = rest.webIdentityToken
+            if (rest.providerId) result.providerId = rest.providerId
+            if (durationSeconds) {
+              const parsed = Number.parseInt(String(durationSeconds), 10)
+              if (!Number.isNaN(parsed)) result.durationSeconds = parsed
+            }
+            if (rest.policy) result.policy = rest.policy
+            if (rest.policyArns) result.policyArns = rest.policyArns
+            break
+          case 'assume_role_with_saml':
+            result.roleArn = rest.roleArn
+            result.principalArn = rest.principalArn
+            result.samlAssertion = rest.samlAssertion
+            if (durationSeconds) {
+              const parsed = Number.parseInt(String(durationSeconds), 10)
+              if (!Number.isNaN(parsed)) result.durationSeconds = parsed
+            }
+            if (rest.policy) result.policy = rest.policy
+            if (rest.policyArns) result.policyArns = rest.policyArns
             break
           case 'get_caller_identity':
+            result.accessKeyId = rest.accessKeyId
+            result.secretAccessKey = rest.secretAccessKey
             break
           case 'get_session_token':
+            result.accessKeyId = rest.accessKeyId
+            result.secretAccessKey = rest.secretAccessKey
             if (durationSeconds) {
               const parsed = Number.parseInt(String(durationSeconds), 10)
               if (!Number.isNaN(parsed)) result.durationSeconds = parsed
@@ -178,6 +329,8 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
             if (rest.tokenCode) result.tokenCode = rest.tokenCode
             break
           case 'get_access_key_info':
+            result.accessKeyId = rest.accessKeyId
+            result.secretAccessKey = rest.secretAccessKey
             result.targetAccessKeyId = rest.targetAccessKeyId
             break
         }
@@ -193,8 +346,21 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     roleArn: { type: 'string', description: 'ARN of the role to assume' },
     roleSessionName: { type: 'string', description: 'Session name for the assumed role' },
+    webIdentityToken: {
+      type: 'string',
+      description: 'OIDC/OAuth 2.0 web identity token from the identity provider',
+    },
+    providerId: { type: 'string', description: 'Legacy OAuth 2.0 provider host' },
+    principalArn: { type: 'string', description: 'ARN of the SAML provider in IAM' },
+    samlAssertion: { type: 'string', description: 'Base64-encoded SAML authentication response' },
     durationSeconds: { type: 'string', description: 'Session duration in seconds' },
     policy: { type: 'string', description: 'JSON IAM session policy to restrict permissions' },
+    policyArns: { type: 'string', description: 'Comma-separated managed policy ARNs' },
+    tags: { type: 'json', description: 'Session tags (Key/Value pairs) for ABAC' },
+    transitiveTagKeys: {
+      type: 'string',
+      description: 'Comma-separated tag keys that propagate through role chaining',
+    },
     externalId: { type: 'string', description: 'External ID for cross-account access' },
     serialNumber: { type: 'string', description: 'MFA device serial number' },
     tokenCode: { type: 'string', description: 'MFA token code' },
@@ -203,35 +369,75 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
   outputs: {
     accessKeyId: {
       type: 'string',
-      description: 'Temporary access key ID (assume_role, get_session_token)',
+      description:
+        'Temporary access key ID (assume_role, assume_role_with_web_identity, assume_role_with_saml, get_session_token)',
     },
     secretAccessKey: {
       type: 'string',
-      description: 'Temporary secret access key (assume_role, get_session_token)',
+      description:
+        'Temporary secret access key (assume_role, assume_role_with_web_identity, assume_role_with_saml, get_session_token)',
     },
     sessionToken: {
       type: 'string',
-      description: 'Temporary session token (assume_role, get_session_token)',
+      description:
+        'Temporary session token (assume_role, assume_role_with_web_identity, assume_role_with_saml, get_session_token)',
     },
     expiration: {
       type: 'string',
-      description: 'Credential expiration timestamp (assume_role, get_session_token)',
+      description:
+        'Credential expiration timestamp (assume_role, assume_role_with_web_identity, assume_role_with_saml, get_session_token)',
     },
     assumedRoleArn: {
       type: 'string',
-      description: 'ARN of the assumed role (assume_role only)',
+      description:
+        'ARN of the assumed role (assume_role, assume_role_with_web_identity, assume_role_with_saml)',
     },
     assumedRoleId: {
       type: 'string',
-      description: 'Assumed role ID with session name (assume_role only)',
+      description:
+        'Assumed role ID with session name (assume_role, assume_role_with_web_identity, assume_role_with_saml)',
     },
     packedPolicySize: {
       type: 'number',
-      description: 'Percentage of allowed policy size used (assume_role only)',
+      description:
+        'Percentage of allowed policy size used (assume_role, assume_role_with_web_identity, assume_role_with_saml)',
     },
     sourceIdentity: {
       type: 'string',
-      description: 'Source identity set on the role session (assume_role only)',
+      description:
+        'Source identity set on the role session (assume_role, assume_role_with_web_identity, assume_role_with_saml)',
+    },
+    subjectFromWebIdentityToken: {
+      type: 'string',
+      description:
+        'Unique user identifier from the web identity token subject claim (assume_role_with_web_identity only)',
+    },
+    audience: {
+      type: 'string',
+      description:
+        'Intended audience of the token/assertion (assume_role_with_web_identity, assume_role_with_saml)',
+    },
+    provider: {
+      type: 'string',
+      description:
+        'Issuing authority of the web identity token (assume_role_with_web_identity only)',
+    },
+    subject: {
+      type: 'string',
+      description: 'NameID from the SAML assertion subject (assume_role_with_saml only)',
+    },
+    subjectType: {
+      type: 'string',
+      description: 'SAML NameID format (assume_role_with_saml only)',
+    },
+    issuer: {
+      type: 'string',
+      description: 'Issuer element of the SAML assertion (assume_role_with_saml only)',
+    },
+    nameQualifier: {
+      type: 'string',
+      description:
+        'Hash uniquely identifying the issuer, account, and SAML provider (assume_role_with_saml only)',
     },
     account: {
       type: 'string',
@@ -319,6 +525,24 @@ export const STSBlockMeta = {
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['identity_center', 'slack'],
     },
+    {
+      icon: STSIcon,
+      title: 'CI/CD OIDC credential broker',
+      prompt:
+        'Build a workflow that receives an OIDC token from a CI/CD pipeline (e.g. GitHub Actions), calls AWS STS assume role with web identity to mint short-lived deployment credentials, and writes the issuance to an audit log.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: STSIcon,
+      title: 'Enterprise SSO SAML role broker',
+      prompt:
+        'Create a workflow that takes a SAML assertion from a corporate identity provider, calls AWS STS assume role with SAML to grant scoped temporary credentials, and logs the session details for compliance review.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
   ],
   skills: [
     {
@@ -348,6 +572,20 @@ export const STSBlockMeta = {
         'Use AWS STS get access key info to resolve which account an access key ID belongs to. Use for incident triage of leaked or unexpected keys.',
       content:
         '# Identify Access Key Owner\n\nFind out which account owns an access key ID.\n\n## Steps\n1. Take the access key ID under investigation (for example, one found in a leak or an unexpected log).\n2. Call get access key info to resolve the owning AWS account ID.\n3. Compare the account against your known and expected accounts.\n4. If it belongs to an unexpected account, escalate for investigation.\n\n## Output\nReport the access key ID (never the secret) and its owning account ID, plus whether that account is expected.',
+    },
+    {
+      name: 'assume-role-with-oidc-token',
+      description:
+        'Use AWS STS assume role with web identity to exchange an OIDC/OAuth 2.0 token (e.g. from GitHub Actions, EKS IRSA, or Google/Facebook federation) for short-lived AWS credentials without any static IAM keys.',
+      content:
+        '# Assume Role with OIDC Token\n\nExchange a federated identity token for temporary AWS credentials.\n\n## Steps\n1. Obtain the OIDC/OAuth 2.0 token issued by the identity provider (CI/CD pipeline, Kubernetes service account, or social login).\n2. Identify the role ARN whose trust policy trusts that identity provider, and choose a descriptive session name.\n3. Call assume role with web identity, passing the token and any session policy to further restrict permissions.\n4. Pass the returned temporary credentials to the downstream step that needs AWS access.\n\n## Output\nConfirm the assumed role ARN, the token subject, and credential expiration. Never print the secret access key or session token in plain logs.',
+    },
+    {
+      name: 'assume-role-with-saml-assertion',
+      description:
+        'Use AWS STS assume role with SAML to exchange a SAML 2.0 assertion from an enterprise identity provider for short-lived AWS credentials, for enterprise SSO access patterns.',
+      content:
+        '# Assume Role with SAML Assertion\n\nExchange a SAML authentication response for temporary AWS credentials.\n\n## Steps\n1. Obtain the base64-encoded SAML assertion issued by the corporate identity provider after user sign-in.\n2. Identify the role ARN and the ARN of the SAML provider entity configured in IAM.\n3. Call assume role with SAML, passing the assertion and any session policy to further restrict permissions.\n4. Pass the returned temporary credentials to the downstream step that needs AWS access.\n\n## Output\nConfirm the assumed role ARN, the assertion subject, and credential expiration. Never print the secret access key or session token in plain logs.',
     },
   ],
 } as const satisfies BlockMeta

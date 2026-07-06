@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-02",
+  "updatedAt": "2026-07-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -1818,7 +1818,7 @@
       "slug": "aws-secrets-manager",
       "name": "AWS Secrets Manager",
       "description": "Connect to AWS Secrets Manager",
-      "longDescription": "Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.",
+      "longDescription": "Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, delete, describe, tag, untag, restore, and rotate secrets.",
       "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
       "iconName": "SecretsManagerIcon",
       "docsUrl": "https://docs.sim.ai/integrations/secrets_manager",
@@ -1842,9 +1842,29 @@
         {
           "name": "Delete Secret",
           "description": "Delete a secret from AWS Secrets Manager"
+        },
+        {
+          "name": "Describe Secret",
+          "description": "Retrieve full metadata for a secret in AWS Secrets Manager, including rotation configuration and replication status, without exposing the secret value"
+        },
+        {
+          "name": "Tag Secret",
+          "description": "Attach tags to a secret in AWS Secrets Manager"
+        },
+        {
+          "name": "Untag Secret",
+          "description": "Remove tags from a secret in AWS Secrets Manager"
+        },
+        {
+          "name": "Restore Secret",
+          "description": "Cancel a scheduled deletion for a secret in AWS Secrets Manager, restoring access to it"
+        },
+        {
+          "name": "Rotate Secret",
+          "description": "Start or reconfigure rotation for a secret in AWS Secrets Manager"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -1857,7 +1877,7 @@
       "slug": "aws-ses",
       "name": "AWS SES",
       "description": "Send emails and manage templates with AWS Simple Email Service",
-      "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.",
+      "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates, identities, configuration sets, and the account suppression list, and retrieve account sending quota and verified identity information.",
       "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
       "iconName": "SESIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ses",
@@ -1897,9 +1917,49 @@
         {
           "name": "Delete Template",
           "description": "Delete an existing SES email template"
+        },
+        {
+          "name": "Update Template",
+          "description": "Update the subject, HTML, and text content of an existing SES email template"
+        },
+        {
+          "name": "Send Custom Verification Email",
+          "description": "Send a branded custom verification email to an address using a custom verification email template"
+        },
+        {
+          "name": "Create Email Identity",
+          "description": "Start verification of a new SES email address or domain identity"
+        },
+        {
+          "name": "Get Email Identity",
+          "description": "Retrieve verification status, DKIM, Mail-From, and policy details for an SES identity"
+        },
+        {
+          "name": "Delete Email Identity",
+          "description": "Delete a verified SES email address or domain identity"
+        },
+        {
+          "name": "Put Suppressed Destination",
+          "description": "Add an email address to the account-level SES suppression list"
+        },
+        {
+          "name": "Get Suppressed Destination",
+          "description": "Retrieve details for a specific email address on the SES suppression list"
+        },
+        {
+          "name": "List Suppressed Destinations",
+          "description": "List email addresses on the account-level SES suppression list"
+        },
+        {
+          "name": "Delete Suppressed Destination",
+          "description": "Remove an email address from the account-level SES suppression list"
+        },
+        {
+          "name": "Create Configuration Set",
+          "description": "Create an SES configuration set to control tracking, delivery, reputation, sending, and suppression behavior for emails"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 19,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -1922,6 +1982,14 @@
           "description": "Assume an IAM role and receive temporary security credentials"
         },
         {
+          "name": "Assume Role With Web Identity",
+          "description": "Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actions OIDC, EKS IRSA, Google/Facebook federation) and receive temporary security credentials"
+        },
+        {
+          "name": "Assume Role With SAML",
+          "description": "Assume an IAM role using a SAML 2.0 authentication response from an enterprise identity provider and receive temporary security credentials"
+        },
+        {
           "name": "Get Caller Identity",
           "description": "Get details about the IAM user or role whose credentials are used to call the API"
         },
@@ -1934,7 +2002,7 @@
           "description": "Get the AWS account ID associated with an access key"
         }
       ],
-      "operationCount": 4,
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
