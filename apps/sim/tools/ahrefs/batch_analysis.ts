@@ -88,7 +88,7 @@ export const batchAnalysisTool: ToolConfig<AhrefsBatchAnalysisParams, AhrefsBatc
         throw new Error(data.error?.message || data.error || 'Failed to run batch analysis')
       }
 
-      const results = (data.targets || data.results || []).map((item: any) => ({
+      const results = (data.targets || []).map((item: any) => ({
         url: item.url || '',
         index: item.index ?? 0,
         domainRating: item.domain_rating ?? null,

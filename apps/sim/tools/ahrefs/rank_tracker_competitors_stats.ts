@@ -79,7 +79,7 @@ export const rankTrackerCompetitorsStatsTool: ToolConfig<
     const competitorsStats = (data['competitors-metrics'] || []).map((item: any) => ({
       competitor: item.competitor || '',
       traffic: item.traffic ?? null,
-      trafficValue: item.traffic_value ?? null,
+      trafficValue: typeof item.traffic_value === 'number' ? item.traffic_value / 100 : null,
       averagePosition: item.average_position ?? null,
       pos1To3: item.pos_1_3 ?? 0,
       pos4To10: item.pos_4_10 ?? 0,
@@ -110,7 +110,7 @@ export const rankTrackerCompetitorsStatsTool: ToolConfig<
           },
           trafficValue: {
             type: 'number',
-            description: 'Estimated monthly organic traffic value',
+            description: 'Estimated monthly organic traffic value (USD)',
             optional: true,
           },
           averagePosition: {

@@ -109,7 +109,7 @@ export const rankTrackerSerpOverviewTool: ToolConfig<
       backlinks: item.backlinks ?? 0,
       refdomains: item.refdomains ?? 0,
       traffic: item.traffic ?? 0,
-      value: item.value ?? null,
+      value: typeof item.value === 'number' ? item.value / 100 : null,
       topKeyword: item.top_keyword ?? null,
       topKeywordVolume: item.top_keyword_volume ?? null,
       updateDate: item.update_date || '',
@@ -145,7 +145,7 @@ export const rankTrackerSerpOverviewTool: ToolConfig<
           traffic: { type: 'number', description: 'Estimated monthly organic search traffic' },
           value: {
             type: 'number',
-            description: 'Estimated monthly traffic value in USD cents',
+            description: 'Estimated monthly traffic value (USD)',
             optional: true,
           },
           topKeyword: {
