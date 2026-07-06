@@ -198,8 +198,12 @@ export interface SESListSuppressedDestinationsResponse extends ToolResponse {
 
 export interface SESCreateEmailIdentityParams extends SESConnectionConfig {
   emailIdentity: string
-  dkimSigningAttributes?: string | null
-  tags?: string | null
+  dkimSigningAttributes?: {
+    domainSigningSelector?: string
+    domainSigningPrivateKey?: string
+    nextSigningKeyLength?: 'RSA_1024_BIT' | 'RSA_2048_BIT'
+  } | null
+  tags?: Array<{ key: string; value: string }> | null
   configurationSetName?: string | null
 }
 
@@ -288,7 +292,7 @@ export interface SESCreateConfigurationSetParams extends SESConnectionConfig {
   reputationMetricsEnabled?: boolean | null
   sendingEnabled?: boolean | null
   suppressedReasons?: string | null
-  tags?: string | null
+  tags?: Array<{ key: string; value: string }> | null
 }
 
 export interface SESCreateConfigurationSetResponse extends ToolResponse {
