@@ -855,7 +855,7 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'date',
+      id: 'crawlDate',
       title: 'Crawl Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DDThh:mm:ss (defaults to most recent crawl)',
@@ -976,7 +976,7 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'date',
+      id: 'asOfDate',
       title: 'As Of',
       type: 'short-input',
       placeholder: 'YYYY-MM-DDThh:mm:ss (defaults to latest)',
@@ -1185,6 +1185,8 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
         if (params.topPositions) result.topPositions = Number(params.topPositions)
         if (params.locationId) result.locationId = Number(params.locationId)
         if (params.offset) result.offset = Number(params.offset)
+        if (params.crawlDate) result.date = params.crawlDate
+        if (params.asOfDate) result.date = params.asOfDate
         return result
       },
     },
@@ -1233,6 +1235,14 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
     },
     issueId: { type: 'string', description: 'Site Audit issue ID to filter affected pages' },
     offset: { type: 'number', description: 'Number of results to skip, for pagination' },
+    crawlDate: {
+      type: 'string',
+      description: 'Site Audit crawl date/time in YYYY-MM-DDThh:mm:ss format',
+    },
+    asOfDate: {
+      type: 'string',
+      description: 'Rank Tracker SERP snapshot date/time in YYYY-MM-DDThh:mm:ss format',
+    },
   },
   outputs: {
     // Domain Rating output
