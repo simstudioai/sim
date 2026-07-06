@@ -107,6 +107,9 @@ export const attioCreateAttributeTool: ToolConfig<
         is_required: params.isRequired ?? false,
         is_unique: params.isUnique ?? false,
         is_multiselect: params.isMultiselect ?? false,
+        // `config` is a required key on Attio's create-attribute request body (even though its
+        // nested fields are only required for type-dependent configs like currency/record-reference).
+        config: {},
       }
       if (params.config) {
         try {

@@ -36,7 +36,6 @@ export const attioGetTaskTool: ToolConfig<AttioGetTaskParams, AttioGetTaskRespon
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
     }),
   },
 

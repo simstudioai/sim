@@ -52,21 +52,37 @@ export const attioCreateCommentTool: ToolConfig<
     },
     list: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The list ID or slug the entry belongs to',
+      description:
+        'The list ID or slug the entry belongs to (used with entryId; omit if threadId or recordId is set)',
     },
     entryId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The entry ID to comment on',
+      description:
+        'The list entry ID to comment on (used with list; omit if threadId or recordId is set)',
+    },
+    recordObject: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The object ID or slug the record belongs to (used with recordId; omit if threadId or entryId is set)',
+    },
+    recordId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The record ID to comment on directly (used with recordObject; omit if threadId or entryId is set)',
     },
     threadId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Thread ID to reply to (omit to start a new thread)',
+      description: 'Thread ID to reply to (omit to start a new thread on a record or list entry)',
     },
     createdAt: {
       type: 'string',
@@ -92,14 +108,23 @@ export const attioCreateCommentTool: ToolConfig<
           id: params.authorId,
         },
       }
-      // Attio's comment body accepts exactly one of `thread_id` or `entry` — sending both is rejected.
+      // Attio's comment body accepts exactly one of `thread_id`, `record`, or `entry` — mutually exclusive.
       if (params.threadId) {
         data.thread_id = params.threadId
-      } else {
+      } else if (params.recordObject && params.recordId) {
+        data.record = {
+          object: params.recordObject,
+          record_id: params.recordId,
+        }
+      } else if (params.list && params.entryId) {
         data.entry = {
           list: params.list,
           entry_id: params.entryId,
         }
+      } else {
+        throw new Error(
+          'Must provide either threadId, both recordObject and recordId, or both list and entryId'
+        )
       }
       if (params.createdAt) data.created_at = params.createdAt
       return { data }

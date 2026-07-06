@@ -326,33 +326,6 @@ interface AttioRecord {
   values: Record<string, unknown>
 }
 
-/** Raw Attio note shape from the API */
-interface AttioNote {
-  id: { workspace_id: string; note_id: string }
-  parent_object: string
-  parent_record_id: string
-  title: string
-  content_plaintext: string
-  content_markdown: string
-  meeting_id: string | null
-  tags: unknown[]
-  created_by_actor: unknown
-  created_at: string
-}
-
-/** Raw Attio task shape from the API */
-interface AttioTask {
-  id: { workspace_id: string; task_id: string }
-  content_plaintext: string
-  deadline_at: string | null
-  is_completed: boolean
-  completed_at: string | null
-  linked_records: Array<{ target_object_id: string; target_record_id: string }>
-  assignees: Array<{ referenced_actor_type: string; referenced_actor_id: string }>
-  created_by_actor: unknown
-  created_at: string
-}
-
 /** Params for listing/querying records */
 export interface AttioListRecordsParams {
   accessToken: string
@@ -767,7 +740,7 @@ export interface AttioListListsResponse extends ToolResponse {
       name: string | null
       parentObject: string | null
       workspaceAccess: string | null
-      workspaceMemberAccess: string | null
+      workspaceMemberAccess: unknown
       createdByActor: { type: string | null; id: string | null } | null
       createdAt: string | null
     }>
@@ -789,7 +762,7 @@ export interface AttioGetListResponse extends ToolResponse {
     name: string | null
     parentObject: string | null
     workspaceAccess: string | null
-    workspaceMemberAccess: string | null
+    workspaceMemberAccess: unknown
     createdByActor: { type: string | null; id: string | null } | null
     createdAt: string | null
   }
@@ -813,7 +786,7 @@ export interface AttioCreateListResponse extends ToolResponse {
     name: string | null
     parentObject: string | null
     workspaceAccess: string | null
-    workspaceMemberAccess: string | null
+    workspaceMemberAccess: unknown
     createdByActor: { type: string | null; id: string | null } | null
     createdAt: string | null
   }
@@ -837,7 +810,7 @@ export interface AttioUpdateListResponse extends ToolResponse {
     name: string | null
     parentObject: string | null
     workspaceAccess: string | null
-    workspaceMemberAccess: string | null
+    workspaceMemberAccess: unknown
     createdByActor: { type: string | null; id: string | null } | null
     createdAt: string | null
   }
@@ -989,8 +962,10 @@ export interface AttioCreateCommentParams {
   format?: string
   authorType: string
   authorId: string
-  list: string
-  entryId: string
+  list?: string
+  entryId?: string
+  recordObject?: string
+  recordId?: string
   threadId?: string
   createdAt?: string
 }

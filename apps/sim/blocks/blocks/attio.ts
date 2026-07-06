@@ -434,7 +434,19 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
         { label: 'Yes', id: 'true' },
       ],
       value: () => 'false',
-      condition: { field: 'operation', value: ['create_task', 'update_task'] },
+      condition: { field: 'operation', value: 'create_task' },
+    },
+    {
+      id: 'taskIsCompletedUpdate',
+      title: 'Completed',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'unchanged',
+      condition: { field: 'operation', value: 'update_task' },
     },
     {
       id: 'taskLinkedRecords',
@@ -666,7 +678,20 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
         { label: 'Read Only', id: 'read-only' },
       ],
       value: () => 'full-access',
-      condition: { field: 'operation', value: ['create_list', 'update_list'] },
+      condition: { field: 'operation', value: 'create_list' },
+    },
+    {
+      id: 'listWorkspaceAccessUpdate',
+      title: 'Workspace Access',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'Full Access', id: 'full-access' },
+        { label: 'Read & Write', id: 'read-and-write' },
+        { label: 'Read Only', id: 'read-only' },
+      ],
+      value: () => 'unchanged',
+      condition: { field: 'operation', value: 'update_list' },
     },
 
     // List entry fields
@@ -831,17 +856,31 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'commentList',
       title: 'List',
       type: 'short-input',
-      placeholder: 'List ID or slug',
+      placeholder: 'List ID or slug (used with Entry ID)',
       condition: { field: 'operation', value: 'create_comment' },
-      required: { field: 'operation', value: 'create_comment' },
     },
     {
       id: 'commentEntryId',
       title: 'Entry ID',
       type: 'short-input',
-      placeholder: 'List entry ID to comment on',
+      placeholder: 'List entry ID to comment on (used with List)',
       condition: { field: 'operation', value: 'create_comment' },
-      required: { field: 'operation', value: 'create_comment' },
+    },
+    {
+      id: 'commentRecordObject',
+      title: 'Record Object',
+      type: 'short-input',
+      placeholder: 'Object ID or slug the record belongs to (used with Record ID)',
+      condition: { field: 'operation', value: 'create_comment' },
+      mode: 'advanced',
+    },
+    {
+      id: 'commentRecordId',
+      title: 'Record ID',
+      type: 'short-input',
+      placeholder: 'Record ID to comment on directly (used with Record Object)',
+      condition: { field: 'operation', value: 'create_comment' },
+      mode: 'advanced',
     },
     {
       id: 'commentThreadId',
@@ -1349,6 +1388,12 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.taskIsCompleted !== undefined)
           cleanParams.isCompleted =
             params.taskIsCompleted === 'true' || params.taskIsCompleted === true
+        if (
+          params.taskIsCompletedUpdate !== undefined &&
+          params.taskIsCompletedUpdate !== 'unchanged'
+        )
+          cleanParams.isCompleted =
+            params.taskIsCompletedUpdate === 'true' || params.taskIsCompletedUpdate === true
         if (params.taskLinkedRecords) cleanParams.linkedRecords = params.taskLinkedRecords
         if (params.taskAssignees) cleanParams.assignees = params.taskAssignees
         if (params.taskId) cleanParams.taskId = params.taskId
@@ -1371,6 +1416,8 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.listParentObject) cleanParams.parentObject = params.listParentObject
         if (params.listApiSlug) cleanParams.apiSlug = params.listApiSlug
         if (params.listWorkspaceAccess) cleanParams.workspaceAccess = params.listWorkspaceAccess
+        if (params.listWorkspaceAccessUpdate && params.listWorkspaceAccessUpdate !== 'unchanged')
+          cleanParams.workspaceAccess = params.listWorkspaceAccessUpdate
 
         // List entry params
         if (params.entryId) cleanParams.entryId = params.entryId
@@ -1390,6 +1437,8 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.commentAuthorId) cleanParams.authorId = params.commentAuthorId
         if (params.commentList) cleanParams.list = params.commentList
         if (params.commentEntryId) cleanParams.entryId = params.commentEntryId
+        if (params.commentRecordObject) cleanParams.recordObject = params.commentRecordObject
+        if (params.commentRecordId) cleanParams.recordId = params.commentRecordId
         if (params.commentThreadId) cleanParams.threadId = params.commentThreadId
         if (params.commentCreatedAt) cleanParams.createdAt = params.commentCreatedAt
         if (params.commentId) cleanParams.commentId = params.commentId
@@ -1462,6 +1511,7 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
     taskContent: { type: 'string', description: 'Task content' },
     taskDeadline: { type: 'string', description: 'Task deadline' },
     taskIsCompleted: { type: 'string', description: 'Task completion status' },
+    taskIsCompletedUpdate: { type: 'string', description: 'Task completion status (update)' },
     taskLinkedRecords: { type: 'json', description: 'Linked records JSON array' },
     taskAssignees: { type: 'json', description: 'Assignees JSON array' },
     taskId: { type: 'string', description: 'Task ID' },
@@ -1474,6 +1524,10 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
     listParentObject: { type: 'string', description: 'List parent object' },
     listApiSlug: { type: 'string', description: 'List API slug' },
     listWorkspaceAccess: { type: 'string', description: 'List workspace-level access' },
+    listWorkspaceAccessUpdate: {
+      type: 'string',
+      description: 'List workspace-level access (update)',
+    },
     entryId: { type: 'string', description: 'List entry ID' },
     entryParentRecordId: { type: 'string', description: 'Record ID for list entry' },
     entryParentObject: { type: 'string', description: 'Record object type for list entry' },
@@ -1487,6 +1541,8 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
     commentAuthorId: { type: 'string', description: 'Comment author ID' },
     commentList: { type: 'string', description: 'List for comment' },
     commentEntryId: { type: 'string', description: 'Entry ID for comment' },
+    commentRecordObject: { type: 'string', description: 'Object for record comment' },
+    commentRecordId: { type: 'string', description: 'Record ID for record comment' },
     commentThreadId: { type: 'string', description: 'Thread ID to reply to' },
     commentCreatedAt: { type: 'string', description: 'Comment creation timestamp (backdate)' },
     commentId: { type: 'string', description: 'Comment ID' },
