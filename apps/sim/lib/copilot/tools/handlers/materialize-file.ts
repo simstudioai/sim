@@ -225,7 +225,7 @@ async function executeImport(
       .where(eq(workflow.id, workflowId))
   }
 
-  logger.info('Imported workflow from upload', {
+  logger.info('Imported workflow from chat file', {
     fileName,
     workflowId,
     workflowName: dedupedName,

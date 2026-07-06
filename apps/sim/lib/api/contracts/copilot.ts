@@ -88,8 +88,10 @@ export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
 
 // Must cover every MothershipResourceType (lib/copilot/resources/types.ts) —
 // the mothership resource routes delegate to the copilot handlers that parse
-// with this enum, so a missing member 400s valid rows (e.g. the hydration
-// cleanup of legacy resources of that type).
+// with this enum, and remove/reorder must accept every type a chat can
+// already HOLD (a missing member 400s valid stored rows, e.g. the hydration
+// cleanup of legacy resources). ADD is narrower on purpose: the POST handler
+// keeps its own VALID_RESOURCE_TYPES allow-list of addable types.
 const copilotResourceTypeSchema = z.enum([
   'table',
   'file',

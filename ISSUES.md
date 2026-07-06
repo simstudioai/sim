@@ -140,6 +140,20 @@ and the known fix design. Findings already fixed on the branch are not listed.
 - **Fix:** scope the attachment-key sweep to keys owned by the chat's own
   rows, or drop the hardcoded context in favor of per-row context.
 
+## 11. File-folder resources offered in the picker but rejected on add (pre-existing)
+
+- **What:** the add-resource dropdown offers `filefolder` entries, but the
+  copilot POST handler's `VALID_RESOURCE_TYPES` allow-list omits
+  `filefolder`/`task`/`generic`, so clicking one 400s ("Invalid resource
+  type") and the optimistic tab rolls back. Pre-existing — before the
+  contract sync it 400'd at the schema layer instead; same outcome. (The
+  sync did fix `integration` adds, which the route allowed but the schema
+  rejected.)
+- **Fix options:** add `filefolder` to the route allow-list if folders are
+  meant to be addable resources (the UI clearly thinks so), or stop offering
+  them in the picker. `task`/`generic` look system-managed — likely correct
+  to keep un-addable, but confirm.
+
 ## Accepted on this branch (for the record)
 
 - **Flag-off writer interception:** with the mothership flag off, a
