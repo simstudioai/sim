@@ -69,7 +69,8 @@ export const keywordOverviewTool: ToolConfig<
           keyword: result.keyword || '',
           searchVolume: result.volume ?? 0,
           keywordDifficulty: result.difficulty ?? null,
-          cpc: result.cpc ?? null,
+          // Ahrefs returns cpc in USD cents; convert to USD to match the documented unit
+          cpc: typeof result.cpc === 'number' ? result.cpc / 100 : null,
           clicks: result.clicks ?? null,
           clicksPercentage: result.searches_pct_clicks_organic_only ?? null,
           parentTopic: result.parent_topic ?? null,

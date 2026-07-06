@@ -4,7 +4,7 @@ import type {
 } from '@/tools/ahrefs/types'
 import type { ToolConfig } from '@/tools/types'
 
-const SELECT_FIELDS = 'url_from,url_to,http_code_target,anchor,domain_rating_source'
+const SELECT_FIELDS = 'url_from,url_to,http_code,anchor,domain_rating_source'
 
 export const brokenBacklinksTool: ToolConfig<
   AhrefsBrokenBacklinksParams,
@@ -71,7 +71,7 @@ export const brokenBacklinksTool: ToolConfig<
     const brokenBacklinks = (data.backlinks || []).map((link: any) => ({
       urlFrom: link.url_from || '',
       urlTo: link.url_to || '',
-      httpCode: link.http_code_target ?? null,
+      httpCode: link.http_code ?? null,
       anchor: link.anchor || '',
       domainRatingSource: link.domain_rating_source ?? 0,
     }))
