@@ -1,6 +1,6 @@
 import type {
-  InstantlyActivateCampaignParams,
   InstantlyCampaignActionResponse,
+  InstantlyPauseCampaignParams,
 } from '@/tools/instantly/types'
 import {
   campaignActionOutputs,
@@ -13,13 +13,13 @@ import {
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const activateCampaignTool: ToolConfig<
-  InstantlyActivateCampaignParams,
+export const pauseCampaignTool: ToolConfig<
+  InstantlyPauseCampaignParams,
   InstantlyCampaignActionResponse
 > = {
-  id: 'instantly_activate_campaign',
-  name: 'Instantly Activate Campaign',
-  description: 'Activates, starts, or resumes an Instantly V2 campaign.',
+  id: 'instantly_pause_campaign',
+  name: 'Instantly Pause Campaign',
+  description: 'Pauses a running Instantly V2 campaign, stopping further email sends.',
   version: '1.0.0',
   params: {
     ...instantlyBaseParamFields,
@@ -31,7 +31,7 @@ export const activateCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}/activate`),
+    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}/pause`),
     method: 'POST',
     headers: instantlyHeaders,
   },
