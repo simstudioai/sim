@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="cloudflare"
-  color="#F38020"
+  color="#F5F6FA"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -238,7 +238,7 @@ Lists DNS records for a specific zone.
 | `proxied` | boolean | No | Filter by proxy status |
 | `search` | string | No | Free-text search across record name, content, and value |
 | `tag` | string | No | Filter by an exact tag name |
-| `tag_match` | string | No | Tag filter match logic: any or all |
+| `tag_match` | string | No | Tag filter match logic: any or all. Only affects results when combined with multiple tag filter conditions; has no effect with the single exact-match Tag Filter above. |
 | `commentFilter` | string | No | Filter records by comment content \(substring match\) |
 | `apiKey` | string | Yes | Cloudflare API Token |
 

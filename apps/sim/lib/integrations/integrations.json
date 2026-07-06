@@ -3021,7 +3021,7 @@
       "name": "Cloudflare",
       "description": "Manage DNS, domains, certificates, and cache",
       "longDescription": "Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.",
-      "bgColor": "#F38020",
+      "bgColor": "#F5F6FA",
       "iconName": "CloudflareIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudflare",
       "operations": [
