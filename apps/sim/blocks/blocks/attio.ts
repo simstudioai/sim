@@ -1385,10 +1385,11 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         // Task params
         if (params.taskContent) cleanParams.content = params.taskContent
         if (params.taskDeadline) cleanParams.deadlineAt = params.taskDeadline
-        if (params.taskIsCompleted !== undefined)
+        if (params.operation === 'create_task' && params.taskIsCompleted !== undefined)
           cleanParams.isCompleted =
             params.taskIsCompleted === 'true' || params.taskIsCompleted === true
         if (
+          params.operation === 'update_task' &&
           params.taskIsCompletedUpdate !== undefined &&
           params.taskIsCompletedUpdate !== 'unchanged'
         )
@@ -1415,8 +1416,13 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.listName) cleanParams.name = params.listName
         if (params.listParentObject) cleanParams.parentObject = params.listParentObject
         if (params.listApiSlug) cleanParams.apiSlug = params.listApiSlug
-        if (params.listWorkspaceAccess) cleanParams.workspaceAccess = params.listWorkspaceAccess
-        if (params.listWorkspaceAccessUpdate && params.listWorkspaceAccessUpdate !== 'unchanged')
+        if (params.operation === 'create_list' && params.listWorkspaceAccess)
+          cleanParams.workspaceAccess = params.listWorkspaceAccess
+        if (
+          params.operation === 'update_list' &&
+          params.listWorkspaceAccessUpdate &&
+          params.listWorkspaceAccessUpdate !== 'unchanged'
+        )
           cleanParams.workspaceAccess = params.listWorkspaceAccessUpdate
 
         // List entry params
@@ -1469,10 +1475,10 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.attributeIsUnique !== undefined && params.attributeIsUnique !== 'unchanged')
           cleanParams.isUnique =
             params.attributeIsUnique === 'true' || params.attributeIsUnique === true
-        if (params.attributeIsMultiselect !== undefined)
+        if (params.operation === 'create_attribute' && params.attributeIsMultiselect !== undefined)
           cleanParams.isMultiselect =
             params.attributeIsMultiselect === 'true' || params.attributeIsMultiselect === true
-        if (params.attributeIsArchived !== undefined)
+        if (params.operation === 'update_attribute' && params.attributeIsArchived !== undefined)
           cleanParams.isArchived =
             params.attributeIsArchived === 'true' || params.attributeIsArchived === true
         if (params.attributeConfig) cleanParams.config = params.attributeConfig
