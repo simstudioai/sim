@@ -60,12 +60,9 @@ export const listGroupsTool: ToolConfig<
         '$select=id,displayName,description,mail,mailEnabled,mailNickname,securityEnabled,groupTypes,visibility,createdDateTime'
       )
       if (params.top) queryParts.push(`$top=${params.top}`)
-      if (params.search && params.filter) {
-        throw new Error('$search and $filter cannot be used together in Microsoft Graph API')
-      }
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
       if (params.search) {
-        const term = params.search.replace(/"/g, '\\"')
+        const term = params.search.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
         queryParts.push(
           `$search=${encodeURIComponent(`"displayName:${term}" OR "description:${term}"`)}`
         )

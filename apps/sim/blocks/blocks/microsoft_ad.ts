@@ -223,7 +223,6 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
           'get_group',
           'update_group',
           'delete_group',
-          'list_group_members',
           'add_group_member',
           'remove_group_member',
         ],
