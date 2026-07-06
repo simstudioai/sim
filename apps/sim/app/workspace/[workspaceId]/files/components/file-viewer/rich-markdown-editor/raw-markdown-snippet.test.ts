@@ -211,4 +211,35 @@ describe('raw HTML block: does not fragment across blank lines', () => {
       expect(once).toContain(word)
     }
   })
+
+  it('does not mistake a tag name mentioned inside a blockquoted fenced code block for a real closing tag', () => {
+    const input =
+      '<div>\n\n> Example:\n>\n> ```html\n> <div>example</div>\n> ```\n\nmore body\n\n</div>'
+    expect(topLevelTypes(input)).toEqual(['rawHtmlBlock'])
+    expect(roundTrip(input)).toBe(input)
+  })
+
+  it('treats a void block tag (no closing tag exists) as complete right after the open tag', () => {
+    // `link`/`meta`/`base`/`hr` are in the CommonMark block-HTML whitelist but are void elements —
+    // scanning for a `</meta>` that will never legitimately appear would risk grabbing unrelated
+    // later content (or a stray same-name mention) into the block.
+    for (const input of [
+      '<link rel="stylesheet" href="x.css">\n\nafter',
+      '<meta charset="utf-8">\n\nafter',
+      '<hr>\n\nafter',
+    ]) {
+      const doc = parseMarkdownToDoc(input)
+      expect(doc.content?.[0].type).toBe('rawHtmlBlock')
+      expect(roundTrip(input)).toContain('after')
+    }
+  })
+
+  it('a void block tag does not swallow a later, unrelated mention of its own tag name', () => {
+    const input = '<meta charset="utf-8">\n\nSee the `<meta>` tag in docs.\n\nmore body'
+    const doc = parseMarkdownToDoc(input)
+    // The <meta> is its own complete block; the later mention (in code) stays in a separate paragraph.
+    expect(doc.content?.[0].type).toBe('rawHtmlBlock')
+    expect(doc.content?.[0].content?.[0].text).toBe('<meta charset="utf-8">')
+    expect(roundTrip(input)).toContain('more body')
+  })
 })

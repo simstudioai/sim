@@ -64,17 +64,27 @@ const ATTRS_RE_SOURCE = String.raw`(?:\s+[^\s"'=<>\`]+(?:\s*=\s*(?:"[^"]*"|'[^']
  * tag name, group 2 is the self-closing `/` if present — shared by inline and block tokenizing. */
 const OPEN_TAG_RE = new RegExp(`^<([a-z][\\w-]*)\\b${ATTRS_RE_SOURCE}\\s*(/)?>`, 'i')
 
+/** A fenced block's opening/closing marker may sit inside a blockquote (each line prefixed with
+ * up to 3 spaces then one or more `>` markers, each optionally followed by a space) — matched on
+ * both the open and close fence line so a fence quoted like `> \`\`\`` still masks correctly. */
+const BLOCKQUOTE_PREFIX_SOURCE = '(?:[ ]{0,3}>[ ]?)*'
+
 /**
  * Mask fenced code blocks and inline code spans with same-length filler (newlines kept, everything
  * else replaced with a space) so a tag-like mention *inside code* — `` `</details>` ``, or a fenced
- * example showing HTML syntax — is never mistaken for a real balancing tag while scanning. Reuses the
- * same fenced/inline patterns `stripCode` in `./round-trip-safety.ts` matches, but preserves
- * length/position (masks in place) instead of deleting, so match indices still map onto the
- * original, unmodified `src` the caller slices from.
+ * example showing HTML syntax — is never mistaken for a real balancing tag while scanning. Mirrors
+ * the fenced/inline patterns `stripCode` in `./round-trip-safety.ts` matches (extended to also
+ * tolerate a blockquote prefix on the fence markers, since a raw HTML block can itself be quoted),
+ * but preserves length/position (masks in place) instead of deleting, so match indices still map
+ * onto the original, unmodified `src` the caller slices from.
  */
 function maskCodeRegions(src: string): string {
+  const fenceRe = new RegExp(
+    `^${BLOCKQUOTE_PREFIX_SOURCE}([\`~]{3,})[^\\n]*\\n[\\s\\S]*?^${BLOCKQUOTE_PREFIX_SOURCE}\\1[\`~]*[ \\t]*$`,
+    'gm'
+  )
   return src
-    .replace(/^([`~]{3,})[^\n]*\n[\s\S]*?^\1[`~]*[ \t]*$/gm, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(fenceRe, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/`+[^`\n]*`+/g, (m) => ' '.repeat(m.length))
 }
 
@@ -218,6 +228,7 @@ const BLOCK_HTML_TAG_NAMES = new Set([
   'h6',
   'head',
   'header',
+  'hr',
   'html',
   'iframe',
   'legend',
@@ -278,7 +289,12 @@ function tokenizeRawHtmlBlockTag(src: string): MarkdownToken | undefined {
   if (!open) return undefined
   const tag = open[1].toLowerCase()
   if (!BLOCK_HTML_TAG_NAMES.has(tag)) return undefined
-  if (open[2]) {
+  // A handful of BLOCK_HTML_TAG_NAMES entries (link, meta, base, col, …) are void elements with no
+  // closing tag at all — treat them as complete right after the open tag (like an explicit `/>`),
+  // same as `tokenizeRawInlineHtml` already does via VOID_TAGS. Without this, scanning for a
+  // `</meta>`/`</link>` that will never legitimately appear risks grabbing unrelated later content
+  // (or a stray same-name mention) as if it belonged to this block.
+  if (open[2] || VOID_TAGS.has(tag)) {
     const raw = indent + open[0]
     return { type: 'html', raw, text: raw, block: true }
   }
