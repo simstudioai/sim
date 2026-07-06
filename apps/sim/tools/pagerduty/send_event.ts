@@ -83,6 +83,10 @@ export const sendEventTool: ToolConfig<PagerDutySendEventParams, PagerDutySendEv
       if (params.dedupKey) body.dedup_key = params.dedupKey
 
       if (params.eventAction === 'trigger') {
+        if (!params.summary || !params.source || !params.severity) {
+          throw new Error('summary, source, and severity are required when eventAction is trigger')
+        }
+
         body.payload = {
           summary: params.summary,
           source: params.source,

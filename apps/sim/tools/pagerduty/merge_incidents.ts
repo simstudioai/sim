@@ -51,10 +51,14 @@ export const mergeIncidentsTool: ToolConfig<
       From: params.fromEmail,
     }),
     body: (params) => ({
-      source_incidents: params.sourceIncidentIds.split(',').map((id) => ({
-        id: id.trim(),
-        type: 'incident_reference',
-      })),
+      source_incidents: params.sourceIncidentIds
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0)
+        .map((id) => ({
+          id,
+          type: 'incident_reference',
+        })),
     }),
   },
 

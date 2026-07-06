@@ -591,7 +591,11 @@ export const PagerDutyBlock: BlockConfig = {
       id: 'eventSummary',
       title: 'Summary',
       type: 'short-input',
-      required: { field: 'operation', value: 'send_event' },
+      required: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
       placeholder: 'Brief summary of the event',
       condition: {
         field: 'operation',
@@ -603,7 +607,11 @@ export const PagerDutyBlock: BlockConfig = {
       id: 'eventSource',
       title: 'Source',
       type: 'short-input',
-      required: { field: 'operation', value: 'send_event' },
+      required: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
       placeholder: 'Affected system, e.g. a hostname',
       condition: {
         field: 'operation',

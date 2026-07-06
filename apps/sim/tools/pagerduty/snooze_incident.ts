@@ -50,9 +50,13 @@ export const snoozeIncidentTool: ToolConfig<
       'Content-Type': 'application/json',
       From: params.fromEmail,
     }),
-    body: (params) => ({
-      duration: Number(params.duration),
-    }),
+    body: (params) => {
+      const duration = Number(params.duration)
+      if (!Number.isFinite(duration) || duration < 1 || duration > 604800) {
+        throw new Error('duration must be a whole number of seconds between 1 and 604800')
+      }
+      return { duration }
+    },
   },
 
   transformResponse: async (response: Response) => {
