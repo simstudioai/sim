@@ -13,12 +13,12 @@ import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
 export type CellRenderKind =
   // Workflow-output cells
   | { kind: 'value'; text: string }
-  | { kind: 'block-error' }
+  | { kind: 'block-error'; message: string }
   | { kind: 'running' }
   | { kind: 'pending-upstream' }
   | { kind: 'queued' }
   | { kind: 'cancelled' }
-  | { kind: 'error' }
+  | { kind: 'error'; message: string | null }
   | { kind: 'waiting'; labels: string[] }
   | { kind: 'not-found' }
   | { kind: 'no-output' }
@@ -68,7 +68,7 @@ export function resolveCellRender({
     const blockRunning = blockId ? (exec?.runningBlockIds?.includes(blockId) ?? false) : false
     const groupHasBlockErrors = !!(exec?.blockErrors && Object.keys(exec.blockErrors).length > 0)
 
-    if (blockError) return { kind: 'block-error' }
+    if (blockError) return { kind: 'block-error', message: blockError }
 
     const inFlight =
       exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
@@ -103,7 +103,7 @@ export function resolveCellRender({
       return { kind: 'waiting', labels: waitingOnLabels }
     }
     if (exec?.status === 'cancelled') return { kind: 'cancelled' }
-    if (exec?.status === 'error') return { kind: 'error' }
+    if (exec?.status === 'error') return { kind: 'error', message: exec.error }
     // Enrichment ran to completion but matched nothing → "Not found".
     if (isEnrichmentOutput && exec?.status === 'completed') return { kind: 'not-found' }
     // Workflow output: the group's run completed but this block produced no
@@ -249,12 +249,27 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       )
 
     case 'block-error':
-    case 'error':
+    case 'error': {
+      if (!kind.message) {
+        return (
+          <Wrap isEditing={isEditing}>
+            <StatusBadge status='error' />
+          </Wrap>
+        )
+      }
       return (
         <Wrap isEditing={isEditing}>
-          <StatusBadge status='error' />
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <span>
+                <StatusBadge status='error' />
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>{kind.message}</Tooltip.Content>
+          </Tooltip.Root>
         </Wrap>
       )
+    }
 
     case 'running':
       return (
