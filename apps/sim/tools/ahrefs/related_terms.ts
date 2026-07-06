@@ -81,7 +81,6 @@ export const relatedTermsTool: ToolConfig<AhrefsRelatedTermsParams, AhrefsRelate
       keyword: item.keyword || '',
       volume: item.volume ?? null,
       keywordDifficulty: item.difficulty ?? null,
-      // Ahrefs returns cpc in USD cents; convert to USD to match the documented unit
       cpc: typeof item.cpc === 'number' ? item.cpc / 100 : null,
       parentTopic: item.parent_topic ?? null,
       trafficPotential: item.traffic_potential ?? null,

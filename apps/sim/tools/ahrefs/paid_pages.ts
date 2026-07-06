@@ -82,7 +82,6 @@ export const paidPagesTool: ToolConfig<AhrefsPaidPagesParams, AhrefsPaidPagesRes
       traffic: page.sum_traffic ?? null,
       keywords: page.keywords ?? null,
       topKeyword: page.top_keyword ?? null,
-      // Ahrefs returns value in USD cents; convert to USD to match the documented unit
       value: typeof page.value === 'number' ? page.value / 100 : null,
       adsCount: page.ads_count ?? null,
     }))
