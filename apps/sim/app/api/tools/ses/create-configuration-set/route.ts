@@ -39,7 +39,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             .map((r) => r.trim())
             .filter(Boolean) as SuppressionListReason[])
         : null
-      const tags = params.tags ? JSON.parse(params.tags) : null
 
       const result = await createConfigurationSet(client, {
         configurationSetName: params.configurationSetName,
@@ -50,7 +49,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         reputationMetricsEnabled: params.reputationMetricsEnabled,
         sendingEnabled: params.sendingEnabled,
         suppressedReasons,
-        tags,
+        tags: params.tags,
       })
 
       logger.info(`Created configuration set '${params.configurationSetName}'`)

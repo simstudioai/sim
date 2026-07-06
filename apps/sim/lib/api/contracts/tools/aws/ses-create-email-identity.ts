@@ -17,8 +17,24 @@ const CreateEmailIdentitySchema = z.object({
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   emailIdentity: z.string().min(1, 'Email identity (domain or address) is required'),
-  dkimSigningAttributes: z.string().nullish(),
-  tags: z.string().nullish(),
+  dkimSigningAttributes: z
+    .object({
+      domainSigningSelector: z.string().optional(),
+      domainSigningPrivateKey: z.string().optional(),
+      nextSigningKeyLength: z.enum(['RSA_1024_BIT', 'RSA_2048_BIT']).optional(),
+    })
+    .nullish(),
+  tags: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .min(1, 'Tag key is required')
+          .max(128, 'Tag key must be at most 128 characters'),
+        value: z.string().max(256, 'Tag value must be at most 256 characters'),
+      })
+    )
+    .nullish(),
   configurationSetName: z.string().nullish(),
 })
 

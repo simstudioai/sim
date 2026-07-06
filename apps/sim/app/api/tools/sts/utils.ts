@@ -22,10 +22,15 @@ export function createSTSClient(config: STSConnectionConfig): STSClient {
 }
 
 /**
- * Creates an STS client with no static credentials attached. Used for
- * AssumeRoleWithWebIdentity / AssumeRoleWithSAML, which are unsigned calls
- * that authenticate the caller via the supplied token/assertion rather than
- * AWS IAM credentials.
+ * Creates an STS client without the caller's static IAM credentials. Used for
+ * AssumeRoleWithWebIdentity / AssumeRoleWithSAML, which authenticate the caller
+ * via the supplied token/assertion rather than an access key. AWS accepts these
+ * calls unsigned, but the SDK still falls through its default credential
+ * provider chain (env vars, shared config, container/IMDS role) if one is
+ * available in this process's environment — that fallback identity is unused
+ * by AWS for these two operations, but its absence can still throw a
+ * CredentialsProviderError before the request is sent in environments with
+ * no ambient AWS credentials at all.
  */
 export function createUnauthenticatedSTSClient(region: string): STSClient {
   return new STSClient({ region })

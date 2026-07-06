@@ -32,15 +32,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     try {
-      const dkimSigningAttributes = params.dkimSigningAttributes
-        ? JSON.parse(params.dkimSigningAttributes)
-        : null
-      const tags = params.tags ? JSON.parse(params.tags) : null
-
       const result = await createEmailIdentity(client, {
         emailIdentity: params.emailIdentity,
-        dkimSigningAttributes,
-        tags,
+        dkimSigningAttributes: params.dkimSigningAttributes,
+        tags: params.tags,
         configurationSetName: params.configurationSetName,
       })
 

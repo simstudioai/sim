@@ -31,8 +31,31 @@ const CreateConfigurationSetSchema = z
     sendingPoolName: z.string().nullish(),
     reputationMetricsEnabled: z.boolean().nullish(),
     sendingEnabled: z.boolean().nullish(),
-    suppressedReasons: z.string().nullish(),
-    tags: z.string().nullish(),
+    suppressedReasons: z
+      .string()
+      .nullish()
+      .refine(
+        (v) => {
+          if (!v) return true
+          return v
+            .split(',')
+            .map((r) => r.trim())
+            .filter(Boolean)
+            .every((r) => r === 'BOUNCE' || r === 'COMPLAINT')
+        },
+        { message: 'suppressedReasons must be a comma-separated list of BOUNCE, COMPLAINT' }
+      ),
+    tags: z
+      .array(
+        z.object({
+          key: z
+            .string()
+            .min(1, 'Tag key is required')
+            .max(128, 'Tag key must be at most 128 characters'),
+          value: z.string().max(256, 'Tag value must be at most 256 characters'),
+        })
+      )
+      .nullish(),
   })
   .superRefine((data, ctx) => {
     if (data.httpsPolicy && !data.customRedirectDomain) {
