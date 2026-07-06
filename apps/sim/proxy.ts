@@ -183,7 +183,11 @@ function handleInvitationRedirects(
       new URL(`/login?callbackUrl=${callbackParam}&invite_flow=true`, request.url)
     )
   }
-  return NextResponse.next()
+  const response = NextResponse.next()
+  response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN')
+  return response
 }
 
 /**
