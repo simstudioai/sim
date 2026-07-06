@@ -24,8 +24,15 @@ function looksLikeMarkdown(text: string): boolean {
 
 /**
  * Parses pasted plain text that looks like markdown into rich content. Pastes inside a code block
- * are left untouched (code is meant to stay literal), as are pastes that carry richer HTML — those
- * are handled by ProseMirror's own clipboard parsing.
+ * are left untouched (code is meant to stay literal).
+ *
+ * A clipboard entry that also carries `text/html` (copied from a browser, Slack, Notion, GitHub,
+ * or this editor itself) used to always defer entirely to ProseMirror's generic HTML→DOM mapping,
+ * even when the `text/plain` sibling was clean markdown our own parser round-trips more faithfully
+ * (GFM table alignment, escaping, the constructs `./raw-markdown-snippet.ts` now preserves). Only
+ * defer to DOM mapping when the plain-text sibling *doesn't* look like markdown — an HTML clipboard
+ * payload with no markdown-shaped plain-text counterpart (a genuinely rich paste from a word
+ * processor, a web page selection, …) still goes through the DOM path unchanged.
  */
 export const MarkdownPaste = Extension.create({
   name: 'markdownPaste',
@@ -38,8 +45,6 @@ export const MarkdownPaste = Extension.create({
           handlePaste: (_view, event) => {
             if (!editor.isEditable) return false
             if (editor.isActive('codeBlock')) return false
-            const html = event.clipboardData?.getData('text/html')
-            if (html) return false
             const text = event.clipboardData?.getData('text/plain')
             if (!text || !looksLikeMarkdown(text)) return false
             // Parse through the chunker (linear) so pasting a large markdown blob can't freeze the
