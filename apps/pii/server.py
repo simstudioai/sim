@@ -181,6 +181,24 @@ class AnonymizeBatchRequest(BaseModel):
     operators: dict[str, dict[str, Any]] | None = None
 
 
+class RedactRequest(BaseModel):
+    text: str
+    language: str = "en"
+    entities: list[str] | None = None
+    score_threshold: float | None = None
+    anonymizers: dict[str, dict[str, Any]] | None = None
+    operators: dict[str, dict[str, Any]] | None = None
+
+
+class RedactBatchRequest(BaseModel):
+    texts: list[str]
+    language: str = "en"
+    entities: list[str] | None = None
+    score_threshold: float | None = None
+    anonymizers: dict[str, dict[str, Any]] | None = None
+    operators: dict[str, dict[str, Any]] | None = None
+
+
 def build_operators(
     raw_operators: dict[str, dict[str, Any]] | None,
 ) -> dict[str, OperatorConfig] | None:
@@ -296,3 +314,74 @@ def anonymize_batch(req: AnonymizeBatchRequest) -> dict[str, list[str]]:
             for item in req.items
         ]
     }
+
+
+@app.post("/redact")
+def redact(req: RedactRequest) -> dict[str, str]:
+    """Analyze + anonymize one text in a single round-trip (the combined
+    counterpart to /analyze followed by /anonymize). Returns masked text; a text
+    with no detected PII passes through unchanged. The analyzer results feed the
+    anonymizer directly (no dict round-trip)."""
+    started = time.perf_counter()
+    operators = build_operators(req.anonymizers or req.operators)
+    results = analyzer.analyze(
+        text=req.text,
+        language=req.language,
+        entities=req.entities or None,
+        score_threshold=req.score_threshold,
+    )
+    text = (
+        req.text
+        if not results
+        else anonymizer.anonymize(
+            text=req.text, analyzer_results=results, operators=operators
+        ).text
+    )
+    logger.info(
+        "redact lang=%s chars=%d spans=%d duration_ms=%.1f",
+        req.language,
+        len(req.text),
+        len(results),
+        (time.perf_counter() - started) * 1000,
+    )
+    return {"text": text}
+
+
+@app.post("/redact_batch")
+def redact_batch(req: RedactBatchRequest) -> dict[str, list[str]]:
+    """Analyze + anonymize many texts in a single round-trip (the combined
+    counterpart to /analyze_batch followed by /anonymize_batch). Returns masked
+    text per input in request order; texts with no detected PII pass through
+    unchanged. Analysis batches through spaCy nlp.pipe; the analyzer results feed
+    the anonymizer directly (no dict round-trip), and anonymization runs only on
+    texts that actually matched."""
+    started = time.perf_counter()
+    operators = build_operators(req.anonymizers or req.operators)
+    analyzed = list(
+        batch_analyzer.analyze_iterator(
+            texts=req.texts,
+            language=req.language,
+            entities=req.entities or None,
+            score_threshold=req.score_threshold,
+        )
+    )
+    masked: list[str] = []
+    total_spans = 0
+    for text, per_text in zip(req.texts, analyzed):
+        if not per_text:
+            masked.append(text)
+            continue
+        total_spans += len(per_text)
+        masked.append(
+            anonymizer.anonymize(
+                text=text, analyzer_results=per_text, operators=operators
+            ).text
+        )
+    logger.info(
+        "redact_batch lang=%s texts=%d spans=%d duration_ms=%.1f",
+        req.language,
+        len(req.texts),
+        total_spans,
+        (time.perf_counter() - started) * 1000,
+    )
+    return {"texts": masked}
