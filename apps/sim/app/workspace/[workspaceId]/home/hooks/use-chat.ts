@@ -1417,7 +1417,7 @@ export function useChat(
     if (pendingKeys.size === 0) return
     const flushPromises: Array<Promise<unknown>> = []
     for (const resource of resourcesRef.current) {
-      if (resource.id === 'streaming-file') continue
+      if (!isPersistedChatResource(resource)) continue
       const key = `${resource.type}:${resource.id}`
       if (!pendingKeys.has(key)) continue
       pendingKeys.delete(key)
@@ -1440,7 +1440,8 @@ export function useChat(
     reorderNeededAfterFlushRef.current = false
     const localOrder = resourcesRef.current.filter(
       (r) =>
-        r.id !== 'streaming-file' && !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
+        isPersistedChatResource(r) &&
+        !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
     )
     if (localOrder.length === 0) return
     requestJson(reorderMothershipChatResourcesContract, {

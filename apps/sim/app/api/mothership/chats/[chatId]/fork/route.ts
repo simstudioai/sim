@@ -122,7 +122,13 @@ export const POST = withRouteHandler(
       const sourceFiles = isWholeChatDuplicate
         ? chatOwnedFiles
         : filterForkableChatFiles(chatOwnedFiles, new Set(forkedMessages.map((m) => m.id)))
-      const totalFileBytes = sourceFiles.reduce((sum, row) => sum + row.size, 0)
+      // Sum only rows the plan will actually copy — planChatFileCopies skips
+      // rows with no workspaceId, so counting their bytes could reject a fork
+      // whose real copies fit within quota.
+      const totalFileBytes = sourceFiles.reduce(
+        (sum, row) => (row.workspaceId ? sum + row.size : sum),
+        0
+      )
       if (totalFileBytes > 0) {
         const quotaCheck = await checkStorageQuota(userId, totalFileBytes)
         if (!quotaCheck.allowed) {
@@ -144,10 +150,10 @@ export const POST = withRouteHandler(
       const chatOwnedFileIds = new Set(chatOwnedFiles.map((row) => row.id))
 
       const newId = generateId()
+      // Both modes strip a leading "Fork | " so titles don't stack prefixes:
+      // duplicating a forked chat yields "Name (Copy)", not "Fork | Name (Copy)".
       const baseTitle = (parent.title ?? 'New chat').replace(/^Fork \| /, '')
-      const title = isWholeChatDuplicate
-        ? `${parent.title ?? 'New chat'} (Copy)`
-        : `Fork | ${baseTitle}`
+      const title = isWholeChatDuplicate ? `${baseTitle} (Copy)` : `Fork | ${baseTitle}`
       const now = new Date()
 
       const result = await db.transaction(async (tx) => {

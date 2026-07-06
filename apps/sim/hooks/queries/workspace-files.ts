@@ -99,15 +99,15 @@ export function useChatOutputs(chatId: string | undefined) {
     queryKey: workspaceFilesKeys.chatOutputs(chatId ?? ''),
     queryFn: async ({ signal }): Promise<WorkspaceFileRecord[]> => {
       if (!chatId) return []
-      try {
-        const data = await requestJson(listChatOutputsContract, {
-          params: { chatId },
-          signal,
-        })
-        return data.files
-      } catch {
-        return []
-      }
+      // Let failures THROW: swallowing them into a successful [] would cache
+      // "no outputs" for the whole stale window (masking real outputs from
+      // path-based link resolution) and defeat React Query's retry. Consumers
+      // already default to [] via `data = []`.
+      const data = await requestJson(listChatOutputsContract, {
+        params: { chatId },
+        signal,
+      })
+      return data.files
     },
     enabled: !!chatId,
     staleTime: 30 * 1000,

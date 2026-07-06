@@ -311,7 +311,10 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   })
 
   it('fails up front with the quota error when copied bytes would exceed the limit', async () => {
-    mockListDuplicableChatFiles.mockResolvedValue([{ size: 600 }, { size: 400 }])
+    mockListDuplicableChatFiles.mockResolvedValue([
+      { size: 600, workspaceId: 'ws-1' },
+      { size: 400, workspaceId: 'ws-1' },
+    ])
     mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
 
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
@@ -320,6 +323,20 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 1000)
     expect(mockTransaction).not.toHaveBeenCalled()
     expect(mockExecuteChatFileBlobCopies).not.toHaveBeenCalled()
+  })
+
+  it('excludes uncopyable rows (no workspaceId) from the quota sum', async () => {
+    // planChatFileCopies skips workspaceId-less legacy rows, so their bytes
+    // must not count against the gate.
+    mockListDuplicableChatFiles.mockResolvedValue([
+      { size: 600, workspaceId: 'ws-1' },
+      { size: 400 },
+    ])
+
+    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+
+    expect(res.status).toBe(200)
+    expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 600)
   })
 
   it('skips the quota check entirely when no chat-owned rows are in the cut', async () => {
@@ -342,7 +359,9 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
         contentType: 'image/png',
       },
     ]
-    mockListDuplicableChatFiles.mockResolvedValue([{ size: 100, messageId: 'msg-1' }])
+    mockListDuplicableChatFiles.mockResolvedValue([
+      { size: 100, messageId: 'msg-1', workspaceId: 'ws-1' },
+    ])
     mockPlanChatFileCopies.mockResolvedValue({
       idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
       keyMap: new Map([['workspace/ws-1/old-cat.png', 'workspace/ws-1/new-cat.png']]),
@@ -555,8 +574,8 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
 
     it('gates the quota on the full upload + output byte total', async () => {
       mockListDuplicableChatFiles.mockResolvedValue([
-        { size: 700, context: 'mothership' },
-        { size: 500, context: 'output' },
+        { size: 700, context: 'mothership', workspaceId: 'ws-1' },
+        { size: 500, context: 'output', workspaceId: 'ws-1' },
       ])
       mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
 
