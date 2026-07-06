@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-02",
+  "updatedAt": "2026-07-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -3021,7 +3021,7 @@
       "name": "Cloudflare",
       "description": "Manage DNS, domains, certificates, and cache",
       "longDescription": "Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.",
-      "bgColor": "#F5F6FA",
+      "bgColor": "#F38020",
       "iconName": "CloudflareIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudflare",
       "operations": [
@@ -3063,11 +3063,11 @@
         },
         {
           "name": "Get Zone Settings",
-          "description": "Gets all settings for a zone including SSL mode, minification, caching level, and security settings."
+          "description": "Gets all settings for a zone including SSL mode, caching level, and security settings."
         },
         {
           "name": "Update Zone Setting",
-          "description": "Updates a specific zone setting such as SSL mode, security level, cache level, minification, or other configuration."
+          "description": "Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration."
         },
         {
           "name": "DNS Analytics",

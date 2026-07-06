@@ -84,7 +84,7 @@ export const listDnsRecordsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by tags (comma-separated)',
+      description: 'Filter by an exact tag name',
     },
     tag_match: {
       type: 'string',
@@ -110,8 +110,8 @@ export const listDnsRecordsTool: ToolConfig<
     url: (params) => {
       const url = new URL(`https://api.cloudflare.com/client/v4/zones/${params.zoneId}/dns_records`)
       if (params.type) url.searchParams.append('type', params.type)
-      if (params.name) url.searchParams.append('name', params.name)
-      if (params.content) url.searchParams.append('content', params.content)
+      if (params.name) url.searchParams.append('name.exact', params.name)
+      if (params.content) url.searchParams.append('content.exact', params.content)
       if (params.page) url.searchParams.append('page', String(params.page))
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.direction) url.searchParams.append('direction', params.direction)
@@ -119,7 +119,7 @@ export const listDnsRecordsTool: ToolConfig<
       if (params.order) url.searchParams.append('order', params.order)
       if (params.proxied !== undefined) url.searchParams.append('proxied', String(params.proxied))
       if (params.search) url.searchParams.append('search', params.search)
-      if (params.tag) url.searchParams.append('tag', params.tag)
+      if (params.tag) url.searchParams.append('tag.exact', params.tag)
       if (params.tag_match) url.searchParams.append('tag_match', params.tag_match)
       if (params.commentFilter) url.searchParams.append('comment.contains', params.commentFilter)
       return url.toString()

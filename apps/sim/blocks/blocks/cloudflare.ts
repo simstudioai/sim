@@ -12,7 +12,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/cloudflare',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
-  bgColor: '#F5F6FA',
+  bgColor: '#F38020',
   icon: CloudflareIcon,
   subBlocks: [
     {
@@ -95,6 +95,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'Status', id: 'status' },
         { label: 'Account ID', id: 'account.id' },
         { label: 'Account Name', id: 'account.name' },
+        { label: 'Plan ID', id: 'plan.id' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'list_zones' },
@@ -151,24 +152,12 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       options: [
         { label: 'Full (Cloudflare DNS)', id: 'full' },
         { label: 'Partial (CNAME Setup)', id: 'partial' },
+        { label: 'Secondary (Secondary DNS)', id: 'secondary' },
       ],
       value: () => 'full',
       condition: { field: 'operation', value: 'create_zone' },
       mode: 'advanced',
     },
-    {
-      id: 'jump_start',
-      title: 'Auto-Import DNS',
-      type: 'dropdown',
-      options: [
-        { label: 'No', id: 'false' },
-        { label: 'Yes', id: 'true' },
-      ],
-      value: () => 'false',
-      condition: { field: 'operation', value: 'create_zone' },
-      mode: 'advanced',
-    },
-
     // Get Zone inputs
     {
       id: 'zoneId',
@@ -299,7 +288,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       id: 'tag',
       title: 'Tag Filter',
       type: 'short-input',
-      placeholder: 'Comma-separated tags to filter by',
+      placeholder: 'Exact tag name to filter by',
       condition: { field: 'operation', value: 'list_dns_records' },
       mode: 'advanced',
     },
@@ -623,8 +612,6 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'Security Level', id: 'security_level' },
         { label: 'Cache Level', id: 'cache_level' },
         { label: 'Browser Cache TTL', id: 'browser_cache_ttl' },
-        { label: 'Minification', id: 'minify' },
-        { label: 'Auto Minify', id: 'auto_minify' },
         { label: 'Rocket Loader', id: 'rocket_loader' },
         { label: 'Email Obfuscation', id: 'email_obfuscation' },
         { label: 'Hotlink Protection', id: 'hotlink_protection' },
@@ -655,7 +642,6 @@ Common settings and their valid values:
 - security_level: "off", "essentially_off", "low", "medium", "high", "under_attack"
 - cache_level: "aggressive", "basic", "simplified"
 - browser_cache_ttl: number in seconds (e.g., 14400 for 4 hours, 86400 for 1 day)
-- minify: JSON object {"css":"on","html":"off","js":"on"}
 - rocket_loader: "on", "off"
 - email_obfuscation: "on", "off"
 - hotlink_protection: "on", "off"
@@ -667,12 +653,11 @@ Common settings and their valid values:
 - min_tls_version: "1.0", "1.1", "1.2", "1.3"
 
 For simple string/boolean settings, return the plain value (e.g., "full", "on").
-For complex settings like minify, return the JSON string (e.g., {"css":"on","html":"on","js":"on"}).
 For numeric settings like browser_cache_ttl, return the number (e.g., 14400).
 
 Return ONLY the value - no explanations, no extra text.`,
         placeholder:
-          'Describe the setting value (e.g., "enable strict SSL", "minify CSS and JS")...',
+          'Describe the setting value (e.g., "enable strict SSL", "cache everything")...',
       },
     },
 
@@ -953,9 +938,6 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
         if (result.purge_everything === 'true') result.purge_everything = true
         else if (result.purge_everything === 'false') result.purge_everything = false
 
-        if (result.jump_start === 'true') result.jump_start = true
-        else if (result.jump_start === 'false') result.jump_start = false
-
         if (result.type === '' && result.operation !== 'create_dns_record') {
           result.type = undefined
         }
@@ -985,11 +967,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
     apiKey: { type: 'string', description: 'Cloudflare API token' },
     zoneId: { type: 'string', description: 'Zone ID' },
     accountId: { type: 'string', description: 'Cloudflare account ID' },
-    zoneType: { type: 'string', description: 'Zone type (full or partial)' },
-    jump_start: {
-      type: 'boolean',
-      description: 'Automatically import DNS records when creating a zone',
-    },
+    zoneType: { type: 'string', description: 'Zone type (full, partial, or secondary)' },
     order: { type: 'string', description: 'Sort field for listing zones' },
     direction: { type: 'string', description: 'Sort direction (asc, desc)' },
     match: { type: 'string', description: 'Match logic for filters (any, all)' },
@@ -1191,6 +1169,20 @@ export const CloudflareBlockMeta = {
         'Inspect SSL certificate status and security settings for Cloudflare zones and report drift from a desired baseline.',
       content:
         '# Check SSL and Zone Settings\n\nVerify SSL/TLS posture and key security settings across zones.\n\n## Steps\n1. List the target zones.\n2. For each zone read SSL mode, certificate status/expiry, minimum TLS version, and security level.\n3. Compare against the desired baseline (e.g. Full Strict, TLS 1.2+).\n4. Flag expiring certs and any setting weaker than the baseline.\n\n## Output\nA per-zone table of SSL status, settings, and any drift that needs remediation.',
+    },
+    {
+      name: 'provision-new-zone',
+      description:
+        'Onboard a new domain onto Cloudflare: create the zone, add starter DNS records, and return the nameservers to hand off for delegation.',
+      content:
+        '# Provision a New Cloudflare Zone\n\nStand up a new domain on Cloudflare so it can be pointed at Cloudflare nameservers.\n\n## Steps\n1. Create the zone for the domain under the target account.\n2. Add the initial DNS records the domain needs (A/AAAA for the apex, CNAME for www, MX/TXT for mail as required).\n3. Read back the assigned Cloudflare name servers from the created zone.\n4. Summarize the zone ID, initial records created, and the name servers the registrar needs to be updated to.\n\n## Output\nThe new zone ID, the records created, and the name servers to hand off for delegation.',
+    },
+    {
+      name: 'setup-email-authentication-records',
+      description:
+        'Add or update the SPF, DKIM, and DMARC TXT records a zone needs to authenticate outbound email and improve deliverability.',
+      content:
+        '# Set Up Email Authentication Records\n\nEmail providers (Google Workspace, Microsoft 365, transactional senders) require SPF, DKIM, and DMARC TXT records to authenticate mail and avoid it being marked as spam.\n\n## Steps\n1. Resolve the zone ID for the sending domain.\n2. List existing TXT records to check for conflicting or duplicate SPF/DMARC entries.\n3. Create or update the SPF TXT record (`v=spf1 ...`), the DKIM selector TXT record, and the DMARC TXT record (`_dmarc` name, `v=DMARC1; ...` policy) with the values the mail provider supplies.\n4. Confirm each record was created with the correct name, type, and content.\n\n## Output\nA confirmation of the SPF, DKIM, and DMARC records now in place, with their record IDs and TTLs.',
     },
   ],
 } as const satisfies BlockMeta
