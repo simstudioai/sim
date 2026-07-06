@@ -94,8 +94,8 @@ export const patchLeadTool: ToolConfig<InstantlyPatchLeadParams, InstantlyLeadRe
     url: (params) => instantlyUrl(`/api/v2/leads/${params.leadId.trim()}`),
     method: 'PATCH',
     headers: instantlyHeaders,
-    body: (params) =>
-      compactBody({
+    body: (params) => {
+      const body = compactBody({
         first_name: params.first_name,
         last_name: params.last_name,
         company_name: params.company_name,
@@ -107,7 +107,14 @@ export const patchLeadTool: ToolConfig<InstantlyPatchLeadParams, InstantlyLeadRe
         pl_value_lead: params.pl_value_lead,
         assigned_to: params.assigned_to,
         custom_variables: params.custom_variables,
-      }),
+      })
+
+      if (Object.keys(body).length === 0) {
+        throw new Error('Provide at least one field to update')
+      }
+
+      return body
+    },
   },
   transformResponse: async (response) => {
     const data = await parseInstantlyResponse(response)
