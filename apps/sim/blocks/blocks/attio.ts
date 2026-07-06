@@ -853,42 +853,96 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       required: { field: 'operation', value: 'create_comment' },
     },
     {
+      id: 'commentTarget',
+      title: 'Comment On',
+      type: 'dropdown',
+      options: [
+        { label: 'List Entry', id: 'entry' },
+        { label: 'Record', id: 'record' },
+        { label: 'Reply to Thread', id: 'thread' },
+      ],
+      value: () => 'entry',
+      condition: { field: 'operation', value: 'create_comment' },
+    },
+    {
       id: 'commentList',
       title: 'List',
       type: 'short-input',
-      placeholder: 'List ID or slug (used with Entry ID)',
-      condition: { field: 'operation', value: 'create_comment' },
+      placeholder: 'List ID or slug',
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'entry' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'entry' },
+      },
     },
     {
       id: 'commentEntryId',
       title: 'Entry ID',
       type: 'short-input',
-      placeholder: 'List entry ID to comment on (used with List)',
-      condition: { field: 'operation', value: 'create_comment' },
+      placeholder: 'List entry ID to comment on',
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'entry' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'entry' },
+      },
     },
     {
       id: 'commentRecordObject',
       title: 'Record Object',
       type: 'short-input',
-      placeholder: 'Object ID or slug the record belongs to (used with Record ID)',
-      condition: { field: 'operation', value: 'create_comment' },
-      mode: 'advanced',
+      placeholder: 'Object ID or slug the record belongs to',
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'record' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'record' },
+      },
     },
     {
       id: 'commentRecordId',
       title: 'Record ID',
       type: 'short-input',
-      placeholder: 'Record ID to comment on directly (used with Record Object)',
-      condition: { field: 'operation', value: 'create_comment' },
-      mode: 'advanced',
+      placeholder: 'Record ID to comment on directly',
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'record' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'record' },
+      },
     },
     {
       id: 'commentThreadId',
       title: 'Thread ID',
       type: 'short-input',
-      placeholder: 'Reply to thread (optional, omit to start new)',
-      condition: { field: 'operation', value: 'create_comment' },
-      mode: 'advanced',
+      placeholder: 'Thread ID to reply to',
+      condition: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'thread' },
+      },
+      required: {
+        field: 'operation',
+        value: 'create_comment',
+        and: { field: 'commentTarget', value: 'thread' },
+      },
     },
     {
       id: 'commentCreatedAt',
@@ -1158,9 +1212,11 @@ workspace-member.created
       title: 'Archived',
       type: 'dropdown',
       options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
+      value: () => 'unchanged',
       condition: { field: 'operation', value: 'update_attribute' },
       mode: 'advanced',
     },
@@ -1441,11 +1497,15 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.commentFormat) cleanParams.format = params.commentFormat
         if (params.commentAuthorType) cleanParams.authorType = params.commentAuthorType
         if (params.commentAuthorId) cleanParams.authorId = params.commentAuthorId
-        if (params.commentList) cleanParams.list = params.commentList
-        if (params.commentEntryId) cleanParams.entryId = params.commentEntryId
-        if (params.commentRecordObject) cleanParams.recordObject = params.commentRecordObject
-        if (params.commentRecordId) cleanParams.recordId = params.commentRecordId
-        if (params.commentThreadId) cleanParams.threadId = params.commentThreadId
+        if (params.commentTarget === 'entry') {
+          if (params.commentList) cleanParams.list = params.commentList
+          if (params.commentEntryId) cleanParams.entryId = params.commentEntryId
+        } else if (params.commentTarget === 'record') {
+          if (params.commentRecordObject) cleanParams.recordObject = params.commentRecordObject
+          if (params.commentRecordId) cleanParams.recordId = params.commentRecordId
+        } else if (params.commentTarget === 'thread') {
+          if (params.commentThreadId) cleanParams.threadId = params.commentThreadId
+        }
         if (params.commentCreatedAt) cleanParams.createdAt = params.commentCreatedAt
         if (params.commentId) cleanParams.commentId = params.commentId
 
@@ -1478,7 +1538,11 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.operation === 'create_attribute' && params.attributeIsMultiselect !== undefined)
           cleanParams.isMultiselect =
             params.attributeIsMultiselect === 'true' || params.attributeIsMultiselect === true
-        if (params.operation === 'update_attribute' && params.attributeIsArchived !== undefined)
+        if (
+          params.operation === 'update_attribute' &&
+          params.attributeIsArchived !== undefined &&
+          params.attributeIsArchived !== 'unchanged'
+        )
           cleanParams.isArchived =
             params.attributeIsArchived === 'true' || params.attributeIsArchived === true
         if (params.attributeConfig) cleanParams.config = params.attributeConfig
@@ -1545,6 +1609,7 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
     commentFormat: { type: 'string', description: 'Comment format' },
     commentAuthorType: { type: 'string', description: 'Comment author type' },
     commentAuthorId: { type: 'string', description: 'Comment author ID' },
+    commentTarget: { type: 'string', description: 'What the comment is attached to' },
     commentList: { type: 'string', description: 'List for comment' },
     commentEntryId: { type: 'string', description: 'Entry ID for comment' },
     commentRecordObject: { type: 'string', description: 'Object for record comment' },
