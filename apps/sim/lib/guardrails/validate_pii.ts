@@ -14,7 +14,7 @@ const logger = createLogger('PIIValidator')
  */
 const CHUNK_CONCURRENCY = env.PII_SERVICE_CHUNK_CONCURRENCY ?? 4
 
-/** Presidio service serving both /analyze and /anonymize (VIN is native there). */
+/** Presidio service serving /analyze, /anonymize, and combined /redact (VIN is native there). */
 const PII_URL = env.PII_URL || 'http://localhost:5001'
 
 export interface PIIValidationInput {
@@ -125,6 +125,50 @@ async function anonymizeBatch(items: AnonymizeBatchItem[]): Promise<string[]> {
 }
 
 /**
+ * Flips to `false` the first time `/redact_batch` returns 404 — an older Presidio
+ * image without the combined endpoint — so subsequent chunks skip straight to the
+ * legacy analyze+anonymize path instead of re-probing. Reset on process restart
+ * (a deploy), so a newly-rolled Presidio is picked up.
+ */
+let combinedRedactAvailable = true
+
+/**
+ * Analyze + anonymize a batch in ONE round-trip via `/redact_batch`, returning
+ * masked texts in request order. Halves the app↔service round-trips (and avoids
+ * shipping the text back up for anonymize) vs {@link analyzeBatch} + {@link anonymizeBatch}.
+ *
+ * Returns `null` when the endpoint is absent (404 — an older Presidio image), so
+ * the caller falls back to the legacy two-call path. Any other non-2xx or a
+ * length mismatch throws so the caller applies its fail-safe (never leaks).
+ */
+async function redactBatch(
+  texts: string[],
+  entityTypes: string[],
+  language: string
+): Promise<string[] | null> {
+  const entities = entityTypes.length > 0 ? entityTypes : undefined
+
+  // boundary-raw-fetch: internal call to the Presidio combined redact service via PII_URL
+  const response = await fetch(`${PII_URL}/redact_batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ texts, language, ...(entities ? { entities } : {}) }),
+  })
+  if (response.status === 404) return null
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio redact_batch failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  const data = (await response.json()) as { texts: string[] }
+  if (data.texts.length !== texts.length) {
+    throw new Error(
+      `Presidio redact_batch returned ${data.texts.length} result(s) for ${texts.length} input(s)`
+    )
+  }
+  return data.texts
+}
+
+/**
  * Mask spans via the Presidio anonymizer service. Omitting `anonymizers` uses the
  * default `replace` operator, which yields `<ENTITY_TYPE>`. Throws on failure.
  */
@@ -212,12 +256,12 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
  * Mask PII across many strings via the Presidio service, preserving input order.
  *
  * Strings are grouped into byte/count-budgeted chunks (see {@link chunkIndicesByBudget}),
- * and each chunk runs one batched `analyze` pass followed by one batched `anonymize`
- * pass over only the strings that actually matched — so the service round-trip count
- * scales with payload size, not leaf count, and spaCy batches NER via `nlp.pipe`.
- * Chunks run with bounded concurrency. Strings with no detected PII pass through
- * unchanged. Rejects on any service failure (which fails the whole batch) so callers
- * can apply their own fail-safe (scrub).
+ * and each chunk is masked via the combined `/redact_batch` endpoint (one analyze +
+ * anonymize round-trip). Against an older Presidio without that endpoint, it falls
+ * back to the legacy `analyze_batch` + `anonymize_batch` pair — so the app is safe
+ * to deploy before or after the service. Chunks run with bounded concurrency.
+ * Strings with no detected PII pass through unchanged. Rejects on any service
+ * failure (which fails the whole batch) so callers can apply their own fail-safe (scrub).
  */
 export async function maskPIIBatch(
   texts: string[],
@@ -230,6 +274,19 @@ export async function maskPIIBatch(
 
   await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
     const chunkTexts = indices.map((i) => texts[i])
+
+    if (combinedRedactAvailable) {
+      const masked = await redactBatch(chunkTexts, entityTypes, language)
+      if (masked) {
+        indices.forEach((originalIndex, pos) => {
+          result[originalIndex] = masked[pos]
+        })
+        return
+      }
+      // 404: older Presidio image; stop probing and use the legacy path below.
+      combinedRedactAvailable = false
+    }
+
     const spansPerText = await analyzeBatch(chunkTexts, entityTypes, language)
 
     // A short/misaligned batch response would silently leave the unmatched
