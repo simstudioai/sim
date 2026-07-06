@@ -1,11 +1,12 @@
 import type {
-  NewRelicEntity,
   NewRelicSearchEntitiesParams,
   NewRelicSearchEntitiesResponse,
 } from '@/tools/new_relic/types'
 import {
   getNerdGraphEndpoint,
+  type NewRelicRawEntity,
   newRelicHeaders,
+  normalizeNewRelicEntity,
   parseNerdGraphResponse,
 } from '@/tools/new_relic/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -17,7 +18,7 @@ interface SearchEntitiesData {
       query?: string
       results?: {
         nextCursor?: string | null
-        entities?: NewRelicEntity[]
+        entities?: NewRelicRawEntity[]
       } | null
     } | null
   } | null
@@ -101,7 +102,7 @@ export const newRelicSearchEntitiesTool: ToolConfig<
     if (!entitySearch) {
       throw new Error('New Relic did not return entity search data')
     }
-    const entities = entitySearch?.results?.entities ?? []
+    const entities = (entitySearch?.results?.entities ?? []).map(normalizeNewRelicEntity)
 
     return {
       success: true,

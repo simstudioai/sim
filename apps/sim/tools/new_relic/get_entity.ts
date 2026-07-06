@@ -2,21 +2,16 @@ import type { NewRelicGetEntityParams, NewRelicGetEntityResponse } from '@/tools
 import {
   getNerdGraphEndpoint,
   gqlString,
+  type NewRelicRawEntity,
   newRelicHeaders,
+  normalizeNewRelicEntity,
   parseNerdGraphResponse,
 } from '@/tools/new_relic/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface GetEntityData {
   actor?: {
-    entity?: {
-      name?: string | null
-      entityType?: string | null
-      domain?: string | null
-      reporting?: boolean | null
-      alertSeverity?: string | null
-      tags?: { key?: string | null; values?: string[] | null }[] | null
-    } | null
+    entity?: NewRelicRawEntity | null
   } | null
 }
 
@@ -79,19 +74,7 @@ export const newRelicGetEntityTool: ToolConfig<NewRelicGetEntityParams, NewRelic
         success: true,
         output: {
           entity: entity
-            ? {
-                guid: params?.guid ?? null,
-                name: entity.name ?? null,
-                entityType: entity.entityType ?? null,
-                domain: entity.domain ?? null,
-                reporting: entity.reporting ?? null,
-                alertSeverity: entity.alertSeverity ?? null,
-                tags:
-                  entity.tags?.map((tag) => ({
-                    key: tag.key ?? null,
-                    values: tag.values ?? [],
-                  })) ?? [],
-              }
+            ? { ...normalizeNewRelicEntity(entity), guid: params?.guid ?? null }
             : null,
         },
       }
