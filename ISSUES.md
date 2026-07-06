@@ -17,6 +17,86 @@ rollout. Conditions of this acceptance:
 - Issues 6, 7, 8, 11 still need the product calls noted inline before their
   fast-follows can be scoped.
 
+## Max-effort review pass (2026-07-05): fixed + fast-follows
+
+A 10-angle adversarially-verified review of the frozen branch surfaced 35
+findings (all file:line refs verified). Root cause of the worst cluster: the
+by-id resolvers pin `context='workspace'`, so `output` rows were invisible to
+every path not explicitly rewired for the third namespace.
+
+**Fixed on this branch** (each with a regression test where a seam exists):
+
+- Model payload drops output tabs — `resolveFileResource` now falls back to
+  `resolveChatFileRecordById` and emits paths via the shared
+  `chatScopedOrWorkspacePath` (moved to `vfs/path-utils`).
+- Output tabs offered a working editor whose every save failed —
+  chat-scoped records now render read-only (`resource-content.tsx`).
+- CSV outputs >5MB 404'd in CsvTablePreview — the csv-preview route resolves
+  via `getPreviewableWorkspaceFile` (owner-gated) and serves from the row's
+  real storage context.
+- Presign-flow UUID upload ids never resolved as tool inputs — the chat
+  by-id fallback in `resolveToolInputFile` dropped its `wf_` prefix gate.
+- Send-path double-send: a POST that died without a response was blindly
+  rolled back (re-queue → duplicate send) — the catch now probes resume
+  (`RECONNECT_PROBE_ATTEMPTS`) before rolling back; terminal 404 = never
+  arrived. No unit seam in `use-chat.ts` — verify live; extracting the
+  send/reconnect state machine is part of item 9's fast-follow.
+
+**New fast-follows — correctness/silent-failure (fix in priority order):**
+
+- R1 `workspace-file-manager.ts:500` — trackChatUpload's claim UPDATE has no
+  "unclaimed" guard: any re-track of the same key moves `message_id` (fork-cut
+  birthdate) to the later message; callers omitting messageId NULL it.
+- R2 `chat-file-reader.ts:203` + `workspace-file-manager.ts:1097` +
+  `hooks/queries/workspace-files.ts:133` — the swallow-to-success family:
+  listChatFiles returns [] on DB error (outputs route 200s), previewable
+  lookup returns null on DB error (route 404s), useWorkspaceFileById caches
+  null on any error incl. AbortError. Fix as one convention: throw on
+  lookup failure, reserve null for not-found/denied.
+- R3 `create-file.ts:57` + `workspace-file.ts:359` — create guards reject only
+  `outputs/`, not `uploads/` (delete/rename/folders cover both) — an
+  `uploads/…` create mints a literal files/uploads/ folder + self-confusion.
+- R4 `use-prompt-editor.ts:282` — @-mention completion misses chat outputs
+  (`useAvailableResources` called without chatId; needs threading to
+  UserInput). Same file offered by the "+" picker.
+- R5 `hooks/queries/mothership-chats.ts:684` — forkChat truthiness collapses
+  `upToMessageId: ''` into whole-chat duplicate (quota-charged) instead of
+  surfacing the contract 400. Latent; both callers currently guard.
+- R6 `lib/uploads/server/metadata.ts:168` — empty context array drops the
+  context filter (matches ANY context) on an authz-feeding helper; make []
+  match nothing. Latent; sits on the access path.
+- R7 `doc-compile.ts:150` (inventory finding) — referenced images resolve
+  workspace-only; an agent-generated output referenced in a doc silently
+  drops. Route through resolveToolInputFile if chat context is available.
+
+**New fast-follows — cleanup/altitude batch (one PR, mostly mechanical):**
+
+- Twin display-name allocators: `uploadChatOutput` vs `trackChatUpload`
+  (`workspace-file-manager.ts:598`) — unify like the read side.
+- Output-ownership rule at three sites (`authorization.ts:271/708`,
+  `workspace-file-manager.ts:1087`) — single chokepoint accessor.
+- Per-file `incrementStorageUsage` in fork blob copies (`fork-chat-files.ts:205`)
+  — accumulate, charge once per fork.
+- Eager flag-independent `useChatOutputs` fetch on every chat mount
+  (`home.tsx:261`); serialized by-id fallback in `resource-content.tsx:536`.
+- Sequential independent awaits: fork route messages+files (`route.ts:121`),
+  reference-image/ffmpeg download loops (`generate-image.ts:86`, `ffmpeg.ts:83`).
+- Duplicated fork/duplicate title formula client+server
+  (`mothership-chats.ts:707` vs fork `route.ts`); duplicated failedFileCopies
+  toast (`message-actions.tsx:159` / `sidebar.tsx:980`).
+- `isPersistedChatResource` vs shared `isEphemeralResource` (`use-chat.ts:160`);
+  vfs grep's own namespace regexes vs canonical predicates (`vfs.ts:50`);
+  three-way namespace routing copy-pasted in materialize save/import
+  (`materialize-file.ts:137`); context trio threading in resource-writer
+  (`resource-writer.ts:305`); fork quota gate re-deriving copyability
+  (`route.ts:129`); outputs route hand-rolled 404/500 + manual request-id
+  logging in files by-id route (`outputs/route.ts:38`, `files/[fileId]/route.ts:33`);
+  decode-fallback inlined 3× (`chat-file-reader.ts:66/120`, `resource-writer.ts:335`);
+  ten per-namespace one-line wrappers (`chat-file-reader.ts:257`); fork-route
+  skip-update guard re-deriving rewrite internals (`route.ts:195`); mothership
+  resource contracts parity-pinned by test instead of shared schema objects
+  (`mothership-chats.ts:174`).
+
 Working list of verified findings **not yet fixed on this branch**. These are
 candidates to resolve before merge or explicitly sign off on — being listed
 here is not acceptance. Each entry links the mechanism, the verified impact,
