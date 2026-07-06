@@ -7,12 +7,12 @@ import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 const logger = createLogger('PIIValidator')
 
 /**
- * Concurrent chunk requests in flight. Each chunk is itself a batched service call
- * (spaCy `nlp.pipe` over many strings), so a small concurrency keeps a single-model
- * Presidio instance from holding too many parallel docs in memory while still
- * overlapping HTTP/JSON with the next chunk's NER.
+ * Concurrent chunk requests in flight from a single mask-batch call. Each chunk is
+ * itself a batched service call (spaCy `nlp.pipe` over many strings). Default 4;
+ * raise via `PII_SERVICE_CHUNK_CONCURRENCY` for a scaled Presidio fleet (this is
+ * the route → Presidio fan-out, inner to the app → route `PII_MASK_CHUNK_CONCURRENCY`).
  */
-const CHUNK_CONCURRENCY = 4
+const CHUNK_CONCURRENCY = env.PII_SERVICE_CHUNK_CONCURRENCY ?? 4
 
 /** Presidio service serving both /analyze and /anonymize (VIN is native there). */
 const PII_URL = env.PII_URL || 'http://localhost:5001'

@@ -330,6 +330,7 @@ export const env = createEnv({
     PII_URL:                               z.string().optional(),                  // Presidio PII service base URL serving /analyze + /anonymize (standalone ECS service; default http://localhost:5001 for local dev)
     PII_MASK_CHUNK_CONCURRENCY:            z.coerce.number().int().positive().optional(), // Max in-flight mask-batch requests per redaction (default 64); tune to the Presidio fleet size behind the internal ALB, lower to 1 for a single instance
     PII_REF_CONCURRENCY:                   z.coerce.number().int().positive().optional(), // Max large-value refs hydrated+masked+re-stored in parallel per payload (default 4); multiplies with PII_MASK_CHUNK_CONCURRENCY for total in-flight Presidio load
+    PII_SERVICE_CHUNK_CONCURRENCY:         z.coerce.number().int().positive().optional(), // Max Presidio requests in flight from a single mask-batch call (route -> Presidio fan-out, default 4); inner to PII_MASK_CHUNK_CONCURRENCY
 
     // OAuth Integration Credentials - All optional, enables third-party integrations
     GOOGLE_CLIENT_ID:                      z.string().optional(),                  // Google OAuth client ID for Google services
