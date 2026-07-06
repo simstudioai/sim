@@ -86,14 +86,22 @@ export const renameCopilotChatBodySchema = z.object({
 })
 export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
 
+// Must cover every MothershipResourceType (lib/copilot/resources/types.ts) —
+// the mothership resource routes delegate to the copilot handlers that parse
+// with this enum, so a missing member 400s valid rows (e.g. the hydration
+// cleanup of legacy resources of that type).
 const copilotResourceTypeSchema = z.enum([
   'table',
   'file',
   'workflow',
   'knowledgebase',
   'folder',
+  'filefolder',
+  'task',
   'scheduledtask',
   'log',
+  'integration',
+  'generic',
 ])
 
 export const addCopilotChatResourceBodySchema = z.object({

@@ -158,10 +158,21 @@ export const adminMothershipQuerySchema = z
   .passthrough()
 export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
 
+// RESPONSE items stay permissive: the server may still return legacy
+// empty-id rows until hydration cleans them up, and a strict response schema
+// would make requestJson reject those valid replies wholesale.
 const mothershipChatResourceItemSchema = z.object({
   type: z.string(),
   id: z.string(),
   title: z.string(),
+})
+
+// REQUEST items require a non-empty id, matching the delegated copilot
+// handlers' tightened schemas — the client contract must describe the real
+// boundary (legacy empty-id rows are DELETED via the permissive remove
+// contract, never re-added or reordered).
+const mothershipChatResourceRequestItemSchema = mothershipChatResourceItemSchema.extend({
+  id: z.string().min(1, 'resource id is required'),
 })
 
 const mothershipChatResourcesResponseSchema = z.object({
@@ -171,12 +182,12 @@ const mothershipChatResourcesResponseSchema = z.object({
 
 const addMothershipChatResourceBodySchema = z.object({
   chatId: z.string().min(1),
-  resource: mothershipChatResourceItemSchema,
+  resource: mothershipChatResourceRequestItemSchema,
 })
 
 const reorderMothershipChatResourcesBodySchema = z.object({
   chatId: z.string().min(1),
-  resources: z.array(mothershipChatResourceItemSchema),
+  resources: z.array(mothershipChatResourceRequestItemSchema),
 })
 
 const removeMothershipChatResourceBodySchema = z.object({

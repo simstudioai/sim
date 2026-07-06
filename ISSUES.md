@@ -98,6 +98,12 @@ and the known fix design. Findings already fixed on the branch are not listed.
   boundary where the caller supplies `_context` — validate chat ownership
   (`copilot_chats.user_id === auth.userId`) before honoring the chat context
   for an outputs/ write.
+- **Confirmed mechanism (contract audit):** `functionExecuteContract`'s body
+  declares no `_context.chatId`, and the tool body builder
+  (`tools/function/execute.ts` ~156) forwards only a whitelist of `_context`
+  keys — so the `chatId` the copilot handler stamps into `_context` never
+  reaches the route today. The fix must touch the contract, the whitelist,
+  and the route.
 
 ## 8. Chat namespaces shadow workspace folders named "uploads"/"outputs"
 
