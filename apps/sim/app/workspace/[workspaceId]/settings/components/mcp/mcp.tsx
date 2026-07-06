@@ -157,8 +157,7 @@ export function MCP() {
   const {
     data: mcpToolsData = [],
     error: toolsError,
-    isLoading: toolsLoading,
-    isFetching: toolsFetching,
+    toolsStateByServer,
   } = useMcpToolsQuery(workspaceId)
   const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
   const forceRefreshToolsMutation = useForceRefreshMcpTools()
@@ -623,7 +622,10 @@ export function MCP() {
             {filteredServers.map((server) => {
               if (!server?.id) return null
               const tools = toolsByServer[server.id] || []
-              const isLoadingTools = toolsLoading || toolsFetching
+              const serverToolsState = toolsStateByServer.get(server.id)
+              const isLoadingTools = serverToolsState
+                ? serverToolsState.isLoading || serverToolsState.isFetching
+                : false
 
               return (
                 <ServerListItem

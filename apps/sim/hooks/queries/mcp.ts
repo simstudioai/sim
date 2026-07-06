@@ -162,7 +162,12 @@ export function useMcpToolsQuery(workspaceId: string) {
     let hasData = false
     let anyServerLoading = false
     let firstError: Error | null = null
-    for (const result of results) {
+    const toolsStateByServer = new Map<
+      string,
+      { isLoading: boolean; isFetching: boolean; error: Error | null }
+    >()
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index]
       // Drop stale data from servers whose latest refetch errored.
       if (result.data && !result.isError) {
         tools.push(...result.data)
@@ -170,16 +175,25 @@ export function useMcpToolsQuery(workspaceId: string) {
       }
       if (result.isLoading) anyServerLoading = true
       if (!firstError && result.error instanceof Error) firstError = result.error
+
+      const serverId = serverIds[index]
+      if (serverId) {
+        toolsStateByServer.set(serverId, {
+          isLoading: result.isLoading,
+          isFetching: result.isFetching,
+          error: result.error instanceof Error ? result.error : null,
+        })
+      }
     }
     return {
       data: tools,
       isLoading: (serversLoading || anyServerLoading) && !hasData,
       isFetching: serversLoading || results.some((r) => r.isFetching),
-      // Suppress when any healthy server rendered; per-server errors live in `perServer`.
+      // Suppress when any healthy server rendered; per-server errors live in `toolsStateByServer`.
       error: hasData ? null : firstError,
-      perServer: results,
+      toolsStateByServer,
     }
-  }, [results, serversLoading])
+  }, [results, serversLoading, serverIds])
 }
 
 export function useForceRefreshMcpTools() {
