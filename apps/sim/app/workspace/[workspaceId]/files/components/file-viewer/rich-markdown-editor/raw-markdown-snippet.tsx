@@ -123,12 +123,12 @@ export const RawHtmlBlock = Node.create({
   ...verbatimNodeConfig({ name: 'rawHtmlBlock', inline: false, badgeLabel: 'Raw HTML' }),
   markdownTokenName: 'html',
   parseMarkdown(token: MarkdownToken) {
-    if (!token.block) return null
+    if (!token.block) return []
     const raw = token.raw ?? token.text ?? ''
-    if (!raw.trim()) return null
+    if (!raw.trim()) return []
     // A lone `<img>`/`<br>` tag block — leave it to the stock path (Image node / hard break),
     // matching the same exclusion `round-trip-safety.ts` used to carve out for these two tags.
-    if (SKIP_BLOCK_HTML_TAGS.test(raw.trim())) return null
+    if (SKIP_BLOCK_HTML_TAGS.test(raw.trim())) return []
     return { type: 'rawHtmlBlock', content: verbatimParse(raw) }
   },
 })
@@ -182,7 +182,7 @@ export const FootnoteDef = Node.create({
   },
   parseMarkdown(token: MarkdownToken) {
     const raw = token.raw ?? token.text ?? ''
-    if (!raw) return null
+    if (!raw) return []
     return { type: 'footnoteDef', content: verbatimParse(raw) }
   },
 })
@@ -206,7 +206,7 @@ export const FootnoteRef = Node.create({
   },
   parseMarkdown(token: MarkdownToken) {
     const raw = token.raw ?? token.text ?? ''
-    if (!raw) return null
+    if (!raw) return []
     return { type: 'footnoteRef', content: verbatimParse(raw) }
   },
 })
@@ -285,7 +285,7 @@ export const RawInlineHtml = Node.create({
   },
   parseMarkdown(token: MarkdownToken) {
     const raw = token.raw ?? token.text ?? ''
-    if (!raw) return null
+    if (!raw) return []
     return { type: 'rawInlineHtml', content: verbatimParse(raw) }
   },
 })
@@ -308,7 +308,7 @@ function RawBlockView({ node }: ReactNodeViewProps) {
         {label}
       </span>
       <div className='raw-markdown-block'>
-        <NodeViewContent as='span' />
+        <NodeViewContent<'span'> as='span' />
       </div>
     </NodeViewWrapper>
   )
