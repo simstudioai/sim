@@ -58,7 +58,7 @@ export const updateZoneSettingTool: ToolConfig<
       // Number('') is 0, not NaN, so an empty value must be rejected explicitly.
       if (params.settingId === 'browser_cache_ttl') {
         const numeric = trimmed === '' ? Number.NaN : Number(trimmed)
-        return { value: Number.isNaN(numeric) ? params.value : numeric }
+        return { value: Number.isNaN(numeric) ? trimmed : numeric }
       }
 
       // Only parse JSON object/array literals (e.g. ciphers). Scalar settings like
@@ -68,10 +68,10 @@ export const updateZoneSettingTool: ToolConfig<
         try {
           return { value: JSON.parse(trimmed) }
         } catch {
-          return { value: params.value }
+          return { value: trimmed }
         }
       }
-      return { value: params.value }
+      return { value: trimmed }
     },
   },
 

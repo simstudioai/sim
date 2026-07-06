@@ -90,7 +90,8 @@ export const listDnsRecordsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Tag filter match logic: any or all',
+      description:
+        'Tag filter match logic: any or all. Only affects results when combined with multiple tag filter conditions; has no effect with the single exact-match Tag Filter above.',
     },
     commentFilter: {
       type: 'string',
