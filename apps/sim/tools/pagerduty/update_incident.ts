@@ -36,7 +36,7 @@ export const updateIncidentTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New status (acknowledged or resolved)',
+      description: 'New status (triggered, acknowledged, or resolved)',
     },
     title: {
       type: 'string',
