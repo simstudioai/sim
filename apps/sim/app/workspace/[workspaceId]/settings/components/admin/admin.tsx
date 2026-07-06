@@ -251,7 +251,7 @@ export function Admin() {
           unbanUser.error ||
           impersonateUser.error ||
           impersonationGuardError) && (
-          <p className='text-[13px] text-[var(--text-error)]'>
+          <p className='text-[var(--text-error)] text-small'>
             {impersonationGuardError ||
               (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
                 ?.message ||
@@ -304,7 +304,7 @@ export function Admin() {
                         <>
                           <Button
                             variant='active'
-                            className='h-[28px] px-2 text-[12px]'
+                            className='h-[28px] px-2 text-caption'
                             onClick={() => handleImpersonate(u.id)}
                             disabled={pendingUserIds.has(u.id)}
                           >
@@ -317,7 +317,7 @@ export function Admin() {
                           </Button>
                           <Button
                             variant='active'
-                            className='h-[28px] px-2 text-[12px]'
+                            className='h-[28px] px-2 text-caption'
                             onClick={() => {
                               setUserRole.reset()
                               setUserRole.mutate({

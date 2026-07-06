@@ -500,7 +500,7 @@ export function CredentialSets() {
 
                         <div className='min-w-0'>
                           <div className='flex items-center gap-2'>
-                            <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                            <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
                               {name}
                             </span>
                             {member.credentials.length === 0 && (
@@ -551,7 +551,7 @@ export function CredentialSets() {
 
                         <div className='min-w-0'>
                           <div className='flex items-center gap-2'>
-                            <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                            <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
                               {emailPrefix}
                             </span>
                             <Badge variant='gray-secondary' size='sm'>

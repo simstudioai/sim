@@ -35,9 +35,9 @@ export function SettingsResourceRow({
       <div className='flex min-w-0 items-center gap-2.5'>
         <div className={TILE_CLASS}>{icon}</div>
         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-          <span className='truncate text-[14px] text-[var(--text-body)]'>{title}</span>
+          <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
           {description != null && (
-            <span className='truncate text-[12px] text-[var(--text-muted)]'>{description}</span>
+            <span className='truncate text-[var(--text-muted)] text-caption'>{description}</span>
           )}
         </div>
       </div>
