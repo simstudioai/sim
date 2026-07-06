@@ -52,7 +52,9 @@ export const updateZoneSettingTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const trimmed = params.value.trim()
+      // Wand-generated or block-reference values can arrive as a non-string
+      // (e.g. a number) at runtime despite the declared param type.
+      const trimmed = String(params.value).trim()
 
       // browser_cache_ttl is the one setting whose value must be a number.
       // Number('') is 0, not NaN, so an empty value must be rejected explicitly.
