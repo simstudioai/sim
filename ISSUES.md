@@ -54,7 +54,10 @@ inserted before the rollback opened a new lost-message window on Stop. See R0.
   the post-completion window) or register the run BEFORE prep so a client
   probe can see it. A client probe is only sound after that lands, built on
   an extracted, unit-testable send/reconnect state machine (pairs with
-  item 9's fast-follow).
+  item 9's fast-follow). Verified nuance (2026-07-05 audit): the user message
+  row itself does NOT duplicate — `appendCopilotChatMessages` upserts on
+  `(chatId, messageId)` — the duplication is a second full assistant run;
+  that upsert is a natural anchor for the idempotency check.
 - R1 `workspace-file-manager.ts:500` — trackChatUpload's claim UPDATE has no
   "unclaimed" guard: any re-track of the same key moves `message_id` (fork-cut
   birthdate) to the later message; callers omitting messageId NULL it.
@@ -78,7 +81,10 @@ inserted before the rollback opened a new lost-message window on Stop. See R0.
   match nothing. Latent; sits on the access path.
 - R7 `doc-compile.ts:150` (inventory finding) — referenced images resolve
   workspace-only; an agent-generated output referenced in a doc silently
-  drops. Route through resolveToolInputFile if chat context is available.
+  drops. Verified (2026-07-05 audit): `CompileArgs` carries no chatId, so the
+  fix needs a signature change — thread `context.chatId` from the callers
+  (e.g. `edit-content.ts` already has it) into `compileDoc`, then route
+  through resolveToolInputFile.
 
 **New fast-follows — cleanup/altitude batch (one PR, mostly mechanical):**
 
