@@ -593,8 +593,10 @@ export const SESBlock: BlockConfig<ToolResponse> = {
             if (rest.tlsPolicy) result.tlsPolicy = rest.tlsPolicy
             if (rest.sendingPoolName) result.sendingPoolName = rest.sendingPoolName
             if (rest.reputationMetricsEnabled != null)
-              result.reputationMetricsEnabled = Boolean(rest.reputationMetricsEnabled)
-            if (rest.sendingEnabled != null) result.sendingEnabled = Boolean(rest.sendingEnabled)
+              result.reputationMetricsEnabled =
+                rest.reputationMetricsEnabled === true || rest.reputationMetricsEnabled === 'true'
+            if (rest.sendingEnabled != null)
+              result.sendingEnabled = rest.sendingEnabled === true || rest.sendingEnabled === 'true'
             if (rest.suppressedReasons) result.suppressedReasons = rest.suppressedReasons
             if (rest.tags) result.tags = rest.tags
             break
