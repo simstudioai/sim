@@ -1174,16 +1174,40 @@ workspace-member.created
       title: 'Required',
       type: 'dropdown',
       options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'create_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsRequiredUpdate',
+      title: 'Required',
+      type: 'dropdown',
+      options: [
         { label: 'Leave unchanged', id: 'unchanged' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
       value: () => 'unchanged',
-      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      condition: { field: 'operation', value: 'update_attribute' },
       mode: 'advanced',
     },
     {
       id: 'attributeIsUnique',
+      title: 'Unique',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'create_attribute' },
+      mode: 'advanced',
+    },
+    {
+      id: 'attributeIsUniqueUpdate',
       title: 'Unique',
       type: 'dropdown',
       options: [
@@ -1192,7 +1216,7 @@ workspace-member.created
         { label: 'Yes', id: 'true' },
       ],
       value: () => 'unchanged',
-      condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
+      condition: { field: 'operation', value: 'update_attribute' },
       mode: 'advanced',
     },
     {
@@ -1417,150 +1441,269 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         const cleanParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
+        const op = params.operation
 
-        // Record params
-        if (params.objectType) cleanParams.objectType = params.objectType
-        if (params.recordId) cleanParams.recordId = params.recordId
-        if (params.matchingAttribute) cleanParams.matchingAttribute = params.matchingAttribute
-        if (params.values) cleanParams.values = params.values
-        if (params.filter) cleanParams.filter = params.filter
-        if (params.sorts) cleanParams.sorts = params.sorts
-        if (params.query) cleanParams.query = params.query
-        if (params.objects) cleanParams.objects = params.objects
+        // Record params — each field is only sent for the operations whose subBlock condition
+        // actually exposes it, so a stale value left over from switching operations never leaks
+        // into an unrelated request (cleanParams keys are reused across several operation families).
+        if (
+          [
+            'list_records',
+            'get_record',
+            'create_record',
+            'update_record',
+            'delete_record',
+            'assert_record',
+          ].includes(op) &&
+          params.objectType
+        )
+          cleanParams.objectType = params.objectType
+        if (['get_record', 'update_record', 'delete_record'].includes(op) && params.recordId)
+          cleanParams.recordId = params.recordId
+        if (op === 'assert_record' && params.matchingAttribute)
+          cleanParams.matchingAttribute = params.matchingAttribute
+        if (['create_record', 'update_record', 'assert_record'].includes(op) && params.values)
+          cleanParams.values = params.values
+        if (op === 'list_records' && params.filter) cleanParams.filter = params.filter
+        if (op === 'list_records' && params.sorts) cleanParams.sorts = params.sorts
+        if (op === 'search_records' && params.query) cleanParams.query = params.query
+        if (op === 'search_records' && params.objects) cleanParams.objects = params.objects
 
         // Note params
-        if (params.noteParentObject) cleanParams.parentObject = params.noteParentObject
-        if (params.noteParentRecordId) cleanParams.parentRecordId = params.noteParentRecordId
-        if (params.noteTitle) cleanParams.title = params.noteTitle
-        if (params.noteContent) cleanParams.content = params.noteContent
-        if (params.noteFormat) cleanParams.format = params.noteFormat
-        if (params.noteId) cleanParams.noteId = params.noteId
-        if (params.noteCreatedAt) cleanParams.createdAt = params.noteCreatedAt
-        if (params.noteMeetingId) cleanParams.meetingId = params.noteMeetingId
+        if (['list_notes', 'create_note'].includes(op) && params.noteParentObject)
+          cleanParams.parentObject = params.noteParentObject
+        if (['list_notes', 'create_note'].includes(op) && params.noteParentRecordId)
+          cleanParams.parentRecordId = params.noteParentRecordId
+        if (op === 'create_note' && params.noteTitle) cleanParams.title = params.noteTitle
+        if (op === 'create_note' && params.noteContent) cleanParams.content = params.noteContent
+        if (op === 'create_note' && params.noteFormat) cleanParams.format = params.noteFormat
+        if (op === 'create_note' && params.noteCreatedAt)
+          cleanParams.createdAt = params.noteCreatedAt
+        if (op === 'create_note' && params.noteMeetingId)
+          cleanParams.meetingId = params.noteMeetingId
+        if (['get_note', 'delete_note'].includes(op) && params.noteId)
+          cleanParams.noteId = params.noteId
 
         // Task params
-        if (params.taskContent) cleanParams.content = params.taskContent
-        if (params.taskDeadline) cleanParams.deadlineAt = params.taskDeadline
-        if (params.operation === 'create_task' && params.taskIsCompleted !== undefined)
+        if (op === 'create_task' && params.taskContent) cleanParams.content = params.taskContent
+        if (['create_task', 'update_task'].includes(op) && params.taskDeadline)
+          cleanParams.deadlineAt = params.taskDeadline
+        if (op === 'create_task' && params.taskIsCompleted !== undefined)
           cleanParams.isCompleted =
             params.taskIsCompleted === 'true' || params.taskIsCompleted === true
         if (
-          params.operation === 'update_task' &&
+          op === 'update_task' &&
           params.taskIsCompletedUpdate !== undefined &&
           params.taskIsCompletedUpdate !== 'unchanged'
         )
           cleanParams.isCompleted =
             params.taskIsCompletedUpdate === 'true' || params.taskIsCompletedUpdate === true
-        if (params.taskLinkedRecords) cleanParams.linkedRecords = params.taskLinkedRecords
-        if (params.taskAssignees) cleanParams.assignees = params.taskAssignees
-        if (params.taskId) cleanParams.taskId = params.taskId
-        if (params.taskFilterObject) cleanParams.linkedObject = params.taskFilterObject
-        if (params.taskFilterRecordId) cleanParams.linkedRecordId = params.taskFilterRecordId
-        if (params.taskFilterAssignee) cleanParams.assignee = params.taskFilterAssignee
+        if (['create_task', 'update_task'].includes(op) && params.taskLinkedRecords)
+          cleanParams.linkedRecords = params.taskLinkedRecords
+        if (['create_task', 'update_task'].includes(op) && params.taskAssignees)
+          cleanParams.assignees = params.taskAssignees
+        if (['get_task', 'update_task', 'delete_task'].includes(op) && params.taskId)
+          cleanParams.taskId = params.taskId
+        if (op === 'list_tasks' && params.taskFilterObject)
+          cleanParams.linkedObject = params.taskFilterObject
+        if (op === 'list_tasks' && params.taskFilterRecordId)
+          cleanParams.linkedRecordId = params.taskFilterRecordId
+        if (op === 'list_tasks' && params.taskFilterAssignee)
+          cleanParams.assignee = params.taskFilterAssignee
         if (
-          params.operation === 'list_tasks' &&
+          op === 'list_tasks' &&
           params.taskFilterCompleted &&
           params.taskFilterCompleted !== 'all'
         )
           cleanParams.isCompleted = params.taskFilterCompleted === 'true'
-        if (params.taskSort) cleanParams.sort = params.taskSort
+        if (op === 'list_tasks' && params.taskSort) cleanParams.sort = params.taskSort
 
         // Object params
-        if (params.objectIdOrSlug) cleanParams.object = params.objectIdOrSlug
-        if (params.objectApiSlug) cleanParams.apiSlug = params.objectApiSlug
-        if (params.objectSingularNoun) cleanParams.singularNoun = params.objectSingularNoun
-        if (params.objectPluralNoun) cleanParams.pluralNoun = params.objectPluralNoun
+        if (['get_object', 'update_object'].includes(op) && params.objectIdOrSlug)
+          cleanParams.object = params.objectIdOrSlug
+        if (['create_object', 'update_object'].includes(op) && params.objectApiSlug)
+          cleanParams.apiSlug = params.objectApiSlug
+        if (['create_object', 'update_object'].includes(op) && params.objectSingularNoun)
+          cleanParams.singularNoun = params.objectSingularNoun
+        if (['create_object', 'update_object'].includes(op) && params.objectPluralNoun)
+          cleanParams.pluralNoun = params.objectPluralNoun
 
         // List params
-        if (params.listIdOrSlug) cleanParams.list = params.listIdOrSlug
-        if (params.listName) cleanParams.name = params.listName
-        if (params.listParentObject) cleanParams.parentObject = params.listParentObject
-        if (params.listApiSlug) cleanParams.apiSlug = params.listApiSlug
-        if (params.operation === 'create_list' && params.listWorkspaceAccess)
+        if (
+          [
+            'get_list',
+            'update_list',
+            'query_list_entries',
+            'get_list_entry',
+            'create_list_entry',
+            'update_list_entry',
+            'delete_list_entry',
+          ].includes(op) &&
+          params.listIdOrSlug
+        )
+          cleanParams.list = params.listIdOrSlug
+        if (['create_list', 'update_list'].includes(op) && params.listName)
+          cleanParams.name = params.listName
+        if (op === 'create_list' && params.listParentObject)
+          cleanParams.parentObject = params.listParentObject
+        if (['create_list', 'update_list'].includes(op) && params.listApiSlug)
+          cleanParams.apiSlug = params.listApiSlug
+        if (op === 'create_list' && params.listWorkspaceAccess)
           cleanParams.workspaceAccess = params.listWorkspaceAccess
         if (
-          params.operation === 'update_list' &&
+          op === 'update_list' &&
           params.listWorkspaceAccessUpdate &&
           params.listWorkspaceAccessUpdate !== 'unchanged'
         )
           cleanParams.workspaceAccess = params.listWorkspaceAccessUpdate
 
         // List entry params
-        if (params.entryId) cleanParams.entryId = params.entryId
-        if (params.entryParentRecordId) cleanParams.parentRecordId = params.entryParentRecordId
-        if (params.entryParentObject) cleanParams.parentObject = params.entryParentObject
-        if (params.entryValues) cleanParams.entryValues = params.entryValues
-        if (params.entryFilter) cleanParams.filter = params.entryFilter
-        if (params.entrySorts) cleanParams.sorts = params.entrySorts
+        if (
+          ['get_list_entry', 'update_list_entry', 'delete_list_entry'].includes(op) &&
+          params.entryId
+        )
+          cleanParams.entryId = params.entryId
+        if (op === 'create_list_entry' && params.entryParentRecordId)
+          cleanParams.parentRecordId = params.entryParentRecordId
+        if (op === 'create_list_entry' && params.entryParentObject)
+          cleanParams.parentObject = params.entryParentObject
+        if (['create_list_entry', 'update_list_entry'].includes(op) && params.entryValues)
+          cleanParams.entryValues = params.entryValues
+        if (op === 'query_list_entries' && params.entryFilter)
+          cleanParams.filter = params.entryFilter
+        if (op === 'query_list_entries' && params.entrySorts) cleanParams.sorts = params.entrySorts
 
         // Member params
-        if (params.memberId) cleanParams.memberId = params.memberId
+        if (op === 'get_member' && params.memberId) cleanParams.memberId = params.memberId
 
         // Comment params
-        if (params.commentContent) cleanParams.content = params.commentContent
-        if (params.commentFormat) cleanParams.format = params.commentFormat
-        if (params.commentAuthorType) cleanParams.authorType = params.commentAuthorType
-        if (params.commentAuthorId) cleanParams.authorId = params.commentAuthorId
-        // Blocks saved before commentTarget existed have no value for it — fall back to the
-        // pre-existing behavior (entry-based comment, or thread reply if a thread ID was set).
-        const commentTarget = params.commentTarget ?? (params.commentThreadId ? 'thread' : 'entry')
-        if (commentTarget === 'entry') {
-          if (params.commentList) cleanParams.list = params.commentList
-          if (params.commentEntryId) cleanParams.entryId = params.commentEntryId
-        } else if (commentTarget === 'record') {
-          if (params.commentRecordObject) cleanParams.recordObject = params.commentRecordObject
-          if (params.commentRecordId) cleanParams.recordId = params.commentRecordId
-        } else if (commentTarget === 'thread') {
-          if (params.commentThreadId) cleanParams.threadId = params.commentThreadId
+        if (op === 'create_comment') {
+          if (params.commentContent) cleanParams.content = params.commentContent
+          if (params.commentFormat) cleanParams.format = params.commentFormat
+          if (params.commentAuthorType) cleanParams.authorType = params.commentAuthorType
+          if (params.commentAuthorId) cleanParams.authorId = params.commentAuthorId
+          // Blocks saved before commentTarget existed have no value for it — fall back to the
+          // pre-existing behavior (entry-based comment, or thread reply if a thread ID was set).
+          const commentTarget =
+            params.commentTarget ?? (params.commentThreadId ? 'thread' : 'entry')
+          if (commentTarget === 'entry') {
+            if (params.commentList) cleanParams.list = params.commentList
+            if (params.commentEntryId) cleanParams.entryId = params.commentEntryId
+          } else if (commentTarget === 'record') {
+            if (params.commentRecordObject) cleanParams.recordObject = params.commentRecordObject
+            if (params.commentRecordId) cleanParams.recordId = params.commentRecordId
+          } else if (commentTarget === 'thread') {
+            if (params.commentThreadId) cleanParams.threadId = params.commentThreadId
+          }
+          if (params.commentCreatedAt) cleanParams.createdAt = params.commentCreatedAt
         }
-        if (params.commentCreatedAt) cleanParams.createdAt = params.commentCreatedAt
-        if (params.commentId) cleanParams.commentId = params.commentId
+        if (['get_comment', 'delete_comment'].includes(op) && params.commentId)
+          cleanParams.commentId = params.commentId
 
         // Thread params
-        if (params.operation === 'get_thread' && params.threadId)
-          cleanParams.threadId = params.threadId
-        if (params.threadFilterRecordId) cleanParams.recordId = params.threadFilterRecordId
-        if (params.threadFilterObject) cleanParams.object = params.threadFilterObject
-        if (params.threadFilterEntryId) cleanParams.entryId = params.threadFilterEntryId
-        if (params.threadFilterList) cleanParams.list = params.threadFilterList
+        if (op === 'get_thread' && params.threadId) cleanParams.threadId = params.threadId
+        if (op === 'list_threads' && params.threadFilterRecordId)
+          cleanParams.recordId = params.threadFilterRecordId
+        if (op === 'list_threads' && params.threadFilterObject)
+          cleanParams.object = params.threadFilterObject
+        if (op === 'list_threads' && params.threadFilterEntryId)
+          cleanParams.entryId = params.threadFilterEntryId
+        if (op === 'list_threads' && params.threadFilterList)
+          cleanParams.list = params.threadFilterList
 
         // Webhook params
-        if (params.webhookId) cleanParams.webhookId = params.webhookId
-        if (params.webhookTargetUrl) cleanParams.targetUrl = params.webhookTargetUrl
-        if (params.webhookSubscriptions) cleanParams.subscriptions = params.webhookSubscriptions
+        if (['get_webhook', 'update_webhook', 'delete_webhook'].includes(op) && params.webhookId)
+          cleanParams.webhookId = params.webhookId
+        if (['create_webhook', 'update_webhook'].includes(op) && params.webhookTargetUrl)
+          cleanParams.targetUrl = params.webhookTargetUrl
+        if (['create_webhook', 'update_webhook'].includes(op) && params.webhookSubscriptions)
+          cleanParams.subscriptions = params.webhookSubscriptions
 
         // Attribute params
-        if (params.attributeTarget) cleanParams.target = params.attributeTarget
-        if (params.attributeIdentifier) cleanParams.identifier = params.attributeIdentifier
-        if (params.attributeId) cleanParams.attribute = params.attributeId
-        if (params.attributeTitle) cleanParams.title = params.attributeTitle
-        if (params.attributeApiSlug) cleanParams.apiSlug = params.attributeApiSlug
-        if (params.attributeType) cleanParams.type = params.attributeType
-        if (params.attributeDescription) cleanParams.description = params.attributeDescription
-        if (params.attributeIsRequired !== undefined && params.attributeIsRequired !== 'unchanged')
+        const attributeOps = [
+          'list_attributes',
+          'get_attribute',
+          'create_attribute',
+          'update_attribute',
+        ]
+        if (attributeOps.includes(op) && params.attributeTarget)
+          cleanParams.target = params.attributeTarget
+        if (attributeOps.includes(op) && params.attributeIdentifier)
+          cleanParams.identifier = params.attributeIdentifier
+        if (['get_attribute', 'update_attribute'].includes(op) && params.attributeId)
+          cleanParams.attribute = params.attributeId
+        if (['create_attribute', 'update_attribute'].includes(op) && params.attributeTitle)
+          cleanParams.title = params.attributeTitle
+        if (['create_attribute', 'update_attribute'].includes(op) && params.attributeApiSlug)
+          cleanParams.apiSlug = params.attributeApiSlug
+        if (op === 'create_attribute' && params.attributeType)
+          cleanParams.type = params.attributeType
+        if (['create_attribute', 'update_attribute'].includes(op) && params.attributeDescription)
+          cleanParams.description = params.attributeDescription
+        if (op === 'create_attribute' && params.attributeIsRequired !== undefined)
           cleanParams.isRequired =
             params.attributeIsRequired === 'true' || params.attributeIsRequired === true
-        if (params.attributeIsUnique !== undefined && params.attributeIsUnique !== 'unchanged')
+        if (
+          op === 'update_attribute' &&
+          params.attributeIsRequiredUpdate !== undefined &&
+          params.attributeIsRequiredUpdate !== 'unchanged'
+        )
+          cleanParams.isRequired =
+            params.attributeIsRequiredUpdate === 'true' || params.attributeIsRequiredUpdate === true
+        if (op === 'create_attribute' && params.attributeIsUnique !== undefined)
           cleanParams.isUnique =
             params.attributeIsUnique === 'true' || params.attributeIsUnique === true
-        if (params.operation === 'create_attribute' && params.attributeIsMultiselect !== undefined)
+        if (
+          op === 'update_attribute' &&
+          params.attributeIsUniqueUpdate !== undefined &&
+          params.attributeIsUniqueUpdate !== 'unchanged'
+        )
+          cleanParams.isUnique =
+            params.attributeIsUniqueUpdate === 'true' || params.attributeIsUniqueUpdate === true
+        if (op === 'create_attribute' && params.attributeIsMultiselect !== undefined)
           cleanParams.isMultiselect =
             params.attributeIsMultiselect === 'true' || params.attributeIsMultiselect === true
         if (
-          params.operation === 'update_attribute' &&
+          op === 'update_attribute' &&
           params.attributeIsArchived !== undefined &&
           params.attributeIsArchived !== 'unchanged'
         )
           cleanParams.isArchived =
             params.attributeIsArchived === 'true' || params.attributeIsArchived === true
-        if (params.attributeConfig) cleanParams.config = params.attributeConfig
-        if (params.attributeShowArchived !== undefined)
+        if (['create_attribute', 'update_attribute'].includes(op) && params.attributeConfig)
+          cleanParams.config = params.attributeConfig
+        if (op === 'list_attributes' && params.attributeShowArchived !== undefined)
           cleanParams.showArchived =
             params.attributeShowArchived === 'true' || params.attributeShowArchived === true
 
-        // Shared params
-        if (params.limit) cleanParams.limit = Number(params.limit)
-        if (params.offset) cleanParams.offset = Number(params.offset)
+        // Shared pagination params — only meaningful for list-style operations
+        if (
+          [
+            'list_records',
+            'search_records',
+            'list_notes',
+            'list_tasks',
+            'query_list_entries',
+            'list_threads',
+            'list_webhooks',
+            'list_attributes',
+          ].includes(op) &&
+          params.limit
+        )
+          cleanParams.limit = Number(params.limit)
+        if (
+          [
+            'list_records',
+            'list_notes',
+            'list_tasks',
+            'query_list_entries',
+            'list_threads',
+            'list_webhooks',
+            'list_attributes',
+          ].includes(op) &&
+          params.offset
+        )
+          cleanParams.offset = Number(params.offset)
 
         return cleanParams
       },
@@ -1640,7 +1783,15 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
     attributeType: { type: 'string', description: 'The attribute value type' },
     attributeDescription: { type: 'string', description: 'The attribute description' },
     attributeIsRequired: { type: 'string', description: 'Whether the attribute is required' },
+    attributeIsRequiredUpdate: {
+      type: 'string',
+      description: 'Whether the attribute is required (update)',
+    },
     attributeIsUnique: { type: 'string', description: 'Whether the attribute is unique' },
+    attributeIsUniqueUpdate: {
+      type: 'string',
+      description: 'Whether the attribute is unique (update)',
+    },
     attributeIsMultiselect: { type: 'string', description: 'Whether the attribute is multiselect' },
     attributeIsArchived: { type: 'string', description: 'Whether the attribute is archived' },
     attributeConfig: { type: 'json', description: 'Type-dependent attribute configuration' },
