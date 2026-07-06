@@ -53,8 +53,10 @@ export const updateZoneSettingTool: ToolConfig<
     }),
     body: (params) => {
       // Wand-generated or block-reference values can arrive as a non-string
-      // (e.g. a number) at runtime despite the declared param type.
-      const trimmed = String(params.value).trim()
+      // (e.g. a number, or null/undefined) at runtime despite the declared
+      // param type — coerce null/undefined to '' rather than the literal
+      // "null"/"undefined" strings String() would otherwise produce.
+      const trimmed = (params.value == null ? '' : String(params.value)).trim()
 
       // browser_cache_ttl is the one setting whose value must be a number.
       // Number('') is 0, not NaN, so an empty value must be rejected explicitly.
