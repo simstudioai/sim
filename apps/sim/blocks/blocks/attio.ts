@@ -1457,7 +1457,11 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.taskFilterObject) cleanParams.linkedObject = params.taskFilterObject
         if (params.taskFilterRecordId) cleanParams.linkedRecordId = params.taskFilterRecordId
         if (params.taskFilterAssignee) cleanParams.assignee = params.taskFilterAssignee
-        if (params.taskFilterCompleted && params.taskFilterCompleted !== 'all')
+        if (
+          params.operation === 'list_tasks' &&
+          params.taskFilterCompleted &&
+          params.taskFilterCompleted !== 'all'
+        )
           cleanParams.isCompleted = params.taskFilterCompleted === 'true'
         if (params.taskSort) cleanParams.sort = params.taskSort
 
@@ -1497,20 +1501,24 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.commentFormat) cleanParams.format = params.commentFormat
         if (params.commentAuthorType) cleanParams.authorType = params.commentAuthorType
         if (params.commentAuthorId) cleanParams.authorId = params.commentAuthorId
-        if (params.commentTarget === 'entry') {
+        // Blocks saved before commentTarget existed have no value for it — fall back to the
+        // pre-existing behavior (entry-based comment, or thread reply if a thread ID was set).
+        const commentTarget = params.commentTarget ?? (params.commentThreadId ? 'thread' : 'entry')
+        if (commentTarget === 'entry') {
           if (params.commentList) cleanParams.list = params.commentList
           if (params.commentEntryId) cleanParams.entryId = params.commentEntryId
-        } else if (params.commentTarget === 'record') {
+        } else if (commentTarget === 'record') {
           if (params.commentRecordObject) cleanParams.recordObject = params.commentRecordObject
           if (params.commentRecordId) cleanParams.recordId = params.commentRecordId
-        } else if (params.commentTarget === 'thread') {
+        } else if (commentTarget === 'thread') {
           if (params.commentThreadId) cleanParams.threadId = params.commentThreadId
         }
         if (params.commentCreatedAt) cleanParams.createdAt = params.commentCreatedAt
         if (params.commentId) cleanParams.commentId = params.commentId
 
         // Thread params
-        if (params.threadId) cleanParams.threadId = params.threadId
+        if (params.operation === 'get_thread' && params.threadId)
+          cleanParams.threadId = params.threadId
         if (params.threadFilterRecordId) cleanParams.recordId = params.threadFilterRecordId
         if (params.threadFilterObject) cleanParams.object = params.threadFilterObject
         if (params.threadFilterEntryId) cleanParams.entryId = params.threadFilterEntryId
