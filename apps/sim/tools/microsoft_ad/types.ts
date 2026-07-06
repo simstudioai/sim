@@ -79,7 +79,7 @@ export interface MicrosoftAdDeleteGroupParams extends MicrosoftAdBaseParams {
 }
 
 export interface MicrosoftAdListGroupMembersParams extends MicrosoftAdBaseParams {
-  groupId: string
+  groupId?: string
   top?: number
   nextLink?: string
 }

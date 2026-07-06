@@ -3,6 +3,7 @@ import type {
   MicrosoftAdListUsersResponse,
 } from '@/tools/microsoft_ad/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdListUsersResponse> = {
@@ -50,7 +51,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
   },
   request: {
     url: (params) => {
-      if (params.nextLink) return params.nextLink
+      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
       const queryParts: string[] = []
       queryParts.push(
         '$select=id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled'
@@ -93,7 +94,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       output: {
         users,
         userCount: users.length,
-        nextLink: data['@odata.nextLink'] ?? null,
+        nextLink: getGraphNextPageUrl(data) ?? null,
       },
     }
   },
