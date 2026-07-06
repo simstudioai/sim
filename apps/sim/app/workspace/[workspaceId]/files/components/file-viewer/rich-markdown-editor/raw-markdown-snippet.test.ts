@@ -219,6 +219,13 @@ describe('raw HTML block: does not fragment across blank lines', () => {
     expect(roundTrip(input)).toBe(input)
   })
 
+  it('does not mistake a tag name mentioned inside an indented (no blockquote) fenced code block for a real closing tag', () => {
+    const input =
+      '<div>\n\nExample:\n\n   ```html\n   <div>example</div>\n   ```\n\nmore body\n\n</div>'
+    expect(topLevelTypes(input)).toEqual(['rawHtmlBlock'])
+    expect(roundTrip(input)).toBe(input)
+  })
+
   it('treats a void block tag (no closing tag exists) as complete right after the open tag', () => {
     // `link`/`meta`/`base`/`hr` are in the CommonMark block-HTML whitelist but are void elements —
     // scanning for a `</meta>` that will never legitimately appear would risk grabbing unrelated

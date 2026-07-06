@@ -65,22 +65,25 @@ const ATTRS_RE_SOURCE = String.raw`(?:\s+[^\s"'=<>\`]+(?:\s*=\s*(?:"[^"]*"|'[^']
 const OPEN_TAG_RE = new RegExp(`^<([a-z][\\w-]*)\\b${ATTRS_RE_SOURCE}\\s*(/)?>`, 'i')
 
 /** A fenced block's opening/closing marker may sit inside a blockquote (each line prefixed with
- * up to 3 spaces then one or more `>` markers, each optionally followed by a space) — matched on
- * both the open and close fence line so a fence quoted like `> \`\`\`` still masks correctly. */
-const BLOCKQUOTE_PREFIX_SOURCE = '(?:[ ]{0,3}>[ ]?)*'
+ * up to 3 spaces then one or more `>` markers, each optionally followed by a space) and/or be
+ * independently indented up to 3 spaces with no blockquote at all (CommonMark's own fence-indent
+ * tolerance — matches `FENCE_OPEN`/`FENCE_CLOSE` in `./markdown-parse.ts`) — matched on both the
+ * open and close fence line so `> \`\`\`` and `   \`\`\`` both mask correctly. */
+const FENCE_PREFIX_SOURCE = '(?:[ ]{0,3}>[ ]?)*[ ]{0,3}'
 
 /**
  * Mask fenced code blocks and inline code spans with same-length filler (newlines kept, everything
  * else replaced with a space) so a tag-like mention *inside code* — `` `</details>` ``, or a fenced
  * example showing HTML syntax — is never mistaken for a real balancing tag while scanning. Mirrors
  * the fenced/inline patterns `stripCode` in `./round-trip-safety.ts` matches (extended to also
- * tolerate a blockquote prefix on the fence markers, since a raw HTML block can itself be quoted),
- * but preserves length/position (masks in place) instead of deleting, so match indices still map
+ * tolerate an indented and/or blockquoted fence marker via {@link FENCE_PREFIX_SOURCE}, since a raw
+ * HTML block can itself be indented or quoted), but preserves length/position (masks in place)
+ * instead of deleting, so match indices still map
  * onto the original, unmodified `src` the caller slices from.
  */
 function maskCodeRegions(src: string): string {
   const fenceRe = new RegExp(
-    `^${BLOCKQUOTE_PREFIX_SOURCE}([\`~]{3,})[^\\n]*\\n[\\s\\S]*?^${BLOCKQUOTE_PREFIX_SOURCE}\\1[\`~]*[ \\t]*$`,
+    `^${FENCE_PREFIX_SOURCE}([\`~]{3,})[^\\n]*\\n[\\s\\S]*?^${FENCE_PREFIX_SOURCE}\\1[\`~]*[ \\t]*$`,
     'gm'
   )
   return src
