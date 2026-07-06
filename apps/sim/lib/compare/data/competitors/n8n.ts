@@ -104,11 +104,10 @@ export const n8nProfile: CompetitorProfile = {
       source: { url: 'https://trust.n8n.io/', label: 'n8n Trust Center', asOf: '2026-07-02' },
     },
     {
-      title:
-        'SSO/SAML/LDAP, audit logging, and dedicated SLA support gated to paid/Enterprise tiers',
+      title: 'No RBAC or workflow sharing at all on the free Community edition',
       description:
-        'SSO/SAML/LDAP, custom project roles, audit log export/SIEM streaming, and dedicated SLA-backed support are not available on the Community (free, self-hosted) edition; they require the Business or Enterprise plans.',
-      shortDescription: 'Governance features require Business or Enterprise, not the free tier.',
+        "n8n's free, self-hosted Community edition has zero role-based access control; project roles and any workflow sharing require a paid Business or Enterprise plan. Sim includes baseline workspace and organization roles (admin/write/read) on every plan, including the free tier, and reserves only SSO/SAML/OIDC, audit-log export, and SLA-backed support for Enterprise.",
+      shortDescription: 'Free Community edition has zero RBAC; Sim includes roles on every plan.',
       source: { url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' },
     },
     {
@@ -449,7 +448,7 @@ export const n8nProfile: CompetitorProfile = {
       evaluationGuardrails: {
         value: 'Yes: dedicated Evaluations feature (Light + Metric-based)',
         detail:
-          "n8n provides an Evaluation node/trigger and an Evaluations tab supporting 'Light evaluations' (manual test cases during development) and 'Metric-based evaluations' (scoring at scale for production), with built-in metrics (AI-judged Helpfulness, string similarity, categorization, tools-used) plus custom metrics. n8n's own 2026 AI Agent Development Tools report scores n8n 0 out of 2 on both \"JSON validity\" and \"Format check\" evaluation types, versus Sim's 2 out of 2 on both, via Sim's Guardrails block.",
+          "n8n provides an Evaluation node/trigger and an Evaluations tab supporting 'Light evaluations' (manual test cases during development) and 'Metric-based evaluations' (scoring at scale for production), with built-in metrics (AI-judged Helpfulness, string similarity, categorization, tools-used) plus custom metrics.",
         shortValue: 'Light and metric-based evaluation testing',
         confidence: 'verified',
         sources: [
@@ -461,12 +460,6 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://blog.n8n.io/introducing-evaluations-for-ai-workflows/',
             label: 'n8n Blog: Introducing Evaluations for AI workflows',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-            label:
-              'n8n: 2026 AI Agent Development Tools report (JSON validity, Format check scores)',
             asOf: '2026-07-02',
           },
         ],
@@ -533,7 +526,7 @@ export const n8nProfile: CompetitorProfile = {
           'No: n8n has no first-class, named reusable prompt/knowledge-snippet object that agents reference. Reuse is achieved informally by exporting/importing workflow JSON or calling a sub-workflow (e.g. a "Tool (Workflow)" node) as a reusable scratchpad, not by a dedicated skills library.',
         shortValue: 'No dedicated reusable skill/snippet object',
         detail:
-          'System prompts are configured per AI Agent node; the closest analog is reusable sub-workflows or exported JSON, not a named, invokable skill library. n8n\'s own 2026 AI Agent Development Tools report independently scores n8n 0 out of 2 on "Agent skills directory," versus Sim\'s 2 out of 2.',
+          'System prompts are configured per AI Agent node; the closest analog is reusable sub-workflows or exported JSON, not a named, invokable skill library.',
         confidence: 'verified',
         sources: [
           {
@@ -544,11 +537,6 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://n8n.io/workflows/7066-create-multi-step-reasoning-ai-agents-with-gpt-4-and-reusable-thinking-tools/',
             label: 'Reusable thinking tools workflow template',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-            label: 'n8n: 2026 AI Agent Development Tools report (Agent skills directory score)',
             asOf: '2026-07-02',
           },
         ],

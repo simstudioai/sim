@@ -29,7 +29,7 @@ export const powerAutomateProfile: CompetitorProfile = {
     {
       title: 'Solutions-based ALM with managed/unmanaged packages and pipelines',
       description:
-        'Flows package into Dataverse Solutions (managed vs. unmanaged) and promote from dev to test to production via Power Platform Pipelines, with environment variables swapping per-environment references, a full multi-environment promotion model, not just single-workflow versioning.',
+        'Flows package into Dataverse Solutions (managed vs. unmanaged) and promote from dev to test to production via Power Platform Pipelines, with environment variables swapping per-environment references. The promotion is tied to Dataverse as a shared enterprise data platform, with centralized admin governance over which environments a solution can move into.',
       shortDescription:
         'Flows promote dev to test to production via Dataverse Solutions and Pipelines.',
       source: {
@@ -50,11 +50,11 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Multi-model choice including Anthropic Claude in Copilot Studio',
+      title: 'Tenant-wide admin gating with automatic model fallback in Copilot Studio',
       description:
-        'Copilot Studio added Claude Sonnet 4 and Claude Opus 4.1 as selectable models alongside OpenAI GPT models, with admin controls to enable/restrict and automatic fallback to the default OpenAI model if disabled.',
+        'Copilot Studio lets admins enable or restrict which models (including Anthropic Claude Sonnet 4 and Opus 4.1 alongside OpenAI GPT models) are available tenant-wide from the Microsoft 365 Admin Center, and agents automatically fall back to the default OpenAI GPT-4o model if their selected model is disabled, with no additional configuration required.',
       shortDescription:
-        'Copilot Studio supports Claude Sonnet 4 and Opus 4.1 alongside OpenAI models.',
+        'Admins gate model access tenant-wide, with automatic fallback to the default model.',
       source: {
         url: 'https://www.microsoft.com/en-us/microsoft-copilot/blog/copilot-studio/anthropic-joins-the-multi-model-lineup-in-microsoft-copilot-studio/',
         label: 'Anthropic joins the multi-model lineup in Microsoft Copilot Studio',
@@ -76,13 +76,13 @@ export const powerAutomateProfile: CompetitorProfile = {
   ],
   limitations: [
     {
-      title: 'No native side-by-side version diff/compare view',
+      title: 'No live, concurrent multi-user editing in the flow designer',
       description:
-        'Power Automate has version history with restore, but no built-in visual diff between two flow versions. Teams export both definitions and run a manual text diff in an external tool like VS Code to see what changed.',
-      shortDescription: 'No built-in visual diff between two flow versions.',
+        "Power Automate's cloud flow designer supports sharing a flow with co-owners and commenting on steps, but not live, concurrent multi-user editing with visible cursors and synced changes on the same flow. Microsoft's live coauthoring feature exists for Power Apps Studio canvas apps, a separate product, not the Power Automate flow designer.",
+      shortDescription: 'No true live co-editing in the flow designer, only sharing and comments.',
       source: {
-        url: 'https://sharepains.com/2024/04/26/version-history-in-power-automate-flows/',
-        label: 'Version history in Power Automate flows',
+        url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
+        label: 'Power Automate product page',
         asOf: '2026-07-02',
       },
     },

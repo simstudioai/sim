@@ -17,10 +17,10 @@ export const stackaiProfile: CompetitorProfile = {
     'StackAI is a proprietary, enterprise-focused visual platform for building, deploying, and governing AI agents, connecting LLMs and business systems through a drag-and-drop, low-code node builder.',
   standoutFeatures: [
     {
-      title: 'SOC 2 Type II and ISO 27001 certified, with a public Trust Center',
+      title: 'ISO 27001 certified, with a public Trust Center detailing pen tests and DPAs',
       description:
-        'StackAI publishes a Trust Center (trust.stackai.com) documenting SOC 2 Type II and ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic.',
-      shortDescription: 'Public Trust Center with SOC 2, ISO 27001, and pen test results.',
+        'StackAI publishes a Trust Center (trust.stackai.com) documenting ISO 27001 certification (alongside its SOC 2 Type II audit), third-party penetration test results, and DPAs with OpenAI and Anthropic.',
+      shortDescription: 'Public Trust Center with ISO 27001, pen test results, and DPAs.',
       source: {
         url: 'https://trust.stackai.com/',
         label: 'StackAI Trust Center',
@@ -28,9 +28,9 @@ export const stackaiProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Agentic Development Life Cycle (dev/staging/production promotion)',
+      title: 'PR-gated approval workflow for promoting agents between environments',
       description:
-        'StackAI provides three default, isolated environments (development, staging, production), plus custom environments. Promotion between them is gated by pull requests, each environment can connect to its own data sources, and an admin approval queue sits before production deploys.',
+        'StackAI provides three default, isolated environments (development, staging, production), plus custom environments. Promotion between them requires a pull request that must be reviewed and approved, with an admin approval queue sitting before production deploys. Sim also supports forking a workspace into dev/qa/prod-style environments with diff and promote/rollback, but without a mandatory PR-review or approval gate.',
       shortDescription: 'PR-gated dev/staging/production promotion with admin approval queues.',
       source: {
         url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
@@ -39,24 +39,13 @@ export const stackaiProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Version history with diff/compare and rollback',
+      title: 'Full version diff/compare on every manual edit, not just AI-generated changes',
       description:
-        'Every save creates a full version snapshot of an agent. A comparison tool shows added or removed nodes, prompt and LLM config changes, and connection changes. Any version can be reverted, and reverting creates a new version rather than erasing history.',
+        'Every save creates a full version snapshot of an agent, regardless of whether the change was made manually or by an AI assistant. A comparison tool shows added or removed nodes, prompt and LLM config changes, and connection changes. Any version can be reverted, and reverting creates a new version rather than erasing history. Sim diffs and reverts Copilot-generated edits, but manual edits only get local undo/redo, not a versioned diff.',
       shortDescription: 'Full version snapshots with diff/compare and one-click rollback.',
       source: {
         url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
         label: 'The Agentic Development Life Cycle - StackAI blog',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Human-in-the-loop approval gating before side effects',
-      description:
-        'A workflow can pause at a decision point and send an approval request, for example via Slack, Teams, or email, before a risky action like sending an email, writing to a database, or provisioning access. The run resumes once a human approves, rejects, or gives feedback.',
-      shortDescription: 'Pauses workflows for human approval before risky tool calls execute.',
-      source: {
-        url: 'https://www.stackai.com/blog/introducing-stackai-human-in-the-loop-agentic-workflows-you-can-trust',
-        label: 'Introducing StackAI Human-in-the-Loop - StackAI blog',
         asOf: '2026-07-02',
       },
     },

@@ -31,10 +31,10 @@ export const makeProfile: CompetitorProfile = {
     'Make (make.com) is a closed-source, cloud-only visual workflow-automation platform where users connect app "modules" on a canvas into scenarios. It now also offers AI Agent blocks, an MCP server, and a JS/Python code step, billed on a per-module-execution credit model.',
   standoutFeatures: [
     {
-      title: '8,000+ template gallery available on the free tier',
+      title: '3,000+ integrations and an 8,000+ template gallery, since 2012',
       description:
-        "Make's public template gallery hosts over 8,000 pre-built scenarios spanning thousands of use cases, browsable and importable free on every plan including Free, with users paying only for the credits consumed when the imported scenario runs.",
-      shortDescription: '8,000+ importable scenario templates, free on every plan including Free.',
+        'Make lists 3,000+ integration apps and a public gallery of over 8,000 pre-built, importable scenario templates, free to browse on every plan including Free. The platform has been in market since 2012 (as Integromat, rebranded Make in 2022), giving it a larger and longer-running ecosystem than most workflow-automation competitors.',
+      shortDescription: '3,000+ integrations, 8,000+ templates, in market since 2012.',
       source: {
         url: 'https://www.make.com/en/templates',
         label: 'Make Templates gallery',
@@ -53,35 +53,13 @@ export const makeProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Native MCP Server',
+      title: 'MCP Toolboxes for team-level shared servers',
       description:
-        'Make ships a first-party, cloud-hosted Model Context Protocol server that exposes any scenario as a callable tool to external AI agents/clients (Claude, Cursor, etc.) via a generated token and URL, with no local infrastructure to manage.',
-      shortDescription: 'Cloud-hosted MCP server exposes scenarios as tools with zero setup.',
+        'Beyond exposing a single scenario as an MCP tool, Make offers MCP Toolboxes: team-level dedicated MCP servers that bundle a curated subset of multiple scenarios behind one shared endpoint for external AI clients to call.',
+      shortDescription: 'Team-level MCP servers bundling multiple scenarios as tools.',
       source: {
-        url: 'https://www.make.com/en/blog/model-context-protocol-mcp-server',
-        label: 'Make blog: What is MCP Server?',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Built-in Knowledge/RAG store for agents',
-      description:
-        "Users upload files directly to an agent's 'Knowledge,' which Make automatically chunks, embeds, and stores in a RAG vector database so the agent retrieves only relevant chunks at inference time, reducing token usage.",
-      shortDescription: 'Uploaded files are auto-chunked and embedded into a RAG store for agents.',
-      source: {
-        url: 'https://help.make.com/knowledge',
-        label: 'Make Knowledge help doc',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'In-scenario JS/Python code step',
-      description:
-        "The native 'Make Code' module lets users execute arbitrary JavaScript (Node.js) or Python directly inside a scenario step with no external server, for custom transforms and logic beyond the visual modules.",
-      shortDescription: 'Run JS or Python inline as a scenario step, no external server needed.',
-      source: {
-        url: 'https://www.make.com/en/blog/make-code-app',
-        label: 'Make blog: Make Code App',
+        url: 'https://help.make.com/mcp-toolboxes',
+        label: 'MCP toolboxes - Make Help Center',
         asOf: '2026-07-02',
       },
     },
@@ -121,10 +99,10 @@ export const makeProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Audit logs and granular RBAC gated to higher tiers',
+      title: 'Granular RBAC gated to the Teams plan and above',
       description:
-        'Audit logs and full team/role-based permission management are only available starting on the Teams plan ($38/mo) and Enterprise, with default log retention of just 30 days even on paid plans; lower tiers (Free, Core, Pro) lack these governance controls.',
-      shortDescription: 'Audit logs and role-based permissions require the Teams plan or above.',
+        "Full team/role-based permission management is only available starting on the Teams plan ($38/mo) and Enterprise; lower tiers (Free, Core, Pro) get unlimited users but no role-based access controls, unlike Sim, which ships admin/write/read roles on every tier. Audit logs are also gated to Teams/Enterprise, with default retention of just 30 days on paid plans, though this specific gating pattern isn't unique to Make: Sim's own dedicated audit-log API is likewise Enterprise-only.",
+      shortDescription: 'RBAC needs the Teams plan or above; audit logs are similarly gated.',
       source: {
         url: 'https://www.make.com/en/pricing',
         label: 'Make Pricing page',

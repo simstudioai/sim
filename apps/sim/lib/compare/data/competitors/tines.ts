@@ -17,6 +17,17 @@ export const tinesProfile: CompetitorProfile = {
     'Tines is a proprietary workflow automation platform, available cloud-hosted or self-hosted, originally built for security operations. Teams build event-driven "Stories" via a visual no/low-code canvas, natural language, or the API. It recently added native AI agent, MCP, and copilot capabilities.',
   standoutFeatures: [
     {
+      title: 'ISO 42001 AI-governance certification',
+      description:
+        'Tines announced the "ISO trifecta" on April 14, 2026: ISO 27001, ISO 27701, and ISO 42001, the international standard for AI management systems.',
+      shortDescription: 'Holds ISO 27001, ISO 27701, and ISO 42001 AI-governance certification.',
+      source: {
+        url: 'https://www.tines.com/blog/tines-achieves-the-iso-trifecta-iso-27001-iso-27701-and-iso-42001-certification/',
+        label: 'Tines achieves the ISO trifecta',
+        asOf: '2026-07-02',
+      },
+    },
+    {
       title: 'API-centric integration model',
       description:
         'Instead of a fixed library of app connectors, Tines is built around a generic HTTP Request action that calls any API directly, trading pre-built connectors for broader reach and more manual setup.',
@@ -29,35 +40,13 @@ export const tinesProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'ISO 42001 AI-governance certification',
+      title: 'Tines University certification ladder',
       description:
-        'Tines announced the "ISO trifecta" on April 14, 2026: ISO 27001, ISO 27701, and ISO 42001, the international standard for AI management systems.',
-      shortDescription: 'Holds ISO 27001, ISO 27701, and ISO 42001 AI-governance certification.',
+        'Tines University pairs free foundational courses with instructor-led and self-paced Bootcamps and two certification tiers, Core and Advanced, that builders can share on LinkedIn. Sim Academy is a structured docs section without a formal certification path.',
+      shortDescription: 'Core and Advanced certifications builders can share on LinkedIn.',
       source: {
-        url: 'https://www.tines.com/blog/tines-achieves-the-iso-trifecta-iso-27001-iso-27701-and-iso-42001-certification/',
-        label: 'Tines achieves the ISO trifecta',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Workbench natural-language builder',
-      description:
-        'Users describe an automation in plain language and Workbench, the platform-wide AI assistant, generates the Story automatically. Workbench absorbed the former "Story Copilot," which was renamed "Workbench for Storyboard" on June 2, 2026.',
-      shortDescription: 'Workbench turns plain-language descriptions into working automations.',
-      source: {
-        url: 'https://www.tines.com/whats-new/workbench-for-stories/',
-        label: "Tines What's New",
-        asOf: '2026-07-04',
-      },
-    },
-    {
-      title: 'Native MCP server and client support',
-      description:
-        'Tines can act as both an MCP server (exposing its actions to AI clients) and an MCP client (consuming external MCP tools), framed around governed, policy-aligned AI access rather than unrestricted tool use.',
-      shortDescription: 'Acts as both an MCP server and client for governed AI tool access.',
-      source: {
-        url: 'https://www.tines.com/platform/ai/',
-        label: 'AI Agents, Copilots & MCP | Tines',
+        url: 'https://www.tines.com/get-certified/',
+        label: 'Get certified | Tines',
         asOf: '2026-07-02',
       },
     },
@@ -1131,6 +1120,8 @@ export const tinesProfile: CompetitorProfile = {
       companyMaturity: {
         value:
           'Founded 2018 (Dublin/Boston) by Eoin Hinchy and Thomas Kinsella; raised ~$272M total across 6 rounds, most recently a $125M Series C (Feb 2025) led by Goldman Sachs at unicorn valuation (~$1.125B); reported headcount roughly 500-550 as of early-to-mid 2026',
+        detail:
+          "No funding round beyond the Feb 2025 Series C is publicly confirmed as of this profile's research date; headcount reflects the most recently reported figures (around 548 employees as of March 2026), not necessarily the current count.",
         shortValue: 'Founded 2018, ~$272M raised, ~500-550 employees',
         confidence: 'estimated',
         sources: [

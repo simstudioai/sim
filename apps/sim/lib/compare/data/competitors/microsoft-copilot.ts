@@ -42,22 +42,11 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Reusable, portable Agent Skills',
+      title: 'Automatic fallback to a default model if a selected model is disabled',
       description:
-        'A Skill is a named capability defined once as a SKILL.md file (YAML front matter plus Markdown instructions, optionally bundled with scripts, templates, or reference documents into a ZIP package). Skills are authored in Copilot Studio or a text editor, attached to multiple agents, and exported to share with others, unlike a one-off system prompt tied to a single agent.',
-      shortDescription: 'Named, Markdown-defined capabilities reusable across multiple agents.',
-      source: {
-        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/skills-overview',
-        label: 'Skills overview for agents (preview) - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Multi-model support including Anthropic Claude and bring-your-own-model',
-      description:
-        'Agents can use OpenAI GPT models, Anthropic Claude Sonnet 4 and Opus 4.1, any model in the Azure AI Model Catalog, or a bring-your-own-model connection to an Azure AI Foundry deployment (endpoint URI, deployment name, and API key) for individual prompts. Admins enable or restrict non-default models tenant-wide, and the agent falls back to the default OpenAI model automatically if a selected model is disabled.',
+        'Agents can use OpenAI GPT models, Anthropic Claude Sonnet 4 and Opus 4.1, any model in the Azure AI Model Catalog, or a bring-your-own-model connection to an Azure AI Foundry deployment (endpoint URI, deployment name, and API key) for individual prompts. Admins enable or restrict non-default models tenant-wide, and if a selected model is disabled, the agent falls back to the default OpenAI model automatically rather than failing the request.',
       shortDescription:
-        'OpenAI, Anthropic Claude, Azure AI Model Catalog, or a bring-your-own model.',
+        'Falls back to the default OpenAI model automatically if a selected model is disabled.',
       source: {
         url: 'https://www.microsoft.com/en-us/microsoft-copilot/blog/copilot-studio/anthropic-joins-the-multi-model-lineup-in-microsoft-copilot-studio/',
         label: 'Anthropic joins the multi-model lineup in Microsoft Copilot Studio',

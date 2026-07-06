@@ -39,7 +39,7 @@ export const retoolProfile: CompetitorProfile = {
     {
       title: 'Retool Vectors (managed vector store)',
       description:
-        "A Retool-managed vector database that automatically indexes uploaded text, PDFs, or web pages, so AI apps and agents can look up relevant content with one click instead of building a custom search pipeline. The lookups always run through OpenAI's embedding API, even when the chat model is a different provider.",
+        "A Retool-managed vector database that automatically indexes uploaded text, PDFs, or web pages, so AI apps and agents can look up relevant content with one click. The lookups always run through OpenAI's embedding API, even when the chat model is a different provider, so there is no way to tune or swap the embedding step independently of the chat model.",
       shortDescription:
         'Managed vector database with automatic indexing for one-click content lookup.',
       source: {
@@ -49,11 +49,11 @@ export const retoolProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Bidirectional MCP support',
+      title: 'Workspace-level MCP server for platform management',
       description:
-        'Retool Agents can connect outbound to external MCP servers (a standard for plugging AI agents into outside tools) to pull in tools like GitHub or Jira. Retool also exposes its own workspace as an MCP server (public beta), so build and management actions, such as creating apps, running queries, and managing users, can be performed directly from Claude, Cursor, Codex, or Kiro. This does not let you publish an individual deployed app or workflow as its own standalone MCP tool for outside consumption.',
+        'Retool Agents can connect outbound to external MCP servers (a standard for plugging AI agents into outside tools) to pull in tools like GitHub or Jira. Retool also exposes its own workspace as an MCP server (public beta), so platform-administration actions, such as creating apps, running queries, and managing users, can be performed directly from Claude, Cursor, Codex, or Kiro. This does not let you publish an individual deployed app or workflow as its own standalone MCP tool for outside consumption.',
       shortDescription:
-        'Connects to external MCP servers and exposes workspace management actions as one.',
+        'Connects to external MCP servers and exposes workspace administration actions as one.',
       source: {
         url: 'https://retool.com/blog/how-to-use-mcp-in-retool',
         label: 'How to use MCP in Retool',
@@ -63,8 +63,8 @@ export const retoolProfile: CompetitorProfile = {
     {
       title: 'Retool Agents (deterministic + non-deterministic decisioning)',
       description:
-        'A dedicated agent-building surface that combines code-based deterministic logic, LLM-based non-deterministic decisions, and human-in-the-loop steps within one automation, distinct from the classic Workflows product.',
-      shortDescription: 'Combines deterministic logic, LLM decisions, and human-in-the-loop steps.',
+        'A dedicated agent-building surface, separate from the classic Workflows product, that combines code-based deterministic logic, LLM-based non-deterministic decisions, and human-in-the-loop steps within one automation. Sim covers the same ground with agent, function, and human-in-the-loop blocks combined directly in its single workflow builder, without needing a second product.',
+      shortDescription: 'A separate product from classic Workflows for combining these primitives.',
       source: {
         url: 'https://docs.retool.com/agents',
         label: 'Retool Agents docs',

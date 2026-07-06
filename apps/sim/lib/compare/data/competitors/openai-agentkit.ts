@@ -33,9 +33,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     "OpenAI AgentKit bundled a visual Agent Builder, ChatKit embeddable chat UI, Connector Registry, Guardrails, and Evals for building agentic workflows on OpenAI's models. But OpenAI is winding down Agent Builder and Evals, with full shutdown November 30, 2026, in favor of the code-first Agents SDK or ChatGPT Workspace Agents.",
   standoutFeatures: [
     {
-      title: 'Code-first, all-OpenAI stack with no visual builder going forward',
+      title: 'An official, open-source Agents SDK wired natively to its own models',
       description:
-        "With Agent Builder and Evals winding down (full shutdown November 30, 2026), OpenAI's path forward is the code-first Agents SDK, openai-agents-python, open source under the MIT license with over 27,500 GitHub stars, natively wired into OpenAI's own model lineup. A team fully committed to an all-OpenAI, code-first stack, with no visual builder layer, gets that directly.",
+        "The Agents SDK, openai-agents-python, is open source under the MIT license with over 27,500 GitHub stars and natively wired into OpenAI's own model lineup. It's the path OpenAI is steering AgentKit users toward as Agent Builder and Evals wind down (full shutdown November 30, 2026), and a team fully committed to an all-OpenAI, code-first stack gets that directly.",
       shortDescription: 'Open-source code-first framework, natively wired to OpenAI models.',
       source: {
         url: 'https://github.com/openai/openai-agents-python',
@@ -66,13 +66,13 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Guardrails open-source safety layer',
+      title: 'Guardrails ships as a standalone, installable open-source package',
       description:
-        'Agent Builder shipped an open-source, modular guardrails layer that can mask/flag PII, detect jailbreaks, and apply other safety checks around agent behavior.',
-      shortDescription: 'Open-source guardrails layer masks PII and detects jailbreaks.',
+        "Agent Builder's Guardrails node is backed by a separately installable, open-source package that can be used outside AgentKit entirely, adding jailbreak detection alongside PII masking and other safety checks. Sim's Guardrails block covers PII masking and hallucination/RAG scoring too, but it's a built-in workflow block, not a standalone library you can drop into an unrelated codebase.",
+      shortDescription: 'Standalone open-source package adds jailbreak detection to PII masking.',
       source: {
-        url: 'https://openai.com/index/introducing-agentkit/',
-        label: 'Introducing AgentKit (via search excerpt)',
+        url: 'https://guardrails.openai.com/',
+        label: 'OpenAI Guardrails',
         asOf: '2026-07-02',
       },
     },
@@ -105,7 +105,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       title:
         'Usage-based, per-token/per-call pricing with no published flat plan for AgentKit itself',
       description:
-        'There is no dedicated AgentKit subscription tier. Costs are the sum of model tokens, Code Interpreter sessions ($0.03-$1.92 per session by memory tier), and File Search ($0.10/GB-day storage plus $2.50 per 1,000 tool calls), which makes cost forecasting harder than a flat, seat-based plan.',
+        "There is no dedicated AgentKit subscription tier. Costs are the sum of model tokens, Code Interpreter sessions ($0.03-$1.92 per session by memory tier), and File Search ($0.10/GB-day storage plus $2.50 per 1,000 tool calls), which makes cost forecasting harder than Sim's published pricing, where a Pro seat is a flat $25/user/month with a monthly credit allowance included, rather than open-ended per-token and per-call metering.",
       shortDescription: 'No flat plan; costs scale with token and tool usage.',
       source: {
         url: 'https://developers.openai.com/api/docs/pricing',

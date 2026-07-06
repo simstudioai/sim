@@ -32,7 +32,7 @@ export const openClawProfile: CompetitorProfile = {
     {
       title: 'ClawHub Skills marketplace with multi-scanner security pipeline',
       description:
-        'Skills are Markdown-based instruction packages (SKILL.md files) installable from the public ClawHub registry, git repos, or local directories. Every published skill runs through a ClawScan pipeline combining static analysis, VirusTotal, and NVIDIA SkillSpector (added June 2026), and gets a Clean/Suspicious/Malicious verdict plus a Skill Card documenting provenance.',
+        "Skills are Markdown-based instruction packages (SKILL.md files) installable from the public ClawHub registry, git repos, or local directories. Every published skill runs through a ClawScan pipeline combining static analysis, VirusTotal, and NVIDIA SkillSpector (added June 2026), and gets a Clean/Suspicious/Malicious verdict plus a Skill Card documenting provenance. This scanning was introduced only after researchers found roughly 900 ClawHub skills with a documented credential-leak or malware finding (see limitations), and OpenClaw's own docs still tell users to treat third-party skills as untrusted code.",
       shortDescription:
         'Markdown skills from ClawHub, each scanned by static analysis, VirusTotal, and SkillSpector.',
       source: {
@@ -68,7 +68,7 @@ export const openClawProfile: CompetitorProfile = {
     {
       title: 'Markdown-file memory instead of an opaque vector store',
       description:
-        "Long-term memory is stored as plain, human-readable Markdown files (daily notes plus a curated MEMORY.md), layered with semantic search (memorySearch), instead of hiding retrieved context inside a vector database the user can't inspect or edit directly.",
+        'Long-term memory is stored as plain, human-readable Markdown files (daily notes plus a curated MEMORY.md), layered with semantic search (memorySearch), instead of running an ingestion/chunking pipeline into a database. The files are natively git-trackable and editable in any text editor, with no separate KB module standing between the user and their own memory.',
       shortDescription:
         'Long-term memory lives in editable Markdown files, not a hidden vector store.',
       source: {
@@ -128,11 +128,10 @@ export const openClawProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'No enterprise compliance certifications (SOC 2, ISO 27001, HIPAA)',
+      title: 'No SOC 2 report or other compliance attestation',
       description:
-        'OpenClaw is a self-hosted open-source project run by a non-profit foundation, not a vendor selling a hosted service, so it publishes no SOC 2, ISO 27001, HIPAA, or similar compliance attestation. Security for data-at-rest and processing falls entirely on the operator running their own instance.',
-      shortDescription:
-        'No SOC 2/ISO/HIPAA attestations; the self-hosting operator owns all compliance risk.',
+        'OpenClaw is a self-hosted open-source project run by a non-profit foundation, not a vendor selling a hosted service, so it publishes no SOC 2 report or other compliance attestation. Sim is SOC 2 compliant; like OpenClaw, Sim does not currently hold ISO 27001 or HIPAA certification. Security for data-at-rest and processing on OpenClaw falls entirely on the operator running their own instance.',
+      shortDescription: 'No SOC 2 report; the self-hosting operator owns all compliance risk.',
       source: {
         url: 'https://docs.openclaw.ai/gateway/security',
         label: 'OpenClaw Docs: Security',
