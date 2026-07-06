@@ -64,7 +64,10 @@ export const listGroupsTool: ToolConfig<
       }
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
       if (params.search) {
-        queryParts.push(`$search="${encodeURIComponent(params.search)}"`)
+        const term = params.search.replace(/"/g, '\\"')
+        queryParts.push(
+          `$search=${encodeURIComponent(`"displayName:${term}" OR "description:${term}"`)}`
+        )
         queryParts.push('$count=true')
       }
       return `https://graph.microsoft.com/v1.0/groups?${queryParts.join('&')}`

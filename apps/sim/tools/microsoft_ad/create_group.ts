@@ -66,7 +66,7 @@ export const createGroupTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Group visibility: "Private", "Public", or "HiddenMembership" (Microsoft 365 groups only; can only be set at creation)',
+        'Group visibility: "Private" or "Public" (can be changed later), or "HiddenMembership" (Microsoft 365 groups only; can only be set at creation and never changed afterward)',
     },
   },
   request: {
