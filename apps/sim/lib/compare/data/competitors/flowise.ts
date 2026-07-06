@@ -29,23 +29,23 @@ export const flowiseProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Agentflow V2 with built-in human-in-the-loop and evaluation',
+      title: 'Built-in dataset-based batch evaluation',
       description:
-        'Agentflow V2 supports loops, conditional branching, and a dedicated Human Input node that pauses execution for approve/reject feedback before sensitive tool calls (bookings, sends, orders) proceed. Flowise also ships a built-in Evaluations feature that runs chatflows/agentflows against a dataset, scoring outputs with string, numeric, or LLM-as-judge evaluators and reporting pass/fail rate, average tokens, and latency.',
+        "Flowise ships a built-in Evaluations feature that runs chatflows/agentflows against a saved dataset in one batch, scoring outputs with string, numeric, or LLM-as-judge evaluators and reporting pass/fail rate, average tokens, and latency across the whole run. Sim's own Evaluator block scores individual calls against user-defined metrics, but has no equivalent golden-dataset batch runner. (Flowise's Agentflow V2 also has a Human Input node for pausing on approve/reject feedback, comparable to Sim's own human-in-the-loop approval block.)",
       shortDescription:
-        'Native human-approval node plus built-in dataset-based LLM-judge evaluation reporting.',
+        'Built-in dataset-based batch evaluation with LLM-judge scoring and pass/fail reporting.',
       source: {
-        url: 'https://docs.flowiseai.com/tutorials/human-in-the-loop',
-        label: 'Flowise Docs: Human In The Loop',
+        url: 'https://docs.flowiseai.com/using-flowise/evaluations',
+        label: 'Flowise Docs: Evaluations',
         asOf: '2026-07-02',
       },
     },
     {
-      title: 'Large open-source project with Apache 2.0 core',
+      title: 'Larger existing open-source community, on the same Apache 2.0 license as Sim',
       description:
-        "Flowise's Community Edition is Apache License 2.0, its GitHub repo has roughly 54,000 stars, and it has an active Discord community with full self-hosting support via Docker.",
+        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is community scale: its GitHub repo has roughly 54,000 stars and an active Discord community built up since 2023.',
       shortDescription:
-        'Apache 2.0 licensed, ~54k GitHub stars, actively maintained open-source project.',
+        'Same Apache 2.0 license as Sim, but a larger existing community: ~54k GitHub stars, active Discord.',
       source: {
         url: 'https://github.com/FlowiseAI/Flowise',
         label: 'GitHub: FlowiseAI/Flowise',

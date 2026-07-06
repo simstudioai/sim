@@ -29,10 +29,11 @@ export const langflowProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Dual-direction MCP support',
+      title: 'Zero-step MCP server exposure',
       description:
-        'Langflow can act as an MCP client, connecting to external MCP servers as tool sources. It also automatically exposes every flow with a Chat Output as its own MCP server, so any flow becomes a callable tool for outside MCP clients.',
-      shortDescription: 'Both consumes external MCP servers and publishes flows as MCP servers.',
+        'Every Langflow project is automatically registered as an MCP server the moment it is created, exposing any flow with a Chat Output as a callable MCP tool with no separate publish or deploy step. Sim also supports both MCP client and server roles, but publishing a workflow as an MCP tool requires an explicit deploy step.',
+      shortDescription:
+        'Every project auto-registers as an MCP server on creation, no deploy step.',
       source: {
         url: 'https://docs.langflow.org/mcp-server',
         label: 'Langflow Docs: Use Langflow as an MCP server',

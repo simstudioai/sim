@@ -50,22 +50,11 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Zapier Copilot (natural-language build assistant)',
       description:
-        'Copilot lets users describe an automation or agent in plain language and generates a draft Zap or agent, including custom code steps to fill integration gaps. In open beta.',
+        'Copilot (open beta) lets users describe an automation or agent in plain language and generates a draft Zap or agent, including custom code steps to fill integration gaps. Sim offers the same natural-language building capability via Chat and in-editor Copilot.',
       shortDescription: 'Describe an automation and Copilot builds the Zap or agent for you.',
       source: {
         url: 'https://zapier.com/blog/zapier-copilot-guide/',
         label: 'Zapier Copilot: Build systems even faster with AI',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Multi-provider LLM support across Zaps/Agents/Chatbots',
-      description:
-        'Zapier lets users choose among OpenAI (GPT), Anthropic (Claude), and Google (Gemini) models inside AI-powered steps and chatbots, with BYOK for OpenAI, Anthropic, Gemini, and Azure OpenAI keys.',
-      shortDescription: 'Choose OpenAI, Anthropic, or Google models, with BYOK support.',
-      source: {
-        url: 'https://zapier.com/blog/ai-models-on-zapier/',
-        label: 'Which AI models can you automate on Zapier?',
         asOf: '2026-07-02',
       },
     },
@@ -85,8 +74,9 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Task-based pricing scales quickly with usage',
       description:
-        'Every Zap action step, and every MCP tool call at 2 tasks each, consumes a metered task, so pricing and plan tier are driven by execution volume rather than a flat seat or workflow count. Costs rise fast as usage grows.',
-      shortDescription: 'Costs scale with execution volume, not a flat seat count.',
+        "Every Zap action step, and every MCP tool call at 2 tasks each, consumes a metered task, so pricing and plan tier are driven by execution volume rather than a flat seat or workflow count. There's no way to fully exempt usage from the task count: even bringing your own AI provider key only covers AI-powered steps and chatbots, not the underlying app-action tasks. Costs rise fast as usage grows with no BYOK path around the per-task metering.",
+      shortDescription:
+        'Costs scale with task volume; BYOK only covers AI steps, not app-action tasks.',
       source: {
         url: 'https://www.activepieces.com/blog/zapier-pricing',
         label: 'Zapier Pricing Breakdown (third-party analysis)',
@@ -108,7 +98,7 @@ export const zapierProfile: CompetitorProfile = {
       title: 'No documented data-residency choice',
       description:
         "Zapier's infrastructure runs on AWS in the United States, with no selectable regional data residency or EU-only hosting option for standard customers.",
-      shortDescription: 'Runs on AWS in the US only, no regional hosting choice.',
+      shortDescription: 'No selectable region; standard customers are US-only (AWS).',
       source: {
         url: 'https://zapier.com/security-compliance',
         label: 'Zapier Security & Compliance (via search cache)',

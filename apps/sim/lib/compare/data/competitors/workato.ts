@@ -44,13 +44,13 @@ export const workatoProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Enterprise MCP server hosting',
+      title: "Pre-built departmental agents ('Genies')",
       description:
-        'Workato exposes existing recipes and workflows as MCP tools through pre-built and remote/cloud-hosted MCP servers, letting any MCP-compatible client (Claude, ChatGPT, Agent Studio) dynamically discover and call enterprise workflows as agent tools without custom integration code.',
-      shortDescription: 'Recipes and workflows exposed as MCP tools for any compatible client.',
+        'Agent Studio ships ready-made departmental agents (Genies) for IT, Sales, HR, Support, CX, and Marketing that customers can deploy and customize directly, alongside the option to build a custom agent from scratch.',
+      shortDescription: 'Ready-made departmental agents (Genies) for IT, Sales, HR, and more.',
       source: {
-        url: 'https://docs.workato.com/mcp.html',
-        label: 'MCP | Workato docs',
+        url: 'https://docs.workato.com/agentic/agentic.html',
+        label: 'Agentic | Workato docs',
         asOf: '2026-07-02',
       },
     },
@@ -69,8 +69,9 @@ export const workatoProfile: CompetitorProfile = {
     {
       title: 'Bring-Your-Own-LLM for Agent Studio',
       description:
-        "Customers can power Genies with their own OpenAI or Anthropic API credentials instead of Workato's managed model contracts, giving direct control over LLM cost and vendor choice for agent workloads.",
-      shortDescription: 'Genies can run on customer-supplied OpenAI or Anthropic API keys.',
+        "Customers can power Genies with their own OpenAI or Anthropic API credentials instead of Workato's managed model contracts, giving direct control over LLM cost and vendor choice for agent workloads. This BYOLLM option is scoped to two providers and to Agent Studio specifically; Sim's own BYOK support spans any provider across every block, exempts usage from metered credit caps, and automatically round-robins multiple stored keys for the same provider.",
+      shortDescription:
+        'Genies can run on customer-supplied OpenAI or Anthropic API keys, narrower in scope than Sim.',
       source: {
         url: 'https://www.workato.com/product-hub/changelog/bring-your-own-llm-byollm-support-for-agent-studio/',
         label: 'Bring Your Own LLM (BYOLLM) Support for Agent Studio | Workato Product Hub',
@@ -120,6 +121,17 @@ export const workatoProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.workato.com/en/agentic/agent-studio/knowledge-bases/knowledge-bases.html',
         label: 'Knowledge bases | Workato Docs',
+        asOf: '2026-07-02',
+      },
+    },
+    {
+      title: 'SSO limited to SAML, no confirmed OIDC',
+      description:
+        "Workato's SSO documentation covers SAML with just-in-time provisioning and SAML role sync; it does not mention OIDC anywhere, so there is no public confirmation Workato supports it. Sim supports both SAML 2.0 and OIDC single sign-on.",
+      shortDescription: 'Documented SSO is SAML-only, with no confirmed OIDC support.',
+      source: {
+        url: 'https://docs.workato.com/user-accounts-and-teams/single-sign-on.html',
+        label: 'Workato Docs: Enable Single Sign-On for a Workato Workspace',
         asOf: '2026-07-02',
       },
     },
