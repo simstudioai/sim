@@ -80,6 +80,12 @@ export const sendEventTool: ToolConfig<PagerDutySendEventParams, PagerDutySendEv
         event_action: params.eventAction,
       }
 
+      if (params.eventAction === 'acknowledge' || params.eventAction === 'resolve') {
+        if (!params.dedupKey) {
+          throw new Error('dedupKey is required when eventAction is acknowledge or resolve')
+        }
+      }
+
       if (params.dedupKey) body.dedup_key = params.dedupKey
 
       if (params.eventAction === 'trigger') {

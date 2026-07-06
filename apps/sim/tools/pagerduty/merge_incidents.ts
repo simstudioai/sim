@@ -50,16 +50,23 @@ export const mergeIncidentsTool: ToolConfig<
       'Content-Type': 'application/json',
       From: params.fromEmail,
     }),
-    body: (params) => ({
-      source_incidents: params.sourceIncidentIds
+    body: (params) => {
+      const sourceIds = params.sourceIncidentIds
         .split(',')
         .map((id) => id.trim())
         .filter((id) => id.length > 0)
-        .map((id) => ({
+
+      if (sourceIds.length === 0) {
+        throw new Error('sourceIncidentIds must contain at least one non-empty incident ID')
+      }
+
+      return {
+        source_incidents: sourceIds.map((id) => ({
           id,
           type: 'incident_reference',
         })),
-    }),
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {

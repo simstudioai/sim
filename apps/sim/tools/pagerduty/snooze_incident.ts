@@ -52,7 +52,7 @@ export const snoozeIncidentTool: ToolConfig<
     }),
     body: (params) => {
       const duration = Number(params.duration)
-      if (!Number.isFinite(duration) || duration < 1 || duration > 604800) {
+      if (!Number.isInteger(duration) || duration < 1 || duration > 604800) {
         throw new Error('duration must be a whole number of seconds between 1 and 604800')
       }
       return { duration }
