@@ -43,9 +43,17 @@ export const listGroupsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Search string to filter groups by displayName or description',
     },
+    nextLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+    },
   },
   request: {
     url: (params) => {
+      if (params.nextLink) return params.nextLink
       const queryParts: string[] = []
       queryParts.push(
         '$select=id,displayName,description,mail,mailEnabled,mailNickname,securityEnabled,groupTypes,visibility,createdDateTime'
@@ -86,6 +94,7 @@ export const listGroupsTool: ToolConfig<
       output: {
         groups,
         groupCount: groups.length,
+        nextLink: data['@odata.nextLink'] ?? null,
       },
     }
   },
@@ -96,5 +105,10 @@ export const listGroupsTool: ToolConfig<
       properties: GROUP_OUTPUT_PROPERTIES,
     },
     groupCount: { type: 'number', description: 'Number of groups returned' },
+    nextLink: {
+      type: 'string',
+      description: 'Continuation URL for the next page of results, or null if there are no more',
+      optional: true,
+    },
   },
 }

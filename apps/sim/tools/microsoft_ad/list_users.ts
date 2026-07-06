@@ -40,9 +40,17 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       visibility: 'user-or-llm',
       description: 'Search string to filter users by displayName or mail',
     },
+    nextLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+    },
   },
   request: {
     url: (params) => {
+      if (params.nextLink) return params.nextLink
       const queryParts: string[] = []
       queryParts.push(
         '$select=id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled'
@@ -84,6 +92,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       output: {
         users,
         userCount: users.length,
+        nextLink: data['@odata.nextLink'] ?? null,
       },
     }
   },
@@ -94,5 +103,10 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       properties: USER_OUTPUT_PROPERTIES,
     },
     userCount: { type: 'number', description: 'Number of users returned' },
+    nextLink: {
+      type: 'string',
+      description: 'Continuation URL for the next page of results, or null if there are no more',
+      optional: true,
+    },
   },
 }

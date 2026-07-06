@@ -8,6 +8,7 @@ export interface MicrosoftAdListUsersParams extends MicrosoftAdBaseParams {
   top?: number
   filter?: string
   search?: string
+  nextLink?: string
 }
 
 export interface MicrosoftAdGetUserParams extends MicrosoftAdBaseParams {
@@ -48,6 +49,7 @@ export interface MicrosoftAdListGroupsParams extends MicrosoftAdBaseParams {
   top?: number
   filter?: string
   search?: string
+  nextLink?: string
 }
 
 export interface MicrosoftAdGetGroupParams extends MicrosoftAdBaseParams {
@@ -79,6 +81,7 @@ export interface MicrosoftAdDeleteGroupParams extends MicrosoftAdBaseParams {
 export interface MicrosoftAdListGroupMembersParams extends MicrosoftAdBaseParams {
   groupId: string
   top?: number
+  nextLink?: string
 }
 
 export interface MicrosoftAdAddGroupMemberParams extends MicrosoftAdBaseParams {
@@ -129,6 +132,7 @@ export interface MicrosoftAdListUsersResponse extends ToolResponse {
   output: {
     users: Array<Record<string, unknown>>
     userCount: number
+    nextLink: string | null
   }
 }
 
@@ -162,6 +166,7 @@ export interface MicrosoftAdListGroupsResponse extends ToolResponse {
   output: {
     groups: Array<Record<string, unknown>>
     groupCount: number
+    nextLink: string | null
   }
 }
 
@@ -195,6 +200,7 @@ export interface MicrosoftAdListGroupMembersResponse extends ToolResponse {
   output: {
     members: Array<Record<string, unknown>>
     memberCount: number
+    nextLink: string | null
   }
 }
 

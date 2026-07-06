@@ -37,9 +37,17 @@ export const listGroupMembersTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of members to return (default 100, max 999)',
     },
+    nextLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+    },
   },
   request: {
     url: (params) => {
+      if (params.nextLink) return params.nextLink
       const groupId = params.groupId?.trim()
       if (!groupId) throw new Error('Group ID is required')
       const queryParts = ['$select=id,displayName,mail']
@@ -64,6 +72,7 @@ export const listGroupMembersTool: ToolConfig<
       output: {
         members,
         memberCount: members.length,
+        nextLink: data['@odata.nextLink'] ?? null,
       },
     }
   },
@@ -74,5 +83,10 @@ export const listGroupMembersTool: ToolConfig<
       properties: MEMBER_OUTPUT_PROPERTIES,
     },
     memberCount: { type: 'number', description: 'Number of members returned' },
+    nextLink: {
+      type: 'string',
+      description: 'Continuation URL for the next page of results, or null if there are no more',
+      optional: true,
+    },
   },
 }
