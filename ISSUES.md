@@ -85,6 +85,28 @@ inserted before the rollback opened a new lost-message window on Stop. See R0.
   fix needs a signature change — thread `context.chatId` from the callers
   (e.g. `edit-content.ts` already has it) into `compileDoc`, then route
   through resolveToolInputFile.
+- R8 (manual testing 2026-07-06, plan test 2) — flag-on `create_file` schema
+  contradicts the sim guard: mothership advertises `outputs/<name>` as a
+  valid destination (`catalog/files/canonical_resources.go:10`, wired in
+  `catalog/files/create_file.go:23`) while sim's server tool unconditionally
+  rejects outputs/ targets (`create-file.ts:57`) with advice to "create
+  editable files under files/ instead" — so an explicit "create
+  outputs/notes.md" reliably lands at `files/notes.md` (leaf only), with the
+  agent confidently narrating the fallback. Deterministic, not model flake.
+  Deeper gap: NO tool is prompt-encouraged to create a *text* output. The
+  only context-threaded path is function_execute's returned-value
+  `outputs.files` write (`request/tools/files.ts:260`), but function_execute's
+  own description forbids ordinary file creation and points back to the
+  dedicated file tools — circular steering. Fix: (a) create_file must use the
+  files-only path description regardless of flag (the shared
+  `canonicalFileOutputsParameter` stays correct for
+  download_to_workspace_file, where outputs/ IS valid); (b) product/prompt
+  call on how an explicit text-output request should be fulfilled — bless
+  function_execute `outputs.files` for text one-offs, or declare text outputs
+  generator-only and fix MANUAL-TESTING test 2's expectation. Note the sim
+  guard itself is coherent: create_file allocates an EMPTY file and outputs
+  are write-once, so create-then-edit can never produce a text output.
+  Companion-repo touch: mothership `catalog/files/create_file.go`.
 
 **New fast-follows — cleanup/altitude batch (one PR, mostly mechanical):**
 

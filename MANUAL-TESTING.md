@@ -27,9 +27,20 @@ the behavior matches the entry, but a "failure" there is expected.
   **Expect:** tool call succeeds; the reply embeds/links the image; the "+"
   resource picker's Files group lists it (e.g. `outputs/…png`); it does NOT
   appear on the Files page.
-- **2. Create a text output.** Same chat → *"Create a file outputs/notes.md
-  with the content 'hello world'."*
-  **Expect:** agent confirms; file appears in the "+" picker.
+- **2. Create a text output. [KNOWN — R8, observe don't file]** Same chat →
+  *"Create a file outputs/notes.md with the content 'hello world'."*
+  **Expect (current, tracked):** the naive phrasing FAILS deterministically —
+  `create_file`'s flag-on schema advertises `outputs/<name>` but the sim tool
+  rejects it, and the agent follows the error's advice into a stray
+  `files/notes.md` (leaf only — not `files/outputs/notes.md`). That is R8.
+  If it happens: DELETE the stray `files/notes.md` (it will otherwise skew
+  tests 7 and 25's naming), then create a real text output with the explicit
+  workaround: *"Run code that returns 'hello world' and save the result via
+  function_execute outputs.files to outputs/notes.md."* That path threads
+  chat context and produces a genuine chat-scoped output.
+  **Expect (after workaround):** agent confirms; `outputs/notes.md` appears
+  in the "+" picker; it does NOT appear on the Files page. Tests 3–8 and 29
+  assume this file exists.
 - **3. Open as a tab — and confirm read-only (round-6 fix).** Click the
   `outputs/notes.md` link in the reply (or add via "+").
   **Expect:** tab opens, content renders, and there is NO editor — no
@@ -115,6 +126,9 @@ the behavior matches the entry, but a "failure" there is expected.
   guards: bare `{}` result + the model blindly retrying many times.
 - **21. The reconnect-wedge scenario, end to end.** From the home surface
   (fresh chat), first message: *"Create outputs/wedge-test.md with 'x'."*
+  (Same R8 exposure as test 2 — if the agent lands in files/ instead of
+  rendering an outputs/ link, use test 2's function_execute workaround
+  phrasing; the wedge scenario needs a real outputs/ link to click.)
   When the reply renders the outputs/ link, click it, then send a second
   message.
   **Expect:** the tab opens AND the second send succeeds immediately.
