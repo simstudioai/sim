@@ -50,6 +50,35 @@ function verbatimText(node: JSONContent): string {
   return (node.content ?? []).map((child) => child.text ?? '').join('')
 }
 
+const RAW_HTML_COMMENT_RE = /^<!--[\s\S]*?-->/
+
+const OPEN_TAG_RE = /^<([a-z][\w-]*)\b[^>]*?(\/)?>/i
+
+/**
+ * Find the end of the close tag that balances the open tag of `tag` ending at `src[0, fromIndex)`,
+ * tracking nesting depth from `fromIndex` onward so `<span>outer <span>inner</span></span>` consumes
+ * both levels instead of stopping at the first (inner) `</span>`. Returns -1 if unterminated. A
+ * nested self-closing same-name tag (`<span/>`) is skipped — it neither opens nor closes a level.
+ * Shared by the inline tokenizer (single line) and the block tokenizer (spans blank lines).
+ */
+function findBalancedCloseEnd(src: string, tag: string, fromIndex: number): number {
+  const tagRe = new RegExp(`<(/?)${tag}\\b[^>]*?(/)?>`, 'gi')
+  tagRe.lastIndex = fromIndex
+  let depth = 1
+  for (let match = tagRe.exec(src); match; match = tagRe.exec(src)) {
+    const isClose = match[1] === '/'
+    const isSelfClosing = Boolean(match[2])
+    if (isSelfClosing) continue
+    if (isClose) {
+      depth -= 1
+      if (depth === 0) return match.index + match[0].length
+    } else {
+      depth += 1
+    }
+  }
+  return -1
+}
+
 /**
  * Marked's own block tokenizer greedily consumes the blank-line run *after* an HTML block/comment
  * or a def line as part of that token's own `raw` (the same behavior `PipeSafeTable` in
@@ -112,16 +141,128 @@ function verbatimNodeConfig({ name, inline, badgeLabel }: VerbatimNodeOptions) {
   }
 }
 
-/** Block-level raw HTML — `<div>…</div>`, `<details>…</details>`, standalone `<!-- comment -->`, etc.
- * Marked's own block tokenizer already classifies all of these as a single `'html'` token
- * (`token.block === true`); `@tiptap/markdown`'s parser registry is checked *before* its built-in
- * HTML handling for block tokens (unlike inline, see {@link RawInlineHtml}), so claiming the
- * `'html'` token name here needs no custom tokenizer. */
+/**
+ * Tag names CommonMark/GFM treat as "block-starting" HTML (marked's own type-6 list — see
+ * `_tag` in `node_modules/marked/src/rules.ts`, verified against the CommonMark spec): a block
+ * opening with one of these ends at its *matching closing tag*, not at the first blank line. Tags
+ * NOT in this list (`em`, `a`, `span`, `code`, `kbd`, …) can legitimately start an ordinary
+ * paragraph (`<em>hi</em> there`), so they're deliberately left to marked's own stricter, single-line
+ * block-HTML detection below — claiming them here would risk swallowing a paragraph that merely
+ * starts with inline HTML.
+ */
+const BLOCK_HTML_TAG_NAMES = new Set([
+  'address',
+  'article',
+  'aside',
+  'base',
+  'basefont',
+  'blockquote',
+  'body',
+  'caption',
+  'center',
+  'col',
+  'colgroup',
+  'dd',
+  'details',
+  'dialog',
+  'dir',
+  'div',
+  'dl',
+  'dt',
+  'fieldset',
+  'figcaption',
+  'figure',
+  'footer',
+  'form',
+  'frame',
+  'frameset',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'head',
+  'header',
+  'html',
+  'iframe',
+  'legend',
+  'li',
+  'link',
+  'main',
+  'menu',
+  'menuitem',
+  'meta',
+  'nav',
+  'noframes',
+  'ol',
+  'optgroup',
+  'option',
+  'p',
+  'param',
+  'search',
+  'section',
+  'summary',
+  'table',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'title',
+  'tr',
+  'track',
+  'ul',
+])
+
+/**
+ * Marked's built-in block-HTML rule ends a `<details>`/`<div>`/… block at the *first blank line*
+ * (CommonMark's HTML-block-type-6 rule) — correct for normal rendering, but wrong for verbatim
+ * preservation: any real-world `<details>` with a paragraph inside would fragment into a raw chip,
+ * an ordinary (rendered) paragraph, and a second raw chip, stranding genuine content in between.
+ * This tokenizer instead scans to the tag's *matching* close via {@link findBalancedCloseEnd}, blank
+ * lines included, for tags in {@link BLOCK_HTML_TAG_NAMES}; anything else returns `undefined` and
+ * falls through to the existing `markdownTokenName: 'html'` handling below (marked's own block
+ * tokenizer, unchanged). Comments are matched the same way as the inline case — marked's own comment
+ * rule already spans blank lines correctly, but routing through one path keeps the two tokenizers
+ * symmetric and independently testable.
+ */
+function tokenizeRawHtmlBlockTag(src: string): MarkdownToken | undefined {
+  const comment = RAW_HTML_COMMENT_RE.exec(src)
+  if (comment) return { type: 'html', raw: comment[0], text: comment[0], block: true }
+
+  const open = OPEN_TAG_RE.exec(src)
+  if (!open) return undefined
+  const tag = open[1].toLowerCase()
+  if (!BLOCK_HTML_TAG_NAMES.has(tag)) return undefined
+  if (open[2]) return { type: 'html', raw: open[0], text: open[0], block: true }
+
+  const end = findBalancedCloseEnd(src, tag, open[0].length)
+  if (end < 0) return undefined
+  const raw = src.slice(0, end)
+  return { type: 'html', raw, text: raw, block: true }
+}
+
 const SKIP_BLOCK_HTML_TAGS = /^<(img|br)\b[^>]*\/?>\s*$/i
 
 export const RawHtmlBlock = Node.create({
   ...verbatimNodeConfig({ name: 'rawHtmlBlock', inline: false, badgeLabel: 'Raw HTML' }),
   markdownTokenName: 'html',
+  markdownTokenizer: {
+    name: 'rawHtmlBlockTag',
+    level: 'block' as const,
+    // Always -1 (never claims an early interrupt point): when `start` is omitted, `@tiptap/markdown`
+    // auto-generates one that calls `this.createLexer()` on every paragraph-continuation check, which
+    // corrupts the in-progress lexer's shared state (verified directly — every other construct on the
+    // page silently loses its content once a tokenizer without an explicit `start` is registered).
+    // The other custom tokenizers below all reference this comment rather than repeating it.
+    //
+    // The tokenizer above emits `type: 'html'` explicitly, so its tokens flow into the same
+    // `markdownTokenName: 'html'` parse registration as marked's own block-HTML tokens below — the
+    // distinct `name` here only avoids colliding with marked's own built-in `html` extension.
+    start: () => -1,
+    tokenize: tokenizeRawHtmlBlockTag,
+  },
   parseMarkdown(token: MarkdownToken) {
     if (!token.block) return []
     const raw = token.raw ?? token.text ?? ''
@@ -171,11 +312,8 @@ export const FootnoteDef = Node.create({
   markdownTokenizer: {
     name: 'footnoteDef',
     level: 'block' as const,
-    // Always -1 (never claims an early interrupt point): when `start` is omitted, `@tiptap/markdown`
-    // auto-generates one that calls `this.createLexer()` on every paragraph-continuation check, which
-    // corrupts the in-progress lexer's shared state (verified directly — every other construct on the
-    // page silently loses its content once a tokenizer without an explicit `start` is registered).
-    // The cost is narrow and safe: a footnote def sharing a line-run with the preceding paragraph (no
+    // See the comment on `RawHtmlBlock`'s `start` — omitting it corrupts the shared lexer. The cost
+    // here is narrow and safe: a footnote def sharing a line-run with the preceding paragraph (no
     // blank line between them) is picked up on the next block boundary instead of interrupting early.
     start: () => -1,
     tokenize: tokenizeFootnoteDef,
@@ -196,7 +334,7 @@ export const FootnoteRef = Node.create({
   markdownTokenizer: {
     name: 'footnoteRef',
     level: 'inline' as const,
-    // See the comment on `FootnoteDef`'s `start` — omitting it corrupts the shared lexer.
+    // See the comment on `RawHtmlBlock`'s `start` — omitting it corrupts the shared lexer.
     start: () => -1,
     tokenize(src: string) {
       const match = FOOTNOTE_REF_RE.exec(src)
@@ -210,34 +348,6 @@ export const FootnoteRef = Node.create({
     return { type: 'footnoteRef', content: verbatimParse(raw) }
   },
 })
-
-const RAW_HTML_COMMENT_RE = /^<!--[\s\S]*?-->/
-
-const OPEN_TAG_RE = /^<([a-z][\w-]*)\b[^>]*?(\/)?>/i
-
-/**
- * Find the end of the close tag that balances the open tag of `tag` ending at `src[0, fromIndex)`,
- * tracking nesting depth from `fromIndex` onward so `<span>outer <span>inner</span></span>` consumes
- * both levels instead of stopping at the first (inner) `</span>`. Returns -1 if unterminated. A
- * nested self-closing same-name tag (`<span/>`) is skipped — it neither opens nor closes a level.
- */
-function findBalancedCloseEnd(src: string, tag: string, fromIndex: number): number {
-  const tagRe = new RegExp(`<(/?)${tag}\\b[^>]*?(/)?>`, 'gi')
-  tagRe.lastIndex = fromIndex
-  let depth = 1
-  for (let match = tagRe.exec(src); match; match = tagRe.exec(src)) {
-    const isClose = match[1] === '/'
-    const isSelfClosing = Boolean(match[2])
-    if (isSelfClosing) continue
-    if (isClose) {
-      depth -= 1
-      if (depth === 0) return match.index + match[0].length
-    } else {
-      depth += 1
-    }
-  }
-  return -1
-}
 
 /**
  * Attempt to consume an inline HTML comment or a tag (with its matching close tag, or as a single
@@ -279,7 +389,7 @@ export const RawInlineHtml = Node.create({
   markdownTokenizer: {
     name: 'rawInlineHtml',
     level: 'inline' as const,
-    // See the comment on `FootnoteDef`'s `start` — omitting it corrupts the shared lexer.
+    // See the comment on `RawHtmlBlock`'s `start` — omitting it corrupts the shared lexer.
     start: () => -1,
     tokenize: tokenizeRawInlineHtml,
   },
