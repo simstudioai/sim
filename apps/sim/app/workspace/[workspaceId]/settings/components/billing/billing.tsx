@@ -443,8 +443,8 @@ export function Billing() {
             </div>
           </div>
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate text-[14px] text-[var(--text-body)]'>{planName} plan</span>
-            <span className='truncate text-[12px] text-[var(--text-muted)]'>{priceText}</span>
+            <span className='truncate text-[var(--text-body)] text-sm'>{planName} plan</span>
+            <span className='truncate text-[var(--text-muted)] text-caption'>{priceText}</span>
           </div>
         </div>
         {!subscription.isEnterprise &&
@@ -594,13 +594,13 @@ export function Billing() {
                 'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors'
               const rowContent = (
                 <>
-                  <span className='min-w-0 flex-1 truncate text-[14px] text-[var(--text-body)]'>
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
                     {invoice.date}
                   </span>
                   <Badge variant={invoice.badge.variant} size='sm'>
                     {invoice.badge.label}
                   </Badge>
-                  <span className='flex-shrink-0 text-[12px] text-[var(--text-muted)]'>
+                  <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
                     {invoice.amount}
                   </span>
                   <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />

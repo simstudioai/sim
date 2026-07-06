@@ -121,11 +121,11 @@ export function CustomTools() {
             {filteredTools.map((tool) => (
               <div key={tool.id} className='flex items-center justify-between gap-3'>
                 <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                  <span className='truncate text-[14px] text-[var(--text-body)]'>
+                  <span className='truncate text-[var(--text-body)] text-sm'>
                     {tool.title || 'Unnamed Tool'}
                   </span>
                   {tool.schema?.function?.description && (
-                    <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                    <p className='truncate text-[var(--text-muted)] text-caption'>
                       {tool.schema.function.description}
                     </p>
                   )}
