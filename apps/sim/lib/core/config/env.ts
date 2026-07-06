@@ -328,7 +328,8 @@ export const env = createEnv({
     INTERNAL_API_BASE_URL:                 z.string().optional(),                  // Optional internal base URL for server-side self-calls; must include protocol if set (e.g., http://sim-app.namespace.svc.cluster.local:3000)
     ALLOWED_ORIGINS:                       z.string().optional(),                  // CORS allowed origins
     PII_URL:                               z.string().optional(),                  // Presidio PII service base URL serving /analyze + /anonymize (standalone ECS service; default http://localhost:5001 for local dev)
-    PII_MASK_CHUNK_CONCURRENCY:            z.coerce.number().int().positive().optional(), // Max in-flight mask-batch requests per redaction (default 4); raise for a scaled-out Presidio service, lower to 1 for a single instance
+    PII_MASK_CHUNK_CONCURRENCY:            z.coerce.number().int().positive().optional(), // Max in-flight mask-batch requests per redaction (default 64); tune to the Presidio fleet size behind the internal ALB, lower to 1 for a single instance
+    PII_REF_CONCURRENCY:                   z.coerce.number().int().positive().optional(), // Max large-value refs hydrated+masked+re-stored in parallel per payload (default 4); multiplies with PII_MASK_CHUNK_CONCURRENCY for total in-flight Presidio load
 
     // OAuth Integration Credentials - All optional, enables third-party integrations
     GOOGLE_CLIENT_ID:                      z.string().optional(),                  // Google OAuth client ID for Google services

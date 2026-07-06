@@ -4,6 +4,7 @@ import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
   containsUserFileWithMetadata,
@@ -228,15 +229,29 @@ export class BlockExecutor {
       }
 
       if (ctx.piiBlockOutputRedaction?.enabled) {
-        // In-flight redaction: mask before compaction (so offloaded large values
-        // are seen) and before the log/state split below, so both the downstream
-        // state copy and the persisted log copy are masked. `onFailure: 'throw'`
-        // aborts the run rather than feeding corrupted/leaked data downstream.
-        normalizedOutput = await redactObjectStrings(normalizedOutput, {
+        // In-flight redaction before the log/state split below, so both the
+        // downstream state copy and the persisted log copy are masked.
+        // `onFailure: 'throw'` aborts the run rather than feeding corrupted/leaked
+        // data downstream.
+        const redactionOptions = {
           entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
           language: ctx.piiBlockOutputRedaction.language,
-          onFailure: 'throw',
+          onFailure: 'throw' as const,
+        }
+        // Tools like the function executor offload large outputs to large-value
+        // refs BEFORE they reach here, and the string walk treats a ref as opaque.
+        // So hydrate → mask → re-store any refs first, then mask inline strings —
+        // otherwise PII inside an offloaded output is never redacted.
+        normalizedOutput = await redactLargeValueRefsInValue(normalizedOutput, {
+          ...redactionOptions,
+          store: {
+            workspaceId: ctx.workspaceId,
+            workflowId: ctx.workflowId,
+            executionId: ctx.executionId,
+            userId: ctx.userId,
+          },
         })
+        normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
       }
 
       normalizedOutput = (await compactExecutionPayload(normalizedOutput, {
