@@ -1117,7 +1117,7 @@ export const gumloopProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          "Founded in Vancouver in April 2023 (originally as 'AgentHub') by Max Brodeur-Urbas and Rahul Behal. Raised a $3.1M seed (July 2024), a $17M Series A in January 2025 (led by Nexus Venture Partners), and a $50M Series B in March 2026 (led by Benchmark). About $70M raised in total across 3 rounds. Y Combinator alum with roughly 37 employees as of mid-2026.",
+          "Founded in Vancouver in April 2023 (originally as 'AgentHub') by Max Brodeur-Urbas and Rahul Behal. Raised a $3.1M seed (July 2024) and a $17M Series A in January 2025 (led by Nexus Venture Partners), both independently corroborated; a self-reported $50M Series B in March 2026 (led by Benchmark) would bring the total to about $70M across 3 rounds. Y Combinator alum with roughly 37 employees as of mid-2026.",
         detail:
           "Gumloop started as a side project in a Vancouver bedroom in April 2023, founded by Max Brodeur-Urbas and Rahul Behal under the name AgentHub before rebranding to Gumloop. It raised a $3.1M seed round in July 2024 and a $17M Series A in January 2025 led by Nexus Venture Partners (with First Round Capital, Y Combinator, and angel investors), both independently corroborated by TechCrunch. The $50M Series B in March 2026 led by Benchmark (with Nexus Venture Partners, First Round Capital, Y Combinator, Box Group, The Cannon Project, and Shopify Ventures) is self-reported on Gumloop's own blog only, with no independent press or funding-tracker corroboration found. Total raised is about $70M across 3 rounds. Y Combinator lists a team size of 37.",
         shortValue: 'Founded 2023, ~$70M raised, Series B in 2026 (self-reported)',
