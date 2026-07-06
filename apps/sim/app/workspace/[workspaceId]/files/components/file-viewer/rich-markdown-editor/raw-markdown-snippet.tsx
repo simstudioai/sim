@@ -133,10 +133,38 @@ export const RawHtmlBlock = Node.create({
   },
 })
 
-const FOOTNOTE_DEF_RE = /^ {0,3}\[\^[^\]]+\]:[^\n]*\n?/
+const FOOTNOTE_DEF_HEAD_RE = /^ {0,3}\[\^[^\]]+\]:/
+const FOOTNOTE_CONTINUATION_RE = /^ {4,}\S/
 
-/** Footnote definition (`[^id]: the note`) — marked has no footnote syntax at all, so without this
- * tokenizer the line is swallowed as a plain paragraph and the reference/definition link is lost. */
+/**
+ * Consume a footnote definition's opening line plus any continuation lines GFM allows — indented by
+ * ≥4 spaces, optionally with blank lines between them (a multi-paragraph definition). Stops at the
+ * first line that is neither indented nor blank, and never consumes a blank line that isn't followed
+ * by further continuation (that blank line belongs to whatever block comes next).
+ */
+function tokenizeFootnoteDef(src: string): MarkdownToken | undefined {
+  const lines = src.split('\n')
+  if (!FOOTNOTE_DEF_HEAD_RE.test(lines[0])) return undefined
+  let lineCount = 1
+  while (lineCount < lines.length) {
+    const line = lines[lineCount]
+    if (FOOTNOTE_CONTINUATION_RE.test(line)) {
+      lineCount += 1
+      continue
+    }
+    if (line === '' && FOOTNOTE_CONTINUATION_RE.test(lines[lineCount + 1] ?? '')) {
+      lineCount += 2
+      continue
+    }
+    break
+  }
+  const raw = lines.slice(0, lineCount).join('\n')
+  return { type: 'footnoteDef', raw, text: raw }
+}
+
+/** Footnote definition (`[^id]: the note`, with optional ≥4-space-indented continuation lines) —
+ * marked has no footnote syntax at all, so without this tokenizer the definition is swallowed as a
+ * plain paragraph and the reference/definition link is lost. */
 export const FootnoteDef = Node.create({
   ...verbatimNodeConfig({ name: 'footnoteDef', inline: false, badgeLabel: 'Footnote' }),
   markdownTokenName: 'footnoteDef',
@@ -150,11 +178,7 @@ export const FootnoteDef = Node.create({
     // The cost is narrow and safe: a footnote def sharing a line-run with the preceding paragraph (no
     // blank line between them) is picked up on the next block boundary instead of interrupting early.
     start: () => -1,
-    tokenize(src: string) {
-      const match = FOOTNOTE_DEF_RE.exec(src)
-      if (!match) return undefined
-      return { type: 'footnoteDef', raw: match[0], text: match[0] }
-    },
+    tokenize: tokenizeFootnoteDef,
   },
   parseMarkdown(token: MarkdownToken) {
     const raw = token.raw ?? token.text ?? ''
@@ -192,6 +216,30 @@ const RAW_HTML_COMMENT_RE = /^<!--[\s\S]*?-->/
 const OPEN_TAG_RE = /^<([a-z][\w-]*)\b[^>]*?(\/)?>/i
 
 /**
+ * Find the end of the close tag that balances the open tag of `tag` ending at `src[0, fromIndex)`,
+ * tracking nesting depth from `fromIndex` onward so `<span>outer <span>inner</span></span>` consumes
+ * both levels instead of stopping at the first (inner) `</span>`. Returns -1 if unterminated. A
+ * nested self-closing same-name tag (`<span/>`) is skipped — it neither opens nor closes a level.
+ */
+function findBalancedCloseEnd(src: string, tag: string, fromIndex: number): number {
+  const tagRe = new RegExp(`<(/?)${tag}\\b[^>]*?(/)?>`, 'gi')
+  tagRe.lastIndex = fromIndex
+  let depth = 1
+  for (let match = tagRe.exec(src); match; match = tagRe.exec(src)) {
+    const isClose = match[1] === '/'
+    const isSelfClosing = Boolean(match[2])
+    if (isSelfClosing) continue
+    if (isClose) {
+      depth -= 1
+      if (depth === 0) return match.index + match[0].length
+    } else {
+      depth += 1
+    }
+  }
+  return -1
+}
+
+/**
  * Attempt to consume an inline HTML comment or a tag (with its matching close tag, or as a single
  * void/self-closing element) starting at `src[0]`. Returns `undefined` for a tag this schema
  * already has a real mark/node for ({@link HANDLED_INLINE_TAGS}) so it keeps parsing normally, and
@@ -210,10 +258,8 @@ function tokenizeRawInlineHtml(src: string): MarkdownToken | undefined {
     return { type: 'rawInlineHtml', raw: open[0], text: open[0] }
   }
 
-  const closeRe = new RegExp(`</${tag}\\s*>`, 'i')
-  const closeMatch = closeRe.exec(src)
-  if (!closeMatch) return undefined
-  const end = closeMatch.index + closeMatch[0].length
+  const end = findBalancedCloseEnd(src, tag, open[0].length)
+  if (end < 0) return undefined
   const raw = src.slice(0, end)
   return { type: 'rawInlineHtml', raw, text: raw }
 }

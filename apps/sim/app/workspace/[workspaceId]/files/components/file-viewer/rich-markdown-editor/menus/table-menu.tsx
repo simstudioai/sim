@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { posToDOMRect } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
@@ -44,22 +44,19 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
     }),
   })
 
-  const anchorCacheRef = useRef<{ key: string; rect: DOMRect } | null>(null)
+  // Recomputed on every call (not cached by selection key) — the same table cell can land at a
+  // different screen position purely from scrolling with no selection change, and Floating UI's
+  // `autoUpdate` re-invokes this on scroll/resize expecting a fresh rect each time.
   const resolveAnchor = useCallback(() => {
     const { view, state } = editor
     if (!view.dom.isConnected) return null
     const { from, to } = state.selection
-    const key = `${from}:${to}`
-    if (anchorCacheRef.current?.key !== key) {
-      const selection = posToDOMRect(view, from, to)
-      const viewport = scrollContainerRef.current?.getBoundingClientRect()
-      const rect =
-        viewport && selection.top < viewport.top
-          ? new DOMRect(selection.left, viewport.top, selection.width, 0)
-          : selection
-      anchorCacheRef.current = { key, rect }
-    }
-    const { rect } = anchorCacheRef.current
+    const selection = posToDOMRect(view, from, to)
+    const viewport = scrollContainerRef.current?.getBoundingClientRect()
+    const rect =
+      viewport && selection.top < viewport.top
+        ? new DOMRect(selection.left, viewport.top, selection.width, 0)
+        : selection
     return { getBoundingClientRect: () => rect, getClientRects: () => [rect] }
   }, [editor, scrollContainerRef])
 

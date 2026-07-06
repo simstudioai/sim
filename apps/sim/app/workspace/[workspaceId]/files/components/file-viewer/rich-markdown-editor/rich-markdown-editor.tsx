@@ -413,13 +413,16 @@ export function LoadedRichMarkdownEditor({
           contentType: 'json',
           emitUpdate: false,
         })
-        // `setContent` maps any pre-existing selection onto the new doc rather than clearing it — a
-        // select-all survives as "select everything," permanently painting every divider/image with
-        // the `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks elsewhere. Collapse
-        // on every settle, not just the first; `setTextSelection` (not `.focus()`) so this never steals
-        // DOM focus from whatever the user is doing outside the editor.
-        editor.commands.setTextSelection(editor.state.doc.content.size)
       }
+      // `setContent` maps any pre-existing selection onto the new doc rather than clearing it — a
+      // select-all survives as "select everything," permanently painting every divider/image with the
+      // `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks elsewhere. This must run
+      // on every settle regardless of whether `setContent` ran just above: the last streaming tick
+      // already syncs `lastSyncedBodyRef` to the final body before settle, so `body` usually already
+      // equals it here — collapsing only inside that `if` would skip the common streamed-content case
+      // entirely. `setTextSelection` (not `.focus()`) so this never steals DOM focus from whatever the
+      // user is doing outside the editor.
+      editor.commands.setTextSelection(editor.state.doc.content.size)
       editor.setEditable(canEdit && settledRef.current.verdict)
       if (isInitialSettle && autoFocus) editor.commands.focus('end')
       return
