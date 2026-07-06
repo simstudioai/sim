@@ -1,6 +1,6 @@
 import type {
-  InstantlyActivateCampaignParams,
   InstantlyCampaignActionResponse,
+  InstantlyDeleteCampaignParams,
 } from '@/tools/instantly/types'
 import {
   campaignActionOutputs,
@@ -13,13 +13,13 @@ import {
 } from '@/tools/instantly/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const activateCampaignTool: ToolConfig<
-  InstantlyActivateCampaignParams,
+export const deleteCampaignTool: ToolConfig<
+  InstantlyDeleteCampaignParams,
   InstantlyCampaignActionResponse
 > = {
-  id: 'instantly_activate_campaign',
-  name: 'Instantly Activate Campaign',
-  description: 'Activates, starts, or resumes an Instantly V2 campaign.',
+  id: 'instantly_delete_campaign',
+  name: 'Instantly Delete Campaign',
+  description: 'Permanently deletes an Instantly V2 campaign.',
   version: '1.0.0',
   params: {
     ...instantlyBaseParamFields,
@@ -31,8 +31,8 @@ export const activateCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}/activate`),
-    method: 'POST',
+    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}`),
+    method: 'DELETE',
     headers: instantlyHeaders,
   },
   transformResponse: async (response) => {
