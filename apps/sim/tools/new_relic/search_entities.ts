@@ -79,7 +79,9 @@ export const newRelicSearchEntitiesTool: ToolConfig<
           entityType
           domain
           reporting
-          alertSeverity
+          ... on AlertableEntityOutline {
+            alertSeverity
+          }
           tags {
             key
             values

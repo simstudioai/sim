@@ -55,7 +55,9 @@ export const newRelicGetEntityTool: ToolConfig<NewRelicGetEntityParams, NewRelic
       entityType
       domain
       reporting
-      alertSeverity
+      ... on AlertableEntity {
+        alertSeverity
+      }
       tags {
         key
         values
