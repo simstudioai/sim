@@ -1,16 +1,16 @@
 import type {
-  PagerDutyListServicesParams,
-  PagerDutyListServicesResponse,
+  PagerDutyListIncidentAlertsParams,
+  PagerDutyListIncidentAlertsResponse,
 } from '@/tools/pagerduty/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const listServicesTool: ToolConfig<
-  PagerDutyListServicesParams,
-  PagerDutyListServicesResponse
+export const listIncidentAlertsTool: ToolConfig<
+  PagerDutyListIncidentAlertsParams,
+  PagerDutyListIncidentAlertsResponse
 > = {
-  id: 'pagerduty_list_services',
-  name: 'PagerDuty List Services',
-  description: 'List services from PagerDuty with optional name filter.',
+  id: 'pagerduty_list_incident_alerts',
+  name: 'PagerDuty List Incident Alerts',
+  description: 'List the individual alerts attached to a PagerDuty incident.',
   version: '1.0.0',
 
   params: {
@@ -20,11 +20,17 @@ export const listServicesTool: ToolConfig<
       visibility: 'user-only',
       description: 'PagerDuty REST API Key',
     },
-    query: {
+    incidentId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'ID of the incident whose alerts to list',
+    },
+    statuses: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter services by name',
+      description: 'Comma-separated statuses to filter (triggered, resolved)',
     },
     limit: {
       type: 'string',
@@ -43,11 +49,15 @@ export const listServicesTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.query) query.set('query', params.query)
+      if (params.statuses) {
+        for (const s of params.statuses.split(',')) {
+          query.append('statuses[]', s.trim())
+        }
+      }
       if (params.limit) query.set('limit', params.limit)
       if (params.offset) query.set('offset', params.offset)
       const qs = query.toString()
-      return `https://api.pagerduty.com/services${qs ? `?${qs}` : ''}`
+      return `https://api.pagerduty.com/incidents/${params.incidentId.trim()}/alerts${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -67,16 +77,17 @@ export const listServicesTool: ToolConfig<
     return {
       success: true,
       output: {
-        services: (data.services ?? []).map(
-          (svc: Record<string, unknown> & { escalation_policy?: Record<string, unknown> }) => ({
-            id: svc.id ?? null,
-            name: svc.name ?? null,
-            description: svc.description ?? null,
-            status: svc.status ?? null,
-            escalationPolicyName: svc.escalation_policy?.summary ?? null,
-            escalationPolicyId: svc.escalation_policy?.id ?? null,
-            createdAt: svc.created_at ?? null,
-            htmlUrl: svc.html_url ?? null,
+        alerts: (data.alerts ?? []).map(
+          (alert: Record<string, unknown> & { service?: Record<string, unknown> }) => ({
+            id: alert.id ?? null,
+            summary: alert.summary ?? null,
+            status: alert.status ?? null,
+            severity: alert.severity ?? null,
+            createdAt: alert.created_at ?? null,
+            alertKey: alert.alert_key ?? null,
+            serviceName: alert.service?.summary ?? null,
+            serviceId: alert.service?.id ?? null,
+            htmlUrl: alert.html_url ?? null,
           })
         ),
         total: data.total ?? null,
@@ -87,19 +98,20 @@ export const listServicesTool: ToolConfig<
   },
 
   outputs: {
-    services: {
+    alerts: {
       type: 'array',
-      description: 'Array of services',
+      description: 'Array of alerts attached to the incident',
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Service ID' },
-          name: { type: 'string', description: 'Service name' },
-          description: { type: 'string', description: 'Service description' },
-          status: { type: 'string', description: 'Service status' },
-          escalationPolicyName: { type: 'string', description: 'Escalation policy name' },
-          escalationPolicyId: { type: 'string', description: 'Escalation policy ID' },
+          id: { type: 'string', description: 'Alert ID' },
+          summary: { type: 'string', description: 'Alert summary' },
+          status: { type: 'string', description: 'Alert status' },
+          severity: { type: 'string', description: 'Alert severity' },
           createdAt: { type: 'string', description: 'Creation timestamp' },
+          alertKey: { type: 'string', description: 'De-duplication key' },
+          serviceName: { type: 'string', description: 'Service name' },
+          serviceId: { type: 'string', description: 'Service ID' },
           htmlUrl: { type: 'string', description: 'PagerDuty web URL' },
         },
       },
@@ -107,7 +119,7 @@ export const listServicesTool: ToolConfig<
     total: {
       type: 'number',
       description:
-        'Total number of matching services (null unless explicitly requested by PagerDuty)',
+        'Total number of matching alerts (null unless explicitly requested by PagerDuty)',
       optional: true,
     },
     more: {
