@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-02",
+  "updatedAt": "2026-07-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -3063,11 +3063,11 @@
         },
         {
           "name": "Get Zone Settings",
-          "description": "Gets all settings for a zone including SSL mode, minification, caching level, and security settings."
+          "description": "Gets all settings for a zone including SSL mode, caching level, and security settings."
         },
         {
           "name": "Update Zone Setting",
-          "description": "Updates a specific zone setting such as SSL mode, security level, cache level, minification, or other configuration."
+          "description": "Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration."
         },
         {
           "name": "DNS Analytics",
