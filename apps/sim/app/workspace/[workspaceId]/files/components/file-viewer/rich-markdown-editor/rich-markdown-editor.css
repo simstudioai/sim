@@ -279,15 +279,21 @@
 
 /* Raw, unrendered markdown constructs the schema has no real node/mark for (raw HTML blocks,
    comments, footnotes) — held verbatim and re-emitted byte-for-byte on save (./raw-markdown-snippet.ts).
-   Styled distinctly (monospace, tinted) so it's clear this text isn't interpreted, unlike a code block. */
+   Same neutral surface as `code`/`pre` below (no color tint — a tint reads as a warning/error state,
+   which isn't the signal here); the hover "Raw HTML"/"Footnote" badge is what conveys "not interpreted". */
 .rich-markdown-prose .raw-markdown-block,
 .rich-markdown-prose .raw-markdown-inline {
   font-family: var(--font-martian-mono, ui-monospace, monospace);
   font-size: 0.875em;
   color: var(--text-muted);
-  background: color-mix(in srgb, var(--warning, orange) 8%, var(--surface-5));
+  background: var(--surface-5);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.dark .rich-markdown-prose .raw-markdown-block,
+.dark .rich-markdown-prose .raw-markdown-inline {
+  background: var(--code-bg);
 }
 
 .rich-markdown-prose .raw-markdown-block {
