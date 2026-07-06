@@ -109,7 +109,7 @@ export const attioUpdateAttributeTool: ToolConfig<
           data.config =
             typeof params.config === 'string' ? JSON.parse(params.config) : params.config
         } catch {
-          data.config = {}
+          throw new Error('Invalid JSON provided for attribute config')
         }
       }
       return { data }

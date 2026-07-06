@@ -51,7 +51,8 @@ export const attioListTasksTool: ToolConfig<AttioListTasksParams, AttioListTasks
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort order: created_at:asc or created_at:desc',
+      description:
+        'Sort order: created_at:asc, created_at:desc, completed_at:asc, or completed_at:desc',
     },
     limit: {
       type: 'number',

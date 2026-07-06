@@ -1081,10 +1081,11 @@ workspace-member.created
       title: 'Required',
       type: 'dropdown',
       options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
-      value: () => 'false',
+      value: () => 'unchanged',
       condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
       mode: 'advanced',
     },
@@ -1093,10 +1094,11 @@ workspace-member.created
       title: 'Unique',
       type: 'dropdown',
       options: [
+        { label: 'Leave unchanged', id: 'unchanged' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
-      value: () => 'false',
+      value: () => 'unchanged',
       condition: { field: 'operation', value: ['create_attribute', 'update_attribute'] },
       mode: 'advanced',
     },
@@ -1412,10 +1414,10 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         if (params.attributeApiSlug) cleanParams.apiSlug = params.attributeApiSlug
         if (params.attributeType) cleanParams.type = params.attributeType
         if (params.attributeDescription) cleanParams.description = params.attributeDescription
-        if (params.attributeIsRequired !== undefined)
+        if (params.attributeIsRequired !== undefined && params.attributeIsRequired !== 'unchanged')
           cleanParams.isRequired =
             params.attributeIsRequired === 'true' || params.attributeIsRequired === true
-        if (params.attributeIsUnique !== undefined)
+        if (params.attributeIsUnique !== undefined && params.attributeIsUnique !== 'unchanged')
           cleanParams.isUnique =
             params.attributeIsUnique === 'true' || params.attributeIsUnique === true
         if (params.attributeIsMultiselect !== undefined)

@@ -99,26 +99,24 @@ export const attioCreateAttributeTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      let config: Record<string, unknown> = {}
+      const data: Record<string, unknown> = {
+        title: params.title,
+        api_slug: params.apiSlug,
+        description: params.description ?? null,
+        type: params.type,
+        is_required: params.isRequired ?? false,
+        is_unique: params.isUnique ?? false,
+        is_multiselect: params.isMultiselect ?? false,
+      }
       if (params.config) {
         try {
-          config = typeof params.config === 'string' ? JSON.parse(params.config) : params.config
+          data.config =
+            typeof params.config === 'string' ? JSON.parse(params.config) : params.config
         } catch {
-          config = {}
+          throw new Error('Invalid JSON provided for attribute config')
         }
       }
-      return {
-        data: {
-          title: params.title,
-          api_slug: params.apiSlug,
-          description: params.description ?? null,
-          type: params.type,
-          is_required: params.isRequired ?? false,
-          is_unique: params.isUnique ?? false,
-          is_multiselect: params.isMultiselect ?? false,
-          config,
-        },
-      }
+      return { data }
     },
   },
 
