@@ -1,16 +1,10 @@
-import type {
-  PagerDutyListServicesParams,
-  PagerDutyListServicesResponse,
-} from '@/tools/pagerduty/types'
+import type { PagerDutyListUsersParams, PagerDutyListUsersResponse } from '@/tools/pagerduty/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const listServicesTool: ToolConfig<
-  PagerDutyListServicesParams,
-  PagerDutyListServicesResponse
-> = {
-  id: 'pagerduty_list_services',
-  name: 'PagerDuty List Services',
-  description: 'List services from PagerDuty with optional name filter.',
+export const listUsersTool: ToolConfig<PagerDutyListUsersParams, PagerDutyListUsersResponse> = {
+  id: 'pagerduty_list_users',
+  name: 'PagerDuty List Users',
+  description: 'List users from PagerDuty with an optional name/email filter.',
   version: '1.0.0',
 
   params: {
@@ -24,7 +18,7 @@ export const listServicesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter services by name',
+      description: 'Filter users by name or email',
     },
     limit: {
       type: 'string',
@@ -47,7 +41,7 @@ export const listServicesTool: ToolConfig<
       if (params.limit) query.set('limit', params.limit)
       if (params.offset) query.set('offset', params.offset)
       const qs = query.toString()
-      return `https://api.pagerduty.com/services${qs ? `?${qs}` : ''}`
+      return `https://api.pagerduty.com/users${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -67,18 +61,15 @@ export const listServicesTool: ToolConfig<
     return {
       success: true,
       output: {
-        services: (data.services ?? []).map(
-          (svc: Record<string, unknown> & { escalation_policy?: Record<string, unknown> }) => ({
-            id: svc.id ?? null,
-            name: svc.name ?? null,
-            description: svc.description ?? null,
-            status: svc.status ?? null,
-            escalationPolicyName: svc.escalation_policy?.summary ?? null,
-            escalationPolicyId: svc.escalation_policy?.id ?? null,
-            createdAt: svc.created_at ?? null,
-            htmlUrl: svc.html_url ?? null,
-          })
-        ),
+        users: (data.users ?? []).map((u: Record<string, unknown>) => ({
+          id: u.id ?? null,
+          name: u.name ?? null,
+          email: u.email ?? null,
+          role: u.role ?? null,
+          jobTitle: u.job_title ?? null,
+          timeZone: u.time_zone ?? null,
+          htmlUrl: u.html_url ?? null,
+        })),
         total: data.total ?? null,
         more: data.more ?? false,
         offset: data.offset ?? 0,
@@ -87,27 +78,25 @@ export const listServicesTool: ToolConfig<
   },
 
   outputs: {
-    services: {
+    users: {
       type: 'array',
-      description: 'Array of services',
+      description: 'Array of users',
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Service ID' },
-          name: { type: 'string', description: 'Service name' },
-          description: { type: 'string', description: 'Service description' },
-          status: { type: 'string', description: 'Service status' },
-          escalationPolicyName: { type: 'string', description: 'Escalation policy name' },
-          escalationPolicyId: { type: 'string', description: 'Escalation policy ID' },
-          createdAt: { type: 'string', description: 'Creation timestamp' },
+          id: { type: 'string', description: 'User ID' },
+          name: { type: 'string', description: 'User name' },
+          email: { type: 'string', description: 'User email' },
+          role: { type: 'string', description: 'User role' },
+          jobTitle: { type: 'string', description: 'User job title' },
+          timeZone: { type: 'string', description: 'User preferred time zone' },
           htmlUrl: { type: 'string', description: 'PagerDuty web URL' },
         },
       },
     },
     total: {
       type: 'number',
-      description:
-        'Total number of matching services (null unless explicitly requested by PagerDuty)',
+      description: 'Total number of matching users (null unless explicitly requested by PagerDuty)',
       optional: true,
     },
     more: {
