@@ -388,11 +388,63 @@
           "description": "Get the top pages of a target domain sorted by organic traffic. Returns page URLs with their traffic, keyword counts, and estimated traffic value."
         },
         {
+          "name": "Paid Pages",
+          "description": "Get a target domain's pages that receive paid search traffic, sorted by estimated paid traffic. Returns page URLs with their paid traffic, keyword counts, and estimated spend."
+        },
+        {
+          "name": "Anchors",
+          "description": "Get the anchor text distribution for a target domain or URL's backlinks, showing how many links and referring domains use each anchor text."
+        },
+        {
           "name": "Keyword Overview",
           "description": "Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential."
+        },
+        {
+          "name": "Related Terms",
+          "description": "Get keyword ideas related to a seed keyword: terms the same top-ranking pages also rank for (\"also rank for\") or also discuss (\"also talk about\"), with volume, difficulty, and CPC."
+        },
+        {
+          "name": "Domain Rating History",
+          "description": "Get the historical Domain Rating (DR) trend for a target domain or URL over a date range, grouped daily, weekly, or monthly."
+        },
+        {
+          "name": "Metrics History",
+          "description": "Get the historical organic and paid traffic trend for a target domain or URL over a date range: organic traffic/cost and paid traffic/cost at each point in time."
+        },
+        {
+          "name": "Referring Domains History",
+          "description": "Get the historical referring domains trend for a target domain or URL over a date range, grouped daily, weekly, or monthly."
+        },
+        {
+          "name": "Keywords History",
+          "description": "Get the historical organic keyword ranking distribution for a target domain or URL over a date range: how many keywords rank in each position bucket at each point in time."
+        },
+        {
+          "name": "Batch Analysis",
+          "description": "Get bulk SEO metrics (Domain Rating, backlinks, referring domains, organic traffic, and more) for multiple domains or URLs in a single request. Useful for comparing many competitors at once."
+        },
+        {
+          "name": "Site Audit Page Explorer",
+          "description": "Get crawled pages from an Ahrefs Site Audit project with health and SEO metrics: HTTP status, title, link counts, backlinks, indexability, and traffic. Optionally filter to pages affected by a specific issue."
+        },
+        {
+          "name": "Rank Tracker Overview",
+          "description": "Get ranking overview metrics for the keywords tracked in an Ahrefs Rank Tracker project: position, search volume, keyword difficulty, and estimated traffic. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker SERP Overview",
+          "description": "Get the full SERP (search engine results page) for a keyword tracked in an Ahrefs Rank Tracker project, including every ranking URL with its position, title, and authority metrics. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker Competitors Overview",
+          "description": "Get competitor rankings for the keywords tracked in an Ahrefs Rank Tracker project: each tracked keyword's volume and difficulty alongside every competitor's position, traffic, and traffic value. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker Competitors Stats",
+          "description": "Get aggregate competitor stats for an Ahrefs Rank Tracker project: each competitor's traffic, traffic value, average position, and share of voice across all tracked keywords. This endpoint is free and does not consume API units."
         }
       ],
-      "operationCount": 10,
+      "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
