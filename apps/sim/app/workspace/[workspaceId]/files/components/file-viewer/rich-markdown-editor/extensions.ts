@@ -15,6 +15,7 @@ import { MarkdownImage } from './image'
 import { MarkdownLinkInputRule } from './link-input-rule'
 import { MarkdownMention } from './mention/mention-node'
 import { SIM_LINK_SCHEME } from './mention/sim-link'
+import { FootnoteDef, FootnoteRef, RawHtmlBlock, RawInlineHtml } from './raw-markdown-snippet'
 
 /**
  * The `@`-mention link scheme, registered on the Link mark — without it the schema strips the
@@ -66,6 +67,8 @@ export interface ContentNodeViews {
   codeBlock?: Node
   image?: Node
   mention?: Node
+  rawHtmlBlock?: Node
+  footnoteDef?: Node
 }
 
 /**
@@ -100,6 +103,10 @@ export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}
     TableRow,
     TableHeader,
     TableCell,
+    nodeViews.rawHtmlBlock ?? RawHtmlBlock,
+    nodeViews.footnoteDef ?? FootnoteDef,
+    FootnoteRef,
+    RawInlineHtml,
     MarkdownLinkInputRule,
     Markdown,
   ]

@@ -57,7 +57,7 @@ export const attioUpdateRecordTool: ToolConfig<AttioUpdateRecordParams, AttioUpd
         try {
           values = typeof params.values === 'string' ? JSON.parse(params.values) : params.values
         } catch {
-          values = {}
+          throw new Error('Invalid JSON provided for record values')
         }
         return { data: { values } }
       },

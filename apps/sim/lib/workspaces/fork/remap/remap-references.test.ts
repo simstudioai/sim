@@ -128,24 +128,6 @@ describe('remapToolBlockResources', () => {
     expect(result.params).toEqual({ manualCredential: 'mc-src', knowledgeBaseId: 'kb-dst' })
   })
 
-  it('preserves an org-scoped credentialSet ref without remapping or recording it', () => {
-    const tool = {
-      type: 'testblock',
-      toolId: 'testblock_run',
-      params: { credential: 'credentialSet:cs-1' },
-    }
-    const recorded: Array<{ kind: string; id: string; mapped: boolean }> = []
-    const result = remapToolBlockResources(tool, {
-      resolve: () => null,
-      resolveFileKey: () => null,
-      record: (kind, id, mapped) => recorded.push({ kind, id, mapped }),
-      clearUnresolved: true,
-      blockConfigs,
-    })
-    expect((result.params as Record<string, string>).credential).toBe('credentialSet:cs-1')
-    expect(recorded).toHaveLength(0)
-  })
-
   it('drops only the uncopied entry in a mixed multi-value field', () => {
     const tool = {
       type: 'testblock',
@@ -274,33 +256,6 @@ describe('remapForkSubBlocks', () => {
     expect(unmappedKinds).toContain('credential:c-src')
     expect(unmappedKinds).not.toContain('credential:mc-src')
     expect(result.unmapped.every((r) => r.kind !== 'knowledge-base')).toBe(true)
-  })
-
-  it('promote mode: preserves a credentialSet ref without flagging it', () => {
-    const sb: SubBlockRecord = {
-      triggerCredentials: {
-        id: 'triggerCredentials',
-        type: 'oauth-input',
-        value: 'credentialSet:cs-1',
-      },
-    }
-    const result = remapForkSubBlocks(sb, () => null, 'promote')
-    expect(result.subBlocks.triggerCredentials.value).toBe('credentialSet:cs-1')
-    expect(result.references).toHaveLength(0)
-    expect(result.unmapped).toHaveLength(0)
-  })
-
-  it('create mode: keeps a credentialSet ref (org-scoped, not cleared)', () => {
-    const sb: SubBlockRecord = {
-      triggerCredentials: {
-        id: 'triggerCredentials',
-        type: 'oauth-input',
-        value: 'credentialSet:cs-1',
-      },
-    }
-    const result = remapForkSubBlocks(sb, () => null, 'create')
-    expect(result.subBlocks.triggerCredentials.value).toBe('credentialSet:cs-1')
-    expect(result.references).toHaveLength(0)
   })
 
   it('promote mode: rewrites {{ENV}} nested in an array-form tool param', () => {

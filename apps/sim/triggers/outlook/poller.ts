@@ -2,22 +2,10 @@ import { createLogger } from '@sim/logger'
 import { OutlookIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { outlookFoldersSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
-import { isCredentialSetValue } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 
 const logger = createLogger('OutlookPollingTrigger')
-
-// Outlook well-known folders that exist for all accounts (used as defaults for credential sets)
-const OUTLOOK_SYSTEM_FOLDERS = [
-  { id: 'inbox', label: 'Inbox' },
-  { id: 'drafts', label: 'Drafts' },
-  { id: 'sentitems', label: 'Sent Items' },
-  { id: 'deleteditems', label: 'Deleted Items' },
-  { id: 'junkemail', label: 'Junk Email' },
-  { id: 'archive', label: 'Archive' },
-  { id: 'outbox', label: 'Outbox' },
-]
 
 export const outlookPollingTrigger: TriggerConfig = {
   id: 'outlook_poller',
@@ -38,7 +26,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
-      supportsCredentialSets: true,
     },
     {
       id: 'folderIds',
@@ -55,10 +42,6 @@ export const outlookPollingTrigger: TriggerConfig = {
           | null
         if (!credentialId) {
           throw new Error('No Outlook credential selected')
-        }
-        // Return default system folders for credential sets (can't fetch user-specific folders for a pool)
-        if (isCredentialSetValue(credentialId)) {
-          return OUTLOOK_SYSTEM_FOLDERS
         }
         try {
           const data = await requestJson(outlookFoldersSelectorContract, {

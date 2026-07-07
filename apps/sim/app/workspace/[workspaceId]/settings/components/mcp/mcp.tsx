@@ -95,10 +95,10 @@ function ServerListItem({
     <div className='flex items-center justify-between gap-3'>
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
         <div className='flex items-center gap-1.5'>
-          <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
+          <span className='max-w-[200px] truncate text-[var(--text-body)] text-sm'>
             {server.name || 'Unnamed Server'}
           </span>
-          <span className='text-[12px] text-[var(--text-muted)]'>({transportLabel})</span>
+          <span className='text-[var(--text-muted)] text-caption'>({transportLabel})</span>
         </div>
         <p
           className={cn(
@@ -157,8 +157,7 @@ export function MCP() {
   const {
     data: mcpToolsData = [],
     error: toolsError,
-    isLoading: toolsLoading,
-    isFetching: toolsFetching,
+    toolsStateByServer,
   } = useMcpToolsQuery(workspaceId)
   const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
   const forceRefreshToolsMutation = useForceRefreshMcpTools()
@@ -402,28 +401,26 @@ export function MCP() {
         <SettingsSection label='Server'>
           <div className='flex flex-col gap-4.5'>
             <div className='flex flex-col gap-2'>
-              <span className='text-[12px] text-[var(--text-muted)]'>Server Name</span>
-              <p className='text-[14px] text-[var(--text-body)]'>
-                {server.name || 'Unnamed Server'}
-              </p>
+              <span className='text-[var(--text-muted)] text-caption'>Server Name</span>
+              <p className='text-[var(--text-body)] text-sm'>{server.name || 'Unnamed Server'}</p>
             </div>
 
             <div className='flex flex-col gap-2'>
-              <span className='text-[12px] text-[var(--text-muted)]'>Transport</span>
-              <p className='text-[14px] text-[var(--text-body)]'>{transportLabel}</p>
+              <span className='text-[var(--text-muted)] text-caption'>Transport</span>
+              <p className='text-[var(--text-body)] text-sm'>{transportLabel}</p>
             </div>
 
             {server.url && (
               <div className='flex flex-col gap-2'>
-                <span className='text-[12px] text-[var(--text-muted)]'>URL</span>
-                <p className='break-all text-[14px] text-[var(--text-body)]'>{server.url}</p>
+                <span className='text-[var(--text-muted)] text-caption'>URL</span>
+                <p className='break-all text-[var(--text-body)] text-sm'>{server.url}</p>
               </div>
             )}
 
             {server.connectionStatus === 'error' && (
               <div className='flex flex-col gap-2'>
-                <span className='text-[12px] text-[var(--text-muted)]'>Status</span>
-                <p className='text-[14px] text-[var(--text-error)]'>
+                <span className='text-[var(--text-muted)] text-caption'>Status</span>
+                <p className='text-[var(--text-error)] text-sm'>
                   {server.lastError || 'Unable to connect'}
                 </p>
               </div>
@@ -431,7 +428,7 @@ export function MCP() {
 
             {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
               <div className='flex flex-col gap-2'>
-                <span className='text-[12px] text-[var(--text-muted)]'>Authentication</span>
+                <span className='text-[var(--text-muted)] text-caption'>Authentication</span>
                 <div>
                   <Chip
                     variant='primary'
@@ -625,7 +622,10 @@ export function MCP() {
             {filteredServers.map((server) => {
               if (!server?.id) return null
               const tools = toolsByServer[server.id] || []
-              const isLoadingTools = toolsLoading || toolsFetching
+              const serverToolsState = toolsStateByServer.get(server.id)
+              const isLoadingTools = serverToolsState
+                ? serverToolsState.isLoading || serverToolsState.isFetching
+                : false
 
               return (
                 <ServerListItem

@@ -24,10 +24,10 @@ export function CreditUsageSection({ workspaceId }: CreditUsageSectionProps) {
     <SettingsSection label='Credit usage'>
       <div className='flex items-center justify-between px-2'>
         <div className='flex flex-col justify-center gap-[1px]'>
-          <span className='text-[14px] text-[var(--text-body)] tabular-nums'>
+          <span className='text-[var(--text-body)] text-sm tabular-nums'>
             {isPending || isError ? '—' : formatCreditsLabel(totalCredits ?? 0)}
           </span>
-          <span className='text-[12px] text-[var(--text-muted)]'>Last 30 days</span>
+          <span className='text-[var(--text-muted)] text-caption'>Last 30 days</span>
         </div>
         <ChipLink href={`/workspace/${workspaceId}/settings/billing/credit-usage`}>
           View usage logs

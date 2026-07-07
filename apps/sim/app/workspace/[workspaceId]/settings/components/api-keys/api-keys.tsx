@@ -181,14 +181,14 @@ export function ApiKeys() {
                       <div key={key.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                            <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                               {key.name}
                             </span>
                             <span className='text-[var(--text-secondary)] text-sm'>
                               (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
-                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                          <p className='truncate text-[var(--text-muted)] text-caption'>
                             {key.displayKey || key.key}
                           </p>
                         </div>
@@ -212,14 +212,14 @@ export function ApiKeys() {
                     <div key={key.id} className='flex items-center justify-between gap-3'>
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <div className='flex items-center gap-1.5'>
-                          <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                          <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                             {key.name}
                           </span>
                           <span className='text-[var(--text-secondary)] text-sm'>
                             (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                           </span>
                         </div>
-                        <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                        <p className='truncate text-[var(--text-muted)] text-caption'>
                           {key.displayKey || key.key}
                         </p>
                       </div>
@@ -247,14 +247,14 @@ export function ApiKeys() {
                         <div className='flex items-center justify-between gap-3'>
                           <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                             <div className='flex items-center gap-1.5'>
-                              <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                              <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                                 {key.name}
                               </span>
                               <span className='text-[var(--text-secondary)] text-sm'>
                                 (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
-                            <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                            <p className='truncate text-[var(--text-muted)] text-caption'>
                               {key.displayKey || key.key}
                             </p>
                           </div>
@@ -295,9 +295,7 @@ export function ApiKeys() {
             <SettingsSection label='Permissions'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
-                  <span className='text-[14px] text-[var(--text-body)]'>
-                    Allow personal API keys
-                  </span>
+                  <span className='text-[var(--text-body)] text-sm'>Allow personal API keys</span>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <button

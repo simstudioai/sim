@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-02",
+  "updatedAt": "2026-07-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -388,11 +388,63 @@
           "description": "Get the top pages of a target domain sorted by organic traffic. Returns page URLs with their traffic, keyword counts, and estimated traffic value."
         },
         {
+          "name": "Paid Pages",
+          "description": "Get a target domain's pages that receive paid search traffic, sorted by estimated paid traffic. Returns page URLs with their paid traffic, keyword counts, and estimated spend."
+        },
+        {
+          "name": "Anchors",
+          "description": "Get the anchor text distribution for a target domain or URL's backlinks, showing how many links and referring domains use each anchor text."
+        },
+        {
           "name": "Keyword Overview",
           "description": "Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential."
+        },
+        {
+          "name": "Related Terms",
+          "description": "Get keyword ideas related to a seed keyword: terms the same top-ranking pages also rank for (\"also rank for\") or also discuss (\"also talk about\"), with volume, difficulty, and CPC."
+        },
+        {
+          "name": "Domain Rating History",
+          "description": "Get the historical Domain Rating (DR) trend for a target domain or URL over a date range, grouped daily, weekly, or monthly."
+        },
+        {
+          "name": "Metrics History",
+          "description": "Get the historical organic and paid traffic trend for a target domain or URL over a date range: organic traffic/cost and paid traffic/cost at each point in time."
+        },
+        {
+          "name": "Referring Domains History",
+          "description": "Get the historical referring domains trend for a target domain or URL over a date range, grouped daily, weekly, or monthly."
+        },
+        {
+          "name": "Keywords History",
+          "description": "Get the historical organic keyword ranking distribution for a target domain or URL over a date range: how many keywords rank in each position bucket at each point in time."
+        },
+        {
+          "name": "Batch Analysis",
+          "description": "Get bulk SEO metrics (Domain Rating, backlinks, referring domains, organic traffic, and more) for multiple domains or URLs in a single request. Useful for comparing many competitors at once."
+        },
+        {
+          "name": "Site Audit Page Explorer",
+          "description": "Get crawled pages from an Ahrefs Site Audit project with health and SEO metrics: HTTP status, title, link counts, backlinks, indexability, and traffic. Optionally filter to pages affected by a specific issue."
+        },
+        {
+          "name": "Rank Tracker Overview",
+          "description": "Get ranking overview metrics for the keywords tracked in an Ahrefs Rank Tracker project: position, search volume, keyword difficulty, and estimated traffic. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker SERP Overview",
+          "description": "Get the full SERP (search engine results page) for a keyword tracked in an Ahrefs Rank Tracker project, including every ranking URL with its position, title, and authority metrics. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker Competitors Overview",
+          "description": "Get competitor rankings for the keywords tracked in an Ahrefs Rank Tracker project: each tracked keyword's volume and difficulty alongside every competitor's position, traffic, and traffic value. This endpoint is free and does not consume API units."
+        },
+        {
+          "name": "Rank Tracker Competitors Stats",
+          "description": "Get aggregate competitor stats for an Ahrefs Rank Tracker project: each competitor's traffic, traffic value, average position, and share of voice across all tracked keywords. This endpoint is free and does not consume API units."
         }
       ],
-      "operationCount": 10,
+      "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -1818,7 +1870,7 @@
       "slug": "aws-secrets-manager",
       "name": "AWS Secrets Manager",
       "description": "Connect to AWS Secrets Manager",
-      "longDescription": "Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.",
+      "longDescription": "Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, delete, describe, tag, untag, restore, and rotate secrets.",
       "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
       "iconName": "SecretsManagerIcon",
       "docsUrl": "https://docs.sim.ai/integrations/secrets_manager",
@@ -1842,9 +1894,29 @@
         {
           "name": "Delete Secret",
           "description": "Delete a secret from AWS Secrets Manager"
+        },
+        {
+          "name": "Describe Secret",
+          "description": "Retrieve full metadata for a secret in AWS Secrets Manager, including rotation configuration and replication status, without exposing the secret value"
+        },
+        {
+          "name": "Tag Secret",
+          "description": "Attach tags to a secret in AWS Secrets Manager"
+        },
+        {
+          "name": "Untag Secret",
+          "description": "Remove tags from a secret in AWS Secrets Manager"
+        },
+        {
+          "name": "Restore Secret",
+          "description": "Cancel a scheduled deletion for a secret in AWS Secrets Manager, restoring access to it"
+        },
+        {
+          "name": "Rotate Secret",
+          "description": "Start or reconfigure rotation for a secret in AWS Secrets Manager"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -1857,7 +1929,7 @@
       "slug": "aws-ses",
       "name": "AWS SES",
       "description": "Send emails and manage templates with AWS Simple Email Service",
-      "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.",
+      "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates, identities, configuration sets, and the account suppression list, and retrieve account sending quota and verified identity information.",
       "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
       "iconName": "SESIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ses",
@@ -1897,9 +1969,49 @@
         {
           "name": "Delete Template",
           "description": "Delete an existing SES email template"
+        },
+        {
+          "name": "Update Template",
+          "description": "Update the subject, HTML, and text content of an existing SES email template"
+        },
+        {
+          "name": "Send Custom Verification Email",
+          "description": "Send a branded custom verification email to an address using a custom verification email template"
+        },
+        {
+          "name": "Create Email Identity",
+          "description": "Start verification of a new SES email address or domain identity"
+        },
+        {
+          "name": "Get Email Identity",
+          "description": "Retrieve verification status, DKIM, Mail-From, and policy details for an SES identity"
+        },
+        {
+          "name": "Delete Email Identity",
+          "description": "Delete a verified SES email address or domain identity"
+        },
+        {
+          "name": "Put Suppressed Destination",
+          "description": "Add an email address to the account-level SES suppression list"
+        },
+        {
+          "name": "Get Suppressed Destination",
+          "description": "Retrieve details for a specific email address on the SES suppression list"
+        },
+        {
+          "name": "List Suppressed Destinations",
+          "description": "List email addresses on the account-level SES suppression list"
+        },
+        {
+          "name": "Delete Suppressed Destination",
+          "description": "Remove an email address from the account-level SES suppression list"
+        },
+        {
+          "name": "Create Configuration Set",
+          "description": "Create an SES configuration set to control tracking, delivery, reputation, sending, and suppression behavior for emails"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 19,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -1922,6 +2034,14 @@
           "description": "Assume an IAM role and receive temporary security credentials"
         },
         {
+          "name": "Assume Role With Web Identity",
+          "description": "Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actions OIDC, EKS IRSA, Google/Facebook federation) and receive temporary security credentials"
+        },
+        {
+          "name": "Assume Role With SAML",
+          "description": "Assume an IAM role using a SAML 2.0 authentication response from an enterprise identity provider and receive temporary security credentials"
+        },
+        {
           "name": "Get Caller Identity",
           "description": "Get details about the IAM user or role whose credentials are used to call the API"
         },
@@ -1934,7 +2054,7 @@
           "description": "Get the AWS account ID associated with an access key"
         }
       ],
-      "operationCount": 4,
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -3063,11 +3183,11 @@
         },
         {
           "name": "Get Zone Settings",
-          "description": "Gets all settings for a zone including SSL mode, minification, caching level, and security settings."
+          "description": "Gets all settings for a zone including SSL mode, caching level, and security settings."
         },
         {
           "name": "Update Zone Setting",
-          "description": "Updates a specific zone setting such as SSL mode, security level, cache level, minification, or other configuration."
+          "description": "Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration."
         },
         {
           "name": "DNS Analytics",

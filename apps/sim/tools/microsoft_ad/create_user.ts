@@ -93,7 +93,7 @@ export const createUserTool: ToolConfig<
     },
   },
   request: {
-    url: 'https://graph.microsoft.com/v1.0/users',
+    url: 'https://graph.microsoft.com/v1.0/users?$select=id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled',
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

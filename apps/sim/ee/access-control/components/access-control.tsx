@@ -192,16 +192,14 @@ export function AccessControl() {
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>
                     <div className='flex items-center gap-2'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        {group.name}
-                      </span>
+                      <span className='truncate text-[var(--text-body)] text-sm'>{group.name}</span>
                       {group.isDefault && (
                         <ChipTag variant='gray' className='flex-shrink-0'>
                           Default
                         </ChipTag>
                       )}
                     </div>
-                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                    <span className='truncate text-[var(--text-muted)] text-caption'>
                       {group.isDefault
                         ? 'Everyone in the organization'
                         : `${

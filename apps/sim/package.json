@@ -54,6 +54,7 @@
     "@aws-sdk/client-sqs": "3.1032.0",
     "@aws-sdk/client-sso-admin": "3.1032.0",
     "@aws-sdk/client-sts": "3.1032.0",
+    "@aws-sdk/client-textract": "3.1032.0",
     "@aws-sdk/lib-dynamodb": "3.1032.0",
     "@aws-sdk/s3-request-presigner": "3.1032.0",
     "@azure/communication-email": "1.0.0",

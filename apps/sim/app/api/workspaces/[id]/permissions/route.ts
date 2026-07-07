@@ -13,11 +13,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  checkWorkspaceAccess,
-  getUserEntityPermissions,
   getUsersWithPermissions,
+  getWorkspacePermissionsForViewer,
   hasWorkspaceAdminAccess,
-  type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacesPermissionsAPI')
@@ -41,37 +39,13 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const isAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-      const access = await checkWorkspaceAccess(workspaceId, session.user.id)
+      const result = await getWorkspacePermissionsForViewer(workspaceId, session.user.id)
 
-      if (!access.exists) {
+      if (!result) {
         return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
       }
 
-      if (!isAdmin && !access.hasAccess) {
-        return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
-      }
-
-      const explicitPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
-      const viewerPermissionType: PermissionType = isAdmin
-        ? 'admin'
-        : (explicitPermission ?? 'read')
-
-      const result = await getUsersWithPermissions(workspaceId)
-
-      return NextResponse.json({
-        users: result,
-        total: result.length,
-        viewer: {
-          userId: session.user.id,
-          isAdmin,
-          permissionType: viewerPermissionType,
-        },
-      })
+      return NextResponse.json(result)
     } catch (error) {
       logger.error('Error fetching workspace permissions:', error)
       return NextResponse.json({ error: 'Failed to fetch workspace permissions' }, { status: 500 })

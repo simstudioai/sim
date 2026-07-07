@@ -17,10 +17,11 @@ export const dustProfile: CompetitorProfile = {
     'Dust is an enterprise AI agent platform where teams build no-code agents connected to company data and tools in a shared, multiplayer workspace, then deploy them to chat, Slack, and other surfaces.',
   standoutFeatures: [
     {
-      title: 'Purely no-code, form-based builder for non-technical teams',
+      title:
+        'Zero visual/flow layer by design, building only through forms, text, and conversation',
       description:
-        "Dust's Agent Builder is entirely form and text based, name, description, instructions, model, tools, knowledge, guided by a conversational 'Sidekick' assistant, with no visual canvas at all (its earlier block-based 'Dust Apps' product is deprecated). Agents deploy natively into a shared, multiplayer workspace and out to Slack, Teams, and other chat surfaces. A team that wants business users assembling agents from plain-language instructions and templates, with no drag-and-drop layer to learn, gets that directly. Teams that do want infrastructure-as-code can also define Skills and agent configurations as files in a Git repository and sync them via an official GitHub Action, with the same PR review and rollback workflow as application code.",
-      shortDescription: 'No-code, form-based builder for business teams, no visual canvas at all.',
+        "Dust's Agent Builder is entirely form and text based, name, description, instructions, model, tools, knowledge, guided by a conversational 'Sidekick' assistant, with no visual canvas at all (its earlier block-based 'Dust Apps' product is deprecated). Agents deploy natively into a shared, multiplayer workspace and out to Slack, Teams, and other chat surfaces. A team that wants agents assembled purely from plain-language instructions and templates, with no drag-and-drop layer to learn or maintain, gets that directly. Teams that do want infrastructure-as-code can also define Skills and agent configurations as files in a Git repository and sync them via an official GitHub Action, with the same PR review and rollback workflow as application code.",
+      shortDescription: 'No visual/flow canvas at all, only forms, text, and conversation.',
       source: {
         url: 'https://docs.dust.tt/changelog/gitops-sync-for-skills-agent-configurations-with-github-action',
         label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
@@ -28,11 +29,10 @@ export const dustProfile: CompetitorProfile = {
       },
     },
     {
-      title: "'Skills' as reusable, shared agent instruction/tool packages",
+      title: "'Skills' can attach to many agents at once, with one edit propagating to all of them",
       description:
-        "Skills are named, reusable packages of instructions, knowledge, and tools that can be attached to multiple agents at once. Updating a Skill's instructions automatically propagates the improvement to every agent using it, rather than requiring each agent to be edited individually.",
-      shortDescription:
-        'Reusable instruction/tool packages that update every agent using them at once.',
+        "A single Skill can be attached to multiple agents simultaneously, and updating its instructions once automatically propagates that change to every agent using it, rather than requiring each agent's copy to be edited individually.",
+      shortDescription: 'One Skill edit auto-propagates to every agent it is attached to.',
       source: {
         url: 'https://docs.dust.tt/docs/skills',
         label: 'Skills | Dust Docs',
@@ -51,10 +51,11 @@ export const dustProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Dual-role MCP: consumes external servers and exposes Dust as one',
+      title: "Client-side MCP tools that execute locally in the end user's own environment",
       description:
-        "Dust agents can call tools from external MCP servers, remote or client-side (client-side tools execute in the user's own environment for sensitive operations). Dust can also be exposed as an MCP server, so external MCP-compatible clients (e.g. Claude Desktop, Cursor) can call Dust agents and data as tools.",
-      shortDescription: 'Both calls external MCP tools and can be called as an MCP server itself.',
+        "Beyond remote MCP servers, Dust supports client-side MCP servers whose tools run directly in the end user's local environment rather than on Dust's own infrastructure, for sensitive operations that shouldn't leave the user's machine. Dust can also be exposed as an MCP server itself, so external MCP-compatible clients (e.g. Claude Desktop, Cursor) can call Dust agents and data as tools.",
+      shortDescription:
+        "MCP tools that run locally in the user's own environment for sensitive operations.",
       source: {
         url: 'https://docs.dust.tt/docs/client-side-mcp-server',
         label: 'Client Side MCP Server (Preview) | Dust Docs',
@@ -87,10 +88,12 @@ export const dustProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'No dedicated pre-deployment evaluation/dataset-testing framework',
+      title:
+        'No dedicated pre-deployment evaluation/dataset-testing framework, a gap shared with most agent builders',
       description:
-        "Dust says it is 'not a pre-deployment evaluation platform': dataset-based regression testing belongs in CI/CD pipelines and specialized testing tools, and Dust builds observability signals into the agent-builder workflow instead of a formal eval-suite feature.",
-      shortDescription: 'Dust says it is not a pre-deployment evaluation platform.',
+        "Dust explicitly says it is 'not a pre-deployment evaluation platform': dataset-based regression testing belongs in CI/CD pipelines and specialized testing tools, and Dust builds observability signals into the agent-builder workflow instead of a formal eval-suite feature. This is a gap most agent builders share, including Sim, whose own Evaluator and Guardrails blocks are per-call scoring/validation primitives rather than a batch golden-dataset eval-suite runner.",
+      shortDescription:
+        'Dust says it is not a pre-deployment eval platform, a gap shared with most agent builders.',
       source: {
         url: 'https://dust.tt/blog/evaluation-to-maintenance',
         label: 'From Evaluation to Maintenance | Dust Blog',

@@ -51,10 +51,11 @@ export const crewaiProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Native Agent2Agent (A2A) protocol support as a first-class primitive',
+      title: 'Acts as both an A2A client and an A2A server',
       description:
-        'CrewAI treats the open Agent2Agent (A2A) protocol as a first-class delegation primitive: agents can be configured with an A2AClientConfig to delegate tasks to and request information from remote A2A-compliant agents (with Bearer, OAuth2, API key, or HTTP auth), and/or an A2AServerConfig to expose a CrewAI agent as an A2A-compliant server other frameworks can call, via the optional crewai[a2a] extra.',
-      shortDescription: 'Delegates to and serves as remote agents via the open A2A protocol.',
+        'CrewAI treats the open Agent2Agent (A2A) protocol as a first-class delegation primitive: agents can be configured with an A2AClientConfig to delegate tasks to and request information from remote A2A-compliant agents (with Bearer, OAuth2, API key, or HTTP auth), and/or an A2AServerConfig to expose a CrewAI agent as an A2A-compliant server other frameworks can call, via the optional crewai[a2a] extra. Sim ships a dedicated A2A block that calls, tracks, and discovers external A2A-compliant agents, but does not document a way to expose a Sim workflow as an A2A server of its own.',
+      shortDescription:
+        "Delegates to remote A2A agents and can expose a crew as an A2A server; Sim's A2A block only calls out to external agents.",
       source: {
         url: 'https://docs.crewai.com/en/learn/a2a-agent-delegation',
         label: 'Agent-to-Agent (A2A) Protocol - CrewAI Docs',
@@ -64,9 +65,9 @@ export const crewaiProfile: CompetitorProfile = {
     {
       title: 'CrewAI AMP: natural-language visual Studio on top of the code framework',
       description:
-        'CrewAI AMP (the commercial Agent Management Platform) adds Crew Studio, a chat-and-canvas interface where a builder describes an automation in natural language and the AI generates agents, tasks, and tools as an editable drag-and-drop workflow, exportable to Python code. This gives the code-first framework an optional visual entry point for non-developers.',
+        'CrewAI AMP (the commercial Agent Management Platform) adds Crew Studio, a chat-and-canvas interface where a builder describes an automation in natural language and the AI generates agents, tasks, and tools as an editable drag-and-drop workflow, exportable to Python code. This gives the code-first framework an optional visual entry point for non-developers. Sim ships an equivalent natural-language builder (Chat and in-editor Copilot) as a core, free part of the product, not a separate paid add-on layered on top of a code-only open-source base.',
       shortDescription:
-        'Natural-language chat generates an editable visual workflow, exportable to code.',
+        "Natural-language chat generates an editable visual workflow, exportable to code, as a paid AMP add-on; Sim's Chat and Copilot ship the same capability free.",
       source: {
         url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
         label: 'Crew Studio - CrewAI Docs',
@@ -107,17 +108,6 @@ export const crewaiProfile: CompetitorProfile = {
       source: {
         url: 'https://crewai.com/pricing',
         label: 'CrewAI Pricing',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Native vector store support limited to two backends',
-      description:
-        "CrewAI's built-in RAG/knowledge system ships native support for only ChromaDB (the default) and Qdrant as vector store backends. Broader coverage (Pinecone, PGVector, Supabase, etc.) requires custom integration work, not a documented first-party connector.",
-      shortDescription: 'Native knowledge/RAG vector stores are limited to ChromaDB and Qdrant.',
-      source: {
-        url: 'https://docs.crewai.com/en/concepts/knowledge',
-        label: 'Knowledge - CrewAI Docs',
         asOf: '2026-07-02',
       },
     },

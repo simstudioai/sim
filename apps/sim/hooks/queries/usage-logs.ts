@@ -11,6 +11,9 @@ import { usageLogKeys } from '@/hooks/queries/utils/usage-log-keys'
 
 const PAGE_SIZE = 25
 
+export const USAGE_LOGS_LIST_STALE_TIME = 30 * 1000
+export const USAGE_SUMMARY_STALE_TIME = 30 * 1000
+
 interface UsagePeriodFilter {
   period: UsageLogPeriod
   /** Required when `period` is `'custom'`. */
@@ -51,7 +54,7 @@ export function useUsageLogs({ period, startDate, endDate, enabled = true }: Use
     getNextPageParam: (lastPage) =>
       lastPage.pagination.hasMore ? lastPage.pagination.nextCursor : undefined,
     enabled,
-    staleTime: 30 * 1000,
+    staleTime: USAGE_LOGS_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -65,7 +68,7 @@ export function useUsageSummary(period: Exclude<UsageLogPeriod, 'custom'>) {
   return useQuery({
     queryKey: usageLogKeys.summary(period),
     queryFn: ({ signal }) => fetchUsageLogs({ period }, 1, undefined, signal, false),
-    staleTime: 30 * 1000,
+    staleTime: USAGE_SUMMARY_STALE_TIME,
     select: (data) => data.summary.totalCredits,
   })
 }

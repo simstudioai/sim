@@ -34,17 +34,6 @@ export const AuditAction = {
   // Billing
   CREDIT_PURCHASED: 'credit.purchased',
 
-  // Credential Sets
-  CREDENTIAL_SET_CREATED: 'credential_set.created',
-  CREDENTIAL_SET_UPDATED: 'credential_set.updated',
-  CREDENTIAL_SET_DELETED: 'credential_set.deleted',
-  CREDENTIAL_SET_MEMBER_REMOVED: 'credential_set_member.removed',
-  CREDENTIAL_SET_MEMBER_LEFT: 'credential_set_member.left',
-  CREDENTIAL_SET_INVITATION_CREATED: 'credential_set_invitation.created',
-  CREDENTIAL_SET_INVITATION_ACCEPTED: 'credential_set_invitation.accepted',
-  CREDENTIAL_SET_INVITATION_RESENT: 'credential_set_invitation.resent',
-  CREDENTIAL_SET_INVITATION_REVOKED: 'credential_set_invitation.revoked',
-
   // Connector Documents
   CONNECTOR_DOCUMENT_RESTORED: 'connector_document.restored',
   CONNECTOR_DOCUMENT_EXCLUDED: 'connector_document.excluded',
@@ -199,7 +188,6 @@ export const AuditResourceType = {
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
-  CREDENTIAL_SET: 'credential_set',
   CUSTOM_TOOL: 'custom_tool',
   DATA_DRAIN: 'data_drain',
   DOCUMENT: 'document',

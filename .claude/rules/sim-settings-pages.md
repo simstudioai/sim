@@ -96,6 +96,55 @@ Adding a new settings page:
    `settings/[section]/settings.tsx`.
 3. Build the component body inside `<SettingsPanel>` — no shell, no title block.
 
+## Text-scale tokens (no literal pixel sizes)
+
+Settings pages never use a literal `text-[Npx]` class — always the named Tailwind
+scale token from `apps/sim/tailwind.config.ts`'s `fontSize` extension (`text-micro`
+10px, `text-xs` 11px, `text-caption` 12px, `text-small` 13px, `text-sm` 14px
+[Tailwind default, unmodified], `text-base` 15px, `text-md` 16px, `text-lg` 18px
+[Tailwind default]). A literal size is either a straight rename to the equivalent
+token (if the pixel value matches one exactly) or a sign the page never migrated —
+grep `text-\[1[0-8]px\]` under `apps/sim/app/workspace/*/settings/**` and
+`apps/sim/ee/**` to find stragglers.
+
+For a two-line list row (title/value on top, a muted subtitle below — a name +
+email, a tool name + description, a server name + status), the established
+pairing is:
+
+- **Title / row value**: `text-[var(--text-body)] text-sm`
+- **Subtitle / muted description**: `text-[var(--text-muted)] text-caption`
+
+This is not a stylistic guess — it is the tokenized form of the literal-pixel
+pairing (`text-[14px] text-[var(--text-body)]` / `text-[12px]
+text-[var(--text-muted)]`) already used for this exact row shape across
+`member-list.tsx`, `api-keys.tsx`, `mcp.tsx`, `billing.tsx`,
+`workflow-mcp-servers.tsx`, and others — keep new rows consistent with it rather
+than inventing a new size pairing.
+
+For a toggle row (a `Switch` with a title and optional description), use the emcn
+`Label` component for the title — never a hand-rolled `<span>` — paired with
+`Switch`'s `id`/`Label`'s `htmlFor`:
+
+```tsx
+<div className='flex items-center justify-between'>
+  <div className='flex flex-col gap-1'>
+    <Label htmlFor='my-toggle'>Enable thing</Label>
+    <p className='text-[var(--text-muted)] text-caption'>One-line description.</p>
+  </div>
+  <Switch id='my-toggle' checked={enabled} onCheckedChange={onToggle} />
+</div>
+```
+
+`Label`'s own default styling (`font-medium text-[var(--text-primary)]
+text-small`) already matches the established title treatment — do not add a
+`className` overriding its size/color unless the row genuinely needs something
+different.
+
+`--text-primary`/`--text-secondary` and `--text-body`/`--text-muted` are both real,
+independently-defined tokens (not interchangeable — they resolve to different
+colors) and both see legitimate use across settings pages; this rule only pins
+down the **row title/subtitle** shape above, not every text element on every page.
+
 ## Other shared settings primitives (do not re-roll these)
 
 - **`SettingsEmptyState`** (`…/components/settings-empty-state`) — the canonical
@@ -154,7 +203,7 @@ changes" modal:
 ## Detail sub-views
 
 A drill-down view reached from a list row (selected MCP server, workflow MCP
-server, credential set, permission group, retention policy) renders through
+server, permission group, retention policy) renders through
 `SettingsPanel` like a list page: pass `back={{ text, icon: ArrowLeft, onSelect }}`
 for the left back chip, `title` (the entity name), and the header `actions`, then
 render the body. Do NOT hand-roll a shell or header bar; a tab bar renders as the
@@ -175,4 +224,5 @@ A settings page is design-system-clean when:
 - [ ] Detail sub-views and entitlement/loading gates keep their own chrome (intentional).
 - [ ] If it has editable state: Save/Discard go through `SaveDiscardActions`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
 - [ ] No business logic, handlers, or conditional rendering changed by the migration.
+- [ ] No literal `text-[Npx]` classes — named scale tokens only (see "Text-scale tokens" above).
 - [ ] `tsc`, `biome`, and the page's tests pass.

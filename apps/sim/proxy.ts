@@ -183,7 +183,11 @@ function handleInvitationRedirects(
       new URL(`/login?callbackUrl=${callbackParam}&invite_flow=true`, request.url)
     )
   }
-  return NextResponse.next()
+  const response = NextResponse.next()
+  response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN')
+  return response
 }
 
 /**
@@ -283,11 +287,9 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  if (url.pathname === '/') {
-    response.headers.set('Content-Security-Policy', generateRuntimeCSP())
-    response.headers.set('X-Content-Type-Options', 'nosniff')
-    response.headers.set('X-Frame-Options', 'SAMEORIGIN')
-  }
+  response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 
   return track(request, response)
 }

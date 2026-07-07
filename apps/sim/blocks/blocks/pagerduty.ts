@@ -8,7 +8,7 @@ export const PagerDutyBlock: BlockConfig = {
   description: 'Manage incidents and on-call schedules with PagerDuty',
   triggerAllowed: true,
   longDescription:
-    'Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.',
+    'Integrate PagerDuty into your workflow to list, get, create, update, snooze, and merge incidents, add notes and list alerts, look up services and escalation policies, check on-call schedules, list users, and send monitoring events through the Events API v2.',
   docsLink: 'https://docs.sim.ai/integrations/pagerduty',
   category: 'tools',
   integrationType: IntegrationType.Observability,
@@ -24,11 +24,20 @@ export const PagerDutyBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'List Incidents', id: 'list_incidents' },
+        { label: 'Get Incident', id: 'get_incident' },
         { label: 'Create Incident', id: 'create_incident' },
         { label: 'Update Incident', id: 'update_incident' },
+        { label: 'Snooze Incident', id: 'snooze_incident' },
+        { label: 'Merge Incidents', id: 'merge_incidents' },
         { label: 'Add Note', id: 'add_note' },
+        { label: 'List Incident Alerts', id: 'list_incident_alerts' },
         { label: 'List Services', id: 'list_services' },
+        { label: 'Get Service', id: 'get_service' },
         { label: 'List On-Calls', id: 'list_oncalls' },
+        { label: 'List Escalation Policies', id: 'list_escalation_policies' },
+        { label: 'List Schedules', id: 'list_schedules' },
+        { label: 'List Users', id: 'list_users' },
+        { label: 'Send Event', id: 'send_event' },
       ],
       value: () => 'list_incidents',
     },
@@ -37,9 +46,20 @@ export const PagerDutyBlock: BlockConfig = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      required: true,
+      required: { field: 'operation', value: 'send_event', not: true },
       placeholder: 'Enter your PagerDuty REST API Key',
       password: true,
+      condition: { field: 'operation', value: 'send_event', not: true },
+    },
+
+    {
+      id: 'routingKey',
+      title: 'Integration Key',
+      type: 'short-input',
+      required: { field: 'operation', value: 'send_event' },
+      placeholder: 'Events API v2 integration key for the target service',
+      password: true,
+      condition: { field: 'operation', value: 'send_event' },
     },
 
     {
@@ -48,12 +68,24 @@ export const PagerDutyBlock: BlockConfig = {
       type: 'short-input',
       required: {
         field: 'operation',
-        value: ['create_incident', 'update_incident', 'add_note'],
+        value: [
+          'create_incident',
+          'update_incident',
+          'add_note',
+          'snooze_incident',
+          'merge_incidents',
+        ],
       },
       placeholder: 'Valid PagerDuty user email (required for write operations)',
       condition: {
         field: 'operation',
-        value: ['create_incident', 'update_incident', 'add_note'],
+        value: [
+          'create_incident',
+          'update_incident',
+          'add_note',
+          'snooze_incident',
+          'merge_incidents',
+        ],
       },
     },
 
@@ -70,6 +102,19 @@ export const PagerDutyBlock: BlockConfig = {
       ],
       value: () => '',
       condition: { field: 'operation', value: 'list_incidents' },
+    },
+    {
+      id: 'listUrgencies',
+      title: 'Urgencies',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'High', id: 'high' },
+        { label: 'Low', id: 'low' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'list_incidents' },
+      mode: 'advanced',
     },
     {
       id: 'listServiceIds',
@@ -127,6 +172,24 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_incidents' },
       mode: 'advanced',
     },
+    {
+      id: 'listOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'list_incidents' },
+      mode: 'advanced',
+    },
+
+    // --- Get Incident fields ---
+    {
+      id: 'getIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'get_incident' },
+      placeholder: 'ID of the incident to fetch',
+      condition: { field: 'operation', value: 'get_incident' },
+    },
 
     // --- Create Incident fields ---
     {
@@ -179,6 +242,14 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_incident' },
       mode: 'advanced',
     },
+    {
+      id: 'incidentKey',
+      title: 'De-duplication Key',
+      type: 'short-input',
+      placeholder: 'Idempotency key to avoid duplicate incidents (optional)',
+      condition: { field: 'operation', value: 'create_incident' },
+      mode: 'advanced',
+    },
 
     // --- Update Incident fields ---
     {
@@ -195,11 +266,20 @@ export const PagerDutyBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'No Change', id: '' },
+        { label: 'Triggered (reopen)', id: 'triggered' },
         { label: 'Acknowledged', id: 'acknowledged' },
         { label: 'Resolved', id: 'resolved' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'update_incident' },
+    },
+    {
+      id: 'updateResolution',
+      title: 'Resolution Note',
+      type: 'long-input',
+      placeholder: 'Note describing the resolution (used when status is resolved)',
+      condition: { field: 'operation', value: 'update_incident' },
+      mode: 'advanced',
     },
     {
       id: 'updateTitle',
@@ -230,6 +310,42 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_incident' },
       mode: 'advanced',
     },
+    // --- Snooze Incident fields ---
+    {
+      id: 'snoozeIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'snooze_incident' },
+      placeholder: 'ID of the incident to snooze',
+      condition: { field: 'operation', value: 'snooze_incident' },
+    },
+    {
+      id: 'snoozeDuration',
+      title: 'Duration (seconds)',
+      type: 'short-input',
+      required: { field: 'operation', value: 'snooze_incident' },
+      placeholder: 'e.g., 3600 for 1 hour (max 604800)',
+      condition: { field: 'operation', value: 'snooze_incident' },
+    },
+
+    // --- Merge Incidents fields ---
+    {
+      id: 'mergeTargetIncidentId',
+      title: 'Target Incident ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'merge_incidents' },
+      placeholder: 'Incident that will absorb the source incidents',
+      condition: { field: 'operation', value: 'merge_incidents' },
+    },
+    {
+      id: 'mergeSourceIncidentIds',
+      title: 'Source Incident IDs',
+      type: 'short-input',
+      required: { field: 'operation', value: 'merge_incidents' },
+      placeholder: 'Comma-separated IDs of incidents to merge in',
+      condition: { field: 'operation', value: 'merge_incidents' },
+    },
+
     // --- Add Note fields ---
     {
       id: 'noteIncidentId',
@@ -248,6 +364,45 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'add_note' },
     },
 
+    // --- List Incident Alerts fields ---
+    {
+      id: 'alertsIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'list_incident_alerts' },
+      placeholder: 'ID of the incident whose alerts to list',
+      condition: { field: 'operation', value: 'list_incident_alerts' },
+    },
+    {
+      id: 'alertsStatuses',
+      title: 'Statuses',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Triggered', id: 'triggered' },
+        { label: 'Resolved', id: 'resolved' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'list_incident_alerts' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alertsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'list_incident_alerts' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alertsOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'list_incident_alerts' },
+      mode: 'advanced',
+    },
+
     // --- List Services fields ---
     {
       id: 'serviceQuery',
@@ -263,6 +418,24 @@ export const PagerDutyBlock: BlockConfig = {
       placeholder: '25',
       condition: { field: 'operation', value: 'list_services' },
       mode: 'advanced',
+    },
+    {
+      id: 'serviceOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'list_services' },
+      mode: 'advanced',
+    },
+
+    // --- Get Service fields ---
+    {
+      id: 'getServiceId',
+      title: 'Service ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'get_service' },
+      placeholder: 'ID of the service to fetch',
+      condition: { field: 'operation', value: 'get_service' },
     },
 
     // --- List On-Calls fields ---
@@ -317,6 +490,200 @@ export const PagerDutyBlock: BlockConfig = {
         generationType: 'timestamp',
       },
     },
+    {
+      id: 'oncallOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'list_oncalls' },
+      mode: 'advanced',
+    },
+
+    // --- List Escalation Policies fields ---
+    {
+      id: 'escalationPolicyQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Filter escalation policies by name',
+      condition: { field: 'operation', value: 'list_escalation_policies' },
+    },
+    {
+      id: 'escalationPolicyLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'list_escalation_policies' },
+      mode: 'advanced',
+    },
+    {
+      id: 'escalationPolicyOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'list_escalation_policies' },
+      mode: 'advanced',
+    },
+
+    // --- List Schedules fields ---
+    {
+      id: 'scheduleQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Filter schedules by name',
+      condition: { field: 'operation', value: 'list_schedules' },
+    },
+    {
+      id: 'scheduleLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'list_schedules' },
+      mode: 'advanced',
+    },
+    {
+      id: 'scheduleOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'list_schedules' },
+      mode: 'advanced',
+    },
+
+    // --- List Users fields ---
+    {
+      id: 'userQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Filter users by name or email',
+      condition: { field: 'operation', value: 'list_users' },
+    },
+    {
+      id: 'userLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'list_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'userOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'list_users' },
+      mode: 'advanced',
+    },
+
+    // --- Send Event fields ---
+    {
+      id: 'eventAction',
+      title: 'Event Action',
+      type: 'dropdown',
+      options: [
+        { label: 'Trigger', id: 'trigger' },
+        { label: 'Acknowledge', id: 'acknowledge' },
+        { label: 'Resolve', id: 'resolve' },
+      ],
+      value: () => 'trigger',
+      condition: { field: 'operation', value: 'send_event' },
+    },
+    {
+      id: 'eventSummary',
+      title: 'Summary',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+      placeholder: 'Brief summary of the event',
+      condition: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+    },
+    {
+      id: 'eventSource',
+      title: 'Source',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+      placeholder: 'Affected system, e.g. a hostname',
+      condition: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+    },
+    {
+      id: 'eventSeverity',
+      title: 'Severity',
+      type: 'dropdown',
+      options: [
+        { label: 'Critical', id: 'critical' },
+        { label: 'Warning', id: 'warning' },
+        { label: 'Error', id: 'error' },
+        { label: 'Info', id: 'info' },
+      ],
+      value: () => 'critical',
+      condition: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+    },
+    {
+      id: 'eventDedupKey',
+      title: 'De-duplication Key',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: ['acknowledge', 'resolve'] },
+      },
+      placeholder: 'Key identifying the alert (required for acknowledge/resolve)',
+      condition: { field: 'operation', value: 'send_event' },
+    },
+    {
+      id: 'eventComponent',
+      title: 'Component',
+      type: 'short-input',
+      placeholder: 'Component of the source responsible for the event',
+      condition: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventGroup',
+      title: 'Group',
+      type: 'short-input',
+      placeholder: 'Logical grouping of components',
+      condition: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventClass',
+      title: 'Class',
+      type: 'short-input',
+      placeholder: 'Class/type of the event',
+      condition: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+      mode: 'advanced',
+    },
     ...getTrigger('pagerduty_incident_triggered').subBlocks,
     ...getTrigger('pagerduty_incident_acknowledged').subBlocks,
     ...getTrigger('pagerduty_incident_resolved').subBlocks,
@@ -328,11 +695,20 @@ export const PagerDutyBlock: BlockConfig = {
   tools: {
     access: [
       'pagerduty_list_incidents',
+      'pagerduty_get_incident',
       'pagerduty_create_incident',
       'pagerduty_update_incident',
+      'pagerduty_snooze_incident',
+      'pagerduty_merge_incidents',
       'pagerduty_add_note',
+      'pagerduty_list_incident_alerts',
       'pagerduty_list_services',
+      'pagerduty_get_service',
       'pagerduty_list_oncalls',
+      'pagerduty_list_escalation_policies',
+      'pagerduty_list_schedules',
+      'pagerduty_list_users',
+      'pagerduty_send_event',
     ],
     config: {
       tool: (params) => `pagerduty_${params.operation}`,
@@ -342,11 +718,17 @@ export const PagerDutyBlock: BlockConfig = {
         switch (params.operation) {
           case 'list_incidents':
             if (params.statuses) result.statuses = params.statuses
+            if (params.listUrgencies) result.urgencies = params.listUrgencies
             if (params.listServiceIds) result.serviceIds = params.listServiceIds
             if (params.listSince) result.since = params.listSince
             if (params.listUntil) result.until = params.listUntil
             if (params.listSortBy) result.sortBy = params.listSortBy
             if (params.listLimit) result.limit = params.listLimit
+            if (params.listOffset) result.offset = params.listOffset
+            break
+
+          case 'get_incident':
+            if (params.getIncidentId) result.incidentId = params.getIncidentId
             break
 
           case 'create_incident':
@@ -360,6 +742,18 @@ export const PagerDutyBlock: BlockConfig = {
             if (params.updateTitle) result.title = params.updateTitle
             if (params.updateUrgency) result.urgency = params.updateUrgency
             if (params.updateEscalationLevel) result.escalationLevel = params.updateEscalationLevel
+            if (params.updateResolution) result.resolution = params.updateResolution
+            break
+
+          case 'snooze_incident':
+            if (params.snoozeIncidentId) result.incidentId = params.snoozeIncidentId
+            if (params.snoozeDuration) result.duration = params.snoozeDuration
+            break
+
+          case 'merge_incidents':
+            if (params.mergeTargetIncidentId) result.targetIncidentId = params.mergeTargetIncidentId
+            if (params.mergeSourceIncidentIds)
+              result.sourceIncidentIds = params.mergeSourceIncidentIds
             break
 
           case 'add_note':
@@ -367,9 +761,21 @@ export const PagerDutyBlock: BlockConfig = {
             if (params.noteContent) result.content = params.noteContent
             break
 
+          case 'list_incident_alerts':
+            if (params.alertsIncidentId) result.incidentId = params.alertsIncidentId
+            if (params.alertsStatuses) result.statuses = params.alertsStatuses
+            if (params.alertsLimit) result.limit = params.alertsLimit
+            if (params.alertsOffset) result.offset = params.alertsOffset
+            break
+
           case 'list_services':
             if (params.serviceQuery) result.query = params.serviceQuery
             if (params.serviceLimit) result.limit = params.serviceLimit
+            if (params.serviceOffset) result.offset = params.serviceOffset
+            break
+
+          case 'get_service':
+            if (params.getServiceId) result.serviceId = params.getServiceId
             break
 
           case 'list_oncalls':
@@ -379,6 +785,36 @@ export const PagerDutyBlock: BlockConfig = {
             if (params.oncallSince) result.since = params.oncallSince
             if (params.oncallUntil) result.until = params.oncallUntil
             if (params.oncallLimit) result.limit = params.oncallLimit
+            if (params.oncallOffset) result.offset = params.oncallOffset
+            break
+
+          case 'list_escalation_policies':
+            if (params.escalationPolicyQuery) result.query = params.escalationPolicyQuery
+            if (params.escalationPolicyLimit) result.limit = params.escalationPolicyLimit
+            if (params.escalationPolicyOffset) result.offset = params.escalationPolicyOffset
+            break
+
+          case 'list_schedules':
+            if (params.scheduleQuery) result.query = params.scheduleQuery
+            if (params.scheduleLimit) result.limit = params.scheduleLimit
+            if (params.scheduleOffset) result.offset = params.scheduleOffset
+            break
+
+          case 'list_users':
+            if (params.userQuery) result.query = params.userQuery
+            if (params.userLimit) result.limit = params.userLimit
+            if (params.userOffset) result.offset = params.userOffset
+            break
+
+          case 'send_event':
+            if (params.eventAction) result.eventAction = params.eventAction
+            if (params.eventSummary) result.summary = params.eventSummary
+            if (params.eventSource) result.source = params.eventSource
+            if (params.eventSeverity) result.severity = params.eventSeverity
+            if (params.eventDedupKey) result.dedupKey = params.eventDedupKey
+            if (params.eventComponent) result.component = params.eventComponent
+            if (params.eventGroup) result.group = params.eventGroup
+            if (params.eventClass) result.class = params.eventClass
             break
         }
 
@@ -390,51 +826,93 @@ export const PagerDutyBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'PagerDuty REST API Key' },
+    routingKey: { type: 'string', description: 'Events API v2 integration key' },
     fromEmail: { type: 'string', description: 'Valid PagerDuty user email' },
     statuses: { type: 'string', description: 'Status filter for incidents' },
+    listUrgencies: { type: 'string', description: 'Urgency filter for incidents' },
     listServiceIds: { type: 'string', description: 'Service IDs filter' },
     listSince: { type: 'string', description: 'Start date filter' },
     listUntil: { type: 'string', description: 'End date filter' },
+    listSortBy: { type: 'string', description: 'Sort field' },
+    listLimit: { type: 'string', description: 'Max results for incidents' },
+    listOffset: { type: 'string', description: 'Pagination offset for incidents' },
+    getIncidentId: { type: 'string', description: 'Incident ID to fetch' },
     title: { type: 'string', description: 'Incident title' },
     createServiceId: { type: 'string', description: 'Service ID for new incident' },
     createUrgency: { type: 'string', description: 'Urgency level' },
     body: { type: 'string', description: 'Incident description' },
+    incidentKey: { type: 'string', description: 'De-duplication key for new incident' },
     updateIncidentId: { type: 'string', description: 'Incident ID to update' },
     updateStatus: { type: 'string', description: 'New status' },
+    updateResolution: { type: 'string', description: 'Resolution note' },
+    snoozeIncidentId: { type: 'string', description: 'Incident ID to snooze' },
+    snoozeDuration: { type: 'string', description: 'Snooze duration in seconds' },
+    mergeTargetIncidentId: { type: 'string', description: 'Target incident ID for merge' },
+    mergeSourceIncidentIds: { type: 'string', description: 'Source incident IDs to merge in' },
     noteIncidentId: { type: 'string', description: 'Incident ID for note' },
     noteContent: { type: 'string', description: 'Note content' },
+    alertsIncidentId: { type: 'string', description: 'Incident ID whose alerts to list' },
+    alertsStatuses: { type: 'string', description: 'Status filter for alerts' },
+    alertsLimit: { type: 'string', description: 'Max results for alerts' },
+    alertsOffset: { type: 'string', description: 'Pagination offset for alerts' },
     escalationPolicyId: { type: 'string', description: 'Escalation policy ID' },
     assigneeId: { type: 'string', description: 'Assignee user ID' },
     updateTitle: { type: 'string', description: 'New incident title' },
     updateUrgency: { type: 'string', description: 'New urgency level' },
     updateEscalationLevel: { type: 'string', description: 'Escalation level number' },
-    listSortBy: { type: 'string', description: 'Sort field' },
-    listLimit: { type: 'string', description: 'Max results for incidents' },
     serviceQuery: { type: 'string', description: 'Service name filter' },
     serviceLimit: { type: 'string', description: 'Max results for services' },
+    serviceOffset: { type: 'string', description: 'Pagination offset for services' },
+    getServiceId: { type: 'string', description: 'Service ID to fetch' },
     oncallEscalationPolicyIds: { type: 'string', description: 'Escalation policy IDs filter' },
     oncallScheduleIds: { type: 'string', description: 'Schedule IDs filter' },
     oncallSince: { type: 'string', description: 'On-call start time filter' },
     oncallUntil: { type: 'string', description: 'On-call end time filter' },
     oncallLimit: { type: 'string', description: 'Max results for on-calls' },
+    oncallOffset: { type: 'string', description: 'Pagination offset for on-calls' },
+    escalationPolicyQuery: { type: 'string', description: 'Escalation policy name filter' },
+    escalationPolicyLimit: { type: 'string', description: 'Max results for escalation policies' },
+    escalationPolicyOffset: {
+      type: 'string',
+      description: 'Pagination offset for escalation policies',
+    },
+    scheduleQuery: { type: 'string', description: 'Schedule name filter' },
+    scheduleLimit: { type: 'string', description: 'Max results for schedules' },
+    scheduleOffset: { type: 'string', description: 'Pagination offset for schedules' },
+    userQuery: { type: 'string', description: 'User name/email filter' },
+    userLimit: { type: 'string', description: 'Max results for users' },
+    userOffset: { type: 'string', description: 'Pagination offset for users' },
+    eventAction: { type: 'string', description: 'Events API action (trigger/acknowledge/resolve)' },
+    eventSummary: { type: 'string', description: 'Event summary' },
+    eventSource: { type: 'string', description: 'Event source system' },
+    eventSeverity: { type: 'string', description: 'Event severity' },
+    eventDedupKey: { type: 'string', description: 'Event de-duplication key' },
+    eventComponent: { type: 'string', description: 'Event component' },
+    eventGroup: { type: 'string', description: 'Event group' },
+    eventClass: { type: 'string', description: 'Event class' },
   },
 
   outputs: {
     incidents: {
       type: 'json',
-      description: 'Array of incidents (list_incidents)',
+      description:
+        '[{id, incidentNumber, title, status, urgency, createdAt, updatedAt, serviceName, serviceId, assigneeName, assigneeId, escalationPolicyName, htmlUrl}] (list_incidents)',
     },
     total: {
       type: 'number',
-      description: 'Total count of results',
+      description: 'Total count of results, null unless requested (list operations)',
     },
     more: {
       type: 'boolean',
-      description: 'Whether more results are available',
+      description: 'Whether more results are available (list operations)',
+    },
+    offset: {
+      type: 'number',
+      description: 'Pagination offset for this page of results (list operations)',
     },
     id: {
       type: 'string',
-      description: 'Created/updated resource ID',
+      description: 'Created/updated/fetched resource ID',
     },
     incidentNumber: {
       type: 'number',
@@ -446,7 +924,7 @@ export const PagerDutyBlock: BlockConfig = {
     },
     status: {
       type: 'string',
-      description: 'Incident status',
+      description: 'Incident/event status',
     },
     urgency: {
       type: 'string',
@@ -460,6 +938,14 @@ export const PagerDutyBlock: BlockConfig = {
       type: 'string',
       description: 'Last updated timestamp',
     },
+    resolvedAt: {
+      type: 'string',
+      description: 'Resolution timestamp (get_incident)',
+    },
+    incidentKey: {
+      type: 'string',
+      description: 'De-duplication key (get_incident)',
+    },
     serviceName: {
       type: 'string',
       description: 'Service name',
@@ -467,6 +953,22 @@ export const PagerDutyBlock: BlockConfig = {
     serviceId: {
       type: 'string',
       description: 'Service ID',
+    },
+    assigneeName: {
+      type: 'string',
+      description: 'Assignee name (list_incidents, get_incident)',
+    },
+    assigneeId: {
+      type: 'string',
+      description: 'Assignee ID (list_incidents, get_incident)',
+    },
+    escalationPolicyName: {
+      type: 'string',
+      description: 'Escalation policy name',
+    },
+    escalationPolicyId: {
+      type: 'string',
+      description: 'Escalation policy ID (get_incident, get_service)',
     },
     htmlUrl: {
       type: 'string',
@@ -482,11 +984,59 @@ export const PagerDutyBlock: BlockConfig = {
     },
     services: {
       type: 'json',
-      description: 'Array of services (list_services)',
+      description:
+        '[{id, name, description, status, escalationPolicyName, escalationPolicyId, createdAt, htmlUrl}] (list_services)',
+    },
+    name: {
+      type: 'string',
+      description: 'Resource name (get_service, escalation policies, schedules, users)',
+    },
+    description: {
+      type: 'string',
+      description: 'Resource description (get_service, escalation policies, schedules)',
+    },
+    autoResolveTimeout: {
+      type: 'number',
+      description: 'Seconds before an open incident auto-resolves (get_service)',
+    },
+    acknowledgementTimeout: {
+      type: 'number',
+      description: 'Seconds before an acknowledged incident reverts to triggered (get_service)',
+    },
+    lastIncidentTimestamp: {
+      type: 'string',
+      description: 'Timestamp of the most recent incident (get_service)',
     },
     oncalls: {
       type: 'json',
-      description: 'Array of on-call entries (list_oncalls)',
+      description:
+        '[{userName, userId, escalationLevel, escalationPolicyName, escalationPolicyId, scheduleName, scheduleId, start, end}] (list_oncalls)',
+    },
+    escalationPolicies: {
+      type: 'json',
+      description:
+        '[{id, name, description, numLoops, onCallHandoffNotifications, htmlUrl}] (list_escalation_policies)',
+    },
+    schedules: {
+      type: 'json',
+      description: '[{id, name, description, timeZone, htmlUrl}] (list_schedules)',
+    },
+    users: {
+      type: 'json',
+      description: '[{id, name, email, role, jobTitle, timeZone, htmlUrl}] (list_users)',
+    },
+    alerts: {
+      type: 'json',
+      description:
+        '[{id, summary, status, severity, createdAt, alertKey, serviceName, serviceId, htmlUrl}] (list_incident_alerts)',
+    },
+    message: {
+      type: 'string',
+      description: 'Result message (send_event)',
+    },
+    dedupKey: {
+      type: 'string',
+      description: 'De-duplication key returned by the Events API (send_event)',
     },
   },
 
@@ -604,6 +1154,20 @@ export const PagerDutyBlockMeta = {
         'List current PagerDuty on-call assignments for given schedules or escalation policies.',
       content:
         '# Check Who Is On Call\n\nFind the right person to reach right now.\n\n## Steps\n1. Use List On-Calls, optionally scoped by Escalation Policy IDs or Schedule IDs.\n2. Set a Since and Until window to look at the current or an upcoming shift.\n3. Map each on-call entry to its escalation level so primary versus backup responders are clear.\n\n## Output\nA concise roster: who is on call at level 1 (primary) and level 2 (backup) per schedule, with the time window covered.',
+    },
+    {
+      name: 'send-monitoring-event',
+      description:
+        'Trigger, acknowledge, or resolve a PagerDuty alert from a monitoring source using the Events API v2 integration key, without a PagerDuty user account.',
+      content:
+        "# Send Monitoring Event\n\nPage PagerDuty directly from a monitoring check or script.\n\n## Steps\n1. Use Send Event with the target service's Integration Key and Event Action set to Trigger.\n2. Provide a Summary, Source (the affected host/system), and Severity describing the problem.\n3. Reuse the same De-duplication Key on later Acknowledge/Resolve events to update the same alert instead of opening a new one.\n\n## Output\nReport the resulting status and the de-duplication key so follow-up events can reference the same alert.",
+    },
+    {
+      name: 'merge-duplicate-incidents',
+      description:
+        'Merge duplicate PagerDuty incidents from the same event into one target incident to reduce noise.',
+      content:
+        '# Merge Duplicate Incidents\n\nCollapse near-duplicate pages into a single incident.\n\n## Steps\n1. Use List Incidents to identify incidents that describe the same underlying problem (same service, overlapping time window, similar title).\n2. Pick the incident responders are already working as the Target Incident ID.\n3. Use Merge Incidents with the Target Incident ID and the comma-separated Source Incident IDs to merge in; the sources are resolved automatically.\n4. Provide a valid From Email since this is a write operation.\n\n## Output\nConfirm the target incident number and status, and how many source incidents were merged into it.',
     },
   ],
 } as const satisfies BlockMeta

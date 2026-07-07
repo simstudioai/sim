@@ -680,12 +680,24 @@ async function executeWorkflowCoreImpl(
     if (piiRedaction.input.enabled) {
       // Redact the input before the workflow sees it. `onFailure: 'throw'` aborts
       // the run (handled by the surrounding catch) rather than feeding a scrub
-      // marker into execution or leaking unredacted input.
-      processedInput = await redactObjectStrings(processedInput, {
+      // marker into execution or leaking unredacted input. A large input may
+      // already be offloaded to a large-value ref (opaque to the string walk), so
+      // hydrate → mask → re-store refs first, then mask inline strings.
+      const inputOpts = {
         entityTypes: piiRedaction.input.entityTypes,
         language: piiRedaction.input.language,
-        onFailure: 'throw',
+        onFailure: 'throw' as const,
+      }
+      processedInput = await redactLargeValueRefsInValue(processedInput, {
+        ...inputOpts,
+        store: {
+          workspaceId: providedWorkspaceId,
+          workflowId,
+          executionId,
+          userId: userId ?? undefined,
+        },
       })
+      processedInput = await redactObjectStrings(processedInput, inputOpts)
     }
 
     if (piiRedaction.blockOutputs.enabled) {

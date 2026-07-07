@@ -6,7 +6,7 @@ import {
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { TextractParserOutput } from '@/tools/textract/types'
 
 export const TextractBlock: BlockConfig<TextractParserOutput> = {
@@ -199,63 +199,205 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   },
 }
 
-const textractV2Inputs = TextractBlock.inputs ? { ...TextractBlock.inputs } : {}
-const textractV2SubBlocks = (TextractBlock.subBlocks || []).flatMap((subBlock) => {
-  if (subBlock.id === 'filePath') {
-    return [] // Remove the old filePath subblock
+/**
+ * The front-document fields (fileUpload/fileReference) are shared by all three operations.
+ * Analyze Identity Document is always synchronous, so they must stay visible for it regardless
+ * of a stale `processingMode` value left over from switching away from another operation.
+ */
+function documentFieldCondition(values?: Record<string, unknown>) {
+  if (values?.operation === 'analyze_id') {
+    return { field: 'operation', value: 'analyze_id' } as const
   }
-  if (subBlock.id === 'fileUpload') {
-    // Insert fileReference right after fileUpload
-    return [
-      subBlock,
-      {
-        id: 'fileReference',
-        title: 'Document',
-        type: 'short-input' as SubBlockType,
-        canonicalParamId: 'document',
-        placeholder: 'File reference',
-        condition: {
-          field: 'processingMode',
-          value: 'async',
-          not: true,
-        },
-        mode: 'advanced' as const,
-      },
-    ]
-  }
-  return [subBlock]
-})
+  return { field: 'processingMode', value: 'async', not: true } as const
+}
+
+/**
+ * Resolves a canonical document input to either an uploaded file object or a plain URL string.
+ * `normalizeFileInput` only recognizes file objects (or JSON-serialized file references) — a raw
+ * URL typed into the "File reference" advanced field falls through to `filePath` instead.
+ */
+function resolveDocumentParam(value: unknown): { file?: object; filePath?: string } {
+  const file = normalizeFileInput(value, { single: true })
+  if (file) return { file }
+  if (typeof value === 'string' && value.trim() !== '') return { filePath: value.trim() }
+  return {}
+}
+
+function requireAwsCredentials(params: Record<string, unknown>) {
+  const accessKeyId = typeof params.accessKeyId === 'string' ? params.accessKeyId.trim() : ''
+  const secretAccessKey =
+    typeof params.secretAccessKey === 'string' ? params.secretAccessKey.trim() : ''
+  const region = typeof params.region === 'string' ? params.region.trim() : ''
+
+  if (!accessKeyId) throw new Error('AWS Access Key ID is required')
+  if (!secretAccessKey) throw new Error('AWS Secret Access Key is required')
+  if (!region) throw new Error('AWS Region is required')
+
+  return { accessKeyId, secretAccessKey, region }
+}
 
 export const TextractV2Block: BlockConfig<TextractParserOutput> = {
   ...TextractBlock,
   type: 'textract_v2',
   name: 'AWS Textract',
   hideFromToolbar: false,
-  subBlocks: textractV2SubBlocks,
+  subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { id: 'analyze_document', label: 'Analyze Document (Text, Tables, Forms)' },
+        { id: 'analyze_expense', label: 'Analyze Expense (Invoices & Receipts)' },
+        { id: 'analyze_id', label: 'Analyze Identity Document' },
+      ],
+      value: () => 'analyze_document',
+    },
+    {
+      id: 'processingMode',
+      title: 'Processing Mode',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { id: 'sync', label: 'Single Page (JPEG, PNG, 1-page PDF)' },
+        { id: 'async', label: 'Multi-Page (PDF, TIFF via S3)' },
+      ],
+      tooltip:
+        'Single Page uses synchronous API for JPEG, PNG, or single-page PDF. Multi-Page uses async API for multi-page PDF/TIFF stored in S3.',
+      condition: { field: 'operation', value: 'analyze_id', not: true },
+    },
+    {
+      id: 'fileUpload',
+      title: 'Document',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'document',
+      acceptedTypes: 'image/jpeg,image/png,application/pdf',
+      placeholder: 'Upload JPEG, PNG, or single-page PDF (max 10MB)',
+      condition: documentFieldCondition,
+      mode: 'basic',
+      maxSize: 10,
+    },
+    {
+      id: 'fileReference',
+      title: 'Document',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'document',
+      placeholder: 'File reference',
+      condition: documentFieldCondition,
+      mode: 'advanced' as const,
+    },
+    {
+      id: 'fileUploadBack',
+      title: 'Back of ID (optional)',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'documentBack',
+      acceptedTypes: 'image/jpeg,image/png,application/pdf',
+      placeholder: 'Upload the back of the ID, if it carries data',
+      condition: { field: 'operation', value: 'analyze_id' },
+      mode: 'basic',
+      maxSize: 10,
+    },
+    {
+      id: 'fileReferenceBack',
+      title: 'Back of ID (optional)',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'documentBack',
+      placeholder: 'File reference',
+      condition: { field: 'operation', value: 'analyze_id' },
+      mode: 'advanced' as const,
+    },
+    {
+      id: 's3Uri',
+      title: 'S3 URI',
+      type: 'short-input' as SubBlockType,
+      placeholder: 's3://bucket-name/path/to/document.pdf',
+      condition: {
+        field: 'processingMode',
+        value: 'async',
+        and: { field: 'operation', value: 'analyze_id', not: true },
+      },
+    },
+    {
+      id: 'region',
+      title: 'AWS Region',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'e.g., us-east-1',
+      required: true,
+    },
+    {
+      id: 'accessKeyId',
+      title: 'AWS Access Key ID',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Enter your AWS Access Key ID',
+      password: true,
+      required: true,
+    },
+    {
+      id: 'secretAccessKey',
+      title: 'AWS Secret Access Key',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Enter your AWS Secret Access Key',
+      password: true,
+      required: true,
+    },
+    {
+      id: 'extractTables',
+      title: 'Extract Tables',
+      type: 'switch' as SubBlockType,
+      condition: { field: 'operation', value: 'analyze_document' },
+    },
+    {
+      id: 'extractForms',
+      title: 'Extract Forms (Key-Value Pairs)',
+      type: 'switch' as SubBlockType,
+      condition: { field: 'operation', value: 'analyze_document' },
+    },
+    {
+      id: 'detectSignatures',
+      title: 'Detect Signatures',
+      type: 'switch' as SubBlockType,
+      condition: { field: 'operation', value: 'analyze_document' },
+    },
+    {
+      id: 'analyzeLayout',
+      title: 'Analyze Document Layout',
+      type: 'switch' as SubBlockType,
+      condition: { field: 'operation', value: 'analyze_document' },
+    },
+  ],
   tools: {
-    access: ['textract_parser_v2'],
+    access: ['textract_parser_v2', 'textract_analyze_expense', 'textract_analyze_id'],
     config: {
-      tool: createVersionedToolSelector({
-        baseToolSelector: () => 'textract_parser',
-        suffix: '_v2',
-        fallbackToolId: 'textract_parser_v2',
-      }),
+      tool: (params) => {
+        const operation = params.operation || 'analyze_document'
+        if (operation === 'analyze_expense') return 'textract_analyze_expense'
+        if (operation === 'analyze_id') return 'textract_analyze_id'
+        return 'textract_parser_v2'
+      },
       params: (params) => {
-        if (!params.accessKeyId || params.accessKeyId.trim() === '') {
-          throw new Error('AWS Access Key ID is required')
-        }
-        if (!params.secretAccessKey || params.secretAccessKey.trim() === '') {
-          throw new Error('AWS Secret Access Key is required')
-        }
-        if (!params.region || params.region.trim() === '') {
-          throw new Error('AWS Region is required')
+        const { accessKeyId, secretAccessKey, region } = requireAwsCredentials(params)
+        const operation = params.operation || 'analyze_document'
+
+        if (operation === 'analyze_id') {
+          const front = resolveDocumentParam(params.document)
+          if (!front.file && !front.filePath) throw new Error('Identity document is required')
+
+          const parameters: Record<string, unknown> = {
+            accessKeyId,
+            secretAccessKey,
+            region,
+            ...front,
+          }
+          const back = resolveDocumentParam(params.documentBack)
+          if (back.file) parameters.fileBack = back.file
+          else if (back.filePath) parameters.filePathBack = back.filePath
+          return parameters
         }
 
         const processingMode = params.processingMode || 'sync'
         const parameters: Record<string, unknown> = {
-          accessKeyId: params.accessKeyId.trim(),
-          secretAccessKey: params.secretAccessKey.trim(),
-          region: params.region.trim(),
+          accessKeyId,
+          secretAccessKey,
+          region,
           processingMode,
         }
 
@@ -264,30 +406,76 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
             throw new Error('S3 URI is required for multi-page processing')
           }
           parameters.s3Uri = params.s3Uri.trim()
+        } else if (operation === 'analyze_expense') {
+          const resolved = resolveDocumentParam(params.document)
+          if (!resolved.file && !resolved.filePath) throw new Error('Document file is required')
+          Object.assign(parameters, resolved)
         } else {
-          // document is the canonical param for both basic (fileUpload) and advanced (fileReference) modes
           const file = normalizeFileInput(params.document, { single: true })
-          if (!file) {
-            throw new Error('Document file is required')
-          }
+          if (!file) throw new Error('Document file is required')
           parameters.file = file
         }
+
+        if (operation === 'analyze_expense') return parameters
 
         const featureTypes: string[] = []
         if (params.extractTables) featureTypes.push('TABLES')
         if (params.extractForms) featureTypes.push('FORMS')
         if (params.detectSignatures) featureTypes.push('SIGNATURES')
         if (params.analyzeLayout) featureTypes.push('LAYOUT')
-
-        if (featureTypes.length > 0) {
-          parameters.featureTypes = featureTypes
-        }
+        if (featureTypes.length > 0) parameters.featureTypes = featureTypes
 
         return parameters
       },
     },
   },
-  inputs: textractV2Inputs,
+  inputs: {
+    operation: {
+      type: 'string',
+      description: 'Operation: analyze_document, analyze_expense, or analyze_id',
+    },
+    processingMode: { type: 'string', description: 'Document type: single-page or multi-page' },
+    document: { type: 'json', description: 'Document input (file upload or URL reference)' },
+    documentBack: {
+      type: 'json',
+      description: 'Back-of-ID document input, for analyze_id (file upload or URL reference)',
+    },
+    s3Uri: { type: 'string', description: 'S3 URI for multi-page processing (s3://bucket/key)' },
+    extractTables: { type: 'boolean', description: 'Extract tables from document' },
+    extractForms: { type: 'boolean', description: 'Extract form key-value pairs' },
+    detectSignatures: { type: 'boolean', description: 'Detect signatures' },
+    analyzeLayout: { type: 'boolean', description: 'Analyze document layout' },
+    region: { type: 'string', description: 'AWS region' },
+    accessKeyId: { type: 'string', description: 'AWS Access Key ID' },
+    secretAccessKey: { type: 'string', description: 'AWS Secret Access Key' },
+  },
+  outputs: {
+    blocks: {
+      type: 'json',
+      description: 'Array of detected blocks (PAGE, LINE, WORD, TABLE, CELL, KEY_VALUE_SET, etc.)',
+      condition: { field: 'operation', value: 'analyze_document' },
+    },
+    expenseDocuments: {
+      type: 'json',
+      description:
+        '[{expenseIndex, summaryFields: [{type, valueDetection, currency}], lineItemGroups: [{lineItems}]}]',
+      condition: { field: 'operation', value: 'analyze_expense' },
+    },
+    identityDocuments: {
+      type: 'json',
+      description:
+        '[{documentIndex, identityDocumentFields: [{type: {text}, valueDetection: {text, normalizedValue}}]}]',
+      condition: { field: 'operation', value: 'analyze_id' },
+    },
+    documentMetadata: {
+      type: 'json',
+      description: 'Document metadata containing pages count',
+    },
+    modelVersion: {
+      type: 'string',
+      description: 'Version of the Textract model used for processing',
+    },
+  },
 }
 
 export const TextractBlockMeta = {
@@ -368,9 +556,9 @@ export const TextractBlockMeta = {
     {
       name: 'extract-invoice-fields',
       description:
-        'Run an invoice or receipt through AWS Textract and return clean structured fields (vendor, date, totals, line items). Use when you need to digitize finance documents.',
+        'Run an invoice or receipt through AWS Textract Analyze Expense and return clean structured fields (vendor, date, totals, line items). Use when you need to digitize finance documents.',
       content:
-        '# Extract Invoice Fields\n\nUse AWS Textract to pull structured data from an invoice or receipt image/PDF.\n\n## Steps\n1. Choose the processing mode: Single Page for JPEG, PNG, or one-page PDF; Multi-Page for multi-page PDF/TIFF staged in S3.\n2. Provide the document (upload, file reference, or S3 URI) and enable Extract Forms and Extract Tables so key-value pairs and line items are captured.\n3. Run the extraction and read the returned blocks (KEY_VALUE_SET, TABLE, CELL, LINE).\n4. Map key-value pairs to fields: vendor, invoice number, invoice date, due date, subtotal, tax, and total.\n5. Reconstruct line items from the TABLE/CELL blocks into rows with description, quantity, unit price, and amount.\n\n## Output\nReturn a clean JSON record with the header fields and a line-items array. Flag any field where Textract confidence is low or the totals do not reconcile so a human can review.',
+        '# Extract Invoice Fields\n\nUse AWS Textract Analyze Expense to pull structured data from an invoice or receipt image/PDF.\n\n## Steps\n1. Set Operation to "Analyze Expense". Choose Single Page for JPEG, PNG, or one-page PDF, or Multi-Page for a PDF/TIFF staged in S3.\n2. Provide the document (upload, file reference, or S3 URI) and run the extraction.\n3. Read `expenseDocuments[].summaryFields` for header data (vendor, invoice number, invoice date, due date, subtotal, tax, total) and `expenseDocuments[].lineItemGroups[].lineItems` for purchased items.\n4. Map each summary field\'s normalized `type.text` (e.g., VENDOR_NAME, TOTAL, INVOICE_DATE) to your target schema, and read `valueDetection.text` for the value.\n\n## Output\nReturn a clean JSON record with the header fields and a line-items array. Flag any field where confidence is low or the totals do not reconcile so a human can review.',
     },
     {
       name: 'extract-form-key-values',
@@ -385,6 +573,13 @@ export const TextractBlockMeta = {
         'Convert a scanned document or image into plain readable text with AWS Textract OCR. Use to digitize handwritten notes, faxes, or image-only PDFs for indexing or search.',
       content:
         '# OCR Document To Text\n\nExtract readable text from a scanned or image-only document.\n\n## Steps\n1. Pick the processing mode that matches the file: Single Page for an image or one-page PDF, Multi-Page (S3) for multi-page documents.\n2. Provide the document and run the extraction. Plain OCR does not require the Forms or Tables features.\n3. Read the LINE and WORD blocks and join LINE blocks in reading order to reconstruct the text.\n4. Preserve paragraph and page breaks using the PAGE blocks.\n\n## Output\nReturn the full extracted text as clean Markdown, grouped by page. Include the page count from document metadata and surface any low-confidence lines so they can be reviewed before indexing.',
+    },
+    {
+      name: 'verify-identity-document',
+      description:
+        'Run a government-issued ID through AWS Textract Analyze ID and return normalized identity fields (name, date of birth, ID number, expiration date). Use for KYC and identity-verification workflows.',
+      content:
+        '# Verify Identity Document\n\nUse AWS Textract Analyze ID to extract normalized fields from a driver\'s license, passport, or other identity document.\n\n## Steps\n1. Set Operation to "Analyze Identity Document".\n2. Upload the front of the ID. If the document carries data on both sides (e.g., a driver\'s license), also upload the back.\n3. Run the extraction and read `identityDocuments[].identityDocumentFields`, where each field has a normalized `type.text` (e.g., FIRST_NAME, LAST_NAME, DATE_OF_BIRTH, DOCUMENT_NUMBER, EXPIRATION_DATE) and a `valueDetection.text` (with `valueDetection.normalizedValue` for dates).\n4. Compare the extracted fields against the customer record you already have on file.\n\n## Output\nReturn a normalized identity record and flag any mismatch between the extracted fields and the existing customer record for human review.',
     },
   ],
 } as const satisfies BlockMeta

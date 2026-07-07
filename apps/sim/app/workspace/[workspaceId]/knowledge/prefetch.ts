@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
+import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 
 /**
  * Prefetches the workspace's knowledge-bases list under the same query key the
@@ -23,6 +23,6 @@ export async function prefetchKnowledgeBases(
       )
       return result.data
     },
-    staleTime: 60 * 1000,
+    staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
   })
 }

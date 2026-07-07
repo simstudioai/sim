@@ -8,7 +8,7 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
   name: 'AWS Secrets Manager',
   description: 'Connect to AWS Secrets Manager',
   longDescription:
-    'Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.',
+    'Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, delete, describe, tag, untag, restore, and rotate secrets.',
   docsLink: 'https://docs.sim.ai/integrations/secrets_manager',
   category: 'tools',
   integrationType: IntegrationType.Security,
@@ -25,6 +25,11 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
         { label: 'Create Secret', id: 'create_secret' },
         { label: 'Update Secret', id: 'update_secret' },
         { label: 'Delete Secret', id: 'delete_secret' },
+        { label: 'Describe Secret', id: 'describe_secret' },
+        { label: 'Tag Secret', id: 'tag_resource' },
+        { label: 'Untag Secret', id: 'untag_resource' },
+        { label: 'Restore Secret', id: 'restore_secret' },
+        { label: 'Rotate Secret', id: 'rotate_secret' },
       ],
       value: () => 'get_secret',
     },
@@ -56,8 +61,32 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
       title: 'Secret Name or ARN',
       type: 'short-input',
       placeholder: 'my-app/database-password',
-      condition: { field: 'operation', value: ['get_secret', 'update_secret', 'delete_secret'] },
-      required: { field: 'operation', value: ['get_secret', 'update_secret', 'delete_secret'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_secret',
+          'update_secret',
+          'delete_secret',
+          'describe_secret',
+          'tag_resource',
+          'untag_resource',
+          'restore_secret',
+          'rotate_secret',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_secret',
+          'update_secret',
+          'delete_secret',
+          'describe_secret',
+          'tag_resource',
+          'untag_resource',
+          'restore_secret',
+          'rotate_secret',
+        ],
+      },
     },
     {
       id: 'name',
@@ -142,6 +171,81 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
       required: false,
       mode: 'advanced',
     },
+    {
+      id: 'tags',
+      title: 'Tags',
+      type: 'code',
+      placeholder: '[{"key":"env","value":"prod"}]',
+      condition: { field: 'operation', value: 'tag_resource' },
+      required: { field: 'operation', value: 'tag_resource' },
+    },
+    {
+      id: 'tagKeys',
+      title: 'Tag Keys',
+      type: 'code',
+      placeholder: '["env","team"]',
+      condition: { field: 'operation', value: 'untag_resource' },
+      required: { field: 'operation', value: 'untag_resource' },
+    },
+    {
+      id: 'rotationLambdaARN',
+      title: 'Rotation Lambda ARN',
+      type: 'short-input',
+      placeholder:
+        'arn:aws:lambda:us-east-1:123456789012:function:my-rotation-fn (omit for managed rotation)',
+      condition: { field: 'operation', value: 'rotate_secret' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'automaticallyAfterDays',
+      title: 'Automatically After Days',
+      type: 'short-input',
+      placeholder: '30',
+      condition: { field: 'operation', value: 'rotate_secret' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'duration',
+      title: 'Rotation Window Duration',
+      type: 'short-input',
+      placeholder: '3h',
+      condition: { field: 'operation', value: 'rotate_secret' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'scheduleExpression',
+      title: 'Schedule Expression',
+      type: 'short-input',
+      placeholder: 'cron(0 16 1,15 * ? *) or rate(10 days)',
+      condition: { field: 'operation', value: 'rotate_secret' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'rotateImmediately',
+      title: 'Rotate Immediately',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'rotate_secret' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'clientRequestToken',
+      title: 'Client Request Token',
+      type: 'short-input',
+      placeholder: 'Idempotency token (32-64 chars, optional)',
+      condition: { field: 'operation', value: 'rotate_secret' },
+      required: false,
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: [
@@ -150,6 +254,11 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
       'secrets_manager_create_secret',
       'secrets_manager_update_secret',
       'secrets_manager_delete_secret',
+      'secrets_manager_describe_secret',
+      'secrets_manager_tag_resource',
+      'secrets_manager_untag_resource',
+      'secrets_manager_restore_secret',
+      'secrets_manager_rotate_secret',
     ],
     config: {
       tool: (params) => {
@@ -164,12 +273,30 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
             return 'secrets_manager_update_secret'
           case 'delete_secret':
             return 'secrets_manager_delete_secret'
+          case 'describe_secret':
+            return 'secrets_manager_describe_secret'
+          case 'tag_resource':
+            return 'secrets_manager_tag_resource'
+          case 'untag_resource':
+            return 'secrets_manager_untag_resource'
+          case 'restore_secret':
+            return 'secrets_manager_restore_secret'
+          case 'rotate_secret':
+            return 'secrets_manager_rotate_secret'
           default:
             throw new Error(`Invalid Secrets Manager operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { operation, forceDelete, recoveryWindowInDays, maxResults, ...rest } = params
+        const {
+          operation,
+          forceDelete,
+          recoveryWindowInDays,
+          maxResults,
+          automaticallyAfterDays,
+          rotateImmediately,
+          ...rest
+        } = params
 
         const connectionConfig = {
           region: rest.region,
@@ -210,6 +337,37 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
             }
             if (forceDelete === 'true' || forceDelete === true) result.forceDelete = true
             break
+          case 'describe_secret':
+            result.secretId = rest.secretId
+            break
+          case 'tag_resource':
+            result.secretId = rest.secretId
+            result.tags = typeof rest.tags === 'string' ? JSON.parse(rest.tags) : rest.tags
+            break
+          case 'untag_resource':
+            result.secretId = rest.secretId
+            result.tagKeys =
+              typeof rest.tagKeys === 'string' ? JSON.parse(rest.tagKeys) : rest.tagKeys
+            break
+          case 'restore_secret':
+            result.secretId = rest.secretId
+            break
+          case 'rotate_secret':
+            result.secretId = rest.secretId
+            if (rest.clientRequestToken) result.clientRequestToken = rest.clientRequestToken
+            if (rest.rotationLambdaARN) result.rotationLambdaARN = rest.rotationLambdaARN
+            if (automaticallyAfterDays) {
+              const parsed = Number.parseInt(String(automaticallyAfterDays), 10)
+              if (!Number.isNaN(parsed)) result.automaticallyAfterDays = parsed
+            }
+            if (rest.duration) result.duration = rest.duration
+            if (rest.scheduleExpression) result.scheduleExpression = rest.scheduleExpression
+            if (rotateImmediately === 'false' || rotateImmediately === false) {
+              result.rotateImmediately = false
+            } else if (rotateImmediately === 'true' || rotateImmediately === true) {
+              result.rotateImmediately = true
+            }
+            break
         }
 
         return result
@@ -231,6 +389,14 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
     nextToken: { type: 'string', description: 'Pagination token' },
     recoveryWindowInDays: { type: 'number', description: 'Days before permanent deletion' },
     forceDelete: { type: 'string', description: 'Force immediate deletion' },
+    tags: { type: 'json', description: 'Tags to attach, as an array of {key, value} pairs' },
+    tagKeys: { type: 'json', description: 'Tag keys to remove, as an array of strings' },
+    rotationLambdaARN: { type: 'string', description: 'ARN of the Lambda rotation function' },
+    automaticallyAfterDays: { type: 'number', description: 'Days between automatic rotations' },
+    duration: { type: 'string', description: 'Rotation window duration (e.g., 3h)' },
+    scheduleExpression: { type: 'string', description: 'cron() or rate() rotation schedule' },
+    rotateImmediately: { type: 'string', description: 'Whether to rotate immediately' },
+    clientRequestToken: { type: 'string', description: 'Idempotency token for rotation' },
   },
   outputs: {
     message: {
@@ -276,6 +442,55 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
     deletionDate: {
       type: 'string',
       description: 'Scheduled deletion date',
+    },
+    description: {
+      type: 'string',
+      description: 'Description of the secret',
+    },
+    kmsKeyId: {
+      type: 'string',
+      description: 'KMS key ID used to encrypt the secret',
+    },
+    rotationEnabled: {
+      type: 'boolean',
+      description: 'Whether automatic rotation is enabled',
+    },
+    rotationLambdaARN: {
+      type: 'string',
+      description: 'ARN of the Lambda function used for rotation',
+    },
+    rotationRules: {
+      type: 'json',
+      description:
+        'Rotation schedule configuration (automaticallyAfterDays, duration, scheduleExpression)',
+    },
+    lastRotatedDate: {
+      type: 'string',
+      description: 'Date the secret was last rotated',
+    },
+    nextRotationDate: {
+      type: 'string',
+      description: 'Date the secret is next scheduled to rotate',
+    },
+    deletedDate: {
+      type: 'string',
+      description: 'Date the secret is scheduled for deletion, if any',
+    },
+    tags: {
+      type: 'json',
+      description: 'Tags attached to the secret',
+    },
+    owningService: {
+      type: 'string',
+      description: 'ID of the AWS service that manages this secret, if any',
+    },
+    primaryRegion: {
+      type: 'string',
+      description: 'The primary region of the secret, if replicated',
+    },
+    replicationStatus: {
+      type: 'json',
+      description: 'Replication status for each region the secret is replicated to',
     },
   },
 }
@@ -353,6 +568,15 @@ export const SecretsManagerBlockMeta = {
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['slack'],
     },
+    {
+      icon: SecretsManagerIcon,
+      title: 'Secrets Manager native rotation kickoff',
+      prompt:
+        'Build a scheduled workflow that describes AWS Secrets Manager secrets nearing their next rotation date, starts native rotation for the ones that are due, and writes the outcome to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+    },
   ],
   skills: [
     {
@@ -382,6 +606,27 @@ export const SecretsManagerBlockMeta = {
         'Schedule deletion of a secret in AWS Secrets Manager with a recovery window so it can be restored if needed. Use to retire unused or rotated-out credentials safely.',
       content:
         '# Decommission Secret\n\nRetire a secret without permanently losing it immediately.\n\n## Steps\n1. Confirm the target secret and that nothing still depends on it.\n2. Schedule deletion with a recovery window (e.g. 30 days) so it can be restored during that period; reserve force delete for confirmed-orphaned secrets only.\n3. Record the scheduled deletion date.\n4. Re-list secrets to confirm it is marked for deletion.\n\n## Output\nConfirm the secret name and the scheduled deletion date, or that immediate deletion was requested. Do not print the secret value.',
+    },
+    {
+      name: 'start-native-rotation',
+      description:
+        'Start or reconfigure AWS Secrets Manager native rotation for a secret that already has a rotation Lambda configured. Use when compliance requires automatic, scheduled rotation rather than manual updates.',
+      content:
+        '# Start Native Rotation\n\nConfigure or trigger built-in Secrets Manager rotation.\n\n## Steps\n1. Describe the target secret to confirm it has a rotation Lambda ARN configured (or supply one).\n2. Decide the rotation schedule: a fixed interval in days, or a cron/rate schedule expression, plus an optional rotation window duration.\n3. Start rotation with the chosen schedule; rotation runs immediately unless configured to wait for the next window.\n4. Re-describe the secret afterward to confirm the next rotation date and rotation-enabled status.\n\n## Output\nConfirm the secret name, whether rotation is now enabled, and the next scheduled rotation date. Never print the secret value.',
+    },
+    {
+      name: 'restore-deleted-secret',
+      description:
+        'Cancel a scheduled deletion in AWS Secrets Manager to restore access to a secret before its recovery window elapses. Use to reverse an accidental or premature delete.',
+      content:
+        '# Restore Deleted Secret\n\nUndo a pending deletion while the recovery window is still open.\n\n## Steps\n1. Describe the secret to confirm it has a scheduled deletion date.\n2. Restore the secret, which clears the scheduled deletion.\n3. Re-describe the secret to confirm the deletion date is cleared.\n\n## Output\nConfirm the secret name and ARN, and that it is no longer scheduled for deletion.',
+    },
+    {
+      name: 'tag-secret-for-governance',
+      description:
+        'Attach or remove ownership, environment, or cost-center tags on an AWS Secrets Manager secret for governance and cost allocation. Use to keep secret metadata consistent with tagging policy.',
+      content:
+        '# Tag Secret for Governance\n\nKeep secret tags aligned with organizational tagging policy.\n\n## Steps\n1. Describe the secret to see its current tags.\n2. Attach the required tags (e.g. owner, environment, cost-center) as key/value pairs, or remove tags that no longer apply by key.\n3. Re-describe the secret to confirm the tag set matches policy.\n\n## Output\nConfirm the secret name and the resulting tag keys. Do not print the secret value.',
     },
   ],
 } as const satisfies BlockMeta

@@ -503,7 +503,10 @@ export function TableGrid({
     rowIds?: string[],
     limit?: RunLimit
   ) {
-    onRunColumn(groupId, runMode, rowIds, limit)
+    // Table-scoped runs (Run all / Run empty / Run N empty) honor the active
+    // filter; an explicit rowIds scope (Run selected) already names its rows.
+    const filter = rowIds ? undefined : (queryOptions.filter ?? undefined)
+    onRunColumn(groupId, runMode, rowIds, limit, filter)
   }
 
   const handleViewWorkflow = useCallback(
@@ -3643,6 +3646,7 @@ export function TableGrid({
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                                hasActiveFilter={Boolean(queryOptions.filter)}
                                 selectedRowIds={selectedRowIds}
                                 onInsertLeft={
                                   userPermissions.canEdit ? handleInsertColumnLeft : undefined

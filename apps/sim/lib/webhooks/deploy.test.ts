@@ -9,7 +9,6 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 // buildProviderConfig (a pure function), so stub them to keep this unit test fast and isolated.
 vi.mock('@/blocks', () => ({ getBlock: vi.fn() }))
 vi.mock('@/triggers', () => ({ getTrigger: vi.fn(), isTriggerValid: vi.fn(() => true) }))
-vi.mock('@/lib/oauth', () => ({ getProviderIdFromServiceId: vi.fn() }))
 vi.mock('@/lib/webhooks/providers', () => ({ getProviderHandler: vi.fn() }))
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
   cleanupExternalWebhook: vi.fn(),
@@ -18,7 +17,6 @@ vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
 }))
 vi.mock('@/lib/webhooks/utils.server', () => ({
   findConflictingWebhookPathOwner: vi.fn(),
-  syncWebhooksForCredentialSet: vi.fn(),
 }))
 vi.mock('@/lib/webhooks/pending-verification', () => ({
   PendingWebhookVerificationTracker: vi.fn(),
