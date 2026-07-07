@@ -109,6 +109,13 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
               ? 'ENTIRE_ORG'
               : undefined
 
+      if (!method) {
+        throw new Error(
+          `Account Emails or Org Unit ID is required to scope a ${params.corpus} export ` +
+            '(only MAIL exports can search the entire organization with no scope).'
+        )
+      }
+
       const query: any = {
         corpus: params.corpus,
         dataScope: 'ALL_DATA',

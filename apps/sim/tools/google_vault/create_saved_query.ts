@@ -109,6 +109,13 @@ export const createSavedQueryTool: ToolConfig<GoogleVaultCreateSavedQueryParams>
               ? 'ENTIRE_ORG'
               : undefined
 
+      if (!method) {
+        throw new Error(
+          `Account Emails or Org Unit ID is required to scope a ${params.corpus} saved query ` +
+            '(only MAIL queries can search the entire organization with no scope).'
+        )
+      }
+
       return {
         displayName: params.displayName,
         query: {
