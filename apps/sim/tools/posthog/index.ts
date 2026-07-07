@@ -4,12 +4,14 @@ import { batchEventsTool } from '@/tools/posthog/batch_events'
 import { captureEventTool } from '@/tools/posthog/capture_event'
 import { createAnnotationTool } from '@/tools/posthog/create_annotation'
 import { createCohortTool } from '@/tools/posthog/create_cohort'
+import { createDashboardTool } from '@/tools/posthog/create_dashboard'
 import { createExperimentTool } from '@/tools/posthog/create_experiment'
 import { createFeatureFlagTool } from '@/tools/posthog/create_feature_flag'
 import { createInsightTool } from '@/tools/posthog/create_insight'
 import { createSurveyTool } from '@/tools/posthog/create_survey'
 import { deleteFeatureFlagTool } from '@/tools/posthog/delete_feature_flag'
 import { deletePersonTool } from '@/tools/posthog/delete_person'
+import { deleteSurveyTool } from '@/tools/posthog/delete_survey'
 import { evaluateFlagsTool } from '@/tools/posthog/evaluate_flags'
 import { getCohortTool } from '@/tools/posthog/get_cohort'
 import { getDashboardTool } from '@/tools/posthog/get_dashboard'
@@ -44,8 +46,11 @@ import { listSessionRecordingsTool } from '@/tools/posthog/list_session_recordin
 // Engagement
 import { listSurveysTool } from '@/tools/posthog/list_surveys'
 import { queryTool } from '@/tools/posthog/query'
+import { updateCohortTool } from '@/tools/posthog/update_cohort'
 import { updateEventDefinitionTool } from '@/tools/posthog/update_event_definition'
+import { updateExperimentTool } from '@/tools/posthog/update_experiment'
 import { updateFeatureFlagTool } from '@/tools/posthog/update_feature_flag'
+import { updateInsightTool } from '@/tools/posthog/update_insight'
 import { updatePropertyDefinitionTool } from '@/tools/posthog/update_property_definition'
 import { updateSurveyTool } from '@/tools/posthog/update_survey'
 
@@ -60,12 +65,15 @@ export const posthogQueryTool = queryTool
 export const posthogListInsightsTool = listInsightsTool
 export const posthogGetInsightTool = getInsightTool
 export const posthogCreateInsightTool = createInsightTool
+export const posthogUpdateInsightTool = updateInsightTool
 export const posthogListDashboardsTool = listDashboardsTool
 export const posthogGetDashboardTool = getDashboardTool
+export const posthogCreateDashboardTool = createDashboardTool
 export const posthogListActionsTool = listActionsTool
 export const posthogListCohortsTool = listCohortsTool
 export const posthogGetCohortTool = getCohortTool
 export const posthogCreateCohortTool = createCohortTool
+export const posthogUpdateCohortTool = updateCohortTool
 export const posthogListAnnotationsTool = listAnnotationsTool
 export const posthogCreateAnnotationTool = createAnnotationTool
 
@@ -78,11 +86,13 @@ export const posthogEvaluateFlagsTool = evaluateFlagsTool
 export const posthogListExperimentsTool = listExperimentsTool
 export const posthogGetExperimentTool = getExperimentTool
 export const posthogCreateExperimentTool = createExperimentTool
+export const posthogUpdateExperimentTool = updateExperimentTool
 
 export const posthogListSurveysTool = listSurveysTool
 export const posthogGetSurveyTool = getSurveyTool
 export const posthogCreateSurveyTool = createSurveyTool
 export const posthogUpdateSurveyTool = updateSurveyTool
+export const posthogDeleteSurveyTool = deleteSurveyTool
 export const posthogListSessionRecordingsTool = listSessionRecordingsTool
 export const posthogGetSessionRecordingTool = getSessionRecordingTool
 export const posthogListRecordingPlaylistsTool = listRecordingPlaylistsTool

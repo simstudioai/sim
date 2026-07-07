@@ -2,18 +2,19 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
-interface CreateExperimentParams {
+interface UpdateExperimentParams {
   projectId: string
-  region: 'us' | 'eu'
+  experimentId: string
+  region?: 'us' | 'eu'
   host?: string
   apiKey: string
-  name: string
+  name?: string
   description?: string
-  featureFlagKey: string
   parameters?: string
   filters?: string
   startDate?: string
   endDate?: string
+  archived?: boolean
 }
 
 interface Experiment {
@@ -27,18 +28,18 @@ interface Experiment {
   start_date: string | null
   end_date: string | null
   created_at: string
-  created_by: Record<string, any>
   archived: boolean
 }
 
-interface CreateExperimentResponse {
+interface UpdateExperimentResponse {
   experiment: Experiment
 }
 
-export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExperimentResponse> = {
-  id: 'posthog_create_experiment',
-  name: 'PostHog Create Experiment',
-  description: 'Create a new experiment in PostHog',
+export const updateExperimentTool: ToolConfig<UpdateExperimentParams, UpdateExperimentResponse> = {
+  id: 'posthog_update_experiment',
+  name: 'PostHog Update Experiment',
+  description:
+    'Update an existing experiment in PostHog. Use this to change dates, archive an experiment, or adjust its parameters and filters.',
   version: '1.0.0',
   errorExtractor: 'posthog-errors',
 
@@ -49,11 +50,18 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
       visibility: 'user-or-llm',
       description: 'The PostHog project ID (e.g., "12345" or project UUID)',
     },
-    region: {
+    experimentId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
+      description: 'The experiment ID to update (e.g., "42")',
+    },
+    region: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
-      description: 'PostHog cloud region: us or eu',
+      description: 'PostHog cloud region: us or eu (default: us)',
+      default: 'us',
     },
     host: {
       type: 'string',
@@ -70,67 +78,63 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
     },
     name: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Experiment name',
+      description: 'Updated experiment name',
     },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Experiment description',
-    },
-    featureFlagKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Feature flag key to use for the experiment',
+      description: 'Updated experiment description',
     },
     parameters: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Experiment parameters as JSON string',
+      description: 'Updated experiment parameters as JSON string',
     },
     filters: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Experiment filters as JSON string',
+      description: 'Updated experiment filters as JSON string',
     },
     startDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Experiment start date (ISO format)',
+      description: 'Updated start date (ISO 8601). Set this to launch a draft experiment.',
     },
     endDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Experiment end date (ISO format)',
+      description: 'Updated end date (ISO 8601). Set this to conclude a running experiment.',
+    },
+    archived: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to archive the experiment',
     },
   },
 
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/experiments/`
+      return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}/`
     },
-    method: 'POST',
+    method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, any> = {
-        name: params.name,
-        feature_flag_key: params.featureFlagKey,
-      }
+      const body: Record<string, any> = {}
 
-      if (params.description !== undefined) {
-        body.description = params.description
-      }
+      if (params.name !== undefined) body.name = params.name
+      if (params.description !== undefined) body.description = params.description
 
       if (params.parameters) {
         try {
@@ -148,13 +152,9 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
         }
       }
 
-      if (params.startDate !== undefined) {
-        body.start_date = params.startDate
-      }
-
-      if (params.endDate !== undefined) {
-        body.end_date = params.endDate
-      }
+      if (params.startDate !== undefined) body.start_date = params.startDate
+      if (params.endDate !== undefined) body.end_date = params.endDate
+      if (params.archived !== undefined) body.archived = params.archived
 
       return body
     },
@@ -171,7 +171,7 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
   outputs: {
     experiment: {
       type: 'object',
-      description: 'Created experiment',
+      description: 'Updated experiment',
       properties: {
         id: { type: 'number', description: 'Experiment ID' },
         name: { type: 'string', description: 'Experiment name' },
@@ -180,10 +180,9 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
         feature_flag: { type: 'object', description: 'Feature flag details' },
         parameters: { type: 'object', description: 'Experiment parameters' },
         filters: { type: 'object', description: 'Experiment filters' },
-        start_date: { type: 'string', description: 'Start date' },
-        end_date: { type: 'string', description: 'End date' },
+        start_date: { type: 'string', description: 'Start date', optional: true },
+        end_date: { type: 'string', description: 'End date', optional: true },
         created_at: { type: 'string', description: 'Creation timestamp' },
-        created_by: { type: 'object', description: 'Creator information' },
         archived: { type: 'boolean', description: 'Whether the experiment is archived' },
       },
     },

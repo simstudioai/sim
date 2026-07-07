@@ -1,40 +1,40 @@
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
-interface PostHogCreateInsightParams {
+interface PostHogCreateDashboardParams {
   apiKey: string
   projectId: string
-  region: string
+  region?: 'us' | 'eu'
   host?: string
   name: string
   description?: string
-  query?: string
-  dashboards?: string
+  pinned?: boolean
   tags?: string
+  useTemplate?: string
 }
 
-interface PostHogCreateInsightResponse {
+interface PostHogCreateDashboardResponse {
   success: boolean
   output: {
     id: number
     name: string
     description: string
-    query: Record<string, any> | null
+    pinned: boolean
     created_at: string
-    created_by: Record<string, any> | null
-    last_modified_at: string
-    dashboards: number[]
+    tiles: Array<Record<string, any>>
+    filters: Record<string, any>
     tags: string[]
   }
 }
 
-export const createInsightTool: ToolConfig<
-  PostHogCreateInsightParams,
-  PostHogCreateInsightResponse
+export const createDashboardTool: ToolConfig<
+  PostHogCreateDashboardParams,
+  PostHogCreateDashboardResponse
 > = {
-  id: 'posthog_create_insight',
-  name: 'PostHog Create Insight',
-  description: 'Create a new insight in PostHog. Requires insight name and a query configuration.',
+  id: 'posthog_create_dashboard',
+  name: 'PostHog Create Dashboard',
+  description:
+    'Create a new dashboard in PostHog. Optionally seed it from a built-in template, then attach insights to it afterward.',
   version: '1.0.0',
   errorExtractor: 'posthog-errors',
 
@@ -67,41 +67,41 @@ export const createInsightTool: ToolConfig<
     },
     name: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description:
-        'Name for the insight (optional - PostHog will generate a derived name if not provided)',
+      description: 'Name for the new dashboard',
     },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Description of the insight',
+      description: 'Description of the dashboard',
     },
-    query: {
-      type: 'string',
+    pinned: {
+      type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'JSON string of query configuration for the insight',
-    },
-    dashboards: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Comma-separated list of dashboard IDs to add this insight to',
+      description: 'Whether to pin the dashboard to the sidebar',
     },
     tags: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of tags for the insight',
+      description: 'Comma-separated list of tags for the dashboard',
+    },
+    useTemplate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Name of a built-in PostHog dashboard template to seed this dashboard from (e.g., "Product analytics")',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/insights/`
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
+      return `${baseUrl}/api/projects/${params.projectId}/dashboards/`
     },
     method: 'POST',
     headers: (params) => ({
@@ -113,24 +113,9 @@ export const createInsightTool: ToolConfig<
         name: params.name,
       }
 
-      if (params.description) {
-        body.description = params.description
-      }
-
-      if (params.query) {
-        try {
-          body.query = JSON.parse(params.query)
-        } catch (e) {
-          body.query = null
-        }
-      }
-
-      if (params.dashboards) {
-        body.dashboards = params.dashboards
-          .split(',')
-          .map((id: string) => Number(id.trim()))
-          .filter((id: number) => !Number.isNaN(id))
-      }
+      if (params.description) body.description = params.description
+      if (params.pinned !== undefined) body.pinned = params.pinned
+      if (params.useTemplate) body.use_template = params.useTemplate
 
       if (params.tags) {
         body.tags = params.tags
@@ -152,11 +137,10 @@ export const createInsightTool: ToolConfig<
         id: data.id,
         name: data.name || '',
         description: data.description || '',
-        query: data.query || null,
+        pinned: data.pinned || false,
         created_at: data.created_at,
-        created_by: data.created_by || null,
-        last_modified_at: data.last_modified_at,
-        dashboards: data.dashboards || [],
+        tiles: data.tiles || [],
+        filters: data.filters || {},
         tags: data.tags || [],
       },
     }
@@ -165,41 +149,35 @@ export const createInsightTool: ToolConfig<
   outputs: {
     id: {
       type: 'number',
-      description: 'Unique identifier for the created insight',
+      description: 'Unique identifier for the created dashboard',
     },
     name: {
       type: 'string',
-      description: 'Name of the insight',
+      description: 'Name of the dashboard',
     },
     description: {
       type: 'string',
-      description: 'Description of the insight',
+      description: 'Description of the dashboard',
     },
-    query: {
-      type: 'object',
-      description: 'Query configuration for the insight',
-      optional: true,
+    pinned: {
+      type: 'boolean',
+      description: 'Whether the dashboard is pinned',
     },
     created_at: {
       type: 'string',
-      description: 'ISO timestamp when insight was created',
+      description: 'ISO timestamp when dashboard was created',
     },
-    created_by: {
-      type: 'object',
-      description: 'User who created the insight',
-      optional: true,
-    },
-    last_modified_at: {
-      type: 'string',
-      description: 'ISO timestamp when insight was last modified',
-    },
-    dashboards: {
+    tiles: {
       type: 'array',
-      description: 'IDs of dashboards this insight appears on',
+      description: 'Tiles/widgets on the dashboard',
+    },
+    filters: {
+      type: 'object',
+      description: 'Global filters applied to the dashboard',
     },
     tags: {
       type: 'array',
-      description: 'Tags associated with the insight',
+      description: 'Tags associated with the dashboard',
     },
   },
 }

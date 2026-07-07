@@ -1,20 +1,23 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
-interface PostHogCreateCohortParams {
+interface PostHogUpdateCohortParams {
   apiKey: string
   projectId: string
-  region: string
+  cohortId: string
+  region?: 'us' | 'eu'
   host?: string
-  name: string
+  name?: string
   description?: string
   filters?: string
   query?: string
-  is_static?: boolean
+  isStatic?: boolean
   groups?: string
+  deleted?: boolean
 }
 
-interface PostHogCreateCohortResponse {
+interface PostHogUpdateCohortResponse {
   success: boolean
   output: {
     id: number
@@ -25,7 +28,6 @@ interface PostHogCreateCohortResponse {
     filters: Record<string, any>
     query: Record<string, any> | null
     created_at: string
-    created_by: Record<string, any> | null
     is_calculating: boolean
     count: number
     is_static: boolean
@@ -33,12 +35,12 @@ interface PostHogCreateCohortResponse {
   }
 }
 
-export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCreateCohortResponse> =
+export const updateCohortTool: ToolConfig<PostHogUpdateCohortParams, PostHogUpdateCohortResponse> =
   {
-    id: 'posthog_create_cohort',
-    name: 'PostHog Create Cohort',
+    id: 'posthog_update_cohort',
+    name: 'PostHog Update Cohort',
     description:
-      'Create a new cohort in PostHog. Requires cohort name and filter or query configuration.',
+      'Update an existing cohort in PostHog. Can modify name, description, filters, query, static membership, and deleted status.',
     version: '1.0.0',
     errorExtractor: 'posthog-errors',
 
@@ -54,6 +56,12 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
         required: true,
         visibility: 'user-or-llm',
         description: 'The PostHog project ID (e.g., "12345" or project UUID)',
+      },
+      cohortId: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'The cohort ID to update (e.g., "42")',
       },
       region: {
         type: 'string',
@@ -73,88 +81,89 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description:
-          'Name for the cohort (optional - PostHog will use "Untitled cohort" if not provided)',
+        description: 'Updated name for the cohort',
       },
       description: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Description of the cohort',
+        description: 'Updated description of the cohort',
       },
       filters: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'JSON string of filter configuration for the cohort',
+        description: 'JSON string of updated filter configuration for the cohort',
       },
       query: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'JSON string of query configuration for the cohort',
+        description: 'JSON string of updated query configuration for the cohort',
       },
-      is_static: {
+      isStatic: {
         type: 'boolean',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Whether the cohort is static (default: false)',
-        default: false,
+        description: 'Whether the cohort is static',
       },
       groups: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'JSON string of groups that define the cohort',
+        description: 'JSON string of updated groups that define the cohort',
+      },
+      deleted: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Set to true to archive (soft-delete) the cohort',
       },
     },
 
     request: {
       url: (params) => {
-        const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/cohorts/`
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
+        return `${baseUrl}/api/projects/${params.projectId}/cohorts/${params.cohortId}/`
       },
-      method: 'POST',
+      method: 'PATCH',
       headers: (params) => ({
         'Content-Type': 'application/json',
         Authorization: `Bearer ${params.apiKey}`,
       }),
       body: (params) => {
-        const body: Record<string, any> = {
-          name: params.name,
-        }
+        const body: Record<string, any> = {}
 
-        if (params.description) {
-          body.description = params.description
-        }
+        if (params.name !== undefined) body.name = params.name
+        if (params.description !== undefined) body.description = params.description
 
         if (params.filters) {
           try {
             body.filters = JSON.parse(params.filters)
-          } catch (e) {
-            body.filters = {}
+          } catch (error) {
+            throw new Error(`Invalid filters JSON: ${getErrorMessage(error)}`)
           }
         }
 
         if (params.query) {
           try {
             body.query = JSON.parse(params.query)
-          } catch (e) {
-            body.query = null
+          } catch (error) {
+            throw new Error(`Invalid query JSON: ${getErrorMessage(error)}`)
           }
         }
 
-        if (params.is_static !== undefined) {
-          body.is_static = params.is_static
-        }
+        if (params.isStatic !== undefined) body.is_static = params.isStatic
 
         if (params.groups) {
           try {
             body.groups = JSON.parse(params.groups)
-          } catch (e) {
-            body.groups = []
+          } catch (error) {
+            throw new Error(`Invalid groups JSON: ${getErrorMessage(error)}`)
           }
         }
+
+        if (params.deleted !== undefined) body.deleted = params.deleted
 
         return body
       },
@@ -174,7 +183,6 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
           filters: data.filters || {},
           query: data.query || null,
           created_at: data.created_at,
-          created_by: data.created_by || null,
           is_calculating: data.is_calculating || false,
           count: data.count || 0,
           is_static: data.is_static || false,
@@ -186,7 +194,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
     outputs: {
       id: {
         type: 'number',
-        description: 'Unique identifier for the created cohort',
+        description: 'Unique identifier for the cohort',
       },
       name: {
         type: 'string',
@@ -216,11 +224,6 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
       created_at: {
         type: 'string',
         description: 'ISO timestamp when cohort was created',
-      },
-      created_by: {
-        type: 'object',
-        description: 'User who created the cohort',
-        optional: true,
       },
       is_calculating: {
         type: 'boolean',

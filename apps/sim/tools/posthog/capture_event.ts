@@ -1,8 +1,11 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { getPostHogIngestBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogCaptureEventParams {
   projectApiKey: string
   region?: 'us' | 'eu'
+  host?: string
   event: string
   distinctId: string
   properties?: string
@@ -38,6 +41,13 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
         description: 'PostHog region: us (default) or eu',
         default: 'us',
       },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+      },
       event: {
         type: 'string',
         required: true,
@@ -69,8 +79,7 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
 
     request: {
       url: (params) => {
-        const baseUrl =
-          params.region === 'eu' ? 'https://eu.i.posthog.com' : 'https://us.i.posthog.com'
+        const baseUrl = getPostHogIngestBaseUrl(params.region, params.host)
         return `${baseUrl}/capture/`
       },
       method: 'POST',
@@ -87,8 +96,8 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
         if (params.properties) {
           try {
             body.properties = JSON.parse(params.properties)
-          } catch (e) {
-            body.properties = {}
+          } catch (error) {
+            throw new Error(`Invalid properties JSON: ${getErrorMessage(error)}`)
           }
         }
 
@@ -101,22 +110,16 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
     },
 
     transformResponse: async (response: Response) => {
-      if (response.ok) {
-        return {
-          success: true,
-          output: {
-            status: 'Event captured successfully',
-          },
-        }
-      }
+      const data = await response.json()
+      const success = data.status === 1
 
-      const error = await response.text()
       return {
-        success: false,
+        success,
         output: {
-          status: 'Failed to capture event',
+          status: success
+            ? 'Event captured successfully'
+            : `Event capture failed (status: ${data.status})`,
         },
-        error: error || 'Unknown error occurred',
       }
     },
 
