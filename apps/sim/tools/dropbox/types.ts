@@ -7,8 +7,8 @@ interface DropboxFileMetadata {
   '.tag': 'file'
   id: string
   name: string
-  path_display: string
-  path_lower: string
+  path_display?: string
+  path_lower?: string
   size: number
   client_modified: string
   server_modified: string
@@ -21,15 +21,15 @@ interface DropboxFolderMetadata {
   '.tag': 'folder'
   id: string
   name: string
-  path_display: string
-  path_lower: string
+  path_display?: string
+  path_lower?: string
 }
 
 interface DropboxDeletedMetadata {
   '.tag': 'deleted'
   name: string
-  path_display: string
-  path_lower: string
+  path_display?: string
+  path_lower?: string
 }
 
 export type DropboxMetadata = DropboxFileMetadata | DropboxFolderMetadata | DropboxDeletedMetadata
@@ -232,6 +232,62 @@ interface DropboxGetTemporaryLinkResponse extends ToolResponse {
   }
 }
 
+// ===== List Shared Links Params =====
+
+export interface DropboxListSharedLinksParams extends DropboxBaseParams {
+  path?: string
+  directOnly?: boolean
+  cursor?: string
+}
+
+export interface DropboxListSharedLinksResponse extends ToolResponse {
+  output: {
+    links?: DropboxSharedLinkMetadata[]
+    hasMore?: boolean
+    cursor?: string
+  }
+}
+
+// ===== List Revisions Params =====
+
+interface DropboxFileRevision {
+  '.tag': 'file'
+  id: string
+  name: string
+  path_display?: string
+  path_lower?: string
+  size: number
+  rev: string
+  server_modified: string
+}
+
+export interface DropboxListRevisionsParams extends DropboxBaseParams {
+  path: string
+  limit?: number
+  beforeRev?: string
+}
+
+export interface DropboxListRevisionsResponse extends ToolResponse {
+  output: {
+    entries?: DropboxFileRevision[]
+    isDeleted?: boolean
+    hasMore?: boolean
+  }
+}
+
+// ===== Restore Params =====
+
+export interface DropboxRestoreParams extends DropboxBaseParams {
+  path: string
+  rev: string
+}
+
+export interface DropboxRestoreResponse extends ToolResponse {
+  output: {
+    metadata?: DropboxFileMetadata
+  }
+}
+
 // ===== Combined Response Type =====
 
 export type DropboxResponse =
@@ -246,3 +302,6 @@ export type DropboxResponse =
   | DropboxCreateSharedLinkResponse
   | DropboxSearchResponse
   | DropboxGetTemporaryLinkResponse
+  | DropboxListSharedLinksResponse
+  | DropboxListRevisionsResponse
+  | DropboxRestoreResponse
