@@ -177,11 +177,6 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Static assets only — the (?!api/) guard keeps this off API routes. Without it,
-        // /api/files/serve/<key>.png matched too, and Next drops a route handler's own
-        // Cache-Control when the config rule already set one, so in-place file overwrites
-        // (same storage key, e.g. copilot image/chart regeneration) served day-stale bytes
-        // from the browser cache.
         source: '/((?!api/).*\\.(?:svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot))',
         headers: [
           {
