@@ -88,7 +88,6 @@ export const GoogleVaultBlock: BlockConfig = {
           'delete_matters_holds',
           'add_held_accounts',
           'remove_held_accounts',
-          'list_matters',
           'update_matters',
           'close_matters',
           'reopen_matters',
@@ -126,6 +125,16 @@ export const GoogleVaultBlock: BlockConfig = {
           'delete_saved_query',
         ],
       }),
+    },
+    // Dedicated optional matter-id filter for list_matters — kept separate from the
+    // required matterId above so a value left over from another operation can never
+    // silently turn "List Matters" into a single-matter get.
+    {
+      id: 'listMatterId',
+      title: 'Matter ID',
+      type: 'short-input',
+      placeholder: 'Enter Matter ID (optional to fetch a specific matter)',
+      condition: { field: 'operation', value: 'list_matters' },
     },
     // Download Export File inputs
     {
@@ -228,12 +237,7 @@ Return ONLY the hold name - no explanations, no quotes, no extra text.`,
       placeholder: 'Comma-separated emails (alternative to Org Unit)',
       condition: {
         field: 'operation',
-        value: [
-          'create_matters_holds',
-          'update_matters_holds',
-          'create_matters_export',
-          'create_saved_query',
-        ],
+        value: ['create_matters_holds', 'create_matters_export'],
       },
     },
     {
@@ -243,13 +247,41 @@ Return ONLY the hold name - no explanations, no quotes, no extra text.`,
       placeholder: 'Org Unit ID (alternative to emails)',
       condition: {
         field: 'operation',
-        value: [
-          'create_matters_holds',
-          'update_matters_holds',
-          'create_matters_export',
-          'create_saved_query',
-        ],
+        value: ['create_matters_holds', 'create_matters_export'],
       },
+    },
+    // Dedicated scope fields for update_matters_holds and create_saved_query — kept
+    // separate from the create_matters_holds/create_matters_export accountEmails/orgUnitId
+    // above so a stale value left over from a different operation can never silently win
+    // in the accountEmails-before-orgUnitId scope priority (each field is only ever
+    // populated by the user while its own operation is selected).
+    {
+      id: 'updateHoldAccountEmails',
+      title: 'Account Emails',
+      type: 'long-input',
+      placeholder: 'Comma-separated emails (alternative to Org Unit)',
+      condition: { field: 'operation', value: 'update_matters_holds' },
+    },
+    {
+      id: 'updateHoldOrgUnitId',
+      title: 'Org Unit ID',
+      type: 'short-input',
+      placeholder: 'Org Unit ID (alternative to emails)',
+      condition: { field: 'operation', value: 'update_matters_holds' },
+    },
+    {
+      id: 'savedQueryAccountEmails',
+      title: 'Account Emails',
+      type: 'long-input',
+      placeholder: 'Comma-separated emails (alternative to Org Unit)',
+      condition: { field: 'operation', value: 'create_saved_query' },
+    },
+    {
+      id: 'savedQueryOrgUnitId',
+      title: 'Org Unit ID',
+      type: 'short-input',
+      placeholder: 'Org Unit ID (alternative to emails)',
+      condition: { field: 'operation', value: 'create_saved_query' },
     },
     // Date filtering for exports (works with all corpus types)
     {
@@ -665,6 +697,11 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           holdTerms,
           heldAccountEmails,
           heldAccountIds,
+          listMatterId,
+          updateHoldAccountEmails,
+          updateHoldOrgUnitId,
+          savedQueryAccountEmails,
+          savedQueryOrgUnitId,
           ...rest
         } = params
         return {
@@ -676,6 +713,13 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           ...(holdTerms && { terms: holdTerms }),
           ...(heldAccountEmails && { accountEmails: heldAccountEmails }),
           ...(heldAccountIds && { accountIds: heldAccountIds }),
+          // Map operation-scoped fields (kept separate in the UI so a stale value from
+          // another operation can never silently override these) to their tool parameter names
+          ...(listMatterId && { matterId: listMatterId }),
+          ...(updateHoldAccountEmails && { accountEmails: updateHoldAccountEmails }),
+          ...(updateHoldOrgUnitId && { orgUnitId: updateHoldOrgUnitId }),
+          ...(savedQueryAccountEmails && { accountEmails: savedQueryAccountEmails }),
+          ...(savedQueryOrgUnitId && { orgUnitId: savedQueryOrgUnitId }),
         }
       },
     },
@@ -745,6 +789,27 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     // Saved query inputs
     displayName: { type: 'string', description: 'Name for the saved query' },
     savedQueryId: { type: 'string', description: 'Specific saved query ID to fetch or delete' },
+
+    // Operation-scoped fields kept separate from their shared counterparts above so a
+    // stale value from another operation can never silently carry over
+    listMatterId: { type: 'string', description: 'Specific matter ID to fetch (list_matters)' },
+    updateHoldAccountEmails: {
+      type: 'string',
+      description: 'Comma-separated emails covered by the hold (update_matters_holds)',
+    },
+    updateHoldOrgUnitId: {
+      type: 'string',
+      description: 'Org unit ID covered by the hold (update_matters_holds, alternative to emails)',
+    },
+    savedQueryAccountEmails: {
+      type: 'string',
+      description: 'Comma-separated emails to scope the saved query (create_saved_query)',
+    },
+    savedQueryOrgUnitId: {
+      type: 'string',
+      description:
+        'Org unit ID to scope the saved query (create_saved_query, alternative to emails)',
+    },
   },
   outputs: {
     matters: {
