@@ -46,7 +46,7 @@ export const discordGetPinnedMessagesTool: ToolConfig<
   request: {
     url: (params: DiscordGetPinnedMessagesParams) => {
       const query = new URLSearchParams()
-      if (params.limit) query.set('limit', String(params.limit))
+      if (params.limit) query.set('limit', String(Math.min(Math.max(1, Number(params.limit)), 50)))
       if (params.before) query.set('before', params.before)
       const queryString = query.toString()
       return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/pins${queryString ? `?${queryString}` : ''}`

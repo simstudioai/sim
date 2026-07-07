@@ -718,7 +718,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
             return {
               ...commonParams,
               channelId: params.channelId,
-              ...(params.limit && { limit: Number(params.limit) }),
+              ...(params.limit && { limit: Math.min(Math.max(1, Number(params.limit)), 50) }),
               ...(params.before?.trim() && { before: params.before.trim() }),
             }
           case 'discord_add_reaction':
