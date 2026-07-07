@@ -86,13 +86,17 @@ function applyInputPlaceholders(
 }
 
 /**
- * The org's custom blocks as bare `CustomBlockRow`s for the server overlay
- * (`withCustomBlockOverlay`). Only enabled rows — a disabled block must not resolve
- * for execution. No input fields: the server's `inputMapping` is schema-agnostic
- * and the handler's remap filters every value against the child's live deployed
- * Start, so execution never needs to load each block's deployment here.
+ * The org's custom blocks for the server overlay (`withCustomBlockOverlay`).
+ * Includes DISABLED rows (carrying `enabled`) so a still-placed disabled block
+ * stays resolvable — it survives serialization and fails loudly at run via
+ * `getCustomBlockAuthority` instead of being silently dropped from the graph; the
+ * overlay marks it `hideFromToolbar` so no new instance can be placed. No input
+ * fields: the server's `inputMapping` is schema-agnostic and the handler's remap
+ * filters every value against the child's live deployed Start.
  */
-export async function getCustomBlockRowsForOrg(organizationId: string): Promise<CustomBlockRow[]> {
+export async function getCustomBlockRowsForOrg(
+  organizationId: string
+): Promise<Array<CustomBlockRow & { enabled: boolean }>> {
   const rows = await db
     .select({
       type: customBlock.type,
@@ -100,9 +104,10 @@ export async function getCustomBlockRowsForOrg(organizationId: string): Promise<
       description: customBlock.description,
       workflowId: customBlock.workflowId,
       outputs: customBlock.outputs,
+      enabled: customBlock.enabled,
     })
     .from(customBlock)
-    .where(and(eq(customBlock.organizationId, organizationId), eq(customBlock.enabled, true)))
+    .where(eq(customBlock.organizationId, organizationId))
 
   return rows.map(({ outputs, ...r }) => ({ ...r, exposedOutputs: outputs ?? [] }))
 }

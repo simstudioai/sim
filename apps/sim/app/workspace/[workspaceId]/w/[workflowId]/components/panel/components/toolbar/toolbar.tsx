@@ -459,9 +459,9 @@ export const Toolbar = memo(
     const allBlocks = getBlocks()
     const allTools = getTools()
 
-    // Published custom blocks are their own section. Exclude disabled blocks (the
-    // server overlay drops them, so placing one would fail at run) and the block
-    // bound to the CURRENT workflow — adding a workflow's own block would recurse.
+    // Published custom blocks are their own section. Exclude disabled blocks (still
+    // resolvable so placed instances survive, but not offered for new placement) and
+    // the block bound to the CURRENT workflow — adding a workflow's own block recurses.
     const allCustomBlocks = useMemo(() => {
       if (!customBlocksData?.length) return []
       return customBlocksData

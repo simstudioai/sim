@@ -27,28 +27,27 @@ export function CustomBlocksLoader() {
 
   useEffect(() => {
     hydrateClientCustomBlocks(
-      // Only enabled blocks are resolvable/executable server-side, so the client
-      // overlay (toolbar, canvas, palette) must exclude disabled ones too — else
-      // the block is offered but every run fails.
-      (data ?? [])
-        .filter((block) => block.enabled)
-        .map((block) => {
-          const effectiveIcon = block.iconUrl || fallbackIconUrl
-          return buildCustomBlockConfig(
-            {
-              type: block.type,
-              name: block.name,
-              description: block.description,
-              workflowId: block.workflowId,
-              exposedOutputs: block.exposedOutputs,
-            },
-            block.inputFields,
-            {
-              icon: getCustomBlockIcon(block.iconUrl, fallbackIconUrl),
-              bgColor: effectiveIcon ? 'transparent' : undefined,
-            }
-          )
-        })
+      // Disabled blocks stay resolvable (so a still-placed instance renders on the
+      // canvas and survives serialization instead of vanishing) but are hidden from
+      // the palette so no new instance can be placed; a run fails loudly server-side.
+      (data ?? []).map((block) => {
+        const effectiveIcon = block.iconUrl || fallbackIconUrl
+        return buildCustomBlockConfig(
+          {
+            type: block.type,
+            name: block.name,
+            description: block.description,
+            workflowId: block.workflowId,
+            exposedOutputs: block.exposedOutputs,
+          },
+          block.inputFields,
+          {
+            icon: getCustomBlockIcon(block.iconUrl, fallbackIconUrl),
+            bgColor: effectiveIcon ? 'transparent' : undefined,
+            hideFromToolbar: !block.enabled,
+          }
+        )
+      })
     )
   }, [data, fallbackIconUrl])
 

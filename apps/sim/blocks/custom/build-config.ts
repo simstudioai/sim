@@ -98,7 +98,7 @@ function subBlockTypeForField(fieldType: string): SubBlockType {
 export function buildCustomBlockConfig(
   row: CustomBlockRow,
   inputFields: WorkflowInputField[],
-  opts: { icon: BlockIcon; bgColor?: string }
+  opts: { icon: BlockIcon; bgColor?: string; hideFromToolbar?: boolean }
 ): BlockConfig {
   const fieldSubBlocks: SubBlockConfig[] = inputFields.map((field) => {
     const type = subBlockTypeForField(field.type)
@@ -125,6 +125,11 @@ export function buildCustomBlockConfig(
       'workflow is baked in — no workflow id or input mapping to configure.',
     bgColor: opts.bgColor ?? CUSTOM_BLOCK_TILE_COLOR,
     icon: opts.icon,
+    // A disabled block stays resolvable (so a still-placed instance survives
+    // serialization and fails loudly at run via `getCustomBlockAuthority`, instead
+    // of silently vanishing from the graph) but is hidden from the palette so no
+    // new instance can be placed.
+    hideFromToolbar: opts.hideFromToolbar,
     subBlocks: [
       {
         id: 'workflowId',
