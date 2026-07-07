@@ -133,15 +133,6 @@ const listWebhooksResponseSchema = z.object({
 
 const upsertWebhookResponseSchema = z.object({
   webhook: webhookDataSchema,
-  credentialSetInfo: z
-    .object({
-      credentialSetId: z.string(),
-      totalWebhooks: z.number(),
-      created: z.number(),
-      updated: z.number(),
-      deleted: z.number(),
-    })
-    .optional(),
 })
 
 const getWebhookResponseSchema = z.object({

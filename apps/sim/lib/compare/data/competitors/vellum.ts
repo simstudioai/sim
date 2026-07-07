@@ -18,10 +18,10 @@ export const vellumProfile: CompetitorProfile = {
     'Vellum is an enterprise AI development platform for building, evaluating, and deploying LLM prompts, workflows, and agents.',
   standoutFeatures: [
     {
-      title: 'SOC 2 Type 2 and HIPAA compliance with BAA',
+      title: 'HIPAA compliance with a signable BAA',
       description:
-        'Vellum has SOC 2 Type 2 attestation and HIPAA compliance. Enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study.',
-      shortDescription: 'SOC 2 Type 2 and HIPAA compliance with a signable BAA.',
+        'Vellum is HIPAA compliant and enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study. Sim does not currently offer HIPAA compliance (both platforms hold SOC 2 Type 2).',
+      shortDescription: 'HIPAA compliant with a signable BAA; Sim does not offer HIPAA.',
       source: {
         url: 'https://drata.com/customers/vellum',
         label: 'Vellum Case Study: Drata',
@@ -29,35 +29,13 @@ export const vellumProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Self-hosted / VPC enterprise deployment',
+      title: 'Vendor-managed dedicated VPC deployment',
       description:
-        "Enterprise customers can run the platform inside their own AWS, Azure, or GCP VPC (or on-prem) via a Replicated-based install, keeping prompts and documents inside the customer's network perimeter.",
-      shortDescription: 'Runs inside your own AWS/Azure/GCP VPC or on-prem.',
+        'Enterprise customers can get a Vellum-managed dedicated deployment inside a single-tenant AWS, Azure, or GCP VPC via a Replicated-based install. Sim offers self-hosting (Docker Compose or Kubernetes/Helm) but has no documented managed single-tenant/VPC hosting tier.',
+      shortDescription: 'Vendor-managed single-tenant VPC tier that Sim does not offer.',
       source: {
         url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
         label: 'Self-Hosted Vellum: Vellum Docs',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: "Natural-language agent building ('Vellum for Agents')",
-      description:
-        'Non-technical users can describe a goal in plain language and have Vellum generate a working agent, automatically handling model selection, prompting, and integration wiring.',
-      shortDescription: 'Describe a goal in plain language and Vellum builds the agent.',
-      source: {
-        url: 'https://www.vellum.ai/blog/introducing-vellum-for-agents',
-        label: 'Introducing Vellum for Agents',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: '$20M Series A, followed by a consumer pivot',
-      description:
-        "Vellum raised a $20M Series A in July 2025 (on top of a 2023 YC seed) to grow its enterprise platform. Since then, the company has separately launched a rebranded 'Personal Intelligence' consumer assistant product, open-sourced under MIT license on GitHub.",
-      shortDescription: '$20M Series A, then a separate consumer product launch.',
-      source: {
-        url: 'https://www.vellum.ai/blog/announcing-our-20m-series-a',
-        label: 'Announcing our $20m Series A: Vellum',
         asOf: '2026-07-02',
       },
     },
@@ -94,14 +72,14 @@ export const vellumProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Deprecated legacy workflow nodes',
+      title: 'No native spreadsheet-style data tables',
       description:
-        'As of the January 2026 changelog, Vellum deprecated Merge, Conditional, and Output Nodes from the workflow builder UI (replaced by Merge Strategy, Ports, and Workflow Outputs respectively). Existing workflows using them continue to run but new instances can no longer be created.',
-      shortDescription:
-        'Legacy Merge/Conditional/Output nodes retired in favor of newer equivalents.',
+        'No Vellum documentation describes a native, spreadsheet-like data-table object with persistent rows/columns, keyboard navigation, or per-row writes from workflows; the closest documented tabular handling is uploading CSV/XLS files and extracting or generating structured output within workflow nodes, unlike Sim, which has a built-in Tables feature.',
+      shortDescription: 'No documented table/spreadsheet feature; CSV upload and extraction only.',
       source: {
-        url: 'https://docs.vellum.ai/changelog/2026/2026-01',
-        label: 'Vellum Changelog: January 2026',
+        url: 'https://docs.vellum.ai/developers/workflows-sdk/tutorials/document-data-extraction',
+        label:
+          'Vellum Docs: Document Data Extraction tutorial (the closest documented tabular-data handling)',
         asOf: '2026-07-02',
       },
     },

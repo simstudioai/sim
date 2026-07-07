@@ -76,11 +76,11 @@ export const metricsTool: ToolConfig<AhrefsMetricsParams, AhrefsMetricsResponse>
           organicTraffic: metrics.org_traffic ?? 0,
           organicKeywords: metrics.org_keywords ?? 0,
           organicKeywordsTop3: metrics.org_keywords_1_3 ?? 0,
-          organicCost: metrics.org_cost ?? null,
+          organicCost: typeof metrics.org_cost === 'number' ? metrics.org_cost / 100 : null,
           paidTraffic: metrics.paid_traffic ?? 0,
           paidKeywords: metrics.paid_keywords ?? 0,
           paidPages: metrics.paid_pages ?? 0,
-          paidCost: metrics.paid_cost ?? null,
+          paidCost: typeof metrics.paid_cost === 'number' ? metrics.paid_cost / 100 : null,
         },
       },
     }

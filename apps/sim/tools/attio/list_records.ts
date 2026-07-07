@@ -68,14 +68,14 @@ export const attioListRecordsTool: ToolConfig<AttioListRecordsParams, AttioListR
         try {
           body.filter = JSON.parse(params.filter)
         } catch {
-          body.filter = params.filter
+          throw new Error('Invalid JSON provided for filter')
         }
       }
       if (params.sorts) {
         try {
           body.sorts = JSON.parse(params.sorts)
         } catch {
-          body.sorts = params.sorts
+          throw new Error('Invalid JSON provided for sorts')
         }
       }
       if (params.limit != null) body.limit = params.limit

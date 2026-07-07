@@ -140,12 +140,6 @@ export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
 export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
 
 /**
- * Is credential sets (email polling) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
- */
-export const isCredentialSetsEnabled = isTruthy(env.CREDENTIAL_SETS_ENABLED)
-
-/**
  * Is access control (permission groups) enabled via env var override
  * This bypasses plan requirements for self-hosted deployments
  */

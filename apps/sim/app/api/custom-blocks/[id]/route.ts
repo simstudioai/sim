@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -29,19 +30,28 @@ type RouteContext = { params: Promise<{ id: string }> }
  * different workspace does not, so they cannot alter another workspace's block or
  * its exposed outputs.
  */
-async function authorizeManage(userId: string, id: string) {
+type ManageContext = NonNullable<Awaited<ReturnType<typeof getCustomBlockManageContext>>>
+
+async function authorizeManage(
+  userId: string,
+  id: string
+): Promise<{ error: NextResponse; ctx: null } | { error: null; ctx: ManageContext }> {
   const ctx = await getCustomBlockManageContext(id)
-  if (!ctx) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+  if (!ctx) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }), ctx: null }
 
   if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ctx.organizationId }))) {
     return {
       error: NextResponse.json({ error: 'Deploy as block is not enabled' }, { status: 403 }),
+      ctx: null,
     }
   }
   if (!ctx.sourceWorkspaceId || !(await hasWorkspaceAdminAccess(userId, ctx.sourceWorkspaceId))) {
-    return { error: NextResponse.json({ error: 'Admin permissions required' }, { status: 403 }) }
+    return {
+      error: NextResponse.json({ error: 'Admin permissions required' }, { status: 403 }),
+      ctx: null,
+    }
   }
-  return { error: null }
+  return { error: null, ctx }
 }
 
 export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
@@ -56,15 +66,30 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
   const { id } = parsed.data.params
   const authz = await authorizeManage(session.user.id, id)
   if (authz.error) return authz.error
+  const { ctx } = authz
 
-  const { name, description, enabled, iconUrl, exposedOutputs } = parsed.data.body
+  const { name, description, enabled, iconUrl, inputs, exposedOutputs } = parsed.data.body
   try {
     await updateCustomBlock(id, {
       name,
       description,
       enabled,
+      inputs,
       iconUrl,
       exposedOutputs,
+    })
+    recordAudit({
+      workspaceId: ctx.sourceWorkspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CUSTOM_BLOCK_UPDATED,
+      resourceType: AuditResourceType.CUSTOM_BLOCK,
+      resourceId: id,
+      resourceName: name ?? ctx.name,
+      description: `Updated custom block "${name ?? ctx.name}"`,
+      metadata: { organizationId: ctx.organizationId, type: ctx.type },
+      request,
     })
     return NextResponse.json({ success: true as const })
   } catch (error) {
@@ -88,7 +113,21 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
   const { id } = parsed.data.params
   const authz = await authorizeManage(session.user.id, id)
   if (authz.error) return authz.error
+  const { ctx } = authz
 
   await deleteCustomBlock(id)
+  recordAudit({
+    workspaceId: ctx.sourceWorkspaceId,
+    actorId: session.user.id,
+    actorName: session.user.name,
+    actorEmail: session.user.email,
+    action: AuditAction.CUSTOM_BLOCK_DELETED,
+    resourceType: AuditResourceType.CUSTOM_BLOCK,
+    resourceId: id,
+    resourceName: ctx.name,
+    description: `Unpublished custom block "${ctx.name}"`,
+    metadata: { organizationId: ctx.organizationId, type: ctx.type },
+    request,
+  })
   return NextResponse.json({ success: true as const })
 })

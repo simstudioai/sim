@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListAnnotationsParams {
   apiKey: string
   projectId: string
   region: string
+  host?: string
   limit?: number
   offset?: number
 }
@@ -22,6 +24,7 @@ interface PostHogListAnnotationsResponse {
       updated_at: string
       created_by: Record<string, any> | null
       dashboard_item: number | null
+      dashboard_id: number | null
       insight_short_id: string | null
       insight_name: string | null
       scope: string
@@ -39,6 +42,7 @@ export const listAnnotationsTool: ToolConfig<
   description:
     'List all annotations in a PostHog project. Returns annotation content, timestamps, and associated insights.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -60,6 +64,13 @@ export const listAnnotationsTool: ToolConfig<
       description: 'PostHog cloud region: "us" or "eu" (default: "us")',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -76,7 +87,7 @@ export const listAnnotationsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
       let url = `${baseUrl}/api/projects/${params.projectId}/annotations/`
 
       const queryParams = []
@@ -113,6 +124,7 @@ export const listAnnotationsTool: ToolConfig<
           updated_at: annotation.updated_at,
           created_by: annotation.created_by || null,
           dashboard_item: annotation.dashboard_item || null,
+          dashboard_id: annotation.dashboard_id || null,
           insight_short_id: annotation.insight_short_id || null,
           insight_name: annotation.insight_name || null,
           scope: annotation.scope || '',
@@ -161,6 +173,10 @@ export const listAnnotationsTool: ToolConfig<
           dashboard_item: {
             type: 'number',
             description: 'ID of dashboard item this annotation is attached to',
+          },
+          dashboard_id: {
+            type: 'number',
+            description: 'ID of the dashboard this annotation is attached to',
           },
           insight_short_id: {
             type: 'string',

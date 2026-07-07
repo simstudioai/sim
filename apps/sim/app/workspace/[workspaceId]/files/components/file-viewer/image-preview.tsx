@@ -7,7 +7,11 @@ import { ZoomablePreview } from './zoomable-preview'
 
 export const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const source = useFileContentSource()
-  const serveUrl = source.buildUrl(file.key)
+  // Version the URL on updatedAt: overwrites keep the same storage key, so an unversioned
+  // URL would resolve to a previously cached copy instead of the rewritten bytes.
+  const serveUrl = source.buildUrl(file.key, {
+    version: Number(new Date(file.updatedAt)) || file.size,
+  })
 
   return (
     <ZoomablePreview className='flex flex-1' contentClassName='h-full w-full'>

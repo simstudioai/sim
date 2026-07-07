@@ -189,6 +189,17 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       condition: { field: 'operation', value: ['list_users', 'list_groups'] },
       mode: 'advanced',
     },
+    {
+      id: 'nextLink',
+      title: 'Next Page',
+      type: 'short-input',
+      placeholder: "Paste the previous response's nextLink to fetch the next page",
+      condition: {
+        field: 'operation',
+        value: ['list_users', 'list_groups', 'list_group_members'],
+      },
+      mode: 'advanced',
+    },
     // Group ID field
     {
       id: 'groupId',
@@ -212,7 +223,6 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
           'get_group',
           'update_group',
           'delete_group',
-          'list_group_members',
           'add_group_member',
           'remove_group_member',
         ],
@@ -296,6 +306,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       options: [
         { label: 'Private', id: 'Private' },
         { label: 'Public', id: 'Public' },
+        { label: 'Hidden Membership (Microsoft 365 groups only)', id: 'HiddenMembership' },
       ],
       value: () => 'Private',
       condition: { field: 'operation', value: 'create_group' },
@@ -334,6 +345,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         if (params.top) result.top = Number(params.top)
         if (params.filter) result.filter = params.filter
         if (params.search) result.search = params.search
+        if (params.nextLink) result.nextLink = params.nextLink
         if (params.operation === 'update_user') {
           if (params.accountEnabled) result.accountEnabled = params.accountEnabled === 'true'
         } else if (params.operation === 'create_user') {
@@ -375,6 +387,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     top: { type: 'string' },
     filter: { type: 'string' },
     search: { type: 'string' },
+    nextLink: { type: 'string' },
     groupId: { type: 'string' },
     groupDisplayName: { type: 'string' },
     groupMailNickname: { type: 'string' },
@@ -390,7 +403,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     response: {
       type: 'json',
       description:
-        'Azure AD operation response. User operations return id, displayName, userPrincipalName, mail, jobTitle, department. Group operations return id, displayName, description, mailEnabled, securityEnabled, groupTypes. Member operations return id, displayName, mail, odataType.',
+        'Azure AD operation response. User operations return id, displayName, userPrincipalName, mail, jobTitle, department. Group operations return id, displayName, description, mailEnabled, securityEnabled, groupTypes. Member operations return id, displayName, mail, odataType. List operations also return nextLink for fetching additional pages.',
     },
   },
 }
@@ -487,7 +500,21 @@ export const MicrosoftAdBlockMeta = {
       description:
         'List the members of an Azure AD group for an access review. Use for periodic attestation of privileged or sensitive groups.',
       content:
-        '# Audit Group Membership\n\nProduce a current membership snapshot for a group.\n\n## Steps\n1. Resolve the target group with Get Group or List Groups (filter or search by name).\n2. Call List Group Members for the group id, raising Max Results if the group is large.\n3. For each member, optionally call Get User to enrich with job title, department, and account-enabled status.\n\n## Output\nReturn a table of members with id, display name, email, department, and whether the account is enabled. Highlight disabled or stale accounts that still hold membership and should be reviewed for removal.',
+        '# Audit Group Membership\n\nProduce a current membership snapshot for a group.\n\n## Steps\n1. Resolve the target group with Get Group or List Groups (filter or search by name).\n2. Call List Group Members for the group id, raising Max Results if the group is large. If the response includes a Next Page link, keep calling List Group Members with that link until it comes back empty to capture every member.\n3. For each member, optionally call Get User to enrich with job title, department, and account-enabled status.\n\n## Output\nReturn a table of members with id, display name, email, department, and whether the account is enabled. Highlight disabled or stale accounts that still hold membership and should be reviewed for removal.',
+    },
+    {
+      name: 'search-directory-users',
+      description:
+        'Search Azure AD (Entra ID) for users matching a name, department, or other attribute. Use for directory lookups and reporting.',
+      content:
+        "# Search Directory Users\n\nFind users in the directory by attribute instead of enumerating everyone.\n\n## Steps\n1. Use List Users with Search set to the name or email fragment, or Filter set to an OData expression (e.g. `department eq 'Sales'`) for attribute-based lookups. Search and Filter cannot be combined in one call.\n2. If the result set is large, follow the Next Page link returned in the response to page through additional results.\n3. Optionally call Get User for a specific match to retrieve full profile detail.\n\n## Output\nReturn the matching users with id, display name, user principal name, department, and account-enabled status. State clearly when Max Results or pagination limits mean the list may be incomplete.",
+    },
+    {
+      name: 'manage-group-membership',
+      description:
+        'Add or remove specific users from an Azure AD (Entra ID) group on demand, outside of onboarding/offboarding flows. Use for ad hoc access changes and team restructuring.',
+      content:
+        "# Manage Group Membership\n\nApply a one-off membership change to a group.\n\n## Steps\n1. Resolve the group with Get Group or List Groups, and resolve each affected user with Get User or List Users.\n2. Call Add Group Member or Remove Group Member with the group id and each user id.\n3. Confirm the change with List Group Members.\n\n## Output\nReturn which users were added or removed and the group's current member count. Report any member that failed to add or remove (e.g. already a member, or not found) instead of silently skipping it.",
     },
   ],
 } as const satisfies BlockMeta

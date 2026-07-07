@@ -37,11 +37,11 @@ export const discordAssignRoleTool: ToolConfig<DiscordAssignRoleParams, DiscordA
 
     request: {
       url: (params: DiscordAssignRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId}/members/${params.userId}/roles/${params.roleId}`
+        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/members/${params.userId.trim()}/roles/${params.roleId.trim()}`
       },
       method: 'PUT',
       headers: (params) => ({
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
     },
 

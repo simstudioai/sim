@@ -117,7 +117,7 @@ pairing is:
 This is not a stylistic guess — it is the tokenized form of the literal-pixel
 pairing (`text-[14px] text-[var(--text-body)]` / `text-[12px]
 text-[var(--text-muted)]`) already used for this exact row shape across
-`member-list.tsx`, `api-keys.tsx`, `mcp.tsx`, `billing.tsx`, `credential-sets.tsx`,
+`member-list.tsx`, `api-keys.tsx`, `mcp.tsx`, `billing.tsx`,
 `workflow-mcp-servers.tsx`, and others — keep new rows consistent with it rather
 than inventing a new size pairing.
 
@@ -203,7 +203,7 @@ changes" modal:
 ## Detail sub-views
 
 A drill-down view reached from a list row (selected MCP server, workflow MCP
-server, credential set, permission group, retention policy) renders through
+server, permission group, retention policy) renders through
 `SettingsPanel` like a list page: pass `back={{ text, icon: ArrowLeft, onSelect }}`
 for the left back chip, `title` (the entity name), and the header `actions`, then
 render the body. Do NOT hand-roll a shell or header bar; a tab bar renders as the

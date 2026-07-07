@@ -5,6 +5,7 @@ import { googleMapsElevationTool } from '@/tools/google_maps/elevation'
 import { googleMapsGeocodeTool } from '@/tools/google_maps/geocode'
 import { googleMapsGeolocateTool } from '@/tools/google_maps/geolocate'
 import { googleMapsPlaceDetailsTool } from '@/tools/google_maps/place_details'
+import { googleMapsPlacesNearbyTool } from '@/tools/google_maps/places_nearby'
 import { googleMapsPlacesSearchTool } from '@/tools/google_maps/places_search'
 import { googleMapsPollenTool } from '@/tools/google_maps/pollen'
 import { googleMapsReverseGeocodeTool } from '@/tools/google_maps/reverse_geocode'
@@ -22,6 +23,7 @@ export {
   googleMapsGeocodeTool,
   googleMapsGeolocateTool,
   googleMapsPlaceDetailsTool,
+  googleMapsPlacesNearbyTool,
   googleMapsPlacesSearchTool,
   googleMapsPollenTool,
   googleMapsReverseGeocodeTool,

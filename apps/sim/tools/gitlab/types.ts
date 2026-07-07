@@ -196,36 +196,29 @@ interface GitLabNote {
   noteable_iid?: number
 }
 
-interface GitLabUser {
-  id: number
-  name: string
-  username: string
-  email?: string
-  state: string
-  avatar_url: string
-  web_url: string
-}
-
-interface GitLabLabel {
-  id: number
-  name: string
-  color: string
+interface GitLabRelease {
+  tag_name: string
+  name?: string
   description?: string
-  text_color: string
-}
-
-interface GitLabMilestone {
-  id: number
-  iid: number
-  project_id: number
-  title: string
-  description?: string
-  state: string
   created_at: string
-  updated_at: string
-  due_date?: string
-  start_date?: string
-  web_url: string
+  released_at?: string
+  author?: {
+    id: number
+    name: string
+    username: string
+  }
+  commit?: {
+    id: string
+    short_id: string
+    title: string
+  }
+  milestones?: unknown[]
+  assets?: {
+    count?: number
+    sources?: unknown[]
+    links?: unknown[]
+  }
+  _links?: Record<string, string>
 }
 
 interface GitLabBaseParams {
@@ -404,20 +397,22 @@ export interface GitLabListBranchesParams extends GitLabBaseParams {
   page?: number
 }
 
-interface GitLabGetBranchParams extends GitLabBaseParams {
-  projectId: string | number
-  branch: string
-}
-
 export interface GitLabCreateBranchParams extends GitLabBaseParams {
   projectId: string | number
   branch: string
   ref: string
 }
 
-interface GitLabDeleteBranchParams extends GitLabBaseParams {
+export interface GitLabDeleteBranchParams extends GitLabBaseParams {
   projectId: string | number
   branch: string
+}
+
+export interface GitLabCompareBranchesParams extends GitLabBaseParams {
+  projectId: string | number
+  from: string
+  to: string
+  straight?: boolean
 }
 
 export interface GitLabListRepositoryTreeParams extends GitLabBaseParams {
@@ -493,28 +488,10 @@ export interface GitLabPlayJobParams extends GitLabBaseParams {
   jobId: number
 }
 
-interface GitLabListIssueNotesParams extends GitLabBaseParams {
-  projectId: string | number
-  issueIid: number
-  orderBy?: 'created_at' | 'updated_at'
-  sort?: 'asc' | 'desc'
-  perPage?: number
-  page?: number
-}
-
 export interface GitLabCreateIssueNoteParams extends GitLabBaseParams {
   projectId: string | number
   issueIid: number
   body: string
-}
-
-interface GitLabListMergeRequestNotesParams extends GitLabBaseParams {
-  projectId: string | number
-  mergeRequestIid: number
-  orderBy?: 'created_at' | 'updated_at'
-  sort?: 'asc' | 'desc'
-  perPage?: number
-  page?: number
 }
 
 export interface GitLabCreateMergeRequestNoteParams extends GitLabBaseParams {
@@ -523,26 +500,22 @@ export interface GitLabCreateMergeRequestNoteParams extends GitLabBaseParams {
   body: string
 }
 
-interface GitLabListLabelsParams extends GitLabBaseParams {
+export interface GitLabListReleasesParams extends GitLabBaseParams {
   projectId: string | number
-  search?: string
+  orderBy?: 'released_at' | 'created_at'
+  sort?: 'asc' | 'desc'
   perPage?: number
   page?: number
 }
 
-interface GitLabCreateLabelParams extends GitLabBaseParams {
+export interface GitLabCreateReleaseParams extends GitLabBaseParams {
   projectId: string | number
-  name: string
-  color: string
+  tagName: string
+  name?: string
   description?: string
-}
-
-interface GitLabGetCurrentUserParams extends GitLabBaseParams {}
-
-interface GitLabListUsersParams extends GitLabBaseParams {
-  search?: string
-  perPage?: number
-  page?: number
+  ref?: string
+  releasedAt?: string
+  milestones?: string[]
 }
 
 export interface GitLabListProjectsResponse extends ToolResponse {
@@ -658,12 +631,6 @@ export interface GitLabListBranchesResponse extends ToolResponse {
   }
 }
 
-interface GitLabGetBranchResponse extends ToolResponse {
-  output: {
-    branch?: GitLabBranch
-  }
-}
-
 export interface GitLabCreateBranchResponse extends ToolResponse {
   output: {
     name?: string | null
@@ -673,16 +640,20 @@ export interface GitLabCreateBranchResponse extends ToolResponse {
   }
 }
 
-interface GitLabDeleteBranchResponse extends ToolResponse {
+export interface GitLabDeleteBranchResponse extends ToolResponse {
   output: {
     success?: boolean
   }
 }
 
-interface GitLabListNotesResponse extends ToolResponse {
+export interface GitLabCompareBranchesResponse extends ToolResponse {
   output: {
-    notes?: GitLabNote[]
-    total?: number
+    commit?: unknown
+    commits?: unknown[]
+    diffs?: unknown[]
+    compareTimeout?: boolean | null
+    compareSameRef?: boolean | null
+    webUrl?: string | null
   }
 }
 
@@ -692,29 +663,16 @@ export interface GitLabCreateNoteResponse extends ToolResponse {
   }
 }
 
-interface GitLabListLabelsResponse extends ToolResponse {
+export interface GitLabListReleasesResponse extends ToolResponse {
   output: {
-    labels?: GitLabLabel[]
+    releases?: GitLabRelease[]
     total?: number
   }
 }
 
-interface GitLabCreateLabelResponse extends ToolResponse {
+export interface GitLabCreateReleaseResponse extends ToolResponse {
   output: {
-    label?: GitLabLabel
-  }
-}
-
-interface GitLabGetCurrentUserResponse extends ToolResponse {
-  output: {
-    user?: GitLabUser
-  }
-}
-
-interface GitLabListUsersResponse extends ToolResponse {
-  output: {
-    users?: GitLabUser[]
-    total?: number
+    release?: GitLabRelease
   }
 }
 
@@ -815,15 +773,12 @@ export type GitLabResponse =
   | GitLabRetryPipelineResponse
   | GitLabCancelPipelineResponse
   | GitLabListBranchesResponse
-  | GitLabGetBranchResponse
   | GitLabCreateBranchResponse
   | GitLabDeleteBranchResponse
-  | GitLabListNotesResponse
+  | GitLabCompareBranchesResponse
   | GitLabCreateNoteResponse
-  | GitLabListLabelsResponse
-  | GitLabCreateLabelResponse
-  | GitLabGetCurrentUserResponse
-  | GitLabListUsersResponse
+  | GitLabListReleasesResponse
+  | GitLabCreateReleaseResponse
   | GitLabListRepositoryTreeResponse
   | GitLabGetFileResponse
   | GitLabCreateFileResponse

@@ -59,7 +59,8 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
       const options: Record<string, any> = {}
 
       if (params.path) {
-        options.path = params.path
+        const trimmedPath = params.path.trim()
+        options.path = trimmedPath === '/' ? '' : trimmedPath
       }
 
       if (params.fileExtensions) {

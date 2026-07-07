@@ -1,6 +1,6 @@
 ---
 title: OneDrive
-description: Create, upload, download, list, and delete files
+description: Create, upload, download, search, move, copy, share, and delete files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -30,7 +30,7 @@ In Sim, the OneDrive integration enables your agents to directly interact with y
 
 ## Usage Instructions
 
-Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.
+Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list and search files, move or rename files, copy files, create sharing links, and delete files or folders.
 
 
 
@@ -48,8 +48,7 @@ Upload a file to OneDrive
 | `file` | file | No | The file to upload \(binary\) |
 | `content` | string | No | The text content to upload \(if no file is provided\) |
 | `mimeType` | string | No | The MIME type of the file to create \(e.g., text/plain for .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet for .xlsx\) |
-| `folderSelector` | string | No | Folder ID to upload the file to \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
-| `manualFolderId` | string | No | Manually entered folder ID \(advanced mode\) |
+| `folderId` | string | No | Folder ID to upload the file to \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 
 #### Output
 
@@ -67,8 +66,7 @@ Create a new folder in OneDrive
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `folderName` | string | Yes | Name of the folder to create \(e.g., "My Documents", "Project Files"\) |
-| `folderSelector` | string | No | Parent folder ID to create the folder in \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
-| `manualFolderId` | string | No | Manually entered parent folder ID \(advanced mode\) |
+| `folderId` | string | No | Parent folder ID to create the folder in \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 
 #### Output
 
@@ -102,10 +100,10 @@ List files and folders in OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | No | Folder ID to list files from \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
-| `manualFolderId` | string | No | The manually entered folder ID \(advanced mode\) |
+| `folderId` | string | No | Folder ID to list files from \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 | `query` | string | No | Filter files by name prefix \(e.g., "report", "invoice_2024"\) |
 | `pageSize` | number | No | Maximum number of files to return \(e.g., 10, 50, 100\) |
+| `pageToken` | string | No | Continuation URL from a previous response's nextPageToken, used to fetch the next page |
 
 #### Output
 
@@ -114,6 +112,122 @@ List files and folders in OneDrive
 | `success` | boolean | Whether files were listed successfully |
 | `files` | array | Array of file and folder objects with metadata |
 | `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
+
+### `onedrive_search`
+
+Search for files and folders across OneDrive by name, metadata, or content (recursive)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Search text matched against file name, metadata, and content. Not required when paginating with pageToken |
+| `pageSize` | number | No | Maximum number of results to return \(e.g., 10, 50, 100\) |
+| `pageToken` | string | No | Continuation URL from a previous response's nextPageToken, used to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the search completed successfully |
+| `files` | array | Array of file and folder objects matching the search query |
+| `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
+
+### `onedrive_get_item`
+
+Get metadata for a specific OneDrive file or folder by ID, or the drive root
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | The ID of the file or folder to retrieve \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\). Leave empty to get the drive root folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the item metadata was retrieved |
+| `file` | object | The file or folder metadata, including id, name, webViewLink, size, and timestamps |
+
+### `onedrive_get_drive_info`
+
+Get information about the OneDrive drive, including storage quota
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the drive info was retrieved |
+| `driveId` | string | The ID of the drive |
+| `driveType` | string | The type of drive \(e.g., "personal", "business"\) |
+| `webUrl` | string | URL to the drive in the browser |
+| `owner` | string | Display name of the drive owner |
+| `quota` | object | Storage quota information in bytes \(total, used, remaining, deleted, state\) |
+
+### `onedrive_move`
+
+Move a file or folder to a new parent folder, rename it, or both
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file or folder to move or rename |
+| `destinationFolderId` | string | No | The ID of the destination parent folder \(omit to only rename in place\) |
+| `newName` | string | No | The new name for the file or folder \(omit to only move\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the move or rename was successful |
+| `file` | object | The updated file object with its new name and/or parent folder |
+
+### `onedrive_copy`
+
+Copy a file or folder to another location within OneDrive
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file or folder to copy |
+| `destinationFolderId` | string | Yes | The ID of the destination parent folder |
+| `destinationFileName` | string | No | Optional new name for the copy \(defaults to the original name\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the copy request was accepted |
+| `sourceFileId` | string | The ID of the file or folder that was copied |
+| `name` | string | The requested name for the copy, if provided |
+| `monitorUrl` | string | URL to poll for the status of the asynchronous copy operation \(copy completes in the background\) |
+
+### `onedrive_create_share_link`
+
+Create a view or edit sharing link for a OneDrive file or folder
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file or folder to share |
+| `linkType` | string | No | Type of link to create: "view" \(read-only\), "edit" \(read-write\), or "embed" |
+| `linkScope` | string | No | Who can use the link: "anonymous" \(anyone\), "organization" \(tenant members\), or "users" \(specific people\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the sharing link was created successfully |
+| `link` | object | The created sharing link, including its type, scope, and URL |
 
 ### `onedrive_delete`
 

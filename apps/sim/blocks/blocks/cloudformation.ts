@@ -2,12 +2,20 @@ import { CloudFormationIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type {
+  CloudFormationCancelUpdateStackResponse,
+  CloudFormationCreateChangeSetResponse,
+  CloudFormationCreateStackResponse,
+  CloudFormationDeleteStackResponse,
+  CloudFormationDescribeChangeSetResponse,
   CloudFormationDescribeStackDriftDetectionStatusResponse,
   CloudFormationDescribeStackEventsResponse,
   CloudFormationDescribeStacksResponse,
   CloudFormationDetectStackDriftResponse,
+  CloudFormationExecuteChangeSetResponse,
   CloudFormationGetTemplateResponse,
+  CloudFormationGetTemplateSummaryResponse,
   CloudFormationListStackResourcesResponse,
+  CloudFormationUpdateStackResponse,
   CloudFormationValidateTemplateResponse,
 } from '@/tools/cloudformation/types'
 
@@ -19,12 +27,20 @@ export const CloudFormationBlock: BlockConfig<
   | CloudFormationDescribeStackEventsResponse
   | CloudFormationGetTemplateResponse
   | CloudFormationValidateTemplateResponse
+  | CloudFormationCreateStackResponse
+  | CloudFormationUpdateStackResponse
+  | CloudFormationDeleteStackResponse
+  | CloudFormationCancelUpdateStackResponse
+  | CloudFormationCreateChangeSetResponse
+  | CloudFormationDescribeChangeSetResponse
+  | CloudFormationExecuteChangeSetResponse
+  | CloudFormationGetTemplateSummaryResponse
 > = {
   type: 'cloudformation',
   name: 'CloudFormation',
   description: 'Manage and inspect AWS CloudFormation stacks, resources, and drift',
   longDescription:
-    'Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.',
+    'Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   docsLink: 'https://docs.sim.ai/integrations/cloudformation',
@@ -38,11 +54,19 @@ export const CloudFormationBlock: BlockConfig<
       type: 'dropdown',
       options: [
         { label: 'Describe Stacks', id: 'describe_stacks' },
+        { label: 'Create Stack', id: 'create_stack' },
+        { label: 'Update Stack', id: 'update_stack' },
+        { label: 'Delete Stack', id: 'delete_stack' },
+        { label: 'Cancel Update Stack', id: 'cancel_update_stack' },
+        { label: 'Create Change Set', id: 'create_change_set' },
+        { label: 'Describe Change Set', id: 'describe_change_set' },
+        { label: 'Execute Change Set', id: 'execute_change_set' },
         { label: 'List Stack Resources', id: 'list_stack_resources' },
         { label: 'Describe Stack Events', id: 'describe_stack_events' },
         { label: 'Detect Stack Drift', id: 'detect_stack_drift' },
         { label: 'Drift Detection Status', id: 'describe_stack_drift_detection_status' },
         { label: 'Get Template', id: 'get_template' },
+        { label: 'Get Template Summary', id: 'get_template_summary' },
         { label: 'Validate Template', id: 'validate_template' },
       ],
       value: () => 'describe_stacks',
@@ -79,15 +103,28 @@ export const CloudFormationBlock: BlockConfig<
         field: 'operation',
         value: [
           'describe_stacks',
+          'create_stack',
+          'update_stack',
+          'delete_stack',
+          'cancel_update_stack',
+          'create_change_set',
+          'describe_change_set',
+          'execute_change_set',
           'list_stack_resources',
           'describe_stack_events',
           'detect_stack_drift',
           'get_template',
+          'get_template_summary',
         ],
       },
       required: {
         field: 'operation',
         value: [
+          'create_stack',
+          'update_stack',
+          'delete_stack',
+          'cancel_update_stack',
+          'create_change_set',
           'list_stack_resources',
           'describe_stack_events',
           'detect_stack_drift',
@@ -108,8 +145,147 @@ export const CloudFormationBlock: BlockConfig<
       title: 'Template Body',
       type: 'code',
       placeholder: '{\n  "AWSTemplateFormatVersion": "2010-09-09",\n  "Resources": { ... }\n}',
-      condition: { field: 'operation', value: 'validate_template' },
-      required: { field: 'operation', value: 'validate_template' },
+      condition: {
+        field: 'operation',
+        value: [
+          'validate_template',
+          'create_stack',
+          'update_stack',
+          'create_change_set',
+          'get_template_summary',
+        ],
+      },
+      required: { field: 'operation', value: ['validate_template', 'create_stack'] },
+    },
+    {
+      id: 'usePreviousTemplate',
+      title: 'Use Previous Template',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['update_stack', 'create_change_set'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'changeSetName',
+      title: 'Change Set Name',
+      type: 'short-input',
+      placeholder: 'my-change-set',
+      condition: {
+        field: 'operation',
+        value: ['create_change_set', 'describe_change_set', 'execute_change_set'],
+      },
+      required: {
+        field: 'operation',
+        value: ['create_change_set', 'describe_change_set', 'execute_change_set'],
+      },
+    },
+    {
+      id: 'changeSetType',
+      title: 'Change Set Type',
+      type: 'dropdown',
+      options: [
+        { label: 'CREATE (new stack)', id: 'CREATE' },
+        { label: 'UPDATE (existing stack)', id: 'UPDATE' },
+        { label: 'IMPORT (import resources)', id: 'IMPORT' },
+      ],
+      condition: { field: 'operation', value: 'create_change_set' },
+      mode: 'advanced',
+    },
+    {
+      id: 'changeSetDescription',
+      title: 'Change Set Description',
+      type: 'short-input',
+      placeholder: 'Describe what this change set does',
+      condition: { field: 'operation', value: 'create_change_set' },
+      mode: 'advanced',
+    },
+    {
+      id: 'parameters',
+      title: 'Parameters (JSON)',
+      type: 'code',
+      placeholder: '[\n  {"parameterKey": "InstanceType", "parameterValue": "t3.micro"}\n]',
+      condition: {
+        field: 'operation',
+        value: ['create_stack', 'update_stack', 'create_change_set'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a CloudFormation stack parameters JSON array based on the user's description.
+Each item must be an object with "parameterKey" and "parameterValue" string fields.
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the parameters to pass to the template...',
+      },
+    },
+    {
+      id: 'capabilities',
+      title: 'Capabilities',
+      type: 'short-input',
+      placeholder: 'CAPABILITY_IAM,CAPABILITY_NAMED_IAM',
+      condition: {
+        field: 'operation',
+        value: ['create_stack', 'update_stack', 'create_change_set'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'tags',
+      title: 'Tags (JSON)',
+      type: 'code',
+      placeholder: '[\n  {"key": "env", "value": "prod"}\n]',
+      condition: { field: 'operation', value: ['create_stack', 'update_stack'] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a CloudFormation stack tags JSON array based on the user's description.
+Each item must be an object with "key" and "value" string fields.
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the tags to apply...',
+      },
+    },
+    {
+      id: 'onFailure',
+      title: 'On Failure',
+      type: 'dropdown',
+      options: [
+        { label: 'Roll back', id: 'ROLLBACK' },
+        { label: 'Delete', id: 'DELETE' },
+        { label: 'Do nothing', id: 'DO_NOTHING' },
+      ],
+      condition: { field: 'operation', value: 'create_stack' },
+      mode: 'advanced',
+    },
+    {
+      id: 'timeoutInMinutes',
+      title: 'Timeout (minutes)',
+      type: 'short-input',
+      placeholder: '30',
+      condition: { field: 'operation', value: 'create_stack' },
+      mode: 'advanced',
+    },
+    {
+      id: 'retainResources',
+      title: 'Retain Resources',
+      type: 'short-input',
+      placeholder: 'LogicalId1,LogicalId2',
+      condition: { field: 'operation', value: 'delete_stack' },
+      mode: 'advanced',
+    },
+    {
+      id: 'templateStage',
+      title: 'Template Stage',
+      type: 'dropdown',
+      options: [
+        { label: 'Processed', id: 'Processed' },
+        { label: 'Original', id: 'Original' },
+      ],
+      condition: { field: 'operation', value: 'get_template' },
+      mode: 'advanced',
     },
     {
       id: 'limit',
@@ -123,11 +299,19 @@ export const CloudFormationBlock: BlockConfig<
   tools: {
     access: [
       'cloudformation_describe_stacks',
+      'cloudformation_create_stack',
+      'cloudformation_update_stack',
+      'cloudformation_delete_stack',
+      'cloudformation_cancel_update_stack',
+      'cloudformation_create_change_set',
+      'cloudformation_describe_change_set',
+      'cloudformation_execute_change_set',
       'cloudformation_list_stack_resources',
       'cloudformation_detect_stack_drift',
       'cloudformation_describe_stack_drift_detection_status',
       'cloudformation_describe_stack_events',
       'cloudformation_get_template',
+      'cloudformation_get_template_summary',
       'cloudformation_validate_template',
     ],
     config: {
@@ -135,6 +319,20 @@ export const CloudFormationBlock: BlockConfig<
         switch (params.operation) {
           case 'describe_stacks':
             return 'cloudformation_describe_stacks'
+          case 'create_stack':
+            return 'cloudformation_create_stack'
+          case 'update_stack':
+            return 'cloudformation_update_stack'
+          case 'delete_stack':
+            return 'cloudformation_delete_stack'
+          case 'cancel_update_stack':
+            return 'cloudformation_cancel_update_stack'
+          case 'create_change_set':
+            return 'cloudformation_create_change_set'
+          case 'describe_change_set':
+            return 'cloudformation_describe_change_set'
+          case 'execute_change_set':
+            return 'cloudformation_execute_change_set'
           case 'list_stack_resources':
             return 'cloudformation_list_stack_resources'
           case 'detect_stack_drift':
@@ -145,6 +343,8 @@ export const CloudFormationBlock: BlockConfig<
             return 'cloudformation_describe_stack_events'
           case 'get_template':
             return 'cloudformation_get_template'
+          case 'get_template_summary':
+            return 'cloudformation_get_template_summary'
           case 'validate_template':
             return 'cloudformation_validate_template'
           default:
@@ -152,12 +352,40 @@ export const CloudFormationBlock: BlockConfig<
         }
       },
       params: (params) => {
-        const { operation, limit, ...rest } = params
+        const {
+          operation,
+          limit,
+          usePreviousTemplate,
+          parameters,
+          tags,
+          timeoutInMinutes,
+          ...rest
+        } = params
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
         const awsSecretAccessKey = rest.awsSecretAccessKey
         const parsedLimit = limit ? Number.parseInt(String(limit), 10) : undefined
+        const parsedUsePreviousTemplate =
+          usePreviousTemplate === 'true' || usePreviousTemplate === true
+        const parsedTimeoutInMinutes = timeoutInMinutes
+          ? Number.parseInt(String(timeoutInMinutes), 10)
+          : undefined
+
+        const parseJson = (value: unknown, fieldName: string) => {
+          if (!value) return undefined
+          if (typeof value === 'object') return value
+          if (typeof value === 'string' && value.trim()) {
+            try {
+              return JSON.parse(value)
+            } catch (parseError) {
+              throw new Error(
+                `Invalid JSON in ${fieldName}: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+              )
+            }
+          }
+          return undefined
+        }
 
         switch (operation) {
           case 'describe_stacks':
@@ -167,6 +395,111 @@ export const CloudFormationBlock: BlockConfig<
               awsSecretAccessKey,
               ...(rest.stackName && { stackName: rest.stackName }),
             }
+
+          case 'create_stack': {
+            if (!rest.stackName) throw new Error('Stack name is required')
+            if (!rest.templateBody) throw new Error('Template body is required')
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              stackName: rest.stackName,
+              templateBody: rest.templateBody,
+              ...(parameters && { parameters: parseJson(parameters, 'parameters') }),
+              ...(rest.capabilities && { capabilities: rest.capabilities }),
+              ...(tags && { tags: parseJson(tags, 'tags') }),
+              ...(rest.onFailure && { onFailure: rest.onFailure }),
+              ...(parsedTimeoutInMinutes !== undefined && {
+                timeoutInMinutes: parsedTimeoutInMinutes,
+              }),
+            }
+          }
+
+          case 'update_stack': {
+            if (!rest.stackName) throw new Error('Stack name is required')
+            if (!rest.templateBody && !parsedUsePreviousTemplate) {
+              throw new Error(
+                'Template body is required unless Use Previous Template is set to Yes'
+              )
+            }
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              stackName: rest.stackName,
+              ...(rest.templateBody && { templateBody: rest.templateBody }),
+              ...(parsedUsePreviousTemplate && { usePreviousTemplate: true }),
+              ...(parameters && { parameters: parseJson(parameters, 'parameters') }),
+              ...(rest.capabilities && { capabilities: rest.capabilities }),
+              ...(tags && { tags: parseJson(tags, 'tags') }),
+            }
+          }
+
+          case 'delete_stack': {
+            if (!rest.stackName) throw new Error('Stack name is required')
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              stackName: rest.stackName,
+              ...(rest.retainResources && { retainResources: rest.retainResources }),
+            }
+          }
+
+          case 'cancel_update_stack': {
+            if (!rest.stackName) throw new Error('Stack name is required')
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              stackName: rest.stackName,
+            }
+          }
+
+          case 'create_change_set': {
+            if (!rest.stackName) throw new Error('Stack name is required')
+            if (!rest.changeSetName) throw new Error('Change set name is required')
+            if (!rest.templateBody && !parsedUsePreviousTemplate) {
+              throw new Error(
+                'Template body is required unless Use Previous Template is set to Yes'
+              )
+            }
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              stackName: rest.stackName,
+              changeSetName: rest.changeSetName,
+              ...(rest.templateBody && { templateBody: rest.templateBody }),
+              ...(parsedUsePreviousTemplate && { usePreviousTemplate: true }),
+              ...(parameters && { parameters: parseJson(parameters, 'parameters') }),
+              ...(rest.capabilities && { capabilities: rest.capabilities }),
+              ...(rest.changeSetType && { changeSetType: rest.changeSetType }),
+              ...(rest.changeSetDescription && { description: rest.changeSetDescription }),
+            }
+          }
+
+          case 'describe_change_set': {
+            if (!rest.changeSetName) throw new Error('Change set name is required')
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              changeSetName: rest.changeSetName,
+              ...(rest.stackName && { stackName: rest.stackName }),
+            }
+          }
+
+          case 'execute_change_set': {
+            if (!rest.changeSetName) throw new Error('Change set name is required')
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              changeSetName: rest.changeSetName,
+              ...(rest.stackName && { stackName: rest.stackName }),
+            }
+          }
 
           case 'list_stack_resources': {
             if (!rest.stackName) {
@@ -226,6 +559,20 @@ export const CloudFormationBlock: BlockConfig<
               awsAccessKeyId,
               awsSecretAccessKey,
               stackName: rest.stackName,
+              ...(rest.templateStage && { templateStage: rest.templateStage }),
+            }
+          }
+
+          case 'get_template_summary': {
+            if (!rest.templateBody && !rest.stackName) {
+              throw new Error('Either template body or stack name is required')
+            }
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              ...(rest.templateBody && { templateBody: rest.templateBody }),
+              ...(rest.stackName && { stackName: rest.stackName }),
             }
           }
 
@@ -255,6 +602,26 @@ export const CloudFormationBlock: BlockConfig<
     stackName: { type: 'string', description: 'Stack name or ID' },
     stackDriftDetectionId: { type: 'string', description: 'Drift detection ID' },
     templateBody: { type: 'string', description: 'CloudFormation template body (JSON or YAML)' },
+    usePreviousTemplate: {
+      type: 'string',
+      description: 'Reuse the template currently on the stack',
+    },
+    changeSetName: { type: 'string', description: 'Change set name' },
+    changeSetType: { type: 'string', description: 'Change set type (CREATE, UPDATE, IMPORT)' },
+    changeSetDescription: { type: 'string', description: 'Description of the change set' },
+    parameters: { type: 'json', description: 'Stack input parameters' },
+    capabilities: { type: 'string', description: 'Comma-separated capabilities to acknowledge' },
+    tags: { type: 'json', description: 'Tags to apply to the stack' },
+    onFailure: { type: 'string', description: 'Action to take on stack creation failure' },
+    timeoutInMinutes: { type: 'number', description: 'Stack creation timeout in minutes' },
+    retainResources: {
+      type: 'string',
+      description: 'Comma-separated logical resource IDs to retain on delete',
+    },
+    templateStage: {
+      type: 'string',
+      description: 'Template stage to retrieve (Original or Processed)',
+    },
     limit: { type: 'number', description: 'Maximum number of results' },
   },
   outputs: {
@@ -308,7 +675,7 @@ export const CloudFormationBlock: BlockConfig<
     },
     description: {
       type: 'string',
-      description: 'Template description',
+      description: 'Template or change set description',
     },
     parameters: {
       type: 'array',
@@ -322,9 +689,49 @@ export const CloudFormationBlock: BlockConfig<
       type: 'string',
       description: 'Reason capabilities are required',
     },
+    resourceTypes: {
+      type: 'array',
+      description: 'AWS resource types declared in the template',
+    },
+    version: {
+      type: 'string',
+      description: 'Template format version',
+    },
     declaredTransforms: {
       type: 'array',
       description: 'Transforms used in the template (e.g., AWS::Serverless-2016-10-31)',
+    },
+    message: {
+      type: 'string',
+      description: 'Operation status message',
+    },
+    changeSetId: {
+      type: 'string',
+      description: 'The unique ID of the change set',
+    },
+    changeSetName: {
+      type: 'string',
+      description: 'Name of the change set',
+    },
+    executionStatus: {
+      type: 'string',
+      description: 'Whether the change set can be executed',
+    },
+    status: {
+      type: 'string',
+      description: 'Current status of the change set',
+    },
+    statusReason: {
+      type: 'string',
+      description: 'Reason for the current change set status',
+    },
+    creationTime: {
+      type: 'number',
+      description: 'Timestamp the change set was created',
+    },
+    changes: {
+      type: 'array',
+      description: 'List of resource changes a change set would make',
     },
   },
 }
@@ -400,6 +807,26 @@ export const CloudFormationBlockMeta = {
       tags: ['devops', 'automation', 'monitoring'],
       alsoIntegrations: ['slack'],
     },
+    {
+      icon: CloudFormationIcon,
+      title: 'Change set approval pipeline',
+      prompt:
+        'Build a workflow that creates a CloudFormation change set for a stack update, describes the proposed resource changes, posts a summary to Slack for approval, and executes the change set only after an approver replies, otherwise deletes the change set.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudFormationIcon,
+      title: 'Environment provisioner',
+      prompt:
+        'Create a workflow that takes an environment name and template parameters as input, creates a new CloudFormation stack for that environment, polls stack events until it reaches CREATE_COMPLETE or fails, and posts the stack outputs to Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
   ],
   skills: [
     {
@@ -422,6 +849,13 @@ export const CloudFormationBlockMeta = {
         'Pull recent CloudFormation stack events to diagnose a failed create, update, or rollback and explain the root cause.',
       content:
         '# Investigate CloudFormation Stack Failure\n\nDiagnose why a stack operation failed.\n\n## Steps\n1. Describe the target stack and confirm its current status.\n2. Pull recent stack events, ordered newest first.\n3. Find the first FAILED event and read its resource status reason.\n4. Trace any dependent resource failures that cascaded from it.\n\n## Output\nA plain-English root-cause summary naming the failing resource, the error reason, and a suggested fix.',
+    },
+    {
+      name: 'preview-stack-change',
+      description:
+        'Create a CloudFormation change set to preview what a stack update would do before applying it.',
+      content:
+        '# Preview a CloudFormation Stack Change\n\nSafely preview changes before they are applied to a live stack.\n\n## Steps\n1. Create a change set against the target stack with the new template or parameters.\n2. Describe the change set and list each resource action (Add, Modify, Remove) and whether it requires replacement.\n3. Flag any replacement or deletion of stateful resources (databases, storage) for extra scrutiny.\n4. Only execute the change set after the changes have been reviewed and approved.\n\n## Output\nA list of proposed resource changes with the replacement risk for each, and confirmation of whether the change set was executed.',
     },
   ],
 } as const satisfies BlockMeta

@@ -27,6 +27,7 @@
     "./tables/workflow-columns",
     "---Files---",
     "./files/index",
+    "./files/editor",
     "./files/using-in-workflows",
     "./files/generating",
     "./files/passing-files",

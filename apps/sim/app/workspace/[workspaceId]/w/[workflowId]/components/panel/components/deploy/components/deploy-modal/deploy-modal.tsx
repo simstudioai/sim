@@ -36,7 +36,6 @@ import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useApiKeys } from '@/hooks/queries/api-keys'
-import { useCanPublishCustomBlock } from '@/hooks/queries/custom-blocks'
 import {
   invalidateDeploymentQueries,
   useActivateDeploymentVersion,
@@ -57,7 +56,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   ApiDeploy,
-  BlockDeploy,
   ChatDeploy,
   DeployUpgradeGate,
   type ExistingChat,
@@ -103,9 +101,9 @@ interface WorkflowDeploymentInfoUI {
   isPublicApi: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'mcp' | 'block'
+type TabView = 'general' | 'api' | 'chat' | 'mcp'
 
-const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp', 'block'])
+const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp'])
 
 function isDeployModalTab(value: unknown): value is TabView {
   return typeof value === 'string' && DEPLOY_MODAL_TABS.has(value as TabView)
@@ -144,10 +142,6 @@ export function DeployModal({
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [mcpToolSaveDisabledReason, setMcpToolSaveDisabledReason] = useState<string | null>(null)
   const [mcpActiveServerId, setMcpActiveServerId] = useState<string | null>(null)
-
-  const [blockSubmitting, setBlockSubmitting] = useState(false)
-  const [blockCanSave, setBlockCanSave] = useState(false)
-  const [blockExists, setBlockExists] = useState(false)
 
   const [chatSuccess, setChatSuccess] = useState(false)
   const chatSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -201,8 +195,6 @@ export function DeployModal({
 
   const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '')
   const hasMcpServers = mcpServers.length > 0
-
-  const { data: canPublishBlock = false } = useCanPublishCustomBlock(workspaceId)
 
   const deployMutation = useDeployWorkflow()
   const undeployMutation = useUndeployWorkflow()
@@ -521,17 +513,6 @@ export function DeployModal({
     form?.requestSubmit()
   }
 
-  const handleBlockFormSubmit = () => {
-    const form = document.getElementById('block-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
-  }
-
-  const handleBlockUnpublish = () => {
-    const form = document.getElementById('block-deploy-form') as HTMLFormElement
-    const trigger = form?.querySelector('[data-unpublish-trigger]') as HTMLButtonElement | null
-    trigger?.click()
-  }
-
   const isSubmitting = deployMutation.isPending || isFinalizingDeploy
   const isUndeploying = undeployMutation.isPending
 
@@ -557,7 +538,6 @@ export function DeployModal({
               {!permissionConfig.hideDeployChatbot && (
                 <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               )}
-              {canPublishBlock && <ModalTabsTrigger value='block'>Block</ModalTabsTrigger>}
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
@@ -648,20 +628,6 @@ export function DeployModal({
                   )}
                 </GatedTabContent>
               </ModalTabsContent>
-
-              {canPublishBlock && (
-                <ModalTabsContent value='block'>
-                  <BlockDeploy
-                    workflowId={workflowId}
-                    workspaceId={workspaceId}
-                    isDeployed={isDeployed}
-                    canAdmin={userPermissions.canAdmin}
-                    onSubmittingChange={setBlockSubmitting}
-                    onCanSaveChange={setBlockCanSave}
-                    onExistingChange={setBlockExists}
-                  />
-                </ModalTabsContent>
-              )}
             </ModalBody>
           </ModalTabs>
 
@@ -728,37 +694,6 @@ export function DeployModal({
                       : chatExists
                         ? 'Update'
                         : 'Launch Chat'}
-                </Button>
-              </div>
-            </ModalFooter>
-          )}
-          {activeTab === 'block' && (
-            <ModalFooter className='items-center justify-between'>
-              <div />
-              <div className='flex items-center gap-2'>
-                {blockExists && (
-                  <Button
-                    type='button'
-                    variant='default'
-                    onClick={handleBlockUnpublish}
-                    disabled={blockSubmitting}
-                  >
-                    Unpublish
-                  </Button>
-                )}
-                <Button
-                  type='button'
-                  variant='tertiary'
-                  onClick={handleBlockFormSubmit}
-                  disabled={blockSubmitting || !blockCanSave}
-                >
-                  {blockSubmitting
-                    ? blockExists
-                      ? 'Updating...'
-                      : 'Publishing...'
-                    : blockExists
-                      ? 'Update'
-                      : 'Publish'}
                 </Button>
               </div>
             </ModalFooter>

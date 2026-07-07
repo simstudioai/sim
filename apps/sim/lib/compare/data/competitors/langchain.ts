@@ -32,7 +32,7 @@ export const langchainProfile: CompetitorProfile = {
     {
       title: 'Dynamic parallel fan-out via the Send API',
       description:
-        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer. This is a native map-reduce pattern, not a fixed number of parallel branches wired at build time.',
+        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer. Because the merge step is arbitrary code, a developer can implement any custom aggregation logic, not just a fixed join behavior.',
       shortDescription:
         'Send API spawns a runtime-determined number of parallel branches that merge via a reducer.',
       source: {
@@ -50,18 +50,6 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://www.langchain.com/langsmith/evaluation',
         label: 'LangSmith Evaluations',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'SKILL.md-based reusable agent skills via Deep Agents SkillsMiddleware',
-      description:
-        "The Deep Agents harness (LangChain's batteries-included agent framework) ships a SkillsMiddleware that loads named SKILL.md files from a directory and injects them into the system prompt using progressive disclosure (metadata surfaced first, full instructions pulled in on demand), letting a team define a workflow once and reuse it as a named capability across multiple agents.",
-      shortDescription:
-        'SkillsMiddleware loads named SKILL.md files and injects them via progressive disclosure.',
-      source: {
-        url: 'https://reference.langchain.com/python/deepagents/middleware/skills',
-        label: 'skills | deepagents | LangChain Reference',
         asOf: '2026-07-02',
       },
     },
@@ -111,18 +99,6 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langchain.com/langsmith/assistants',
         label: 'Assistants - Docs by LangChain',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Durability is checkpoint persistence, not automatic failure detection',
-      description:
-        "LangGraph's checkpointer saves state after every node, but nothing automatically detects a crashed process; it only lets a resumed process recover from the last saved state. An operator (or external process supervisor) still has to notice the failure and trigger the resume.",
-      shortDescription:
-        'Checkpointer saves state on failure, but nothing automatically detects a crashed process.',
-      source: {
-        url: 'https://www.diagrid.io/blog/checkpoints-are-not-durable-execution-why-langgraph-crewai-google-adk-and-others-fall-short-for-production-agent-workflows',
-        label: "Why Checkpoints Aren't Durable Execution: LangGraph",
         asOf: '2026-07-02',
       },
     },
@@ -564,7 +540,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          "Yes: LangChain shipped native A2A (Agent2Agent) support via langchain-adk (March 2026), letting any LangChain agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list. The local LangGraph dev server exposes A2A endpoints at /a2a/{assistant_id}.",
+          "Yes: the local LangGraph dev server and the LangSmith Deployment Agent Server both expose native A2A (Agent2Agent) endpoints at /a2a/{assistant_id}, letting any LangChain/LangGraph agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list.",
         detail:
           "The LangSmith Deployment A2A endpoint maps the protocol's contextId to a LangGraph thread_id automatically, so A2A conversations get the same tracing/observability as native LangGraph runs.",
         shortValue: 'Yes, native A2A server/client support with auto-generated Agent Cards',

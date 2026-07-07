@@ -1779,6 +1779,20 @@
       "when": 1782957781005,
       "tag": "0254_custom_block",
       "breakpoints": true
+    },
+    {
+      "idx": 255,
+      "version": "7",
+      "when": 1783382202081,
+      "tag": "0255_remove_credential_sets",
+      "breakpoints": true
+    },
+    {
+      "idx": 256,
+      "version": "7",
+      "when": 1783392614134,
+      "tag": "0256_custom_block_inputs",
+      "breakpoints": true
     }
   ]
 }

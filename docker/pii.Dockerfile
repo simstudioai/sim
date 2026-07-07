@@ -37,12 +37,21 @@ RUN groupadd -g 1001 pii && \
 # 5001 avoids colliding with the app's 3000 in local/compose runs on one host.
 EXPOSE 5001
 
-# start-period is generous: five large spaCy models load at import before
-# /health responds. Tune against measured cold-start once built.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
+# start-period covers the model cold start. With PII_WORKERS>1 each worker loads
+# the five spaCy models independently and in parallel, so allow generous headroom
+# (memory-bandwidth contention stretches the wall-time beyond the single-worker case).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
     CMD curl -fsS http://localhost:5001/health || exit 1
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5001"]
+# Worker count is env-driven so ONE image scales per task size: set PII_WORKERS to
+# the task's vCPU count (each worker loads the models independently, ~3 GB each, so
+# size task memory ≈ PII_WORKERS × 3 GB + overhead). Defaults to 1 for local/small.
+# `sh -c exec` expands the env var while keeping uvicorn as PID 1 for clean SIGTERM.
+# Quote the expansion so a malformed PII_WORKERS fails uvicorn arg-parsing rather
+# than being interpreted by the shell.
+# NB for the gliner engine: EACH worker loads its own GLiNER model copy (into GPU
+# memory when on cuda), so GPU deployments generally want PII_WORKERS=1 per GPU.
+CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port 5001 --workers \"${PII_WORKERS:-1}\""]
 
 # Pinned spaCy models (en + es/it/pl/fi, ~2.2GB total). Downloaded with
 # retries/resume — the large wheels truncate on flaky networks if pip fetches

@@ -39,17 +39,6 @@ export const pipedreamProfile: CompetitorProfile = {
       source: { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
     },
     {
-      title: 'Edit workflows with natural language',
-      description:
-        "An 'Edit with AI' button in the workflow builder header or any code step lets users modify an existing workflow using natural-language instructions.",
-      shortDescription: "An 'Edit with AI' button lets users modify workflows by prompt.",
-      source: {
-        url: 'https://pipedream.com/blog/build-workflows-faster-with-ai/',
-        label: 'Pipedream Blog: Build workflows faster with AI',
-        asOf: '2026-07-04',
-      },
-    },
-    {
       title: 'Source-available component registry on GitHub',
       description:
         "Pipedream's ~11.5k-star GitHub repo publishes the source for its integration components (triggers/actions for 1,000+ apps) under a source-available (not OSI open-source) license, letting developers inspect and contribute component code, though the hosted platform itself is not self-hostable.",
@@ -96,13 +85,13 @@ export const pipedreamProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Support response-time SLAs not publicly documented',
+      title: 'No native fail-and-continue branch on step errors',
       description:
-        'The Enterprise plan reportedly includes a dedicated Success Engineer and a platform uptime guarantee, but support response-time SLAs are not published on any plan page and appear to be negotiated directly with sales.',
-      shortDescription: 'No published response-time SLA on any public plan page.',
+        'By default an unhandled step error halts the entire workflow execution. Auto-retry (Advanced plan and above) and the global $error event stream let teams react to a failure after the fact, but neither lets the original run continue past the failing step in the same execution without hand-coded try/catch or conditional logic.',
+      shortDescription: 'An unhandled step error halts the whole run by default.',
       source: {
-        url: 'https://pipedream.com/pricing',
-        label: 'Pipedream Pricing page',
+        url: 'https://pipedream.com/docs/workflows/building-workflows/errors',
+        label: 'Pipedream Docs: Handling Errors',
         asOf: '2026-07-02',
       },
     },
@@ -1099,21 +1088,21 @@ export const pipedreamProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Founded 2019, San Francisco; ~11-50 employees pre-acquisition; raised ~$22M across 2 rounds; acquired by Workday (deal announced Nov 19, 2025)',
+          'Founded 2019, San Francisco; ~11-50 employees pre-acquisition; raised ~$22M across 2 rounds; agreed to be acquired by Workday (signed Nov 19, 2025), with no public confirmation the deal has closed as of mid-2026',
         detail:
-          "Per Crunchbase, Pipedream was founded in 2019 and headquartered in San Francisco, CA, with founders including Tod Sacerdoti (CEO), Dylan Sather, TJ Koblentz, and Pravin Savkar; it raised a total of ~$22M across 2 funding rounds (investors include Felicis and CRV) and had a headcount signal of 11-50 employees. Workday announced a definitive agreement to acquire Pipedream on November 19, 2025, with the transaction expected to close in Workday's Q4 FY2026 (by end of January 2026); Pipedream is now being positioned as Workday's integration layer for AI agent workflows across Workday and third-party apps.",
-        shortValue: 'Founded 2019; acquired by Workday, Nov 2025',
-        confidence: 'verified',
+          "Per Crunchbase, Pipedream was founded in 2019 and headquartered in San Francisco, CA, with founders including Tod Sacerdoti (CEO), Dylan Sather, TJ Koblentz, and Pravin Savkar; it raised a total of ~$22M across 2 funding rounds (investors include Felicis and CRV) and had a headcount signal of 11-50 employees. Workday signed a definitive agreement to acquire Pipedream on November 19, 2025, with the transaction originally expected to close in Workday's Q4 FY2026 (by end of January 2026), subject to closing conditions. That expected close date has since passed, and as of this writing neither Workday nor Pipedream has publicly announced that the deal has closed.",
+        shortValue: 'Founded 2019; agreed to be acquired by Workday, close unconfirmed',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://newsroom.workday.com/2025-11-19-Workday-Signs-Definitive-Agreement-to-Acquire-Pipedream',
             label: 'Workday Newsroom – Workday Signs Definitive Agreement to Acquire Pipedream',
-            asOf: '2026-07-02',
+            asOf: '2026-07-06',
           },
           {
             url: 'https://pipedream.com/blog/pipedream-to-be-acquired-by-workday/',
             label: 'Pipedream Blog – Pipedream to be acquired by Workday',
-            asOf: '2026-07-02',
+            asOf: '2026-07-06',
           },
           {
             url: 'https://www.crunchbase.com/organization/pipedream',

@@ -3,6 +3,18 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+const EXISTING_DATASET_OPS = [
+  'list_tables',
+  'get_table',
+  'insert_rows',
+  'delete_dataset',
+  'create_table',
+  'delete_table',
+  'list_table_data',
+]
+const EXISTING_TABLE_OPS = ['get_table', 'insert_rows', 'delete_table', 'list_table_data']
+const LOCATION_OPS = ['query', 'get_query_results']
+
 export const GoogleBigQueryBlock: BlockConfig = {
   type: 'google_bigquery',
   name: 'Google BigQuery',
@@ -22,9 +34,15 @@ export const GoogleBigQueryBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Run Query', id: 'query' },
+        { label: 'Get Query Results', id: 'get_query_results' },
         { label: 'List Datasets', id: 'list_datasets' },
+        { label: 'Create Dataset', id: 'create_dataset' },
+        { label: 'Delete Dataset', id: 'delete_dataset' },
         { label: 'List Tables', id: 'list_tables' },
         { label: 'Get Table', id: 'get_table' },
+        { label: 'Create Table', id: 'create_table' },
+        { label: 'Delete Table', id: 'delete_table' },
+        { label: 'List Table Data', id: 'list_table_data' },
         { label: 'Insert Rows', id: 'insert_rows' },
       ],
       value: () => 'query',
@@ -61,7 +79,7 @@ export const GoogleBigQueryBlock: BlockConfig = {
     {
       id: 'query',
       title: 'SQL Query',
-      type: 'long-input',
+      type: 'code',
       placeholder: 'SELECT * FROM `project.dataset.table` LIMIT 100',
       condition: { field: 'operation', value: 'query' },
       required: { field: 'operation', value: 'query' },
@@ -93,7 +111,10 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       title: 'Max Results',
       type: 'short-input',
       placeholder: 'Maximum rows to return',
-      condition: { field: 'operation', value: ['query', 'list_datasets', 'list_tables'] },
+      condition: {
+        field: 'operation',
+        value: ['query', 'list_datasets', 'list_tables', 'list_table_data', 'get_query_results'],
+      },
     },
     {
       id: 'defaultDatasetId',
@@ -107,7 +128,46 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       title: 'Location',
       type: 'short-input',
       placeholder: 'Processing location (e.g., US, EU)',
-      condition: { field: 'operation', value: 'query' },
+      condition: { field: 'operation', value: LOCATION_OPS },
+    },
+
+    {
+      id: 'jobId',
+      title: 'Job ID',
+      type: 'short-input',
+      placeholder: 'Enter BigQuery job ID',
+      condition: { field: 'operation', value: 'get_query_results' },
+      required: { field: 'operation', value: 'get_query_results' },
+    },
+    {
+      id: 'timeoutMs',
+      title: 'Timeout (ms)',
+      type: 'short-input',
+      placeholder: 'How long to wait for the job to complete',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_query_results' },
+    },
+
+    {
+      id: 'newDatasetId',
+      title: 'Dataset ID',
+      type: 'short-input',
+      placeholder: 'ID for the new BigQuery dataset',
+      condition: { field: 'operation', value: 'create_dataset' },
+      required: { field: 'operation', value: 'create_dataset' },
+    },
+    {
+      id: 'datasetLocation',
+      title: 'Location',
+      type: 'short-input',
+      placeholder: 'Geographic location (e.g., US, EU)',
+      condition: { field: 'operation', value: 'create_dataset' },
+    },
+    {
+      id: 'deleteContents',
+      title: 'Delete Contents',
+      type: 'switch',
+      condition: { field: 'operation', value: 'delete_dataset' },
     },
 
     {
@@ -120,8 +180,8 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       placeholder: 'Select BigQuery dataset',
       dependsOn: ['credential', 'projectId'],
       mode: 'basic',
-      condition: { field: 'operation', value: ['list_tables', 'get_table', 'insert_rows'] },
-      required: { field: 'operation', value: ['list_tables', 'get_table', 'insert_rows'] },
+      condition: { field: 'operation', value: EXISTING_DATASET_OPS },
+      required: { field: 'operation', value: EXISTING_DATASET_OPS },
     },
     {
       id: 'datasetId',
@@ -130,8 +190,8 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       canonicalParamId: 'datasetId',
       placeholder: 'Enter BigQuery dataset ID',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['list_tables', 'get_table', 'insert_rows'] },
-      required: { field: 'operation', value: ['list_tables', 'get_table', 'insert_rows'] },
+      condition: { field: 'operation', value: EXISTING_DATASET_OPS },
+      required: { field: 'operation', value: EXISTING_DATASET_OPS },
     },
 
     {
@@ -144,8 +204,8 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       placeholder: 'Select BigQuery table',
       dependsOn: ['credential', 'projectId', 'datasetSelector'],
       mode: 'basic',
-      condition: { field: 'operation', value: ['get_table', 'insert_rows'] },
-      required: { field: 'operation', value: ['get_table', 'insert_rows'] },
+      condition: { field: 'operation', value: EXISTING_TABLE_OPS },
+      required: { field: 'operation', value: EXISTING_TABLE_OPS },
     },
     {
       id: 'tableId',
@@ -154,14 +214,77 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       canonicalParamId: 'tableId',
       placeholder: 'Enter BigQuery table ID',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['get_table', 'insert_rows'] },
-      required: { field: 'operation', value: ['get_table', 'insert_rows'] },
+      condition: { field: 'operation', value: EXISTING_TABLE_OPS },
+      required: { field: 'operation', value: EXISTING_TABLE_OPS },
+    },
+
+    {
+      id: 'newTableId',
+      title: 'Table ID',
+      type: 'short-input',
+      placeholder: 'ID for the new BigQuery table',
+      condition: { field: 'operation', value: 'create_table' },
+      required: { field: 'operation', value: 'create_table' },
+    },
+    {
+      id: 'schema',
+      title: 'Schema',
+      type: 'code',
+      placeholder: '[{"name": "id", "type": "STRING", "mode": "REQUIRED"}]',
+      condition: { field: 'operation', value: 'create_table' },
+      required: { field: 'operation', value: 'create_table' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of BigQuery column field definitions based on the user's description.
+Each field should have "name", "type" (STRING, INTEGER, FLOAT, BOOLEAN, TIMESTAMP, DATE, RECORD, etc.), and optionally "mode" (NULLABLE, REQUIRED, REPEATED) and "description".
+
+Examples:
+- "id and name" -> [{"name": "id", "type": "STRING", "mode": "REQUIRED"}, {"name": "name", "type": "STRING"}]
+- "order with amount and timestamp" -> [{"name": "order_id", "type": "STRING", "mode": "REQUIRED"}, {"name": "amount", "type": "FLOAT"}, {"name": "created_at", "type": "TIMESTAMP"}]
+
+Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
+        placeholder: 'Describe the table columns...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'friendlyName',
+      title: 'Friendly Name',
+      type: 'short-input',
+      placeholder: 'Human-readable name',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_dataset', 'create_table'] },
+    },
+    {
+      id: 'description',
+      title: 'Description',
+      type: 'short-input',
+      placeholder: 'Description',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_dataset', 'create_table'] },
+    },
+
+    {
+      id: 'selectedFields',
+      title: 'Selected Fields',
+      type: 'short-input',
+      placeholder: 'Comma-separated list of column names to return',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_table_data' },
+    },
+    {
+      id: 'startIndex',
+      title: 'Start Index',
+      type: 'short-input',
+      placeholder: 'Zero-based index of the starting row',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['list_table_data', 'get_query_results'] },
     },
 
     {
       id: 'rows',
       title: 'Rows',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{"column1": "value1", "column2": 42}]',
       condition: { field: 'operation', value: 'insert_rows' },
       required: { field: 'operation', value: 'insert_rows' },
@@ -197,15 +320,24 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
       title: 'Page Token',
       type: 'short-input',
       placeholder: 'Pagination token',
-      condition: { field: 'operation', value: ['list_datasets', 'list_tables'] },
+      condition: {
+        field: 'operation',
+        value: ['list_datasets', 'list_tables', 'list_table_data', 'get_query_results'],
+      },
     },
   ],
   tools: {
     access: [
       'google_bigquery_query',
+      'google_bigquery_get_query_results',
       'google_bigquery_list_datasets',
+      'google_bigquery_create_dataset',
+      'google_bigquery_delete_dataset',
       'google_bigquery_list_tables',
       'google_bigquery_get_table',
+      'google_bigquery_create_table',
+      'google_bigquery_delete_table',
+      'google_bigquery_list_table_data',
       'google_bigquery_insert_rows',
     ],
     config: {
@@ -213,12 +345,24 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
         switch (params.operation) {
           case 'query':
             return 'google_bigquery_query'
+          case 'get_query_results':
+            return 'google_bigquery_get_query_results'
           case 'list_datasets':
             return 'google_bigquery_list_datasets'
+          case 'create_dataset':
+            return 'google_bigquery_create_dataset'
+          case 'delete_dataset':
+            return 'google_bigquery_delete_dataset'
           case 'list_tables':
             return 'google_bigquery_list_tables'
           case 'get_table':
             return 'google_bigquery_get_table'
+          case 'create_table':
+            return 'google_bigquery_create_table'
+          case 'delete_table':
+            return 'google_bigquery_delete_table'
+          case 'list_table_data':
+            return 'google_bigquery_list_table_data'
           case 'insert_rows':
             return 'google_bigquery_insert_rows'
           default:
@@ -226,12 +370,34 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
         }
       },
       params: (params) => {
-        const { oauthCredential, rows, maxResults, ...rest } = params
+        const {
+          oauthCredential,
+          rows,
+          schema,
+          maxResults,
+          timeoutMs,
+          newDatasetId,
+          newTableId,
+          datasetLocation,
+          location,
+          datasetId,
+          tableId,
+          ...rest
+        } = params
+        const operation = String(params.operation)
         return {
           ...rest,
           oauthCredential,
+          ...(LOCATION_OPS.includes(operation) && location && { location }),
+          ...(EXISTING_DATASET_OPS.includes(operation) && datasetId && { datasetId }),
+          ...(EXISTING_TABLE_OPS.includes(operation) && tableId && { tableId }),
+          ...(operation === 'create_dataset' && newDatasetId && { datasetId: newDatasetId }),
+          ...(operation === 'create_dataset' && datasetLocation && { location: datasetLocation }),
+          ...(operation === 'create_table' && newTableId && { tableId: newTableId }),
           ...(rows && { rows: typeof rows === 'string' ? rows : JSON.stringify(rows) }),
+          ...(schema && { schema: typeof schema === 'string' ? schema : JSON.stringify(schema) }),
           ...(maxResults !== undefined && maxResults !== '' && { maxResults: Number(maxResults) }),
+          ...(timeoutMs !== undefined && timeoutMs !== '' && { timeoutMs: Number(timeoutMs) }),
         }
       },
     },
@@ -248,8 +414,19 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
       description: 'Default dataset for unqualified table names',
     },
     location: { type: 'string', description: 'Processing location' },
+    jobId: { type: 'string', description: 'BigQuery job ID' },
+    timeoutMs: { type: 'number', description: 'How long to wait for the job to complete' },
+    newDatasetId: { type: 'string', description: 'ID for the new BigQuery dataset' },
+    datasetLocation: { type: 'string', description: 'Geographic location for the new dataset' },
+    deleteContents: { type: 'boolean', description: 'Whether to delete tables inside the dataset' },
     datasetId: { type: 'string', description: 'BigQuery dataset ID' },
     tableId: { type: 'string', description: 'BigQuery table ID' },
+    newTableId: { type: 'string', description: 'ID for the new BigQuery table' },
+    schema: { type: 'string', description: 'JSON array of column field definitions' },
+    friendlyName: { type: 'string', description: 'Human-readable name' },
+    description: { type: 'string', description: 'Description' },
+    selectedFields: { type: 'string', description: 'Comma-separated list of column names' },
+    startIndex: { type: 'string', description: 'Zero-based index of the starting row' },
     rows: { type: 'string', description: 'JSON array of row objects to insert' },
     skipInvalidRows: { type: 'boolean', description: 'Whether to skip invalid rows during insert' },
     ignoreUnknownValues: {
@@ -266,22 +443,46 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
     totalBytesProcessed: { type: 'string', description: 'Bytes processed (query)' },
     cacheHit: { type: 'boolean', description: 'Whether result was cached (query)' },
     jobReference: { type: 'json', description: 'Job reference for incomplete queries (query)' },
-    pageToken: { type: 'string', description: 'Token for additional result pages (query)' },
+    pageToken: {
+      type: 'string',
+      description: 'Token for additional result pages (query, list_table_data, get_query_results)',
+    },
     datasets: { type: 'json', description: 'Array of dataset objects (list_datasets)' },
     tables: { type: 'json', description: 'Array of table objects (list_tables)' },
     totalItems: { type: 'number', description: 'Total items count (list_tables)' },
-    tableId: { type: 'string', description: 'Table ID (get_table)' },
-    datasetId: { type: 'string', description: 'Dataset ID (get_table)' },
-    type: { type: 'string', description: 'Table type (get_table)' },
-    description: { type: 'string', description: 'Table description (get_table)' },
+    tableId: { type: 'string', description: 'Table ID (get_table, create_table)' },
+    datasetId: {
+      type: 'string',
+      description: 'Dataset ID (get_table, create_table, create_dataset)',
+    },
+    projectId: {
+      type: 'string',
+      description: 'Project ID (get_table, create_table, create_dataset)',
+    },
+    type: { type: 'string', description: 'Table type (get_table, create_table)' },
+    description: {
+      type: 'string',
+      description: 'Table or dataset description (get_table, create_table, create_dataset)',
+    },
+    friendlyName: { type: 'string', description: 'Human-readable name (create_dataset)' },
     numRows: { type: 'string', description: 'Row count (get_table)' },
     numBytes: { type: 'string', description: 'Size in bytes (get_table)' },
-    schema: { type: 'json', description: 'Column definitions (get_table)' },
-    creationTime: { type: 'string', description: 'Creation time (get_table)' },
+    schema: { type: 'json', description: 'Column definitions (get_table, create_table)' },
+    creationTime: {
+      type: 'string',
+      description: 'Creation time (get_table, create_table, create_dataset)',
+    },
     lastModifiedTime: { type: 'string', description: 'Last modified time (get_table)' },
-    location: { type: 'string', description: 'Data location (get_table)' },
+    location: {
+      type: 'string',
+      description: 'Data location (get_table, create_table, create_dataset)',
+    },
     insertedRows: { type: 'number', description: 'Rows inserted (insert_rows)' },
     errors: { type: 'json', description: 'Insert errors (insert_rows)' },
+    deleted: {
+      type: 'boolean',
+      description: 'Whether the resource was deleted (delete_dataset, delete_table)',
+    },
     nextPageToken: { type: 'string', description: 'Token for next page of results' },
   },
 }
@@ -380,6 +581,13 @@ export const GoogleBigQueryBlockMeta = {
       description: 'Insert structured rows into a BigQuery table for logging or pipeline output.',
       content:
         '# Load Rows to Table\n\nUse BigQuery to write structured records into a table.\n\n## Steps\n1. Confirm the target dataset and table, and Get Table to verify the expected columns and types.\n2. Shape the incoming records to match the table schema exactly.\n3. Use Insert Rows to write the batch.\n\n## Output\nReturn the count of rows inserted and any rows rejected with their error. If types did not match the schema, report which fields failed rather than silently dropping data.',
+    },
+    {
+      name: 'provision-dataset-and-table',
+      description:
+        'Create a new BigQuery dataset and table with a defined schema for a new pipeline or logging destination.',
+      content:
+        '# Provision Dataset and Table\n\nUse BigQuery to set up a new destination for structured data.\n\n## Steps\n1. Use Create Dataset with a dataset ID and location.\n2. Define the column schema (name, type, mode) for the target table.\n3. Use Create Table with that schema inside the new dataset.\n\n## Output\nReturn the created dataset ID, table ID, and the resolved schema so downstream steps can insert rows with confidence the columns match.',
     },
   ],
 } as const satisfies BlockMeta

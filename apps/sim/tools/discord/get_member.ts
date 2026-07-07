@@ -30,11 +30,11 @@ export const discordGetMemberTool: ToolConfig<DiscordGetMemberParams, DiscordGet
 
   request: {
     url: (params: DiscordGetMemberParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId}/members/${params.userId}`
+      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/members/${params.userId.trim()}`
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

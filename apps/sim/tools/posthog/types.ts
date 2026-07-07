@@ -158,8 +158,6 @@ interface PostHogEventDefinition {
   name: string
   description: string
   tags: string[]
-  volume_30_day?: number
-  query_usage_30_day?: number
   created_at: string
   last_seen_at?: string
   verified: boolean
@@ -172,8 +170,6 @@ interface PostHogPropertyDefinition {
   tags: string[]
   is_numerical: boolean
   property_type: 'DateTime' | 'String' | 'Numeric' | 'Boolean'
-  volume_30_day?: number
-  query_usage_30_day?: number
   verified: boolean
 }
 

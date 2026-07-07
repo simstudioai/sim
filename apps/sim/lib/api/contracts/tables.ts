@@ -1334,13 +1334,17 @@ export const listActiveDispatchesContract = defineRouteContract({
     schema: successResponseSchema(
       z.object({
         dispatches: z.array(activeDispatchSchema),
-        /** Total cells across the table whose `status === 'running'`. The
-         *  client maintains this incrementally via cell SSE events; this
-         *  field is the bootstrap snapshot on mount. */
-        runningCellCount: z.number().int().nonnegative(),
-        /** Map rowId → number of running cells on that row. Drives the
-         *  per-row badge next to the Stop button. */
+        /** Map rowId → number of in-flight (queued/running/pending) cells on
+         *  that row. Sums to the "X running" badge and drives the per-row
+         *  gutter Run/Stop button. Server-authoritative: refetched on a
+         *  throttle as cell SSE events arrive, plus optimistic stamps on
+         *  run-click. */
         runningByRowId: z.record(z.string(), z.number().int().positive()),
+        /** Whether any in-flight cell is actually claimed by a worker
+         *  (`status === 'running'`) — table-wide, unlike the client's
+         *  loaded-rows view. Drives the header's "Queueing" vs "N running"
+         *  label once the run's active window scrolls past the loaded rows. */
+        hasRunning: z.boolean(),
       })
     ),
   },
@@ -1349,11 +1353,15 @@ export const listActiveDispatchesContract = defineRouteContract({
 export type ActiveDispatch = z.output<typeof activeDispatchSchema>
 
 export const tableEventStreamQuerySchema = z.object({
+  /** Replay cursor: events with `eventId > from` are replayed on connect.
+   *  `0` replays the whole buffer (prune recovery). Absent → the server tails
+   *  from the latest event id — a fresh mount has just fetched current state
+   *  from the DB, so replaying history would only rewind it. */
   from: z.preprocess((value) => {
-    if (typeof value !== 'string') return 0
+    if (typeof value !== 'string') return undefined
     const parsed = Number.parseInt(value, 10)
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
-  }, z.number().int().min(0)),
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
+  }, z.number().int().min(0).optional()),
 })
 
 export const tableEventStreamContract = defineRouteContract({

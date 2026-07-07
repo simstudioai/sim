@@ -9,10 +9,7 @@ import { General } from '@/app/workspace/[workspaceId]/settings/components/gener
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsBeforeUnload } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-before-unload'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import {
-  isBillingEnabled,
-  isCredentialSetsEnabled,
-} from '@/app/workspace/[workspaceId]/settings/navigation'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 const Admin = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin)
@@ -27,11 +24,6 @@ const BYOK = dynamic(() =>
 )
 const Copilot = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then((m) => m.Copilot)
-)
-const CredentialSets = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets').then(
-    (m) => m.CredentialSets
-  )
 )
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
@@ -78,6 +70,9 @@ const WorkflowMcpServers = dynamic(() =>
 const AccessControl = dynamic(() =>
   import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
 )
+const CustomBlocks = dynamic(() =>
+  import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks)
+)
 const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
@@ -114,13 +109,11 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const effectiveSection =
     !isBillingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
       ? 'general'
-      : normalizedSection === 'credential-sets' && !isCredentialSetsEnabled
+      : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
         ? 'general'
-        : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
+        : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
           ? 'general'
-          : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
-            ? 'general'
-            : normalizedSection
+          : normalizedSection
 
   useEffect(() => {
     if (sessionLoading) return
@@ -131,8 +124,8 @@ export function SettingsPage({ section }: SettingsPageProps) {
     <SettingsSectionProvider section={effectiveSection}>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'secrets' && <Secrets />}
-      {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}
+      {effectiveSection === 'custom-blocks' && <CustomBlocks />}
       {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
       {isBillingEnabled && effectiveSection === 'billing' && <Billing />}

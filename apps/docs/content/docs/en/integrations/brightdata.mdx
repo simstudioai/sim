@@ -31,6 +31,7 @@ Fetch content from any URL using Bright Data Web Unlocker. Bypasses anti-bot pro
 | `url` | string | Yes | The URL to scrape \(e.g., "https://example.com/page"\) |
 | `format` | string | No | Response format: "raw" for HTML or "json" for parsed content. Defaults to "raw" |
 | `country` | string | No | Two-letter country code for geo-targeting \(e.g., "us", "gb"\) |
+| `dataFormat` | string | No | Convert the response to "markdown" instead of raw HTML, useful for feeding page content to an LLM. Omit for the default HTML/JSON response |
 
 #### Output
 
@@ -70,7 +71,7 @@ Search Google, Bing, DuckDuckGo, or Yandex and get structured search results usi
 
 ### `brightdata_discover`
 
-AI-powered web discovery that finds and ranks results by intent. Returns up to 1,000 results with optional cleaned page content for RAG and verification.
+AI-powered web discovery that finds and ranks results by intent. Returns up to 20 results with optional cleaned page content for RAG and verification.
 
 #### Input
 
@@ -78,10 +79,11 @@ AI-powered web discovery that finds and ranks results by intent. Returns up to 1
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Bright Data API token |
 | `query` | string | Yes | The search query \(e.g., "competitor pricing changes enterprise plan"\) |
-| `numResults` | number | No | Number of results to return, up to 1000. Defaults to 10 |
+| `numResults` | number | No | Number of results to return \(1-20\). Defaults to 10 |
+| `mode` | string | No | Search depth and ranking mode: "standard" \(balanced\), "deep" \(exhaustive, broader search\), "fast" \(optimized for speed\), or "zeroRanking" \(raw volume without AI filtering\). Defaults to "standard" |
 | `intent` | string | No | Describes what the agent is trying to accomplish, used to rank results by relevance \(e.g., "find official pricing pages and change notes"\) |
 | `includeContent` | boolean | No | Whether to include cleaned page content in results |
-| `format` | string | No | Response format: "json" or "markdown". Defaults to "json" |
+| `format` | string | No | Response format: "json" or "md". Defaults to "json" |
 | `language` | string | No | Search language code \(e.g., "en", "es", "fr"\). Defaults to "en" |
 | `country` | string | No | Two-letter ISO country code for localized results \(e.g., "us", "gb"\) |
 
@@ -132,6 +134,7 @@ Trigger a Bright Data pre-built scraper to extract structured data from URLs. Su
 | `datasetId` | string | Yes | Dataset scraper ID from your Bright Data dashboard \(e.g., "gd_l1viktl72bvl7bjuj0"\) |
 | `urls` | string | Yes | JSON array of URL objects to scrape \(e.g., \[\{"url": "https://example.com/product"\}\]\) |
 | `format` | string | No | Output format: "json" or "csv". Defaults to "json" |
+| `includeErrors` | boolean | No | Whether to include a per-input error report in the results |
 
 #### Output
 

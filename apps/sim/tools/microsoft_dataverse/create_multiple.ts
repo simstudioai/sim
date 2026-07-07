@@ -3,6 +3,7 @@ import type {
   DataverseCreateMultipleParams,
   DataverseCreateMultipleResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseCreateMultiple')
@@ -57,8 +58,8 @@ export const dataverseCreateMultipleTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}/Microsoft.Dynamics.CRM.CreateMultiple`
     },
     method: 'POST',
     headers: (params) => ({
@@ -80,9 +81,10 @@ export const dataverseCreateMultipleTool: ToolConfig<
       if (!Array.isArray(records)) {
         throw new Error('Records must be an array of objects')
       }
+      const entityLogicalName = params.entityLogicalName.trim()
       const targets = records.map((record: Record<string, unknown>) => ({
         ...record,
-        '@odata.type': `Microsoft.Dynamics.CRM.${params.entityLogicalName}`,
+        '@odata.type': `Microsoft.Dynamics.CRM.${entityLogicalName}`,
       }))
       return { Targets: targets }
     },

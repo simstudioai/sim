@@ -9,7 +9,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
   description: 'Send events, query data, and manage Data Sources with Tinybird',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.',
+    'Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, manage Data Sources by appending from a URL, truncating, or deleting rows by condition, and poll the status of asynchronous jobs.',
   docsLink: 'https://docs.sim.ai/integrations/tinybird',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
@@ -27,6 +27,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
         { label: 'Append Data Source (from URL)', id: 'tinybird_append_datasource' },
         { label: 'Truncate Data Source', id: 'tinybird_truncate_datasource' },
         { label: 'Delete Data Source Rows', id: 'tinybird_delete_datasource_rows' },
+        { label: 'Get Job Status', id: 'tinybird_get_job' },
       ],
       value: () => 'tinybird_events',
     },
@@ -195,6 +196,15 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'tinybird_delete_datasource_rows' },
     },
+    // Get Job Status operation inputs
+    {
+      id: 'job_id',
+      title: 'Job ID',
+      type: 'short-input',
+      placeholder: 'Job ID returned by an append or delete operation',
+      condition: { field: 'operation', value: 'tinybird_get_job' },
+      required: true,
+    },
   ],
   tools: {
     access: [
@@ -204,6 +214,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
       'tinybird_append_datasource',
       'tinybird_truncate_datasource',
       'tinybird_delete_datasource_rows',
+      'tinybird_get_job',
     ],
     config: {
       tool: (params) => params.operation || 'tinybird_events',
@@ -294,6 +305,13 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
               typeof params.dry_run === 'string' ? params.dry_run.toLowerCase() : params.dry_run
             result.dry_run = dryRunValue === 'true' || dryRunValue === true
           }
+        } else if (operation === 'tinybird_get_job') {
+          // Get Job Status operation
+          if (!params.job_id) {
+            throw new Error('Job ID is required for Get Job Status operation')
+          }
+
+          result.job_id = params.job_id
         }
 
         return result
@@ -334,6 +352,8 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
     // Delete Data Source Rows inputs
     delete_condition: { type: 'string', description: 'SQL condition selecting rows to delete' },
     dry_run: { type: 'boolean', description: 'Test the delete without removing data' },
+    // Get Job Status inputs
+    job_id: { type: 'string', description: 'ID of the job to check' },
     // Common
     token: { type: 'string', description: 'Tinybird API Token' },
   },
@@ -342,45 +362,160 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
     successful_rows: {
       type: 'number',
       description: 'Number of rows successfully ingested',
+      condition: { field: 'operation', value: 'tinybird_events' },
     },
     quarantined_rows: {
       type: 'number',
       description: 'Number of rows quarantined (failed validation)',
+      condition: { field: 'operation', value: 'tinybird_events' },
     },
-    // Query outputs
+    // Query / Query Pipe outputs
     data: {
       type: 'json',
       description:
         'Query result data. FORMAT JSON: array of objects. Other formats (CSV, TSV, etc.): raw text string.',
+      condition: { field: 'operation', value: ['tinybird_query', 'tinybird_query_pipe'] },
     },
     meta: {
       type: 'json',
       description: 'Column metadata for the result set: [{name, type}] (only with FORMAT JSON)',
+      condition: { field: 'operation', value: ['tinybird_query', 'tinybird_query_pipe'] },
     },
-    rows: { type: 'number', description: 'Number of rows returned (only with FORMAT JSON)' },
+    rows: {
+      type: 'number',
+      description: 'Number of rows returned (only with FORMAT JSON)',
+      condition: { field: 'operation', value: ['tinybird_query', 'tinybird_query_pipe'] },
+    },
     rows_before_limit_at_least: {
       type: 'number',
       description: 'Minimum rows without a LIMIT clause (only with FORMAT JSON)',
+      condition: { field: 'operation', value: ['tinybird_query', 'tinybird_query_pipe'] },
     },
     statistics: {
       type: 'json',
       description:
         'Query execution statistics - elapsed time, rows read, bytes read (only with FORMAT JSON)',
+      condition: { field: 'operation', value: ['tinybird_query', 'tinybird_query_pipe'] },
     },
-    // Data Source management outputs (append / truncate / delete)
-    id: { type: 'string', description: 'Operation identifier (append/delete)' },
-    import_id: { type: 'string', description: 'Import identifier (append)' },
-    job_id: { type: 'string', description: 'Job identifier to poll status (append/delete)' },
-    delete_id: { type: 'string', description: 'Deletion identifier (delete)' },
-    job_url: { type: 'string', description: 'URL to query job status (append/delete)' },
-    status: { type: 'string', description: 'Current job status (append/delete)' },
+    // Data Source management outputs (append / truncate / delete / get job)
+    id: {
+      type: 'string',
+      description: 'Operation identifier',
+      condition: {
+        field: 'operation',
+        value: [
+          'tinybird_append_datasource',
+          'tinybird_delete_datasource_rows',
+          'tinybird_get_job',
+        ],
+      },
+    },
+    import_id: {
+      type: 'string',
+      description: 'Import identifier (append)',
+      condition: { field: 'operation', value: 'tinybird_append_datasource' },
+    },
+    job_id: {
+      type: 'string',
+      description:
+        'Job identifier to poll with the Get Job Status operation (append/delete/get job)',
+      condition: {
+        field: 'operation',
+        value: [
+          'tinybird_append_datasource',
+          'tinybird_delete_datasource_rows',
+          'tinybird_get_job',
+        ],
+      },
+    },
+    delete_id: {
+      type: 'string',
+      description: 'Deletion identifier (delete)',
+      condition: { field: 'operation', value: 'tinybird_delete_datasource_rows' },
+    },
+    job_url: {
+      type: 'string',
+      description: 'URL to query job status (append/delete/get job)',
+      condition: {
+        field: 'operation',
+        value: [
+          'tinybird_append_datasource',
+          'tinybird_delete_datasource_rows',
+          'tinybird_get_job',
+        ],
+      },
+    },
+    status: {
+      type: 'string',
+      description: 'Current job status (append/delete/get job)',
+      condition: {
+        field: 'operation',
+        value: [
+          'tinybird_append_datasource',
+          'tinybird_delete_datasource_rows',
+          'tinybird_get_job',
+        ],
+      },
+    },
     job: {
       type: 'json',
-      description: 'Full job details: kind, id, status, datasource, rows_affected (append/delete)',
+      description:
+        'Full job details: kind, id, status, datasource, rows_affected (append/delete/get job)',
+      condition: {
+        field: 'operation',
+        value: [
+          'tinybird_append_datasource',
+          'tinybird_delete_datasource_rows',
+          'tinybird_get_job',
+        ],
+      },
     },
-    datasource: { type: 'json', description: 'Target Data Source metadata (append)' },
-    truncated: { type: 'boolean', description: 'Whether the Data Source was truncated' },
-    result: { type: 'json', description: 'Raw truncate response body, if any' },
+    datasource: {
+      type: 'json',
+      description: 'Target Data Source metadata (append)',
+      condition: { field: 'operation', value: 'tinybird_append_datasource' },
+    },
+    truncated: {
+      type: 'boolean',
+      description: 'Whether the Data Source was truncated',
+      condition: { field: 'operation', value: 'tinybird_truncate_datasource' },
+    },
+    result: {
+      type: 'json',
+      description: 'Raw truncate response body, if any',
+      condition: { field: 'operation', value: 'tinybird_truncate_datasource' },
+    },
+    // Get Job Status outputs
+    kind: {
+      type: 'string',
+      description: 'Job kind (e.g., "import", "delete_data", "populateview", "copy")',
+      condition: { field: 'operation', value: 'tinybird_get_job' },
+    },
+    created_at: {
+      type: 'string',
+      description: 'Timestamp the job was created',
+      condition: { field: 'operation', value: 'tinybird_get_job' },
+    },
+    started_at: {
+      type: 'string',
+      description: 'Timestamp the job started running',
+      condition: { field: 'operation', value: 'tinybird_get_job' },
+    },
+    updated_at: {
+      type: 'string',
+      description: 'Timestamp of the last job status update',
+      condition: { field: 'operation', value: 'tinybird_get_job' },
+    },
+    is_cancellable: {
+      type: 'boolean',
+      description: 'Whether the job can still be cancelled',
+      condition: { field: 'operation', value: 'tinybird_get_job' },
+    },
+    error: {
+      type: 'string',
+      description: 'Error message, present only when the job status is "error"',
+      condition: { field: 'operation', value: 'tinybird_get_job' },
+    },
   },
 }
 
@@ -484,7 +619,14 @@ export const TinybirdBlockMeta = {
       description:
         'Append from a URL, truncate, or delete rows by condition in a Tinybird Data Source.',
       content:
-        "# Manage Tinybird Data Source Rows\n\nMaintain a Data Source by loading, clearing, or pruning its rows.\n\n## Steps\n1. To load data, use Append Data Source (from URL) with the Data Source name, a Source File URL, and the source format (CSV, NDJSON, or Parquet).\n2. To clear everything, use Truncate Data Source with the Data Source name.\n3. To remove specific rows, use Delete Data Source Rows with a SQL Delete Condition such as event_date < '2024-01-01'.\n4. Enable Dry Run on a delete first to preview how many rows would be removed.\n\n## Output\nReturn the job ID and status for append and delete operations so you can poll for completion, or confirm the truncate succeeded.",
+        "# Manage Tinybird Data Source Rows\n\nMaintain a Data Source by loading, clearing, or pruning its rows.\n\n## Steps\n1. To load data, use Append Data Source (from URL) with the Data Source name, a Source File URL, and the source format (CSV, NDJSON, or Parquet).\n2. To clear everything, use Truncate Data Source with the Data Source name.\n3. To remove specific rows, use Delete Data Source Rows with a SQL Delete Condition such as event_date < '2024-01-01'.\n4. Enable Dry Run on a delete first to preview how many rows would be removed.\n\n## Output\nReturn the job ID and status for append and delete operations so you can poll with Get Job Status, or confirm the truncate succeeded.",
+    },
+    {
+      name: 'poll-job-status',
+      description:
+        'Check the status of an asynchronous Tinybird job, such as an append import or a delete-by-condition job.',
+      content:
+        '# Poll a Tinybird Job\n\nAppend Data Source and Delete Data Source Rows start asynchronous jobs that need to be polled for completion.\n\n## Steps\n1. Take the Job ID returned by Append Data Source or Delete Data Source Rows.\n2. Use the Get Job Status operation with the Base URL, API Token, and Job ID.\n3. Loop or wait until status is "done" (or "error"), checking again on a delay if still "waiting" or "working".\n\n## Output\nReturn the job kind, status, and full job details so you can confirm completion or surface the error message.',
     },
   ],
 } as const satisfies BlockMeta

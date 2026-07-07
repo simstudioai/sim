@@ -62,6 +62,13 @@ export const createIncidentTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'User ID to assign the incident to',
     },
+    incidentKey: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'De-duplication key. A subsequent request with the same service and incident key updates the existing open incident instead of creating a new one',
+    },
   },
 
   request: {
@@ -106,6 +113,7 @@ export const createIncidentTool: ToolConfig<
           },
         ]
       }
+      if (params.incidentKey) incident.incident_key = params.incidentKey
 
       return { incident }
     },

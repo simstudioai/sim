@@ -374,7 +374,7 @@ export const {service}PollingHandler: PollingProviderHandler = {
 
     try {
       // For OAuth services:
-      const accessToken = await resolveOAuthCredential(webhookData, '{service}', requestId, logger)
+      const accessToken = await resolveOAuthCredential(webhookData, '{service}', requestId)
       const config = webhookData.providerConfig as unknown as {Service}WebhookConfig
 
       // First poll: seed state, emit nothing
@@ -421,7 +421,7 @@ export const {service}PollingTrigger: TriggerConfig = {
   polling: true,               // REQUIRED — routes to polling infrastructure
 
   subBlocks: [
-    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', requiredScopes: [], required: true, mode: 'trigger', supportsCredentialSets: true },
+    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', requiredScopes: [], required: true, mode: 'trigger' },
     // ... service-specific config fields (dropdowns, inputs, switches) ...
     { id: 'triggerInstructions', type: 'text', title: 'Setup Instructions', hideFromPreview: true, mode: 'trigger', defaultValue: '...' },
   ],

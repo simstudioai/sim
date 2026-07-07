@@ -40,7 +40,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         params.policy,
         params.externalId,
         params.serialNumber,
-        params.tokenCode
+        params.tokenCode,
+        params.policyArns,
+        params.tags,
+        params.transitiveTagKeys
       )
 
       logger.info('Role assumed successfully')
