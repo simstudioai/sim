@@ -91,10 +91,10 @@ describe('escapeHtml', () => {
 })
 
 describe('plainTextToHtml', () => {
-  it('preserves line breaks and blank lines via white-space: pre-wrap', () => {
+  it('converts newlines to <br> without paragraph margins', () => {
     const html = plainTextToHtml('Hi Janice,\n\nHope you are well.\nSecond line.')
-    expect(html).toContain('white-space: pre-wrap')
-    expect(html).toContain('Hi Janice,\n\nHope you are well.\nSecond line.')
+    expect(html).not.toContain('<p>')
+    expect(html).toContain('Hi Janice,<br><br>Hope you are well.<br>Second line.')
   })
 
   it('escapes HTML in the source text', () => {
@@ -150,7 +150,7 @@ describe('buildSimpleEmailMessage', () => {
     expect(plainIdx).toBeGreaterThan(-1)
     expect(htmlIdx).toBeGreaterThan(plainIdx)
     expect(decodePart(decoded, 'text/plain')).toBe('Hi Janice,\n\nQuick question.')
-    expect(decodePart(decoded, 'text/html')).toContain('Hi Janice,\n\nQuick question.')
+    expect(decodePart(decoded, 'text/html')).toContain('Hi Janice,<br><br>Quick question.')
   })
 
   it('encodes bodies as base64 so UTF-8 (emoji, accents) round-trips cleanly', () => {
