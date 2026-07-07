@@ -7,7 +7,7 @@ import {
   type MothershipEnvironment,
   type UserSettingsApi,
   updateUserSettingsContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/user'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 

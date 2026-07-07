@@ -354,7 +354,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
     case 'date':
       return (
         <span className={cn('text-[var(--text-primary)]', isEditing && 'invisible')}>
-          {storageToDisplay(kind.text)}
+          {storageToDisplay(kind.text, { seconds: true })}
         </span>
       )
 
