@@ -27,6 +27,7 @@ import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
+import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
 
 /**
  * Mounts `usePromptEditor` in a real React 19 root under jsdom (no
@@ -208,6 +209,37 @@ describe('usePromptEditor mention menu dismissal', () => {
 
     expect(result().mentionQuery).toBe('g')
     expect(openMenu.open).toHaveBeenCalledTimes(2)
+
+    unmount()
+  })
+})
+
+describe('usePromptEditor toolbar slash trigger after a dismiss', () => {
+  it('still opens the skills menu when the caret sits at the start of the previously dismissed token', () => {
+    const skillsMenu: SkillsMenuHandle = {
+      open: vi.fn(),
+      close: vi.fn(),
+      moveActive: vi.fn(),
+      selectActive: vi.fn(() => false),
+    }
+    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+    result().skillsMenuRef.current = skillsMenu
+
+    act(() => {
+      result().insertSlashTrigger()
+    })
+    expect(skillsMenu.open).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result().handleSkillsMenuClose()
+    })
+
+    act(() => {
+      textarea.setSelectionRange(0, 0)
+      result().insertSlashTrigger()
+    })
+
+    expect(skillsMenu.open).toHaveBeenCalledTimes(2)
 
     unmount()
   })

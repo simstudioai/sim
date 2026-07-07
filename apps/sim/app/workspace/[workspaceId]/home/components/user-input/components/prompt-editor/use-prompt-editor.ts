@@ -573,6 +573,7 @@ export function usePromptEditor({
     setValueState(newValue)
     textarea.value = newValue
     textarea.setSelectionRange(newCaret, newCaret)
+    dismissedSlashStartRef.current = null
     syncSlashState(textarea, newValue, newCaret)
   }, [textareaRef, syncSlashState])
 
