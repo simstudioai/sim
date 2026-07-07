@@ -84,6 +84,17 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
 
   // Source picker (create only). Editing a block never re-points its source.
   const { data: workspaces = [] } = useWorkspacesQuery(isCreate)
+  // Custom blocks are org-scoped and the settings list only shows the current org's
+  // blocks, so a block published to another org's workspace would silently never
+  // appear here. Restrict the picker to workspaces in the current workspace's org.
+  const currentOrgId = useMemo(
+    () => workspaces.find((w) => w.id === workspaceId)?.organizationId ?? null,
+    [workspaces, workspaceId]
+  )
+  const orgWorkspaces = useMemo(
+    () => (currentOrgId ? workspaces.filter((w) => w.organizationId === currentOrgId) : []),
+    [workspaces, currentOrgId]
+  )
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId)
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
   const { data: workflows = [] } = useWorkflows(isCreate ? selectedWorkspaceId : undefined)
@@ -389,7 +400,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                   dropdownWidth='trigger'
                   searchable
                   placeholder='Select a workspace'
-                  options={workspaces.map((w) => ({ value: w.id, label: w.name }))}
+                  options={orgWorkspaces.map((w) => ({ value: w.id, label: w.name }))}
                   value={selectedWorkspaceId}
                   onChange={(v: string) => {
                     setSelectedWorkspaceId(v)
