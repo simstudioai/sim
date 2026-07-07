@@ -27,7 +27,12 @@ const DescribeAlarmsSchema = z.object({
   ),
   limit: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
-    z.coerce.number().int().positive().optional()
+    z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(100, 'limit must be at most 100 (CloudWatch DescribeAlarms limit)')
+      .optional()
   ),
 })
 
