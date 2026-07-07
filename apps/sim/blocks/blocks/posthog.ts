@@ -100,6 +100,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_list_feature_flags',
           // Experiments
           'posthog_create_experiment',
+          'posthog_update_experiment',
           'posthog_get_experiment',
           'posthog_list_experiments',
           // Data Management
