@@ -4,6 +4,7 @@ import type {
   OneDriveToolParams,
 } from '@/tools/onedrive/types'
 import { escapeODataStringLiteral } from '@/tools/onedrive/utils'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> = {
@@ -51,11 +52,7 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
     url: (params) => {
       const pageToken = params.pageToken?.trim()
       if (pageToken) {
-        const continuationUrl = new URL(pageToken)
-        if (continuationUrl.hostname !== 'graph.microsoft.com') {
-          throw new Error('Invalid page token: must be a Microsoft Graph continuation URL')
-        }
-        return continuationUrl.toString()
+        return assertGraphNextPageUrl(pageToken)
       }
 
       const query = params.query?.trim()
@@ -98,7 +95,7 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
           modifiedTime: item.lastModifiedDateTime,
           parents: item.parentReference ? [item.parentReference.id] : [],
         })),
-        nextPageToken: data['@odata.nextLink'] || undefined,
+        nextPageToken: getGraphNextPageUrl(data),
       },
     }
   },
