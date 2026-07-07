@@ -315,10 +315,17 @@ export interface DataverseDownloadFileParams {
 
 export interface DataverseDownloadFileResponse extends ToolResponse {
   output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer | string // Buffer for direct use, string for base64-encoded data
+      size: number
+    }
     fileContent: string
     fileName: string
     fileSize: number
     mimeType: string
+    fileColumn: string
     success: boolean
   }
 }

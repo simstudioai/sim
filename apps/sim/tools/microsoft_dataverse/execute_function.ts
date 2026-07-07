@@ -59,7 +59,7 @@ export const dataverseExecuteFunctionTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Function parameters as a comma-separated list of name=value pairs for the URL (e.g., "LocalizedStandardName=\'Pacific Standard Time\',LocaleId=1033"). Use @p1,@p2 aliases for complex values.',
+        'Function parameters for the URL. Simple values can be inlined (e.g., "LocalizedStandardName=\'Pacific Standard Time\',LocaleId=1033"), but values with reserved characters (/ < > * % & : \\ ? +) must use parameter aliases: put the alias assignment in parentheses and the alias-to-value bindings after a "?", e.g. "LocalizedStandardName=@p1,LocaleId=@p2?@p1=\'Pacific Standard Time\'&@p2=1033". Do not include the enclosing parentheses yourself.',
     },
   },
 
@@ -67,15 +67,20 @@ export const dataverseExecuteFunctionTool: ToolConfig<
     url: (params) => {
       const baseUrl = getDataverseBaseUrl(params.environmentUrl)
       const functionName = params.functionName.trim()
-      const paramStr = params.parameters ? `(${params.parameters})` : '()'
+      const rawParams = params.parameters?.trim() ?? ''
+      const separatorIndex = rawParams.indexOf('?')
+      const inlineParams = separatorIndex === -1 ? rawParams : rawParams.slice(0, separatorIndex)
+      const aliasQuery = separatorIndex === -1 ? '' : rawParams.slice(separatorIndex + 1)
+      const paramStr = inlineParams ? `(${inlineParams})` : '()'
+      const querySuffix = aliasQuery ? `?${aliasQuery}` : ''
       if (params.entitySetName) {
         const entitySetName = params.entitySetName.trim()
         if (params.recordId) {
-          return `${baseUrl}/api/data/v9.2/${entitySetName}(${params.recordId.trim()})/Microsoft.Dynamics.CRM.${functionName}${paramStr}`
+          return `${baseUrl}/api/data/v9.2/${entitySetName}(${params.recordId.trim()})/Microsoft.Dynamics.CRM.${functionName}${paramStr}${querySuffix}`
         }
-        return `${baseUrl}/api/data/v9.2/${entitySetName}/Microsoft.Dynamics.CRM.${functionName}${paramStr}`
+        return `${baseUrl}/api/data/v9.2/${entitySetName}/Microsoft.Dynamics.CRM.${functionName}${paramStr}${querySuffix}`
       }
-      return `${baseUrl}/api/data/v9.2/${functionName}${paramStr}`
+      return `${baseUrl}/api/data/v9.2/${functionName}${paramStr}${querySuffix}`
     },
     method: 'GET',
     headers: (params) => ({

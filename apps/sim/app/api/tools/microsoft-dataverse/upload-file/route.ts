@@ -17,6 +17,9 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('DataverseUploadFileAPI')
 
+/** Dataverse Web API's absolute ceiling for a single-request (non-chunked) file column upload. */
+const DATAVERSE_SINGLE_REQUEST_UPLOAD_MAX_BYTES = 128 * 1024 * 1024
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -90,6 +93,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } else {
       return NextResponse.json(
         { success: false, error: 'Either file or fileContent must be provided' },
+        { status: 400 }
+      )
+    }
+
+    if (fileBuffer.length > DATAVERSE_SINGLE_REQUEST_UPLOAD_MAX_BYTES) {
+      const sizeMB = (fileBuffer.length / (1024 * 1024)).toFixed(2)
+      logger.warn(`[${requestId}] File too large for single-request upload: ${sizeMB}MB`)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `File size (${sizeMB}MB) exceeds Dataverse's 128MB limit for single-request file column uploads. Split the file and use chunked upload instead.`,
+        },
         { status: 400 }
       )
     }
