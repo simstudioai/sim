@@ -78,9 +78,9 @@ describe('mapTextractSdkError', () => {
     expect(mapped.status).toBe(500)
   })
 
-  it('defaults to 400 when the SDK gives no http status', () => {
+  it('defaults to 500 when the SDK gives no http status, since that implies a server-side failure', () => {
     const mapped = mapTextractSdkError({ message: 'Unknown failure' }, false)
-    expect(mapped.status).toBe(400)
+    expect(mapped.status).toBe(500)
   })
 })
 

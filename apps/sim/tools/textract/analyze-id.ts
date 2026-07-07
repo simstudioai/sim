@@ -37,11 +37,23 @@ export const textractAnalyzeIdTool: ToolConfig<TextractAnalyzeIdV2Input, Textrac
         visibility: 'hidden',
         description: 'Front of the identity document (JPEG, PNG, or PDF).',
       },
+      filePath: {
+        type: 'string',
+        required: false,
+        visibility: 'hidden',
+        description: 'URL to the front of the identity document, if not uploaded directly.',
+      },
       fileBack: {
         type: 'file',
         required: false,
         visibility: 'hidden',
         description: 'Back of the identity document, if applicable (JPEG, PNG, or PDF).',
+      },
+      filePathBack: {
+        type: 'string',
+        required: false,
+        visibility: 'hidden',
+        description: 'URL to the back of the identity document, if not uploaded directly.',
       },
     },
 
@@ -53,19 +65,24 @@ export const textractAnalyzeIdTool: ToolConfig<TextractAnalyzeIdV2Input, Textrac
         Accept: 'application/json',
       }),
       body: (params) => {
-        if (!params.file || typeof params.file !== 'object') {
-          throw new Error('Identity document is required')
-        }
-
         const requestBody: Record<string, unknown> = {
           accessKeyId: params.accessKeyId?.trim(),
           secretAccessKey: params.secretAccessKey?.trim(),
           region: params.region?.trim(),
-          file: params.file,
+        }
+
+        if (params.file && typeof params.file === 'object') {
+          requestBody.file = params.file
+        } else if (params.filePath && params.filePath.trim() !== '') {
+          requestBody.filePath = params.filePath.trim()
+        } else {
+          throw new Error('Identity document is required')
         }
 
         if (params.fileBack && typeof params.fileBack === 'object') {
           requestBody.fileBack = params.fileBack
+        } else if (params.filePathBack && params.filePathBack.trim() !== '') {
+          requestBody.filePathBack = params.filePathBack.trim()
         }
 
         return requestBody

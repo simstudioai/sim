@@ -199,6 +199,18 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   },
 }
 
+/**
+ * Resolves a canonical document input to either an uploaded file object or a plain URL string.
+ * `normalizeFileInput` only recognizes file objects (or JSON-serialized file references) — a raw
+ * URL typed into the "File reference" advanced field falls through to `filePath` instead.
+ */
+function resolveDocumentParam(value: unknown): { file?: object; filePath?: string } {
+  const file = normalizeFileInput(value, { single: true })
+  if (file) return { file }
+  if (typeof value === 'string' && value.trim() !== '') return { filePath: value.trim() }
+  return {}
+}
+
 function requireAwsCredentials(params: Record<string, unknown>) {
   const accessKeyId = typeof params.accessKeyId === 'string' ? params.accessKeyId.trim() : ''
   const secretAccessKey =
@@ -350,17 +362,18 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
         const operation = params.operation || 'analyze_document'
 
         if (operation === 'analyze_id') {
-          const file = normalizeFileInput(params.document, { single: true })
-          if (!file) throw new Error('Identity document is required')
+          const front = resolveDocumentParam(params.document)
+          if (!front.file && !front.filePath) throw new Error('Identity document is required')
 
           const parameters: Record<string, unknown> = {
             accessKeyId,
             secretAccessKey,
             region,
-            file,
+            ...front,
           }
-          const fileBack = normalizeFileInput(params.documentBack, { single: true })
-          if (fileBack) parameters.fileBack = fileBack
+          const back = resolveDocumentParam(params.documentBack)
+          if (back.file) parameters.fileBack = back.file
+          else if (back.filePath) parameters.filePathBack = back.filePath
           return parameters
         }
 
@@ -377,7 +390,13 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
             throw new Error('S3 URI is required for multi-page processing')
           }
           parameters.s3Uri = params.s3Uri.trim()
+        } else if (operation === 'analyze_expense') {
+          // textract_analyze_expense accepts filePath as a fallback for URL-based documents.
+          const resolved = resolveDocumentParam(params.document)
+          if (!resolved.file && !resolved.filePath) throw new Error('Document file is required')
+          Object.assign(parameters, resolved)
         } else {
+          // textract_parser_v2 (analyze_document) has no filePath param — file only.
           const file = normalizeFileInput(params.document, { single: true })
           if (!file) throw new Error('Document file is required')
           parameters.file = file

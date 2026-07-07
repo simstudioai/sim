@@ -114,14 +114,25 @@ describe('textract_parser_v2', () => {
 describe('textract_analyze_expense', () => {
   const body = textractAnalyzeExpenseTool.request.body!
 
-  it('throws when no file is provided for sync mode', () => {
+  it('throws when neither file nor filePath is provided for sync mode', () => {
     expect(() =>
       body({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
       } as never)
-    ).toThrow('Document file is required for single-page processing')
+    ).toThrow('Document is required for single-page processing')
+  })
+
+  it('falls back to filePath when no file object is provided', () => {
+    expect(
+      body({
+        accessKeyId: 'key',
+        secretAccessKey: 'secret',
+        region: 'us-east-1',
+        filePath: ' https://example.com/receipt.pdf ',
+      } as never)
+    ).toMatchObject({ processingMode: 'sync', filePath: 'https://example.com/receipt.pdf' })
   })
 
   it('builds an async body requiring s3Uri', () => {
@@ -188,6 +199,24 @@ describe('textract_analyze_id', () => {
       region: 'us-east-1',
       file,
       fileBack,
+    })
+  })
+
+  it('falls back to filePath/filePathBack when no file objects are provided', () => {
+    expect(
+      body({
+        accessKeyId: 'key',
+        secretAccessKey: 'secret',
+        region: 'us-east-1',
+        filePath: ' https://example.com/id-front.png ',
+        filePathBack: ' https://example.com/id-back.png ',
+      } as never)
+    ).toEqual({
+      accessKeyId: 'key',
+      secretAccessKey: 'secret',
+      region: 'us-east-1',
+      filePath: 'https://example.com/id-front.png',
+      filePathBack: 'https://example.com/id-back.png',
     })
   })
 

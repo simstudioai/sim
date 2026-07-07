@@ -99,6 +99,12 @@ export const textractAnalyzeExpenseTool: ToolConfig<
       visibility: 'hidden',
       description: 'Invoice or receipt to be processed (JPEG, PNG, or single-page PDF).',
     },
+    filePath: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'URL to an invoice or receipt to be processed, if not uploaded directly.',
+    },
     s3Uri: {
       type: 'string',
       required: false,
@@ -125,11 +131,12 @@ export const textractAnalyzeExpenseTool: ToolConfig<
 
       if (processingMode === 'async') {
         requestBody.s3Uri = params.s3Uri?.trim()
-      } else {
-        if (!params.file || typeof params.file !== 'object') {
-          throw new Error('Document file is required for single-page processing')
-        }
+      } else if (params.file && typeof params.file === 'object') {
         requestBody.file = params.file
+      } else if (params.filePath && params.filePath.trim() !== '') {
+        requestBody.filePath = params.filePath.trim()
+      } else {
+        throw new Error('Document is required for single-page processing')
       }
 
       return requestBody

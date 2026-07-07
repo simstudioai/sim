@@ -75,7 +75,9 @@ export function mapTextractSdkError(
     return new TextractRouteError(`This document format is not supported.${hint}`, 400)
   }
 
-  const status = err.$metadata?.httpStatusCode || 400
+  // No status at all (e.g. a network failure before AWS responded) is a server-side problem, not a
+  // bad request — default to 500 so tool-execution retry logic still treats it as retryable.
+  const status = err.$metadata?.httpStatusCode ?? 500
   return new TextractRouteError(err.message || 'Textract API error', status)
 }
 

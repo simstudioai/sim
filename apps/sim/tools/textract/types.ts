@@ -111,6 +111,7 @@ export interface TextractAnalyzeExpenseV2Input {
   region: string
   processingMode?: TextractProcessingMode
   file?: UserFile
+  filePath?: string
   s3Uri?: string
 }
 
@@ -171,7 +172,9 @@ export interface TextractAnalyzeIdV2Input {
   secretAccessKey: string
   region: string
   file?: UserFile
+  filePath?: string
   fileBack?: UserFile
+  filePathBack?: string
 }
 
 interface TextractIdFieldValue {
