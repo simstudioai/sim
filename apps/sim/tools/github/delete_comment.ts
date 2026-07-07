@@ -53,7 +53,7 @@ export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentRes
       : `Failed to delete comment #${commentId}`
 
     return {
-      success: true,
+      success: deleted,
       output: {
         content,
         metadata: {
@@ -86,10 +86,11 @@ export const deleteCommentV2Tool: ToolConfig<DeleteCommentParams, any> = {
   request: deleteCommentTool.request,
 
   transformResponse: async (response: Response, params) => {
+    const deleted = response.status === 204
     return {
-      success: true,
+      success: deleted,
       output: {
-        deleted: response.status === 204,
+        deleted,
         comment_id: params?.comment_id || 0,
       },
     }

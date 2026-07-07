@@ -52,12 +52,34 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
       `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`,
       {
         headers: {
-          Accept: 'application/vnd.github.v3+json',
+          Accept: 'application/vnd.github+json',
           Authorization: `Bearer ${params?.apiKey}`,
           'X-GitHub-Api-Version': '2022-11-28',
         },
       }
     )
+
+    if (!filesResponse.ok) {
+      const error = await filesResponse.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to fetch PR files (HTTP ${filesResponse.status})`,
+        output: {
+          content: '',
+          metadata: {
+            number: pr.number,
+            title: pr.title,
+            state: pr.state,
+            html_url: pr.html_url,
+            diff_url: pr.diff_url,
+            created_at: pr.created_at,
+            updated_at: pr.updated_at,
+            files: [],
+          },
+        },
+      }
+    }
+
     const filesJson = await filesResponse.json()
     const files = Array.isArray(filesJson) ? filesJson : []
 
@@ -143,12 +165,47 @@ export const prV2Tool: ToolConfig<PROperationParams, any> = {
       `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`,
       {
         headers: {
-          Accept: 'application/vnd.github.v3+json',
+          Accept: 'application/vnd.github+json',
           Authorization: `Bearer ${params?.apiKey}`,
           'X-GitHub-Api-Version': '2022-11-28',
         },
       }
     )
+
+    if (!filesResponse.ok) {
+      const error = await filesResponse.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to fetch PR files (HTTP ${filesResponse.status})`,
+        output: {
+          id: pr.id,
+          number: pr.number,
+          title: pr.title,
+          state: pr.state,
+          html_url: pr.html_url,
+          diff_url: pr.diff_url,
+          body: pr.body ?? null,
+          user: pr.user,
+          head: pr.head,
+          base: pr.base,
+          merged: pr.merged,
+          mergeable: pr.mergeable ?? null,
+          merged_by: pr.merged_by ?? null,
+          comments: pr.comments,
+          review_comments: pr.review_comments,
+          commits: pr.commits,
+          additions: pr.additions,
+          deletions: pr.deletions,
+          changed_files: pr.changed_files,
+          created_at: pr.created_at,
+          updated_at: pr.updated_at,
+          closed_at: pr.closed_at ?? null,
+          merged_at: pr.merged_at ?? null,
+          files: [],
+        },
+      }
+    }
+
     const filesJson = await filesResponse.json()
     const files = Array.isArray(filesJson) ? filesJson : []
 
