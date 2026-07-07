@@ -575,12 +575,18 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // The dependent-value apply map (target workflow -> block id -> subblock -> value). When the
     // caller PROVIDED values it was built pre-tx (plan-independent); apply it and reconcile the
     // store below. When OMITTED the store is the sole source of truth - load the existing values
-    // for the plan's replace targets (one indexed query) and build the map, skipping the reconcile
-    // below so an omitted field never wipes the saved mapping.
+    // for EVERY plan target (one indexed query) and build the map, skipping the reconcile below
+    // so an omitted field never wipes the saved mapping. Create targets load too: a value
+    // pre-configured in the mapping editor for a never-synced workflow (keyed by its
+    // deterministic target id) must apply on the first sync that creates it.
     const overridesByWorkflow =
       providedOverridesByWorkflow ??
       groupDependentOverrides(
-        await loadForkDependentValues(tx, edge.childWorkspaceId, replaceTargetIds)
+        await loadForkDependentValues(
+          tx,
+          edge.childWorkspaceId,
+          plan.items.map((item) => item.targetWorkflowId)
+        )
       )
 
     // New block pairs recorded by the write loop (blocks added since the last sync), using the
@@ -663,16 +669,16 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     )
 
     // Persist / prune the stored dependent mapping. When the caller PROVIDED values, replace
-    // every written replace-target's stored set (cleared/removed fields drop out so the store
-    // equals exactly what was sent) AND prune the archived targets' now-dead rows (their
-    // workflow no longer exists and has no FK to cascade). Scope the inserted values to the
-    // delete's workflows so a value for a workflow skipped this pass (its source state
+    // every written target's stored set (cleared/removed fields drop out so the store equals
+    // exactly what was sent) AND prune the archived targets' now-dead rows (their workflow no
+    // longer exists and has no FK to cascade). Written CREATE targets persist too - they exist
+    // as of this sync, and their sent values (pre-configured in the mapping editor or the
+    // modal) must survive as the stored mapping for future syncs. Scope the inserted values
+    // to the delete's workflows so a value for a workflow skipped this pass (its source state
     // vanished) can't be inserted without first clearing its old row and trip the unique
     // constraint. When OMITTED, the store stays the source of truth (already applied above) -
-    // only prune archived targets, never touch the live replace targets' mapping.
-    const dependentTargetIds = new Set(
-      writtenItems.filter((item) => item.mode === 'replace').map((item) => item.targetWorkflowId)
-    )
+    // only prune archived targets, never touch the live targets' mapping.
+    const dependentTargetIds = new Set(writtenItems.map((item) => item.targetWorkflowId))
     if (dependentValuesProvided) {
       await reconcileForkDependentValues(
         tx,

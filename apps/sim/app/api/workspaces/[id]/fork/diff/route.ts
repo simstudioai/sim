@@ -65,14 +65,17 @@ export const GET = withRouteHandler(
     // them as each field's currentValue so the modal pre-fills what the user actually saved. For
     // an edge that predates the store the fallback is the TARGET's own configured value (loaded
     // from its draft) - never the source's, which would overwrite the target's selection on the
-    // first sync. Both the stored read and the draft read are scoped to the plan's replace
-    // targets, the only workflows with dependents to reconfigure.
+    // first sync. The stored read spans EVERY plan target: a create-mode (never-synced) workflow's
+    // deterministic target id is what the first sync will use, so values pre-configured for it in
+    // the mapping editor pre-fill here too. The draft read stays replace-scoped (creates have no
+    // target draft to fall back to).
     const replaceTargetIds = plan.items
       .filter((item) => item.mode === 'replace')
       .map((item) => item.targetWorkflowId)
+    const allTargetIds = plan.items.map((item) => item.targetWorkflowId)
     const [storedValues, targetDraftByWorkflow, sourceCandidates, sourceWorkflowRows] =
       await Promise.all([
-        loadForkDependentValues(db, auth.edge.childWorkspaceId, replaceTargetIds),
+        loadForkDependentValues(db, auth.edge.childWorkspaceId, allTargetIds),
         loadTargetDraftSubBlocks(db, replaceTargetIds),
         // Source resource labels (per kind) + workflow names, for the cleared-ref list's display.
         listForkResourceCandidates(db, auth.sourceWorkspaceId),
@@ -105,22 +108,35 @@ export const GET = withRouteHandler(
       sourceBlocksByTarget.set(item.targetWorkflowId, byBlock)
     }
 
-    const dependentReconfigs = collectForkDependentReconfigs(
-      plan.items,
-      sourceStates,
-      resolveBlockId
-    ).map((field) => ({
-      ...field,
-      currentValue:
-        storedByKey.get(
-          forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
-        ) ??
-        readTargetDraftDependentValue(
-          targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId),
-          sourceBlocksByTarget.get(field.targetWorkflowId)?.get(field.targetBlockId),
-          field.subBlockKey
-        ),
-    }))
+    // Replace-target fields pre-fill from the store, falling back to the TARGET's own draft
+    // value (never the source's, which would overwrite the target's selection on the first
+    // sync of a pre-store edge). Create-target fields (never-synced workflows) pre-fill from
+    // the store, falling back to the SOURCE value the collector emitted - that's exactly what
+    // the first sync copies verbatim, so the pre-fill is honest and configuring it ahead of
+    // the first sync is possible (the deterministic target ids already exist).
+    const dependentReconfigs = [
+      ...collectForkDependentReconfigs(plan.items, sourceStates, resolveBlockId).map((field) => ({
+        ...field,
+        currentValue:
+          storedByKey.get(
+            forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
+          ) ??
+          readTargetDraftDependentValue(
+            targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId),
+            sourceBlocksByTarget.get(field.targetWorkflowId)?.get(field.targetBlockId),
+            field.subBlockKey
+          ),
+      })),
+      ...collectForkDependentReconfigs(plan.items, sourceStates, resolveBlockId, 'create').map(
+        (field) => ({
+          ...field,
+          currentValue:
+            storedByKey.get(
+              forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
+            ) ?? field.currentValue,
+        })
+      ),
+    ]
 
     // References this sync will blank in the target (per block/field), for the pre-sync cleared-ref
     // list. Labels resolve from the source candidate lists + workflow names loaded above.

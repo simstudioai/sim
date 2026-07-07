@@ -661,10 +661,16 @@ describe('collectForkResourceUsages', () => {
     ])
   })
 
-  it('skips create-mode targets (the source config carries over on first sync)', () => {
+  it('includes create-mode targets (never-synced workflows count toward the next sync)', () => {
     const states = new Map<string, WorkflowState>([['wf-a', credentialState('cred-src')]])
     expect(
       collectForkResourceUsages([usageItem('wf-a', 'wf-tgt-a', 'A', 'create')], states)
-    ).toEqual([])
+    ).toEqual([
+      {
+        parentKind: 'credential',
+        parentSourceId: 'cred-src',
+        workflows: [{ workflowId: 'wf-tgt-a', workflowName: 'A' }],
+      },
+    ])
   })
 })

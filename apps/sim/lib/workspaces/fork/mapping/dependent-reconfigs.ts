@@ -205,7 +205,9 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
  * operation is emitted - including ones the source left empty - so the user can set a
  * value in place during the swap even when the source (or a prior sync) had none; only
  * selectors gated off by their `condition` (a different operation's variant) are skipped.
- * Replace targets only: a freshly created target has nothing configured to swap yet.
+ * Scans one target `mode` per call: `replace` for targets that exist (re-pick against the
+ * swapped parent), `create` for never-synced workflows (pre-configure what the first sync
+ * writes - the diff route emits both).
  *
  * `resolveTargetBlockId` MUST be the same resolver `copyWorkflowStateIntoTarget` uses for
  * this promote (see {@link buildForkBlockIdResolver}); otherwise the modal would key a
@@ -319,8 +321,8 @@ interface ResourceUsageItem {
  * groups them by `(kind, sourceId)`. Unlike {@link collectForkDependentReconfigs} this is
  * NOT anchor-limited: it includes resources with no configurable dependent (env vars, files,
  * a Gmail block with no active label) so the modal can still list - greyed - the workflows
- * they appear in. Replace targets only, mirroring the dependent collector (a freshly created
- * target carries the source config over and has nothing to reconcile yet).
+ * they appear in. Covers EVERY deployed source workflow - replace targets and creates
+ * (never-synced workflows) alike - so the listing accounts for the full next sync.
  */
 export function collectForkResourceUsages(
   items: ResourceUsageItem[],
@@ -328,7 +330,6 @@ export function collectForkResourceUsages(
 ): ForkResourceUsage[] {
   const byResource = new Map<string, ForkResourceUsage>()
   for (const item of items) {
-    if (item.mode !== 'replace') continue
     const state = sourceStates.get(item.sourceWorkflowId)
     if (!state) continue
     // scanWorkflowReferences already dedups by `${kind}:${sourceId}` across the workflow,

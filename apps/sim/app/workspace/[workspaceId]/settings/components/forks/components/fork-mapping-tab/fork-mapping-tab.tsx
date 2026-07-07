@@ -1,7 +1,21 @@
 'use client'
 
 import { type Dispatch, Fragment, type SetStateAction, useMemo, useState } from 'react'
-import { ChevronDown, ChipCombobox, cn, FieldDivider, Label, toast } from '@sim/emcn'
+import {
+  Badge,
+  ChipCombobox,
+  ChipSwitch,
+  CollapsibleCard,
+  FieldDivider,
+  Label,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  toast,
+} from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   ForkDependentReconfig,
@@ -41,8 +55,8 @@ const MAPPING_TARGET_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
 
 /**
  * Stable empty arrays so an entry with no usages/dependents keeps a constant prop
- * reference, letting ResourceReconfigure's grouping memo skip recompute across the
- * editor's frequent re-renders (mirrors the sync modal).
+ * reference, letting the grouping memos skip recompute across the editor's frequent
+ * re-renders (mirrors the sync modal).
  */
 const EMPTY_USAGES: ForkResourceUsage['workflows'] = []
 const EMPTY_DEPENDENTS: ForkDependentReconfig[] = []
@@ -127,7 +141,7 @@ export function useForkMappingEditor(params: {
 
   // Group dependents by their parent (kind:sourceId) once, so each mapping entry gets a
   // STABLE `dependents` array reference - a fresh `.filter` per render would defeat
-  // ResourceReconfigure's grouping memo (mirrors the sync modal).
+  // the per-entry grouping memos (mirrors the sync modal).
   const dependentsByParent = useMemo(() => {
     const map = new Map<string, ForkDependentReconfig[]>()
     for (const dependent of dependentReconfigs) {
@@ -322,8 +336,8 @@ interface WorkflowDependents {
 
 /**
  * Bucket an entry's dependents per workflow, then per block within it - the
- * workflow → block hierarchy the cards render (same grouping the sync modal's
- * reconfigure listing uses).
+ * workflow → block hierarchy every layout renders from (same grouping the sync
+ * modal's reconfigure listing uses).
  */
 function groupDependentsByWorkflow(
   workflows: ForkResourceUsage['workflows'],
@@ -353,9 +367,49 @@ function groupDependentsByWorkflow(
   })
 }
 
-interface WorkflowDependentsRowProps {
-  workflow: WorkflowDependents
-  parentTargetValue: string
+/** Chain state for one block: the SelectorContext values its parent fields provide. */
+function blockChainState(
+  block: DependentBlock,
+  effectiveValue: (field: ForkDependentReconfig) => string
+) {
+  const providedValues: Record<string, string> = {}
+  const providedContextKeys = new Set<string>()
+  for (const field of block.fields) {
+    if (field.providesContextKey) {
+      providedContextKeys.add(field.providesContextKey)
+      const value = effectiveValue(field)
+      if (value) providedValues[field.providesContextKey] = value
+    }
+  }
+  return { providedValues, providedContextKeys }
+}
+
+/** Store a re-pick and invalidate in-block children chained off the changed field. */
+function applyDependentRepick(
+  setReconfig: Dispatch<SetStateAction<Record<string, string>>>,
+  field: ForkDependentReconfig,
+  blockFields: ForkDependentReconfig[],
+  value: string
+) {
+  setReconfig((prev) => {
+    const nextState = { ...prev, [dependentKey(field)]: value }
+    // A changed parent invalidates its children's stale re-picks.
+    const providedKey = field.providesContextKey
+    if (providedKey) {
+      for (const sibling of blockFields) {
+        if (sibling.consumesContextKeys.includes(providedKey)) {
+          delete nextState[dependentKey(sibling)]
+        }
+      }
+    }
+    return nextState
+  })
+}
+
+interface DependentSelectorProps {
+  field: ForkDependentReconfig
+  block: DependentBlock
+  target: string
   parentChanged: boolean
   workspaceId: string
   reconfig: Record<string, string>
@@ -363,127 +417,367 @@ interface WorkflowDependentsRowProps {
 }
 
 /**
- * One workflow's dependent fields as a chevron-expandable row - the same header row
- * the fork picker's `ResourceKindRow` uses (name + rotating chevron, indented body),
- * so it reads as obviously clickable. The body is one labeled `DependentFieldSelector`
- * per block field ("Block · Field"). Starts expanded when a required field is present
- * (required fields are what gate a sync), mirroring the sync modal's auto-open.
- * In-block chaining matches the modal: a field that provides a SelectorContext key
- * feeds its effective value to its in-block descendants, and a re-pick invalidates
- * their stale selections.
+ * One depends-on field's selector with the full modal semantics: pre-filled from the
+ * stored value (blank after a parent change), disabled until the parent target and
+ * every chained in-block parent are set, and a re-pick invalidates chained children.
  */
-function WorkflowDependentsRow({
-  workflow,
-  parentTargetValue,
+function DependentSelector({
+  field,
+  block,
+  target,
   parentChanged,
   workspaceId,
   reconfig,
   setReconfig,
-}: WorkflowDependentsRowProps) {
-  const [expanded, setExpanded] = useState(() =>
-    workflow.blocks.some((block) => block.fields.some((field) => field.required))
+}: DependentSelectorProps) {
+  const effectiveValue = (f: ForkDependentReconfig) =>
+    effectiveDependentValue(f, reconfig, parentChanged)
+  const { providedValues, providedContextKeys } = blockChainState(block, effectiveValue)
+  // Disabled until the parent target is set AND every in-block parent it depends on has
+  // a value, so a child never queries a stale upstream value.
+  const ready = field.consumesContextKeys.every(
+    (key) => !providedContextKeys.has(key) || providedValues[key] !== undefined
   )
+  return (
+    <DependentFieldSelector
+      selectorKey={field.selectorKey as SelectorKey}
+      context={{
+        ...field.context,
+        ...providedValues,
+        // Target workspace, for workspace-scoped selectors like table.columns.
+        workspaceId,
+        [field.parentContextKey]: target,
+      }}
+      enabled={target !== '' && ready}
+      value={effectiveValue(field)}
+      onChange={(value) => applyDependentRepick(setReconfig, field, block.fields, value)}
+      title={field.title}
+    />
+  )
+}
 
-  const effectiveValue = (field: ForkDependentReconfig) =>
-    effectiveDependentValue(field, reconfig, parentChanged)
+interface EntryTargetRowProps {
+  entry: ForkMappingEntry
+  takenOwners: ReadonlyMap<string, string>
+  target: string
+  onTargetChange: (value: string) => void
+}
 
+/** The entry's own row: source label ↔ target picker, shared by every layout variant. */
+function EntryTargetRow({ entry, takenOwners, target, onTargetChange }: EntryTargetRowProps) {
   return (
     <div className='flex flex-col gap-1'>
-      <div className='flex items-center gap-2 text-[var(--text-body)] text-sm'>
-        <button
-          type='button'
-          className='flex min-w-0 flex-1 items-center gap-1 text-left hover:text-[var(--text-primary)]'
-          onClick={() => setExpanded((value) => !value)}
-        >
-          <span className='min-w-0 flex-1 truncate'>{workflow.workflowName}</span>
-          <ChevronDown
-            className={cn(
-              'h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-        </button>
-      </div>
-
-      {expanded ? (
-        <div className='ml-6 flex flex-col gap-2'>
-          {workflow.blocks.map((block) => {
-            // Chain re-picks: a field that provides a SelectorContext key feeds its effective
-            // value to its in-block descendants (a spreadsheet drives the sheet selector).
-            const providedValues: Record<string, string> = {}
-            const providedContextKeys = new Set<string>()
-            for (const field of block.fields) {
-              if (field.providesContextKey) {
-                providedContextKeys.add(field.providesContextKey)
-                const value = effectiveValue(field)
-                if (value) providedValues[field.providesContextKey] = value
+      <div className='flex items-center justify-between gap-4'>
+        <Label className='min-w-0 truncate'>{entry.sourceLabel}</Label>
+        <div className={MAPPING_TARGET_TRIGGER_CLASS}>
+          <ChipCombobox
+            className='w-full'
+            align='start'
+            options={entry.candidates.map((candidate) => {
+              const owner = takenOwners.get(candidate.id)
+              return {
+                label: owner ? `${candidate.label} · mapped to ${owner}` : candidate.label,
+                value: candidate.id,
+                disabled: owner !== undefined,
               }
-            }
-            return (
-              <Fragment key={block.targetBlockId}>
-                {block.fields.map((field) => {
-                  // Disabled until the parent target is set AND every in-block parent it
-                  // depends on has a value, so a child never queries a stale upstream value.
-                  const ready = field.consumesContextKeys.every(
-                    (key) => !providedContextKeys.has(key) || providedValues[key] !== undefined
-                  )
-                  return (
-                    <Fragment key={dependentKey(field)}>
-                      <Label className='text-small'>
-                        {block.blockName} · {field.title}
-                        {field.required ? (
-                          <span className='text-[var(--text-error)]'>*</span>
-                        ) : null}
-                      </Label>
-                      <DependentFieldSelector
-                        selectorKey={field.selectorKey as SelectorKey}
-                        context={{
-                          ...field.context,
-                          ...providedValues,
-                          // Target workspace, for workspace-scoped selectors like table.columns.
-                          workspaceId,
-                          [field.parentContextKey]: parentTargetValue,
-                        }}
-                        enabled={parentTargetValue !== '' && ready}
-                        value={effectiveValue(field)}
-                        onChange={(value) =>
-                          setReconfig((prev) => {
-                            const nextState = { ...prev, [dependentKey(field)]: value }
-                            // A changed parent invalidates its children's stale re-picks.
-                            const providedKey = field.providesContextKey
-                            if (providedKey) {
-                              for (const sibling of block.fields) {
-                                if (sibling.consumesContextKeys.includes(providedKey)) {
-                                  delete nextState[dependentKey(sibling)]
-                                }
-                              }
-                            }
-                            return nextState
-                          })
-                        }
-                        title={field.title}
-                      />
-                    </Fragment>
-                  )
-                })}
-              </Fragment>
-            )
-          })}
+            })}
+            value={target || undefined}
+            onChange={onTargetChange}
+            placeholder='Select target'
+          />
         </div>
+      </div>
+      {entry.candidatesTruncated ? (
+        <p className='text-[var(--text-muted)] text-small'>
+          This workspace has more options than shown here. If you don't see the right one, narrow it
+          down by name.
+        </p>
       ) : null}
     </div>
   )
 }
 
+/** Derived per-entry data every layout variant renders from. */
+interface EntryView {
+  entry: ForkMappingEntry
+  takenOwners: ReadonlyMap<string, string>
+  target: string
+  onTargetChange: (value: string) => void
+  parentChanged: boolean
+  configurable: WorkflowDependents[]
+  usedOnly: WorkflowDependents[]
+}
+
+function buildEntryViews(editor: ForkMappingEditor, group: ForkMappingGroup): EntryView[] {
+  return group.items.map((entry) => {
+    const workflows = groupDependentsByWorkflow(
+      editor.usagesForEntry(entry),
+      editor.dependentsForEntry(entry)
+    )
+    return {
+      entry,
+      takenOwners: editor.takenOwnersFor(entry, group.items),
+      target: editor.targetFor(entry),
+      onTargetChange: (value: string) => editor.setTarget(entry, value),
+      parentChanged: editor.parentChangedFor(entry),
+      configurable: workflows.filter((workflow) => workflow.blocks.length > 0),
+      usedOnly: workflows.filter((workflow) => workflow.blocks.length === 0),
+    }
+  })
+}
+
+/** Muted note naming workflows that use the resource but have nothing to configure. */
+function UsedOnlyNote({ usedOnly }: { usedOnly: WorkflowDependents[] }) {
+  if (usedOnly.length === 0) return null
+  return (
+    <p className='text-[var(--text-tertiary)] text-caption'>
+      Also used in {usedOnly.map((workflow) => workflow.workflowName).join(', ')} — nothing to
+      configure there.
+    </p>
+  )
+}
+
 /**
- * The rows for ONE mapping category (source label ↔ target picker), rendered as a
- * category tab's panel in the fork detail view. Beneath each row sits the always-on
- * "depends on" listing from the sync modal: every workflow the resource is used in,
- * a chevron row (the fork picker's row style) expanding to its blocks' dependent
- * selectors (Gmail label, KB document, sheet tab, ...) so they can be (re)configured
- * at the workflow → block level; workflows with nothing to configure list as a muted
- * caption. Entries are separated by the standard `FieldDivider`. The tab bar,
- * loading/empty states, and Save/Discard header actions are owned by the caller.
+ * LAYOUT MOCK A - "Flat rows" (General-page style): no nesting at all. Each
+ * depends-on field is one aligned row - a muted composite label
+ * ("workflow · block · field") with its selector in the same 240px control column
+ * as the target picker, so the whole tab reads in one two-column rhythm.
+ */
+function FlatRowsVariant({
+  editor,
+  group,
+}: {
+  editor: ForkMappingEditor
+  group: ForkMappingGroup
+}) {
+  const { targetWorkspaceId, reconfig, setReconfig } = editor
+  return (
+    <div className='flex flex-col'>
+      {buildEntryViews(editor, group).map((view, index) => (
+        <Fragment key={forkRefKey(view.entry)}>
+          {index > 0 ? <FieldDivider /> : null}
+          <div className='flex flex-col gap-3'>
+            <EntryTargetRow
+              entry={view.entry}
+              takenOwners={view.takenOwners}
+              target={view.target}
+              onTargetChange={view.onTargetChange}
+            />
+            {view.configurable.map((workflow) =>
+              workflow.blocks.map((block) =>
+                block.fields.map((field) => (
+                  <div
+                    key={dependentKey(field)}
+                    className='flex items-center justify-between gap-4'
+                  >
+                    <span className='min-w-0 truncate text-[var(--text-muted)] text-small'>
+                      {workflow.workflowName} · {block.blockName} · {field.title}
+                      {field.required ? <span className='text-[var(--text-error)]'> *</span> : null}
+                    </span>
+                    <div className={MAPPING_TARGET_TRIGGER_CLASS}>
+                      <DependentSelector
+                        field={field}
+                        block={block}
+                        target={view.target}
+                        parentChanged={view.parentChanged}
+                        workspaceId={targetWorkspaceId}
+                        reconfig={reconfig}
+                        setReconfig={setReconfig}
+                      />
+                    </div>
+                  </div>
+                ))
+              )
+            )}
+            <UsedOnlyNote usedOnly={view.usedOnly} />
+          </div>
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * LAYOUT MOCK B - "Workflow cards" (input-mapping style): under each entry row, one
+ * `CollapsibleCard` per workflow - the same card the table workflow sidebar uses for
+ * input mapping, with a field-count badge. The card's surface header makes the
+ * clickable region unambiguous; the body holds block name labels over full-width
+ * selectors. Cards with a required field start expanded.
+ */
+function WorkflowCardsVariant({
+  editor,
+  group,
+}: {
+  editor: ForkMappingEditor
+  group: ForkMappingGroup
+}) {
+  const { targetWorkspaceId, reconfig, setReconfig } = editor
+  return (
+    <div className='flex flex-col'>
+      {buildEntryViews(editor, group).map((view, index) => (
+        <Fragment key={forkRefKey(view.entry)}>
+          {index > 0 ? <FieldDivider /> : null}
+          <div className='flex flex-col gap-2'>
+            <EntryTargetRow
+              entry={view.entry}
+              takenOwners={view.takenOwners}
+              target={view.target}
+              onTargetChange={view.onTargetChange}
+            />
+            {view.configurable.map((workflow) => (
+              <WorkflowCard
+                key={workflow.workflowId}
+                workflow={workflow}
+                target={view.target}
+                parentChanged={view.parentChanged}
+                workspaceId={targetWorkspaceId}
+                reconfig={reconfig}
+                setReconfig={setReconfig}
+              />
+            ))}
+            <UsedOnlyNote usedOnly={view.usedOnly} />
+          </div>
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
+function WorkflowCard({
+  workflow,
+  target,
+  parentChanged,
+  workspaceId,
+  reconfig,
+  setReconfig,
+}: {
+  workflow: WorkflowDependents
+  target: string
+  parentChanged: boolean
+  workspaceId: string
+  reconfig: Record<string, string>
+  setReconfig: Dispatch<SetStateAction<Record<string, string>>>
+}) {
+  const fieldCount = workflow.blocks.reduce((sum, block) => sum + block.fields.length, 0)
+  const [collapsed, setCollapsed] = useState(
+    () => !workflow.blocks.some((block) => block.fields.some((field) => field.required))
+  )
+  return (
+    <CollapsibleCard
+      title={workflow.workflowName}
+      badge={
+        <Badge variant='type' size='sm'>
+          {fieldCount} field{fieldCount === 1 ? '' : 's'}
+        </Badge>
+      }
+      collapsed={collapsed}
+      onToggleCollapse={() => setCollapsed((value) => !value)}
+    >
+      {workflow.blocks.map((block) => (
+        <Fragment key={block.targetBlockId}>
+          <Label className='text-small'>{block.blockName}</Label>
+          {block.fields.map((field) => (
+            <Fragment key={dependentKey(field)}>
+              <span className='text-[var(--text-tertiary)] text-caption'>
+                {field.title}
+                {field.required ? <span className='text-[var(--text-error)]'> *</span> : null}
+              </span>
+              <DependentSelector
+                field={field}
+                block={block}
+                target={target}
+                parentChanged={parentChanged}
+                workspaceId={workspaceId}
+                reconfig={reconfig}
+                setReconfig={setReconfig}
+              />
+            </Fragment>
+          ))}
+        </Fragment>
+      ))}
+    </CollapsibleCard>
+  )
+}
+
+/**
+ * LAYOUT MOCK C - "Table" (audit-log/API-keys style): under each entry row, an emcn
+ * `Table` of its depends-on fields - Workflow | Block | Field | Value, the selector
+ * living in the Value column. Best scanability when a resource backs many fields.
+ */
+function TableVariant({ editor, group }: { editor: ForkMappingEditor; group: ForkMappingGroup }) {
+  const { targetWorkspaceId, reconfig, setReconfig } = editor
+  return (
+    <div className='flex flex-col'>
+      {buildEntryViews(editor, group).map((view, index) => (
+        <Fragment key={forkRefKey(view.entry)}>
+          {index > 0 ? <FieldDivider /> : null}
+          <div className='flex flex-col gap-2'>
+            <EntryTargetRow
+              entry={view.entry}
+              takenOwners={view.takenOwners}
+              target={view.target}
+              onTargetChange={view.onTargetChange}
+            />
+            {view.configurable.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Workflow</TableHead>
+                    <TableHead>Block</TableHead>
+                    <TableHead>Field</TableHead>
+                    <TableHead>Value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {view.configurable.flatMap((workflow) =>
+                    workflow.blocks.flatMap((block) =>
+                      block.fields.map((field) => (
+                        <TableRow key={dependentKey(field)}>
+                          <TableCell>{workflow.workflowName}</TableCell>
+                          <TableCell>{block.blockName}</TableCell>
+                          <TableCell>
+                            {field.title}
+                            {field.required ? (
+                              <span className='text-[var(--text-error)]'> *</span>
+                            ) : null}
+                          </TableCell>
+                          <TableCell>
+                            <div className={MAPPING_TARGET_TRIGGER_CLASS}>
+                              <DependentSelector
+                                field={field}
+                                block={block}
+                                target={view.target}
+                                parentChanged={view.parentChanged}
+                                workspaceId={targetWorkspaceId}
+                                reconfig={reconfig}
+                                setReconfig={setReconfig}
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )
+                  )}
+                </TableBody>
+              </Table>
+            ) : null}
+            <UsedOnlyNote usedOnly={view.usedOnly} />
+          </div>
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
+type MappingLayoutVariant = 'flat' | 'cards' | 'table'
+
+/**
+ * The rows for ONE mapping category, rendered as a category tab's panel in the fork
+ * detail view.
+ *
+ * TEMPORARY: renders one of three candidate layouts for the depends-on hierarchy,
+ * switchable in-page so they can be compared with real data. Once a layout is chosen
+ * the other variants and the switcher get deleted.
  */
 export function ForkMappingCategoryPanel({
   editor,
@@ -492,79 +786,27 @@ export function ForkMappingCategoryPanel({
   editor: ForkMappingEditor
   group: ForkMappingGroup
 }) {
-  const {
-    targetFor,
-    setTarget,
-    takenOwnersFor,
-    usagesForEntry,
-    dependentsForEntry,
-    parentChangedFor,
-    targetWorkspaceId,
-    reconfig,
-    setReconfig,
-  } = editor
+  const [layoutVariant, setLayoutVariant] = useState<MappingLayoutVariant>('flat')
 
   return (
-    <div className='flex flex-col'>
-      {group.items.map((entry, index) => {
-        const takenOwners = takenOwnersFor(entry, group.items)
-        const workflowDependents = groupDependentsByWorkflow(
-          usagesForEntry(entry),
-          dependentsForEntry(entry)
-        )
-        const configurable = workflowDependents.filter((workflow) => workflow.blocks.length > 0)
-        const usedOnly = workflowDependents.filter((workflow) => workflow.blocks.length === 0)
-        return (
-          <Fragment key={forkRefKey(entry)}>
-            {index > 0 ? <FieldDivider /> : null}
-            <div className='flex flex-col gap-2'>
-              <div className='flex items-center justify-between gap-4'>
-                <Label className='min-w-0 truncate'>{entry.sourceLabel}</Label>
-                <div className={MAPPING_TARGET_TRIGGER_CLASS}>
-                  <ChipCombobox
-                    className='w-full'
-                    align='start'
-                    options={entry.candidates.map((candidate) => {
-                      const owner = takenOwners.get(candidate.id)
-                      return {
-                        label: owner ? `${candidate.label} · mapped to ${owner}` : candidate.label,
-                        value: candidate.id,
-                        disabled: owner !== undefined,
-                      }
-                    })}
-                    value={targetFor(entry) || undefined}
-                    onChange={(value) => setTarget(entry, value)}
-                    placeholder='Select target'
-                  />
-                </div>
-              </div>
-              {entry.candidatesTruncated ? (
-                <p className='text-[var(--text-muted)] text-small'>
-                  This workspace has more options than shown here. If you don't see the right one,
-                  narrow it down by name.
-                </p>
-              ) : null}
-              {configurable.map((workflow) => (
-                <WorkflowDependentsRow
-                  key={workflow.workflowId}
-                  workflow={workflow}
-                  parentTargetValue={targetFor(entry)}
-                  parentChanged={parentChangedFor(entry)}
-                  workspaceId={targetWorkspaceId}
-                  reconfig={reconfig}
-                  setReconfig={setReconfig}
-                />
-              ))}
-              {usedOnly.length > 0 ? (
-                <p className='text-[var(--text-tertiary)] text-caption'>
-                  Also used in {usedOnly.map((workflow) => workflow.workflowName).join(', ')} —
-                  nothing to configure there.
-                </p>
-              ) : null}
-            </div>
-          </Fragment>
-        )
-      })}
+    <div className='flex flex-col gap-4'>
+      <ChipSwitch
+        value={layoutVariant}
+        onChange={setLayoutVariant}
+        aria-label='Mapping layout mock'
+        options={[
+          { value: 'flat', label: 'A · Flat rows' },
+          { value: 'cards', label: 'B · Workflow cards' },
+          { value: 'table', label: 'C · Table' },
+        ]}
+      />
+      {layoutVariant === 'flat' ? (
+        <FlatRowsVariant editor={editor} group={group} />
+      ) : layoutVariant === 'cards' ? (
+        <WorkflowCardsVariant editor={editor} group={group} />
+      ) : (
+        <TableVariant editor={editor} group={group} />
+      )}
     </div>
   )
 }
