@@ -104,21 +104,19 @@ describe('markdown paste', () => {
     ['empty string', ''],
     ['whitespace only', '   \n\n  '],
     ['a bare thematic break (ambiguous — needs another markdown signal)', '---'],
-    ['inline-only italic (single asterisk would false-positive on e.g. *args)', 'an *italic* word'],
-    ['inline-only strikethrough', 'a ~~struck~~ word'],
-    ['inline-only code', 'some `code` here'],
   ])('leaves %s to the default handler', (_label, text) => {
     editor = mount()
     expect(paste(editor, text)).toBe(false)
   })
 
-  // Only structural / unambiguous constructs gate the markdown parse. Inline-only marks that
-  // `looksLikeMarkdown` deliberately omits to avoid false positives — single-asterisk italic
-  // (`*args`), `~~`, single-backtick code — are covered by the Markdown extension's own paste path,
-  // not MarkdownPaste, so they belong to a different test surface.
   it.each([
     ['heading', '# Heading', 'heading'],
     ['bold', 'a **bold** word', 'bold'],
+    ['italic', 'an *italic* word', 'italic'],
+    ['underscore italic', 'an _italic_ word', 'italic'],
+    ['underscore bold', 'a __bold__ word', 'bold'],
+    ['strikethrough', 'a ~~struck~~ word', 'strike'],
+    ['inline code', 'some `code` here', 'code'],
     ['bullet list', '- one\n- two', 'bulletList'],
     ['ordered list', '1. one\n2. two', 'orderedList'],
     ['task list', '- [x] done\n- [ ] todo', 'taskList'],
@@ -130,6 +128,27 @@ describe('markdown paste', () => {
     editor = mount()
     expect(paste(editor, md)).toBe(true)
     expect(JSON.stringify(editor.getJSON())).toContain(`"type":"${nodeType}"`)
+  })
+
+  it.each([
+    ['italic', 'an *italic* word', '<p>an <em>italic</em> word</p>'],
+    ['strikethrough', 'a ~~struck~~ word', '<p>a <del>struck</del> word</p>'],
+    ['inline code', 'some `code` here', '<p>some <code>code</code> here</p>'],
+  ])('defers inline-only %s to a rich HTML sibling (keeps its structure)', (_label, text, html) => {
+    editor = mount()
+    expect(paste(editor, text, html)).toBe(false)
+  })
+
+  it.each([
+    ['space-flanked asterisks', 'area = 5 * width * height'],
+    ['python args and kwargs', 'def foo(*args, **kwargs): pass'],
+    ['snake_case identifiers', 'call user_name and file_path_here'],
+  ])('does not emphasize %s (strict CommonMark)', (_label, text) => {
+    editor = mount()
+    paste(editor, text)
+    const json = JSON.stringify(editor.getJSON())
+    expect(json).not.toContain('"type":"italic"')
+    expect(json).not.toContain('"type":"bold"')
   })
 
   it('parses markdown-shaped plain text even when an HTML sibling is present', () => {
