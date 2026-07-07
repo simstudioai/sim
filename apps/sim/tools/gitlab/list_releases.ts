@@ -1,11 +1,14 @@
-import type { GitLabListIssuesParams, GitLabListIssuesResponse } from '@/tools/gitlab/types'
+import type { GitLabListReleasesParams, GitLabListReleasesResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabListIssuesResponse> = {
-  id: 'gitlab_list_issues',
-  name: 'GitLab List Issues',
-  description: 'List issues in a GitLab project',
+export const gitlabListReleasesTool: ToolConfig<
+  GitLabListReleasesParams,
+  GitLabListReleasesResponse
+> = {
+  id: 'gitlab_list_releases',
+  name: 'GitLab List Releases',
+  description: 'List releases in a GitLab project',
   version: '1.0.0',
 
   params: {
@@ -27,42 +30,11 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
-    state: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by state (opened, closed, all)',
-    },
-    labels: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Comma-separated list of label names',
-    },
-    assigneeId: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by assignee user ID',
-    },
-    milestoneTitle: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by milestone title',
-    },
-    search: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Search issues by title and description',
-    },
     orderBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Order by field (created_at, updated_at, priority, due_date, relative_position, label_priority, milestone_due, popularity, weight)',
+      description: 'Order by field (released_at, created_at)',
     },
     sort: {
       type: 'string',
@@ -89,18 +61,13 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       const encodedId = encodeURIComponent(String(params.projectId).trim())
       const queryParams = new URLSearchParams()
 
-      if (params.state) queryParams.append('state', params.state)
-      if (params.labels) queryParams.append('labels', params.labels)
-      if (params.assigneeId) queryParams.append('assignee_id', String(params.assigneeId))
-      if (params.milestoneTitle) queryParams.append('milestone', params.milestoneTitle)
-      if (params.search) queryParams.append('search', params.search)
       if (params.orderBy) queryParams.append('order_by', params.orderBy)
       if (params.sort) queryParams.append('sort', params.sort)
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
       if (params.page) queryParams.append('page', String(params.page))
 
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/issues${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/releases${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -118,26 +85,26 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       }
     }
 
-    const issues = await response.json()
+    const releases = await response.json()
     const total = response.headers.get('x-total')
 
     return {
       success: true,
       output: {
-        issues,
-        total: total ? Number.parseInt(total, 10) : issues.length,
+        releases: releases ?? [],
+        total: total ? Number.parseInt(total, 10) : (releases?.length ?? 0),
       },
     }
   },
 
   outputs: {
-    issues: {
+    releases: {
       type: 'array',
-      description: 'List of GitLab issues',
+      description: 'List of GitLab releases',
     },
     total: {
       type: 'number',
-      description: 'Total number of issues',
+      description: 'Total number of releases',
     },
   },
 }
