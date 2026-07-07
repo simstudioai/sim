@@ -11,7 +11,7 @@ export const attioCreateCommentTool: ToolConfig<
 > = {
   id: 'attio_create_comment',
   name: 'Attio Create Comment',
-  description: 'Create a comment on a list entry in Attio',
+  description: 'Create a comment on a list entry, record, or reply to a thread in Attio',
   version: '1.0.0',
 
   oauth: {
