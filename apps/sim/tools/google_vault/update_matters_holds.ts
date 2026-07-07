@@ -5,7 +5,8 @@ import type { ToolConfig } from '@/tools/types'
 export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsParams> = {
   id: 'google_vault_update_matters_holds',
   name: 'Vault Update Hold',
-  description: 'Update the name, query, or scope of an existing hold',
+  description:
+    'Replace the name, query, and scope of an existing hold. This is a full-resource update: fetch the current hold first (Vault List Holds) and resupply every field you want to keep — any field left blank is cleared, not left unchanged.',
   version: '1.0.0',
 
   oauth: {
@@ -63,27 +64,28 @@ export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsPar
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Search terms to filter held content (e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus)',
+        'Search terms to filter held content (e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus). Resupply the hold\'s current terms to keep them — this replaces the hold, so leaving it blank clears any existing filter.',
     },
     startTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Start time for date filtering (ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus)',
+        'Start time for date filtering (ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus). Resupply the hold\'s current value to keep it — leaving it blank clears any existing date filter.',
     },
     endTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'End time for date filtering (ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus)',
+        'End time for date filtering (ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus). Resupply the hold\'s current value to keep it — leaving it blank clears any existing date filter.',
     },
     includeSharedDrives: {
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Include files in shared drives (for DRIVE corpus)',
+      description:
+        'Include files in shared drives (for DRIVE corpus). Resupply true if the hold currently includes shared drives — leaving it false/blank clears that setting.',
     },
   },
 
