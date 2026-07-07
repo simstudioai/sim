@@ -1,11 +1,11 @@
-import type { GoogleVaultCreateMattersParams } from '@/tools/google_vault/types'
+import type { GoogleVaultUpdateMatterParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
-  id: 'google_vault_create_matters',
-  name: 'Vault Create Matter',
-  description: 'Create a new matter in Google Vault',
+export const updateMattersTool: ToolConfig<GoogleVaultUpdateMatterParams> = {
+  id: 'google_vault_update_matters',
+  name: 'Vault Update Matter',
+  description: 'Update the name and/or description of a matter',
   version: '1.0.0',
 
   oauth: {
@@ -20,23 +20,29 @@ export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
       visibility: 'hidden',
       description: 'OAuth access token',
     },
+    matterId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The matter ID to update (e.g., "12345678901234567890")',
+    },
     name: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Name for the new matter',
+      description: 'New name for the matter',
     },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Optional description for the matter',
+      description: 'New description for the matter',
     },
   },
 
   request: {
-    url: () => `https://vault.googleapis.com/v1/matters`,
-    method: 'POST',
+    url: (params) => `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}`,
+    method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
@@ -47,13 +53,13 @@ export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      const errorMessage = data.error?.message || 'Failed to create matter'
+      const errorMessage = data.error?.message || 'Failed to update matter'
       throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     return { success: true, output: { matter: data } }
   },
 
   outputs: {
-    matter: { type: 'json', description: 'Created matter object' },
+    matter: { type: 'json', description: 'Updated matter object' },
   },
 }

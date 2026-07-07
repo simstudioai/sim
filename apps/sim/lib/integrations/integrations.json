@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-06",
+  "updatedAt": "2026-07-07",
   "integrations": [
     {
       "type": "onepassword",
@@ -1261,6 +1261,10 @@
           "description": "List recent Athena query execution IDs"
         },
         {
+          "name": "Batch Get Query Executions",
+          "description": "Get the status and details of up to 50 Athena query executions in one call"
+        },
+        {
           "name": "Create Named Query",
           "description": "Create a saved/named query in AWS Athena"
         },
@@ -1271,9 +1275,21 @@
         {
           "name": "List Named Queries",
           "description": "List saved/named query IDs in AWS Athena"
+        },
+        {
+          "name": "Delete Named Query",
+          "description": "Delete a saved/named query in AWS Athena"
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases available in an Athena data catalog"
+        },
+        {
+          "name": "List Table Metadata",
+          "description": "List tables and their column/partition metadata for an Athena database"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -1454,9 +1470,25 @@
         {
           "name": "Delete Webhook",
           "description": "Delete a webhook from Attio"
+        },
+        {
+          "name": "List Attributes",
+          "description": "List the attributes (schema fields) defined on an Attio object or list"
+        },
+        {
+          "name": "Get Attribute",
+          "description": "Get a single attribute (schema field) on an Attio object or list"
+        },
+        {
+          "name": "Create Attribute",
+          "description": "Create a new attribute (schema field) on an Attio object or list"
+        },
+        {
+          "name": "Update Attribute",
+          "description": "Update an attribute (schema field) on an Attio object or list"
         }
       ],
-      "operationCount": 41,
+      "operationCount": 45,
       "triggers": [
         {
           "id": "attio_record_created",
@@ -2071,8 +2103,21 @@
       "bgColor": "linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)",
       "iconName": "TextractIcon",
       "docsUrl": "https://docs.sim.ai/integrations/textract",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Analyze Document (Text, Tables, Forms)",
+          "description": ""
+        },
+        {
+          "name": "Analyze Expense (Invoices & Receipts)",
+          "description": "Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense"
+        },
+        {
+          "name": "Analyze Identity Document",
+          "description": "Extract identity document fields using AWS Textract AnalyzeID"
+        }
+      ],
+      "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2509,7 +2554,7 @@
         },
         {
           "name": "Discover",
-          "description": "AI-powered web discovery that finds and ranks results by intent. Returns up to 1,000 results with optional cleaned page content for RAG and verification."
+          "description": "AI-powered web discovery that finds and ranks results by intent. Returns up to 20 results with optional cleaned page content for RAG and verification."
         },
         {
           "name": "Sync Scrape",
@@ -3211,7 +3256,7 @@
       "slug": "cloudformation",
       "name": "CloudFormation",
       "description": "Manage and inspect AWS CloudFormation stacks, resources, and drift",
-      "longDescription": "Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.",
+      "longDescription": "Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
       "iconName": "CloudFormationIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudformation",
@@ -3219,6 +3264,34 @@
         {
           "name": "Describe Stacks",
           "description": "List and describe CloudFormation stacks"
+        },
+        {
+          "name": "Create Stack",
+          "description": "Create a new CloudFormation stack from a template"
+        },
+        {
+          "name": "Update Stack",
+          "description": "Update an existing CloudFormation stack with a new or previous template"
+        },
+        {
+          "name": "Delete Stack",
+          "description": "Delete a CloudFormation stack and its resources"
+        },
+        {
+          "name": "Cancel Update Stack",
+          "description": "Cancel an in-progress stack update and roll back to the last known stable state"
+        },
+        {
+          "name": "Create Change Set",
+          "description": "Preview the changes a stack create or update would make before applying them"
+        },
+        {
+          "name": "Describe Change Set",
+          "description": "View the resource changes a change set would make and its execution status"
+        },
+        {
+          "name": "Execute Change Set",
+          "description": "Apply a previously created and reviewed change set to its stack"
         },
         {
           "name": "List Stack Resources",
@@ -3241,11 +3314,15 @@
           "description": "Retrieve the template body for a CloudFormation stack"
         },
         {
+          "name": "Get Template Summary",
+          "description": "Get a summary of a template or deployed stack: resource types, required capabilities, and parameters, without full validation"
+        },
+        {
           "name": "Validate Template",
           "description": "Validate a CloudFormation template for syntax and structural correctness"
         }
       ],
-      "operationCount": 7,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -3268,6 +3345,10 @@
           "description": "Run a CloudWatch Log Insights query against one or more log groups"
         },
         {
+          "name": "Filter Log Events",
+          "description": "Search log events across all streams in a log group by filter pattern and time range, without writing a Log Insights query"
+        },
+        {
           "name": "Describe Log Groups",
           "description": "List available CloudWatch log groups"
         },
@@ -3278,6 +3359,10 @@
         {
           "name": "Describe Log Streams",
           "description": "List log streams within a CloudWatch log group"
+        },
+        {
+          "name": "Set Log Group Retention",
+          "description": "Set (or clear, for never-expire) the retention period for a CloudWatch log group"
         },
         {
           "name": "List Metrics",
@@ -3296,6 +3381,10 @@
           "description": "List and filter CloudWatch alarms"
         },
         {
+          "name": "Describe Alarm History",
+          "description": "Retrieve state-change and configuration history for CloudWatch alarms"
+        },
+        {
           "name": "Mute Alarm",
           "description": "Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration"
         },
@@ -3304,7 +3393,7 @@
           "description": "Delete a CloudWatch alarm mute rule, restoring alarm notifications"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -3331,12 +3420,20 @@
           "description": "Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens"
         },
         {
+          "name": "Get Pipeline Structure",
+          "description": "Get the structure of a CodePipeline pipeline, including its stages, actions, and variables"
+        },
+        {
           "name": "List Pipelines",
           "description": "List all CodePipeline pipelines in an AWS account and region"
         },
         {
           "name": "List Executions",
           "description": "List recent executions of a CodePipeline pipeline with status and source revisions"
+        },
+        {
+          "name": "List Action Executions",
+          "description": "List action-level execution history for a CodePipeline pipeline, including per-action status, timing, and error details"
         },
         {
           "name": "Get Execution",
@@ -3353,9 +3450,17 @@
         {
           "name": "Approve / Reject Approval",
           "description": "Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action"
+        },
+        {
+          "name": "Disable Stage Transition",
+          "description": "Prevent artifacts from transitioning into or out of a CodePipeline stage, freezing the pipeline at that point"
+        },
+        {
+          "name": "Enable Stage Transition",
+          "description": "Re-enable artifacts transitioning into or out of a CodePipeline stage after it was disabled"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4368,6 +4473,10 @@
           "description": "Delete a message from a Discord channel"
         },
         {
+          "name": "Bulk Delete Messages",
+          "description": "Delete 2-100 messages from a Discord channel in a single request"
+        },
+        {
           "name": "Add Reaction",
           "description": "Add a reaction emoji to a Discord message"
         },
@@ -4382,6 +4491,10 @@
         {
           "name": "Unpin Message",
           "description": "Unpin a message in a Discord channel"
+        },
+        {
+          "name": "Get Pinned Messages",
+          "description": "Retrieve all pinned messages in a Discord channel"
         },
         {
           "name": "Create Thread",
@@ -4416,6 +4529,10 @@
           "description": "Get information about a Discord channel"
         },
         {
+          "name": "List Channels",
+          "description": "List all channels in a Discord server"
+        },
+        {
           "name": "Create Role",
           "description": "Create a new role in a Discord server"
         },
@@ -4434,6 +4551,10 @@
         {
           "name": "Remove Role",
           "description": "Remove a role from a member in a Discord server"
+        },
+        {
+          "name": "List Roles",
+          "description": "List all roles in a Discord server"
         },
         {
           "name": "Kick Member",
@@ -4484,7 +4605,7 @@
           "description": "Delete a Discord webhook"
         }
       ],
-      "operationCount": 35,
+      "operationCount": 39,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4670,11 +4791,23 @@
           "description": "Create a shareable link for a file or folder in Dropbox"
         },
         {
+          "name": "List Shared Links",
+          "description": "List shared links for a path, or for the entire account if no path is given"
+        },
+        {
           "name": "Search Files",
           "description": "Search for files and folders in Dropbox"
+        },
+        {
+          "name": "List Revisions",
+          "description": "List the revision history for a file in Dropbox (files only, not folders)"
+        },
+        {
+          "name": "Restore File",
+          "description": "Restore a specific revision of a file to the given path"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -4798,9 +4931,25 @@
         {
           "name": "Get QR Code",
           "description": "Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin."
+        },
+        {
+          "name": "List Domains",
+          "description": "Retrieve the custom domains registered in the workspace, so links can be created against the right domain."
+        },
+        {
+          "name": "List Tags",
+          "description": "Retrieve the tags defined in the workspace, so the right tag IDs can be assigned to links."
+        },
+        {
+          "name": "Create Tag",
+          "description": "Create a new tag in the workspace for organizing and filtering short links."
+        },
+        {
+          "name": "List Folders",
+          "description": "Retrieve the folders defined in the workspace, so the right folder ID can be used to organize links."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 17,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5706,6 +5855,10 @@
           "description": "Request reviewers for a pull request"
         },
         {
+          "name": "Create PR review",
+          "description": "Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A body is required for REQUEST_CHANGES and COMMENT reviews."
+        },
+        {
           "name": "Get file content",
           "description": "Get the content of a file from a GitHub repository. Supports files up to 1MB. Content is returned decoded and human-readable."
         },
@@ -5724,6 +5877,14 @@
         {
           "name": "Get directory tree",
           "description": "Get the contents of a directory in a GitHub repository. Returns a list of files and subdirectories. Use empty path or omit to get root directory contents."
+        },
+        {
+          "name": "Get README",
+          "description": "Get the preferred README for a GitHub repository, with its content decoded to plain text."
+        },
+        {
+          "name": "List tags",
+          "description": "List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs."
         },
         {
           "name": "List branches",
@@ -5796,6 +5957,10 @@
         {
           "name": "Get release",
           "description": "Get detailed information about a specific GitHub release by ID. Returns release metadata including assets and download URLs."
+        },
+        {
+          "name": "Get latest release",
+          "description": "Get the latest published, non-draft, non-prerelease release for a GitHub repository. Returns release metadata including assets and download URLs."
         },
         {
           "name": "Delete release",
@@ -5974,7 +6139,7 @@
           "description": "List users who have starred a repository"
         }
       ],
-      "operationCount": 83,
+      "operationCount": 87,
       "triggers": [
         {
           "id": "github_issue_opened",
@@ -6153,6 +6318,14 @@
           "description": "Create a new branch in a GitLab project repository"
         },
         {
+          "name": "Delete Branch",
+          "description": "Delete a branch from a GitLab project repository"
+        },
+        {
+          "name": "Compare Branches",
+          "description": "Compare two branches, tags, or commits in a GitLab project repository"
+        },
+        {
           "name": "Get MR Changes",
           "description": "Get the file changes (diffs) of a GitLab merge request"
         },
@@ -6171,9 +6344,17 @@
         {
           "name": "Play Job",
           "description": "Trigger (play) a manual GitLab job"
+        },
+        {
+          "name": "List Releases",
+          "description": "List releases in a GitLab project"
+        },
+        {
+          "name": "Create Release",
+          "description": "Create a new release in a GitLab project"
         }
       ],
-      "operationCount": 31,
+      "operationCount": 35,
       "triggers": [
         {
           "id": "gitlab_push",
@@ -6514,8 +6695,20 @@
           "description": "Run a SQL query against Google BigQuery and return the results"
         },
         {
+          "name": "Get Query Results",
+          "description": "Fetch results for a previously submitted BigQuery job, or the next page of a Run Query result"
+        },
+        {
           "name": "List Datasets",
           "description": "List all datasets in a Google BigQuery project"
+        },
+        {
+          "name": "Create Dataset",
+          "description": "Create a new dataset in a Google BigQuery project"
+        },
+        {
+          "name": "Delete Dataset",
+          "description": "Delete a dataset from a Google BigQuery project"
         },
         {
           "name": "List Tables",
@@ -6526,11 +6719,23 @@
           "description": "Get metadata and schema for a Google BigQuery table"
         },
         {
+          "name": "Create Table",
+          "description": "Create a new table in a Google BigQuery dataset"
+        },
+        {
+          "name": "Delete Table",
+          "description": "Delete a table from a Google BigQuery dataset"
+        },
+        {
+          "name": "List Table Data",
+          "description": "Preview rows from a Google BigQuery table without running a query. Pair with Get Table to know the column order."
+        },
+        {
           "name": "Insert Rows",
           "description": "Insert rows into a Google BigQuery table using streaming insert"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -6625,8 +6830,20 @@
           "description": "Create a new secondary calendar"
         },
         {
+          "name": "Update Calendar",
+          "description": "Update a secondary calendar's metadata (title, description, location, time zone)"
+        },
+        {
+          "name": "Delete Calendar",
+          "description": "Permanently delete a secondary calendar (not the primary calendar)"
+        },
+        {
           "name": "Share Calendar",
           "description": "Grant a user, group, or domain access to a calendar by creating an ACL rule"
+        },
+        {
+          "name": "Update Sharing",
+          "description": "Change the access role granted by an existing calendar sharing (ACL) rule"
         },
         {
           "name": "List Sharing",
@@ -6637,7 +6854,7 @@
           "description": "Revoke an access control rule (sharing) from a calendar"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "google_calendar_poller",
@@ -7075,6 +7292,10 @@
           "description": "Search for places using a text query"
         },
         {
+          "name": "Nearby Places",
+          "description": "Search for places of a given type within a radius of a location"
+        },
+        {
           "name": "Place Details",
           "description": "Get detailed information about a specific place"
         },
@@ -7115,7 +7336,7 @@
           "description": "Get solar potential and panel insights for the building nearest a location"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -7588,11 +7809,11 @@
       "type": "google_vault",
       "slug": "google-vault",
       "name": "Google Vault",
-      "description": "Search, export, and manage holds/exports for Vault matters",
-      "longDescription": "Connect Google Vault to create exports, list exports, and manage holds within matters.",
+      "description": "Search, export, and manage matters, holds, exports, and saved queries in Vault",
+      "longDescription": "Connect Google Vault to manage the full matter lifecycle, create and manage holds and exports, and save reusable search queries for eDiscovery and compliance.",
       "bgColor": "#E8F0FE",
       "iconName": "GoogleVaultIcon",
-      "docsUrl": "https://developers.google.com/vault",
+      "docsUrl": "https://docs.sim.ai/integrations/google_vault",
       "operations": [
         {
           "name": "Create Export",
@@ -7601,6 +7822,10 @@
         {
           "name": "List Exports",
           "description": "List exports for a matter"
+        },
+        {
+          "name": "Delete Export",
+          "description": "Delete an export from a matter"
         },
         {
           "name": "Download Export File",
@@ -7615,15 +7840,71 @@
           "description": "List holds for a matter"
         },
         {
+          "name": "Update Hold",
+          "description": "Replace the name, query, and scope of an existing hold. This is a full-resource update: fetch the current hold first (Vault List Holds) and resupply every field you want to keep — any field left blank is cleared, not left unchanged."
+        },
+        {
+          "name": "Delete Hold",
+          "description": "Delete a hold and release its covered accounts"
+        },
+        {
+          "name": "Add Held Accounts",
+          "description": "Add accounts to an existing hold"
+        },
+        {
+          "name": "Remove Held Accounts",
+          "description": "Remove accounts from an existing hold"
+        },
+        {
           "name": "Create Matter",
           "description": "Create a new matter in Google Vault"
         },
         {
           "name": "List Matters",
           "description": "List matters, or get a specific matter if matterId is provided"
+        },
+        {
+          "name": "Update Matter",
+          "description": "Update the name and/or description of a matter"
+        },
+        {
+          "name": "Close Matter",
+          "description": "Close a matter"
+        },
+        {
+          "name": "Reopen Matter",
+          "description": "Reopen a closed matter"
+        },
+        {
+          "name": "Delete Matter",
+          "description": "Permanently delete a matter (must be closed first)"
+        },
+        {
+          "name": "Undelete Matter",
+          "description": "Restore a deleted matter"
+        },
+        {
+          "name": "Add Matter Collaborator",
+          "description": "Add a collaborator (or transfer ownership) to a matter"
+        },
+        {
+          "name": "Remove Matter Collaborator",
+          "description": "Remove a collaborator from a matter"
+        },
+        {
+          "name": "Create Saved Query",
+          "description": "Save a reusable search query in a matter"
+        },
+        {
+          "name": "List Saved Queries",
+          "description": "List saved queries in a matter, or get a specific one if savedQueryId is provided"
+        },
+        {
+          "name": "Delete Saved Query",
+          "description": "Delete a saved query from a matter"
         }
       ],
-      "operationCount": 7,
+      "operationCount": 22,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -8654,7 +8935,7 @@
       "slug": "instantly",
       "name": "Instantly",
       "description": "Manage Instantly leads, campaigns, emails, and lead lists",
-      "longDescription": "Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.",
+      "longDescription": "Integrate Instantly API V2 into workflows. Create, update, and list leads, manage lead interest status, delete leads in bulk, list, create, patch, activate, pause, and delete campaigns, reply to emails, and manage lead lists.",
       "bgColor": "#FFFFFF",
       "iconName": "InstantlyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/instantly",
@@ -8670,6 +8951,10 @@
         {
           "name": "Create Lead",
           "description": "Creates an Instantly V2 lead in a campaign or lead list."
+        },
+        {
+          "name": "Patch Lead",
+          "description": "Updates fields on an existing Instantly V2 lead."
         },
         {
           "name": "Delete Leads",
@@ -8696,6 +8981,14 @@
           "description": "Activates, starts, or resumes an Instantly V2 campaign."
         },
         {
+          "name": "Pause Campaign",
+          "description": "Pauses a running Instantly V2 campaign, stopping further email sends."
+        },
+        {
+          "name": "Delete Campaign",
+          "description": "Permanently deletes an Instantly V2 campaign."
+        },
+        {
           "name": "List Emails",
           "description": "Retrieves Instantly V2 Unibox emails with search and pagination filters."
         },
@@ -8712,7 +9005,7 @@
           "description": "Creates an Instantly V2 lead list."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 16,
       "triggers": [
         {
           "id": "instantly_webhook",
@@ -11088,7 +11381,7 @@
       "slug": "microsoft-dataverse",
       "name": "Microsoft Dataverse",
       "description": "Manage records in Microsoft Dataverse tables",
-      "longDescription": "Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, and relevance search. Works with Dynamics 365, Power Platform, and custom Dataverse environments.",
+      "longDescription": "Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftDataverseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_dataverse",
@@ -11147,7 +11440,7 @@
         },
         {
           "name": "Download File",
-          "description": "Download a file from a file or image column on a Dataverse record. Returns the file content as a base64-encoded string along with file metadata from response headers."
+          "description": "Download a file from a file or image column on a Dataverse record. Stores the file in execution storage and returns a file reference, plus the base64 content and metadata directly."
         },
         {
           "name": "Associate Records",
@@ -11158,11 +11451,15 @@
           "description": "Remove an association between two records in Microsoft Dataverse. For collection-valued navigation properties, provide the target record ID. For single-valued navigation properties, only the navigation property name is needed."
         },
         {
+          "name": "Get Table Metadata",
+          "description": "Retrieve table (entity) and column (attribute) definitions for a Microsoft Dataverse table by its singular logical name. Use this to look up the correct entity set name and column logical names before building record data for other operations."
+        },
+        {
           "name": "WhoAmI",
           "description": "Retrieve the current authenticated user information from Microsoft Dataverse. Useful for testing connectivity and getting the user ID, business unit ID, and organization ID."
         }
       ],
-      "operationCount": 17,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -11254,6 +11551,26 @@
           "description": "Get details of a specific Microsoft Planner plan"
         },
         {
+          "name": "Create Plan",
+          "description": "Create a new Microsoft Planner plan owned by a Microsoft 365 group"
+        },
+        {
+          "name": "Update Plan",
+          "description": "Rename a Microsoft Planner plan"
+        },
+        {
+          "name": "Get Plan Details",
+          "description": "Get detailed information about a plan including category descriptions and sharing"
+        },
+        {
+          "name": "Update Plan Details",
+          "description": "Update a plan's category (color label) descriptions and shared-with user list in Microsoft Planner"
+        },
+        {
+          "name": "Delete Plan",
+          "description": "Delete a Microsoft Planner plan"
+        },
+        {
           "name": "List Buckets",
           "description": "List all buckets in a Microsoft Planner plan"
         },
@@ -11282,7 +11599,7 @@
           "description": "Update task details including description, checklist items, and references in Microsoft Planner"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -11296,7 +11613,7 @@
       "slug": "microsoft-teams",
       "name": "Microsoft Teams",
       "description": "Manage messages, reactions, and members in Teams",
-      "longDescription": "Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
+      "longDescription": "Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftTeamsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_teams",
@@ -11356,9 +11673,25 @@
         {
           "name": "List Channel Members",
           "description": "List all members of a Microsoft Teams channel"
+        },
+        {
+          "name": "List Chat Members",
+          "description": "List all members of a Microsoft Teams chat"
+        },
+        {
+          "name": "List Teams",
+          "description": "List the Microsoft Teams the current user is a direct member of"
+        },
+        {
+          "name": "List Chats",
+          "description": "List the Microsoft Teams chats the current user is part of"
+        },
+        {
+          "name": "List Channels",
+          "description": "List all channels in a Microsoft Teams team"
         }
       ],
-      "operationCount": 14,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "microsoftteams_webhook",
@@ -11990,8 +12323,8 @@
       "type": "onedrive",
       "slug": "onedrive",
       "name": "OneDrive",
-      "description": "Create, upload, download, list, and delete files",
-      "longDescription": "Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.",
+      "description": "Create, upload, download, search, move, copy, share, and delete files",
+      "longDescription": "Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list and search files, move or rename files, copy files, create sharing links, and delete files or folders.",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftOneDriveIcon",
       "docsUrl": "https://docs.sim.ai/integrations/onedrive",
@@ -12017,11 +12350,35 @@
           "description": "List files and folders in OneDrive"
         },
         {
+          "name": "Search Files",
+          "description": "Search for files and folders across OneDrive by name, metadata, or content (recursive)"
+        },
+        {
+          "name": "Get Item Info",
+          "description": "Get metadata for a specific OneDrive file or folder by ID, or the drive root"
+        },
+        {
+          "name": "Get Drive Info",
+          "description": "Get information about the OneDrive drive, including storage quota"
+        },
+        {
+          "name": "Move/Rename File",
+          "description": "Move a file or folder to a new parent folder, rename it, or both"
+        },
+        {
+          "name": "Copy File",
+          "description": "Copy a file or folder to another location within OneDrive"
+        },
+        {
+          "name": "Create Sharing Link",
+          "description": "Create a view or edit sharing link for a OneDrive file or folder"
+        },
+        {
           "name": "Delete File",
           "description": "Delete a file or folder from OneDrive"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -12129,7 +12486,7 @@
       "slug": "pagerduty",
       "name": "PagerDuty",
       "description": "Manage incidents and on-call schedules with PagerDuty",
-      "longDescription": "Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.",
+      "longDescription": "Integrate PagerDuty into your workflow to list, get, create, update, snooze, and merge incidents, add notes and list alerts, look up services and escalation policies, check on-call schedules, list users, and send monitoring events through the Events API v2.",
       "bgColor": "#06AC38",
       "iconName": "PagerDutyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pagerduty",
@@ -12137,6 +12494,10 @@
         {
           "name": "List Incidents",
           "description": "List incidents from PagerDuty with optional filters."
+        },
+        {
+          "name": "Get Incident",
+          "description": "Get a single incident from PagerDuty by ID."
         },
         {
           "name": "Create Incident",
@@ -12147,19 +12508,51 @@
           "description": "Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.)."
         },
         {
+          "name": "Snooze Incident",
+          "description": "Snooze a triggered PagerDuty incident for a number of seconds, after which it returns to triggered."
+        },
+        {
+          "name": "Merge Incidents",
+          "description": "Merge one or more source incidents into a target incident. Source incidents are resolved and their alerts move to the target."
+        },
+        {
           "name": "Add Note",
           "description": "Add a note to an existing PagerDuty incident."
+        },
+        {
+          "name": "List Incident Alerts",
+          "description": "List the individual alerts attached to a PagerDuty incident."
         },
         {
           "name": "List Services",
           "description": "List services from PagerDuty with optional name filter."
         },
         {
+          "name": "Get Service",
+          "description": "Get a single service from PagerDuty by ID."
+        },
+        {
           "name": "List On-Calls",
           "description": "List current on-call entries from PagerDuty."
+        },
+        {
+          "name": "List Escalation Policies",
+          "description": "List escalation policies from PagerDuty with an optional name filter."
+        },
+        {
+          "name": "List Schedules",
+          "description": "List on-call schedules from PagerDuty with an optional name filter."
+        },
+        {
+          "name": "List Users",
+          "description": "List users from PagerDuty with an optional name/email filter."
+        },
+        {
+          "name": "Send Event",
+          "description": "Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a service integration key. Used to page from monitoring/alerting sources without a PagerDuty user account."
         }
       ],
-      "operationCount": 6,
+      "operationCount": 15,
       "triggers": [
         {
           "id": "pagerduty_incident_triggered",
@@ -12775,15 +13168,19 @@
         },
         {
           "name": "List Insights",
-          "description": "List all insights in a PostHog project. Returns insight configurations, filters, and metadata."
+          "description": "List all insights in a PostHog project. Returns insight configurations and metadata."
         },
         {
           "name": "Get Insight",
-          "description": "Get a specific insight by ID from PostHog. Returns detailed insight configuration, filters, and metadata."
+          "description": "Get a specific insight by ID from PostHog. Returns detailed insight configuration and metadata."
         },
         {
           "name": "Create Insight",
-          "description": "Create a new insight in PostHog. Requires insight name and configuration filters or query."
+          "description": "Create a new insight in PostHog. Requires insight name and a query configuration."
+        },
+        {
+          "name": "Update Insight",
+          "description": "Update an existing insight in PostHog. Can modify name, description, query, dashboards, tags, and favorited status."
         },
         {
           "name": "List Dashboards",
@@ -12792,6 +13189,10 @@
         {
           "name": "Get Dashboard",
           "description": "Get a specific dashboard by ID from PostHog. Returns detailed dashboard configuration, tiles, and metadata."
+        },
+        {
+          "name": "Create Dashboard",
+          "description": "Create a new dashboard in PostHog. Optionally seed it from a built-in template, then attach insights to it afterward."
         },
         {
           "name": "List Actions",
@@ -12808,6 +13209,10 @@
         {
           "name": "Create Cohort",
           "description": "Create a new cohort in PostHog. Requires cohort name and filter or query configuration."
+        },
+        {
+          "name": "Update Cohort",
+          "description": "Update an existing cohort in PostHog. Can modify name, description, filters, query, static membership, and deleted status."
         },
         {
           "name": "List Annotations",
@@ -12854,6 +13259,10 @@
           "description": "Create a new experiment in PostHog"
         },
         {
+          "name": "Update Experiment",
+          "description": "Update an existing experiment in PostHog. Use this to change dates, archive an experiment, or adjust its parameters and filters."
+        },
+        {
           "name": "List Surveys",
           "description": "List all surveys in a PostHog project. Surveys allow you to collect feedback from users."
         },
@@ -12868,6 +13277,10 @@
         {
           "name": "Update Survey",
           "description": "Update an existing survey in PostHog. Can modify questions, appearance, conditions, and other settings."
+        },
+        {
+          "name": "Delete Survey",
+          "description": "Delete a survey from PostHog. Use this to remove expired or unused surveys."
         },
         {
           "name": "List Session Recordings",
@@ -12922,7 +13335,7 @@
           "description": "Get detailed information about a specific organization by ID. Returns comprehensive organization settings, features, usage, and team information."
         }
       ],
-      "operationCount": 43,
+      "operationCount": 48,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -18200,7 +18613,7 @@
       "slug": "tinybird",
       "name": "Tinybird",
       "description": "Send events, query data, and manage Data Sources with Tinybird",
-      "longDescription": "Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.",
+      "longDescription": "Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, manage Data Sources by appending from a URL, truncating, or deleting rows by condition, and poll the status of asynchronous jobs.",
       "bgColor": "#2EF598",
       "iconName": "TinybirdIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tinybird",
@@ -18228,9 +18641,13 @@
         {
           "name": "Delete Data Source Rows",
           "description": "Delete rows from a Tinybird Data Source matching a SQL condition."
+        },
+        {
+          "name": "Get Job Status",
+          "description": "Check the status of an asynchronous Tinybird job (import, delete, etc.) by ID."
         }
       ],
-      "operationCount": 6,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

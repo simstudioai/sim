@@ -1,11 +1,12 @@
-import type { GoogleVaultCreateMattersHoldsParams } from '@/tools/google_vault/types'
+import type { GoogleVaultUpdateMattersHoldsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsParams> = {
-  id: 'google_vault_create_matters_holds',
-  name: 'Vault Create Hold',
-  description: 'Create a hold in a matter',
+export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsParams> = {
+  id: 'google_vault_update_matters_holds',
+  name: 'Vault Update Hold',
+  description:
+    'Replace the name, query, and scope of an existing hold. This is a full-resource update: fetch the current hold first (Vault List Holds) and resupply every field you want to keep — any field left blank is cleared, not left unchanged.',
   version: '1.0.0',
 
   oauth: {
@@ -26,6 +27,12 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       visibility: 'user-or-llm',
       description: 'The matter ID (e.g., "12345678901234567890")',
     },
+    holdId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The hold ID to update (e.g., "holdId123456")',
+    },
     holdName: {
       type: 'string',
       required: true,
@@ -36,54 +43,56 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Data corpus to hold (MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE)',
+      description: 'Data corpus of the hold (MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE)',
     },
     accountEmails: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of user emails to put on hold (e.g., "user1@example.com, user2@example.com")',
+        'Comma-separated list of user emails covered by the hold (e.g., "user1@example.com, user2@example.com")',
     },
     orgUnitId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Organization unit ID to put on hold (e.g., "id:03ph8a2z1enx5q0", alternative to accounts)',
+        'Organization unit ID covered by the hold (e.g., "id:03ph8a2z1enx5q0", alternative to accounts)',
     },
     terms: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Search terms to filter held content (e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus)',
+        'Search terms to filter held content (e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus). Resupply the hold\'s current terms to keep them — this replaces the hold, so leaving it blank clears any existing filter.',
     },
     startTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Start time for date filtering (ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus)',
+        'Start time for date filtering (ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus). Resupply the hold\'s current value to keep it — leaving it blank clears any existing date filter.',
     },
     endTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'End time for date filtering (ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus)',
+        'End time for date filtering (ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus). Resupply the hold\'s current value to keep it — leaving it blank clears any existing date filter.',
     },
     includeSharedDrives: {
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Include files in shared drives (for DRIVE corpus)',
+      description:
+        'Include files in shared drives (for DRIVE corpus). Resupply true if the hold currently includes shared drives — leaving it false/blank clears that setting.',
     },
   },
 
   request: {
-    url: (params) => `https://vault.googleapis.com/v1/matters/${params.matterId}/holds`,
-    method: 'POST',
+    url: (params) =>
+      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/holds/${params.holdId.trim()}`,
+    method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
@@ -110,6 +119,12 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
         body.accounts = emails.map((email: string) => ({ email }))
       } else if (params.orgUnitId) {
         body.orgUnit = { orgUnitId: params.orgUnitId }
+      } else {
+        throw new Error(
+          'Updating a hold replaces its full scope: re-provide the current Account Emails or Org Unit ID ' +
+            '(they are not preserved automatically). To add or remove individual custodians without ' +
+            'resending the full scope, use Add Held Accounts / Remove Held Accounts instead.'
+        )
       }
 
       if (params.corpus === 'MAIL' || params.corpus === 'GROUPS') {
@@ -137,13 +152,13 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      const errorMessage = data.error?.message || 'Failed to create hold'
+      const errorMessage = data.error?.message || 'Failed to update hold'
       throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     return { success: true, output: { hold: data } }
   },
 
   outputs: {
-    hold: { type: 'json', description: 'Created hold object' },
+    hold: { type: 'json', description: 'Updated hold object' },
   },
 }

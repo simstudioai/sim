@@ -1,11 +1,11 @@
-import type { GoogleVaultCreateMattersExportParams } from '@/tools/google_vault/types'
+import type { GoogleVaultCreateSavedQueryParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportParams> = {
-  id: 'google_vault_create_matters_export',
-  name: 'Vault Create Export',
-  description: 'Create an export in a matter',
+export const createSavedQueryTool: ToolConfig<GoogleVaultCreateSavedQueryParams> = {
+  id: 'google_vault_create_saved_query',
+  name: 'Vault Create Saved Query',
+  description: 'Save a reusable search query in a matter',
   version: '1.0.0',
 
   oauth: {
@@ -26,31 +26,31 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
       visibility: 'user-or-llm',
       description: 'The matter ID (e.g., "12345678901234567890")',
     },
-    exportName: {
+    displayName: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Name for the export (avoid special characters)',
+      description: 'Name for the saved query',
     },
     corpus: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Data corpus to export (MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE)',
+      description: 'Data corpus to search (MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE)',
     },
     accountEmails: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of user emails to scope export (e.g., "user1@example.com, user2@example.com")',
+        'Comma-separated list of user emails to scope the query (e.g., "user1@example.com, user2@example.com")',
     },
     orgUnitId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Organization unit ID to scope export (e.g., "id:03ph8a2z1enx5q0", alternative to emails)',
+        'Organization unit ID to scope the query (e.g., "id:03ph8a2z1enx5q0", alternative to emails)',
     },
     startTime: {
       type: 'string',
@@ -68,13 +68,13 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Search query terms to filter exported content (e.g., "from:sender@example.com subject:invoice")',
+      description: 'Search query terms (e.g., "from:sender@example.com subject:invoice")',
     },
   },
 
   request: {
-    url: (params) => `https://vault.googleapis.com/v1/matters/${params.matterId}/exports`,
+    url: (params) =>
+      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/savedQueries`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -111,24 +111,22 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
 
       if (!method) {
         throw new Error(
-          `Account Emails or Org Unit ID is required to scope a ${params.corpus} export ` +
-            '(only MAIL exports can search the entire organization with no scope).'
+          `Account Emails or Org Unit ID is required to scope a ${params.corpus} saved query ` +
+            '(only MAIL queries can search the entire organization with no scope).'
         )
       }
 
-      const query: any = {
-        corpus: params.corpus,
-        dataScope: 'ALL_DATA',
-        method,
-        terms: params.terms || undefined,
-        startTime: params.startTime || undefined,
-        endTime: params.endTime || undefined,
-        ...scope,
-      }
-
       return {
-        name: params.exportName,
-        query,
+        displayName: params.displayName,
+        query: {
+          corpus: params.corpus,
+          dataScope: 'ALL_DATA',
+          method,
+          terms: params.terms || undefined,
+          startTime: params.startTime || undefined,
+          endTime: params.endTime || undefined,
+          ...scope,
+        },
       }
     },
   },
@@ -136,13 +134,13 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      const errorMessage = data.error?.message || 'Failed to create export'
+      const errorMessage = data.error?.message || 'Failed to create saved query'
       throw new Error(enhanceGoogleVaultError(errorMessage))
     }
-    return { success: true, output: { export: data } }
+    return { success: true, output: { savedQuery: data } }
   },
 
   outputs: {
-    export: { type: 'json', description: 'Created export object' },
+    savedQuery: { type: 'json', description: 'Created saved query object' },
   },
 }
