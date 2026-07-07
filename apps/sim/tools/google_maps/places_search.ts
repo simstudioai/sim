@@ -56,6 +56,12 @@ export const googleMapsPlacesSearchTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Region bias as a ccTLD code (e.g., us, uk)',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Token from a previous search response to fetch the next page of results',
+    },
   },
 
   hosting: {
@@ -92,6 +98,9 @@ export const googleMapsPlacesSearchTool: ToolConfig<
       }
       if (params.region) {
         url.searchParams.set('region', params.region.trim())
+      }
+      if (params.pageToken) {
+        url.searchParams.set('pagetoken', params.pageToken.trim())
       }
 
       return url.toString()

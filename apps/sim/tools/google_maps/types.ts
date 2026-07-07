@@ -259,12 +259,49 @@ export interface GoogleMapsPlacesSearchParams {
   type?: string
   language?: string
   region?: string
+  pageToken?: string
 }
 
 export interface GoogleMapsPlacesSearchResponse extends ToolResponse {
   output: {
     places: PlaceResult[]
     nextPageToken: string | null
+  }
+}
+
+// ============================================================================
+// Places Nearby Search
+// ============================================================================
+
+interface NearbyPlaceResult {
+  placeId: string
+  name: string
+  formattedAddress: string | null
+  lat: number | null
+  lng: number | null
+  types: string[]
+  rating: number | null
+  userRatingsTotal: number | null
+  priceLevel: string | null
+  openNow: boolean | null
+  businessStatus: string | null
+}
+
+export interface GoogleMapsPlacesNearbyParams {
+  apiKey: string
+  lat: number
+  lng: number
+  radius: number
+  includedTypes?: string[]
+  maxResultCount?: number
+  rankPreference?: 'POPULARITY' | 'DISTANCE'
+  languageCode?: string
+  regionCode?: string
+}
+
+export interface GoogleMapsPlacesNearbyResponse extends ToolResponse {
+  output: {
+    places: NearbyPlaceResult[]
   }
 }
 
@@ -388,6 +425,7 @@ export interface GoogleMapsSpeedLimitsParams {
   apiKey: string
   path?: string
   placeIds?: string[]
+  units?: 'KPH' | 'MPH'
 }
 
 export interface GoogleMapsSpeedLimitsResponse extends ToolResponse {

@@ -1,6 +1,6 @@
 import { GoogleMapsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const GoogleMapsBlock: BlockConfig = {
   type: 'google_maps',
@@ -11,6 +11,7 @@ export const GoogleMapsBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/google_maps',
   category: 'tools',
   integrationType: IntegrationType.Search,
+  authMode: AuthMode.ApiKey,
   bgColor: '#FFFFFF',
   icon: GoogleMapsIcon,
 
@@ -26,6 +27,7 @@ export const GoogleMapsBlock: BlockConfig = {
         { label: 'Get Directions', id: 'directions' },
         { label: 'Distance Matrix', id: 'distance_matrix' },
         { label: 'Search Places', id: 'places_search' },
+        { label: 'Nearby Places', id: 'places_nearby' },
         { label: 'Place Details', id: 'place_details' },
         { label: 'Get Elevation', id: 'elevation' },
         { label: 'Get Timezone', id: 'timezone' },
@@ -196,6 +198,15 @@ export const GoogleMapsBlock: BlockConfig = {
       condition: { field: 'operation', value: 'places_search' },
       mode: 'advanced',
     },
+    // Radius — required and always visible for Nearby Places (mandatory search area)
+    {
+      id: 'radius',
+      title: 'Radius (meters)',
+      type: 'short-input',
+      placeholder: 'Search radius in meters, up to 50000 (e.g., 5000)',
+      condition: { field: 'operation', value: 'places_nearby' },
+      required: { field: 'operation', value: 'places_nearby' },
+    },
     {
       id: 'placeType',
       title: 'Place Type',
@@ -222,7 +233,35 @@ export const GoogleMapsBlock: BlockConfig = {
         { label: 'Bus Station', id: 'bus_station' },
         { label: 'Parking', id: 'parking' },
       ],
+      condition: { field: 'operation', value: ['places_search', 'places_nearby'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous search to fetch the next page',
       condition: { field: 'operation', value: 'places_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'maxResultCount',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Maximum number of results (1-20, defaults to 20)',
+      condition: { field: 'operation', value: 'places_nearby' },
+      mode: 'advanced',
+    },
+    {
+      id: 'rankPreference',
+      title: 'Rank By',
+      type: 'dropdown',
+      options: [
+        { label: 'Popularity', id: 'POPULARITY' },
+        { label: 'Distance', id: 'DISTANCE' },
+      ],
+      value: () => 'POPULARITY',
+      condition: { field: 'operation', value: 'places_nearby' },
       mode: 'advanced',
     },
 
@@ -269,6 +308,18 @@ export const GoogleMapsBlock: BlockConfig = {
       rows: 2,
       mode: 'advanced',
     },
+    {
+      id: 'speedUnits',
+      title: 'Speed Units',
+      type: 'dropdown',
+      options: [
+        { label: 'KPH', id: 'KPH' },
+        { label: 'MPH', id: 'MPH' },
+      ],
+      value: () => 'KPH',
+      condition: { field: 'operation', value: 'speed_limits' },
+      mode: 'advanced',
+    },
 
     {
       id: 'addressToValidate',
@@ -284,7 +335,7 @@ export const GoogleMapsBlock: BlockConfig = {
       title: 'Region Code',
       type: 'short-input',
       placeholder: 'ISO country code (e.g., US, CA, GB)',
-      condition: { field: 'operation', value: 'validate_address' },
+      condition: { field: 'operation', value: ['validate_address', 'places_nearby'] },
       mode: 'advanced',
     },
     {
@@ -333,6 +384,22 @@ export const GoogleMapsBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'homeMobileCountryCode',
+      title: 'Home Mobile Country Code',
+      type: 'short-input',
+      placeholder: 'Home network MCC (e.g., 310)',
+      condition: { field: 'operation', value: 'geolocate' },
+      mode: 'advanced',
+    },
+    {
+      id: 'homeMobileNetworkCode',
+      title: 'Home Mobile Network Code',
+      type: 'short-input',
+      placeholder: 'Home network MNC (e.g., 410)',
+      condition: { field: 'operation', value: 'geolocate' },
+      mode: 'advanced',
+    },
+    {
       id: 'wifiAccessPoints',
       title: 'WiFi Access Points',
       type: 'long-input',
@@ -356,23 +423,23 @@ export const GoogleMapsBlock: BlockConfig = {
       title: 'Latitude',
       type: 'short-input',
       placeholder: '37.4224764',
-      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar'] },
-      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar'] },
+      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
+      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
     },
     {
       id: 'aqLongitude',
       title: 'Longitude',
       type: 'short-input',
       placeholder: '-122.0842499',
-      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar'] },
-      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar'] },
+      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
+      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
     },
     {
       id: 'languageCode',
       title: 'Language Code',
       type: 'short-input',
       placeholder: 'Language code (e.g., en, es)',
-      condition: { field: 'operation', value: ['air_quality', 'pollen'] },
+      condition: { field: 'operation', value: ['air_quality', 'pollen', 'places_nearby'] },
       mode: 'advanced',
     },
 
@@ -412,6 +479,18 @@ export const GoogleMapsBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Language code (e.g., en, es, fr, de)',
       mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'geocode',
+          'reverse_geocode',
+          'directions',
+          'distance_matrix',
+          'places_search',
+          'place_details',
+          'timezone',
+        ],
+      },
     },
     {
       id: 'region',
@@ -432,6 +511,7 @@ export const GoogleMapsBlock: BlockConfig = {
       'google_maps_geocode',
       'google_maps_geolocate',
       'google_maps_place_details',
+      'google_maps_places_nearby',
       'google_maps_places_search',
       'google_maps_pollen',
       'google_maps_reverse_geocode',
@@ -549,6 +629,24 @@ export const GoogleMapsBlock: BlockConfig = {
             params.plantsDescription === 'true' || params.plantsDescription === true
         }
 
+        let maxResultCount: number | undefined
+        if (params.maxResultCount) {
+          const parsedMaxResultCount = Number.parseInt(params.maxResultCount, 10)
+          maxResultCount = Number.isNaN(parsedMaxResultCount) ? undefined : parsedMaxResultCount
+        }
+
+        let homeMobileCountryCode: number | undefined
+        if (params.homeMobileCountryCode) {
+          const parsed = Number.parseInt(params.homeMobileCountryCode, 10)
+          homeMobileCountryCode = Number.isNaN(parsed) ? undefined : parsed
+        }
+
+        let homeMobileNetworkCode: number | undefined
+        if (params.homeMobileNetworkCode) {
+          const parsed = Number.parseInt(params.homeMobileNetworkCode, 10)
+          homeMobileNetworkCode = Number.isNaN(parsed) ? undefined : parsed
+        }
+
         return {
           ...rest,
           address,
@@ -567,10 +665,15 @@ export const GoogleMapsBlock: BlockConfig = {
           considerIp,
           days,
           plantsDescription,
+          maxResultCount,
+          homeMobileCountryCode,
+          homeMobileNetworkCode,
           requiredQuality: params.requiredQuality || undefined,
           type: params.placeType || undefined,
+          includedTypes: params.placeType ? [params.placeType] : undefined,
           avoid: params.avoid || undefined,
           radioType: params.radioType || undefined,
+          units: operation === 'speed_limits' ? params.speedUnits || undefined : params.units,
         }
       },
     },
@@ -593,6 +696,12 @@ export const GoogleMapsBlock: BlockConfig = {
     locationBias: { type: 'string', description: 'Location bias for search' },
     radius: { type: 'string', description: 'Search radius in meters' },
     placeType: { type: 'string', description: 'Place type filter' },
+    pageToken: { type: 'string', description: 'Token to fetch the next page of place results' },
+    maxResultCount: { type: 'string', description: 'Maximum number of nearby results to return' },
+    rankPreference: {
+      type: 'string',
+      description: 'Nearby results ranking (POPULARITY, DISTANCE)',
+    },
     placeId: { type: 'string', description: 'Google Place ID' },
     fields: { type: 'string', description: 'Fields to retrieve' },
     units: { type: 'string', description: 'Unit system' },
@@ -601,18 +710,30 @@ export const GoogleMapsBlock: BlockConfig = {
     path: { type: 'string', description: 'Pipe-separated lat,lng coordinates' },
     interpolate: { type: 'boolean', description: 'Interpolate points along road' },
     placeIds: { type: 'string', description: 'Pipe-separated Place IDs for speed limits' },
+    speedUnits: { type: 'string', description: 'Units for speed limit results (KPH, MPH)' },
     addressToValidate: { type: 'string', description: 'Address to validate' },
-    regionCode: { type: 'string', description: 'ISO country code for address' },
+    regionCode: { type: 'string', description: 'ISO country code for address or nearby search' },
     locality: { type: 'string', description: 'City name hint' },
     enableUspsCass: { type: 'boolean', description: 'Enable USPS CASS validation' },
     considerIp: { type: 'boolean', description: 'Use IP for geolocation' },
+    homeMobileCountryCode: { type: 'string', description: 'Home network mobile country code' },
+    homeMobileNetworkCode: { type: 'string', description: 'Home network mobile network code' },
     radioType: { type: 'string', description: 'Radio type (lte, gsm, etc.)' },
     carrier: { type: 'string', description: 'Carrier name' },
     wifiAccessPoints: { type: 'string', description: 'WiFi access points JSON' },
     cellTowers: { type: 'string', description: 'Cell towers JSON' },
-    aqLatitude: { type: 'string', description: 'Latitude for air quality, pollen, or solar' },
-    aqLongitude: { type: 'string', description: 'Longitude for air quality, pollen, or solar' },
-    languageCode: { type: 'string', description: 'Language code for air quality or pollen' },
+    aqLatitude: {
+      type: 'string',
+      description: 'Latitude for air quality, pollen, solar, or nearby search',
+    },
+    aqLongitude: {
+      type: 'string',
+      description: 'Longitude for air quality, pollen, solar, or nearby search',
+    },
+    languageCode: {
+      type: 'string',
+      description: 'Language code for air quality, pollen, or nearby search',
+    },
     days: { type: 'string', description: 'Number of pollen forecast days (1-5)' },
     plantsDescription: { type: 'boolean', description: 'Include detailed plant descriptions' },
     requiredQuality: { type: 'string', description: 'Minimum solar imagery quality' },
@@ -806,6 +927,13 @@ export const GoogleMapsBlockMeta = {
       description: 'Compute distances and travel times from one origin to many destinations.',
       content:
         '# Calculate Travel Distances\n\nGet a distance matrix from an origin to multiple destinations.\n\n## Steps\n1. Set the Origin and provide Destinations as a pipe-separated list (e.g., "New York, NY|Boston, MA").\n2. Choose Travel Mode and Units; optionally set features to Avoid.\n3. Run the Distance Matrix operation.\n4. Read each row for distance and duration to each destination.\n\n## Output\nA table of destinations sorted by travel time or distance, each with distance text and duration text. Useful for picking the nearest option or planning routes.',
+    },
+    {
+      name: 'find-places-nearby',
+      description:
+        'Find places of a given type within a radius of a coordinate, ranked by popularity or distance, without needing a text query.',
+      content:
+        "# Find Places Nearby\n\nDiscover places around a fixed point (e.g., a store, delivery stop, or event venue) by type and radius, without a free-text search.\n\n## Steps\n1. Set the Latitude/Longitude of the center point and a Radius (meters, up to 50000).\n2. Optionally constrain by Place Type (restaurant, hotel, pharmacy, etc.) and choose Rank By (Popularity or Distance).\n3. Set Max Results if you only need the top few.\n4. Run the Nearby Places operation.\n\n## Output\nA list of nearby places with name, address, coordinates, rating, number of ratings, open-now status, and business status, ordered per the chosen ranking. Use Place Details with a result's place ID for phone/website/hours.",
     },
   ],
 } as const satisfies BlockMeta
