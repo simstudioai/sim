@@ -740,10 +740,14 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           // Map operation-scoped fields (kept separate in the UI so a stale value from
           // another operation can never silently override these) to their tool parameter names
           ...(listMatterId && { matterId: listMatterId }),
-          ...(updateHoldAccountEmails && { accountEmails: updateHoldAccountEmails }),
-          ...(updateHoldOrgUnitId && { orgUnitId: updateHoldOrgUnitId }),
+          // These operation-scoped accountEmails/orgUnitId fields are mutually exclusive —
+          // each is only ever populated while its own single 'operation' value is selected,
+          // so at most one of the four spreads below is ever truthy at once. Ordered here
+          // defensively anyway so precedence stays correct even if that invariant changes.
           ...(savedQueryAccountEmails && { accountEmails: savedQueryAccountEmails }),
           ...(savedQueryOrgUnitId && { orgUnitId: savedQueryOrgUnitId }),
+          ...(updateHoldAccountEmails && { accountEmails: updateHoldAccountEmails }),
+          ...(updateHoldOrgUnitId && { orgUnitId: updateHoldOrgUnitId }),
           ...(listExportId && { exportId: listExportId }),
           ...(listHoldId && { holdId: listHoldId }),
           ...(listSavedQueryId && { savedQueryId: listSavedQueryId }),
