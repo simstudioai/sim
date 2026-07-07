@@ -35,8 +35,8 @@ export function extractEmailFromAddress(fromAddress: string): string | undefined
 }
 
 /**
- * Get the personal email from address, for the "from" header only.
- * Reply-to for these emails should come from `getHelpEmailAddress()`, not this value.
+ * Get the personal email from address and reply-to. Lifecycle and billing notification
+ * emails should use `getHelpEmailAddress()` for reply-to instead of the value returned here.
  */
 export function getPersonalEmailFrom(): { from: string; replyTo: string | undefined } {
   const personalFrom = env.PERSONAL_EMAIL_FROM
