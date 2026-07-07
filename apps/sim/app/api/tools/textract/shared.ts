@@ -102,7 +102,12 @@ async function fetchDocumentBytes(url: string): Promise<{ bytes: Buffer; content
   })
   if (!response.ok) {
     await response.text().catch(() => {})
-    throw new TextractRouteError(`Failed to fetch document: ${response.statusText}`, 400)
+    // Pass through the document host's real status (e.g. a transient 503) instead of a
+    // hardcoded 400, so tool-execution retry logic can still treat 5xx as retryable.
+    throw new TextractRouteError(
+      `Failed to fetch document: ${response.statusText}`,
+      response.status
+    )
   }
 
   const arrayBuffer = await response.arrayBuffer()
