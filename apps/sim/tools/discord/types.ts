@@ -1,7 +1,7 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolFileData } from '@/tools/types'
 
-interface DiscordMessage {
+export interface DiscordMessage {
   id: string
   content: string
   channel_id: string
@@ -512,12 +512,14 @@ export interface DiscordListRolesResponse extends BaseDiscordResponse {
 
 export interface DiscordGetPinnedMessagesParams extends DiscordAuthParams {
   channelId: string
+  limit?: number
+  before?: string
 }
 
 export interface DiscordGetPinnedMessagesResponse extends BaseDiscordResponse {
   output: {
     message: string
-    data?: DiscordMessage[]
+    data?: Array<DiscordMessage & { pinned_at: string }>
     hasMore?: boolean
   }
 }

@@ -1,6 +1,7 @@
 import type {
   DiscordGetPinnedMessagesParams,
   DiscordGetPinnedMessagesResponse,
+  DiscordMessage,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -27,11 +28,28 @@ export const discordGetPinnedMessagesTool: ToolConfig<
       description:
         'The Discord channel ID to retrieve pinned messages from, e.g., 123456789012345678',
     },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of pins to return per page (1-50). Defaults to 50.',
+    },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Return pins created before this ISO8601 timestamp, for paging past the first 50 results',
+    },
   },
 
   request: {
     url: (params: DiscordGetPinnedMessagesParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/pins`
+      const query = new URLSearchParams()
+      if (params.limit) query.set('limit', String(params.limit))
+      if (params.before) query.set('before', params.before)
+      const queryString = query.toString()
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/pins${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -41,7 +59,7 @@ export const discordGetPinnedMessagesTool: ToolConfig<
 
   transformResponse: async (response) => {
     const result = await response.json()
-    const items: Array<{ message: Record<string, unknown>; pinned_at: string }> = result.items ?? []
+    const items: Array<{ message: DiscordMessage; pinned_at: string }> = result.items ?? []
     return {
       success: true,
       output: {

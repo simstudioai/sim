@@ -383,6 +383,24 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Number of messages (default: 10, max: 100)',
       condition: { field: 'operation', value: 'discord_get_messages' },
     },
+    // Limit (for get pinned messages)
+    {
+      id: 'limit',
+      title: 'Pin Limit',
+      type: 'short-input',
+      placeholder: 'Number of pins per page (default: 50, max: 50)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'discord_get_pinned_messages' },
+    },
+    // Before (pagination cursor for get pinned messages)
+    {
+      id: 'before',
+      title: 'Before',
+      type: 'short-input',
+      placeholder: 'Return pins before this ISO8601 timestamp (for paging)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'discord_get_pinned_messages' },
+    },
     // Auto Archive Duration (for threads)
     {
       id: 'autoArchiveDuration',
@@ -697,7 +715,12 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
                 .filter(Boolean),
             }
           case 'discord_get_pinned_messages':
-            return { ...commonParams, channelId: params.channelId }
+            return {
+              ...commonParams,
+              channelId: params.channelId,
+              ...(params.limit && { limit: Number(params.limit) }),
+              ...(params.before?.trim() && { before: params.before.trim() }),
+            }
           case 'discord_add_reaction':
           case 'discord_remove_reaction':
             return {
@@ -705,7 +728,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               channelId: params.channelId,
               messageId: params.messageId,
               emoji: params.emoji,
-              ...(params.userId && { userId: params.userId }),
+              ...(params.userId?.trim() && { userId: params.userId.trim() }),
             }
           case 'discord_pin_message':
           case 'discord_unpin_message':
@@ -874,6 +897,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     archived: { type: 'string', description: 'Archive status (true/false)' },
     files: { type: 'array', description: 'Files to attach (canonical param)' },
     limit: { type: 'number', description: 'Message limit' },
+    before: { type: 'string', description: 'Return pins before this ISO8601 timestamp' },
     autoArchiveDuration: { type: 'number', description: 'Thread auto-archive duration in minutes' },
     threadVisibility: {
       type: 'string',
