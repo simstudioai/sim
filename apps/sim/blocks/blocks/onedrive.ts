@@ -250,9 +250,9 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'pageToken',
       title: 'Page Token',
       type: 'short-input',
-      placeholder: 'Continuation URL from a previous search response (nextPageToken)',
+      placeholder: 'Continuation URL from a previous response (nextPageToken)',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'search' },
+      condition: { field: 'operation', value: ['list', 'search'] },
     },
     // Get Item Info Fields - File Selector (basic mode)
     {
@@ -665,7 +665,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     pageSize: { type: 'number', description: 'Results per page' },
     pageToken: {
       type: 'string',
-      description: 'Continuation URL for the next page of search results',
+      description: 'Continuation URL for the next page of list or search results',
     },
     // Move operation inputs
     moveFileId: { type: 'string', description: 'File or folder to move or rename' },

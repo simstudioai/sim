@@ -3,6 +3,7 @@ import type {
   OneDriveSearchResponse,
   OneDriveToolParams,
 } from '@/tools/onedrive/types'
+import { escapeODataStringLiteral } from '@/tools/onedrive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> = {
@@ -63,11 +64,11 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
       }
 
       const url = new URL(
-        `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(query).replace(/'/g, '%27')}')`
+        `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(escapeODataStringLiteral(query))}')`
       )
       url.searchParams.append(
         '$select',
-        'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference'
+        'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference,@microsoft.graph.downloadUrl'
       )
       if (params.pageSize) {
         url.searchParams.append('$top', Number(params.pageSize).toString())

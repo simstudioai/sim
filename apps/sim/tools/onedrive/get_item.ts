@@ -42,7 +42,7 @@ export const getItemTool: ToolConfig<OneDriveToolParams, OneDriveGetItemResponse
       const url = new URL(baseUrl)
       url.searchParams.append(
         '$select',
-        'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference'
+        'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference,@microsoft.graph.downloadUrl'
       )
       return url.toString()
     },
