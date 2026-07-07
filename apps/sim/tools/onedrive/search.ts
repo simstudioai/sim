@@ -26,9 +26,10 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
     },
     query: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Search text matched against file name, metadata, and content',
+      description:
+        'Search text matched against file name, metadata, and content. Not required when paginating with pageToken',
     },
     pageSize: {
       type: 'number',
