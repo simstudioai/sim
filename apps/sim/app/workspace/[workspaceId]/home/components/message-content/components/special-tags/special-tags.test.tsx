@@ -18,7 +18,10 @@ vi.mock('next/navigation', () => ({
 }))
 
 import type { CredentialTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
-import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
+import {
+  parseSpecialTags,
+  SpecialTags,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 
 /**
  * Minimal dependency-free render harness (the repo has no `@testing-library/react`). Mounts the
@@ -87,5 +90,26 @@ describe('CredentialDisplay link tag', () => {
 
     expect(container.querySelector('a')).toBeNull()
     act(() => root.unmount())
+  })
+})
+
+describe('parseSpecialTags sim_key placeholder', () => {
+  it('accepts a value-less {"type":"sim_key"} tag as a credential segment', () => {
+    const { segments } = parseSpecialTags('<credential>{"type":"sim_key"}</credential>', false)
+    const credential = segments.find((s) => s.type === 'credential')
+    expect(credential).toEqual({ type: 'credential', data: { type: 'sim_key' } })
+  })
+
+  it('still accepts the legacy {"redacted":true} form as a value-less sim_key placeholder', () => {
+    const { segments } = parseSpecialTags(
+      '<credential>{"type":"sim_key","redacted":true}</credential>',
+      false
+    )
+    const credential = segments.find((s) => s.type === 'credential')
+    expect(credential?.type).toBe('credential')
+    if (credential?.type === 'credential') {
+      expect(credential.data.type).toBe('sim_key')
+      expect(credential.data.value).toBeUndefined()
+    }
   })
 })
