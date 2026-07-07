@@ -49,7 +49,11 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
     url: (params) => {
       const pageToken = params.pageToken?.trim()
       if (pageToken) {
-        return pageToken
+        const continuationUrl = new URL(pageToken)
+        if (continuationUrl.hostname !== 'graph.microsoft.com') {
+          throw new Error('Invalid page token: must be a Microsoft Graph continuation URL')
+        }
+        return continuationUrl.toString()
       }
 
       const query = params.query?.trim()
