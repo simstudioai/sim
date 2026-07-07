@@ -151,6 +151,9 @@ export interface AthenaQueryExecutionSummary {
   submissionDateTime: number | null
   completionDateTime: number | null
   dataScannedInBytes: number | null
+  engineExecutionTimeInMillis: number | null
+  queryPlanningTimeInMillis: number | null
+  queryQueueTimeInMillis: number | null
   totalExecutionTimeInMillis: number | null
   outputLocation: string | null
 }

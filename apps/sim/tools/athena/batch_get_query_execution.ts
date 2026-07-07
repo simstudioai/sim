@@ -114,6 +114,21 @@ export const batchGetQueryExecutionTool: ToolConfig<
             description: 'Amount of data scanned in bytes',
             optional: true,
           },
+          engineExecutionTimeInMillis: {
+            type: 'number',
+            description: 'Engine execution time in milliseconds',
+            optional: true,
+          },
+          queryPlanningTimeInMillis: {
+            type: 'number',
+            description: 'Query planning time in milliseconds',
+            optional: true,
+          },
+          queryQueueTimeInMillis: {
+            type: 'number',
+            description: 'Time the query spent in queue in milliseconds',
+            optional: true,
+          },
           totalExecutionTimeInMillis: {
             type: 'number',
             description: 'Total execution time in milliseconds',

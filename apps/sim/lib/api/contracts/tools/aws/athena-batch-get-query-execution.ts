@@ -32,6 +32,9 @@ const BatchGetQueryExecutionResponseSchema = z.object({
         submissionDateTime: z.number().nullable(),
         completionDateTime: z.number().nullable(),
         dataScannedInBytes: z.number().nullable(),
+        engineExecutionTimeInMillis: z.number().nullable(),
+        queryPlanningTimeInMillis: z.number().nullable(),
+        queryQueueTimeInMillis: z.number().nullable(),
         totalExecutionTimeInMillis: z.number().nullable(),
         outputLocation: z.string().nullable(),
       })
