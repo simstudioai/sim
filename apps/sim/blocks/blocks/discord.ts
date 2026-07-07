@@ -719,7 +719,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               ...commonParams,
               channelId: params.channelId,
               name: params.name,
-              ...(params.messageId && { messageId: params.messageId }),
+              ...(params.messageId?.trim() && { messageId: params.messageId.trim() }),
               ...(params.autoArchiveDuration && {
                 autoArchiveDuration: Number(params.autoArchiveDuration),
               }),

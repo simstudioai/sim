@@ -59,8 +59,9 @@ export const discordCreateThreadTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateThreadParams) => {
-      if (params.messageId) {
-        return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}/threads`
+      const messageId = params.messageId?.trim()
+      if (messageId) {
+        return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${messageId}/threads`
       }
       return `https://discord.com/api/v10/channels/${params.channelId.trim()}/threads`
     },
@@ -78,7 +79,7 @@ export const discordCreateThreadTool: ToolConfig<
       }
       // Standalone threads (no source message) default to PRIVATE_THREAD per the Discord API
       // unless `type` is explicitly set, so pin it to PUBLIC_THREAD (11) unless the caller opts out.
-      if (!params.messageId) {
+      if (!params.messageId?.trim()) {
         body.type = params.isPublic === false ? 12 : 11
       }
       return body
