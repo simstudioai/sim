@@ -16,8 +16,8 @@ afterEach(() => {
   editor = null
 })
 
-function mount(): Editor {
-  return new Editor({ extensions: [...createMarkdownContentExtensions(), MarkdownPaste] })
+function mount(editable = true): Editor {
+  return new Editor({ extensions: [...createMarkdownContentExtensions(), MarkdownPaste], editable })
 }
 
 /** Run the plugin paste handlers the way ProseMirror would, with a mocked clipboard. */
@@ -92,5 +92,58 @@ describe('markdown paste', () => {
     editor.commands.setTextSelection(5)
     expect(editor.isActive('codeBlock')).toBe(true)
     expect(paste(editor, '[link](https://example.com)')).toBe(false)
+  })
+
+  it('rejects the paste entirely in a read-only editor', () => {
+    editor = mount(false)
+    expect(paste(editor, '# heading\n\n- one\n- two')).toBe(false)
+    expect(editor.getText()).toBe('')
+  })
+
+  it.each([
+    ['empty string', ''],
+    ['whitespace only', '   \n\n  '],
+    ['a bare thematic break (ambiguous — needs another markdown signal)', '---'],
+  ])('leaves %s to the default handler', (_label, text) => {
+    editor = mount()
+    expect(paste(editor, text)).toBe(false)
+  })
+
+  it.each([
+    ['heading', '# Heading', 'heading'],
+    ['bold', 'a **bold** word', 'bold'],
+    ['italic', 'an *italic* word', 'italic'],
+    ['strikethrough', 'a ~~struck~~ word', 'strike'],
+    ['inline code', 'some `code` here', 'code'],
+    ['bullet list', '- one\n- two', 'bulletList'],
+    ['ordered list', '1. one\n2. two', 'orderedList'],
+    ['task list', '- [x] done\n- [ ] todo', 'taskList'],
+    ['blockquote', '> a quote', 'blockquote'],
+    ['fenced code block', '```ts\nconst x = 1\n```', 'codeBlock'],
+    ['standalone image', '![alt](https://e.com/i.png)', 'image'],
+    ['thematic break within a document', '# Title\n\n---\n\nbody', 'horizontalRule'],
+  ])('renders pasted %s as rich content', (_label, md, nodeType) => {
+    editor = mount()
+    expect(paste(editor, md)).toBe(true)
+    expect(JSON.stringify(editor.getJSON())).toContain(`"type":"${nodeType}"`)
+  })
+
+  it('parses markdown-shaped plain text even when an HTML sibling is present', () => {
+    editor = mount()
+    const html = '<h1>Title</h1><ul><li>a</li><li>b</li></ul>'
+    expect(paste(editor, '# Title\n\n- a\n- b', html)).toBe(true)
+    const json = JSON.stringify(editor.getJSON())
+    expect(json).toContain('"type":"heading"')
+    expect(json).toContain('"type":"bulletList"')
+    expect(json).not.toContain('# Title')
+  })
+
+  it('preserves the structural blocks of a multi-block document, in order, on paste', () => {
+    editor = mount()
+    expect(paste(editor, '# Title\n\nA paragraph.\n\n- a\n- b\n\n> quote')).toBe(true)
+    const structural = (editor.getJSON().content ?? [])
+      .map((node) => node.type)
+      .filter((type) => type !== 'paragraph')
+    expect(structural).toEqual(['heading', 'bulletList', 'blockquote'])
   })
 })
