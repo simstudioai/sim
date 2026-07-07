@@ -104,7 +104,7 @@ export const dropboxListSharedLinksTool: ToolConfig<
             description: 'Lowercase path of the shared item',
             optional: true,
           },
-          expires: { type: 'string', description: 'Expiration date if set' },
+          expires: { type: 'string', description: 'Expiration date if set', optional: true },
         },
       },
     },
