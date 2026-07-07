@@ -676,10 +676,13 @@ export function shouldSkipSlackTriggerEvent(
     configuredEvent !== null && slackEventSupportsFilter(configuredEvent, filter)
 
   // Source — restrict a message event to any of DM / public / private
-  // (multiselect by `channel_type`). Empty means any source.
+  // (multiselect by `channel_type`). Empty means any source. Only filter when
+  // the channel_type is actually known: `message_changed` / `message_deleted`
+  // payloads often omit it, and dropping those on an unknown type would silently
+  // swallow every edit/delete.
   if (supports('source')) {
     const sources = normalizeSelection(providerConfig.source)
-    if (sources.length > 0 && (!channelType || !sources.includes(channelType))) return true
+    if (sources.length > 0 && channelType && !sources.includes(channelType)) return true
   }
 
   // Threads — include / exclude / only.

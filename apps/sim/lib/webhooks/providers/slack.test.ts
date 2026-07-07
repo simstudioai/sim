@@ -349,6 +349,18 @@ describe('shouldSkipSlackTriggerEvent', () => {
     expect(fires({ eventType: 'message' }, edit)).toBe(false)
   })
 
+  it('does not drop an edit event that omits channel_type when a Source is selected', () => {
+    // message_changed payloads often omit channel_type; a Source selection must
+    // not silently swallow them.
+    const edit = {
+      type: 'message',
+      subtype: 'message_changed',
+      channel: 'C1',
+      ts: '3.2',
+    }
+    expect(fires({ eventType: 'message_edited', source: ['channel'] }, edit)).toBe(true)
+  })
+
   it("self-drops the app's own message unless includeOwnMessages is set", () => {
     const own = {
       type: 'message',
