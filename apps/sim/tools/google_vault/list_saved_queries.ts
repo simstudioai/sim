@@ -35,7 +35,7 @@ export const listSavedQueriesTool: ToolConfig<GoogleVaultListSavedQueriesParams>
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Token for pagination',
     },
     savedQueryId: {
