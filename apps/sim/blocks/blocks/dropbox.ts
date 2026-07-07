@@ -317,6 +317,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'dropbox_list_shared_links' },
       mode: 'advanced',
     },
+    {
+      id: 'cursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor from a previous call, to fetch the next page',
+      condition: { field: 'operation', value: 'dropbox_list_shared_links' },
+      mode: 'advanced',
+    },
     // List revisions operation inputs
     {
       id: 'path',
@@ -450,6 +458,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     maxResults: { type: 'number', description: 'Maximum search results' },
     // List shared links inputs
     directOnly: { type: 'boolean', description: 'Only return direct links, not parent folders' },
+    cursor: { type: 'string', description: 'Fetch the next page of shared links (pagination)' },
     // List revisions input
     beforeRev: { type: 'string', description: 'Fetch revisions before this one (pagination)' },
     // Restore input
