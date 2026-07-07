@@ -15,12 +15,13 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import type { DbOrTx } from '@sim/workflow-persistence/types'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceLifecycle')
 
@@ -48,9 +49,15 @@ class WorkspaceArchiveBlockedError extends Error {
 }
 
 /**
- * Returns the userIds of workspace members for whom `workspaceId` is their only active
- * (non-archived) workspace. Must be called against the same executor used to perform the
- * archival so the check and the write are atomic.
+ * Returns the userIds of explicit workspace members for whom `workspaceId` is their only
+ * accessible active (non-archived) workspace. "Accessible" includes workspaces granted through
+ * an explicit permission row AND workspaces derived from organization owner/admin role — an org
+ * admin can always fall back to the rest of the organization's workspaces even without an
+ * explicit permission row on any of them, so they are never stranded by this deletion.
+ *
+ * Must be called against the same executor used to perform the archival, under
+ * `serializable` isolation, so the check and the write are atomic with respect to a concurrent
+ * deletion of another workspace shared by the same member.
  */
 async function findMembersStrandedByArchival(
   executor: DbOrTx,
@@ -65,25 +72,16 @@ async function findMembersStrandedByArchival(
     return []
   }
 
-  const memberIds = members.map((member) => member.userId)
+  const strandedUserIds: string[] = []
+  for (const { userId } of members) {
+    const accessible = await listAccessibleWorkspaceRowsForUser(userId, 'active', executor)
+    const hasOtherWorkspace = accessible.some((row) => row.workspace.id !== workspaceId)
+    if (!hasOtherWorkspace) {
+      strandedUserIds.push(userId)
+    }
+  }
 
-  const workspaceCounts = await executor
-    .select({
-      userId: permissions.userId,
-      workspaceCount: sql<number>`count(distinct ${workspace.id})`,
-    })
-    .from(permissions)
-    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-    .where(
-      and(
-        inArray(permissions.userId, memberIds),
-        eq(permissions.entityType, 'workspace'),
-        isNull(workspace.archivedAt)
-      )
-    )
-    .groupBy(permissions.userId)
-
-  return workspaceCounts.filter((row) => Number(row.workspaceCount) <= 1).map((row) => row.userId)
+  return strandedUserIds
 }
 
 export async function archiveWorkspace(
@@ -106,6 +104,15 @@ export async function archiveWorkspace(
     .select({ id: workflowMcpServer.id })
     .from(workflowMcpServer)
     .where(eq(workflowMcpServer.workspaceId, workspaceId))
+
+  // serializable: without it, two concurrent deletions of different workspaces shared by the
+  // same sole member could each read a pre-deletion workspace count, both conclude the member
+  // isn't stranded, and together leave them with zero workspaces. Postgres detects this write
+  // skew under serializable isolation and aborts one transaction. Skipped when force is set,
+  // since that path never runs the stranded check in the first place.
+  const transactionConfig = options.force
+    ? undefined
+    : ({ isolationLevel: 'serializable' } as const)
 
   try {
     await db.transaction(async (tx) => {
@@ -237,7 +244,7 @@ export async function archiveWorkspace(
           updatedAt: now,
         })
         .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-    })
+    }, transactionConfig)
   } catch (error) {
     if (error instanceof WorkspaceArchiveBlockedError) {
       return {
