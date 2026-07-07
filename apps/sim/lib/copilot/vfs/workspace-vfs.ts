@@ -123,7 +123,7 @@ import {
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
-import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
+import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockIcon } from '@/blocks/types'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
@@ -171,7 +171,12 @@ function getStaticComponentFiles(): Map<string, string> {
   const files = new Map<string, string>()
 
   const allBlocks = getAllBlocks()
-  const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
+  // Never bake custom blocks into the per-process static cache: `getAllBlocks()` is
+  // overlay-aware, so if this memoized build first runs inside a custom-block
+  // overlay it would freeze that org's blocks here forever — and a later-deleted
+  // definition's `components/blocks/*.json` would linger (the copilot still "sees"
+  // it) even though `materializeCustomBlocks` rebuilds the live set every request.
+  const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar && !isCustomBlockType(b.type))
 
   let blocksFiltered = 0
   for (const block of visibleBlocks) {
