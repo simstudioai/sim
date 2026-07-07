@@ -409,9 +409,15 @@ export function useTableEventStream({
     // In-SPA remount over a warm cache (table A → B → back to A within
     // staleTime): the tail starts at "latest", so transitions that fired while
     // unmounted were neither refetched (cache still fresh) nor replayed.
-    // Reconcile once. Cold mounts have no cached run-state → skip, the
-    // queries are already fetching.
-    if (queryClient.getQueryState(tableKeys.activeDispatches(tableId))?.data !== undefined) {
+    // Reconcile once — either cache being warm is enough (they can evict
+    // independently). Cold mounts have neither → skip, the queries are
+    // already fetching.
+    const hasWarmRunState =
+      queryClient.getQueryState(tableKeys.activeDispatches(tableId))?.data !== undefined
+    const hasWarmRows = queryClient
+      .getQueriesData({ queryKey: tableKeys.rowsRoot(tableId) })
+      .some(([, data]) => data !== undefined)
+    if (hasWarmRunState || hasWarmRows) {
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
       void invalidateRunState()
     }
