@@ -5,10 +5,10 @@ import {
   ArrowRight,
   Button,
   Check,
-  checkboxIconVariants,
-  checkboxVariants,
   ChevronLeft,
   ChevronRight,
+  checkboxIconVariants,
+  checkboxVariants,
   cn,
   X,
 } from '@sim/emcn'
@@ -371,7 +371,6 @@ export function QuestionDisplay({
               type='text'
               value={freeText}
               disabled={disabled}
-              autoFocus
               onChange={(e) => setFreeText(e.target.value)}
               onBlur={() => {
                 if (freeText.trim().length === 0) {

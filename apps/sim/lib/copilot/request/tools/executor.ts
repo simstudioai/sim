@@ -48,7 +48,6 @@ import { recordSimToolMetric } from '@/lib/copilot/request/metrics'
 import { withCopilotToolSpan } from '@/lib/copilot/request/otel'
 import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import {
-  getToolCallStateOutput,
   getToolCallTerminalData,
   requireToolCallError,
   setTerminalToolCallState,
@@ -331,7 +330,10 @@ function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncToolCompl
   }
 
   if (toolCall.status === MothershipStreamV1ToolOutcome.success) {
-    const data = getToolCallStateOutput(toolCall)
+    // getToolCallTerminalData (not raw output) so the completion signal carries
+    // the model-facing/redacted result — keeps the sim_key out of every path
+    // that consumes a completion, matching the error branch below.
+    const data = getToolCallTerminalData(toolCall)
     return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool completed',
@@ -340,7 +342,7 @@ function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncToolCompl
   }
 
   if (toolCall.status === MothershipStreamV1ToolOutcome.skipped) {
-    const data = getToolCallStateOutput(toolCall)
+    const data = getToolCallTerminalData(toolCall)
     return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool skipped',
@@ -651,7 +653,10 @@ async function executeToolAndReportInner(
     })
 
     if (result.success) {
-      const raw = result.output
+      // Log the model-facing (redacted) view, not result.output — for
+      // generate_api_key the raw output carries the plaintext key, which must
+      // never reach application logs.
+      const raw = getToolCallTerminalData(toolCall)
       const preview =
         typeof raw === 'string'
           ? raw.slice(0, 200)
