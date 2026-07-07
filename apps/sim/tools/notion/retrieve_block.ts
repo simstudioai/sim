@@ -84,7 +84,8 @@ export const notionRetrieveBlockTool: ToolConfig<
     archived: BLOCK_OUTPUT_PROPERTIES.archived,
     block: {
       type: 'object',
-      description: 'The full Notion block object, including type-specific content',
+      description:
+        'The full Notion block object. Includes a type-specific field (e.g. paragraph, heading_1, image) whose shape varies by block type and is not enumerated below — read it directly off this object.',
       properties: BLOCK_OUTPUT_PROPERTIES,
     },
   },
