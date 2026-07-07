@@ -527,9 +527,13 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
           // Prevent stale action parameters from overwriting mapped function parameters
           rest.parameters = undefined
         }
-        if (operation === 'get_entity_metadata' && rest.metadataSelect) {
-          cleanParams.select = rest.metadataSelect
-          rest.metadataSelect = undefined
+        if (operation === 'get_entity_metadata') {
+          if (rest.metadataSelect) {
+            cleanParams.select = rest.metadataSelect
+          }
+          // The shared `select` subBlock belongs to list/get record operations - clear it so a
+          // stale record-column $select can't override or fight the mapped metadataSelect value
+          rest.select = undefined
         }
         // Always clean up mapped subBlock IDs so they don't leak through the loop below
         rest.searchEntities = undefined
