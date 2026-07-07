@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerToolParams,
   MicrosoftPlannerUpdateBucketResponse,
@@ -16,7 +17,7 @@ export const updateBucketTool: ToolConfig<
   name: 'Update Microsoft Planner Bucket',
   description: 'Update a bucket in Microsoft Planner',
   version: '1.0',
-  errorExtractor: 'nested-error-object',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,

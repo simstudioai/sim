@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerToolParams,
   MicrosoftPlannerUpdateTaskDetailsResponse,
@@ -17,7 +18,7 @@ export const updateTaskDetailsTool: ToolConfig<
   description:
     'Update task details including description, checklist items, and references in Microsoft Planner',
   version: '1.0',
-  errorExtractor: 'nested-error-object',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,

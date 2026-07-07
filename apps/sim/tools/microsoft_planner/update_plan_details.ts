@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerToolParams,
   MicrosoftPlannerUpdatePlanDetailsResponse,
@@ -17,7 +18,7 @@ export const updatePlanDetailsTool: ToolConfig<
   description:
     "Update a plan's category (color label) descriptions and shared-with user list in Microsoft Planner",
   version: '1.0',
-  errorExtractor: 'nested-error-object',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
