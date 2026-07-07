@@ -792,14 +792,17 @@ export async function runWorkflowColumn(opts: {
   // A Stop-all can land during the prep above; its dispatch cancel is the
   // authoritative stop. Don't fire the dispatcher loop for a dead dispatch —
   // it would exit on its first status read, but the trigger.dev path would
-  // still spin up a task for nothing.
+  // still spin up a task for nothing. Return a null dispatchId: the client
+  // seeds a returned id into its active-dispatch overlay, which would
+  // resurrect the Run/Stop UI the cancelled SSE event already cleared; null
+  // takes its "no dispatch created" path and rolls the optimistic bump back.
   const { readDispatch } = await import('./dispatcher')
   const current = await readDispatch(dispatchId)
   if (!current || current.status === 'cancelled' || current.status === 'complete') {
     logger.info(
       `[Cascade] [${requestId}] dispatch ${dispatchId} cancelled during prep — not firing`
     )
-    return { dispatchId }
+    return { dispatchId: null }
   }
 
   logger.info(
