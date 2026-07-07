@@ -42,6 +42,13 @@ export const discordCreateThreadTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Duration in minutes to auto-archive the thread (60, 1440, 4320, 10080)',
     },
+    isPublic: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the standalone thread is public (visible to everyone in the channel) or private. Ignored when creating a thread from an existing message, which always inherits the parent channel visibility. Defaults to public if omitted.',
+    },
     serverId: {
       type: 'string',
       required: true,
@@ -53,14 +60,14 @@ export const discordCreateThreadTool: ToolConfig<
   request: {
     url: (params: DiscordCreateThreadParams) => {
       if (params.messageId) {
-        return `https://discord.com/api/v10/channels/${params.channelId}/messages/${params.messageId}/threads`
+        return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}/threads`
       }
-      return `https://discord.com/api/v10/channels/${params.channelId}/threads`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/threads`
     },
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordCreateThreadParams) => {
       const body: any = {
@@ -68,6 +75,11 @@ export const discordCreateThreadTool: ToolConfig<
       }
       if (params.autoArchiveDuration) {
         body.auto_archive_duration = Number(params.autoArchiveDuration)
+      }
+      // Standalone threads (no source message) default to PRIVATE_THREAD per the Discord API
+      // unless `type` is explicitly set, so pin it to PUBLIC_THREAD (11) unless the caller opts out.
+      if (!params.messageId) {
+        body.type = params.isPublic === false ? 12 : 11
       }
       return body
     },

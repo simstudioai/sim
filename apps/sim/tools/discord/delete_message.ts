@@ -42,11 +42,11 @@ export const discordDeleteMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId}/messages/${params.messageId}`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}`
     },
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

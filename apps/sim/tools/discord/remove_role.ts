@@ -37,11 +37,11 @@ export const discordRemoveRoleTool: ToolConfig<DiscordRemoveRoleParams, DiscordR
 
     request: {
       url: (params: DiscordRemoveRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId}/members/${params.userId}/roles/${params.roleId}`
+        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/members/${params.userId.trim()}/roles/${params.roleId.trim()}`
       },
       method: 'DELETE',
       headers: (params) => ({
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
     },
 

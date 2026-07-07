@@ -37,11 +37,11 @@ export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordP
 
     request: {
       url: (params: DiscordPinMessageParams) => {
-        return `https://discord.com/api/v10/channels/${params.channelId}/pins/${params.messageId}`
+        return `https://discord.com/api/v10/channels/${params.channelId.trim()}/pins/${params.messageId.trim()}`
       },
       method: 'PUT',
       headers: (params) => ({
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
     },
 

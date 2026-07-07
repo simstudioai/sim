@@ -56,12 +56,12 @@ export const discordRemoveReactionTool: ToolConfig<
   request: {
     url: (params: DiscordRemoveReactionParams) => {
       const encodedEmoji = encodeURIComponent(params.emoji)
-      const userPart = params.userId ? `/${params.userId}` : '/@me'
-      return `https://discord.com/api/v10/channels/${params.channelId}/messages/${params.messageId}/reactions/${encodedEmoji}${userPart}`
+      const userPart = params.userId ? `/${params.userId.trim()}` : '/@me'
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}/reactions/${encodedEmoji}${userPart}`
     },
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

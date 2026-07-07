@@ -29,10 +29,12 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         { label: 'Get User Information', id: 'discord_get_user' },
         { label: 'Edit Message', id: 'discord_edit_message' },
         { label: 'Delete Message', id: 'discord_delete_message' },
+        { label: 'Bulk Delete Messages', id: 'discord_bulk_delete_messages' },
         { label: 'Add Reaction', id: 'discord_add_reaction' },
         { label: 'Remove Reaction', id: 'discord_remove_reaction' },
         { label: 'Pin Message', id: 'discord_pin_message' },
         { label: 'Unpin Message', id: 'discord_unpin_message' },
+        { label: 'Get Pinned Messages', id: 'discord_get_pinned_messages' },
         { label: 'Create Thread', id: 'discord_create_thread' },
         { label: 'Join Thread', id: 'discord_join_thread' },
         { label: 'Leave Thread', id: 'discord_leave_thread' },
@@ -41,11 +43,13 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         { label: 'Update Channel', id: 'discord_update_channel' },
         { label: 'Delete Channel', id: 'discord_delete_channel' },
         { label: 'Get Channel', id: 'discord_get_channel' },
+        { label: 'List Channels', id: 'discord_list_channels' },
         { label: 'Create Role', id: 'discord_create_role' },
         { label: 'Update Role', id: 'discord_update_role' },
         { label: 'Delete Role', id: 'discord_delete_role' },
         { label: 'Assign Role', id: 'discord_assign_role' },
         { label: 'Remove Role', id: 'discord_remove_role' },
+        { label: 'List Roles', id: 'discord_list_roles' },
         { label: 'Kick Member', id: 'discord_kick_member' },
         { label: 'Ban Member', id: 'discord_ban_member' },
         { label: 'Unban Member', id: 'discord_unban_member' },
@@ -92,10 +96,12 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
           'discord_get_messages',
           'discord_edit_message',
           'discord_delete_message',
+          'discord_bulk_delete_messages',
           'discord_add_reaction',
           'discord_remove_reaction',
           'discord_pin_message',
           'discord_unpin_message',
+          'discord_get_pinned_messages',
           'discord_create_thread',
           'discord_update_channel',
           'discord_delete_channel',
@@ -121,8 +127,33 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
           'discord_remove_reaction',
           'discord_pin_message',
           'discord_unpin_message',
-          'discord_create_thread',
         ],
+      },
+    },
+    // Message ID (optional) - for creating a thread from an existing message
+    {
+      id: 'messageId',
+      title: 'Message ID',
+      type: 'short-input',
+      placeholder: 'Enter message ID (leave empty for a standalone thread)',
+      condition: {
+        field: 'operation',
+        value: ['discord_create_thread'],
+      },
+    },
+    // Message IDs - for bulk delete
+    {
+      id: 'messageIds',
+      title: 'Message IDs',
+      type: 'long-input',
+      placeholder: 'Comma-separated message IDs to delete (2-100)',
+      required: true,
+      condition: { field: 'operation', value: 'discord_bulk_delete_messages' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Discord message IDs (2-100 numeric snowflake IDs) based on the context: {context}. Return ONLY the comma-separated list - no explanations, no extra text.',
+        placeholder: 'Describe which messages to delete',
       },
     },
     // Content - for send/edit message
@@ -133,7 +164,19 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Enter message content...',
       condition: {
         field: 'operation',
-        value: ['discord_send_message', 'discord_edit_message', 'discord_execute_webhook'],
+        value: ['discord_send_message', 'discord_edit_message'],
+      },
+    },
+    // Content (required) - for executing a webhook
+    {
+      id: 'content',
+      title: 'Message Content',
+      type: 'long-input',
+      placeholder: 'Enter message content...',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['discord_execute_webhook'],
       },
     },
     // Emoji - for reaction operations
@@ -141,24 +184,24 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'emoji',
       title: 'Emoji',
       type: 'short-input',
-      placeholder: 'Enter emoji (e.g., 👍 or custom:123456789)',
+      placeholder: 'Enter emoji (e.g., 👍 or emoji_name:123456789012345678 for custom emoji)',
       required: true,
       condition: {
         field: 'operation',
         value: ['discord_add_reaction', 'discord_remove_reaction'],
       },
     },
-    // User ID - for user/member operations
+    // User ID (required) - for user/member operations
     {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
       placeholder: 'Enter Discord user ID',
+      required: true,
       condition: {
         field: 'operation',
         value: [
           'discord_get_user',
-          'discord_remove_reaction',
           'discord_assign_role',
           'discord_remove_role',
           'discord_kick_member',
@@ -167,6 +210,17 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
           'discord_get_member',
           'discord_update_member',
         ],
+      },
+    },
+    // User ID (optional) - to remove a specific user's reaction
+    {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Enter Discord user ID (leave empty to remove your own reaction)',
+      condition: {
+        field: 'operation',
+        value: ['discord_remove_reaction'],
       },
     },
     // Thread ID - for thread operations
@@ -346,6 +400,22 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         value: ['discord_create_thread'],
       },
     },
+    // Thread Visibility (for create_thread, standalone threads only)
+    {
+      id: 'threadVisibility',
+      title: 'Thread Visibility',
+      type: 'dropdown',
+      options: [
+        { label: 'Public - visible to everyone in the channel', id: 'public' },
+        { label: 'Private - invite-only', id: 'private' },
+      ],
+      value: () => 'public',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['discord_create_thread'],
+      },
+    },
     // Channel Type (for create_channel)
     {
       id: 'channelType',
@@ -354,6 +424,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       options: [
         { label: 'Text Channel', id: '0' },
         { label: 'Voice Channel', id: '2' },
+        { label: 'Category', id: '4' },
         { label: 'Announcement Channel', id: '5' },
         { label: 'Stage Channel', id: '13' },
         { label: 'Forum Channel', id: '15' },
@@ -537,10 +608,12 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       'discord_get_user',
       'discord_edit_message',
       'discord_delete_message',
+      'discord_bulk_delete_messages',
       'discord_add_reaction',
       'discord_remove_reaction',
       'discord_pin_message',
       'discord_unpin_message',
+      'discord_get_pinned_messages',
       'discord_create_thread',
       'discord_join_thread',
       'discord_leave_thread',
@@ -549,11 +622,13 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       'discord_update_channel',
       'discord_delete_channel',
       'discord_get_channel',
+      'discord_list_channels',
       'discord_create_role',
       'discord_update_role',
       'discord_delete_role',
       'discord_assign_role',
       'discord_remove_role',
+      'discord_list_roles',
       'discord_kick_member',
       'discord_ban_member',
       'discord_unban_member',
@@ -612,6 +687,17 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               channelId: params.channelId,
               messageId: params.messageId,
             }
+          case 'discord_bulk_delete_messages':
+            return {
+              ...commonParams,
+              channelId: params.channelId,
+              messageIds: String(params.messageIds || '')
+                .split(',')
+                .map((id: string) => id.trim())
+                .filter(Boolean),
+            }
+          case 'discord_get_pinned_messages':
+            return { ...commonParams, channelId: params.channelId }
           case 'discord_add_reaction':
           case 'discord_remove_reaction':
             return {
@@ -636,6 +722,9 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               ...(params.messageId && { messageId: params.messageId }),
               ...(params.autoArchiveDuration && {
                 autoArchiveDuration: Number(params.autoArchiveDuration),
+              }),
+              ...(params.threadVisibility !== undefined && {
+                isPublic: params.threadVisibility !== 'private',
               }),
             }
           case 'discord_join_thread':
@@ -665,6 +754,8 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
           case 'discord_delete_channel':
           case 'discord_get_channel':
             return { ...commonParams, channelId: params.channelId }
+          case 'discord_list_channels':
+            return commonParams
           case 'discord_create_role':
             return {
               ...commonParams,
@@ -695,6 +786,8 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               userId: params.userId,
               roleId: params.roleId,
             }
+          case 'discord_list_roles':
+            return commonParams
           case 'discord_kick_member':
           case 'discord_unban_member':
             return {
@@ -708,7 +801,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               userId: params.userId,
               ...(params.reason && { reason: params.reason }),
               ...(params.deleteMessageDays && {
-                deleteMessageDays: Number(params.deleteMessageDays),
+                deleteMessageSeconds: Number(params.deleteMessageDays) * 86400,
               }),
             }
           case 'discord_get_member':
@@ -761,6 +854,10 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     serverId: { type: 'string', description: 'Discord server identifier' },
     channelId: { type: 'string', description: 'Discord channel identifier' },
     messageId: { type: 'string', description: 'Discord message identifier' },
+    messageIds: {
+      type: 'string',
+      description: 'Comma-separated message IDs to bulk delete (2-100)',
+    },
     threadId: { type: 'string', description: 'Discord thread identifier' },
     userId: { type: 'string', description: 'Discord user identifier' },
     roleId: { type: 'string', description: 'Discord role identifier' },
@@ -778,6 +875,10 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     files: { type: 'array', description: 'Files to attach (canonical param)' },
     limit: { type: 'number', description: 'Message limit' },
     autoArchiveDuration: { type: 'number', description: 'Thread auto-archive duration in minutes' },
+    threadVisibility: {
+      type: 'string',
+      description: 'Visibility for a new standalone thread (public/private)',
+    },
     channelType: { type: 'number', description: 'Discord channel type (0=text, 2=voice, etc.)' },
     parentId: { type: 'string', description: 'Parent category ID for channel' },
     hoist: { type: 'boolean', description: 'Whether to display role members separately' },
