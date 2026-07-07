@@ -127,6 +127,8 @@ export function Component({ requiredProp, optionalProp = false }: ComponentProps
 
 Extract when: 50+ lines, used in 2+ files, or has own state/logic. Keep inline when: < 10 lines, single use, purely presentational.
 
+Behavior-preserving render-performance idioms — lazy-init object refs, hoist closure-free values/functions to module scope, pre-index repeated lookups with `Map`/`Set`, and never mutating a shared array in place — are in `.claude/rules/sim-react-performance.md` (which also explains why `toSorted`/`toReversed` are unsafe on client render paths despite the ES2023 tsconfig lib — SWC does not polyfill prototype methods, so use `[...arr].sort()`). For the render-timing effect/state anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
+
 ## API Contracts
 
 Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/**` (one file per resource family — `folders.ts`, `chats.ts`, `knowledge.ts`, etc.). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
@@ -288,6 +290,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
 
+export const ENTITY_LIST_STALE_TIME = 60 * 1000
+
 async function fetchEntities(workspaceId: string, signal?: AbortSignal): Promise<EntityList> {
   const data = await requestJson(listEntitiesContract, {
     query: { workspaceId },
@@ -301,7 +305,7 @@ export function useEntityList(workspaceId?: string) {
     queryKey: entityKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: ENTITY_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -324,7 +328,7 @@ export const entityKeys = {
 ### Query Hooks
 
 - Every `queryFn` must forward `signal` for request cancellation
-- Every query must have an explicit `staleTime`
+- Every query must have an explicit `staleTime`, assigned from a named exported constant, never an inline numeric literal — a server-side prefetch hydrating the same query key must import and reuse that constant so the two never drift out of sync
 - Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
 
 ```typescript
@@ -333,7 +337,7 @@ export function useEntityList(workspaceId?: string) {
     queryKey: entityKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: ENTITY_LIST_STALE_TIME,
     placeholderData: keepPreviousData, // OK: workspaceId varies
   })
 }

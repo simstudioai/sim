@@ -225,6 +225,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #1a5cf6;
+    --selection-muted: #1a5cf647;
     --warning: #ea580c;
 
     /* Inverted surface (dark chrome on light page, e.g. tag dropdown) */
@@ -382,6 +383,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
     --selection: #4b83f7;
+    --selection-muted: #4b83f759;
     --warning: #ff6600;
 
     /* Inverted surface (in dark mode, falls back to standard surfaces) */
@@ -489,6 +491,17 @@ html.sidebar-booting .sidebar-shell-inner {
 
   *:focus {
     outline: none;
+  }
+
+  /* Consistent branded text-selection color everywhere, independent of the
+     browser/OS default (which dims when the window loses focus). Translucent,
+     with no color override, so selected text keeps its own paint on every
+     surface — solid-brand + forced white broke wherever glyphs aren't the
+     selected element's own (Chromium ignores ::selection color in form
+     controls, and the chat/workflow inputs render transparent textareas over
+     styled mirrors, which left black text on solid brand blue). */
+  ::selection {
+    background-color: var(--selection-muted);
   }
 
   body {

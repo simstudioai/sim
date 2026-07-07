@@ -49,7 +49,7 @@ export const updateSettingsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const base = `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/settings`
+      const base = `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/settings`
       if (params.forwardToReplicas) {
         return `${base}?forwardToReplicas=true`
       }

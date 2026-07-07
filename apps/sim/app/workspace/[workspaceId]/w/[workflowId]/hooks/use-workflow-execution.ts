@@ -477,15 +477,9 @@ export function useWorkflowExecution() {
     async (workflowInput?: any, enableDebug = false) => {
       if (!activeWorkflowId) return
 
-      // Sandbox exercises have no real workflow — signal the SandboxCanvasProvider
-      // to run mock execution by setting isExecuting, then bail out immediately.
       const scopedWorkspaceId = routeWorkspaceId ?? hydrationWorkspaceId ?? undefined
       const cachedWorkflows = scopedWorkspaceId ? getWorkflows(scopedWorkspaceId) : []
       const activeWorkflow = cachedWorkflows.find((w) => w.id === activeWorkflowId)
-      if (activeWorkflow?.isSandbox) {
-        setIsExecuting(activeWorkflowId, true)
-        return
-      }
 
       const workspaceId = scopedWorkspaceId ?? activeWorkflow?.workspaceId
 

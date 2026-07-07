@@ -50,21 +50,30 @@ For each page component, confirm the checklist in `.claude/rules/sim-settings-pa
    **gate** early-return. Anything else is a page that still needs migrating.
 2. Find hand-rolled title blocks (should be 0 outside detail views):
    `git grep -n "text-\[var(--text-body)\] text-lg" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
-3. Confirm each page imports `SettingsPanel` and that its `NavigationItem` has an
+3. Find literal pixel text sizes (should be 0 — see "Text-scale tokens" in
+   `.claude/rules/sim-settings-pages.md` for the token map and the row
+   title/subtitle pairing convention):
+   `git grep -n "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
+4. Confirm each page imports `SettingsPanel` and that its `NavigationItem` has an
    accurate `description` of consistent length with its peers.
    - Editable pages: confirm Save/Discard go through `SaveDiscardActions` and
      dirty is wired via `useSettingsUnsavedGuard` (called before early-return
      gates) — flag any hand-rolled Save button, `beforeunload`, or unsaved modal.
      `git grep -n "beforeunload" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
      should only hit the centralized `use-settings-before-unload.ts`.
-4. When migrating a page, change ONLY the structural shell→`SettingsPanel` swap:
+5. When migrating a page, change ONLY the structural shell→`SettingsPanel` swap:
    move header chips to `actions`, the standalone search to `search`, delete the
    `<h1>` title block, replace the three closing `</div>` (column/scroll/shell)
    with `</SettingsPanel>`, and keep modal siblings in a `<>` fragment. Do NOT
    touch handlers, state, queries, conditional rendering, or detail/gate returns.
    Drop per-page `gap-*`/`pt-*` on the content column in favor of the panel default.
-5. Remove now-unused imports (`ChipInput`/`Search`) ONLY after grepping that
+6. When fixing literal pixel text sizes, replace ONLY the size class with its
+   exact-pixel-equivalent named token (e.g. `text-[12px]` → `text-caption`,
+   never a different size) — this must render pixel-identical, not restyle the
+   page. Leave color tokens (`--text-primary` vs `--text-body`, etc.) untouched
+   unless they're also being changed for an unrelated, deliberate reason.
+7. Remove now-unused imports (`ChipInput`/`Search`) ONLY after grepping that
    they are not still used elsewhere in the file (e.g. by a detail view).
-6. **Verify the whole sweep:** `tsc --noEmit`, `biome check` on every touched
+8. **Verify the whole sweep:** `tsc --noEmit`, `biome check` on every touched
    file, and run the affected pages' tests. Diff each file against the base and
    confirm the change is purely structural before shipping.

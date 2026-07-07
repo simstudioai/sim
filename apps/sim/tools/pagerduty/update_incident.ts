@@ -36,7 +36,7 @@ export const updateIncidentTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New status (acknowledged or resolved)',
+      description: 'New status (triggered, acknowledged, or resolved)',
     },
     title: {
       type: 'string',
@@ -55,6 +55,13 @@ export const updateIncidentTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Escalation level to escalate to',
+    },
+    resolution: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Resolution note added to the incident's log entry. Only used when status is set to resolved",
     },
   },
 
@@ -78,6 +85,12 @@ export const updateIncidentTool: ToolConfig<
       if (params.urgency) incident.urgency = params.urgency
       if (params.escalationLevel) {
         incident.escalation_level = Number(params.escalationLevel)
+      }
+      if (params.resolution) {
+        if (params.status !== 'resolved') {
+          throw new Error('resolution can only be set when status is resolved')
+        }
+        incident.resolution = params.resolution
       }
       return { incident }
     },

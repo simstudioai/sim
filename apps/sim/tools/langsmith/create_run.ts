@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import type { LangsmithCreateRunParams, LangsmithCreateRunResponse } from '@/tools/langsmith/types'
 import { normalizeLangsmithRunPayload } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -141,9 +142,7 @@ export const langsmithCreateRunTool: ToolConfig<
         events: params.events,
       }
 
-      return Object.fromEntries(
-        Object.entries(normalizedPayload).filter(([, value]) => value !== undefined)
-      )
+      return filterUndefined(normalizedPayload)
     },
   },
   transformResponse: async (response, params) => {

@@ -23,7 +23,7 @@ export const getGroupTool: ToolConfig<HexGetGroupParams, HexGetGroupResponse> = 
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/groups/${params.groupId}`,
+    url: (params) => `https://app.hex.tech/api/v1/groups/${params.groupId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

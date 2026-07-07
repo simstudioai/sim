@@ -38,13 +38,20 @@ RUN groupadd -g 1001 pii && \
     chown -R pii:pii /app
 USER pii
 
-# Listen on 5001. In the ECS task all containers share one network namespace
-# (awsvpc) and the app owns 3000, so this sidecar must not use 3000.
+# Listen on 5001. Runs as its own ECS service (separate task), reached via PII_URL;
+# 5001 avoids colliding with the app's 3000 in local/compose runs on one host.
 EXPOSE 5001
 
-# start-period is generous: five large spaCy models load at import before
-# /health responds. Tune against measured cold-start once built.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
+# start-period covers the model cold start. With PII_WORKERS>1 each worker loads
+# the five spaCy models independently and in parallel, so allow generous headroom
+# (memory-bandwidth contention stretches the wall-time beyond the single-worker case).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
     CMD curl -fsS http://localhost:5001/health || exit 1
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5001"]
+# Worker count is env-driven so ONE image scales per task size: set PII_WORKERS to
+# the task's vCPU count (each worker loads the models independently, ~3 GB each, so
+# size task memory ≈ PII_WORKERS × 3 GB + overhead). Defaults to 1 for local/small.
+# `sh -c exec` expands the env var while keeping uvicorn as PID 1 for clean SIGTERM.
+# Quote the expansion so a malformed PII_WORKERS fails uvicorn arg-parsing rather
+# than being interpreted by the shell.
+CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port 5001 --workers \"${PII_WORKERS:-1}\""]

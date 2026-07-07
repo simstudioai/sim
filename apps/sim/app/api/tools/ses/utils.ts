@@ -1,13 +1,25 @@
 import {
+  CreateConfigurationSetCommand,
+  CreateEmailIdentityCommand,
   CreateEmailTemplateCommand,
+  DeleteEmailIdentityCommand,
   DeleteEmailTemplateCommand,
+  DeleteSuppressedDestinationCommand,
   GetAccountCommand,
+  GetEmailIdentityCommand,
   GetEmailTemplateCommand,
+  GetSuppressedDestinationCommand,
   ListEmailIdentitiesCommand,
   ListEmailTemplatesCommand,
+  ListSuppressedDestinationsCommand,
+  PutSuppressedDestinationCommand,
   SESv2Client,
   SendBulkEmailCommand,
+  SendCustomVerificationEmailCommand,
   SendEmailCommand,
+  type SuppressionListReason,
+  type TlsPolicy,
+  UpdateEmailTemplateCommand,
 } from '@aws-sdk/client-sesv2'
 import { z } from 'zod'
 import type { SESConnectionConfig } from '@/tools/ses/types'
@@ -266,5 +278,286 @@ export async function deleteTemplate(client: SESv2Client, templateName: string) 
 
   return {
     message: `Template '${templateName}' deleted successfully`,
+  }
+}
+
+export async function updateTemplate(
+  client: SESv2Client,
+  params: {
+    templateName: string
+    subjectPart: string
+    textPart?: string | null
+    htmlPart?: string | null
+  }
+) {
+  const command = new UpdateEmailTemplateCommand({
+    TemplateName: params.templateName,
+    TemplateContent: {
+      Subject: params.subjectPart,
+      ...(params.textPart ? { Text: params.textPart } : {}),
+      ...(params.htmlPart ? { Html: params.htmlPart } : {}),
+    },
+  })
+
+  await client.send(command)
+
+  return {
+    message: `Template '${params.templateName}' updated successfully`,
+  }
+}
+
+export async function putSuppressedDestination(
+  client: SESv2Client,
+  params: { emailAddress: string; reason: SuppressionListReason }
+) {
+  const command = new PutSuppressedDestinationCommand({
+    EmailAddress: params.emailAddress,
+    Reason: params.reason,
+  })
+
+  await client.send(command)
+
+  return {
+    message: `Email address '${params.emailAddress}' added to the suppression list`,
+  }
+}
+
+export async function deleteSuppressedDestination(client: SESv2Client, emailAddress: string) {
+  const command = new DeleteSuppressedDestinationCommand({ EmailAddress: emailAddress })
+  await client.send(command)
+
+  return {
+    message: `Email address '${emailAddress}' removed from the suppression list`,
+  }
+}
+
+export async function getSuppressedDestination(client: SESv2Client, emailAddress: string) {
+  const command = new GetSuppressedDestinationCommand({ EmailAddress: emailAddress })
+  const response = await client.send(command)
+  const destination = response.SuppressedDestination
+
+  return {
+    emailAddress: destination?.EmailAddress ?? emailAddress,
+    reason: destination?.Reason ?? '',
+    lastUpdateTime: destination?.LastUpdateTime?.toISOString() ?? null,
+    messageId: destination?.Attributes?.MessageId ?? null,
+    feedbackId: destination?.Attributes?.FeedbackId ?? null,
+  }
+}
+
+export async function listSuppressedDestinations(
+  client: SESv2Client,
+  params: {
+    reasons?: SuppressionListReason[] | null
+    startDate?: Date | null
+    endDate?: Date | null
+    pageSize?: number | null
+    nextToken?: string | null
+  }
+) {
+  const command = new ListSuppressedDestinationsCommand({
+    ...(params.reasons?.length ? { Reasons: params.reasons } : {}),
+    ...(params.startDate ? { StartDate: params.startDate } : {}),
+    ...(params.endDate ? { EndDate: params.endDate } : {}),
+    ...(params.pageSize != null ? { PageSize: params.pageSize } : {}),
+    ...(params.nextToken ? { NextToken: params.nextToken } : {}),
+  })
+
+  const response = await client.send(command)
+
+  const destinations = (response.SuppressedDestinationSummaries ?? []).map((d) => ({
+    emailAddress: d.EmailAddress ?? '',
+    reason: d.Reason ?? '',
+    lastUpdateTime: d.LastUpdateTime?.toISOString() ?? null,
+  }))
+
+  return {
+    destinations,
+    nextToken: response.NextToken ?? null,
+    count: destinations.length,
+  }
+}
+
+export async function createEmailIdentity(
+  client: SESv2Client,
+  params: {
+    emailIdentity: string
+    dkimSigningAttributes?: {
+      domainSigningSelector?: string
+      domainSigningPrivateKey?: string
+      nextSigningKeyLength?: 'RSA_1024_BIT' | 'RSA_2048_BIT'
+    } | null
+    tags?: Array<{ key: string; value: string }> | null
+    configurationSetName?: string | null
+  }
+) {
+  const command = new CreateEmailIdentityCommand({
+    EmailIdentity: params.emailIdentity,
+    ...(params.dkimSigningAttributes
+      ? {
+          DkimSigningAttributes: {
+            ...(params.dkimSigningAttributes.domainSigningSelector
+              ? { DomainSigningSelector: params.dkimSigningAttributes.domainSigningSelector }
+              : {}),
+            ...(params.dkimSigningAttributes.domainSigningPrivateKey
+              ? { DomainSigningPrivateKey: params.dkimSigningAttributes.domainSigningPrivateKey }
+              : {}),
+            ...(params.dkimSigningAttributes.nextSigningKeyLength
+              ? { NextSigningKeyLength: params.dkimSigningAttributes.nextSigningKeyLength }
+              : {}),
+          },
+        }
+      : {}),
+    ...(params.tags?.length
+      ? { Tags: params.tags.map((t) => ({ Key: t.key, Value: t.value })) }
+      : {}),
+    ...(params.configurationSetName ? { ConfigurationSetName: params.configurationSetName } : {}),
+  })
+
+  const response = await client.send(command)
+
+  return {
+    identityType: response.IdentityType ?? '',
+    verifiedForSendingStatus: response.VerifiedForSendingStatus ?? false,
+    dkimAttributes: response.DkimAttributes
+      ? {
+          signingEnabled: response.DkimAttributes.SigningEnabled ?? null,
+          status: response.DkimAttributes.Status ?? null,
+          tokens: response.DkimAttributes.Tokens ?? [],
+          signingAttributesOrigin: response.DkimAttributes.SigningAttributesOrigin ?? null,
+          nextSigningKeyLength: response.DkimAttributes.NextSigningKeyLength ?? null,
+          currentSigningKeyLength: response.DkimAttributes.CurrentSigningKeyLength ?? null,
+          lastKeyGenerationTimestamp:
+            response.DkimAttributes.LastKeyGenerationTimestamp?.toISOString() ?? null,
+          signingHostedZone: response.DkimAttributes.SigningHostedZone ?? null,
+        }
+      : null,
+  }
+}
+
+export async function deleteEmailIdentity(client: SESv2Client, emailIdentity: string) {
+  const command = new DeleteEmailIdentityCommand({ EmailIdentity: emailIdentity })
+  await client.send(command)
+
+  return {
+    message: `Email identity '${emailIdentity}' deleted successfully`,
+  }
+}
+
+export async function getEmailIdentity(client: SESv2Client, emailIdentity: string) {
+  const command = new GetEmailIdentityCommand({ EmailIdentity: emailIdentity })
+  const response = await client.send(command)
+
+  return {
+    identityType: response.IdentityType ?? '',
+    verifiedForSendingStatus: response.VerifiedForSendingStatus ?? false,
+    verificationStatus: response.VerificationStatus ?? null,
+    feedbackForwardingStatus: response.FeedbackForwardingStatus ?? null,
+    configurationSetName: response.ConfigurationSetName ?? null,
+    dkimAttributes: response.DkimAttributes
+      ? {
+          signingEnabled: response.DkimAttributes.SigningEnabled ?? null,
+          status: response.DkimAttributes.Status ?? null,
+          tokens: response.DkimAttributes.Tokens ?? [],
+          signingAttributesOrigin: response.DkimAttributes.SigningAttributesOrigin ?? null,
+          nextSigningKeyLength: response.DkimAttributes.NextSigningKeyLength ?? null,
+          currentSigningKeyLength: response.DkimAttributes.CurrentSigningKeyLength ?? null,
+          lastKeyGenerationTimestamp:
+            response.DkimAttributes.LastKeyGenerationTimestamp?.toISOString() ?? null,
+          signingHostedZone: response.DkimAttributes.SigningHostedZone ?? null,
+        }
+      : null,
+    mailFromAttributes: response.MailFromAttributes
+      ? {
+          mailFromDomain: response.MailFromAttributes.MailFromDomain ?? null,
+          mailFromDomainStatus: response.MailFromAttributes.MailFromDomainStatus ?? null,
+          behaviorOnMxFailure: response.MailFromAttributes.BehaviorOnMxFailure ?? null,
+        }
+      : null,
+    policies: response.Policies ?? null,
+    tags: (response.Tags ?? []).map((t) => ({ key: t.Key ?? '', value: t.Value ?? '' })),
+    verificationInfo: response.VerificationInfo
+      ? {
+          errorType: response.VerificationInfo.ErrorType ?? null,
+          lastCheckedTimestamp:
+            response.VerificationInfo.LastCheckedTimestamp?.toISOString() ?? null,
+          lastSuccessTimestamp:
+            response.VerificationInfo.LastSuccessTimestamp?.toISOString() ?? null,
+        }
+      : null,
+  }
+}
+
+export async function createConfigurationSet(
+  client: SESv2Client,
+  params: {
+    configurationSetName: string
+    customRedirectDomain?: string | null
+    httpsPolicy?: 'REQUIRE' | 'REQUIRE_OPEN_ONLY' | 'OPTIONAL' | null
+    tlsPolicy?: TlsPolicy | null
+    sendingPoolName?: string | null
+    reputationMetricsEnabled?: boolean | null
+    sendingEnabled?: boolean | null
+    suppressedReasons?: SuppressionListReason[] | null
+    tags?: Array<{ key: string; value: string }> | null
+  }
+) {
+  const command = new CreateConfigurationSetCommand({
+    ConfigurationSetName: params.configurationSetName,
+    ...(params.customRedirectDomain
+      ? {
+          TrackingOptions: {
+            CustomRedirectDomain: params.customRedirectDomain,
+            ...(params.httpsPolicy ? { HttpsPolicy: params.httpsPolicy } : {}),
+          },
+        }
+      : {}),
+    ...(params.tlsPolicy || params.sendingPoolName
+      ? {
+          DeliveryOptions: {
+            ...(params.tlsPolicy ? { TlsPolicy: params.tlsPolicy } : {}),
+            ...(params.sendingPoolName ? { SendingPoolName: params.sendingPoolName } : {}),
+          },
+        }
+      : {}),
+    ...(params.reputationMetricsEnabled != null
+      ? { ReputationOptions: { ReputationMetricsEnabled: params.reputationMetricsEnabled } }
+      : {}),
+    ...(params.sendingEnabled != null
+      ? { SendingOptions: { SendingEnabled: params.sendingEnabled } }
+      : {}),
+    ...(params.suppressedReasons?.length
+      ? { SuppressionOptions: { SuppressedReasons: params.suppressedReasons } }
+      : {}),
+    ...(params.tags?.length
+      ? { Tags: params.tags.map((t) => ({ Key: t.key, Value: t.value })) }
+      : {}),
+  })
+
+  await client.send(command)
+
+  return {
+    message: `Configuration set '${params.configurationSetName}' created successfully`,
+  }
+}
+
+export async function sendCustomVerificationEmail(
+  client: SESv2Client,
+  params: {
+    emailAddress: string
+    templateName: string
+    configurationSetName?: string | null
+  }
+) {
+  const command = new SendCustomVerificationEmailCommand({
+    EmailAddress: params.emailAddress,
+    TemplateName: params.templateName,
+    ...(params.configurationSetName ? { ConfigurationSetName: params.configurationSetName } : {}),
+  })
+
+  const response = await client.send(command)
+
+  return {
+    messageId: response.MessageId ?? '',
   }
 }

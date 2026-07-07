@@ -29,13 +29,13 @@ import {
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
+import { redactLargeValueRefs } from '@/lib/logs/execution/pii-large-values'
 import { type RedactablePayload, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
 import {
   clearProgressMarkers,
@@ -618,11 +618,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
    */
   private async applyPiiRedaction(
     workspaceId: string | null,
-    payload: RedactablePayload
+    payload: RedactablePayload,
+    storeContext: { workflowId?: string | null; executionId: string; userId?: string | null }
   ): Promise<RedactablePayload> {
     if (!workspaceId) return payload
-
-    if (!(await isFeatureEnabled('pii-redaction'))) return payload
 
     const [row] = await db
       .select({ orgSettings: organization.dataRetentionSettings })
@@ -632,15 +631,34 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .limit(1)
     if (!row) return payload
 
-    // Rules are only writable by enterprise orgs (route-gated), so an enabled
-    // rule already implies entitlement. We deliberately do NOT re-check
-    // `isWorkspaceOnEnterprisePlan` here: it returns false on transient lookup
-    // errors, which would silently skip masking and leak PII (fail-open). When
-    // rules are present we always redact (fail-safe; over-redaction at worst).
-    const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId })
+    // Resolve from stored rules UNCONDITIONALLY — deliberately NOT gated on the
+    // `pii-redaction` feature flag or the enterprise-plan check. Rules are only
+    // writable by entitled orgs (route-gated), so their presence is the source of
+    // truth; re-checking the flag/plan here returns false on a transient read and
+    // would silently skip masking, leaking PII (fail-open). Absence of rules
+    // yields the disabled default, so non-PII orgs incur only the lookup.
+    const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
     if (!config.enabled) return payload
 
-    return redactPIIFromExecution(payload, {
+    // The string redactor can't reach values already offloaded to large-value
+    // storage (>8MB refs). Always hydrate → mask → re-store them under the LOGS
+    // policy, even if the block-output stage already masked before offload: that
+    // used the block-output entity set, which can differ from the logs set, so
+    // the log's large values must get the logs policy applied like inline content
+    // does. Masking is idempotent, so already-masked spans are unaffected; a ref
+    // that can't be materialized/re-stored falls back to a marker.
+    const working = await redactLargeValueRefs(payload, {
+      entityTypes: config.entityTypes,
+      language: config.language,
+      store: {
+        workspaceId,
+        workflowId: storeContext.workflowId ?? undefined,
+        executionId: storeContext.executionId,
+        userId: storeContext.userId ?? undefined,
+      },
+    })
+
+    return redactPIIFromExecution(working, {
       entityTypes: config.entityTypes,
       language: config.language,
     })
@@ -784,25 +802,35 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const redactedWorkflowInput =
       filteredWorkflowInput !== undefined ? redactApiKeys(filteredWorkflowInput) : undefined
 
-    const pii = await this.applyPiiRedaction(existingLog?.workspaceId ?? null, {
-      traceSpans: redactedTraceSpans,
-      finalOutput: redactedFinalOutput,
-      ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
-      ...(builtExecutionData.error !== undefined ? { error: builtExecutionData.error } : {}),
-      ...(builtExecutionData.completionFailure !== undefined
-        ? { completionFailure: builtExecutionData.completionFailure }
-        : {}),
-      ...(builtExecutionData.trigger !== undefined ? { trigger: builtExecutionData.trigger } : {}),
-      ...(builtExecutionData.executionState !== undefined
-        ? { executionState: builtExecutionData.executionState }
-        : {}),
-      ...(builtExecutionData.environment !== undefined
-        ? { environment: builtExecutionData.environment }
-        : {}),
-      ...(builtExecutionData.correlation !== undefined
-        ? { correlation: builtExecutionData.correlation }
-        : {}),
-    })
+    const pii = await this.applyPiiRedaction(
+      existingLog?.workspaceId ?? null,
+      {
+        traceSpans: redactedTraceSpans,
+        finalOutput: redactedFinalOutput,
+        ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
+        ...(builtExecutionData.error !== undefined ? { error: builtExecutionData.error } : {}),
+        ...(builtExecutionData.completionFailure !== undefined
+          ? { completionFailure: builtExecutionData.completionFailure }
+          : {}),
+        ...(builtExecutionData.trigger !== undefined
+          ? { trigger: builtExecutionData.trigger }
+          : {}),
+        ...(builtExecutionData.executionState !== undefined
+          ? { executionState: builtExecutionData.executionState }
+          : {}),
+        ...(builtExecutionData.environment !== undefined
+          ? { environment: builtExecutionData.environment }
+          : {}),
+        ...(builtExecutionData.correlation !== undefined
+          ? { correlation: builtExecutionData.correlation }
+          : {}),
+      },
+      {
+        workflowId: existingLog?.workflowId ?? null,
+        executionId,
+        userId: billingUserId,
+      }
+    )
 
     const rawDurationMs =
       isResume && existingLog?.startedAt

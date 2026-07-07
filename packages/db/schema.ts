@@ -756,9 +756,6 @@ export const webhook = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     failedCount: integer('failed_count').default(0), // Track consecutive failures
     lastFailedAt: timestamp('last_failed_at'), // When the webhook last failed
-    credentialSetId: text('credential_set_id').references(() => credentialSet.id, {
-      onDelete: 'set null',
-    }), // For credential set webhooks - enables efficient queries
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -773,8 +770,6 @@ export const webhook = pgTable(
         table.workflowId,
         table.deploymentVersionId
       ),
-      // Optimize queries for credential set webhooks
-      credentialSetIdIdx: index('webhook_credential_set_id_idx').on(table.credentialSetId),
       // Shared-app inbound routing (Slack native OAuth trigger). routingKey leads.
       routingKeyActiveIdx: index('webhook_routing_key_active_idx')
         .on(table.routingKey, table.provider)
@@ -1092,21 +1087,40 @@ export const chat = pgTable(
   }
 )
 
+/** Per-stage PII redaction policy stored on a {@link PiiRedactionRule}. */
+export interface PiiStagePolicy {
+  enabled: boolean
+  /** Presidio entity types to mask. Empty (or disabled) = redact nothing. */
+  entityTypes: string[]
+  /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
+  language?: string
+}
+
 /**
  * A single PII redaction rule. Lives in the org-level
  * {@link DataRetentionSettings.piiRedaction} rules list. Each rule targets one
  * scope — all workspaces (`workspaceId: null`) or a single workspace — and
  * `workspaceId` is unique across rules. Resolution is most-specific-wins: a
  * workspace's own rule overrides the all-workspaces rule (never unioned).
+ *
+ * New rules carry per-stage {@link stages} (input / blockOutputs / logs); legacy
+ * rows carry only the flat `entityTypes`/`language`, resolved as a logs-only
+ * rule. At least one of the two is present.
  */
 export interface PiiRedactionRule {
   id: string
   name?: string
-  /** Presidio entity types to mask. Empty = redact nothing for this scope. */
-  entityTypes: string[]
   /** `null` = all workspaces; otherwise the single targeted workspace. */
   workspaceId: string | null
-  /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
+  /** Per-stage policy (input redaction, block-output redaction, log redaction). */
+  stages?: {
+    input: PiiStagePolicy
+    blockOutputs: PiiStagePolicy
+    logs: PiiStagePolicy
+  }
+  /** Legacy flat policy (pre-stages). Presidio entity types masked at log persist. */
+  entityTypes?: string[]
+  /** Legacy flat language (pre-stages). */
   language?: string
 }
 
@@ -2835,6 +2849,51 @@ export const workflowMcpTool = pgTable(
   })
 )
 
+/**
+ * Custom Blocks - a deployed workflow published as a reusable, org-wide block.
+ * Scoped to an organization: available across every workspace in the org. Bound to
+ * a source `workflowId` and always executes that workflow's latest deployment. Start
+ * input fields are derived live (not snapshotted). `type` is the stable lowercase
+ * block-type slug (`custom_block_<shortId>`) that flows into the block registry
+ * overlay, the palette, and permission-group `allowedIntegrations` access control.
+ */
+export const customBlock = pgTable(
+  'custom_block',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    /** Uploaded icon image URL (workspace storage), or null for the default icon. */
+    iconUrl: text('icon_url'),
+    /**
+     * Curated outputs exposed to consumers: `Array<{ blockId, path, name }>`. Each
+     * maps a child-workflow block output (blockId + dot-path) to a friendly output
+     * name on the block. Empty/absent → expose the child's whole `result`. Internal
+     * plumbing (child workflow id, trace spans) is never exposed.
+     */
+    outputs: json('outputs').$type<Array<{ blockId: string; path: string; name: string }>>(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('custom_block_organization_id_idx').on(table.organizationId),
+    workflowIdIdx: index('custom_block_workflow_id_idx').on(table.workflowId),
+    orgTypeUnique: uniqueIndex('custom_block_organization_type_unique').on(
+      table.organizationId,
+      table.type
+    ),
+  })
+)
+
 export const auditLog = pgTable(
   'audit_log',
   {
@@ -3056,99 +3115,6 @@ export const pendingCredentialDraft = pgTable(
       table.providerId,
       table.workspaceId
     ),
-  })
-)
-
-export const credentialSet = pgTable(
-  'credential_set',
-  {
-    id: text('id').primaryKey(),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    description: text('description'),
-    providerId: text('provider_id').notNull(),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    createdByIdx: index('credential_set_created_by_idx').on(table.createdBy),
-    orgNameUnique: uniqueIndex('credential_set_org_name_unique').on(
-      table.organizationId,
-      table.name
-    ),
-    providerIdIdx: index('credential_set_provider_id_idx').on(table.providerId),
-  })
-)
-
-export const credentialSetMemberStatusEnum = pgEnum('credential_set_member_status', [
-  'active',
-  'pending',
-  'revoked',
-])
-
-export const credentialSetMember = pgTable(
-  'credential_set_member',
-  {
-    id: text('id').primaryKey(),
-    credentialSetId: text('credential_set_id')
-      .notNull()
-      .references(() => credentialSet.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    status: credentialSetMemberStatusEnum('status').notNull().default('pending'),
-    joinedAt: timestamp('joined_at'),
-    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    userIdIdx: index('credential_set_member_user_id_idx').on(table.userId),
-    uniqueMembership: uniqueIndex('credential_set_member_unique').on(
-      table.credentialSetId,
-      table.userId
-    ),
-    statusIdx: index('credential_set_member_status_idx').on(table.status),
-  })
-)
-
-export const credentialSetInvitationStatusEnum = pgEnum('credential_set_invitation_status', [
-  'pending',
-  'accepted',
-  'expired',
-  'cancelled',
-])
-
-export const credentialSetInvitation = pgTable(
-  'credential_set_invitation',
-  {
-    id: text('id').primaryKey(),
-    credentialSetId: text('credential_set_id')
-      .notNull()
-      .references(() => credentialSet.id, { onDelete: 'cascade' }),
-    email: text('email'),
-    token: text('token').notNull().unique(),
-    invitedBy: text('invited_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    status: credentialSetInvitationStatusEnum('status').notNull().default('pending'),
-    expiresAt: timestamp('expires_at').notNull(),
-    acceptedAt: timestamp('accepted_at'),
-    acceptedByUserId: text('accepted_by_user_id').references(() => user.id, {
-      onDelete: 'set null',
-    }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    credentialSetIdIdx: index('credential_set_invitation_set_id_idx').on(table.credentialSetId),
-    tokenIdx: index('credential_set_invitation_token_idx').on(table.token),
-    statusIdx: index('credential_set_invitation_status_idx').on(table.status),
-    expiresAtIdx: index('credential_set_invitation_expires_at_idx').on(table.expiresAt),
   })
 )
 
@@ -3696,8 +3662,13 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-// ─── Sim Academy ─────────────────────────────────────────────────────────────
-
+/**
+ * The application code that read/wrote this table (Academy) was removed in
+ * the same PR that would have dropped it here — deferred to a follow-up PR
+ * once that removal has actually shipped, per the expand/contract migration
+ * safety check (`check:migrations`), since a same-deploy drop would break
+ * any pod still running the old code during a rolling deploy.
+ */
 export const academyCertStatusEnum = pgEnum('academy_cert_status', ['active', 'revoked', 'expired'])
 
 /** Partner certification records issued on course completion */

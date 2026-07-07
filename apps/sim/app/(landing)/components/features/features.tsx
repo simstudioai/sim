@@ -7,6 +7,16 @@ import { IntegrationsCallout } from '@/app/(landing)/components/features/compone
 import { KnowledgeCallout } from '@/app/(landing)/components/features/components/knowledge-callout/knowledge-callout'
 import { LogsTablePreview } from '@/app/(landing)/components/features/components/logs-table-preview'
 
+/** Static callouts are hoisted so each keeps a stable element identity. */
+const INTEGRATIONS_CALLOUT = <IntegrationsCallout />
+const KNOWLEDGE_CALLOUT = <KnowledgeCallout />
+const FORMATION_CALLOUT = <FormationGraph />
+const MONITOR_CALLOUT = (
+  <CalloutFrame className='w-[480px]' bodyClassName='h-[300px]' fade>
+    <LogsTablePreview />
+  </CalloutFrame>
+)
+
 /**
  * Landing features - how Sim works, as a platform lifecycle. Four beats, in the
  * order you actually use Sim: bring your tools in (Integrate), give it data to
@@ -55,7 +65,7 @@ export function Features() {
           description='Plug in 1,000+ integrations like Slack, HubSpot, Salesforce, and Notion, so Sim agents act across the stack you already use.'
           view='workflow'
           workflowId='wf-self-healing-crm'
-          callout={<IntegrationsCallout />}
+          callout={INTEGRATIONS_CALLOUT}
         />
 
         {/* Context: store data semantically. */}
@@ -64,7 +74,7 @@ export function Features() {
           title='Give Sim data it can reason over.'
           description='Sim stores your data semantically in tables, files, and knowledge bases your agents read from to ground every answer in your own data.'
           view='tables'
-          callout={<KnowledgeCallout />}
+          callout={KNOWLEDGE_CALLOUT}
         />
 
         {/* Build: wire agent logic in the visual builder. */}
@@ -74,7 +84,7 @@ export function Features() {
           description='Wire blocks, models, and integrations into agent logic on a visual builder, from one agent to many working in parallel.'
           view='workflow'
           workflowId='wf-customer-support'
-          callout={<FormationGraph />}
+          callout={FORMATION_CALLOUT}
         />
 
         {/* Monitor: watch every run. */}
@@ -84,11 +94,7 @@ export function Features() {
           description='Trace each run block by block, with full logs and the real cost, so you always know what ran and why.'
           view='workflow'
           workflowId='wf-it-service'
-          callout={
-            <CalloutFrame className='w-[480px]' bodyClassName='h-[300px]' fade>
-              <LogsTablePreview />
-            </CalloutFrame>
-          }
+          callout={MONITOR_CALLOUT}
         />
       </div>
     </section>

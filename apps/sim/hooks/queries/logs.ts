@@ -31,6 +31,12 @@ export type { DashboardStatsResponse, WorkflowStats }
 export type LogSortBy = 'date' | 'duration' | 'cost' | 'status'
 export type LogSortOrder = 'asc' | 'desc'
 
+export const LOG_LIST_STALE_TIME = 30 * 1000
+export const LOG_DETAIL_STALE_TIME = 30 * 1000
+export const LOG_BY_EXECUTION_STALE_TIME = 30 * 1000
+export const LOG_DASHBOARD_STATS_STALE_TIME = 30 * 1000
+export const EXECUTION_SNAPSHOT_STALE_TIME = 5 * 60 * 1000
+
 export const logKeys = {
   all: ['logs'] as const,
   lists: () => [...logKeys.all, 'list'] as const,
@@ -169,7 +175,7 @@ export function useLogsList(
       fetchLogsPage(workspaceId as string, filters, pageParam, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 30 * 1000,
+    staleTime: LOG_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
@@ -194,7 +200,7 @@ export function useLogDetail(
     queryFn: ({ signal }) => fetchLogDetail(logId as string, workspaceId as string, signal),
     enabled: Boolean(logId) && Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 30 * 1000,
+    staleTime: LOG_DETAIL_STALE_TIME,
     retry: (failureCount, err) =>
       !(isApiClientError(err) && err.status === 404) && failureCount < 3,
   })
@@ -217,7 +223,7 @@ export function useLogByExecutionId(
       return data
     },
     enabled: Boolean(workspaceId) && Boolean(executionId),
-    staleTime: 30 * 1000,
+    staleTime: LOG_BY_EXECUTION_STALE_TIME,
   })
 }
 
@@ -225,7 +231,7 @@ export function prefetchLogDetail(queryClient: QueryClient, logId: string, works
   queryClient.prefetchQuery({
     queryKey: logKeys.detail(workspaceId, logId),
     queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
-    staleTime: 30 * 1000,
+    staleTime: LOG_DETAIL_STALE_TIME,
   })
 }
 
@@ -261,7 +267,7 @@ export function useDashboardStats(
     queryFn: ({ signal }) => fetchDashboardStats(workspaceId as string, filters, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 30 * 1000,
+    staleTime: LOG_DASHBOARD_STATS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -288,7 +294,7 @@ export function useExecutionSnapshot(executionId: string | undefined) {
     queryKey: logKeys.executionSnapshot(executionId),
     queryFn: ({ signal }) => fetchExecutionSnapshot(executionId as string, signal),
     enabled: Boolean(executionId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: EXECUTION_SNAPSHOT_STALE_TIME,
   })
 }
 

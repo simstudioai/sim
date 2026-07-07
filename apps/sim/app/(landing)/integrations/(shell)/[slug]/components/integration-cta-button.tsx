@@ -2,7 +2,7 @@
 
 import { Chip } from '@sim/emcn'
 import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
-import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { trackLandingCta } from '@/app/(landing)/track-landing-cta'
 
 interface IntegrationCtaButtonProps {
   children: React.ReactNode

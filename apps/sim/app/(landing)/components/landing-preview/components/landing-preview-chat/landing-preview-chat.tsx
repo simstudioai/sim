@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { LandingPreviewChatInput } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-input'
 import { LandingPreviewChatTitleBar } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-title-bar'
@@ -21,6 +21,9 @@ interface LandingPreviewChatProps {
 const THINKING_AT = 480
 const ASSISTANT_AT = 1280
 
+/** Ordered stages of the scripted reveal (user request -> think -> reply). */
+type RevealPhase = 'hidden' | 'user' | 'thinking' | 'assistant'
+
 /**
  * The Mothership chat pane - the persistent left column of the "chat everywhere"
  * layout. Its title bar carries the chat-switcher breadcrumb (a chat-bubble
@@ -39,28 +42,36 @@ const ASSISTANT_AT = 1280
 export function LandingPreviewChat({ chat, chatName, animationKey }: LandingPreviewChatProps) {
   const submit = useLandingSubmit()
   const [value, setValue] = useState('')
-  const [showUser, setShowUser] = useState(false)
-  const [showThinking, setShowThinking] = useState(false)
-  const [showAssistant, setShowAssistant] = useState(false)
+  const [phase, setPhase] = useState<RevealPhase>('hidden')
+  const revealRef = useRef<{ key: number; chat: PreviewChat | null }>({ key: animationKey, chat })
+
+  /**
+   * Restart the reveal synchronously when the timeline or staged chat changes, so the
+   * pane never flashes the previous reply before the effect reruns. The previous
+   * key/chat live in a ref: updates come from the parent's timer-driven state (never a
+   * transition/Suspense boundary), so the render can't be discarded between the ref
+   * write and commit.
+   */
+  if (revealRef.current.key !== animationKey || revealRef.current.chat !== chat) {
+    revealRef.current = { key: animationKey, chat }
+    setPhase('hidden')
+  }
 
   useEffect(() => {
-    setShowUser(false)
-    setShowThinking(false)
-    setShowAssistant(false)
     if (!chat) return
-
-    const raf = requestAnimationFrame(() => setShowUser(true))
-    const t1 = setTimeout(() => setShowThinking(true), THINKING_AT)
-    const t2 = setTimeout(() => {
-      setShowThinking(false)
-      setShowAssistant(true)
-    }, ASSISTANT_AT)
+    const raf = requestAnimationFrame(() => setPhase('user'))
+    const t1 = setTimeout(() => setPhase('thinking'), THINKING_AT)
+    const t2 = setTimeout(() => setPhase('assistant'), ASSISTANT_AT)
     return () => {
       cancelAnimationFrame(raf)
       clearTimeout(t1)
       clearTimeout(t2)
     }
   }, [animationKey, chat])
+
+  const showUser = phase !== 'hidden'
+  const showThinking = phase === 'thinking'
+  const showAssistant = phase === 'assistant'
 
   const isEmpty = value.trim().length === 0
   const handleSubmit = () => {

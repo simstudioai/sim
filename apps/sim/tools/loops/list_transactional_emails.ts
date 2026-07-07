@@ -11,7 +11,7 @@ export const loopsListTransactionalEmailsTool: ToolConfig<
   id: 'loops_list_transactional_emails',
   name: 'Loops List Transactional Emails',
   description:
-    'Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, last updated timestamp, and data variables.',
+    'Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables.',
   version: '1.0.0',
 
   params: {
@@ -37,7 +37,7 @@ export const loopsListTransactionalEmailsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const base = 'https://app.loops.so/api/v1/transactional'
+      const base = 'https://app.loops.so/api/v1/transactional-emails'
       const queryParams: string[] = []
       if (params.perPage) queryParams.push(`perPage=${encodeURIComponent(params.perPage)}`)
       if (params.cursor) queryParams.push(`cursor=${encodeURIComponent(params.cursor)}`)
@@ -78,7 +78,11 @@ export const loopsListTransactionalEmailsTool: ToolConfig<
         transactionalEmails: emails.map((email: Record<string, unknown>) => ({
           id: (email.id as string) ?? '',
           name: (email.name as string) ?? '',
-          lastUpdated: (email.lastUpdated as string) ?? '',
+          createdAt: (email.createdAt as string) ?? '',
+          updatedAt: (email.updatedAt as string) ?? '',
+          // Deprecated alias of updatedAt, kept for backwards compatibility with the old
+          // (now-removed) /api/v1/transactional list endpoint, which returned this field.
+          lastUpdated: (email.updatedAt as string) ?? '',
           dataVariables: (email.dataVariables as string[]) ?? [],
         })),
         pagination: {
@@ -102,7 +106,12 @@ export const loopsListTransactionalEmailsTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'The transactional email template ID' },
           name: { type: 'string', description: 'The template name' },
-          lastUpdated: { type: 'string', description: 'Last updated timestamp' },
+          createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+          updatedAt: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
+          lastUpdated: {
+            type: 'string',
+            description: 'Deprecated alias of updatedAt, kept for backwards compatibility',
+          },
           dataVariables: {
             type: 'array',
             description: 'Template data variable names',

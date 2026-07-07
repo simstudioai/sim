@@ -6,13 +6,23 @@ import type { InstantlyResponse } from '@/tools/instantly/types'
 import { getTrigger } from '@/triggers'
 
 const LEAD_LIST_OPERATIONS = ['list_leads'] as const
-const LEAD_ID_OPERATIONS = ['get_lead'] as const
+const LEAD_ID_OPERATIONS = ['get_lead', 'patch_lead'] as const
 const LEAD_CREATE_OPERATIONS = ['create_lead'] as const
+const LEAD_PATCH_OPERATIONS = ['patch_lead'] as const
+const LEAD_MUTATION_FIELD_OPERATIONS = [
+  ...LEAD_CREATE_OPERATIONS,
+  ...LEAD_PATCH_OPERATIONS,
+] as const
 const LEAD_DELETE_OPERATIONS = ['delete_leads'] as const
 const LEAD_INTEREST_OPERATIONS = ['update_lead_interest_status'] as const
 const CAMPAIGN_LIST_OPERATIONS = ['list_campaigns'] as const
 const CAMPAIGN_MUTATION_OPERATIONS = ['create_campaign', 'patch_campaign'] as const
-const CAMPAIGN_ID_OPERATIONS = ['patch_campaign', 'activate_campaign'] as const
+const CAMPAIGN_ID_OPERATIONS = [
+  'patch_campaign',
+  'activate_campaign',
+  'pause_campaign',
+  'delete_campaign',
+] as const
 const EMAIL_LIST_OPERATIONS = ['list_emails'] as const
 const EMAIL_REPLY_OPERATIONS = ['reply_to_email'] as const
 const LEAD_LIST_LIST_OPERATIONS = ['list_lead_lists'] as const
@@ -51,7 +61,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
   name: 'Instantly',
   description: 'Manage Instantly leads, campaigns, emails, and lead lists',
   longDescription:
-    'Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.',
+    'Integrate Instantly API V2 into workflows. Create, update, and list leads, manage lead interest status, delete leads in bulk, list, create, patch, activate, pause, and delete campaigns, reply to emails, and manage lead lists.',
   docsLink: 'https://docs.sim.ai/integrations/instantly',
   category: 'tools',
   integrationType: IntegrationType.Email,
@@ -67,12 +77,15 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
         { label: 'List Leads', id: 'list_leads' },
         { label: 'Get Lead', id: 'get_lead' },
         { label: 'Create Lead', id: 'create_lead' },
+        { label: 'Patch Lead', id: 'patch_lead' },
         { label: 'Delete Leads', id: 'delete_leads' },
         { label: 'Update Lead Interest Status', id: 'update_lead_interest_status' },
         { label: 'List Campaigns', id: 'list_campaigns' },
         { label: 'Create Campaign', id: 'create_campaign' },
         { label: 'Patch Campaign', id: 'patch_campaign' },
         { label: 'Activate Campaign', id: 'activate_campaign' },
+        { label: 'Pause Campaign', id: 'pause_campaign' },
+        { label: 'Delete Campaign', id: 'delete_campaign' },
         { label: 'List Emails', id: 'list_emails' },
         { label: 'Reply To Email', id: 'reply_to_email' },
         { label: 'List Lead Lists', id: 'list_lead_lists' },
@@ -134,28 +147,28 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'First Name',
       type: 'short-input',
       placeholder: 'Jane',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
     },
     {
       id: 'lastName',
       title: 'Last Name',
       type: 'short-input',
       placeholder: 'Doe',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
     },
     {
       id: 'companyName',
       title: 'Company Name',
       type: 'short-input',
       placeholder: 'Acme Inc.',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
     },
     {
       id: 'jobTitle',
       title: 'Job Title',
       type: 'short-input',
       placeholder: 'Head of Growth',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -163,7 +176,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Phone',
       type: 'short-input',
       placeholder: '+1234567890',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -171,7 +184,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Website',
       type: 'short-input',
       placeholder: 'https://example.com',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -179,7 +192,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Personalization',
       type: 'long-input',
       placeholder: 'Personalized opening line',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -187,7 +200,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Custom Variables',
       type: 'long-input',
       placeholder: '{"past_customer": true, "industry": "SaaS"}',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
       wandConfig: {
         enabled: true,
         prompt:
@@ -266,7 +279,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Lead Interest Status',
       type: 'short-input',
       placeholder: '1',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -274,7 +287,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Potential Lead Value',
       type: 'short-input',
       placeholder: 'High',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -282,7 +295,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       title: 'Assigned To',
       type: 'short-input',
       placeholder: 'Organization user UUID',
-      condition: { field: 'operation', value: [...LEAD_CREATE_OPERATIONS] },
+      condition: { field: 'operation', value: [...LEAD_MUTATION_FIELD_OPERATIONS] },
       mode: 'advanced',
     },
     {
@@ -842,12 +855,15 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
       'instantly_list_leads',
       'instantly_get_lead',
       'instantly_create_lead',
+      'instantly_patch_lead',
       'instantly_delete_leads',
       'instantly_update_lead_interest_status',
       'instantly_list_campaigns',
       'instantly_create_campaign',
       'instantly_patch_campaign',
       'instantly_activate_campaign',
+      'instantly_pause_campaign',
+      'instantly_delete_campaign',
       'instantly_list_emails',
       'instantly_reply_to_email',
       'instantly_list_lead_lists',
@@ -1349,6 +1365,20 @@ export const InstantlyBlockMeta = {
         'Summarize active campaigns and their leads into a quick outreach performance snapshot.',
       content:
         '# Campaign Performance Snapshot\n\nGive a quick read on how outreach is going across campaigns.\n\n## Steps\n1. List campaigns and note which are active.\n2. For each active campaign, list leads and tally counts by interest status.\n3. Pull recent emails to gauge reply volume.\n\n## Output\nReturn a per-campaign snapshot: total leads, breakdown by interest status, and reply activity, highlighting the top-performing campaign.',
+    },
+    {
+      name: 'clean-up-lead-data',
+      description:
+        'Correct or enrich existing lead records so personalization and CRM sync stay accurate.',
+      content:
+        '# Clean Up Lead Data\n\nKeep lead records accurate after enrichment, verification, or manual review.\n\n## Steps\n1. Look up the lead by ID or email.\n2. Compare the current fields against the corrected or enriched data.\n3. Patch the lead with the updated first name, last name, company, job title, phone, website, or custom variables.\n\n## Output\nReturn the updated lead record and a summary of which fields changed.',
+    },
+    {
+      name: 'pause-underperforming-campaigns',
+      description:
+        'Detect campaigns with poor reply or interest rates and pause them to protect sender reputation.',
+      content:
+        '# Pause Underperforming Campaigns\n\nProtect domain and inbox reputation by pausing cold-email campaigns that are not converting.\n\n## Steps\n1. List active campaigns.\n2. For each campaign, list its leads and tally reply and interest counts.\n3. Flag campaigns below a reply-rate threshold.\n4. Pause each flagged campaign so no further emails are sent.\n\n## Output\nReturn which campaigns were paused, their reply rates, and the campaigns left active for comparison.',
     },
   ],
 } as const satisfies BlockMeta

@@ -106,7 +106,6 @@ export interface CloudflareCreateZoneParams extends CloudflareBaseParams {
   name: string
   accountId: string
   type?: string
-  jump_start?: boolean
 }
 
 export interface CloudflareCreateZoneResponse extends ToolResponse {

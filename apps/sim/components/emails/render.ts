@@ -20,7 +20,6 @@ import {
 import {
   BatchInvitationEmail,
   InvitationEmail,
-  PollingGroupInvitationEmail,
   WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
@@ -240,24 +239,6 @@ export async function renderWorkspaceAddedEmail(
       inviterName,
       workspaceName,
       workspaceLink,
-    })
-  )
-}
-
-export async function renderPollingGroupInvitationEmail(params: {
-  inviterName: string
-  organizationName: string
-  pollingGroupName: string
-  provider: 'google-email' | 'outlook'
-  inviteLink: string
-}): Promise<string> {
-  return await render(
-    PollingGroupInvitationEmail({
-      inviterName: params.inviterName,
-      organizationName: params.organizationName,
-      pollingGroupName: params.pollingGroupName,
-      provider: params.provider,
-      inviteLink: params.inviteLink,
     })
   )
 }

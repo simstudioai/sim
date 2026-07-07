@@ -15,6 +15,7 @@ import {
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
@@ -444,6 +445,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   const canonicalModeOverrides = block.data?.canonicalModes
   const isStarterBlock = block.type === 'starter'
   const isAgentBlock = block.type === 'agent'
+  const isCustomBlock = isCustomBlockType(block.type)
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
@@ -475,10 +477,20 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
         )
       )
 
+    const isCustomBlockInputField = isCustomBlock && matchingConfigs.length === 0
+
+    // A custom block's `workflowId`/`inputMapping` are computed (value-fn) sub-blocks,
+    // not user data. The canvas persists their last-computed value, which goes stale
+    // as input fields change — so never carry the stored value forward; let the value
+    // fn in the pass below recompute them from the current field params.
+    const isCustomBlockWiring = isCustomBlock && (id === 'workflowId' || id === 'inputMapping')
+
     if (
-      (matchingConfigs.length > 0 && shouldInclude) ||
-      hasStarterInputFormatValues ||
-      isLegacyAgentField
+      !isCustomBlockWiring &&
+      ((matchingConfigs.length > 0 && shouldInclude) ||
+        hasStarterInputFormatValues ||
+        isLegacyAgentField ||
+        isCustomBlockInputField)
     ) {
       params[id] = subBlock.value
     }

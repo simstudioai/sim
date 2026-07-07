@@ -366,8 +366,6 @@ export interface SubBlockConfig {
   // OAuth specific properties - serviceId is the canonical identifier for OAuth services
   serviceId?: string
   requiredScopes?: string[]
-  // Whether this credential selector supports credential sets (for trigger blocks)
-  supportsCredentialSets?: boolean
   // Selector properties — declarative mapping to a SelectorKey
   selectorKey?: SelectorKey
   selectorAllowSearch?: boolean

@@ -1,4 +1,5 @@
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { JsonLd } from '@/app/(landing)/components/json-ld'
 import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-page/types'
 
 /**
@@ -63,10 +64,5 @@ export function SolutionsStructuredData({ config }: SolutionsStructuredDataProps
     ],
   }
 
-  return (
-    <script
-      type='application/ld+json'
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-    />
-  )
+  return <JsonLd data={jsonLd} />
 }

@@ -47,7 +47,7 @@ Lists all zones (domains) in the Cloudflare account.
 | `page` | number | No | Page number for pagination \(default: 1\) |
 | `per_page` | number | No | Number of zones per page \(default: 20, max: 50\) |
 | `accountId` | string | No | Filter zones by account ID |
-| `order` | string | No | Sort field \(name, status, account.id, account.name\) |
+| `order` | string | No | Sort field \(name, status, account.id, account.name, plan.id\) |
 | `direction` | string | No | Sort direction \(asc, desc\) |
 | `match` | string | No | Match logic for filters \(any, all\). Default: all |
 | `apiKey` | string | Yes | Cloudflare API Token |
@@ -158,7 +158,6 @@ Adds a new zone (domain) to the Cloudflare account.
 | `name` | string | Yes | The domain name to add \(e.g., "example.com"\) |
 | `accountId` | string | Yes | The Cloudflare account ID |
 | `type` | string | No | Zone type: "full" \(Cloudflare manages DNS\), "partial" \(CNAME setup\), or "secondary" \(secondary DNS\) |
-| `jump_start` | boolean | No | Automatically attempt to fetch existing DNS records when creating the zone |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
@@ -238,8 +237,8 @@ Lists DNS records for a specific zone.
 | `order` | string | No | Sort field \(type, name, content, ttl, proxied\) |
 | `proxied` | boolean | No | Filter by proxy status |
 | `search` | string | No | Free-text search across record name, content, and value |
-| `tag` | string | No | Filter by tags \(comma-separated\) |
-| `tag_match` | string | No | Tag filter match logic: any or all |
+| `tag` | string | No | Filter by an exact tag name |
+| `tag_match` | string | No | Tag filter match logic: any or all. Only affects results when combined with multiple tag filter conditions; has no effect with the single exact-match Tag Filter above. |
 | `commentFilter` | string | No | Filter records by comment content \(substring match\) |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
@@ -441,7 +440,7 @@ Lists SSL/TLS certificate packs for a zone.
 
 ### `cloudflare_get_zone_settings`
 
-Gets all settings for a zone including SSL mode, minification, caching level, and security settings.
+Gets all settings for a zone including SSL mode, caching level, and security settings.
 
 #### Input
 
@@ -455,7 +454,7 @@ Gets all settings for a zone including SSL mode, minification, caching level, an
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `settings` | array | List of zone settings |
-|   ↳ `id` | string | Setting identifier \(e.g., ssl, minify, cache_level, security_level, always_use_https\) |
+|   ↳ `id` | string | Setting identifier \(e.g., ssl, cache_level, security_level, always_use_https\) |
 |   ↳ `value` | string | Setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified \(e.g., \ |
 |   ↳ `editable` | boolean | Whether the setting can be modified for the current zone plan |
 |   ↳ `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
@@ -463,22 +462,22 @@ Gets all settings for a zone including SSL mode, minification, caching level, an
 
 ### `cloudflare_update_zone_setting`
 
-Updates a specific zone setting such as SSL mode, security level, cache level, minification, or other configuration.
+Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to update settings for |
-| `settingId` | string | Yes | Setting to update \(e.g., "ssl", "security_level", "cache_level", "minify", "always_use_https", "browser_cache_ttl", "http3", "min_tls_version", "ciphers"\) |
-| `value` | string | Yes | New value for the setting as a string or JSON string for complex values \(e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \'\{"css":"on","html":"on","js":"on"\}\' for minify, \'\["ECDHE-RSA-AES128-GCM-SHA256"\]\' for ciphers\) |
+| `settingId` | string | Yes | Setting to update \(e.g., "ssl", "security_level", "cache_level", "always_use_https", "browser_cache_ttl", "http3", "min_tls_version", "ciphers"\) |
+| `value` | string | Yes | New value for the setting as a string or JSON string for complex values \(e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \'\["ECDHE-RSA-AES128-GCM-SHA256"\]\' for ciphers\) |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Setting identifier \(e.g., ssl, minify, cache_level\) |
+| `id` | string | Setting identifier \(e.g., ssl, cache_level, security_level\) |
 | `value` | string | Updated setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified. |
 | `editable` | boolean | Whether the setting can be modified for the current zone plan |
 | `modified_on` | string | ISO 8601 timestamp when the setting was last modified |

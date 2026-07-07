@@ -25,6 +25,7 @@ import {
   applyDependentOverrides,
   clearDependentsOnRemap,
   collectClearedDependents,
+  createForkSubBlockTransform,
   parseNestedDependentKey,
   readTargetDraftDependentValue,
   remapForkSubBlocks,
@@ -125,24 +126,6 @@ describe('remapToolBlockResources', () => {
       blockConfigs,
     })
     expect(result.params).toEqual({ manualCredential: 'mc-src', knowledgeBaseId: 'kb-dst' })
-  })
-
-  it('preserves an org-scoped credentialSet ref without remapping or recording it', () => {
-    const tool = {
-      type: 'testblock',
-      toolId: 'testblock_run',
-      params: { credential: 'credentialSet:cs-1' },
-    }
-    const recorded: Array<{ kind: string; id: string; mapped: boolean }> = []
-    const result = remapToolBlockResources(tool, {
-      resolve: () => null,
-      resolveFileKey: () => null,
-      record: (kind, id, mapped) => recorded.push({ kind, id, mapped }),
-      clearUnresolved: true,
-      blockConfigs,
-    })
-    expect((result.params as Record<string, string>).credential).toBe('credentialSet:cs-1')
-    expect(recorded).toHaveLength(0)
   })
 
   it('drops only the uncopied entry in a mixed multi-value field', () => {
@@ -275,33 +258,6 @@ describe('remapForkSubBlocks', () => {
     expect(result.unmapped.every((r) => r.kind !== 'knowledge-base')).toBe(true)
   })
 
-  it('promote mode: preserves a credentialSet ref without flagging it', () => {
-    const sb: SubBlockRecord = {
-      triggerCredentials: {
-        id: 'triggerCredentials',
-        type: 'oauth-input',
-        value: 'credentialSet:cs-1',
-      },
-    }
-    const result = remapForkSubBlocks(sb, () => null, 'promote')
-    expect(result.subBlocks.triggerCredentials.value).toBe('credentialSet:cs-1')
-    expect(result.references).toHaveLength(0)
-    expect(result.unmapped).toHaveLength(0)
-  })
-
-  it('create mode: keeps a credentialSet ref (org-scoped, not cleared)', () => {
-    const sb: SubBlockRecord = {
-      triggerCredentials: {
-        id: 'triggerCredentials',
-        type: 'oauth-input',
-        value: 'credentialSet:cs-1',
-      },
-    }
-    const result = remapForkSubBlocks(sb, () => null, 'create')
-    expect(result.subBlocks.triggerCredentials.value).toBe('credentialSet:cs-1')
-    expect(result.references).toHaveLength(0)
-  })
-
   it('promote mode: rewrites {{ENV}} nested in an array-form tool param', () => {
     const sb: SubBlockRecord = {
       tools: {
@@ -410,6 +366,263 @@ describe('createForkBootstrapTransform document-selector remap', () => {
     const result = transform(subBlocks(), 'knowledge')
     expect(result.knowledgeBaseId.value).toBe('kb-dst')
     expect(result.documentId.value).toBe('')
+  })
+})
+
+describe('MCP block server remap follows the tool selection (optimistic verbatim)', () => {
+  // Shape of the real MCP block: tool depends on server, arguments depend on tool.
+  const mcpBlock = () =>
+    blockWith([
+      { id: 'server', title: 'MCP Server', type: 'mcp-server-selector', required: true },
+      {
+        id: 'tool',
+        title: 'Tool',
+        type: 'mcp-tool-selector',
+        required: true,
+        dependsOn: ['server'],
+      },
+      { id: 'arguments', title: '', type: 'mcp-dynamic-args', dependsOn: ['tool'] },
+    ])
+  const mcpSubBlocks = (): SubBlockRecord => ({
+    server: { id: 'server', type: 'mcp-server-selector', value: 'mcp-src1' },
+    tool: { id: 'tool', type: 'mcp-tool-selector', value: 'mcp-src1-search_docs' },
+    arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"hello"}' },
+  })
+  const mapServer = (kind: string, id: string) =>
+    kind === 'mcp-server' && id === 'mcp-src1' ? 'mcp-tgt9' : null
+
+  it('sync transform: keeps the tool (embedded server id swapped, name verbatim) and its arguments', () => {
+    // The same transform serves BOTH create- and replace-mode sync targets, so a freshly
+    // created target deploys with the tool intact instead of an empty required field.
+    vi.mocked(getBlock).mockReturnValue(mcpBlock())
+    const transform = createForkSubBlockTransform(mapServer)
+    const result = transform(mcpSubBlocks(), 'mcp')
+    expect(result.server.value).toBe('mcp-tgt9')
+    expect(result.tool.value).toBe('mcp-tgt9-search_docs')
+    expect(result.arguments.value).toBe('{"query":"hello"}')
+  })
+
+  it('keeps a bare tool name (no embedded server id) verbatim under the remapped server', () => {
+    vi.mocked(getBlock).mockReturnValue(mcpBlock())
+    const subBlocks = mcpSubBlocks()
+    subBlocks.tool = { id: 'tool', type: 'mcp-tool-selector', value: 'search_docs' }
+    const transform = createForkSubBlockTransform(mapServer)
+    const result = transform(subBlocks, 'mcp')
+    expect(result.server.value).toBe('mcp-tgt9')
+    expect(result.tool.value).toBe('search_docs')
+    expect(result.arguments.value).toBe('{"query":"hello"}')
+  })
+
+  it('sync transform: an UNMAPPED server is cleared and still clears tool + arguments (defense-in-depth)', () => {
+    // The zero-cleared-refs gate blocks a sync before this state can persist; the remap's
+    // clear-unresolved backstop must still never leave a tool under a cleared server.
+    vi.mocked(getBlock).mockReturnValue(mcpBlock())
+    const transform = createForkSubBlockTransform(() => null)
+    const result = transform(mcpSubBlocks(), 'mcp')
+    expect(result.server.value).toBe('')
+    expect(result.tool.value).toBe('')
+    expect(result.arguments.value).toBe('')
+  })
+
+  it('fork-create: servers are not copied, so the reference clears and dependents clear with it', () => {
+    vi.mocked(getBlock).mockReturnValue(mcpBlock())
+    const transform = createForkBootstrapTransform(() => null)
+    const result = transform(mcpSubBlocks(), 'mcp')
+    expect(result.server.value).toBe('')
+    expect(result.tool.value).toBe('')
+    expect(result.arguments.value).toBe('')
+  })
+
+  it('remap layer: the tool follow-rewrite is not registered as a remapped parent key', () => {
+    // Only `server` may drive dependent clears; the followed tool must not (its own
+    // dependent - arguments - is preserved with it).
+    const result = remapForkSubBlocks(mcpSubBlocks(), mapServer, 'promote')
+    expect(result.subBlocks.tool.value).toBe('mcp-tgt9-search_docs')
+    expect(result.remappedKeys).toEqual(new Set(['server']))
+  })
+
+  it('clearDependentsOnRemap: exemption applies ONLY to the mcp tool selector, not other kinds', () => {
+    // A knowledge-base parent remapped to a non-empty target still clears its
+    // document-selector dependent (regression guard for the mcp-only exemption).
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+        {
+          id: 'documentId',
+          title: 'Doc',
+          type: 'document-selector',
+          dependsOn: ['knowledgeBaseId'],
+        },
+      ])
+    )
+    const result = clearDependentsOnRemap(
+      {
+        knowledgeBaseId: {
+          id: 'knowledgeBaseId',
+          type: 'knowledge-base-selector',
+          value: 'kb-dst',
+        },
+        documentId: { id: 'documentId', type: 'document-selector', value: 'doc-src' },
+      },
+      'knowledge',
+      new Set(['knowledgeBaseId'])
+    )
+    expect(result.documentId.value).toBe('')
+  })
+
+  it('clearDependentsOnRemap: preserve holds when a SECOND remapped key also reaches the tool selector', () => {
+    // Synthetic config (no registry block wires this today): the tool selector hangs off BOTH a
+    // remapped mcp-server parent (preserve) and another remapped parent (no preserve). The
+    // selector-keyed preserve must win over the other key's clear, in either key order, while
+    // the other key's own non-exempt dependent still clears.
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'server', title: 'MCP Server', type: 'mcp-server-selector' },
+        { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+        {
+          id: 'tool',
+          title: 'Tool',
+          type: 'mcp-tool-selector',
+          dependsOn: ['server', 'knowledgeBaseId'],
+        },
+        { id: 'arguments', title: '', type: 'mcp-dynamic-args', dependsOn: ['tool'] },
+        {
+          id: 'documentId',
+          title: 'Doc',
+          type: 'document-selector',
+          dependsOn: ['knowledgeBaseId'],
+        },
+      ])
+    )
+    const subBlocks = (): SubBlockRecord => ({
+      server: { id: 'server', type: 'mcp-server-selector', value: 'mcp-tgt9' },
+      knowledgeBaseId: { id: 'knowledgeBaseId', type: 'knowledge-base-selector', value: 'kb-dst' },
+      tool: { id: 'tool', type: 'mcp-tool-selector', value: 'mcp-tgt9-search_docs' },
+      arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"hello"}' },
+      documentId: { id: 'documentId', type: 'document-selector', value: 'doc-src' },
+    })
+    for (const keys of [
+      ['server', 'knowledgeBaseId'],
+      ['knowledgeBaseId', 'server'],
+    ]) {
+      const result = clearDependentsOnRemap(subBlocks(), 'mcp', new Set(keys))
+      expect(result.tool.value).toBe('mcp-tgt9-search_docs')
+      expect(result.arguments.value).toBe('{"query":"hello"}')
+      expect(result.documentId.value).toBe('')
+    }
+  })
+
+  it('clearDependentsOnRemap: a CLEARED server alongside another remapped key still clears the tool', () => {
+    // Same two-key config, but the server was cleared (unmapped): no preserve applies anywhere,
+    // so the tool and its arguments clear as ordinary dependents.
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'server', title: 'MCP Server', type: 'mcp-server-selector' },
+        { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+        {
+          id: 'tool',
+          title: 'Tool',
+          type: 'mcp-tool-selector',
+          dependsOn: ['server', 'knowledgeBaseId'],
+        },
+        { id: 'arguments', title: '', type: 'mcp-dynamic-args', dependsOn: ['tool'] },
+      ])
+    )
+    const result = clearDependentsOnRemap(
+      {
+        server: { id: 'server', type: 'mcp-server-selector', value: '' },
+        knowledgeBaseId: {
+          id: 'knowledgeBaseId',
+          type: 'knowledge-base-selector',
+          value: 'kb-dst',
+        },
+        tool: { id: 'tool', type: 'mcp-tool-selector', value: 'mcp-src1-search_docs' },
+        arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"hello"}' },
+      },
+      'mcp',
+      new Set(['server', 'knowledgeBaseId'])
+    )
+    expect(result.tool.value).toBe('')
+    expect(result.arguments.value).toBe('')
+  })
+})
+
+describe('tool-input MCP entry server remap rewrites embedded server metadata', () => {
+  const toolInputSubBlocks = (params: Record<string, unknown>): SubBlockRecord => ({
+    tools: {
+      id: 'tools',
+      type: 'tool-input',
+      value: [{ type: 'mcp', title: 'search', toolId: 'mcp-src1-search', params }],
+    },
+  })
+  const entryParams = () => ({
+    serverId: 'mcp-src1',
+    serverUrl: 'https://old.example/mcp',
+    toolName: 'search',
+    serverName: 'Old Server',
+  })
+  const mapServer = (kind: string, id: string) =>
+    kind === 'mcp-server' && id === 'mcp-src1' ? 'mcp-tgt9' : null
+
+  it('rewrites serverUrl/serverName from the mapped TARGET row; tool name verbatim, toolId rebuilt', () => {
+    const result = remapForkSubBlocks(toolInputSubBlocks(entryParams()), mapServer, 'promote', {
+      resolveMcpServerMeta: (targetServerId) =>
+        targetServerId === 'mcp-tgt9'
+          ? { name: 'New Server', url: 'https://new.example/mcp' }
+          : undefined,
+    })
+    const [tool] = result.subBlocks.tools.value as Array<{
+      toolId: string
+      params: Record<string, unknown>
+    }>
+    expect(tool.params).toEqual({
+      serverId: 'mcp-tgt9',
+      serverUrl: 'https://new.example/mcp',
+      toolName: 'search',
+      serverName: 'New Server',
+    })
+    expect(tool.toolId).toBe('mcp-tgt9-search')
+  })
+
+  it('drops the stale serverUrl when the target server has no url', () => {
+    const result = remapForkSubBlocks(toolInputSubBlocks(entryParams()), mapServer, 'promote', {
+      resolveMcpServerMeta: () => ({ name: 'New Server', url: null }),
+    })
+    const [tool] = result.subBlocks.tools.value as Array<{ params: Record<string, unknown> }>
+    expect(tool.params).toEqual({
+      serverId: 'mcp-tgt9',
+      toolName: 'search',
+      serverName: 'New Server',
+    })
+  })
+
+  it('without a meta resolver (scan-only callers) the id remaps and metadata is left as-is', () => {
+    const result = remapForkSubBlocks(toolInputSubBlocks(entryParams()), mapServer, 'promote')
+    const [tool] = result.subBlocks.tools.value as Array<{
+      toolId: string
+      params: Record<string, unknown>
+    }>
+    expect(tool.params).toEqual({
+      serverId: 'mcp-tgt9',
+      serverUrl: 'https://old.example/mcp',
+      toolName: 'search',
+      serverName: 'Old Server',
+    })
+    expect(tool.toolId).toBe('mcp-tgt9-search')
+  })
+
+  it('threads the meta resolver through the sync transform', () => {
+    // Transform-level check: promote passes the batch-loaded target rows via options.
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+    )
+    const transform = createForkSubBlockTransform(mapServer, {
+      resolveMcpServerMeta: () => ({ name: 'New Server', url: 'https://new.example/mcp' }),
+    })
+    const result = transform(toolInputSubBlocks(entryParams()), 'agent')
+    const [tool] = result.tools.value as Array<{ params: Record<string, unknown> }>
+    expect(tool.params.serverUrl).toBe('https://new.example/mcp')
+    expect(tool.params.serverName).toBe('New Server')
   })
 })
 

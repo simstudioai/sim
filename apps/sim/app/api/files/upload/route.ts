@@ -13,6 +13,7 @@ import { getSession } from '@/lib/auth'
 import {
   assertKnownSizeWithinLimit,
   isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -32,7 +33,6 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createErrorResponse, InvalidRequestError } from '@/app/api/files/utils'
 
 const ALLOWED_EXTENSIONS = new Set<string>(SUPPORTED_ATTACHMENT_EXTENSIONS)
-const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 function validateFileExtension(filename: string): boolean {
   const extension = filename.split('.').pop()?.toLowerCase()
@@ -92,6 +92,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const usingCloudStorage = storageService.hasCloudStorage()
     logger.info(`Using storage mode: ${usingCloudStorage ? 'Cloud' : 'Local'} for file upload`)
 
+    // Execution context requires a workspace write/admin permission check. Resolve it once per
+    // request (not per file) since workspaceId is invariant across all files in the upload.
+    let executionUploadContext:
+      | { workspaceId: string; workflowId: string; executionId: string }
+      | undefined
+    if (context === 'execution') {
+      if (!workflowId || !executionId || !workspaceId) {
+        throw new InvalidRequestError(
+          'Execution context requires workflowId, executionId, and workspaceId parameters'
+        )
+      }
+
+      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for execution uploads' },
+          { status: 403 }
+        )
+      }
+
+      executionUploadContext = { workspaceId, workflowId, executionId }
+    }
+
     const uploadResults = []
 
     for (const file of files) {
@@ -110,20 +133,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       // Handle execution context
-      if (context === 'execution') {
-        if (!workflowId || !executionId) {
-          throw new InvalidRequestError(
-            'Execution context requires workflowId and executionId parameters'
-          )
-        }
-
+      if (context === 'execution' && executionUploadContext) {
         const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
         const userFile = await uploadExecutionFile(
-          {
-            workspaceId: workspaceId || '',
-            workflowId,
-            executionId,
-          },
+          executionUploadContext,
           buffer,
           originalName,
           file.type,

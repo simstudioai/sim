@@ -61,6 +61,7 @@ import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
+import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
@@ -72,6 +73,7 @@ import {
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
@@ -527,6 +529,7 @@ async function handleExecutePost(
       startBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
+      parentWorkspaceId,
     } = validation.data
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
 
@@ -642,6 +645,7 @@ async function handleExecutePost(
               stopAfterBlockId: _stopAfterBlockId,
               runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
+              parentWorkspaceId: _parentWorkspaceId,
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
@@ -726,6 +730,25 @@ async function handleExecutePost(
       return NextResponse.json(
         { error: workflowAuthorization.message || 'Access denied' },
         { status: workflowAuthorization.status }
+      )
+    }
+
+    /**
+     * Workflow-in-workflow invocations (e.g. the agent `workflow_executor`
+     * tool) declare the parent execution's workspace. Reject execution when
+     * the target workflow lives in a different workspace so a stale or
+     * foreign workflow id cannot silently execute with the parent's context.
+     * The error intentionally omits the target's workspace id.
+     */
+    if (parentWorkspaceId && workflowAuthorization.workflow?.workspaceId !== parentWorkspaceId) {
+      reqLogger.warn('Blocked cross-workspace child workflow execution', {
+        parentWorkspaceId,
+      })
+      return NextResponse.json(
+        {
+          error: `Child workflow ${workflowId} belongs to a different workspace and cannot be executed`,
+        },
+        { status: 403 }
       )
     }
 
@@ -838,12 +861,17 @@ async function handleExecutePost(
           variables: deployedVariables,
         }
 
-        const serializedWorkflow = new Serializer().serializeWorkflow(
-          workflowData.blocks,
-          workflowData.edges,
-          workflowData.loops,
-          workflowData.parallels,
-          false
+        // Custom blocks resolve only inside the org overlay; wrap this pre-execution
+        // serialize (used for input file-field discovery) the same way the core does.
+        const customBlockRows = await getCustomBlockRowsForWorkspace(workspaceId)
+        const serializedWorkflow = await withCustomBlockOverlay(customBlockRows, async () =>
+          new Serializer().serializeWorkflow(
+            workflowData.blocks,
+            workflowData.edges,
+            workflowData.loops,
+            workflowData.parallels,
+            false
+          )
         )
 
         const executionContext = {

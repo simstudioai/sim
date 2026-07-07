@@ -110,15 +110,10 @@ const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
  *
  * @returns Panel on the right side of the workflow
  */
-interface PanelProps {
-  /** Override workspaceId when rendered outside a workspace route (e.g. sandbox mode) */
-  workspaceId?: string
-}
-
-export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: PanelProps = {}) {
+export const Panel = memo(function Panel() {
   const router = useRouter()
   const params = useParams()
-  const workspaceId = propWorkspaceId ?? (params.workspaceId as string)
+  const workspaceId = params.workspaceId as string
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)

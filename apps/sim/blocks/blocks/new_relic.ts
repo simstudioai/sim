@@ -345,9 +345,17 @@ Return ONLY the numeric timestamp - no explanations, no extra text.`,
     resultCount: { type: 'number', description: 'Number of NRQL result rows' },
     count: { type: 'number', description: 'Number of matching entities' },
     query: { type: 'string', description: 'Entity search query New Relic executed' },
-    entities: { type: 'json', description: 'Matching New Relic entities (guid, name, entityType)' },
+    entities: {
+      type: 'json',
+      description:
+        'Matching New Relic entities (guid, name, entityType, domain, reporting, alertSeverity, tags)',
+    },
     nextCursor: { type: 'string', description: 'Cursor for the next entity search page' },
-    entity: { type: 'json', description: 'New Relic entity details (guid, name, entityType)' },
+    entity: {
+      type: 'json',
+      description:
+        'New Relic entity details (guid, name, entityType, domain, reporting, alertSeverity, tags)',
+    },
     event: { type: 'json', description: 'Created change tracking event metadata' },
     messages: { type: 'json', description: 'New Relic change tracking messages' },
   },

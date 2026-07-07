@@ -25,10 +25,19 @@ export interface NewRelicSearchEntitiesParams extends NewRelicBaseParams {
   cursor?: string
 }
 
+export interface NewRelicEntityTag {
+  key: string | null
+  values: string[]
+}
+
 export interface NewRelicEntity {
   guid: string | null
   name: string | null
   entityType: string | null
+  domain: string | null
+  reporting: boolean | null
+  alertSeverity: string | null
+  tags: NewRelicEntityTag[]
 }
 
 export interface NewRelicSearchEntitiesResponse extends ToolResponse {

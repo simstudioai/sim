@@ -28,7 +28,7 @@ The integration enables real-time, auditable management of your user base—all 
 
 ## Usage Instructions
 
-Integrate Clerk authentication and user management into your workflow. Create, update, delete, and list users. Manage organizations and their memberships. Monitor and control user sessions.
+Integrate Clerk authentication and user management into your workflow. Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.
 
 
 
@@ -251,6 +251,132 @@ Delete a user from your Clerk application
 | `deleted` | boolean | Whether the user was deleted |
 | `success` | boolean | Operation success status |
 
+### `clerk_ban_user`
+
+Ban a user, preventing them from signing in
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `userId` | string | Yes | The ID of the user to ban \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `username` | string | Username |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `banned` | boolean | Whether the user is banned |
+| `locked` | boolean | Whether the user is locked |
+| `lockoutExpiresInSeconds` | number | Seconds until lockout expires |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_unban_user`
+
+Remove a ban from a user, allowing them to sign in again
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `userId` | string | Yes | The ID of the user to unban \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `username` | string | Username |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `banned` | boolean | Whether the user is banned |
+| `locked` | boolean | Whether the user is locked |
+| `lockoutExpiresInSeconds` | number | Seconds until lockout expires |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_lock_user`
+
+Lock a user account, blocking sign-in attempts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `userId` | string | Yes | The ID of the user to lock \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `username` | string | Username |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `banned` | boolean | Whether the user is banned |
+| `locked` | boolean | Whether the user is locked |
+| `lockoutExpiresInSeconds` | number | Seconds until lockout expires |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_unlock_user`
+
+Unlock a previously locked user account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `userId` | string | Yes | The ID of the user to unlock \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `username` | string | Username |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `banned` | boolean | Whether the user is banned |
+| `locked` | boolean | Whether the user is locked |
+| `lockoutExpiresInSeconds` | number | Seconds until lockout expires |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_get_user_oauth_token`
+
+Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `userId` | string | Yes | The ID of the user \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `provider` | string | Yes | OAuth provider slug, e.g. google, github, microsoft, discord \(without the oauth_ prefix\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessTokens` | array | OAuth access tokens for the connected provider |
+|   ↳ `externalAccountId` | string | External account ID |
+|   ↳ `token` | string | OAuth access token |
+|   ↳ `expiresAt` | number | Expiration timestamp |
+|   ↳ `provider` | string | OAuth provider slug |
+|   ↳ `label` | string | Token label |
+|   ↳ `scopes` | array | OAuth scopes granted to the token |
+|   ↳ `publicMetadata` | json | Public metadata associated with the token |
+| `success` | boolean | Operation success status |
+
 ### `clerk_list_organizations`
 
 List all organizations in your Clerk application with optional filtering
@@ -352,6 +478,278 @@ Create a new organization in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
+### `clerk_update_organization`
+
+Update an existing organization in your Clerk application
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `organizationId` | string | Yes | The ID of the organization to update \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `name` | string | No | Name of the organization |
+| `slug` | string | No | Slug identifier for the organization |
+| `maxAllowedMemberships` | number | No | Maximum member capacity \(0 for unlimited\) |
+| `adminDeleteEnabled` | boolean | No | Whether admins can delete the organization |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Organization ID |
+| `name` | string | Organization name |
+| `slug` | string | Organization slug |
+| `imageUrl` | string | Organization image URL |
+| `hasImage` | boolean | Whether organization has an image |
+| `membersCount` | number | Number of members |
+| `pendingInvitationsCount` | number | Number of pending invitations |
+| `maxAllowedMemberships` | number | Max allowed memberships |
+| `adminDeleteEnabled` | boolean | Whether admin delete is enabled |
+| `createdBy` | string | Creator user ID |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `publicMetadata` | json | Public metadata |
+| `success` | boolean | Operation success status |
+
+### `clerk_delete_organization`
+
+Delete an organization from your Clerk application
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `organizationId` | string | Yes | The ID of the organization to delete \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deleted organization ID |
+| `object` | string | Object type \(organization\) |
+| `deleted` | boolean | Whether the organization was deleted |
+| `success` | boolean | Operation success status |
+
+### `clerk_list_organization_memberships`
+
+List members of a Clerk organization with optional filtering and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
+| `orderBy` | string | No | Sort field \(e.g., created_at\) with +/- prefix for direction |
+| `role` | string | No | Filter by role, comma-separated for multiple \(e.g., org:admin,org:member\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memberships` | array | Array of Clerk organization membership objects |
+|   ↳ `id` | string | Membership ID |
+|   ↳ `role` | string | Member role |
+|   ↳ `roleName` | string | Human-readable role name |
+|   ↳ `permissions` | array | Permissions granted by the role |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `userId` | string | Member user ID |
+|   ↳ `firstName` | string | Member first name |
+|   ↳ `lastName` | string | Member last name |
+|   ↳ `imageUrl` | string | Member profile image URL |
+|   ↳ `identifier` | string | Member identifier \(e.g., email\) |
+|   ↳ `username` | string | Member username |
+|   ↳ `banned` | boolean | Whether the member is banned |
+|   ↳ `publicMetadata` | json | Public metadata |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+| `totalCount` | number | Total number of memberships |
+| `success` | boolean | Operation success status |
+
+### `clerk_add_organization_member`
+
+Add a user as a member of a Clerk organization with a given role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `userId` | string | Yes | ID of the user to add as a member |
+| `role` | string | Yes | Role to assign, e.g. org:admin or org:member |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Membership ID |
+| `role` | string | Member role |
+| `roleName` | string | Human-readable role name |
+| `permissions` | array | Permissions granted by the role |
+| `organizationId` | string | Organization ID |
+| `userId` | string | Member user ID |
+| `firstName` | string | Member first name |
+| `lastName` | string | Member last name |
+| `imageUrl` | string | Member profile image URL |
+| `identifier` | string | Member identifier \(e.g., email\) |
+| `username` | string | Member username |
+| `banned` | boolean | Whether the member is banned |
+| `publicMetadata` | json | Public metadata |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_update_organization_membership`
+
+Change a member's role within a Clerk organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `userId` | string | Yes | ID of the member whose role is being changed |
+| `role` | string | Yes | New role to assign, e.g. org:admin or org:member |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Membership ID |
+| `role` | string | Member role |
+| `roleName` | string | Human-readable role name |
+| `permissions` | array | Permissions granted by the role |
+| `organizationId` | string | Organization ID |
+| `userId` | string | Member user ID |
+| `firstName` | string | Member first name |
+| `lastName` | string | Member last name |
+| `imageUrl` | string | Member profile image URL |
+| `identifier` | string | Member identifier \(e.g., email\) |
+| `username` | string | Member username |
+| `banned` | boolean | Whether the member is banned |
+| `publicMetadata` | json | Public metadata |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_remove_organization_member`
+
+Remove a member from a Clerk organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `userId` | string | Yes | ID of the member to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Membership ID |
+| `role` | string | Member role |
+| `roleName` | string | Human-readable role name |
+| `permissions` | array | Permissions granted by the role |
+| `organizationId` | string | Organization ID |
+| `userId` | string | Member user ID |
+| `firstName` | string | Member first name |
+| `lastName` | string | Member last name |
+| `imageUrl` | string | Member profile image URL |
+| `identifier` | string | Member identifier \(e.g., email\) |
+| `username` | string | Member username |
+| `banned` | boolean | Whether the member is banned |
+| `publicMetadata` | json | Public metadata |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_create_organization_invitation`
+
+Invite a user by email to join a Clerk organization with a given role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `emailAddress` | string | Yes | Email address of the user to invite |
+| `role` | string | Yes | Role to assign on acceptance, e.g. org:admin or org:member |
+| `inviterUserId` | string | No | User ID of the inviter |
+| `redirectUrl` | string | No | URL to redirect to after the invitation is accepted |
+| `expiresInDays` | number | No | Days until the invitation expires \(1-365, default 30\) |
+| `publicMetadata` | json | No | Public metadata \(JSON object\) |
+| `privateMetadata` | json | No | Private metadata \(JSON object\) |
+| `notify` | boolean | No | Whether Clerk sends the invitation email \(default true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Invitation ID |
+| `emailAddress` | string | Invited email address |
+| `role` | string | Role to assign on acceptance |
+| `roleName` | string | Human-readable role name |
+| `organizationId` | string | Organization ID |
+| `inviterId` | string | User ID of the inviter |
+| `inviterEmail` | string | Inviter's email address |
+| `inviterFirstName` | string | Inviter's first name |
+| `inviterLastName` | string | Inviter's last name |
+| `status` | string | Invitation status |
+| `url` | string | Invitation URL |
+| `expiresAt` | number | Expiration timestamp |
+| `publicMetadata` | json | Public metadata |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_list_organization_invitations`
+
+List pending and past invitations for a Clerk organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `status` | string | No | Filter by status: pending, accepted, revoked, or expired |
+| `emailAddress` | string | No | Filter by invited email address |
+| `orderBy` | string | No | Sort field \(created_at, email_address\) with +/- prefix \(default: -created_at\) |
+| `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invitations` | array | Array of Clerk organization invitation objects |
+|   ↳ `id` | string | Invitation ID |
+|   ↳ `emailAddress` | string | Invited email address |
+|   ↳ `role` | string | Role to assign on acceptance |
+|   ↳ `roleName` | string | Human-readable role name |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `inviterId` | string | User ID of the inviter |
+|   ↳ `inviterEmail` | string | Inviter's email address |
+|   ↳ `inviterFirstName` | string | Inviter's first name |
+|   ↳ `inviterLastName` | string | Inviter's last name |
+|   ↳ `status` | string | Invitation status |
+|   ↳ `url` | string | Invitation URL |
+|   ↳ `expiresAt` | number | Expiration timestamp |
+|   ↳ `publicMetadata` | json | Public metadata |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+| `totalCount` | number | Total number of invitations |
+| `success` | boolean | Operation success status |
+
 ### `clerk_list_sessions`
 
 List sessions for a user or client in your Clerk application
@@ -439,6 +837,247 @@ Revoke a session to immediately invalidate it
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+### `clerk_list_allowlist_identifiers`
+
+List email/phone/web3-wallet identifiers on your Clerk instance allowlist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `identifiers` | array | Array of Clerk allowlist identifier objects |
+|   ↳ `id` | string | Allowlist identifier ID |
+|   ↳ `identifier` | string | Email, phone, or web3 wallet identifier |
+|   ↳ `identifierType` | string | Type of identifier |
+|   ↳ `invitationId` | string | Associated invitation ID |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+| `totalCount` | number | Total number of allowlist identifiers |
+| `success` | boolean | Operation success status |
+
+### `clerk_create_allowlist_identifier`
+
+Add an email, phone number, or web3 wallet to your Clerk instance allowlist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `identifier` | string | Yes | Email address, phone number, or web3 wallet to allow \(wildcards like *@example.com supported for email\) |
+| `notify` | boolean | No | Whether to notify the identifier owner by email \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Allowlist identifier ID |
+| `identifier` | string | Email, phone, or web3 wallet identifier |
+| `identifierType` | string | Type of identifier |
+| `invitationId` | string | Associated invitation ID |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_delete_allowlist_identifier`
+
+Remove an identifier from your Clerk instance allowlist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `identifierId` | string | Yes | ID of the allowlist identifier to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deleted allowlist identifier ID |
+| `object` | string | Object type \(allowlist_identifier\) |
+| `deleted` | boolean | Whether the identifier was deleted |
+| `success` | boolean | Operation success status |
+
+### `clerk_list_blocklist_identifiers`
+
+List email/phone/web3-wallet identifiers on your Clerk instance blocklist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `identifiers` | array | Array of Clerk blocklist identifier objects |
+|   ↳ `id` | string | Blocklist identifier ID |
+|   ↳ `identifier` | string | Email, phone, or web3 wallet identifier |
+|   ↳ `identifierType` | string | Type of identifier |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+| `totalCount` | number | Total number of blocklist identifiers |
+| `success` | boolean | Operation success status |
+
+### `clerk_create_blocklist_identifier`
+
+Add an email, phone number, or web3 wallet to your Clerk instance blocklist to prevent sign-ups
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `identifier` | string | Yes | Email address, phone number, or web3 wallet to block |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Blocklist identifier ID |
+| `identifier` | string | Email, phone, or web3 wallet identifier |
+| `identifierType` | string | Type of identifier |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_delete_blocklist_identifier`
+
+Remove an identifier from your Clerk instance blocklist
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `identifierId` | string | Yes | ID of the blocklist identifier to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deleted blocklist identifier ID |
+| `object` | string | Object type \(blocklist_identifier\) |
+| `deleted` | boolean | Whether the identifier was deleted |
+| `success` | boolean | Operation success status |
+
+### `clerk_list_jwt_templates`
+
+List custom JWT templates configured on your Clerk instance
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `templates` | array | Array of Clerk JWT template objects |
+|   ↳ `id` | string | JWT template ID |
+|   ↳ `name` | string | JWT template name |
+|   ↳ `claims` | json | Custom claims defined on the template |
+|   ↳ `lifetime` | number | Token lifetime in seconds |
+|   ↳ `allowedClockSkew` | number | Allowed clock skew in seconds |
+|   ↳ `customSigningKey` | boolean | Whether a custom signing key is configured |
+|   ↳ `signingAlgorithm` | string | Signing algorithm used |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+| `totalCount` | number | Total number of JWT templates |
+| `success` | boolean | Operation success status |
+
+### `clerk_get_jwt_template`
+
+Retrieve a single custom JWT template by ID from Clerk
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `templateId` | string | Yes | ID of the JWT template to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | JWT template ID |
+| `name` | string | JWT template name |
+| `claims` | json | Custom claims defined on the template |
+| `lifetime` | number | Token lifetime in seconds |
+| `allowedClockSkew` | number | Allowed clock skew in seconds |
+| `customSigningKey` | boolean | Whether a custom signing key is configured |
+| `signingAlgorithm` | string | Signing algorithm used |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_create_actor_token`
+
+Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `userId` | string | Yes | ID of the user to impersonate |
+| `actor` | json | Yes | Actor JSON object identifying who is impersonating, must include a "sub" field, e.g. \{"sub": "user_support_agent_id"\} |
+| `expiresInSeconds` | number | No | Seconds until the token expires \(default 3600\) |
+| `sessionMaxDurationInSeconds` | number | No | Max duration in seconds for sessions created with this token \(default 1800\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Actor token ID |
+| `status` | string | Actor token status |
+| `userId` | string | ID of the impersonated user |
+| `actor` | json | Actor object identifying who is impersonating |
+| `token` | string | Signed actor token \(JWT\) |
+| `url` | string | Sign-in URL for the actor token |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
+### `clerk_revoke_actor_token`
+
+Revoke an actor token before it is used or expires
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
+| `actorTokenId` | string | Yes | ID of the actor token to revoke |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Actor token ID |
+| `status` | string | Actor token status \(should be revoked\) |
+| `userId` | string | ID of the impersonated user |
+| `actor` | json | Actor object identifying who is impersonating |
+| `token` | string | Signed actor token \(JWT\) |
+| `url` | string | Sign-in URL for the actor token |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+| `success` | boolean | Operation success status |
+
 
 
 ## Triggers
@@ -475,6 +1114,31 @@ Trigger workflow when a Clerk organization is created
 
 ---
 
+### Clerk Organization Deleted
+
+Trigger workflow when a Clerk organization is deleted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `organizationId` | string | Deleted Clerk organization ID \(data.id\) |
+| `deleted` | boolean | Whether the organization was deleted \(data.deleted\) |
+
+
+---
+
 ### Clerk Organization Membership Created
 
 Trigger workflow when a Clerk organization membership is created
@@ -503,9 +1167,176 @@ Trigger workflow when a Clerk organization membership is created
 
 ---
 
+### Clerk Organization Membership Deleted
+
+Trigger workflow when a Clerk organization membership is deleted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `membershipId` | string | Deleted membership ID \(data.id\) |
+| `deleted` | boolean | Whether the membership was deleted \(data.deleted\) |
+
+
+---
+
+### Clerk Organization Membership Updated
+
+Trigger workflow when a Clerk organization membership is updated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `membershipId` | string | Membership ID \(data.id\) |
+| `role` | string | Membership role, e.g. org:admin \(data.role\) |
+| `organizationId` | string | Organization ID \(data.organization.id\) |
+| `userId` | string | User ID of the member \(data.public_user_data.user_id\) |
+| `createdAt` | number | Membership creation timestamp \(data.created_at\) |
+
+
+---
+
+### Clerk Organization Updated
+
+Trigger workflow when a Clerk organization is updated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `organizationId` | string | Clerk organization ID \(data.id\) |
+| `name` | string | Organization name \(data.name\) |
+| `slug` | string | Organization slug \(data.slug\) |
+| `createdBy` | string | User ID of the creator \(data.created_by\) |
+| `membersCount` | number | Number of members \(data.members_count\) |
+| `maxAllowedMemberships` | number | Maximum allowed memberships \(data.max_allowed_memberships\) |
+| `createdAt` | number | Organization creation timestamp \(data.created_at\) |
+
+
+---
+
 ### Clerk Session Created
 
 Trigger workflow when a Clerk session is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `sessionId` | string | Clerk session ID \(data.id\) |
+| `userId` | string | User the session belongs to \(data.user_id\) |
+| `clientId` | string | Client ID for the session \(data.client_id\) |
+| `status` | string | Session status \(data.status\) |
+| `createdAt` | number | Session creation timestamp \(data.created_at\) |
+
+
+---
+
+### Clerk Session Ended
+
+Trigger workflow when a Clerk session ends
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `sessionId` | string | Clerk session ID \(data.id\) |
+| `userId` | string | User the session belongs to \(data.user_id\) |
+| `clientId` | string | Client ID for the session \(data.client_id\) |
+| `status` | string | Session status \(data.status\) |
+| `createdAt` | number | Session creation timestamp \(data.created_at\) |
+
+
+---
+
+### Clerk Session Removed
+
+Trigger workflow when a Clerk session is removed
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Copy this from your Clerk webhook endpoint to verify event signatures. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., user.created, session.created\) |
+| `object` | string | Always "event" |
+| `timestamp` | number | Timestamp in milliseconds when the event occurred |
+| `instance_id` | string | Identifier of your Clerk instance |
+| `data` | json | Raw event `data` object \(shape varies by event type\) |
+| `sessionId` | string | Clerk session ID \(data.id\) |
+| `userId` | string | User the session belongs to \(data.user_id\) |
+| `clientId` | string | Client ID for the session \(data.client_id\) |
+| `status` | string | Session status \(data.status\) |
+| `createdAt` | number | Session creation timestamp \(data.created_at\) |
+
+
+---
+
+### Clerk Session Revoked
+
+Trigger workflow when a Clerk session is revoked
 
 #### Configuration
 

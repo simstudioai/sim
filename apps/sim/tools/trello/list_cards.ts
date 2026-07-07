@@ -37,6 +37,12 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
       visibility: 'user-or-llm',
       description: 'Trello list ID to list cards from. Provide either boardId or listId',
     },
+    filter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Which cards to return: open, closed, or all (defaults to open)',
+    },
   },
 
   request: {
@@ -61,6 +67,10 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
       const url = new URL(`${TRELLO_API_BASE_URL}${path}`)
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
+
+      if (params.filter) {
+        url.searchParams.set('filter', params.filter)
+      }
 
       return url.toString()
     },

@@ -122,8 +122,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         ? resolveActiveCanonicalValue(group, values, canonicalModes)
         : values[anchorCfg.id]
       const parentSourceId = typeof rawValue === 'string' ? rawValue : ''
-      // Skip empty and org-scoped credential sets (those carry over unchanged).
-      if (!parentSourceId || parentSourceId.startsWith('credentialSet:')) continue
+      if (!parentSourceId) continue
       // Multi-value parents (comma-joined) can't match a single mapping entry; skip
       // (the field falls back to needs-config) rather than mis-bind to one of several.
       if (parentSourceId.includes(',')) continue

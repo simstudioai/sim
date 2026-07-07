@@ -8,9 +8,11 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 
 const logger = createLogger('EditKnowledgeBaseModal')
@@ -60,31 +62,36 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
     }
   }
 
-  const validate = (): boolean => {
-    let valid = true
+  const validate = (): string | null => {
+    let firstError: string | null = null
 
     if (!name.trim()) {
       setNameError('Name is required')
-      valid = false
+      firstError ??= 'Name is required'
     } else if (name.trim().length > 100) {
       setNameError('Name must be less than 100 characters')
-      valid = false
+      firstError ??= 'Name must be less than 100 characters'
     } else {
       setNameError(null)
     }
 
-    if (description.length > 500) {
-      setDescriptionError('Description must be less than 500 characters')
-      valid = false
+    if (description.length > KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH) {
+      const message = `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+      setDescriptionError(message)
+      firstError ??= message
     } else {
       setDescriptionError(null)
     }
 
-    return valid
+    return firstError
   }
 
   const handleSubmit = async () => {
-    if (!validate()) return
+    const validationError = validate()
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
 
     setIsSubmitting(true)
     setError(null)

@@ -90,6 +90,15 @@ const FEATURE_FLAGS = {
       'agree.',
     fallback: 'PII_REDACTION',
   },
+  'pii-granular-redaction': {
+    description:
+      'Expose the execution-altering PII redaction stages (redact the workflow input and every ' +
+      'block output in-flight) in the Data Retention config, layered on top of pii-redaction. ' +
+      'Global on/off only — gates the config surfaces (route write + UI). Because stored rules ' +
+      'are the source of truth for the executor, a granular stage can only run once it was ' +
+      'writable, so the executor is never flag-gated at runtime (avoiding a fail-open leak).',
+    fallback: 'PII_GRANULAR_REDACTION',
+  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +
@@ -105,6 +114,13 @@ const FEATURE_FLAGS = {
       'operators can dark-launch forking to specific orgs/users/admins without touching ' +
       'self-hosted/local behaviour. Fallback mirrors FORKING_ENABLED for off-AppConfig reads.',
     fallback: 'FORKING_ENABLED',
+  },
+  'deploy-as-block': {
+    description:
+      'Publish a deployed workflow as a reusable, org-wide custom block (custom name/SVG icon/' +
+      'description; Start inputs become block inputs). Gates the Deploy-modal "Block" tab and the ' +
+      'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
+    fallback: 'DEPLOY_AS_BLOCK',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

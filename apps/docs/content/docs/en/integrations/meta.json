@@ -77,6 +77,7 @@
     "gong",
     "google-service-account",
     "google_ads",
+    "google_appsheet",
     "google_bigquery",
     "google_books",
     "google_calendar",

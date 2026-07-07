@@ -109,27 +109,27 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   const [editServerIsPublic, setEditServerIsPublic] = useState(false)
   const [activeServerTab, setActiveServerTab] = useState<'workflows' | 'details'>('details')
 
-  useEffect(() => {
-    if (toolToView) {
-      setEditingDescription(toolToView.toolDescription || '')
-      const schema = toolToView.parameterSchema as
-        | { properties?: Record<string, { type?: string; description?: string }> }
-        | undefined
-      const properties = schema?.properties
-      if (properties) {
-        const descriptions: Record<string, string> = {}
-        for (const [name, prop] of Object.entries(properties)) {
-          descriptions[name] = prop.description || ''
-        }
-        setEditingParameterDescriptions(descriptions)
-      } else {
-        setEditingParameterDescriptions({})
-      }
-    }
-  }, [toolToView])
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
   const mcpServerUrl = `${getBaseUrl()}/api/mcp/serve/${serverId}`
+
+  const handleOpenToolEdit = (tool: WorkflowMcpTool) => {
+    setToolToView(tool)
+    setEditingDescription(tool.toolDescription || '')
+    const schema = tool.parameterSchema as
+      | { properties?: Record<string, { type?: string; description?: string }> }
+      | undefined
+    const properties = schema?.properties
+    if (properties) {
+      const descriptions: Record<string, string> = {}
+      for (const [name, prop] of Object.entries(properties)) {
+        descriptions[name] = prop.description || ''
+      }
+      setEditingParameterDescriptions(descriptions)
+    } else {
+      setEditingParameterDescriptions({})
+    }
+  }
 
   const handleDeleteTool = async () => {
     if (!toolToDelete) return
@@ -217,7 +217,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     return !descriptionChanged && !paramDescriptionsChanged
   })()
 
-  const tools = data?.tools ?? []
+  const tools = useMemo(() => data?.tools ?? [], [data?.tools])
 
   const availableWorkflows = useMemo(() => {
     const existingWorkflowIds = new Set(tools.map((t) => t.workflowId))
@@ -414,10 +414,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     {tools.map((tool) => (
                       <div key={tool.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                          <span className='text-[14px] text-[var(--text-body)]'>
-                            {tool.toolName}
-                          </span>
-                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                          <span className='text-[var(--text-body)] text-sm'>{tool.toolName}</span>
+                          <p className='truncate text-[var(--text-muted)] text-caption'>
                             {tool.toolDescription || 'No description'}
                           </p>
                         </div>
@@ -425,7 +423,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                           <RowActionsMenu
                             label='Tool actions'
                             actions={[
-                              { label: 'Edit', onSelect: () => setToolToView(tool) },
+                              { label: 'Edit', onSelect: () => handleOpenToolEdit(tool) },
                               {
                                 label: 'Remove',
                                 destructive: true,
@@ -860,8 +858,7 @@ export function WorkflowMcpServers() {
   const searchParams = useSearchParams()
 
   const { data: servers = [], isLoading, error } = useWorkflowMcpServers(workspaceId)
-  const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
-    useDeployedWorkflows(workspaceId)
+  const { data: deployedWorkflows = [] } = useDeployedWorkflows(workspaceId)
   const deleteServerMutation = useDeleteWorkflowMcpServer()
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -961,7 +958,7 @@ export function WorkflowMcpServers() {
                   <div key={server.id} className='flex items-center justify-between gap-3'>
                     <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                       <div className='flex items-center gap-1.5'>
-                        <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
+                        <span className='max-w-[200px] truncate text-[var(--text-body)] text-sm'>
                           {server.name}
                         </span>
                         {server.isPublic && (
@@ -970,7 +967,7 @@ export function WorkflowMcpServers() {
                           </Badge>
                         )}
                       </div>
-                      <p className='truncate text-[12px] text-[var(--text-muted)]'>{toolsLabel}</p>
+                      <p className='truncate text-[var(--text-muted)] text-caption'>{toolsLabel}</p>
                     </div>
                     <div className='flex flex-shrink-0 items-center gap-1'>
                       <RowActionsMenu
@@ -1004,7 +1001,6 @@ export function WorkflowMcpServers() {
         onOpenChange={setShowAddModal}
         workspaceId={workspaceId}
         workflowOptions={workflowOptions}
-        isLoadingWorkflows={isLoadingWorkflows}
       />
 
       <ChipConfirmModal

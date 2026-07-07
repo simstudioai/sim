@@ -16,7 +16,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { isValidationError } from '@/lib/api/client/errors'
+import { extractValidationIssues, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
@@ -83,7 +83,6 @@ import type {
   TableDefinition,
   TableMetadata,
   TableRow,
-  TableRowsCursor,
   WorkflowGroup,
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
@@ -96,21 +95,28 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
-import { type TableQueryScope, tableKeys } from '@/hooks/queries/utils/table-keys'
+import {
+  TABLE_LIST_STALE_TIME,
+  type TableQueryScope,
+  tableKeys,
+} from '@/hooks/queries/utils/table-keys'
+import {
+  getNextTableRowsPageParam,
+  type TableRowsPageParam,
+} from '@/hooks/queries/utils/table-rows-pagination'
 
 const logger = createLogger('TableQueries')
+export const TABLE_DETAIL_STALE_TIME = 30 * 1000
+export const TABLE_RUN_STATE_STALE_TIME = 30 * 1000
+export const TABLE_FIND_STALE_TIME = 30 * 1000
+export const TABLE_ROWS_STALE_TIME = 30 * 1000
+export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
   TableIdParamsInput & {
     filter?: Filter | null
     sort?: Sort | null
   }
-
-/**
- * Infinite-rows page param: a keyset cursor on the default `(order_key, id)` order, or a numeric
- * offset for sorted views / legacy rows without an order key. `0` doubles as the first page.
- */
-export type TableRowsPageParam = number | TableRowsCursor
 
 export type TableRowsResponse = Pick<
   ContractJsonResponse<typeof listTableRowsContract>['data'],
@@ -229,7 +235,7 @@ export function useTablesList(
       return response.data.tables
     },
     enabled: Boolean(workspaceId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
     refetchInterval:
       typeof refetchInterval === 'function'
@@ -247,7 +253,7 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     queryKey: tableKeys.detail(tableId ?? ''),
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_DETAIL_STALE_TIME,
   })
 }
 
@@ -259,7 +265,7 @@ export function getTableDetailQueryOptions(workspaceId: string, tableId: string)
   return {
     queryKey: tableKeys.detail(tableId),
     queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_DETAIL_STALE_TIME,
   }
 }
 
@@ -385,7 +391,7 @@ export function useTableRunState(tableId: string | undefined) {
     queryKey: tableKeys.activeDispatches(tableId ?? ''),
     queryFn: ({ signal }) => fetchTableRunState(tableId as string, signal),
     enabled: Boolean(tableId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_RUN_STATE_STALE_TIME,
   })
 }
 
@@ -447,7 +453,7 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
     queryFn: ({ signal }) =>
       fetchTableRowMatches({ workspaceId, tableId, q, filter, sort, signal }),
     enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
-    staleTime: 30 * 1000,
+    staleTime: TABLE_FIND_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -476,19 +482,14 @@ export function tableRowsInfiniteOptions({
       })
     },
     initialPageParam: 0 as TableRowsPageParam,
-    getNextPageParam: (lastPage, _allPages, lastPageParam): TableRowsPageParam | undefined => {
-      if (lastPage.rows.length < pageSize) return undefined
-      // Default order pages by keyset cursor — each page is an index seek on (order_key, id),
-      // where OFFSET would re-scan every prior row (O(N²) across a deep scroll / full drain).
-      // Sorted views (and legacy rows without an order key) fall back to offset paging.
-      if (!sort) {
-        const last = lastPage.rows[lastPage.rows.length - 1]
-        if (last?.orderKey) return { orderKey: last.orderKey, id: last.id }
-      }
-      const param = lastPageParam as TableRowsPageParam
-      return (typeof param === 'number' ? param : 0) + lastPage.rows.length
-    },
-    staleTime: 30 * 1000,
+    // Termination comes from hasMoreTableRows (empty page / totalCount covered) — never from
+    // rows.length < pageSize, so a short server page can't be misread as end-of-table.
+    // Default order pages by keyset cursor — each page is an index seek on (order_key, id),
+    // where OFFSET would re-scan every prior row (O(N²) across a deep scroll / full drain).
+    // Sorted views (and legacy rows without an order key) fall back to offset paging.
+    getNextPageParam: (_lastPage, allPages): TableRowsPageParam | undefined =>
+      getNextTableRowsPageParam(allPages, Boolean(sort)),
+    staleTime: TABLE_ROWS_STALE_TIME,
   })
 }
 
@@ -519,9 +520,10 @@ export function useCreateTable(workspaceId: string) {
         body: { ...params, workspaceId },
       })
     },
+    // Unlike row writes, table naming has no inline validation surface — the
+    // issue message (e.g. the NAME_PATTERN rule) must reach the user as a toast.
     onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -565,9 +567,10 @@ export function useRenameTable(workspaceId: string) {
         body: { workspaceId, name },
       })
     },
+    // Inline rename reverts the field on failure with no message of its own, so
+    // the validation issue (e.g. the NAME_PATTERN rule) must surface as a toast.
     onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })
@@ -1681,7 +1684,7 @@ export function useWorkspaceExportJobs(workspaceId?: string) {
     queryKey: tableKeys.exportJobs(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceExportJobs(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 5 * 1000,
+    staleTime: TABLE_EXPORT_JOBS_STALE_TIME,
     refetchInterval: (query) =>
       query.state.data?.some((j) => j.status === 'running') ? 2000 : false,
   })

@@ -104,7 +104,7 @@ async function handleWebhookPost(
     return challengeResponse
   }
 
-  // Find all webhooks for this path (supports credential set fan-out where multiple webhooks share a path)
+  // Find all webhooks for this path (multiple webhooks in one workflow may share a path)
   const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
   // Internal trigger providers (sim, table) are fired in-process, never over
@@ -134,8 +134,7 @@ async function handleWebhookPost(
     return new NextResponse('Not Found', { status: 404 })
   }
 
-  // Process each webhook
-  // For credential sets with shared paths, each webhook represents a different credential
+  // Process each webhook matched on this path
   const responses: NextResponse[] = []
   let billingBlocked = false
 
@@ -229,9 +228,7 @@ async function handleWebhookPost(
   }
 
   // For multiple webhooks, return success if at least one succeeded
-  logger.info(
-    `[${requestId}] Processed ${responses.length} webhooks for path: ${path} (credential set fan-out)`
-  )
+  logger.info(`[${requestId}] Processed ${responses.length} webhooks for path: ${path}`)
   return NextResponse.json({
     success: true,
     webhooksProcessed: responses.length,

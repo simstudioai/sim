@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Download, Loader } from '@sim/emcn'
+import { Button, cn, Download, Loader } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { Music } from 'lucide-react'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
-import { getBrowserOrigin } from '@/lib/core/utils/urls'
+import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import type { ChatFile } from '@/app/(interfaces)/chat/components/message/message'
 
 const logger = createLogger('ChatFileDownload')
@@ -54,21 +54,6 @@ function getFileUrl(file: ChatFile): string {
   return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
 }
 
-/**
- * Validates that a URL uses an http(s) scheme before it is opened in a new window.
- * Rejects `javascript:`, `data:`, `blob:`, `vbscript:`, and other schemes that could
- * execute script in the chat origin, since `file.url` originates from untrusted
- * workflow/agent output.
- */
-export function isSafeHttpUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url, getBrowserOrigin() ?? undefined)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
 async function triggerDownload(url: string, filename: string): Promise<void> {
   const response = await fetch(url)
   if (!response.ok) {
@@ -114,14 +99,14 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
 
   const renderIcon = () => {
     if (isAudioFile(file.type, file.name)) {
-      return <Music className='h-4 w-4 text-purple-500' />
+      return <Music className='size-4 text-purple-500' />
     }
     if (isImageFile(file.type)) {
       const ImageIcon = DefaultFileIcon
-      return <ImageIcon className='h-5 w-5' />
+      return <ImageIcon className='size-5' />
     }
     const DocumentIcon = getDocumentIcon(file.type, file.name)
-    return <DocumentIcon className='h-5 w-5' />
+    return <DocumentIcon className='size-5' />
   }
 
   return (
@@ -133,19 +118,17 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
       disabled={isDownloading}
       className='flex h-auto w-[200px] items-center gap-2 rounded-lg px-3 py-2'
     >
-      <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center'>{renderIcon()}</div>
+      <div className='flex size-8 flex-shrink-0 items-center justify-center'>{renderIcon()}</div>
       <div className='min-w-0 flex-1 text-left'>
         <div className='w-[100px] truncate text-xs'>{file.name}</div>
-        <div className='text-[var(--landing-text-muted)] text-micro'>
-          {formatFileSize(file.size)}
-        </div>
+        <div className='text-[var(--text-muted)] text-micro'>{formatFileSize(file.size)}</div>
       </div>
       <div className='flex-shrink-0'>
         {isDownloading ? (
-          <Loader className='h-3.5 w-3.5' animate />
+          <Loader className='size-3.5' animate />
         ) : (
           <Download
-            className={`h-3.5 w-3.5 transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}
+            className={cn('size-3.5 transition-opacity', isHovered ? 'opacity-100' : 'opacity-0')}
           />
         )}
       </div>
@@ -186,16 +169,17 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
   }
 
   return (
-    <button
+    <Button
+      variant='ghost-secondary'
       onClick={handleDownloadAll}
       disabled={isDownloading}
-      className='text-[var(--landing-text-muted)] transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:opacity-50'
+      className='p-0'
     >
       {isDownloading ? (
-        <Loader className='h-3 w-3' animate />
+        <Loader className='size-3' animate />
       ) : (
-        <Download className='h-3 w-3' strokeWidth={2} />
+        <Download className='size-3' strokeWidth={2} />
       )}
-    </button>
+    </Button>
   )
 }

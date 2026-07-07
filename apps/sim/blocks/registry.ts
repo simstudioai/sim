@@ -1,4 +1,5 @@
 import { stripVersionSuffix } from '@sim/utils/string'
+import { overlayBlocks, resolveOverlayBlock } from '@/blocks/custom/overlay'
 import { BLOCK_META_REGISTRY, BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type {
   BlockCategory,
@@ -16,14 +17,14 @@ function normalizeType(type: string): string {
   return type.replace(/-/g, '_')
 }
 
-/** Get the block config for a single block type. */
+/** Get the block config for a single block type. Falls back to the custom-block overlay. */
 export function getBlock(type: string): BlockConfig | undefined {
-  return BLOCK_REGISTRY[type] ?? BLOCK_REGISTRY[normalizeType(type)]
+  return BLOCK_REGISTRY[type] ?? BLOCK_REGISTRY[normalizeType(type)] ?? resolveOverlayBlock(type)
 }
 
-/** All block configs. */
+/** All block configs, including any in-scope custom blocks from the overlay. */
 export function getAllBlocks(): BlockConfig[] {
-  return Object.values(BLOCK_REGISTRY)
+  return [...Object.values(BLOCK_REGISTRY), ...overlayBlocks()]
 }
 
 /** Find the block whose `tools.access` contains the given tool id. */
@@ -81,7 +82,7 @@ export function getBlocksByCategory(category: BlockCategory): BlockConfig[] {
  * `hideFromToolbar: true`).
  */
 export function getCanonicalBlocksByCategory(category: BlockCategory): BlockConfig[] {
-  return Object.values(BLOCK_REGISTRY).filter(
+  return [...Object.values(BLOCK_REGISTRY), ...overlayBlocks()].filter(
     (block) => block.category === category && !block.hideFromToolbar
   )
 }
@@ -93,7 +94,11 @@ export function getAllBlockTypes(): string[] {
 
 /** Whether the given string is a registered block type. Accepts hyphens as a dash-form alias. */
 export function isValidBlockType(type: string): type is string {
-  return type in BLOCK_REGISTRY || normalizeType(type) in BLOCK_REGISTRY
+  return (
+    type in BLOCK_REGISTRY ||
+    normalizeType(type) in BLOCK_REGISTRY ||
+    Boolean(resolveOverlayBlock(type))
+  )
 }
 
 /**

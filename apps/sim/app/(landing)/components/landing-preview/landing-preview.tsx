@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AnimatePresence, domAnimation, LazyMotion, m, type Variants } from 'framer-motion'
 import { LandingPreviewChat } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/landing-preview-chat'
 import { LandingPreviewFiles } from '@/app/(landing)/components/landing-preview/components/landing-preview-files/landing-preview-files'
@@ -66,6 +66,17 @@ const WORKFLOW_MAP = new Map(PREVIEW_WORKFLOWS.map((w) => [w.id, w]))
 const HOME_STEP_MS = 12000
 const LOGS_STEP_MS = 5000
 
+const DESKTOP_QUERY = '(min-width: 1024px)'
+
+/** SSR-safe desktop media-query subscription for {@link useSyncExternalStore}. */
+function subscribeDesktop(onChange: () => void) {
+  const mql = window.matchMedia(DESKTOP_QUERY)
+  mql.addEventListener('change', onChange)
+  return () => mql.removeEventListener('change', onChange)
+}
+const getDesktopSnapshot = () => window.matchMedia(DESKTOP_QUERY).matches
+const getDesktopServerSnapshot = () => true
+
 /** Full desktop sequence: CRM -> home -> logs -> ITSM -> support -> repeat */
 const DESKTOP_STEPS: DemoStep[] = [
   {
@@ -99,9 +110,9 @@ interface LandingPreviewProps {
    * to `'workflow'`. Lets each feature stage show the platform surface that
    * matches its callout (e.g. `'logs'`, `'scheduled-tasks'`).
    */
-  view?: SidebarView
+  initialView?: SidebarView
   /** Initial workflow for the static snapshot. Defaults to the first preview workflow. */
-  workflowId?: string
+  initialWorkflowId?: string
 }
 
 /**
@@ -116,14 +127,18 @@ interface LandingPreviewProps {
  */
 export function LandingPreview({
   autoplay = true,
-  view = 'workflow',
-  workflowId = PREVIEW_WORKFLOWS[0].id,
+  initialView = 'workflow',
+  initialWorkflowId = PREVIEW_WORKFLOWS[0].id,
 }: LandingPreviewProps) {
-  const [activeView, setActiveView] = useState<SidebarView>(view)
-  const [activeWorkflowId, setActiveWorkflowId] = useState(workflowId)
+  const [activeView, setActiveView] = useState<SidebarView>(initialView)
+  const [activeWorkflowId, setActiveWorkflowId] = useState(initialWorkflowId)
   const [animationKey, setAnimationKey] = useState(0)
   const [autoTypeHome, setAutoTypeHome] = useState(false)
-  const [isDesktop, setIsDesktop] = useState(true)
+  const isDesktop = useSyncExternalStore(
+    subscribeDesktop,
+    getDesktopSnapshot,
+    getDesktopServerSnapshot
+  )
 
   const demoIndexRef = useRef(0)
   const demoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -164,14 +179,14 @@ export function LandingPreview({
   }, [applyDemoStep])
 
   useEffect(() => {
-    const desktop = window.matchMedia('(min-width: 1024px)').matches
-    setIsDesktop(desktop)
-    if (!desktop) return
-    if (!autoplay) return
+    /** `isDesktop` is reactive, so gate on the cycle still being active - a resize after interaction must not restart. */
+    if (!isDesktop || !autoplay || !autoCycleActiveRef.current) return
+    /** Reset the index so a restart replays from step 0 (index, applied step, and delay stay consistent). */
+    demoIndexRef.current = 0
     applyDemoStep(DESKTOP_STEPS[0])
     scheduleNextStep()
     return clearDemoTimer
-  }, [applyDemoStep, scheduleNextStep, clearDemoTimer, autoplay])
+  }, [isDesktop, autoplay, applyDemoStep, scheduleNextStep, clearDemoTimer])
 
   const stopAutoCycle = useCallback(() => {
     autoCycleActiveRef.current = false

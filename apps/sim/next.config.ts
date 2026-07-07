@@ -177,7 +177,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/:all*(svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot)',
+        source: '/((?!api/).*\\.(?:svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot))',
         headers: [
           {
             key: 'Cache-Control',
@@ -206,8 +206,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker to prevent 'refused to connect' issue
-        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive).*)',
+        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker
+        // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues
+        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -220,8 +221,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For main app routes, Google Drive Picker, and Vercel resources - use permissive policies
-        source: '/(w/.*|workspace/.*|api/tools/drive|_next/.*|_vercel/.*)',
+        // For main app routes, Google Drive Picker, the /demo Cal.com embed, and Vercel resources - use permissive policies
+        source: '/(w/.*|workspace/.*|api/tools/drive|demo.*|_next/.*|_vercel/.*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -324,6 +325,18 @@ const nextConfig: NextConfig = {
       }
     )
 
+    /**
+     * The marketing Academy course/lesson pages were removed; content is
+     * consolidated into the docs site instead. Old course/lesson slugs have
+     * no equivalent path there, so every sub-path collapses to the new
+     * landing page rather than forwarding to a path that may not exist.
+     */
+    redirects.push({
+      source: '/academy/:path*',
+      destination: 'https://docs.sim.ai/academy',
+      permanent: true,
+    })
+
     // Move root feeds to blog namespace
     redirects.push(
       {
@@ -353,6 +366,38 @@ const nextConfig: NextConfig = {
     redirects.push({
       source: '/integrations/incidentio',
       destination: '/integrations/incident-io',
+      permanent: true,
+    })
+
+    /**
+     * Legacy integration slug: the SAP block's display name was fixed from
+     * `SAP S/4HANA` to `SAP S4HANA`, which moved its catalog slug. Preserves
+     * the previously indexed landing URL.
+     */
+    redirects.push({
+      source: '/integrations/sap-s-4hana',
+      destination: '/integrations/sap-s4hana',
+      permanent: true,
+    })
+
+    /**
+     * Legacy integration slug: the Cal.com block's display name briefly
+     * shipped as `CalCom` before being fixed to `Cal Com`/`Cal.com`, which
+     * moved its catalog slug from `calcom` to `cal-com`.
+     */
+    redirects.push({
+      source: '/integrations/calcom',
+      destination: '/integrations/cal-com',
+      permanent: true,
+    })
+
+    /**
+     * The partner program page was removed; routes existing links/bookmarks
+     * to contact instead of leaving a dead, previously-indexed URL.
+     */
+    redirects.push({
+      source: '/partners',
+      destination: '/contact',
       permanent: true,
     })
 

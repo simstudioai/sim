@@ -24,10 +24,20 @@ import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')
 
+/** Stable empty references so memoized derivations don't re-run while data loads. */
+const EMPTY_KEYS: ApiKey[] = []
+const EMPTY_KEY_NAMES: string[] = []
+
 /** Copies an API key's name and confirms with a toast. */
 function copyKeyName(name: string) {
   void navigator.clipboard.writeText(name)
   toast.success('Copied name to clipboard')
+}
+
+/** Formats an API key's last-used timestamp, or "Never" when unused. */
+function formatLastUsed(dateString?: string | null): string {
+  if (!dateString) return 'Never'
+  return formatDate(new Date(dateString))
 }
 
 interface ApiKeyRowMenuProps {
@@ -73,9 +83,9 @@ export function ApiKeys() {
   const deleteApiKeyMutation = useDeleteApiKey()
   const updateSettingsMutation = useUpdateWorkspaceApiKeySettings()
 
-  const workspaceKeys = apiKeysData?.workspaceKeys || []
-  const personalKeys = apiKeysData?.personalKeys || []
-  const conflicts = apiKeysData?.conflicts || []
+  const workspaceKeys = apiKeysData?.workspaceKeys ?? EMPTY_KEYS
+  const personalKeys = apiKeysData?.personalKeys ?? EMPTY_KEYS
+  const conflicts = apiKeysData?.conflicts ?? EMPTY_KEY_NAMES
   const isLoading = isLoadingKeys || isLoadingSettings
 
   const allowPersonalApiKeys =
@@ -90,21 +100,27 @@ export function ApiKeys() {
   const createButtonDisabled = isLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
   const filteredWorkspaceKeys = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return workspaceKeys.map((key, index) => ({ key, originalIndex: index }))
+    const term = searchTerm.trim().toLowerCase()
+    const result: { key: ApiKey; originalIndex: number }[] = []
+    for (let index = 0; index < workspaceKeys.length; index++) {
+      const key = workspaceKeys[index]
+      if (term === '' || key.name.toLowerCase().includes(term)) {
+        result.push({ key, originalIndex: index })
+      }
     }
-    return workspaceKeys
-      .map((key, index) => ({ key, originalIndex: index }))
-      .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    return result
   }, [workspaceKeys, searchTerm])
 
   const filteredPersonalKeys = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return personalKeys.map((key, index) => ({ key, originalIndex: index }))
+    const term = searchTerm.trim().toLowerCase()
+    const result: { key: ApiKey; originalIndex: number }[] = []
+    for (let index = 0; index < personalKeys.length; index++) {
+      const key = personalKeys[index]
+      if (term === '' || key.name.toLowerCase().includes(term)) {
+        result.push({ key, originalIndex: index })
+      }
     }
-    return personalKeys
-      .map((key, index) => ({ key, originalIndex: index }))
-      .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    return result
   }, [personalKeys, searchTerm])
 
   const handleDeleteKey = async () => {
@@ -126,11 +142,6 @@ export function ApiKeys() {
       logger.error('Error deleting API key:', { error })
       refetchApiKeys()
     }
-  }
-
-  const formatLastUsed = (dateString?: string | null) => {
-    if (!dateString) return 'Never'
-    return formatDate(new Date(dateString))
   }
 
   const actions: SettingsAction[] = [
@@ -170,14 +181,14 @@ export function ApiKeys() {
                       <div key={key.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                            <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                               {key.name}
                             </span>
                             <span className='text-[var(--text-secondary)] text-sm'>
                               (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
-                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                          <p className='truncate text-[var(--text-muted)] text-caption'>
                             {key.displayKey || key.key}
                           </p>
                         </div>
@@ -201,14 +212,14 @@ export function ApiKeys() {
                     <div key={key.id} className='flex items-center justify-between gap-3'>
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <div className='flex items-center gap-1.5'>
-                          <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                          <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                             {key.name}
                           </span>
                           <span className='text-[var(--text-secondary)] text-sm'>
                             (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                           </span>
                         </div>
-                        <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                        <p className='truncate text-[var(--text-muted)] text-caption'>
                           {key.displayKey || key.key}
                         </p>
                       </div>
@@ -236,14 +247,14 @@ export function ApiKeys() {
                         <div className='flex items-center justify-between gap-3'>
                           <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                             <div className='flex items-center gap-1.5'>
-                              <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                              <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
                                 {key.name}
                               </span>
                               <span className='text-[var(--text-secondary)] text-sm'>
                                 (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
-                            <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                            <p className='truncate text-[var(--text-muted)] text-caption'>
                               {key.displayKey || key.key}
                             </p>
                           </div>
@@ -284,9 +295,7 @@ export function ApiKeys() {
             <SettingsSection label='Permissions'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
-                  <span className='text-[14px] text-[var(--text-body)]'>
-                    Allow personal API keys
-                  </span>
+                  <span className='text-[var(--text-body)] text-sm'>Allow personal API keys</span>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <button

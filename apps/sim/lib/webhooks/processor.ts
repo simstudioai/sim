@@ -1,15 +1,12 @@
 import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
-import { credentialSet } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { isProd } from '@/lib/core/config/env-flags'
 import {
   assertContentLengthWithinLimit,
   isPayloadSizeLimitError,
@@ -50,35 +47,6 @@ export interface WebhookPreprocessingResult {
   actorUserId?: string
   executionId?: string
   correlation?: AsyncExecutionCorrelation
-}
-
-async function verifyCredentialSetBilling(credentialSetId: string): Promise<{
-  valid: boolean
-  error?: string
-}> {
-  if (!isProd) {
-    return { valid: true }
-  }
-
-  const [set] = await db
-    .select({ organizationId: credentialSet.organizationId })
-    .from(credentialSet)
-    .where(eq(credentialSet.id, credentialSetId))
-    .limit(1)
-
-  if (!set) {
-    return { valid: false, error: 'Credential set not found' }
-  }
-
-  const hasTeamPlan = await isOrganizationOnTeamOrEnterprisePlan(set.organizationId)
-  if (!hasTeamPlan) {
-    return {
-      valid: false,
-      error: 'Credential sets require a Team or Enterprise plan. Please upgrade to continue.',
-    }
-  }
-
-  return { valid: true }
 }
 
 const WEBHOOK_BODY_LABEL = 'Webhook request body'
@@ -332,7 +300,7 @@ async function findWebhookAndWorkflow(
 /**
  * Finds all webhooks matching a path, scoped to a single workflow.
  *
- * Legitimate fan-out (credential sets) is always within one workflow, but paths
+ * Legitimate multi-webhook matches are always within one workflow, but paths
  * are user-controlled and only unique per deployment version, so two tenants can
  * register the same path. On collision we keep only the workflow that registered
  * the path first, so one tenant can never receive another's webhook deliveries.
@@ -398,9 +366,7 @@ export async function findAllWebhooksForPath(
   }
 
   if (results.length > 1) {
-    logger.info(
-      `[${options.requestId}] Found ${results.length} webhooks for path: ${options.path} (credential set fan-out)`
-    )
+    logger.info(`[${options.requestId}] Found ${results.length} webhooks for path: ${options.path}`)
   }
 
   return results
@@ -639,17 +605,6 @@ export async function queueWebhookExecution(
     }
 
     const credentialId = providerConfig.credentialId as string | undefined
-    const credentialSetId = foundWebhook.credentialSetId as string | undefined
-
-    if (credentialSetId) {
-      const billingCheck = await verifyCredentialSetBilling(credentialSetId)
-      if (!billingCheck.valid) {
-        logger.warn(
-          `[${options.requestId}] Credential set billing check failed: ${billingCheck.error}`
-        )
-        return NextResponse.json({ error: billingCheck.error }, { status: 403 })
-      }
-    }
 
     const actorUserId = options.actorUserId
     if (!actorUserId) {
@@ -832,15 +787,6 @@ export async function processPolledWebhookEvent(
 
     const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
-    const credentialSetId = foundWebhook.credentialSetId as string | undefined
-
-    if (credentialSetId) {
-      const billingCheck = await verifyCredentialSetBilling(credentialSetId)
-      if (!billingCheck.valid) {
-        logger.warn(`[${requestId}] Credential set billing check failed: ${billingCheck.error}`)
-        return { success: false, error: billingCheck.error, statusCode: 403 }
-      }
-    }
 
     const actorUserId = preprocessResult.actorUserId
     if (!actorUserId) {

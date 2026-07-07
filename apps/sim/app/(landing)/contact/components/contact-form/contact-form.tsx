@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/contracts/contact'
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { getEnv } from '@/lib/core/config/env'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useSubmitContact } from '@/hooks/queries/contact'
 
@@ -108,7 +109,7 @@ export function ContactForm() {
   const [errors, setErrors] = useState<ContactErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [website, setWebsite] = useState('')
-  const [widgetLoaded, setWidgetLoaded] = useState(false)
+  const widgetLoadedRef = useRef(false)
 
   function updateField<TField extends keyof ContactFormState>(
     field: TField,
@@ -147,7 +148,7 @@ export function ContactForm() {
     let captchaToken: string | undefined
     const widget = turnstileRef.current
 
-    if (TURNSTILE_SITE_KEY && widgetLoaded && widget) {
+    if (TURNSTILE_SITE_KEY && widgetLoadedRef.current && widget) {
       try {
         widget.reset()
         widget.execute()
@@ -174,6 +175,13 @@ export function ContactForm() {
       }
     )
   }
+
+  const canSubmit =
+    quickValidateEmail(form.email.trim()).isValid &&
+    form.name.trim().length > 0 &&
+    form.topic.length > 0 &&
+    form.subject.trim().length > 0 &&
+    form.message.trim().length > 0
 
   const isBusy = contactMutation.isPending || isSubmitting
 
@@ -313,9 +321,15 @@ export function ContactForm() {
             ref={turnstileRef}
             siteKey={TURNSTILE_SITE_KEY}
             options={{ execution: 'execute', appearance: 'execute', size: 'invisible' }}
-            onWidgetLoad={() => setWidgetLoaded(true)}
-            onError={() => setWidgetLoaded(false)}
-            onUnsupported={() => setWidgetLoaded(false)}
+            onWidgetLoad={() => {
+              widgetLoadedRef.current = true
+            }}
+            onError={() => {
+              widgetLoadedRef.current = false
+            }}
+            onUnsupported={() => {
+              widgetLoadedRef.current = false
+            }}
           />
         ) : null}
 
@@ -330,7 +344,7 @@ export function ContactForm() {
           variant='primary'
           flush
           fullWidth
-          disabled={isBusy}
+          disabled={isBusy || !canSubmit}
           className='mt-1 justify-center [&>span]:flex-none'
         >
           {isBusy ? 'Sending…' : 'Send message'}

@@ -45,6 +45,26 @@ describe('extractInputFieldsFromBlocks', () => {
     ])
   })
 
+  it.concurrent('preserves a stable field id when present, omits it when absent', () => {
+    const blocks = {
+      'trigger-1': {
+        type: 'start_trigger',
+        subBlocks: {
+          inputFormat: {
+            value: [
+              { id: 'fld-1', name: 'query', type: 'string' },
+              { name: 'count', type: 'number' },
+            ],
+          },
+        },
+      },
+    }
+    expect(extractInputFieldsFromBlocks(blocks)).toEqual([
+      { id: 'fld-1', name: 'query', type: 'string' },
+      { name: 'count', type: 'number' },
+    ])
+  })
+
   it.concurrent('extracts fields from input_trigger block', () => {
     const blocks = {
       'trigger-1': {

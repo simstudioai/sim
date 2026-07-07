@@ -25,6 +25,10 @@ import { deploymentKeys } from '@/hooks/queries/deployments'
 
 const logger = createLogger('ScheduleQueries')
 
+export const SCHEDULE_LIST_STALE_TIME = 30 * 1000
+export const SCHEDULE_DETAIL_STALE_TIME = 30 * 1000
+export const SCHEDULE_BLOCK_STALE_TIME = 30 * 1000
+
 export const scheduleKeys = {
   all: ['schedules'] as const,
   lists: () => [...scheduleKeys.all, 'list'] as const,
@@ -85,7 +89,7 @@ export function useWorkspaceSchedules(workspaceId?: string) {
       return data.schedules || []
     },
     enabled: Boolean(workspaceId),
-    staleTime: 30 * 1000,
+    staleTime: SCHEDULE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -109,7 +113,7 @@ export function useScheduleById(scheduleId?: string) {
       return data.schedule
     },
     enabled: Boolean(scheduleId),
-    staleTime: 30 * 1000,
+    staleTime: SCHEDULE_DETAIL_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -126,7 +130,7 @@ export function useScheduleQuery(
     queryKey: scheduleKeys.schedule(workflowId ?? '', blockId ?? ''),
     queryFn: ({ signal }) => fetchSchedule(workflowId!, blockId!, signal),
     enabled: !!workflowId && !!blockId && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: SCHEDULE_BLOCK_STALE_TIME,
     retry: false,
     placeholderData: keepPreviousData,
   })

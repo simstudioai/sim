@@ -2,6 +2,13 @@ import { toError } from '@sim/utils/errors'
 
 export const DEFAULT_MAX_ERROR_BODY_BYTES = 64 * 1024
 
+/**
+ * Slack for multipart boundary/header overhead on top of the intended file
+ * size limit, so legitimate uploads near the limit aren't rejected purely
+ * for encoding overhead.
+ */
+export const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
+
 export interface PayloadSizeLimitContext {
   label: string
   maxBytes: number

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Badge, Button, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
@@ -77,11 +77,8 @@ export function Admin() {
     setSearchInput((current) => (current === searchQuery ? current : searchQuery))
   }, [searchQuery])
 
-  const totalPages = useMemo(
-    () => Math.ceil((usersData?.total ?? 0) / PAGE_SIZE),
-    [usersData?.total]
-  )
-  const currentPage = useMemo(() => Math.floor(usersOffset / PAGE_SIZE) + 1, [usersOffset])
+  const totalPages = Math.ceil((usersData?.total ?? 0) / PAGE_SIZE)
+  const currentPage = Math.floor(usersOffset / PAGE_SIZE) + 1
 
   const handleSuperUserModeToggle = async (checked: boolean) => {
     if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
@@ -89,17 +86,14 @@ export function Admin() {
     }
   }
 
-  const handleMothershipEnvironmentChange = useCallback(
-    async (nextEnvironment: MothershipEnvironment) => {
-      if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
-        await updateSetting.mutateAsync({
-          key: 'mothershipEnvironment',
-          value: nextEnvironment,
-        })
-      }
-    },
-    [settings?.mothershipEnvironment, updateSetting]
-  )
+  const handleMothershipEnvironmentChange = async (nextEnvironment: MothershipEnvironment) => {
+    if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({
+        key: 'mothershipEnvironment',
+        value: nextEnvironment,
+      })
+    }
+  }
 
   const handleImport = () => {
     if (!workflowId.trim()) return
@@ -257,7 +251,7 @@ export function Admin() {
           unbanUser.error ||
           impersonateUser.error ||
           impersonationGuardError) && (
-          <p className='text-[13px] text-[var(--text-error)]'>
+          <p className='text-[var(--text-error)] text-small'>
             {impersonationGuardError ||
               (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
                 ?.message ||
@@ -310,7 +304,7 @@ export function Admin() {
                         <>
                           <Button
                             variant='active'
-                            className='h-[28px] px-2 text-[12px]'
+                            className='h-[28px] px-2 text-caption'
                             onClick={() => handleImpersonate(u.id)}
                             disabled={pendingUserIds.has(u.id)}
                           >
@@ -323,7 +317,7 @@ export function Admin() {
                           </Button>
                           <Button
                             variant='active'
-                            className='h-[28px] px-2 text-[12px]'
+                            className='h-[28px] px-2 text-caption'
                             onClick={() => {
                               setUserRole.reset()
                               setUserRole.mutate({

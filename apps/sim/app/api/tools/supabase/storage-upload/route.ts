@@ -11,6 +11,7 @@ import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { encodeStoragePath, encodeStorageSegment } from '@/tools/supabase/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -185,7 +186,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: projectValidation.error }, { status: 400 })
     }
 
-    const supabaseUrl = `https://${projectValidation.sanitized}.supabase.co/storage/v1/object/${validatedData.bucket}/${fullPath}`
+    const encodedBucket = encodeStorageSegment(validatedData.bucket)
+    const encodedPath = encodeStoragePath(fullPath)
+    const supabaseUrl = `https://${projectValidation.sanitized}.supabase.co/storage/v1/object/${encodedBucket}/${encodedPath}`
 
     const headers: Record<string, string> = {
       apikey: validatedData.apiKey,
@@ -248,7 +251,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       path: fullPath,
     })
 
-    const publicUrl = `https://${projectValidation.sanitized}.supabase.co/storage/v1/object/public/${validatedData.bucket}/${fullPath}`
+    const publicUrl = `https://${projectValidation.sanitized}.supabase.co/storage/v1/object/public/${encodedBucket}/${encodedPath}`
 
     return NextResponse.json({
       success: true,

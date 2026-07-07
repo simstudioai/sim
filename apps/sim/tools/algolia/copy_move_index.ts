@@ -55,7 +55,7 @@ export const copyMoveIndexTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName)}/operation`,
+      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/operation`,
     method: 'POST',
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,
@@ -65,7 +65,7 @@ export const copyMoveIndexTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         operation: params.operation,
-        destination: params.destination,
+        destination: params.destination.trim(),
       }
       if (params.scope) {
         const scope = typeof params.scope === 'string' ? JSON.parse(params.scope) : params.scope

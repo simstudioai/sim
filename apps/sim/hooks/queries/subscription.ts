@@ -17,6 +17,10 @@ import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export type { SubscriptionApiResponse }
 
+export const SUBSCRIPTION_DATA_STALE_TIME = 5 * 60 * 1000
+export const USAGE_LIMIT_STALE_TIME = 30 * 1000
+export const INVOICES_STALE_TIME = 5 * 60 * 1000
+
 /**
  * Query key factories for subscription-related queries
  */
@@ -58,7 +62,7 @@ interface UseSubscriptionDataOptions {
  * @param options - Optional configuration
  */
 export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
-  const { includeOrg = false, enabled = true, staleTime = 5 * 60 * 1000 } = options
+  const { includeOrg = false, enabled = true, staleTime = SUBSCRIPTION_DATA_STALE_TIME } = options
 
   return useQuery({
     queryKey: subscriptionKeys.user(includeOrg),
@@ -77,7 +81,7 @@ export function prefetchSubscriptionData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.user(false),
     queryFn: ({ signal }) => fetchSubscriptionData(false, signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: SUBSCRIPTION_DATA_STALE_TIME,
   })
 }
 
@@ -96,12 +100,12 @@ export function prefetchUpgradeBillingData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.user(true),
     queryFn: ({ signal }) => fetchSubscriptionData(true, signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: SUBSCRIPTION_DATA_STALE_TIME,
   })
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.usage(),
     queryFn: ({ signal }) => fetchUsageLimitData(signal),
-    staleTime: 30 * 1000,
+    staleTime: USAGE_LIMIT_STALE_TIME,
   })
 }
 
@@ -133,7 +137,7 @@ export function useUsageLimitData(options: UseUsageLimitDataOptions = {}) {
   return useQuery({
     queryKey: subscriptionKeys.usage(),
     queryFn: ({ signal }) => fetchUsageLimitData(signal),
-    staleTime: 30 * 1000,
+    staleTime: USAGE_LIMIT_STALE_TIME,
     enabled,
   })
 }
@@ -172,7 +176,7 @@ export function useInvoices(options: UseInvoicesOptions = {}) {
   return useQuery({
     queryKey: subscriptionKeys.invoices(context, organizationId),
     queryFn: ({ signal }) => fetchInvoices(context, organizationId, signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: INVOICES_STALE_TIME,
     enabled: enabled && (context !== 'organization' || Boolean(organizationId)),
   })
 }
