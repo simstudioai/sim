@@ -1,20 +1,22 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
-  MicrosoftPlannerDeleteTaskResponse,
+  MicrosoftPlannerDeletePlanResponse,
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('MicrosoftPlannerDeleteTask')
+const logger = createLogger('MicrosoftPlannerDeletePlan')
 
-export const deleteTaskTool: ToolConfig<
+export const deletePlanTool: ToolConfig<
   MicrosoftPlannerToolParams,
-  MicrosoftPlannerDeleteTaskResponse
+  MicrosoftPlannerDeletePlanResponse
 > = {
-  id: 'microsoft_planner_delete_task',
-  name: 'Delete Microsoft Planner Task',
-  description: 'Delete a task from Microsoft Planner',
+  id: 'microsoft_planner_delete_plan',
+  name: 'Delete Microsoft Planner Plan',
+  description: 'Delete a Microsoft Planner plan',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -28,27 +30,27 @@ export const deleteTaskTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Microsoft Planner API',
     },
-    taskId: {
+    planId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the task to delete (e.g., "pbT5K2OVkkO1M7r5bfsJ6JgAGD5m")',
+      description: 'The ID of the plan to delete (e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J")',
     },
     etag: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The ETag value from the task to delete (If-Match header)',
+      description: 'The ETag value from the plan to delete (If-Match header)',
     },
   },
 
   request: {
     url: (params) => {
-      const taskId = params.taskId?.trim()
-      if (!taskId) {
-        throw new Error('Task ID is required')
+      const planId = params.planId?.trim()
+      if (!planId) {
+        throw new Error('Plan ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/tasks/${taskId}`
+      return `https://graph.microsoft.com/v1.0/planner/plans/${planId}`
     },
     method: 'DELETE',
     headers: (params) => {
@@ -79,9 +81,9 @@ export const deleteTaskTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    logger.info('Task deleted successfully')
+    logger.info('Plan deleted successfully')
 
-    const result: MicrosoftPlannerDeleteTaskResponse = {
+    const result: MicrosoftPlannerDeletePlanResponse = {
       success: true,
       output: {
         deleted: true,
@@ -93,7 +95,7 @@ export const deleteTaskTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the task was deleted successfully' },
+    success: { type: 'boolean', description: 'Whether the plan was deleted successfully' },
     deleted: { type: 'boolean', description: 'Confirmation of deletion' },
     metadata: { type: 'object', description: 'Additional metadata' },
   },
