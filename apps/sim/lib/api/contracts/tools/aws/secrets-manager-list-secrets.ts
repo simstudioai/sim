@@ -14,6 +14,12 @@ const ListSecretsSchema = z.object({
   nextToken: z.string().nullish(),
 })
 
+const RotationRulesResponseSchema = z.object({
+  automaticallyAfterDays: z.number().nullable(),
+  duration: z.string().nullable(),
+  scheduleExpression: z.string().nullable(),
+})
+
 const ListSecretsResponseSchema = z.object({
   secrets: z.array(
     z.object({
@@ -25,6 +31,11 @@ const ListSecretsResponseSchema = z.object({
       lastAccessedDate: z.string().nullable(),
       rotationEnabled: z.boolean(),
       tags: z.array(z.object({ key: z.string(), value: z.string() })),
+      rotationRules: RotationRulesResponseSchema.nullable(),
+      lastRotatedDate: z.string().nullable(),
+      nextRotationDate: z.string().nullable(),
+      deletedDate: z.string().nullable(),
+      secretVersionsToStages: z.record(z.string(), z.array(z.string())).nullable(),
     })
   ),
   nextToken: z.string().nullable(),
