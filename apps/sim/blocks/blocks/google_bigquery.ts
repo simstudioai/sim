@@ -67,7 +67,7 @@ export const GoogleBigQueryBlock: BlockConfig = {
     {
       id: 'query',
       title: 'SQL Query',
-      type: 'long-input',
+      type: 'code',
       placeholder: 'SELECT * FROM `project.dataset.table` LIMIT 100',
       condition: { field: 'operation', value: 'query' },
       required: { field: 'operation', value: 'query' },
@@ -273,7 +273,7 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
     {
       id: 'schema',
       title: 'Schema',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{"name": "id", "type": "STRING", "mode": "REQUIRED"}]',
       condition: { field: 'operation', value: 'create_table' },
       required: { field: 'operation', value: 'create_table' },
@@ -328,7 +328,7 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
     {
       id: 'rows',
       title: 'Rows',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{"column1": "value1", "column2": 42}]',
       condition: { field: 'operation', value: 'insert_rows' },
       required: { field: 'operation', value: 'insert_rows' },
@@ -495,6 +495,10 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
     datasetId: {
       type: 'string',
       description: 'Dataset ID (get_table, create_table, create_dataset)',
+    },
+    projectId: {
+      type: 'string',
+      description: 'Project ID (get_table, create_table, create_dataset)',
     },
     type: { type: 'string', description: 'Table type (get_table, create_table)' },
     description: {
