@@ -34,24 +34,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`Creating CloudFormation stack "${validatedData.stackName}"`)
 
-    const command = new CreateStackCommand({
-      StackName: validatedData.stackName,
-      TemplateBody: validatedData.templateBody,
-      Parameters: toStackParameters(validatedData.parameters),
-      Capabilities: parseCapabilities(validatedData.capabilities),
-      Tags: toStackTags(validatedData.tags),
-      OnFailure: validatedData.onFailure,
-      TimeoutInMinutes: validatedData.timeoutInMinutes,
-    })
+    try {
+      const command = new CreateStackCommand({
+        StackName: validatedData.stackName,
+        TemplateBody: validatedData.templateBody,
+        Parameters: toStackParameters(validatedData.parameters),
+        Capabilities: parseCapabilities(validatedData.capabilities),
+        Tags: toStackTags(validatedData.tags),
+        OnFailure: validatedData.onFailure,
+        TimeoutInMinutes: validatedData.timeoutInMinutes,
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        stackId: response.StackId ?? '',
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          stackId: response.StackId ?? '',
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to create CloudFormation stack')
     logger.error('CreateStack failed', { error: errorMessage })
