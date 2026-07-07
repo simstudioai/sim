@@ -6,7 +6,7 @@ import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
 import {
   dependentKey,
   effectiveDependentValue,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/dependent-value'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/dependent-value'
 
 const field = (overrides: Partial<ForkDependentReconfig> = {}): ForkDependentReconfig => ({
   parentKind: 'credential',

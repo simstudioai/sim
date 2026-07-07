@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { groupForkFilesIntoFolders } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-file-tree/fork-file-tree'
+import { groupForkFilesIntoFolders } from '@/app/workspace/[workspaceId]/settings/components/forks/components/fork-file-tree/fork-file-tree'
 
 describe('groupForkFilesIntoFolders', () => {
   it('groups files under their folder and lifts un-foldered files to the root bucket', () => {

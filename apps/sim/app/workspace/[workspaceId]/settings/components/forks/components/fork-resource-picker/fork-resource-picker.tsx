@@ -6,7 +6,7 @@ import {
   ForkFileTree,
   type ForkFlatFile,
   groupForkFilesIntoFolders,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-file-tree/fork-file-tree'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/fork-file-tree/fork-file-tree'
 
 /** A flat copyable resource (table / KB / custom tool / skill / MCP server) in the picker. */
 export interface ForkResourcePickerItem {

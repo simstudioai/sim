@@ -69,6 +69,12 @@ export const forkLineageNodeSchema = z.object({
   organizationId: z.string().nullable(),
 })
 
+/** A live fork of this workspace, listed read-only on the Forks settings page. */
+export const forkLineageChildSchema = forkLineageNodeSchema.extend({
+  /** When the fork was created (ISO timestamp). */
+  createdAt: z.string(),
+})
+
 export const getForkLineageContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/fork/lineage',
@@ -78,6 +84,8 @@ export const getForkLineageContract = defineRouteContract({
     schema: z.object({
       workspaceId: z.string(),
       parent: forkLineageNodeSchema.nullable(),
+      /** Live forks created from this workspace, newest first. */
+      children: z.array(forkLineageChildSchema),
       /** The most recent undoable promote into this workspace, for the rollback UI. */
       undoableRun: z
         .object({
@@ -90,6 +98,7 @@ export const getForkLineageContract = defineRouteContract({
   },
 })
 export type ForkLineageNodeApi = z.output<typeof forkLineageNodeSchema>
+export type ForkLineageChildApi = z.output<typeof forkLineageChildSchema>
 export type GetForkLineageResponse = z.output<typeof getForkLineageContract.response.schema>
 
 const forkResourceIdList = z.array(nonEmptyIdSchema).max(2000).optional()
@@ -207,6 +216,22 @@ export const getForkMappingContract = defineRouteContract({
 })
 export type GetForkMappingResponse = z.output<typeof getForkMappingContract.response.schema>
 
+/**
+ * One dependent field's value in the stored mapping. The sync modal and the Forks
+ * settings page's mapping editor send the full set for every dependent whose parent is
+ * mapped; the server persists them to `workspace_fork_dependent_value` (promote also
+ * applies them verbatim to the target blocks), so the user's selection survives every
+ * future sync without re-picking. `blockId` is the deterministic fork block id, so the
+ * value lands on the right block.
+ */
+export const forkDependentValueEntrySchema = z.object({
+  workflowId: nonEmptyIdSchema,
+  blockId: nonEmptyIdSchema,
+  subBlockKey: z.string().min(1, 'subBlockKey is required'),
+  value: z.string(),
+})
+export type ForkDependentValueEntry = z.input<typeof forkDependentValueEntrySchema>
+
 export const updateForkMappingBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
@@ -219,6 +244,14 @@ export const updateForkMappingBodySchema = z.object({
       })
     )
     .max(5000),
+  /**
+   * The full stored mapping of dependent-field values for the workflows it names; persisted
+   * to `workspace_fork_dependent_value` alongside the mapping entries (each named workflow's
+   * stored set is replaced by exactly what was sent - cleared fields drop out). Omitting the
+   * field leaves the stored mapping untouched. Unlike promote this only stores the values;
+   * they are applied to the target blocks on the next sync.
+   */
+  dependentValues: z.array(forkDependentValueEntrySchema).max(2000).optional(),
 })
 export const updateForkMappingContract = defineRouteContract({
   method: 'PUT',
@@ -485,21 +518,6 @@ export const forkNeedsConfigurationSchema = z.object({
   blocks: z.array(z.string()).min(1),
 })
 export type ForkNeedsConfiguration = z.output<typeof forkNeedsConfigurationSchema>
-
-/**
- * One dependent field's value in the stored mapping. The sync modal sends the full set for
- * every dependent whose parent is mapped; promote persists them to
- * `workspace_fork_dependent_value` and applies them verbatim to the target blocks, so the
- * user's selection survives every future sync without re-picking. `blockId` is the
- * deterministic fork block id, so the value lands on the right block.
- */
-export const forkDependentValueEntrySchema = z.object({
-  workflowId: nonEmptyIdSchema,
-  blockId: nonEmptyIdSchema,
-  subBlockKey: z.string().min(1, 'subBlockKey is required'),
-  value: z.string(),
-})
-export type ForkDependentValueEntry = z.input<typeof forkDependentValueEntrySchema>
 
 /**
  * Source resource ids (by kind) the user chose to copy into the target before the sync gate -

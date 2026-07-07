@@ -9,6 +9,7 @@ import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getUserRole } from '@/lib/workspaces/organization'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   allNavigationItems,
@@ -26,6 +27,7 @@ import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/gen
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
+import { useForkingAvailable } from '@/hooks/use-forking-available'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
@@ -71,6 +73,10 @@ export function SettingsSidebar({
 
   const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
+  // Mirrors the fork EE gate: the WORKSPACE's plan (not the viewer's) plus
+  // workspace admin - matching the Forks page's own gate and the server check.
+  const forkingAvailable = useForkingAvailable(workspaceId)
+  const { canAdmin: canAdminWorkspace } = useUserPermissionsContext()
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
@@ -116,6 +122,9 @@ export function SettingsSidebar({
         return false
       }
       if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
+        return false
+      }
+      if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
         return false
       }
 
@@ -170,6 +179,8 @@ export function SettingsSidebar({
     permissionConfig,
     isSuperUser,
     generalSettings?.superUserModeEnabled,
+    forkingAvailable,
+    canAdminWorkspace,
   ])
 
   const activeSection = useMemo(() => {

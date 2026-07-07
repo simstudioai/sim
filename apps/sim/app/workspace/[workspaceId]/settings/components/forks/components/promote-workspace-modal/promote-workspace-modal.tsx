@@ -24,17 +24,16 @@ import type {
   ForkResourceUsage,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   FileKindRow,
   ResourceKindRow,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-resource-picker/fork-resource-picker'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/fork-resource-picker/fork-resource-picker'
 import {
   forkBlockerResolution,
   selectVisibleClearedRefs,
   splitForkClearedRefs,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/cleared-refs-list'
-import { ResourceReconfigure } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/components/resource-reconfigure'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/cleared-refs-list'
+import { ResourceReconfigure } from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/components/resource-reconfigure'
 import {
   effectiveForkTarget,
   forkCopyingKeys,
@@ -45,11 +44,12 @@ import {
   forkRequiredPending,
   forkVisibleCopyables,
   isForkRequiredComplete,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/copy-reconciliation'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/copy-reconciliation'
 import {
   dependentKey,
   effectiveDependentValue,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/dependent-value'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/dependent-value'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type ForkDirection,
   useForkDiff,
@@ -168,8 +168,8 @@ interface EdgeOption {
  * "Edit mappings" steps through every kind (Back/Next, each source a
  * settings-style section + full-width target) to set or review targets before
  * landing back on Sync - which always confirms the overwrite first. The durable record of
- * every sync is the Activity log in Manage Forks, so this modal just closes on
- * success.
+ * every sync is the Activity log on the Forks settings page, so this modal just
+ * closes on success.
  */
 export function PromoteWorkspaceModal({
   open,

@@ -8,7 +8,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { assertWorkspaceAdminAccess } from '@/lib/workspaces/fork/lineage/authz'
-import { getForkParent } from '@/lib/workspaces/fork/lineage/lineage'
+import { getForkChildren, getForkParent } from '@/lib/workspaces/fork/lineage/lineage'
 import { getUndoableRunForTarget } from '@/lib/workspaces/fork/promote/promote-run-store'
 
 export const GET = withRouteHandler(
@@ -24,8 +24,9 @@ export const GET = withRouteHandler(
 
     await assertWorkspaceAdminAccess(workspaceId, session.user.id)
 
-    const [parent, run] = await Promise.all([
+    const [parent, children, run] = await Promise.all([
       getForkParent(workspaceId),
+      getForkChildren(workspaceId),
       getUndoableRunForTarget(db, workspaceId),
     ])
 
@@ -50,6 +51,10 @@ export const GET = withRouteHandler(
     return NextResponse.json({
       workspaceId,
       parent,
+      children: children.map((child) => ({
+        ...child,
+        createdAt: child.createdAt.toISOString(),
+      })),
       undoableRun,
     })
   }

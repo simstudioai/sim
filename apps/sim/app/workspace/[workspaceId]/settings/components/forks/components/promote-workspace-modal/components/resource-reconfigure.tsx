@@ -3,11 +3,11 @@
 import { type Dispatch, type SetStateAction, useMemo, useState } from 'react'
 import { ChevronDown, cn } from '@sim/emcn'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
-import { DependentFieldSelector } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/components/dependent-field-selector'
+import { DependentFieldSelector } from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/components/dependent-field-selector'
 import {
   dependentKey,
   effectiveDependentValue,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/dependent-value'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/dependent-value'
 import type { SelectorKey } from '@/hooks/selectors/types'
 
 /** Stable empty array so a workflow with no dependents reuses one reference (no per-map alloc). */

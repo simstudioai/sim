@@ -13,7 +13,7 @@ import {
   forkRequiredPending,
   forkVisibleCopyables,
   isForkRequiredComplete,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/copy-reconciliation'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/copy-reconciliation'
 
 const entry = (overrides: Partial<ForkMappingEntry>): ForkMappingEntry => ({
   kind: 'credential',

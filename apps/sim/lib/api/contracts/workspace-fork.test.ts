@@ -62,4 +62,30 @@ describe('updateForkMappingBodySchema', () => {
     })
     expect(result.success).toBe(false)
   })
+
+  it('accepts optional dependentValues, including cleared (empty-string) values', () => {
+    const result = updateForkMappingBodySchema.safeParse({
+      ...base,
+      entries: [{ resourceType: 'oauth_credential', sourceId: 'cred-1', targetId: 'cred-2' }],
+      dependentValues: [
+        { workflowId: 'wf-1', blockId: 'block-1', subBlockKey: 'label', value: 'INBOX' },
+        { workflowId: 'wf-1', blockId: 'block-2', subBlockKey: 'sheet', value: '' },
+      ],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects a dependent value with an empty blockId or subBlockKey', () => {
+    for (const entry of [
+      { workflowId: 'wf-1', blockId: '', subBlockKey: 'label', value: 'INBOX' },
+      { workflowId: 'wf-1', blockId: 'block-1', subBlockKey: '', value: 'INBOX' },
+    ]) {
+      const result = updateForkMappingBodySchema.safeParse({
+        ...base,
+        entries: [],
+        dependentValues: [entry],
+      })
+      expect(result.success).toBe(false)
+    }
+  })
 })

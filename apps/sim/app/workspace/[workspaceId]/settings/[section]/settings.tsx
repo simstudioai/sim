@@ -33,6 +33,9 @@ const CredentialSets = dynamic(() =>
     (m) => m.CredentialSets
   )
 )
+const Forks = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/forks/forks').then((m) => m.Forks)
+)
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )
@@ -145,6 +148,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP />}
+      {effectiveSection === 'forks' && <Forks />}
       {effectiveSection === 'custom-tools' && <CustomTools />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}

@@ -23,12 +23,10 @@ import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigat
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
-import { ForkWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-workspace-modal/fork-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
-import { PromoteWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/promote-workspace-modal'
-import { useForkingAvailable } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/use-forking-available'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { useForkLineage } from '@/hooks/queries/workspace-fork'
+import { useForkingAvailable } from '@/hooks/use-forking-available'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -101,8 +99,6 @@ function WorkspaceHeaderImpl({
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
-  const [isForkModalOpen, setIsForkModalOpen] = useState(false)
-  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
@@ -253,14 +249,15 @@ function WorkspaceHeaderImpl({
     onUploadLogo(capturedWorkspaceRef.current.id)
   }
 
-  // Always open Manage Forks - rollback and the durable Activity log live here and must
-  // stay reachable at a workspace cap. Only creating a NEW fork is gated (in the modal).
+  // Fork management (create, sync, rollback, activity) lives on the Forks settings
+  // page; the context-menu entries are navigation shortcuts. "Sync workspace"
+  // deep-links straight into the sync flow via the read-then-strip param.
   const handleForkAction = () => {
-    setIsForkModalOpen(true)
+    navigateToSettings({ section: 'forks' })
   }
 
   const handleSyncAction = () => {
-    setIsPromoteModalOpen(true)
+    navigateToSettings({ section: 'forks', forkAction: 'sync' })
   }
 
   /**
@@ -704,23 +701,6 @@ function WorkspaceHeaderImpl({
         workspaceName={activeWorkspace?.name || 'Workspace'}
         inviteDisabledReason={inviteDisabledReason}
         organizationId={activeWorkspaceFull?.organizationId ?? null}
-      />
-      <ForkWorkspaceModal
-        open={isForkModalOpen}
-        onOpenChange={setIsForkModalOpen}
-        sourceWorkspaceId={workspaceId}
-        sourceWorkspaceName={activeWorkspace?.name || 'Workspace'}
-        undoableRun={forkLineage?.undoableRun ?? null}
-        canFork={canCreateWorkspace}
-        onUpgrade={() => {
-          if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-        }}
-      />
-      <PromoteWorkspaceModal
-        open={isPromoteModalOpen}
-        onOpenChange={setIsPromoteModalOpen}
-        workspaceId={workspaceId}
-        parent={forkLineage?.parent ?? null}
       />
       <DeleteModal
         isOpen={isDeleteModalOpen}

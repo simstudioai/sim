@@ -7,7 +7,7 @@ import {
   forkBlockerResolution,
   selectVisibleClearedRefs,
   splitForkClearedRefs,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/cleared-refs-list'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/cleared-refs-list'
 
 type ReferenceRef = Extract<ForkClearedRef, { cause: 'reference' }>
 type WorkflowRef = Extract<ForkClearedRef, { cause: 'workflow' }>

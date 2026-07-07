@@ -5,6 +5,12 @@ import { useWorkspaceOwnerBilling } from '@/hooks/queries/workspace'
 const isBillingEnabledClient = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 const isForkingEnabledClient = isTruthy(getEnv('NEXT_PUBLIC_FORKING_ENABLED'))
 
+interface ForkingAvailability {
+  available: boolean
+  /** The billing lookup is still in flight - callers that gate a whole page wait on this. */
+  isLoading: boolean
+}
+
 /**
  * Client mirror of the server fork EE gate (`assertForkingEnabled`): on Sim Cloud
  * the active workspace's billed account (its owner's rolled-up plan) must be
@@ -21,8 +27,15 @@ const isForkingEnabledClient = isTruthy(getEnv('NEXT_PUBLIC_FORKING_ENABLED'))
  * mirroring the server's `FORKING_ENABLED` / `BILLING_ENABLED`; set each pair
  * together or the UI and API will disagree.
  */
+export function useForkingAvailability(workspaceId?: string): ForkingAvailability {
+  const { data, isLoading } = useWorkspaceOwnerBilling(
+    isBillingEnabledClient ? workspaceId : undefined
+  )
+  if (!isBillingEnabledClient) return { available: isForkingEnabledClient, isLoading: false }
+  return { available: getSubscriptionAccessState(data).hasUsableEnterpriseAccess, isLoading }
+}
+
+/** Boolean shorthand for surfaces that only show/hide fork entry points. */
 export function useForkingAvailable(workspaceId?: string): boolean {
-  const { data } = useWorkspaceOwnerBilling(isBillingEnabledClient ? workspaceId : undefined)
-  if (!isBillingEnabledClient) return isForkingEnabledClient
-  return getSubscriptionAccessState(data).hasUsableEnterpriseAccess
+  return useForkingAvailability(workspaceId).available
 }

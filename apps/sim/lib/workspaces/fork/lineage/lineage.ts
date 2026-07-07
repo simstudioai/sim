@@ -1,12 +1,16 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
 export interface ForkLineageNode {
   id: string
   name: string
   organizationId: string | null
+}
+
+export interface ForkLineageChild extends ForkLineageNode {
+  createdAt: Date
 }
 
 export interface ForkEdge {
@@ -41,6 +45,23 @@ export async function getForkParent(workspaceId: string): Promise<ForkLineageNod
     .where(and(eq(workspace.id, parentId), isNull(workspace.archivedAt)))
     .limit(1)
   return row ?? null
+}
+
+/**
+ * The live (non-archived) forks created from this workspace, newest first, for
+ * the Forks settings page's read-only fork list.
+ */
+export async function getForkChildren(workspaceId: string): Promise<ForkLineageChild[]> {
+  return db
+    .select({
+      id: workspace.id,
+      name: workspace.name,
+      organizationId: workspace.organizationId,
+      createdAt: workspace.createdAt,
+    })
+    .from(workspace)
+    .where(and(eq(workspace.forkedFromWorkspaceId, workspaceId), isNull(workspace.archivedAt)))
+    .orderBy(desc(workspace.createdAt))
 }
 
 /**
