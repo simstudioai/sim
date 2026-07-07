@@ -75,8 +75,6 @@ export function mapTextractSdkError(
     return new TextractRouteError(`This document format is not supported.${hint}`, 400)
   }
 
-  // No status at all (e.g. a network failure before AWS responded) is a server-side problem, not a
-  // bad request — default to 500 so tool-execution retry logic still treats it as retryable.
   const status = err.$metadata?.httpStatusCode ?? 500
   return new TextractRouteError(err.message || 'Textract API error', status)
 }
@@ -91,6 +89,7 @@ export type ResolveDocumentResult =
   | { ok: true; document: ResolvedDocument }
   | { ok: false; response: NextResponse }
 
+/** Passes through the document host's real HTTP status on failure, so tool-execution retry logic can still treat a transient 5xx as retryable. */
 async function fetchDocumentBytes(url: string): Promise<{ bytes: Buffer; contentType: string }> {
   const urlValidation = await validateUrlWithDNS(url, 'Document URL')
   if (!urlValidation.isValid) {
@@ -102,8 +101,6 @@ async function fetchDocumentBytes(url: string): Promise<{ bytes: Buffer; content
   })
   if (!response.ok) {
     await response.text().catch(() => {})
-    // Pass through the document host's real status (e.g. a transient 503) instead of a
-    // hardcoded 400, so tool-execution retry logic can still treat 5xx as retryable.
     throw new TextractRouteError(
       `Failed to fetch document: ${response.statusText}`,
       response.status

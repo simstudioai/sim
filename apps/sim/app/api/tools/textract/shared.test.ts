@@ -139,7 +139,6 @@ describe('pollTextractJob', () => {
             NextToken: 'next',
           }
         }
-        // Follow-up pages from AWS often omit DocumentMetadata/model-version fields.
         return { JobStatus: 'SUCCEEDED', Blocks: [{ Id: '2' }] }
       },
       (accumulated, page) => ({

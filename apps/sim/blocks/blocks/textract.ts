@@ -407,12 +407,10 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
           }
           parameters.s3Uri = params.s3Uri.trim()
         } else if (operation === 'analyze_expense') {
-          // textract_analyze_expense accepts filePath as a fallback for URL-based documents.
           const resolved = resolveDocumentParam(params.document)
           if (!resolved.file && !resolved.filePath) throw new Error('Document file is required')
           Object.assign(parameters, resolved)
         } else {
-          // textract_parser_v2 (analyze_document) has no filePath param — file only.
           const file = normalizeFileInput(params.document, { single: true })
           if (!file) throw new Error('Document file is required')
           parameters.file = file
