@@ -36,6 +36,7 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
   name: 'PostHog List Feature Flags',
   description: 'List all feature flags in a PostHog project',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -95,11 +96,6 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(error || 'Failed to list feature flags')
-    }
-
     const data = await response.json()
 
     return {

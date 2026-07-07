@@ -28,6 +28,7 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
   name: 'PostHog Get Person',
   description: 'Get detailed information about a specific person in PostHog by their ID or UUID.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -77,24 +78,6 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          person: {
-            id: '',
-            name: '',
-            distinct_ids: [],
-            properties: {},
-            created_at: '',
-            uuid: '',
-          },
-        },
-        error: error || 'Failed to get person',
-      }
-    }
-
     const data = await response.json()
 
     return {

@@ -36,6 +36,7 @@ export const createDashboardTool: ToolConfig<
   description:
     'Create a new dashboard in PostHog. Optionally seed it from a built-in template, then attach insights to it afterward.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -128,24 +129,6 @@ export const createDashboardTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          id: 0,
-          name: '',
-          description: '',
-          pinned: false,
-          created_at: '',
-          tiles: [],
-          filters: {},
-          tags: [],
-        },
-        error: error || 'Failed to create dashboard',
-      }
-    }
-
     const data = await response.json()
 
     return {

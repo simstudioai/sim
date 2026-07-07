@@ -11,7 +11,6 @@ interface CreateExperimentParams {
   featureFlagKey: string
   parameters?: string
   filters?: string
-  variants?: string
   startDate?: string
   endDate?: string
 }
@@ -24,7 +23,6 @@ interface Experiment {
   feature_flag: Record<string, any>
   parameters: Record<string, any>
   filters: Record<string, any>
-  variants: Record<string, any>
   start_date: string | null
   end_date: string | null
   created_at: string
@@ -41,6 +39,7 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
   name: 'PostHog Create Experiment',
   description: 'Create a new experiment in PostHog',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -70,9 +69,9 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
     },
     name: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Experiment name (optional)',
+      description: 'Experiment name',
     },
     description: {
       type: 'string',
@@ -97,12 +96,6 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
       required: false,
       visibility: 'user-or-llm',
       description: 'Experiment filters as JSON string',
-    },
-    variants: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Experiment variants as JSON string',
     },
     startDate: {
       type: 'string',
@@ -154,14 +147,6 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
         }
       }
 
-      if (params.variants) {
-        try {
-          body.variants = JSON.parse(params.variants)
-        } catch {
-          body.variants = {}
-        }
-      }
-
       if (params.startDate !== undefined) {
         body.start_date = params.startDate
       }
@@ -175,11 +160,6 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(error || 'Failed to create experiment')
-    }
-
     const data = await response.json()
 
     return {
@@ -199,7 +179,6 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
         feature_flag: { type: 'object', description: 'Feature flag details' },
         parameters: { type: 'object', description: 'Experiment parameters' },
         filters: { type: 'object', description: 'Experiment filters' },
-        variants: { type: 'object', description: 'Experiment variants' },
         start_date: { type: 'string', description: 'Start date' },
         end_date: { type: 'string', description: 'End date' },
         created_at: { type: 'string', description: 'Creation timestamp' },

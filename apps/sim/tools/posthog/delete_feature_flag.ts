@@ -20,6 +20,7 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
     name: 'PostHog Delete Feature Flag',
     description: 'Delete a feature flag from PostHog',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       projectId: {
@@ -58,27 +59,22 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
     request: {
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}`
+        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}/`
       },
-      method: 'DELETE',
+      // PostHog does not allow a hard DELETE on feature flags (always returns 405).
+      // Deletion is a soft-delete via PATCH with deleted: true.
+      method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }),
+      body: () => ({ deleted: true }),
     },
 
-    transformResponse: async (response: Response) => {
-      if (response.ok || response.status === 204) {
-        return {
-          success: true,
-          message: 'Feature flag deleted successfully',
-        }
-      }
-
-      const error = await response.text()
+    transformResponse: async () => {
       return {
-        success: false,
-        message: error || 'Failed to delete feature flag',
+        success: true,
+        message: 'Feature flag deleted successfully',
       }
     },
 

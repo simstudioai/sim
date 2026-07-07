@@ -47,6 +47,7 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
   description:
     'List all surveys in a PostHog project. Surveys allow you to collect feedback from users.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -111,18 +112,6 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          surveys: [],
-          count: 0,
-        },
-        error: error || 'Failed to list surveys',
-      }
-    }
-
     const data = await response.json()
 
     return {

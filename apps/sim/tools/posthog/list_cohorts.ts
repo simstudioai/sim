@@ -41,6 +41,7 @@ export const listCohortsTool: ToolConfig<PostHogListCohortsParams, PostHogListCo
   description:
     'List all cohorts in a PostHog project. Returns cohort definitions, filters, and user counts.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -106,20 +107,6 @@ export const listCohortsTool: ToolConfig<PostHogListCohortsParams, PostHogListCo
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          count: 0,
-          next: null,
-          previous: null,
-          results: [],
-        },
-        error: error || 'Failed to list cohorts',
-      }
-    }
-
     const data = await response.json()
 
     return {

@@ -34,6 +34,7 @@ export const getFeatureFlagTool: ToolConfig<GetFeatureFlagParams, GetFeatureFlag
   name: 'PostHog Get Feature Flag',
   description: 'Get details of a specific feature flag',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -72,7 +73,7 @@ export const getFeatureFlagTool: ToolConfig<GetFeatureFlagParams, GetFeatureFlag
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}`
+      return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}/`
     },
     method: 'GET',
     headers: (params) => ({
@@ -82,11 +83,6 @@ export const getFeatureFlagTool: ToolConfig<GetFeatureFlagParams, GetFeatureFlag
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(error || 'Failed to get feature flag')
-    }
-
     const data = await response.json()
 
     return {

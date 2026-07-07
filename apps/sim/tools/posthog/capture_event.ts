@@ -109,22 +109,11 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
     },
 
     transformResponse: async (response: Response) => {
-      if (response.ok) {
-        return {
-          success: true,
-          output: {
-            status: 'Event captured successfully',
-          },
-        }
-      }
-
-      const error = await response.text()
       return {
-        success: false,
+        success: true,
         output: {
-          status: 'Failed to capture event',
+          status: 'Event captured successfully',
         },
-        error: error || 'Unknown error occurred',
       }
     },
 

@@ -38,6 +38,7 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
     name: 'PostHog Create Feature Flag',
     description: 'Create a new feature flag in PostHog',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       projectId: {
@@ -146,11 +147,6 @@ export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFe
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.text()
-        throw new Error(error || 'Failed to create feature flag')
-      }
-
       const data = await response.json()
 
       return {

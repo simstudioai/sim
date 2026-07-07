@@ -10,7 +10,7 @@ interface PostHogCreateAnnotationParams {
   date_marker: string
   scope?: string
   dashboard_item?: string
-  insight_short_id?: string
+  dashboard_id?: string
 }
 
 interface PostHogCreateAnnotationResponse {
@@ -23,6 +23,7 @@ interface PostHogCreateAnnotationResponse {
     updated_at: string
     created_by: Record<string, any> | null
     dashboard_item: number | null
+    dashboard_id: number | null
     insight_short_id: string | null
     insight_name: string | null
     scope: string
@@ -39,6 +40,7 @@ export const createAnnotationTool: ToolConfig<
   description:
     'Create a new annotation in PostHog. Mark important events on your graphs with date and description.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -84,19 +86,22 @@ export const createAnnotationTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Scope of the annotation: "project" or "dashboard_item" (default: "project")',
+      description:
+        'Scope of the annotation: "project", "organization", "dashboard", or "dashboard_item" (default: "project")',
     },
     dashboard_item: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ID of dashboard item to attach this annotation to',
+      description:
+        'ID of the dashboard tile (insight) to attach this annotation to (used when scope is "dashboard_item")',
     },
-    insight_short_id: {
+    dashboard_id: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Short ID of the insight to attach this annotation to',
+      description:
+        'ID of the dashboard to attach this annotation to (used when scope is "dashboard")',
     },
   },
 
@@ -124,8 +129,8 @@ export const createAnnotationTool: ToolConfig<
         body.dashboard_item = Number(params.dashboard_item)
       }
 
-      if (params.insight_short_id) {
-        body.insight_short_id = params.insight_short_id
+      if (params.dashboard_id) {
+        body.dashboard_id = Number(params.dashboard_id)
       }
 
       return body
@@ -133,27 +138,6 @@ export const createAnnotationTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          id: 0,
-          content: '',
-          date_marker: '',
-          created_at: '',
-          updated_at: '',
-          created_by: null,
-          dashboard_item: null,
-          insight_short_id: null,
-          insight_name: null,
-          scope: '',
-          deleted: false,
-        },
-        error: error || 'Failed to create annotation',
-      }
-    }
-
     const data = await response.json()
 
     return {
@@ -166,6 +150,7 @@ export const createAnnotationTool: ToolConfig<
         updated_at: data.updated_at,
         created_by: data.created_by || null,
         dashboard_item: data.dashboard_item || null,
+        dashboard_id: data.dashboard_id || null,
         insight_short_id: data.insight_short_id || null,
         insight_name: data.insight_name || null,
         scope: data.scope || '',
@@ -205,6 +190,11 @@ export const createAnnotationTool: ToolConfig<
       description: 'ID of dashboard item this annotation is attached to',
       optional: true,
     },
+    dashboard_id: {
+      type: 'number',
+      description: 'ID of the dashboard this annotation is attached to',
+      optional: true,
+    },
     insight_short_id: {
       type: 'string',
       description: 'Short ID of the insight this annotation is attached to',
@@ -217,7 +207,7 @@ export const createAnnotationTool: ToolConfig<
     },
     scope: {
       type: 'string',
-      description: 'Scope of the annotation (project or dashboard_item)',
+      description: 'Scope of the annotation (project, organization, dashboard, or dashboard_item)',
     },
     deleted: {
       type: 'boolean',

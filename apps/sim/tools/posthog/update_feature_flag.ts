@@ -39,6 +39,7 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
     name: 'PostHog Update Feature Flag',
     description: 'Update an existing feature flag in PostHog',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       projectId: {
@@ -113,7 +114,7 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
     request: {
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}`
+        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}/`
       },
       method: 'PATCH',
       headers: (params) => ({
@@ -156,11 +157,6 @@ export const updateFeatureFlagTool: ToolConfig<UpdateFeatureFlagParams, UpdateFe
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.text()
-        throw new Error(error || 'Failed to update feature flag')
-      }
-
       const data = await response.json()
 
       return {

@@ -62,6 +62,7 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
     description:
       'Create a new survey in PostHog. Supports question types: Basic (open), Link, Rating, and Multiple Choice.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -92,9 +93,9 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
       },
       name: {
         type: 'string',
-        required: false,
+        required: true,
         visibility: 'user-or-llm',
-        description: 'Survey name (optional)',
+        description: 'Survey name',
       },
       description: {
         type: 'string',
@@ -194,25 +195,6 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.text()
-        return {
-          success: false,
-          output: {
-            survey: {
-              id: '',
-              name: '',
-              description: '',
-              type: 'popover',
-              questions: [],
-              created_at: '',
-              created_by: {},
-            },
-          },
-          error: error || 'Failed to create survey',
-        }
-      }
-
       const data = await response.json()
 
       return {

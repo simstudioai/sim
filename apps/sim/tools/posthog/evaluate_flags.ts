@@ -118,11 +118,6 @@ export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsRes
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(error || 'Failed to evaluate feature flags')
-    }
-
     const data = await response.json()
     const flags: Record<
       string,

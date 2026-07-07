@@ -35,6 +35,7 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
   description:
     'List persons (users) in PostHog. Returns user profiles with their properties and distinct IDs.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -110,17 +111,6 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          persons: [],
-        },
-        error: error || 'Failed to list persons',
-      }
-    }
-
     const data = await response.json()
 
     return {

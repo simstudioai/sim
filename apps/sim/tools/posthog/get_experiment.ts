@@ -17,7 +17,6 @@ interface Experiment {
   feature_flag: Record<string, any>
   parameters: Record<string, any>
   filters: Record<string, any>
-  variants: Record<string, any>
   start_date: string | null
   end_date: string | null
   created_at: string
@@ -36,6 +35,7 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
   name: 'PostHog Get Experiment',
   description: 'Get details of a specific experiment',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -74,7 +74,7 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}`
+      return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}/`
     },
     method: 'GET',
     headers: (params) => ({
@@ -84,11 +84,6 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(error || 'Failed to get experiment')
-    }
-
     const data = await response.json()
 
     return {
@@ -108,7 +103,6 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
         feature_flag: { type: 'object', description: 'Feature flag details' },
         parameters: { type: 'object', description: 'Experiment parameters' },
         filters: { type: 'object', description: 'Experiment filters' },
-        variants: { type: 'object', description: 'Experiment variants' },
         start_date: { type: 'string', description: 'Start date' },
         end_date: { type: 'string', description: 'End date' },
         created_at: { type: 'string', description: 'Creation timestamp' },

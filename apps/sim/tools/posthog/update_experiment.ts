@@ -40,6 +40,7 @@ export const updateExperimentTool: ToolConfig<UpdateExperimentParams, UpdateExpe
   description:
     'Update an existing experiment in PostHog. Use this to change dates, archive an experiment, or adjust its parameters and filters.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -159,11 +160,6 @@ export const updateExperimentTool: ToolConfig<UpdateExperimentParams, UpdateExpe
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(error || 'Failed to update experiment')
-    }
-
     const data = await response.json()
 
     return {

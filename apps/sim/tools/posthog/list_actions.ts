@@ -8,6 +8,7 @@ interface PostHogListActionsParams {
   host?: string
   limit?: number
   offset?: number
+  search?: string
 }
 
 interface PostHogListActionsResponse {
@@ -39,6 +40,7 @@ export const listActionsTool: ToolConfig<PostHogListActionsParams, PostHogListAc
   description:
     'List all actions in a PostHog project. Returns action definitions, steps, and metadata.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -79,6 +81,12 @@ export const listActionsTool: ToolConfig<PostHogListActionsParams, PostHogListAc
       visibility: 'user-or-llm',
       description: 'Number of results to skip for pagination (e.g., 0, 100, 200)',
     },
+    search: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Search term to filter actions by name',
+    },
   },
 
   request: {
@@ -89,6 +97,7 @@ export const listActionsTool: ToolConfig<PostHogListActionsParams, PostHogListAc
       const queryParams = []
       if (params.limit) queryParams.push(`limit=${params.limit}`)
       if (params.offset) queryParams.push(`offset=${params.offset}`)
+      if (params.search) queryParams.push(`search=${encodeURIComponent(params.search)}`)
 
       if (queryParams.length > 0) {
         url += `?${queryParams.join('&')}`
@@ -104,20 +113,6 @@ export const listActionsTool: ToolConfig<PostHogListActionsParams, PostHogListAc
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          count: 0,
-          next: null,
-          previous: null,
-          results: [],
-        },
-        error: error || 'Failed to list actions',
-      }
-    }
-
     const data = await response.json()
 
     return {

@@ -22,6 +22,7 @@ export const deleteSurveyTool: ToolConfig<PostHogDeleteSurveyParams, PostHogDele
     name: 'PostHog Delete Survey',
     description: 'Delete a survey from PostHog. Use this to remove expired or unused surveys.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -70,23 +71,12 @@ export const deleteSurveyTool: ToolConfig<PostHogDeleteSurveyParams, PostHogDele
       }),
     },
 
-    transformResponse: async (response: Response) => {
-      if (response.ok || response.status === 204) {
-        return {
-          success: true,
-          output: {
-            status: 'Survey deleted successfully',
-          },
-        }
-      }
-
-      const error = await response.text()
+    transformResponse: async () => {
       return {
-        success: false,
+        success: true,
         output: {
-          status: 'Failed to delete survey',
+          status: 'Survey deleted successfully',
         },
-        error: error || 'Unknown error occurred',
       }
     },
 

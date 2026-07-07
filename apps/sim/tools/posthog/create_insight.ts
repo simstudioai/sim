@@ -8,7 +8,6 @@ interface PostHogCreateInsightParams {
   host?: string
   name: string
   description?: string
-  filters?: string
   query?: string
   dashboards?: string
   tags?: string
@@ -20,12 +19,10 @@ interface PostHogCreateInsightResponse {
     id: number
     name: string
     description: string
-    filters: Record<string, any>
     query: Record<string, any> | null
     created_at: string
     created_by: Record<string, any> | null
     last_modified_at: string
-    saved: boolean
     dashboards: number[]
     tags: string[]
   }
@@ -37,9 +34,9 @@ export const createInsightTool: ToolConfig<
 > = {
   id: 'posthog_create_insight',
   name: 'PostHog Create Insight',
-  description:
-    'Create a new insight in PostHog. Requires insight name and configuration filters or query.',
+  description: 'Create a new insight in PostHog. Requires insight name and a query configuration.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -81,12 +78,6 @@ export const createInsightTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Description of the insight',
     },
-    filters: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'JSON string of filter configuration for the insight',
-    },
     query: {
       type: 'string',
       required: false,
@@ -126,14 +117,6 @@ export const createInsightTool: ToolConfig<
         body.description = params.description
       }
 
-      if (params.filters) {
-        try {
-          body.filters = JSON.parse(params.filters)
-        } catch (e) {
-          body.filters = {}
-        }
-      }
-
       if (params.query) {
         try {
           body.query = JSON.parse(params.query)
@@ -161,27 +144,6 @@ export const createInsightTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          id: 0,
-          name: '',
-          description: '',
-          filters: {},
-          query: null,
-          created_at: '',
-          created_by: null,
-          last_modified_at: '',
-          saved: false,
-          dashboards: [],
-          tags: [],
-        },
-        error: error || 'Failed to create insight',
-      }
-    }
-
     const data = await response.json()
 
     return {
@@ -190,12 +152,10 @@ export const createInsightTool: ToolConfig<
         id: data.id,
         name: data.name || '',
         description: data.description || '',
-        filters: data.filters || {},
         query: data.query || null,
         created_at: data.created_at,
         created_by: data.created_by || null,
         last_modified_at: data.last_modified_at,
-        saved: data.saved || false,
         dashboards: data.dashboards || [],
         tags: data.tags || [],
       },
@@ -215,10 +175,6 @@ export const createInsightTool: ToolConfig<
       type: 'string',
       description: 'Description of the insight',
     },
-    filters: {
-      type: 'object',
-      description: 'Filter configuration for the insight',
-    },
     query: {
       type: 'object',
       description: 'Query configuration for the insight',
@@ -236,10 +192,6 @@ export const createInsightTool: ToolConfig<
     last_modified_at: {
       type: 'string',
       description: 'ISO timestamp when insight was last modified',
-    },
-    saved: {
-      type: 'boolean',
-      description: 'Whether the insight is saved',
     },
     dashboards: {
       type: 'array',

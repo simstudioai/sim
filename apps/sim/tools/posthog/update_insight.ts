@@ -9,7 +9,6 @@ interface PostHogUpdateInsightParams {
   host?: string
   name?: string
   description?: string
-  filters?: string
   query?: string
   dashboards?: string
   tags?: string
@@ -22,11 +21,9 @@ interface PostHogUpdateInsightResponse {
     id: number
     name: string
     description: string
-    filters: Record<string, any>
     query: Record<string, any> | null
     created_at: string
     last_modified_at: string
-    saved: boolean
     dashboards: number[]
     tags: string[]
     favorited: boolean
@@ -40,8 +37,9 @@ export const updateInsightTool: ToolConfig<
   id: 'posthog_update_insight',
   name: 'PostHog Update Insight',
   description:
-    'Update an existing insight in PostHog. Can modify name, description, filters, query, dashboards, tags, and favorited status.',
+    'Update an existing insight in PostHog. Can modify name, description, query, dashboards, tags, and favorited status.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -88,12 +86,6 @@ export const updateInsightTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Updated description for the insight',
     },
-    filters: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'JSON string of updated filter configuration for the insight',
-    },
     query: {
       type: 'string',
       required: false,
@@ -136,14 +128,6 @@ export const updateInsightTool: ToolConfig<
       if (params.name !== undefined) body.name = params.name
       if (params.description !== undefined) body.description = params.description
 
-      if (params.filters) {
-        try {
-          body.filters = JSON.parse(params.filters)
-        } catch {
-          body.filters = {}
-        }
-      }
-
       if (params.query) {
         try {
           body.query = JSON.parse(params.query)
@@ -173,27 +157,6 @@ export const updateInsightTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          id: 0,
-          name: '',
-          description: '',
-          filters: {},
-          query: null,
-          created_at: '',
-          last_modified_at: '',
-          saved: false,
-          dashboards: [],
-          tags: [],
-          favorited: false,
-        },
-        error: error || 'Failed to update insight',
-      }
-    }
-
     const data = await response.json()
 
     return {
@@ -202,11 +165,9 @@ export const updateInsightTool: ToolConfig<
         id: data.id,
         name: data.name || '',
         description: data.description || '',
-        filters: data.filters || {},
         query: data.query || null,
         created_at: data.created_at,
         last_modified_at: data.last_modified_at,
-        saved: data.saved || false,
         dashboards: data.dashboards || [],
         tags: data.tags || [],
         favorited: data.favorited || false,
@@ -227,10 +188,6 @@ export const updateInsightTool: ToolConfig<
       type: 'string',
       description: 'Description of the insight',
     },
-    filters: {
-      type: 'object',
-      description: 'Filter configuration for the insight',
-    },
     query: {
       type: 'object',
       description: 'Query configuration for the insight',
@@ -243,10 +200,6 @@ export const updateInsightTool: ToolConfig<
     last_modified_at: {
       type: 'string',
       description: 'ISO timestamp when insight was last modified',
-    },
-    saved: {
-      type: 'boolean',
-      description: 'Whether the insight is saved',
     },
     dashboards: {
       type: 'array',

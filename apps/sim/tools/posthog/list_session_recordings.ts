@@ -50,6 +50,7 @@ export const listSessionRecordingsTool: ToolConfig<
   description:
     'List session recordings in a PostHog project. Session recordings capture user interactions with your application.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -114,18 +115,6 @@ export const listSessionRecordingsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          recordings: [],
-          count: 0,
-        },
-        error: error || 'Failed to list session recordings',
-      }
-    }
-
     const data = await response.json()
 
     return {

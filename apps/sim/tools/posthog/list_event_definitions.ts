@@ -16,8 +16,6 @@ interface EventDefinition {
   name: string
   description: string
   tags: string[]
-  volume_30_day: number | null
-  query_usage_30_day: number | null
   created_at: string
   last_seen_at: string | null
   updated_at: string
@@ -46,6 +44,7 @@ export const listEventDefinitionsTool: ToolConfig<
   description:
     'List all event definitions in a PostHog project. Event definitions represent tracked events with metadata like descriptions, tags, and usage statistics.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -113,11 +112,6 @@ export const listEventDefinitionsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(error || 'Failed to list event definitions')
-    }
-
     const data = await response.json()
 
     return {
@@ -129,8 +123,6 @@ export const listEventDefinitionsTool: ToolConfig<
         name: event.name,
         description: event.description || '',
         tags: event.tags || [],
-        volume_30_day: event.volume_30_day ?? null,
-        query_usage_30_day: event.query_usage_30_day ?? null,
         created_at: event.created_at,
         last_seen_at: event.last_seen_at ?? null,
         updated_at: event.updated_at,
@@ -164,16 +156,6 @@ export const listEventDefinitionsTool: ToolConfig<
           name: { type: 'string', description: 'Event name' },
           description: { type: 'string', description: 'Event description' },
           tags: { type: 'array', description: 'Tags associated with the event' },
-          volume_30_day: {
-            type: 'number',
-            description: 'Number of events received in the last 30 days',
-            optional: true,
-          },
-          query_usage_30_day: {
-            type: 'number',
-            description: 'Number of times this event was queried in the last 30 days',
-            optional: true,
-          },
           created_at: { type: 'string', description: 'ISO timestamp when the event was created' },
           last_seen_at: {
             type: 'string',

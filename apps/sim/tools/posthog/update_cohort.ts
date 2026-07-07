@@ -41,6 +41,7 @@ export const updateCohortTool: ToolConfig<PostHogUpdateCohortParams, PostHogUpda
     description:
       'Update an existing cohort in PostHog. Can modify name, description, filters, query, static membership, and deleted status.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -168,28 +169,6 @@ export const updateCohortTool: ToolConfig<PostHogUpdateCohortParams, PostHogUpda
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.text()
-        return {
-          success: false,
-          output: {
-            id: 0,
-            name: '',
-            description: '',
-            groups: [],
-            deleted: false,
-            filters: {},
-            query: null,
-            created_at: '',
-            is_calculating: false,
-            count: 0,
-            is_static: false,
-            version: 0,
-          },
-          error: error || 'Failed to update cohort',
-        }
-      }
-
       const data = await response.json()
 
       return {

@@ -64,6 +64,7 @@ export const updateSurveyTool: ToolConfig<PostHogUpdateSurveyParams, PostHogUpda
     description:
       'Update an existing survey in PostHog. Can modify questions, appearance, conditions, and other settings.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -208,25 +209,6 @@ export const updateSurveyTool: ToolConfig<PostHogUpdateSurveyParams, PostHogUpda
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.text()
-        return {
-          success: false,
-          output: {
-            survey: {
-              id: '',
-              name: '',
-              description: '',
-              type: 'popover',
-              questions: [],
-              created_at: '',
-              created_by: {},
-            },
-          },
-          error: error || 'Failed to update survey',
-        }
-      }
-
       const data = await response.json()
 
       return {

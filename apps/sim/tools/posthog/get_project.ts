@@ -52,6 +52,7 @@ export const getProjectTool: ToolConfig<PostHogGetProjectParams, PostHogGetProje
   description:
     'Get detailed information about a specific project by ID. Returns comprehensive project configuration, settings, and feature flags.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -94,41 +95,6 @@ export const getProjectTool: ToolConfig<PostHogGetProjectParams, PostHogGetProje
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          project: {
-            id: 0,
-            uuid: '',
-            organization: '',
-            api_token: '',
-            app_urls: [],
-            name: '',
-            slack_incoming_webhook: '',
-            created_at: '',
-            updated_at: '',
-            anonymize_ips: false,
-            completed_snippet_onboarding: false,
-            ingested_event: false,
-            test_account_filters: [],
-            is_demo: false,
-            timezone: '',
-            data_attributes: [],
-            person_display_name_properties: [],
-            correlation_config: {},
-            autocapture_opt_out: false,
-            autocapture_exceptions_opt_in: false,
-            session_recording_opt_in: false,
-            capture_console_log_opt_in: false,
-            capture_performance_opt_in: false,
-          },
-        },
-        error: error || 'Failed to get project',
-      }
-    }
-
     const data = await response.json()
 
     return {

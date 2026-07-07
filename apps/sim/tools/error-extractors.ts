@@ -244,6 +244,17 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'posthog-errors',
+    description: 'PostHog API error format with type/code/detail/attr fields',
+    examples: ['PostHog API'],
+    extract: (errorInfo) => {
+      const detail = errorInfo?.data?.detail
+      if (typeof detail !== 'string' || !detail.trim()) return undefined
+      const attr = errorInfo?.data?.attr
+      return typeof attr === 'string' && attr ? `${detail} (${attr})` : detail
+    },
+  },
+  {
     id: 'plain-text-data',
     description: 'Plain text error response',
     examples: ['APIs returning plain text errors like Apollo'],
@@ -320,6 +331,7 @@ export const ErrorExtractorId = {
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
+  POSTHOG_ERRORS: 'posthog-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const

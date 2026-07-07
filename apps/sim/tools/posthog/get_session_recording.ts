@@ -29,13 +29,6 @@ interface PostHogSessionRecording {
     name?: string
     properties?: Record<string, any>
   }
-  matching_events?: Array<{
-    id: string
-    event: string
-    timestamp: string
-    properties: Record<string, any>
-  }>
-  snapshot_data_by_window_id?: Record<string, any>
 }
 
 interface PostHogGetSessionRecordingResponse {
@@ -53,6 +46,7 @@ export const getSessionRecordingTool: ToolConfig<
   name: 'PostHog Get Session Recording',
   description: 'Get details of a specific session recording in PostHog by ID.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -103,31 +97,6 @@ export const getSessionRecordingTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          recording: {
-            id: '',
-            distinct_id: '',
-            viewed: false,
-            recording_duration: 0,
-            active_seconds: 0,
-            inactive_seconds: 0,
-            start_time: '',
-            end_time: '',
-            click_count: 0,
-            keypress_count: 0,
-            console_log_count: 0,
-            console_warn_count: 0,
-            console_error_count: 0,
-          },
-        },
-        error: error || 'Failed to get session recording',
-      }
-    }
-
     const data = await response.json()
 
     return {
@@ -158,7 +127,6 @@ export const getSessionRecordingTool: ToolConfig<
         console_error_count: { type: 'number', description: 'Number of console errors' },
         start_url: { type: 'string', description: 'Starting URL of the recording' },
         person: { type: 'object', description: 'Person information' },
-        matching_events: { type: 'array', description: 'Events that occurred during recording' },
       },
     },
   },

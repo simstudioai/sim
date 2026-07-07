@@ -23,6 +23,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
     description:
       'Delete a person from PostHog. This will remove all associated events and data. Use with caution.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -60,34 +61,30 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
     },
 
     request: {
+      // PostHog has no single-person DELETE endpoint; deletion is only available
+      // via the bulk_delete endpoint, called here with a single ID.
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/persons/${params.personId}/`
+        return `${baseUrl}/api/projects/${params.projectId}/persons/bulk_delete/`
       },
-      method: 'DELETE',
+      method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }),
+      body: (params) => ({ ids: [params.personId] }),
     },
 
     transformResponse: async (response: Response) => {
-      if (response.ok || response.status === 204) {
-        return {
-          success: true,
-          output: {
-            status: 'Person deleted successfully',
-          },
-        }
-      }
-
-      const error = await response.text()
+      const data = await response.json()
       return {
-        success: false,
+        success: true,
         output: {
-          status: 'Failed to delete person',
+          status:
+            data.persons_deleted > 0
+              ? 'Person deleted successfully'
+              : 'No matching person found to delete',
         },
-        error: error || 'Unknown error occurred',
       }
     },
 

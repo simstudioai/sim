@@ -50,6 +50,7 @@ export const getSurveyTool: ToolConfig<PostHogGetSurveyParams, PostHogGetSurveyR
   name: 'PostHog Get Survey',
   description: 'Get details of a specific survey in PostHog by ID.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -99,25 +100,6 @@ export const getSurveyTool: ToolConfig<PostHogGetSurveyParams, PostHogGetSurveyR
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          survey: {
-            id: '',
-            name: '',
-            description: '',
-            type: 'popover',
-            questions: [],
-            created_at: '',
-            created_by: {},
-          },
-        },
-        error: error || 'Failed to get survey',
-      }
-    }
-
     const data = await response.json()
 
     return {

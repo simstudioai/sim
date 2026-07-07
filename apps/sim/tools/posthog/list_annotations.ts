@@ -24,6 +24,7 @@ interface PostHogListAnnotationsResponse {
       updated_at: string
       created_by: Record<string, any> | null
       dashboard_item: number | null
+      dashboard_id: number | null
       insight_short_id: string | null
       insight_name: string | null
       scope: string
@@ -41,6 +42,7 @@ export const listAnnotationsTool: ToolConfig<
   description:
     'List all annotations in a PostHog project. Returns annotation content, timestamps, and associated insights.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -106,20 +108,6 @@ export const listAnnotationsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          count: 0,
-          next: null,
-          previous: null,
-          results: [],
-        },
-        error: error || 'Failed to list annotations',
-      }
-    }
-
     const data = await response.json()
 
     return {
@@ -136,6 +124,7 @@ export const listAnnotationsTool: ToolConfig<
           updated_at: annotation.updated_at,
           created_by: annotation.created_by || null,
           dashboard_item: annotation.dashboard_item || null,
+          dashboard_id: annotation.dashboard_id || null,
           insight_short_id: annotation.insight_short_id || null,
           insight_name: annotation.insight_name || null,
           scope: annotation.scope || '',
@@ -184,6 +173,10 @@ export const listAnnotationsTool: ToolConfig<
           dashboard_item: {
             type: 'number',
             description: 'ID of dashboard item this annotation is attached to',
+          },
+          dashboard_id: {
+            type: 'number',
+            description: 'ID of the dashboard this annotation is attached to',
           },
           insight_short_id: {
             type: 'string',

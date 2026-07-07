@@ -41,6 +41,7 @@ export const listProjectsTool: ToolConfig<PostHogListProjectsParams, PostHogList
     description:
       'List all projects in the organization. Returns project details including IDs, names, API tokens, and settings. Useful for getting project IDs needed by other endpoints.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -77,17 +78,6 @@ export const listProjectsTool: ToolConfig<PostHogListProjectsParams, PostHogList
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.text()
-        return {
-          success: false,
-          output: {
-            projects: [],
-          },
-          error: error || 'Failed to list projects',
-        }
-      }
-
       const data = await response.json()
 
       return {

@@ -49,6 +49,7 @@ export const listRecordingPlaylistsTool: ToolConfig<
   description:
     'List session recording playlists in a PostHog project. Playlists allow you to organize and curate session recordings.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -115,18 +116,6 @@ export const listRecordingPlaylistsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          playlists: [],
-          count: 0,
-        },
-        error: error || 'Failed to list recording playlists',
-      }
-    }
-
     const data = await response.json()
 
     return {

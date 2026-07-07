@@ -717,8 +717,6 @@ Return ONLY the description text.`,
       condition: {
         field: 'operation',
         value: [
-          'posthog_create_insight',
-          'posthog_update_insight',
           'posthog_create_feature_flag',
           'posthog_update_feature_flag',
           'posthog_create_cohort',
@@ -929,13 +927,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['posthog_create_experiment', 'posthog_update_experiment'],
       },
-    },
-    {
-      id: 'variants',
-      title: 'Variants (JSON)',
-      type: 'long-input',
-      placeholder: '{"control": 50, "test": 50}',
-      condition: { field: 'operation', value: 'posthog_create_experiment' },
     },
     {
       id: 'archived',

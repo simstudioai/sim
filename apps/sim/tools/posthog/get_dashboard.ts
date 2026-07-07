@@ -34,6 +34,7 @@ export const getDashboardTool: ToolConfig<PostHogGetDashboardParams, PostHogGetD
     description:
       'Get a specific dashboard by ID from PostHog. Returns detailed dashboard configuration, tiles, and metadata.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -83,28 +84,6 @@ export const getDashboardTool: ToolConfig<PostHogGetDashboardParams, PostHogGetD
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.text()
-        return {
-          success: false,
-          output: {
-            id: 0,
-            name: '',
-            description: '',
-            pinned: false,
-            created_at: '',
-            created_by: null,
-            last_modified_at: '',
-            last_modified_by: null,
-            tiles: [],
-            filters: {},
-            tags: [],
-            restriction_level: 0,
-          },
-          error: error || 'Failed to get dashboard',
-        }
-      }
-
       const data = await response.json()
 
       return {

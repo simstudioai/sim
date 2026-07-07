@@ -41,6 +41,7 @@ export const listDashboardsTool: ToolConfig<
   description:
     'List all dashboards in a PostHog project. Returns dashboard configurations, tiles, and metadata.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -106,20 +107,6 @@ export const listDashboardsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          count: 0,
-          next: null,
-          previous: null,
-          results: [],
-        },
-        error: error || 'Failed to list dashboards',
-      }
-    }
-
     const data = await response.json()
 
     return {

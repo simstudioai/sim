@@ -43,6 +43,7 @@ export const listOrganizationsTool: ToolConfig<
   description:
     'List all organizations the user has access to. Returns organization details including name, slug, membership level, and available product features.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -79,17 +80,6 @@ export const listOrganizationsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          organizations: [],
-        },
-        error: error || 'Failed to list organizations',
-      }
-    }
-
     const data = await response.json()
 
     return {

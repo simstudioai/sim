@@ -40,6 +40,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
     description:
       'Create a new cohort in PostHog. Requires cohort name and filter or query configuration.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -160,29 +161,6 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const error = await response.text()
-        return {
-          success: false,
-          output: {
-            id: 0,
-            name: '',
-            description: '',
-            groups: [],
-            deleted: false,
-            filters: {},
-            query: null,
-            created_at: '',
-            created_by: null,
-            is_calculating: false,
-            count: 0,
-            is_static: false,
-            version: 0,
-          },
-          error: error || 'Failed to create cohort',
-        }
-      }
-
       const data = await response.json()
 
       return {

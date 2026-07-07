@@ -78,31 +78,19 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
   },
 
   transformResponse: async (response: Response, params) => {
-    if (response.ok) {
-      const data = await response.json()
-      let eventsProcessed = 0
-      try {
-        eventsProcessed = params ? JSON.parse(params.batch).length : 0
-      } catch {
-        eventsProcessed = 0
-      }
-      return {
-        success: true,
-        output: {
-          status: 'Batch events captured successfully',
-          events_processed: data.status === 1 ? eventsProcessed : 0,
-        },
-      }
+    const data = await response.json()
+    let eventsProcessed = 0
+    try {
+      eventsProcessed = params ? JSON.parse(params.batch).length : 0
+    } catch {
+      eventsProcessed = 0
     }
-
-    const error = await response.text()
     return {
-      success: false,
+      success: true,
       output: {
-        status: 'Failed to capture batch events',
-        events_processed: 0,
+        status: 'Batch events captured successfully',
+        events_processed: data.status === 1 ? eventsProcessed : 0,
       },
-      error: error || 'Unknown error occurred',
     }
   },
 

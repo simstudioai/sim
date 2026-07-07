@@ -27,6 +27,7 @@ export const queryTool: ToolConfig<PostHogQueryParams, PostHogQueryResponse> = {
   description:
     "Execute a HogQL query in PostHog. HogQL is PostHog's SQL-like query language for analytics. Use this for advanced data retrieval and analysis.",
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -110,17 +111,6 @@ export const queryTool: ToolConfig<PostHogQueryParams, PostHogQueryResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          results: [],
-        },
-        error: error || 'Failed to execute query',
-      }
-    }
-
     const data = await response.json()
 
     return {

@@ -50,6 +50,7 @@ export const getOrganizationTool: ToolConfig<
   description:
     'Get detailed information about a specific organization by ID. Returns comprehensive organization settings, features, usage, and team information.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     organizationId: {
@@ -92,33 +93,6 @@ export const getOrganizationTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      return {
-        success: false,
-        output: {
-          organization: {
-            id: '',
-            name: '',
-            slug: '',
-            created_at: '',
-            updated_at: '',
-            membership_level: 0,
-            plugins_access_level: 0,
-            teams: [],
-            available_product_features: [],
-            domain_whitelist: [],
-            is_member_join_email_enabled: false,
-            metadata: {},
-            customer_id: null,
-            available_features: [],
-            usage: null,
-          },
-        },
-        error: error || 'Failed to get organization',
-      }
-    }
-
     const data = await response.json()
 
     return {
