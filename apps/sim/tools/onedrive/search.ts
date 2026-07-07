@@ -36,10 +36,22 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
       visibility: 'user-or-llm',
       description: 'Maximum number of results to return (e.g., 10, 50, 100)',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Continuation URL from a previous response's nextPageToken, used to fetch the next page",
+    },
   },
 
   request: {
     url: (params) => {
+      const pageToken = params.pageToken?.trim()
+      if (pageToken) {
+        return pageToken
+      }
+
       const query = params.query?.trim()
       if (!query) {
         throw new Error('A search query is required')
