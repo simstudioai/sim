@@ -54,6 +54,13 @@ describe('buildCustomBlockConfig', () => {
     expect(config.tools.config?.tool({})).toBe('workflow_executor')
   })
 
+  it('hides a disabled block from the toolbar while keeping it resolvable', () => {
+    expect(buildCustomBlockConfig(row, fields, { icon }).hideFromToolbar).toBeUndefined()
+    expect(
+      buildCustomBlockConfig(row, fields, { icon, hideFromToolbar: true }).hideFromToolbar
+    ).toBe(true)
+  })
+
   it('bakes the bound workflowId as a hidden sub-block', () => {
     const config = buildCustomBlockConfig(row, fields, { icon })
     const wf = findSub(config, 'workflowId')

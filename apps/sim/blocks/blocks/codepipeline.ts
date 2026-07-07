@@ -7,8 +7,12 @@ import {
   parseOptionalNumberInput,
 } from '@/blocks/utils'
 import type {
+  CodePipelineDisableStageTransitionResponse,
+  CodePipelineEnableStageTransitionResponse,
   CodePipelineGetPipelineExecutionResponse,
+  CodePipelineGetPipelineResponse,
   CodePipelineGetPipelineStateResponse,
+  CodePipelineListActionExecutionsResponse,
   CodePipelineListPipelineExecutionsResponse,
   CodePipelineListPipelinesResponse,
   CodePipelinePutApprovalResultResponse,
@@ -19,13 +23,17 @@ import type {
 
 export const CodePipelineBlock: BlockConfig<
   | CodePipelineListPipelinesResponse
+  | CodePipelineGetPipelineResponse
   | CodePipelineGetPipelineStateResponse
   | CodePipelineGetPipelineExecutionResponse
   | CodePipelineListPipelineExecutionsResponse
+  | CodePipelineListActionExecutionsResponse
   | CodePipelineStartExecutionResponse
   | CodePipelineStopExecutionResponse
   | CodePipelineRetryStageExecutionResponse
   | CodePipelinePutApprovalResultResponse
+  | CodePipelineDisableStageTransitionResponse
+  | CodePipelineEnableStageTransitionResponse
 > = {
   type: 'codepipeline',
   name: 'CodePipeline',
@@ -47,12 +55,16 @@ export const CodePipelineBlock: BlockConfig<
       options: [
         { label: 'Start Execution', id: 'start_execution' },
         { label: 'Get Pipeline State', id: 'get_pipeline_state' },
+        { label: 'Get Pipeline Structure', id: 'get_pipeline' },
         { label: 'List Pipelines', id: 'list_pipelines' },
         { label: 'List Executions', id: 'list_pipeline_executions' },
+        { label: 'List Action Executions', id: 'list_action_executions' },
         { label: 'Get Execution', id: 'get_pipeline_execution' },
         { label: 'Stop Execution', id: 'stop_execution' },
         { label: 'Retry Stage', id: 'retry_stage_execution' },
         { label: 'Approve / Reject Approval', id: 'put_approval_result' },
+        { label: 'Disable Stage Transition', id: 'disable_stage_transition' },
+        { label: 'Enable Stage Transition', id: 'enable_stage_transition' },
       ],
       value: () => 'start_execution',
     },
@@ -89,11 +101,15 @@ export const CodePipelineBlock: BlockConfig<
         value: [
           'start_execution',
           'get_pipeline_state',
+          'get_pipeline',
           'list_pipeline_executions',
+          'list_action_executions',
           'get_pipeline_execution',
           'stop_execution',
           'retry_stage_execution',
           'put_approval_result',
+          'disable_stage_transition',
+          'enable_stage_transition',
         ],
       },
       required: {
@@ -101,11 +117,15 @@ export const CodePipelineBlock: BlockConfig<
         value: [
           'start_execution',
           'get_pipeline_state',
+          'get_pipeline',
           'list_pipeline_executions',
+          'list_action_executions',
           'get_pipeline_execution',
           'stop_execution',
           'retry_stage_execution',
           'put_approval_result',
+          'disable_stage_transition',
+          'enable_stage_transition',
         ],
       },
     },
@@ -116,7 +136,12 @@ export const CodePipelineBlock: BlockConfig<
       placeholder: 'e.g., 3137f7cb-7cf7-4abc-9f1d-d7eu3471a2b1',
       condition: {
         field: 'operation',
-        value: ['get_pipeline_execution', 'stop_execution', 'retry_stage_execution'],
+        value: [
+          'get_pipeline_execution',
+          'stop_execution',
+          'retry_stage_execution',
+          'list_action_executions',
+        ],
       },
       required: {
         field: 'operation',
@@ -128,8 +153,58 @@ export const CodePipelineBlock: BlockConfig<
       title: 'Stage Name',
       type: 'short-input',
       placeholder: 'e.g., Deploy',
-      condition: { field: 'operation', value: ['retry_stage_execution', 'put_approval_result'] },
-      required: { field: 'operation', value: ['retry_stage_execution', 'put_approval_result'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'retry_stage_execution',
+          'put_approval_result',
+          'disable_stage_transition',
+          'enable_stage_transition',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'retry_stage_execution',
+          'put_approval_result',
+          'disable_stage_transition',
+          'enable_stage_transition',
+        ],
+      },
+    },
+    {
+      id: 'transitionType',
+      title: 'Transition Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Inbound', id: 'Inbound' },
+        { label: 'Outbound', id: 'Outbound' },
+      ],
+      value: () => 'Inbound',
+      condition: {
+        field: 'operation',
+        value: ['disable_stage_transition', 'enable_stage_transition'],
+      },
+      required: {
+        field: 'operation',
+        value: ['disable_stage_transition', 'enable_stage_transition'],
+      },
+    },
+    {
+      id: 'transitionReason',
+      title: 'Reason',
+      type: 'short-input',
+      placeholder: 'Why the transition is disabled (max 300 characters)',
+      condition: { field: 'operation', value: 'disable_stage_transition' },
+      required: { field: 'operation', value: 'disable_stage_transition' },
+    },
+    {
+      id: 'getPipelineVersion',
+      title: 'Pipeline Version',
+      type: 'short-input',
+      placeholder: 'Defaults to the current version',
+      condition: { field: 'operation', value: 'get_pipeline' },
+      mode: 'advanced',
     },
     {
       id: 'retryMode',
@@ -222,7 +297,10 @@ export const CodePipelineBlock: BlockConfig<
       title: 'Max Results',
       type: 'short-input',
       placeholder: '100',
-      condition: { field: 'operation', value: ['list_pipelines', 'list_pipeline_executions'] },
+      condition: {
+        field: 'operation',
+        value: ['list_pipelines', 'list_pipeline_executions', 'list_action_executions'],
+      },
       mode: 'advanced',
     },
     {
@@ -230,32 +308,43 @@ export const CodePipelineBlock: BlockConfig<
       title: 'Next Token',
       type: 'short-input',
       placeholder: 'Pagination token from a previous call',
-      condition: { field: 'operation', value: ['list_pipelines', 'list_pipeline_executions'] },
+      condition: {
+        field: 'operation',
+        value: ['list_pipelines', 'list_pipeline_executions', 'list_action_executions'],
+      },
       mode: 'advanced',
     },
   ],
   tools: {
     access: [
       'codepipeline_list_pipelines',
+      'codepipeline_get_pipeline',
       'codepipeline_get_pipeline_state',
       'codepipeline_get_pipeline_execution',
       'codepipeline_list_pipeline_executions',
+      'codepipeline_list_action_executions',
       'codepipeline_start_execution',
       'codepipeline_stop_execution',
       'codepipeline_retry_stage_execution',
       'codepipeline_put_approval_result',
+      'codepipeline_disable_stage_transition',
+      'codepipeline_enable_stage_transition',
     ],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'list_pipelines':
             return 'codepipeline_list_pipelines'
+          case 'get_pipeline':
+            return 'codepipeline_get_pipeline'
           case 'get_pipeline_state':
             return 'codepipeline_get_pipeline_state'
           case 'get_pipeline_execution':
             return 'codepipeline_get_pipeline_execution'
           case 'list_pipeline_executions':
             return 'codepipeline_list_pipeline_executions'
+          case 'list_action_executions':
+            return 'codepipeline_list_action_executions'
           case 'start_execution':
             return 'codepipeline_start_execution'
           case 'stop_execution':
@@ -264,12 +353,16 @@ export const CodePipelineBlock: BlockConfig<
             return 'codepipeline_retry_stage_execution'
           case 'put_approval_result':
             return 'codepipeline_put_approval_result'
+          case 'disable_stage_transition':
+            return 'codepipeline_disable_stage_transition'
+          case 'enable_stage_transition':
+            return 'codepipeline_enable_stage_transition'
           default:
             throw new Error(`Invalid CodePipeline operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { operation, maxResults, ...rest } = params
+        const { operation, maxResults, getPipelineVersion, ...rest } = params
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
@@ -288,6 +381,20 @@ export const CodePipelineBlock: BlockConfig<
               ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
+
+          case 'get_pipeline': {
+            const parsedVersion = parseOptionalNumberInput(getPipelineVersion, 'Pipeline version', {
+              integer: true,
+              min: 1,
+            })
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              pipelineName: rest.pipelineName,
+              ...(parsedVersion !== undefined && { version: parsedVersion }),
+            }
+          }
 
           case 'get_pipeline_state':
             return {
@@ -315,6 +422,17 @@ export const CodePipelineBlock: BlockConfig<
               ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
               ...(rest.succeededInStage && { succeededInStage: rest.succeededInStage }),
+            }
+
+          case 'list_action_executions':
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              pipelineName: rest.pipelineName,
+              ...(rest.pipelineExecutionId && { pipelineExecutionId: rest.pipelineExecutionId }),
+              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
 
           case 'start_execution': {
@@ -381,6 +499,27 @@ export const CodePipelineBlock: BlockConfig<
               summary: rest.approvalSummary,
             }
 
+          case 'disable_stage_transition':
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              pipelineName: rest.pipelineName,
+              stageName: rest.stageName,
+              transitionType: rest.transitionType,
+              reason: rest.transitionReason,
+            }
+
+          case 'enable_stage_transition':
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              pipelineName: rest.pipelineName,
+              stageName: rest.stageName,
+              transitionType: rest.transitionType,
+            }
+
           default:
             throw new Error(`Invalid CodePipeline operation: ${operation}`)
         }
@@ -425,6 +564,18 @@ export const CodePipelineBlock: BlockConfig<
     },
     maxResults: { type: 'number', description: 'Maximum number of results' },
     nextToken: { type: 'string', description: 'Pagination token from a previous call' },
+    transitionType: {
+      type: 'string',
+      description: 'Stage transition to enable or disable: Inbound or Outbound',
+    },
+    transitionReason: {
+      type: 'string',
+      description: 'Reason the stage transition is disabled, shown in the pipeline console',
+    },
+    getPipelineVersion: {
+      type: 'number',
+      description: 'Pipeline version to retrieve (defaults to the current version)',
+    },
   },
   outputs: {
     pipelines: {
@@ -498,6 +649,38 @@ export const CodePipelineBlock: BlockConfig<
     approvedAt: {
       type: 'number',
       description: 'Epoch ms when the approval or rejection was submitted',
+    },
+    pipelineArn: {
+      type: 'string',
+      description: 'Pipeline ARN',
+    },
+    roleArn: {
+      type: 'string',
+      description: 'IAM role ARN the pipeline assumes',
+    },
+    pipelineType: {
+      type: 'string',
+      description: 'Pipeline type (V1 or V2)',
+    },
+    artifactStoreType: {
+      type: 'string',
+      description: 'Artifact store type (S3)',
+    },
+    artifactStoreLocation: {
+      type: 'string',
+      description: 'Artifact store bucket location',
+    },
+    stages: {
+      type: 'array',
+      description: 'Pipeline stages with their actions (name, category, provider, configuration)',
+    },
+    actionExecutionDetails: {
+      type: 'array',
+      description: 'Action-level execution history with status, timing, and error details',
+    },
+    transitionType: {
+      type: 'string',
+      description: 'Stage transition type that was enabled or disabled (Inbound or Outbound)',
     },
   },
 }
@@ -589,7 +772,14 @@ export const CodePipelineBlockMeta = {
       description:
         'Find the failing stage and action of a CodePipeline execution and report the error details.',
       content:
-        '# Investigate Failed CodePipeline Execution\n\nDiagnose why a pipeline run failed.\n\n## Steps\n1. List recent executions for the pipeline and identify the failed one (or use the provided execution ID).\n2. Get the pipeline state and find the stage and action with a Failed status.\n3. Capture the action error code, error message, and external execution URL, plus the source revisions that were being deployed.\n\n## Output\nThe failing stage and action, the error details, the commit/revision involved, and a link to the external execution.',
+        '# Investigate Failed CodePipeline Execution\n\nDiagnose why a pipeline run failed.\n\n## Steps\n1. List recent executions for the pipeline and identify the failed one (or use the provided execution ID).\n2. Get the pipeline state and find the stage and action with a Failed status.\n3. Capture the action error code, error message, and external execution URL, plus the source revisions that were being deployed.\n4. If more history is needed than the current state shows, list action executions for the pipeline execution ID to see every action attempt with its status and error details.\n\n## Output\nThe failing stage and action, the error details, the commit/revision involved, and a link to the external execution.',
+    },
+    {
+      name: 'freeze-pipeline-for-incident',
+      description:
+        'Disable a CodePipeline stage transition to freeze deployments during an incident, then re-enable it once resolved.',
+      content:
+        '# Freeze CodePipeline During an Incident\n\nStop new releases from reaching a stage without stopping an in-flight execution.\n\n## Steps\n1. Disable the inbound (or outbound) transition on the affected stage with a reason describing the incident.\n2. Confirm via the pipeline state or structure that the transition is disabled.\n3. Once the incident is resolved, enable the transition again so releases resume flowing.\n\n## Output\nThe stage and transition type that was disabled or re-enabled, and the reason recorded.',
     },
     {
       name: 'trigger-pipeline-release',

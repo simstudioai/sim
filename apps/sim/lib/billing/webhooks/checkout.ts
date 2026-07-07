@@ -6,7 +6,7 @@ import type Stripe from 'stripe'
 import { getEmailSubject, renderAbandonedCheckoutEmail } from '@/components/emails'
 import { isProPlan } from '@/lib/billing/core/subscription'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
+import { getHelpEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('CheckoutWebhooks')
 
@@ -42,7 +42,8 @@ export async function handleAbandonedCheckout(event: Stripe.Event): Promise<void
   const alreadySubscribed = await isProPlan(userData.id)
   if (alreadySubscribed) return
 
-  const { from, replyTo } = getPersonalEmailFrom()
+  const { from } = getPersonalEmailFrom()
+  const replyTo = getHelpEmailAddress()
   const html = await renderAbandonedCheckoutEmail(userData.name || undefined)
 
   await sendEmail({

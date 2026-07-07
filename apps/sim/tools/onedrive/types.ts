@@ -85,10 +85,63 @@ export interface OneDriveDeleteResponse extends ToolResponse {
   }
 }
 
+export interface OneDriveSearchResponse extends ToolResponse {
+  output: {
+    files: OneDriveFile[]
+    nextPageToken?: string
+  }
+}
+
+export interface OneDriveMoveResponse extends ToolResponse {
+  output: {
+    file: OneDriveFile
+  }
+}
+
+export interface OneDriveCopyResponse extends ToolResponse {
+  output: {
+    sourceFileId: string
+    name?: string
+    monitorUrl?: string
+  }
+}
+
+export interface OneDriveShareLinkResponse extends ToolResponse {
+  output: {
+    link: {
+      type: string
+      scope?: string
+      webUrl: string
+      webHtml?: string
+    }
+  }
+}
+
+export interface OneDriveGetItemResponse extends ToolResponse {
+  output: {
+    file: OneDriveFile
+  }
+}
+
+export interface OneDriveGetDriveInfoResponse extends ToolResponse {
+  output: {
+    driveId: string
+    driveType: string
+    webUrl: string
+    owner: string | null
+    quota: {
+      total: number
+      used: number
+      remaining: number
+      deleted: number
+      state: string
+    }
+  }
+}
+
 export interface OneDriveToolParams {
   accessToken: string
-  folderSelector?: string
-  manualFolderId?: string
+  folderId?: string
   folderName?: string
   fileId?: string
   fileName?: string
@@ -103,6 +156,14 @@ export interface OneDriveToolParams {
   values?:
     | (string | number | boolean | null)[][]
     | Array<Record<string, string | number | boolean | null>>
+  // Move/rename parameters
+  destinationFolderId?: string
+  newName?: string
+  // Copy parameters
+  destinationFileName?: string
+  // Sharing link parameters
+  linkType?: 'view' | 'edit' | 'embed'
+  linkScope?: 'anonymous' | 'organization' | 'users'
 }
 
 export type OneDriveResponse =
@@ -110,3 +171,9 @@ export type OneDriveResponse =
   | OneDriveDownloadResponse
   | OneDriveListResponse
   | OneDriveDeleteResponse
+  | OneDriveSearchResponse
+  | OneDriveMoveResponse
+  | OneDriveCopyResponse
+  | OneDriveShareLinkResponse
+  | OneDriveGetItemResponse
+  | OneDriveGetDriveInfoResponse

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { hydrateClientCustomBlocks } from '@/blocks/custom/client-overlay'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
+import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 
 /**
@@ -19,31 +20,36 @@ export function CustomBlocksLoader() {
   const workspaceId = params?.workspaceId as string | undefined
   const { data } = useCustomBlocks(workspaceId)
 
+  // Blocks with no uploaded icon fall back to the org's whitelabel logo, then the
+  // default glyph. All blocks share the org, so read it off the first row.
+  const { data: whitelabel } = useWhitelabelSettings(data?.[0]?.organizationId)
+  const fallbackIconUrl = whitelabel?.logoUrl ?? null
+
   useEffect(() => {
     hydrateClientCustomBlocks(
-      // Only enabled blocks are resolvable/executable server-side, so the client
-      // overlay (toolbar, canvas, palette) must exclude disabled ones too — else
-      // the block is offered but every run fails.
-      (data ?? [])
-        .filter((block) => block.enabled)
-        .map((block) =>
-          buildCustomBlockConfig(
-            {
-              type: block.type,
-              name: block.name,
-              description: block.description,
-              workflowId: block.workflowId,
-              exposedOutputs: block.exposedOutputs,
-            },
-            block.inputFields,
-            {
-              icon: getCustomBlockIcon(block.iconUrl),
-              bgColor: block.iconUrl ? 'transparent' : undefined,
-            }
-          )
+      // Disabled blocks stay resolvable (so a still-placed instance renders on the
+      // canvas and survives serialization instead of vanishing) but are hidden from
+      // the palette so no new instance can be placed; a run fails loudly server-side.
+      (data ?? []).map((block) => {
+        const effectiveIcon = block.iconUrl || fallbackIconUrl
+        return buildCustomBlockConfig(
+          {
+            type: block.type,
+            name: block.name,
+            description: block.description,
+            workflowId: block.workflowId,
+            exposedOutputs: block.exposedOutputs,
+          },
+          block.inputFields,
+          {
+            icon: getCustomBlockIcon(block.iconUrl, fallbackIconUrl),
+            bgColor: effectiveIcon ? 'transparent' : undefined,
+            hideFromToolbar: !block.enabled,
+          }
         )
+      })
     )
-  }, [data])
+  }, [data, fallbackIconUrl])
 
   return null
 }

@@ -1,1 +1,0 @@
-export { BlockDeploy } from './block'

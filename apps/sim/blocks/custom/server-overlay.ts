@@ -5,7 +5,11 @@ import { registerBlockOverlayResolver } from '@/blocks/custom/overlay'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 
 /** A row for the overlay, optionally carrying live-derived Start input fields. */
-type CustomBlockOverlayRow = CustomBlockRow & { inputFields?: WorkflowInputField[] }
+type CustomBlockOverlayRow = CustomBlockRow & {
+  inputFields?: WorkflowInputField[]
+  /** When `false`, the block resolves but is hidden from the palette (disabled). */
+  enabled?: boolean
+}
 
 /**
  * Server-side custom-block overlay. Resolves `custom_block_*` types during
@@ -43,7 +47,10 @@ export function withCustomBlockOverlay<T>(
   for (const row of rows) {
     map.set(
       row.type,
-      buildCustomBlockConfig(row, row.inputFields ?? [], { icon: PLACEHOLDER_ICON })
+      buildCustomBlockConfig(row, row.inputFields ?? [], {
+        icon: PLACEHOLDER_ICON,
+        hideFromToolbar: row.enabled === false,
+      })
     )
   }
   return store.run(map, fn)

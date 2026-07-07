@@ -36,24 +36,36 @@ export const discordDeleteChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteChannelParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId}`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
     },
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 
   transformResponse: async (response) => {
+    const data = await response.json()
     return {
       success: true,
       output: {
         message: 'Channel deleted successfully',
+        data,
       },
     }
   },
 
   outputs: {
     message: { type: 'string', description: 'Success or error message' },
+    data: {
+      type: 'object',
+      description: 'The deleted channel, as returned by Discord',
+      properties: {
+        id: { type: 'string', description: 'Channel ID' },
+        name: { type: 'string', description: 'Channel name' },
+        type: { type: 'number', description: 'Channel type' },
+        guild_id: { type: 'string', description: 'Server ID' },
+      },
+    },
   },
 }

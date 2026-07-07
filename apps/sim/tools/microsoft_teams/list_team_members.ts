@@ -64,7 +64,7 @@ export const listTeamMembersTool: ToolConfig<
     const members = (data.value || []).map((member: any) => ({
       id: member.id || '',
       displayName: member.displayName || '',
-      email: member.email || member.userId || '',
+      email: member.email || '',
       userId: member.userId || '',
       roles: member.roles || [],
     }))

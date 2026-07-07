@@ -70,6 +70,9 @@ const WorkflowMcpServers = dynamic(() =>
 const AccessControl = dynamic(() =>
   import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
 )
+const CustomBlocks = dynamic(() =>
+  import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks)
+)
 const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
@@ -122,6 +125,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'secrets' && <Secrets />}
       {effectiveSection === 'access-control' && <AccessControl />}
+      {effectiveSection === 'custom-blocks' && <CustomBlocks />}
       {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
       {isBillingEnabled && effectiveSection === 'billing' && <Billing />}

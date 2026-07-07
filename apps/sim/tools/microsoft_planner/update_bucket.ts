@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerToolParams,
   MicrosoftPlannerUpdateBucketResponse,
+  PlannerBucket,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -15,7 +17,7 @@ export const updateBucketTool: ToolConfig<
   name: 'Update Microsoft Planner Bucket',
   description: 'Update a bucket in Microsoft Planner',
   version: '1.0',
-  errorExtractor: 'nested-error-object',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -51,10 +53,11 @@ export const updateBucketTool: ToolConfig<
 
   request: {
     url: (params) => {
-      if (!params.bucketId) {
+      const bucketId = params.bucketId?.trim()
+      if (!bucketId) {
         throw new Error('Bucket ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/buckets/${params.bucketId}`
+      return `https://graph.microsoft.com/v1.0/planner/buckets/${bucketId}`
     },
     method: 'PATCH',
     headers: (params) => {
@@ -80,6 +83,7 @@ export const updateBucketTool: ToolConfig<
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
+        Prefer: 'return=representation',
         'If-Match': cleanedEtag,
       }
     },
@@ -99,8 +103,24 @@ export const updateBucketTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const bucket = await response.json()
+  transformResponse: async (response: Response, params?: MicrosoftPlannerToolParams) => {
+    // Prefer: return=representation requests a body, but the service may still return
+    // 204 No Content for some tenants/requests
+    const text = await response.text()
+    if (!text || text.trim() === '') {
+      logger.info('Update successful but no response body returned (204 No Content)')
+      return {
+        success: true,
+        output: {
+          bucket: {} as PlannerBucket,
+          metadata: {
+            bucketId: params?.bucketId?.trim(),
+          },
+        },
+      }
+    }
+
+    const bucket = JSON.parse(text)
     logger.info('Updated bucket:', bucket)
 
     const result: MicrosoftPlannerUpdateBucketResponse = {

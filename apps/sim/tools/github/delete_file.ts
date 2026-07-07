@@ -76,7 +76,7 @@ export const deleteFileTool: ToolConfig<DeleteFileParams, DeleteFileResponse> = 
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const data = await response.json()
     const content = `File deleted successfully!
 
@@ -97,7 +97,7 @@ View commit: ${data.commit.html_url || 'N/A'}`
         content,
         metadata: {
           deleted: true,
-          path: data.commit.tree?.sha || 'N/A',
+          path: params?.path ?? '',
           commit: {
             sha: data.commit.sha,
             message: data.commit.message || '',

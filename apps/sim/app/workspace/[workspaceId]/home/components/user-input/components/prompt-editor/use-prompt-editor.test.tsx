@@ -116,7 +116,7 @@ describe('usePromptEditor mention menu dismissal', () => {
     unmount()
   })
 
-  it('does not reopen after the user clicks away, even if the caret lands back inside the open mention', () => {
+  it('stays closed across repeated clicks at the same position after the user clicks away, even if the caret lands back inside the open mention', () => {
     const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
     result().plusMenuRef.current = openMenu
 
@@ -134,10 +134,12 @@ describe('usePromptEditor mention menu dismissal', () => {
     })
     expect(result().mentionQuery).toBeNull()
 
-    act(() => {
-      textarea.setSelectionRange(2, 2)
-      result().handleSelectAdjust()
-    })
+    for (let i = 0; i < 3; i++) {
+      act(() => {
+        textarea.setSelectionRange(2, 2)
+        result().handleSelectAdjust()
+      })
+    }
 
     expect(result().mentionQuery).toBeNull()
     expect(openMenu.open).toHaveBeenCalledTimes(1)

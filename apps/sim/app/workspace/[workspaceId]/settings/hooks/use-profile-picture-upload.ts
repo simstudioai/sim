@@ -157,6 +157,23 @@ export function useProfilePictureUpload({
     onUploadRef.current?.(null)
   }, [])
 
+  /**
+   * Restore the preview to the stored image (`currentImage`) — for a form discard
+   * that should revert an unsaved pick/removal without clearing the saved image.
+   * Unlike {@link handleRemove}, this does not emit `onUpload(null)`.
+   */
+  const reset = useCallback(() => {
+    if (previewRef.current) {
+      URL.revokeObjectURL(previewRef.current)
+      previewRef.current = null
+    }
+    setPreviewUrl(currentImageRef.current || null)
+    setFileName(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }, [])
+
   useEffect(() => {
     return () => {
       if (previewRef.current) {
@@ -173,6 +190,7 @@ export function useProfilePictureUpload({
     handleFileChange,
     handleFileDrop,
     handleRemove,
+    reset,
     isUploading,
   }
 }

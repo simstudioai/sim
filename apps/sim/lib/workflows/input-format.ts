@@ -17,6 +17,11 @@ export interface WorkflowInputField {
   name: string
   type: string
   description?: string
+  /**
+   * Consumer-facing placeholder hint for a custom block's curated input. Authored
+   * in the Custom Blocks settings UI; has no source on the workflow's Start block.
+   */
+  placeholder?: string
 }
 
 /**

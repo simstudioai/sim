@@ -10,7 +10,7 @@ const GetNamedQuerySchema = z.object({
   region: z.string().min(1, 'AWS region is required'),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  namedQueryId: z.string().min(1, 'Named query ID is required'),
+  namedQueryId: z.string().trim().min(1, 'Named query ID is required'),
 })
 
 const GetNamedQueryResponseSchema = z.object({

@@ -47,17 +47,11 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       description:
         'The MIME type of the file to create (e.g., text/plain for .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet for .xlsx)',
     },
-    folderSelector: {
+    folderId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Folder ID to upload the file to (e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M")',
-    },
-    manualFolderId: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Manually entered folder ID (advanced mode)',
     },
   },
 
@@ -75,8 +69,8 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
         fileName = `${fileName.replace(/\.[^.]*$/, '')}.txt`
       }
 
-      const parentFolderId = params.manualFolderId || params.folderSelector
-      if (parentFolderId && parentFolderId.trim() !== '') {
+      const parentFolderId = params.folderId?.trim()
+      if (parentFolderId) {
         return `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(parentFolderId)}:/${fileName}:/content`
       }
       return `https://graph.microsoft.com/v1.0/me/drive/root:/${fileName}:/content`
@@ -108,7 +102,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
           accessToken: params.accessToken,
           fileName: params.fileName,
           file: params.file,
-          folderId: params.manualFolderId || params.folderSelector,
+          folderId: params.folderId,
           ...(params.mimeType && { mimeType: params.mimeType }),
           ...(params.values && { values: params.values }),
         }

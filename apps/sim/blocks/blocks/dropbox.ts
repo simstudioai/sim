@@ -33,7 +33,10 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
         { label: 'Move File/Folder', id: 'dropbox_move' },
         { label: 'Get Metadata', id: 'dropbox_get_metadata' },
         { label: 'Create Shared Link', id: 'dropbox_create_shared_link' },
+        { label: 'List Shared Links', id: 'dropbox_list_shared_links' },
         { label: 'Search Files', id: 'dropbox_search' },
+        { label: 'List Revisions', id: 'dropbox_list_revisions' },
+        { label: 'Restore File', id: 'dropbox_restore' },
       ],
       value: () => 'dropbox_upload',
     },
@@ -299,6 +302,71 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: '100',
       condition: { field: 'operation', value: 'dropbox_search' },
     },
+    // List shared links operation inputs
+    {
+      id: 'path',
+      title: 'Path',
+      type: 'short-input',
+      placeholder: '/ (all links) or /folder',
+      condition: { field: 'operation', value: 'dropbox_list_shared_links' },
+    },
+    {
+      id: 'directOnly',
+      title: 'Direct Links Only',
+      type: 'switch',
+      condition: { field: 'operation', value: 'dropbox_list_shared_links' },
+      mode: 'advanced',
+    },
+    {
+      id: 'cursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor from a previous call, to fetch the next page',
+      condition: { field: 'operation', value: 'dropbox_list_shared_links' },
+      mode: 'advanced',
+    },
+    // List revisions operation inputs
+    {
+      id: 'path',
+      title: 'File Path',
+      type: 'short-input',
+      placeholder: '/folder/document.pdf',
+      condition: { field: 'operation', value: 'dropbox_list_revisions' },
+      required: true,
+    },
+    {
+      id: 'limit',
+      title: 'Maximum Revisions',
+      type: 'short-input',
+      placeholder: '10',
+      condition: { field: 'operation', value: 'dropbox_list_revisions' },
+      mode: 'advanced',
+    },
+    {
+      id: 'beforeRev',
+      title: 'Before Revision',
+      type: 'short-input',
+      placeholder: 'Revision from a previous call, to fetch the next page',
+      condition: { field: 'operation', value: 'dropbox_list_revisions' },
+      mode: 'advanced',
+    },
+    // Restore operation inputs
+    {
+      id: 'path',
+      title: 'File Path',
+      type: 'short-input',
+      placeholder: '/folder/document.pdf',
+      condition: { field: 'operation', value: 'dropbox_restore' },
+      required: true,
+    },
+    {
+      id: 'rev',
+      title: 'Revision',
+      type: 'short-input',
+      placeholder: 'a1c10ce0dd78',
+      condition: { field: 'operation', value: 'dropbox_restore' },
+      required: true,
+    },
   ],
   tools: {
     access: [
@@ -311,7 +379,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'dropbox_move',
       'dropbox_get_metadata',
       'dropbox_create_shared_link',
+      'dropbox_list_shared_links',
       'dropbox_search',
+      'dropbox_list_revisions',
+      'dropbox_restore',
     ],
     config: {
       tool: (params) => {
@@ -334,8 +405,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'dropbox_get_metadata'
           case 'dropbox_create_shared_link':
             return 'dropbox_create_shared_link'
+          case 'dropbox_list_shared_links':
+            return 'dropbox_list_shared_links'
           case 'dropbox_search':
             return 'dropbox_search'
+          case 'dropbox_list_revisions':
+            return 'dropbox_list_revisions'
+          case 'dropbox_restore':
+            return 'dropbox_restore'
           default:
             return 'dropbox_upload'
         }
@@ -379,14 +456,24 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     query: { type: 'string', description: 'Search query' },
     fileExtensions: { type: 'string', description: 'File extensions filter' },
     maxResults: { type: 'number', description: 'Maximum search results' },
+    // List shared links inputs
+    directOnly: { type: 'boolean', description: 'Only return direct links, not parent folders' },
+    cursor: { type: 'string', description: 'Fetch the next page of shared links (pagination)' },
+    // List revisions input
+    beforeRev: { type: 'string', description: 'Fetch revisions before this one (pagination)' },
+    // Restore input
+    rev: { type: 'string', description: 'Revision identifier to restore' },
   },
   outputs: {
     // Upload/Download outputs
     file: { type: 'file', description: 'Downloaded file stored in execution files' },
     content: { type: 'string', description: 'File content (base64)' },
     temporaryLink: { type: 'string', description: 'Temporary download link' },
-    // List folder outputs
-    entries: { type: 'json', description: 'List of files and folders' },
+    // List folder / List revisions outputs
+    entries: {
+      type: 'json',
+      description: 'List of files and folders (List Folder), or file revisions (List Revisions)',
+    },
     cursor: { type: 'string', description: 'Pagination cursor' },
     hasMore: { type: 'boolean', description: 'Whether more results exist' },
     // Create folder output
@@ -399,6 +486,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     sharedLink: { type: 'json', description: 'Shared link details' },
     // Search outputs
     matches: { type: 'json', description: 'Search results' },
+    // List shared links outputs
+    links: { type: 'json', description: 'List of shared links (url, name, path_lower, expires)' },
+    // List revisions output
+    isDeleted: { type: 'boolean', description: 'Whether the latest revision is deleted or moved' },
   },
 }
 
@@ -500,6 +591,13 @@ export const DropboxBlockMeta = {
         'Create a shared link for a Dropbox file or folder with controlled visibility and expiration.',
       content:
         '# Share Dropbox Link\n\nGenerate a shareable link for an existing Dropbox item with the right access controls.\n\n## Steps\n1. Confirm the exact path of the file or folder. Use Get Metadata to verify it exists.\n2. Call Create Shared Link with the path and the requested visibility — public for anyone, team-only for internal sharing, or password-protected with a supplied password.\n3. Set an expiration date if the link should not be permanent.\n\n## Output\nReturn the shared link URL, its visibility setting, and the expiration date if one was applied.',
+    },
+    {
+      name: 'recover-dropbox-file-version',
+      description:
+        'Recover an earlier version of a Dropbox file after an unwanted overwrite or edit.',
+      content:
+        '# Recover Dropbox File Version\n\nRoll a file back to an earlier saved revision.\n\n## Steps\n1. Call List Revisions on the file path to see prior versions, each with a revision identifier and modification time.\n2. Identify the revision to recover based on its timestamp or size.\n3. Call Restore File with the file path and the chosen revision identifier. This saves that revision as the new current version — it does not delete history.\n\n## Output\nReturn the restored file metadata, including its path and the revision that was restored.',
     },
   ],
 } as const satisfies BlockMeta

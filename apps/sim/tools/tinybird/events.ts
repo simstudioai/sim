@@ -58,7 +58,7 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tinybird API Token with DATASOURCE:APPEND or DATASOURCE:CREATE scope',
+      description: 'Tinybird API Token with DATASOURCES:APPEND or DATASOURCES:CREATE scope',
     },
   },
 
