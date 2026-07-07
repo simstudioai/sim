@@ -271,7 +271,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
       }))
     )
     setOutputs(existing?.exposedOutputs ?? [])
-    iconUpload.handleRemove()
+    iconUpload.reset()
     setError(null)
   }
 
