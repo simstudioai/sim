@@ -194,7 +194,7 @@ export function HeroChatLoop({ phase, fading }: HeroChatLoopProps) {
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <span
-                  className='flex size-[28px] items-center justify-center rounded-full transition-colors hover:bg-[#F7F7F7]'
+                  className='flex size-[28px] items-center justify-center rounded-full transition-colors hover-hover:bg-[var(--surface-hover)]'
                   aria-label='Voice input'
                 >
                   <Mic className='size-[16px] text-[var(--text-icon)]' />
