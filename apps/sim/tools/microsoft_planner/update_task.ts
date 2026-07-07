@@ -217,10 +217,14 @@ export const updateTaskTool: ToolConfig<
       return {
         success: true,
         output: {
-          message: 'Task updated successfully',
+          // Graph returned no body, so the etag sent in this request is now stale (the
+          // update changed it) and the actual new value is unknown. Returning it here would
+          // let a chained update silently reuse a stale If-Match and fail with 412 — leave
+          // it empty so callers re-fetch the task before their next update.
+          message: 'Task updated successfully (re-fetch the task to get its current etag)',
           task: {} as PlannerTask,
           taskId: params?.taskId?.trim() || '',
-          etag: params?.etag || '',
+          etag: '',
           metadata: {
             taskId: params?.taskId?.trim(),
           },
