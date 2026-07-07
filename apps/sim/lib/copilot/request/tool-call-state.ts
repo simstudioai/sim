@@ -1,3 +1,4 @@
+import { toolResultForModel } from '@/lib/copilot/chat/sim-key-redaction'
 import {
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolOutcome as TerminalToolCallStatus,
@@ -57,6 +58,16 @@ export function requireToolCallError(
 }
 
 export function getToolCallTerminalData(
+  toolCall: Pick<ToolCallState, 'id' | 'name' | 'status' | 'result' | 'error'>
+): unknown {
+  // getToolCallTerminalData is the single producer of "what the model reads on
+  // resume", so it is where a tool's result is reduced to its model-facing form —
+  // e.g. generate_api_key yields only its status message; the generated key never
+  // reaches the model (it goes to the browser via the SSE tool result instead).
+  return toolResultForModel(toolCall.name, getToolCallTerminalDataRaw(toolCall))
+}
+
+function getToolCallTerminalDataRaw(
   toolCall: Pick<ToolCallState, 'id' | 'status' | 'result' | 'error'>
 ): unknown {
   const output = getToolCallStateOutput(toolCall)
