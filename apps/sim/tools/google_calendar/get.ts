@@ -92,11 +92,11 @@ interface GoogleCalendarGetV2Response {
     summary: string | null
     description: string | null
     location: string | null
-    start: any
-    end: any
-    attendees: any | null
-    creator: any
-    organizer: any
+    start: GoogleCalendarApiEventResponse['start']
+    end: GoogleCalendarApiEventResponse['end']
+    attendees: GoogleCalendarApiEventResponse['attendees'] | null
+    creator: GoogleCalendarApiEventResponse['creator']
+    organizer: GoogleCalendarApiEventResponse['organizer']
   }
 }
 
