@@ -84,6 +84,8 @@ describe('displayToStorage', () => {
     expect(displayToStorage('07/06/2026 25:00')).toBeNull()
     expect(displayToStorage('07/06/2026 13:00 PM')).toBeNull()
     expect(displayToStorage('02/30/2026 5:00 PM')).toBeNull()
+    expect(displayToStorage('02/30/2026')).toBeNull()
+    expect(displayToStorage('2/30')).toBeNull()
     expect(displayToStorage('garbage')).toBeNull()
   })
 })

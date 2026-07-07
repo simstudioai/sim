@@ -12,6 +12,7 @@ import {
   displayToStorage,
   formatValueForInput,
   storageToDisplay,
+  todayLocalCalendarDate,
 } from '../../../utils'
 
 interface InlineEditorProps {
@@ -216,7 +217,12 @@ function InlineDateEditor({
           onPointerDownCapture={handlePopoverPointerDown}
           onBlurCapture={scheduleBlurSave}
         >
-          <Calendar value={pickerValue} onChange={handlePickerChange} showTime />
+          <Calendar
+            value={pickerValue}
+            onChange={handlePickerChange}
+            showTime
+            today={todayLocalCalendarDate(timeZone)}
+          />
         </PopoverContent>
       </Popover>
     </>

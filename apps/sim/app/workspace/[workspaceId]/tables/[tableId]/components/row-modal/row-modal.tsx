@@ -253,6 +253,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         <div className='flex items-center gap-2'>
           <ChipDatePicker
             value={parts.day ?? undefined}
+            today={todayLocalCalendarDate(timeZone)}
             onChange={(day) => onChange(localPartsToDateValue(day, parts.time, timeZone))}
             placeholder='Select date'
             flush

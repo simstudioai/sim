@@ -134,10 +134,16 @@ function timeOfDayFrom(date: Date): string {
  * `YYYY-MM-DD` strings are pure days (no time). Datetime strings parse through
  * `Date` so an explicit offset (`Z`, `-07:00`) resolves to the **local** day —
  * unlike {@link parseDateValue}'s date-slice fast path, which would read the
- * UTC day. A midnight-sharp time reads as "no time" so date-only values that
- * arrive as `Date`s or `T00:00` strings stay pure days.
+ * UTC day.
+ *
+ * A `T` datetime string keeps its time even at exactly midnight — it was
+ * deliberately supplied with a time component, and dropping it would let a
+ * day-pick silently convert a midnight instant into a bare calendar date.
+ * The midnight-means-no-time reading applies only to `Date` instances and
+ * non-`T` strings, where a coincidental local midnight usually denotes a
+ * pure day.
  */
-function parseDateTimeValue(value: string | Date | undefined): {
+export function parseDateTimeValue(value: string | Date | undefined): {
   date: Date | null
   time: string | null
 } {
@@ -147,6 +153,9 @@ function parseDateTimeValue(value: string | Date | undefined): {
   }
   const parsed = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(parsed.getTime())) return { date: null, time: null }
+  if (typeof value === 'string' && value.includes('T')) {
+    return { date: parsed, time: timeOfDayFrom(parsed) }
+  }
   const isMidnight =
     parsed.getHours() === 0 && parsed.getMinutes() === 0 && parsed.getSeconds() === 0
   return { date: parsed, time: isMidnight ? null : timeOfDayFrom(parsed) }
@@ -207,6 +216,12 @@ interface CalendarSingleProps extends CalendarBaseProps {
    * `YYYY-MM-DD` days.
    */
   showTime?: boolean
+  /**
+   * Today's calendar day (`YYYY-MM-DD`) in the caller's effective timezone;
+   * drives the Today button and today ring. Defaults to the runtime's local
+   * day — pass this when the effective zone can differ from the browser's.
+   */
+  today?: string
 }
 
 interface CalendarRangeProps extends CalendarBaseProps {
@@ -331,10 +346,27 @@ function WeekdayRow() {
   )
 }
 
-function SingleCalendarView({ value, onChange, showTime = false, className }: CalendarSingleProps) {
+function SingleCalendarView({
+  value,
+  onChange,
+  showTime = false,
+  today: todayValue,
+  className,
+}: CalendarSingleProps) {
   const parsed = useMemo(() => parseDateTimeValue(value), [value])
   const selected = parsed.date
-  const { today, view, setView, goToPrevMonth, goToNextMonth, cells } = useCalendarView(selected)
+  const {
+    today: runtimeToday,
+    view,
+    setView,
+    goToPrevMonth,
+    goToNextMonth,
+    cells,
+  } = useCalendarView(selected)
+  const today = useMemo(
+    () => (todayValue ? (parseDateValue(todayValue) ?? runtimeToday) : runtimeToday),
+    [todayValue, runtimeToday]
+  )
 
   const [timeOfDay, setTimeOfDay] = useState<string | null>(parsed.time)
   const [prevValue, setPrevValue] = useState(value)
