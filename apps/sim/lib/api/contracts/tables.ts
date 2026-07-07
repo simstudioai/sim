@@ -1340,6 +1340,11 @@ export const listActiveDispatchesContract = defineRouteContract({
          *  throttle as cell SSE events arrive, plus optimistic stamps on
          *  run-click. */
         runningByRowId: z.record(z.string(), z.number().int().positive()),
+        /** Whether any in-flight cell is actually claimed by a worker
+         *  (`status === 'running'`) — table-wide, unlike the client's
+         *  loaded-rows view. Drives the header's "Queueing" vs "N running"
+         *  label once the run's active window scrolls past the loaded rows. */
+        hasRunning: z.boolean(),
       })
     ),
   },

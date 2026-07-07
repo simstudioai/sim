@@ -199,6 +199,7 @@ export function useTableEventStream({
         const base: TableRunState = prev ?? {
           dispatches: [],
           runningByRowId: {},
+          hasRunning: false,
         }
         const list = base.dispatches
         // Terminal states drop the dispatch from the overlay; client renders

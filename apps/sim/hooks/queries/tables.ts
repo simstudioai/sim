@@ -272,6 +272,8 @@ export function getTableDetailQueryOptions(workspaceId: string, tableId: string)
 export interface TableRunState {
   dispatches: ActiveDispatch[]
   runningByRowId: Record<string, number>
+  /** Any in-flight cell claimed by a worker, table-wide. */
+  hasRunning: boolean
 }
 
 async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promise<TableRunState> {
@@ -282,6 +284,7 @@ async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promis
   return {
     dispatches: response.data.dispatches,
     runningByRowId: response.data.runningByRowId,
+    hasRunning: response.data.hasRunning,
   }
 }
 
@@ -349,7 +352,7 @@ async function bumpRunState(
   await queryClient.cancelQueries({ queryKey: tableKeys.activeDispatches(tableId) })
   const snapshot = queryClient.getQueryData<TableRunState>(tableKeys.activeDispatches(tableId))
   queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-    const base = prev ?? { dispatches: [], runningByRowId: {} }
+    const base = prev ?? { dispatches: [], runningByRowId: {}, hasRunning: false }
     const nextByRow = { ...base.runningByRowId }
     for (const [rid, n] of Object.entries(stampedByRow)) {
       nextByRow[rid] = (nextByRow[rid] ?? 0) + n
@@ -2095,7 +2098,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         return
       }
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-        const base = prev ?? { dispatches: [], runningByRowId: {} }
+        const base = prev ?? { dispatches: [], runningByRowId: {}, hasRunning: false }
         if (base.dispatches.some((d) => d.id === dispatchId)) return base
         const dispatch: ActiveDispatch = {
           id: dispatchId,

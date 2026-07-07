@@ -58,7 +58,7 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      let lastEventId = fromEventId ?? (await getLatestTableEventId(tableId))
+      let lastEventId = fromEventId ?? 0
       const deadline = Date.now() + MAX_STREAM_DURATION_MS
       let nextHeartbeatAt = Date.now() + HEARTBEAT_INTERVAL_MS
 
@@ -98,6 +98,12 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
       }
 
       try {
+        // No replay cursor → tail from the latest event id. Resolved inside
+        // the try so a Redis failure errors the stream (client reconnects
+        // with backoff) rather than silently replaying the whole buffer.
+        if (fromEventId === undefined) {
+          lastEventId = await getLatestTableEventId(tableId)
+        }
         // Initial replay from buffer.
         const initial = await readTableEventsSince(tableId, lastEventId)
         if (initial.status === 'pruned') {

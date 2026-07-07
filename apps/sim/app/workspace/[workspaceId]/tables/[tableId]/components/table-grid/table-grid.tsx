@@ -407,11 +407,12 @@ export function TableGrid({
   // — the same source the per-row gutter uses).
   const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
   const hasActiveDispatch = (activeDispatches?.length ?? 0) > 0
-  // Loaded-rows scan (early-exit) — the SSE `running` claim events keep this
-  // current. Loaded rows are an honest proxy for the whole table: the
-  // dispatcher's active window is what's claimable, and a fresh Run-all has
-  // nothing running anywhere yet.
-  const hasRunningCell = useMemo(() => {
+  // Claimed-cell signal for the "Queueing" vs "N running" label. Two sources
+  // OR'd: the loaded-rows scan flips instantly via SSE claim events, and the
+  // server's table-wide flag covers runs whose active window has scrolled
+  // past the loaded pages (where the scan alone would read "Queueing" for the
+  // rest of a long run).
+  const hasRunningLoaded = useMemo(() => {
     for (const row of rows) {
       const executions = row.executions
       if (!executions) continue
@@ -421,6 +422,7 @@ export function TableGrid({
     }
     return false
   }, [rows])
+  const hasRunningCell = hasRunningLoaded || (tableRunState?.hasRunning ?? false)
 
   // True "select all" total: the filter-scoped COUNT(*) when a filter is active, else the whole
   // table. Drives the delete-confirm count and the action-bar cell count.

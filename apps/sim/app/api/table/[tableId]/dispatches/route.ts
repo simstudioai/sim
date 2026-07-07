@@ -41,7 +41,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
     // Unclaimed `pending` pre-stamps are real queued work while a dispatch is
     // active; with none active they're abandoned orphans that would pin the
     // "X running" badge above zero forever.
-    const runningByRowId = await countRunningCells(tableId, {
+    const { byRowId: runningByRowId, hasRunning } = await countRunningCells(tableId, {
       includeUnclaimedPreStamps: rows.length > 0,
     })
     const dispatches: ActiveDispatch[] = rows.map((r) => ({
@@ -59,6 +59,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       data: {
         dispatches,
         runningByRowId,
+        hasRunning,
       },
     })
   } catch (error) {

@@ -282,9 +282,10 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
  * without a replay cursor (fresh mount — its caches were just fetched from
  * the DB, so replaying history would only rewind them).
  *
- * Errors resolve to 0 (full replay) rather than throwing: a Redis blip on
- * connect must not fail the stream, and the subsequent reads will surface a
- * persistent outage anyway.
+ * Redis errors propagate: silently falling back to 0 would replay the whole
+ * buffer over fresh state — the exact churn tail-from-latest exists to avoid.
+ * The stream route errors the stream instead and the client reconnects with
+ * backoff.
  */
 export async function getLatestTableEventId(tableId: string): Promise<number> {
   const redis = getRedisClient()
@@ -296,15 +297,10 @@ export async function getLatestTableEventId(tableId: string): Promise<number> {
     }
     return 0
   }
-  try {
-    const raw = await redis.get(getSeqKey(tableId))
-    if (!raw) return 0
-    const parsed = Number.parseInt(raw, 10)
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
-  } catch (error) {
-    logger.warn('getLatestTableEventId failed', { tableId, error: toError(error).message })
-    return 0
-  }
+  const raw = await redis.get(getSeqKey(tableId))
+  if (!raw) return 0
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
 
 /**

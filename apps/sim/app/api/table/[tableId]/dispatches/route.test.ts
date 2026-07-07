@@ -77,12 +77,15 @@ describe('GET /api/table/[tableId]/dispatches', () => {
     })
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
     mockListActiveDispatches.mockResolvedValue([])
-    mockCountRunningCells.mockResolvedValue({})
+    mockCountRunningCells.mockResolvedValue({ byRowId: {}, hasRunning: false })
   })
 
   it('returns dispatches and the per-row running map, without a total field', async () => {
     mockListActiveDispatches.mockResolvedValue([buildDispatchRow()])
-    mockCountRunningCells.mockResolvedValue({ 'row-1': 2, 'row-2': 1 })
+    mockCountRunningCells.mockResolvedValue({
+      byRowId: { 'row-1': 2, 'row-2': 1 },
+      hasRunning: true,
+    })
 
     const response = await makeRequest()
     const data = await response.json()
@@ -99,6 +102,7 @@ describe('GET /api/table/[tableId]/dispatches', () => {
       },
     ])
     expect(data.data.runningByRowId).toEqual({ 'row-1': 2, 'row-2': 1 })
+    expect(data.data.hasRunning).toBe(true)
     expect(data.data).not.toHaveProperty('runningCellCount')
   })
 

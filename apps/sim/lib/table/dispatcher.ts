@@ -225,7 +225,7 @@ export async function insertDispatch(input: {
 export async function countRunningCells(
   tableId: string,
   opts?: { includeUnclaimedPreStamps?: boolean }
-): Promise<Record<string, number>> {
+): Promise<{ byRowId: Record<string, number>; hasRunning: boolean }> {
   // `pending` + null-executionId rows are unclaimed pre-stamps. With an active
   // dispatch they're real queued work (include); with none they're abandoned
   // orphans that would pin the badge above zero forever (exclude).
@@ -234,6 +234,10 @@ export async function countRunningCells(
     .select({
       rowId: tableRowExecutions.rowId,
       runningCount: sql<number>`count(*)::int`,
+      // Cells actually claimed by a worker — drives the header's
+      // "Queueing" vs "N running" label table-wide (the client can only see
+      // claims on loaded rows; a long run's active window scrolls past them).
+      claimedCount: sql<number>`count(*) FILTER (WHERE ${tableRowExecutions.status} = 'running')::int`,
     })
     .from(tableRowExecutions)
     .where(
@@ -247,10 +251,12 @@ export async function countRunningCells(
     )
     .groupBy(tableRowExecutions.rowId)
   const byRowId: Record<string, number> = {}
+  let hasRunning = false
   for (const r of rows) {
     if (r.runningCount > 0) byRowId[r.rowId] = r.runningCount
+    if (r.claimedCount > 0) hasRunning = true
   }
-  return byRowId
+  return { byRowId, hasRunning }
 }
 
 /** Read every dispatch on a table whose status is still `pending` or
