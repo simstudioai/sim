@@ -829,7 +829,7 @@ export const tinesProfile: CompetitorProfile = {
         value:
           "Yes: credentials are scoped to Teams by default, and Team Admin/Editor roles control which teams a credential can be shared with. Sensitive settings like Access (where a credential can be used) and Domains (allowed outbound hosts/paths) are restricted to Team Admins or the credential's creator. Custom roles can extend the default viewer/builder/manager roles for finer-grained control.",
         detail:
-          "Governance operates at the team/role level with per-credential Access and Domain restrictions, not a credential-set-to-role assignment matrix like Sim's, but reaches a similar outcome.",
+          "Governance operates at the team/role level with per-credential Access and Domain restrictions, not a credential-to-role assignment matrix like Sim's, but reaches a similar outcome.",
         shortValue: 'Yes: team-scoped credential access rules',
         confidence: 'verified',
         sources: [

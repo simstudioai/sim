@@ -45,7 +45,6 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/auth/oauth/connections/route.ts',
   'apps/sim/app/api/auth/providers/route.ts',
   'apps/sim/app/api/auth/socket-token/route.ts',
-  'apps/sim/app/api/credential-sets/invitations/route.ts',
   'apps/sim/app/api/workspaces/invitations/route.ts',
   // Internal cron entry point that authenticates via `Authorization: Bearer
   // CRON_SECRET` and ignores query/body. The boundary contract is "no

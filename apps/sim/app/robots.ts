@@ -9,7 +9,6 @@ const DISALLOWED_PATHS = [
   '/invite/',
   '/unsubscribe/',
   '/w/',
-  '/credential-account/',
   '/_next/',
   '/private/',
 ]

@@ -790,17 +790,6 @@ export const PlatformEvents = {
   },
 
   /**
-   * Track credential set created
-   */
-  credentialSetCreated: (attrs: { credentialSetId: string; userId: string; name: string }) => {
-    trackPlatformEvent('platform.credential_set.created', {
-      'credential_set.id': attrs.credentialSetId,
-      'credential_set.name': attrs.name,
-      'user.id': attrs.userId,
-    })
-  },
-
-  /**
    * Track webhook created
    */
   webhookCreated: (attrs: {

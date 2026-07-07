@@ -68,12 +68,7 @@ export const gmailPollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const accessToken = await resolveOAuthCredential(
-        webhookData,
-        'google-email',
-        requestId,
-        logger
-      )
+      const accessToken = await resolveOAuthCredential(webhookData, 'google-email', requestId)
 
       const config = getProviderConfig<GmailWebhookConfig>(webhookData.providerConfig)
       const now = new Date()

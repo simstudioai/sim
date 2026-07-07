@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
  * (action chips, a {@link RowActionsMenu}, a status label, etc.).
  *
  * Single source of truth for the credential-style row shared by the BYOK key
- * manager, credential sets, and recently-deleted lists — never re-derive the
+ * manager and recently-deleted lists — never re-derive the
  * tile/text chrome per consumer. The tile force-sizes any `<svg>`/`<img>` it
  * contains to 20px, so callers pass their raw icon node without pre-sizing it.
  */
