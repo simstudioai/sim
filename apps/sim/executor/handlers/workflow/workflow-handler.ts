@@ -46,15 +46,29 @@ function getValueAtPath(source: unknown, path: string): unknown {
  * name. Legacy fields without an id are keyed by name and pass through unchanged.
  * Keys that match no current field are dropped.
  */
-function remapCustomBlockInputKeys(
+export function remapCustomBlockInputKeys(
   mapping: Record<string, unknown>,
   childBlocks: Record<string, unknown>
 ): Record<string, unknown> {
   const fields = extractInputFieldsFromBlocks(childBlocks)
   const remapped: Record<string, unknown> = {}
   for (const field of fields) {
-    if (field.id && field.id in mapping) remapped[field.name] = mapping[field.id]
-    else if (field.name in mapping) remapped[field.name] = mapping[field.name]
+    const key =
+      field.id && field.id in mapping ? field.id : field.name in mapping ? field.name : null
+    if (key === null) continue
+    let value = mapping[key]
+    // object/array inputs are authored in a JSON code editor, so their value is a
+    // JSON *string*. Decode it against the child's real Start field type so the
+    // child receives the actual object/array (or primitive) — not the string
+    // re-encoded by the mapping's `JSON.stringify` (`"Theodore"` → `\"Theodore\"`).
+    if ((field.type === 'object' || field.type === 'array') && typeof value === 'string') {
+      try {
+        value = JSON.parse(value)
+      } catch {
+        // Not valid JSON — pass the raw string through unchanged.
+      }
+    }
+    remapped[field.name] = value
   }
   return remapped
 }
@@ -180,9 +194,21 @@ export class WorkflowBlockHandler implements BlockHandler {
       })
     }
 
+    // A custom block runs the source's latest deployment; if the source has been
+    // undeployed there's nothing to run. Check + throw a clear, consumer-safe
+    // reason BEFORE the try so the catch's generic sanitizer doesn't mask it (the
+    // message names no source internals). The block still renders (its schema comes
+    // from stored curated inputs), so this is the only failure mode to surface.
+    if (isCustomBlock) {
+      const deployed = await this.checkChildDeployment(workflowId, loadUserId)
+      if (!deployed) {
+        throw new Error('This block’s workflow is not deployed. Redeploy it to use this block.')
+      }
+    }
+
     let childWorkflowSnapshotId: string | undefined
     try {
-      if (useDeployed) {
+      if (useDeployed && !isCustomBlock) {
         const hasActiveDeployment = await this.checkChildDeployment(workflowId, loadUserId)
         if (!hasActiveDeployment) {
           throw new Error(

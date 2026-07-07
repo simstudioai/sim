@@ -57,12 +57,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
   const authz = await authorizeManage(session.user.id, id)
   if (authz.error) return authz.error
 
-  const { name, description, enabled, iconUrl, exposedOutputs } = parsed.data.body
+  const { name, description, enabled, iconUrl, inputs, exposedOutputs } = parsed.data.body
   try {
     await updateCustomBlock(id, {
       name,
       description,
       enabled,
+      inputs,
       iconUrl,
       exposedOutputs,
     })
