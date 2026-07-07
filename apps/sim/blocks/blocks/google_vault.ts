@@ -448,34 +448,45 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       id: 'exportId',
       title: 'Export ID',
       type: 'short-input',
+      placeholder: 'Enter Export ID',
+      condition: { field: 'operation', value: 'delete_matters_export' },
+      required: true,
+    },
+    // Dedicated optional export-id filter for list_matters_export — kept separate from
+    // the required exportId above so a value left over from Delete Export can never
+    // silently turn "List Exports" into a single-export get.
+    {
+      id: 'listExportId',
+      title: 'Export ID',
+      type: 'short-input',
       placeholder: 'Enter Export ID (optional to fetch a specific export)',
-      condition: { field: 'operation', value: ['list_matters_export', 'delete_matters_export'] },
-      required: () => ({ field: 'operation', value: 'delete_matters_export' }),
+      condition: { field: 'operation', value: 'list_matters_export' },
     },
     {
       id: 'holdId',
       title: 'Hold ID',
       type: 'short-input',
-      placeholder: 'Enter Hold ID (optional to fetch a specific hold)',
+      placeholder: 'Enter Hold ID',
       condition: {
         field: 'operation',
         value: [
-          'list_matters_holds',
           'update_matters_holds',
           'delete_matters_holds',
           'add_held_accounts',
           'remove_held_accounts',
         ],
       },
-      required: () => ({
-        field: 'operation',
-        value: [
-          'update_matters_holds',
-          'delete_matters_holds',
-          'add_held_accounts',
-          'remove_held_accounts',
-        ],
-      }),
+      required: true,
+    },
+    // Dedicated optional hold-id filter for list_matters_holds — kept separate from the
+    // required-everywhere holdId above so a value left over from another operation can
+    // never silently turn "List Holds" into a single-hold get.
+    {
+      id: 'listHoldId',
+      title: 'Hold ID',
+      type: 'short-input',
+      placeholder: 'Enter Hold ID (optional to fetch a specific hold)',
+      condition: { field: 'operation', value: 'list_matters_holds' },
     },
     {
       id: 'pageSize',
@@ -608,9 +619,19 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
       id: 'savedQueryId',
       title: 'Saved Query ID',
       type: 'short-input',
+      placeholder: 'Enter Saved Query ID',
+      condition: { field: 'operation', value: 'delete_saved_query' },
+      required: true,
+    },
+    // Dedicated optional saved-query-id filter for list_saved_queries — kept separate
+    // from the required savedQueryId above so a value left over from Delete Saved Query
+    // can never silently turn "List Saved Queries" into a single-query get.
+    {
+      id: 'listSavedQueryId',
+      title: 'Saved Query ID',
+      type: 'short-input',
       placeholder: 'Enter Saved Query ID (optional to fetch a specific saved query)',
-      condition: { field: 'operation', value: ['list_saved_queries', 'delete_saved_query'] },
-      required: () => ({ field: 'operation', value: 'delete_saved_query' }),
+      condition: { field: 'operation', value: 'list_saved_queries' },
     },
   ],
   tools: {
@@ -702,6 +723,9 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           updateHoldOrgUnitId,
           savedQueryAccountEmails,
           savedQueryOrgUnitId,
+          listExportId,
+          listHoldId,
+          listSavedQueryId,
           ...rest
         } = params
         return {
@@ -720,6 +744,9 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           ...(updateHoldOrgUnitId && { orgUnitId: updateHoldOrgUnitId }),
           ...(savedQueryAccountEmails && { accountEmails: savedQueryAccountEmails }),
           ...(savedQueryOrgUnitId && { orgUnitId: savedQueryOrgUnitId }),
+          ...(listExportId && { exportId: listExportId }),
+          ...(listHoldId && { holdId: listHoldId }),
+          ...(listSavedQueryId && { savedQueryId: listSavedQueryId }),
         }
       },
     },
@@ -809,6 +836,15 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
       type: 'string',
       description:
         'Org unit ID to scope the saved query (create_saved_query, alternative to emails)',
+    },
+    listExportId: {
+      type: 'string',
+      description: 'Specific export ID to fetch (list_matters_export)',
+    },
+    listHoldId: { type: 'string', description: 'Specific hold ID to fetch (list_matters_holds)' },
+    listSavedQueryId: {
+      type: 'string',
+      description: 'Specific saved query ID to fetch (list_saved_queries)',
     },
   },
   outputs: {
