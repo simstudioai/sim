@@ -12,7 +12,7 @@ import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 const logger = createLogger('WorkspaceByIdAPI')
 
 import { db } from '@sim/db'
-import { permissions, workspace } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getEffectiveWorkspacePermission,
@@ -239,30 +239,6 @@ export const DELETE = withRouteHandler(
     }
 
     try {
-      const [[workspaceRecord], totalWorkspaces] = await Promise.all([
-        db
-          .select({ name: workspace.name })
-          .from(workspace)
-          .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-          .limit(1),
-        db
-          .select({ id: permissions.entityId })
-          .from(permissions)
-          .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-          .where(
-            and(
-              eq(permissions.userId, session.user.id),
-              eq(permissions.entityType, 'workspace'),
-              isNull(workspace.archivedAt)
-            )
-          ),
-      ])
-
-      /** Counts all workspace memberships (any role), not just admin — prevents the user from reaching a zero-workspace state. */
-      if (totalWorkspaces.length <= 1) {
-        return NextResponse.json({ error: 'Cannot delete the only workspace' }, { status: 400 })
-      }
-
       logger.info(`Deleting workspace ${workspaceId} for user ${session.user.id}`)
 
       const workspaceWorkflows = await db
@@ -276,7 +252,17 @@ export const DELETE = withRouteHandler(
         requestId: `workspace-${workspaceId}`,
       })
 
-      if (!archiveResult.archived && !workspaceRecord) {
+      if (archiveResult.strandedUserIds?.length) {
+        return NextResponse.json(
+          {
+            error:
+              'Cannot delete this workspace: one or more members have no other workspace to fall back to',
+          },
+          { status: 400 }
+        )
+      }
+
+      if (!archiveResult.archived) {
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
       }
 
@@ -288,8 +274,8 @@ export const DELETE = withRouteHandler(
         action: AuditAction.WORKSPACE_DELETED,
         resourceType: AuditResourceType.WORKSPACE,
         resourceId: workspaceId,
-        resourceName: workspaceRecord?.name,
-        description: `Archived workspace "${workspaceRecord?.name || workspaceId}"`,
+        resourceName: archiveResult.workspaceName,
+        description: `Archived workspace "${archiveResult.workspaceName || workspaceId}"`,
         metadata: {
           affected: {
             workflows: workflowIds.length,

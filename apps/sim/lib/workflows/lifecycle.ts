@@ -360,7 +360,9 @@ export async function disableUserResources(userId: string): Promise<void> {
     .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
   await Promise.all([
-    ...ownedWorkspaces.map((w) => archiveWorkspace(w.id, { requestId })),
+    // force: true — a banned user's owned workspaces must be fully disabled regardless of
+    // whether other members would be left with zero workspaces.
+    ...ownedWorkspaces.map((w) => archiveWorkspace(w.id, { requestId, force: true })),
     db.delete(apiKey).where(eq(apiKey.userId, userId)),
   ])
 

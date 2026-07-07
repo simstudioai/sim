@@ -10,14 +10,21 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockTransaction, mockCleanupExternalWebhook, mockWorkflowDeleted } = vi.hoisted(
-  () => ({
-    mockSelect: vi.fn(),
-    mockTransaction: vi.fn(),
-    mockCleanupExternalWebhook: vi.fn(),
-    mockWorkflowDeleted: vi.fn(),
-  })
-)
+const {
+  mockSelect,
+  mockTransaction,
+  mockDelete,
+  mockCleanupExternalWebhook,
+  mockWorkflowDeleted,
+  mockArchiveWorkspace,
+} = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockDelete: vi.fn(),
+  mockCleanupExternalWebhook: vi.fn(),
+  mockWorkflowDeleted: vi.fn(),
+  mockArchiveWorkspace: vi.fn(),
+}))
 
 const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
 
@@ -25,7 +32,12 @@ vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
     transaction: mockTransaction,
+    delete: mockDelete,
   },
+}))
+
+vi.mock('@/lib/workspaces/lifecycle', () => ({
+  archiveWorkspace: mockArchiveWorkspace,
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
@@ -46,7 +58,7 @@ vi.mock('@/lib/core/telemetry', () => ({
   },
 }))
 
-import { archiveWorkflow } from '@/lib/workflows/lifecycle'
+import { archiveWorkflow, disableUserResources } from '@/lib/workflows/lifecycle'
 
 function createSelectChain<T>(result: T) {
   const chain = {
@@ -127,5 +139,30 @@ describe('workflow lifecycle', () => {
     expect(result.archived).toBe(false)
     expect(mockTransaction).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('disableUserResources', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('force-archives every owned workspace so banning is never blocked by other members', async () => {
+    mockSelect.mockReturnValue(createSelectChain([{ id: 'workspace-1' }, { id: 'workspace-2' }]))
+    mockDelete.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+    mockArchiveWorkspace.mockResolvedValue({ archived: true, workspaceName: 'Workspace' })
+
+    await disableUserResources('user-banned')
+
+    expect(mockArchiveWorkspace).toHaveBeenCalledTimes(2)
+    expect(mockArchiveWorkspace).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.objectContaining({ force: true })
+    )
+    expect(mockArchiveWorkspace).toHaveBeenCalledWith(
+      'workspace-2',
+      expect.objectContaining({ force: true })
+    )
+    expect(mockDelete).toHaveBeenCalled()
   })
 })
