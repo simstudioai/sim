@@ -77,6 +77,7 @@ interface SlackTriggerEvent {
   trigger_id: string
   callback_id: string
   api_app_id: string
+  app_id: string
   message_ts: string
   /**
    * Full Slack view object for modal interactions (view_submission/view_closed):
@@ -126,6 +127,7 @@ function createSlackEvent(): SlackTriggerEvent {
     trigger_id: '',
     callback_id: '',
     api_app_id: '',
+    app_id: '',
     message_ts: '',
     view: null,
     message: null,
@@ -409,20 +411,28 @@ async function fetchSlackMessageText(
 const SLACK_TIMESTAMP_MAX_SKEW = 300
 
 /**
- * Resolve the Slack `team_id` for a bot token via `auth.test`. Used at deploy
- * time to derive the tenant routing key for the native (`slack_app`) trigger —
- * the id is Slack-attested, never taken from user input. Throws on failure so
+ * Resolve the Slack `team_id` and bot `user_id` for a bot token via `auth.test`.
+ * Used at deploy time to derive the tenant routing key for the native
+ * (`slack_app`) trigger and to store the bot user id for reaction self-drop —
+ * both are Slack-attested, never taken from user input. Throws on failure so
  * deploy fails fast rather than registering an unroutable trigger.
  */
-export async function fetchSlackTeamId(botToken: string): Promise<string> {
+export async function fetchSlackTeamId(
+  botToken: string
+): Promise<{ teamId: string; userId: string | undefined }> {
   const response = await fetch('https://slack.com/api/auth.test', {
     headers: { Authorization: `Bearer ${botToken}` },
   })
-  const data = (await response.json()) as { ok?: boolean; team_id?: string; error?: string }
+  const data = (await response.json()) as {
+    ok?: boolean
+    team_id?: string
+    user_id?: string
+    error?: string
+  }
   if (!data.ok || !data.team_id) {
     throw new Error(`Slack auth.test failed: ${data.error || 'unknown error'}`)
   }
-  return data.team_id
+  return { teamId: data.team_id, userId: data.user_id }
 }
 
 /**
@@ -458,8 +468,9 @@ export function validateSlackSignature(
 }
 
 /**
- * Channel a Slack event occurred in. Reaction events carry the channel under
- * `item.channel`; message/mention events under `channel`.
+ * Channel a Slack event occurred in. Message/mention events carry it under
+ * `channel`, reaction events under `item.channel`, and file/pin events under
+ * `channel_id`.
  */
 export function resolveSlackEventChannel(
   event: Record<string, unknown> | undefined
@@ -467,7 +478,8 @@ export function resolveSlackEventChannel(
   if (!event) return undefined
   if (typeof event.channel === 'string') return event.channel
   const item = event.item as Record<string, unknown> | undefined
-  return typeof item?.channel === 'string' ? item.channel : undefined
+  if (typeof item?.channel === 'string') return item.channel
+  return typeof event.channel_id === 'string' ? event.channel_id : undefined
 }
 
 /**
@@ -650,6 +662,10 @@ export const slackHandler: WebhookProviderHandler = {
     event.thread_ts = asString(rawEvent?.thread_ts)
     event.team_id = asString(b?.team_id) || asString(rawEvent?.team)
     event.event_id = asString(b?.event_id)
+    event.api_app_id = asString(b?.api_app_id)
+    event.app_id =
+      asString(rawEvent?.app_id) ||
+      asString((rawEvent?.bot_profile as Record<string, unknown> | undefined)?.app_id)
     event.reaction = asString(rawEvent?.reaction)
     event.item_user = asString(rawEvent?.item_user)
     event.message_ts = messageTs

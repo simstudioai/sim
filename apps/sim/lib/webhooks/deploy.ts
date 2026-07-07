@@ -30,6 +30,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
+import { SIM_SUBSCRIBED_EVENTS } from '@/triggers/slack/shared'
 
 const logger = createLogger('DeployWebhookSync')
 const CREDENTIAL_SET_PREFIX = 'credentialSet:'
@@ -591,6 +592,18 @@ export async function saveTriggerWebhooksForDeploy({
     if (triggerId === 'slack_oauth') {
       const appType = typeof providerConfig.appType === 'string' ? providerConfig.appType : 'sim'
       if (appType === 'sim') {
+        const eventType =
+          typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
+        if (eventType && !SIM_SUBSCRIBED_EVENTS.includes(eventType)) {
+          return {
+            success: false,
+            error: {
+              message:
+                'This event is not available on the Sim Slack app. Use a custom app or choose a supported event.',
+              status: 400,
+            },
+          }
+        }
         if (!credentialId) {
           return {
             success: false,
@@ -608,7 +621,9 @@ export async function saveTriggerWebhooksForDeploy({
           }
         }
         try {
-          routingKey = await fetchSlackTeamId(botToken)
+          const { teamId, userId: botUserId } = await fetchSlackTeamId(botToken)
+          routingKey = teamId
+          if (botUserId) providerConfig.bot_user_id = botUserId
         } catch (error: unknown) {
           logger.error(`[${requestId}] Slack team_id resolution failed for ${block.id}`, error)
           return {

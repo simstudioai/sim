@@ -117,6 +117,11 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
         type: 'string',
         description: 'Slack app ID. Present for interactivity and slash commands',
       },
+      app_id: {
+        type: 'string',
+        description:
+          "App ID of the app that produced the event (e.g. the bot that posted a message). Used to identify the app's own output",
+      },
       message_ts: {
         type: 'string',
         description:
@@ -151,27 +156,153 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
 }
 
 /**
- * Selectable trigger events for the native OAuth (`slack_app`) trigger. Each id
- * is a Slack bot event that the shared Sim app subscribes to; the ingest route
- * filters inbound events against the user's selection.
+ * A contextual filter a Slack event can expose. Each entry's `filters` list
+ * drives both which filter sub-blocks the trigger UI shows and which checks the
+ * ingest route applies:
+ * - `source`: restrict a message event to DMs / public / private channels.
+ * - `channels`: restrict to specific channel IDs.
+ * - `threads`: include / exclude / only thread replies.
+ * - `emoji`: restrict a reaction event to specific emoji names.
+ * - `name`: substring match on a created channel's name.
  */
-export const SLACK_TRIGGER_EVENT_OPTIONS = [
-  { label: 'App mention', id: 'app_mention' },
-  { label: 'Direct message', id: 'message.im' },
-  { label: 'Public channel message', id: 'message.channels' },
-  { label: 'Private channel message', id: 'message.groups' },
-  { label: 'Reaction added', id: 'reaction_added' },
-  { label: 'Reaction removed', id: 'reaction_removed' },
-] as const
+export type SlackEventFilter = 'source' | 'channels' | 'threads' | 'emoji' | 'name'
+
+export interface SlackEventCatalogEntry {
+  /** Selected value stored under the `eventType` sub-block. */
+  id: string
+  label: string
+  /** True when the official shared Sim app already subscribes to the event. */
+  simSubscribed: boolean
+  /** Contextual filters this event supports. */
+  filters: readonly SlackEventFilter[]
+}
 
 /**
- * Event ids that occur in a specific channel and therefore honor the channel
- * filter. Direct-message events (`message.im`) are intentionally excluded.
+ * The full catalog of selectable events for the native OAuth (`slack_app`)
+ * trigger, and the single source of truth for event gating. One trigger block
+ * fires on exactly one `id`. `simSubscribed` gates which events are offered in
+ * Sim mode (the official app), while every event is offered in Custom mode
+ * (the bring-your-own app generates a manifest that subscribes to it, driven by
+ * SLACK_CAPABILITIES). `filters` drives both the trigger UI (which filter
+ * sub-blocks show) and the ingest route (which checks apply).
  */
-export const SLACK_CHANNEL_SCOPED_EVENTS = new Set<string>([
-  'app_mention',
-  'message.channels',
-  'message.groups',
-  'reaction_added',
-  'reaction_removed',
-])
+export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
+  {
+    id: 'message',
+    label: 'Message',
+    simSubscribed: true,
+    filters: ['source', 'channels', 'threads'],
+  },
+  {
+    id: 'app_mention',
+    label: 'App mentioned',
+    simSubscribed: true,
+    filters: ['channels', 'threads'],
+  },
+  {
+    id: 'reaction_added',
+    label: 'Reaction added',
+    simSubscribed: true,
+    filters: ['emoji', 'channels'],
+  },
+  {
+    id: 'reaction_removed',
+    label: 'Reaction removed',
+    simSubscribed: true,
+    filters: ['emoji', 'channels'],
+  },
+  {
+    id: 'message_edited',
+    label: 'Message edited',
+    simSubscribed: true,
+    filters: ['source', 'channels'],
+  },
+  {
+    id: 'message_deleted',
+    label: 'Message deleted',
+    simSubscribed: true,
+    filters: ['source', 'channels'],
+  },
+  { id: 'file_shared', label: 'File shared', simSubscribed: false, filters: ['channels'] },
+  {
+    id: 'member_joined_channel',
+    label: 'Member joined channel',
+    simSubscribed: false,
+    filters: ['channels'],
+  },
+  {
+    id: 'member_left_channel',
+    label: 'Member left channel',
+    simSubscribed: false,
+    filters: ['channels'],
+  },
+  { id: 'channel_created', label: 'Channel created', simSubscribed: false, filters: ['name'] },
+  { id: 'channel_archive', label: 'Channel archived', simSubscribed: false, filters: ['channels'] },
+  { id: 'channel_rename', label: 'Channel renamed', simSubscribed: false, filters: ['channels'] },
+  { id: 'pin_added', label: 'Pin added', simSubscribed: false, filters: ['channels'] },
+  { id: 'pin_removed', label: 'Pin removed', simSubscribed: false, filters: ['channels'] },
+  { id: 'team_join', label: 'Member joined workspace', simSubscribed: false, filters: [] },
+  { id: 'app_home_opened', label: 'App home opened', simSubscribed: false, filters: [] },
+  { id: 'assistant_thread_started', label: 'Assistant opened', simSubscribed: true, filters: [] },
+  {
+    id: 'assistant_thread_context_changed',
+    label: 'Assistant context changed',
+    simSubscribed: true,
+    filters: [],
+  },
+] as const
+
+/** Catalog entry lookup by `eventType` id. */
+export const slackEventById = new Map<string, SlackEventCatalogEntry>(
+  SLACK_EVENT_CATALOG.map((entry) => [entry.id, entry])
+)
+
+/** Event ids the official shared Sim app subscribes to (Sim-mode gating SOT). */
+export const SIM_SUBSCRIBED_EVENTS: readonly string[] = SLACK_EVENT_CATALOG.filter(
+  (entry) => entry.simSubscribed
+).map((entry) => entry.id)
+
+/** Dropdown options for Sim mode — only officially-subscribed events. */
+export const SLACK_SIM_EVENT_OPTIONS = SLACK_EVENT_CATALOG.filter(
+  (entry) => entry.simSubscribed
+).map((entry) => ({ label: entry.label, id: entry.id }))
+
+/** Dropdown options for Custom mode — every event (manifest generated on demand). */
+export const SLACK_ALL_EVENT_OPTIONS = SLACK_EVENT_CATALOG.map((entry) => ({
+  label: entry.label,
+  id: entry.id,
+}))
+
+/**
+ * Message-source filter options. Each id maps to a Slack `channel_type`. The
+ * filter is multiselect and empty means any source, so "public + private, no
+ * DMs" is `[channel, group]` — a case a single-select could not express.
+ */
+export const SLACK_SOURCE_OPTIONS = [
+  { label: 'Direct message', id: 'im' },
+  { label: 'Public channel', id: 'channel' },
+  { label: 'Private channel', id: 'group' },
+] as const
+
+/** Three-way thread filter options. */
+export const SLACK_THREAD_OPTIONS = [
+  { label: 'Messages and replies', id: 'include' },
+  { label: 'Messages only (no replies)', id: 'exclude' },
+  { label: 'Replies only', id: 'only' },
+] as const
+
+/** True when the given event id exposes the given contextual filter. */
+export function slackEventSupportsFilter(eventType: string, filter: SlackEventFilter): boolean {
+  return slackEventById.get(eventType)?.filters.includes(filter) ?? false
+}
+
+/**
+ * Event ids that expose the given filter — the catalog-derived list used for
+ * trigger sub-block `condition` gating, so the UI and the ingest route share one
+ * source of truth.
+ */
+export function slackEventsSupportingFilter(filter: SlackEventFilter): string[] {
+  return SLACK_EVENT_CATALOG.filter((entry) => entry.filters.includes(filter)).map(
+    (entry) => entry.id
+  )
+}

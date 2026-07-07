@@ -724,6 +724,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'canvases:write',
           'reactions:write',
           'reactions:read',
+          'pins:read',
         ],
       },
     },
