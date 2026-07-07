@@ -1263,6 +1263,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
     // Merge request outputs
     mergeRequests: { type: 'json', description: 'List of merge requests' },
     mergeRequest: { type: 'json', description: 'Merge request details' },
+    mergeRequestIid: { type: 'number', description: 'Merge request internal ID (IID)' },
     // Pipeline outputs
     pipelines: { type: 'json', description: 'List of pipelines' },
     pipeline: { type: 'json', description: 'Pipeline details' },
@@ -1278,14 +1279,23 @@ Return ONLY the commit message - no explanations, no extra text.`,
     commits: { type: 'json', description: 'List of commits' },
     commit: { type: 'json', description: 'A single commit (e.g. latest commit in a comparison)' },
     name: { type: 'string', description: 'Created branch name' },
+    protected: { type: 'boolean', description: 'Whether the branch is protected' },
+    size: { type: 'number', description: 'File size in bytes' },
+    ref: { type: 'string', description: 'The branch, tag, or commit SHA' },
+    blobId: { type: 'string', description: 'The blob ID' },
+    lastCommitId: { type: 'string', description: 'The last commit ID that modified the file' },
     webUrl: { type: 'string', description: 'Web URL' },
     // Merge request change outputs
     changes: { type: 'json', description: 'Merge request file changes/diffs' },
+    changesCount: { type: 'number', description: 'Number of changed files returned' },
     approvalsRequired: { type: 'number', description: 'Approvals required' },
     approvalsLeft: { type: 'number', description: 'Approvals remaining' },
+    approvedBy: { type: 'json', description: 'List of approvers' },
     // Job outputs
     jobs: { type: 'json', description: 'Pipeline jobs' },
     log: { type: 'string', description: 'Job log output' },
+    id: { type: 'number', description: 'Job ID' },
+    status: { type: 'string', description: 'Job status' },
     // Compare outputs
     diffs: { type: 'json', description: 'File diffs between two compared references' },
     compareTimeout: { type: 'boolean', description: 'Whether the comparison timed out' },
@@ -1293,6 +1303,8 @@ Return ONLY the commit message - no explanations, no extra text.`,
     // Release outputs
     releases: { type: 'json', description: 'List of releases' },
     release: { type: 'json', description: 'Release details' },
+    // Pagination
+    total: { type: 'number', description: 'Total number of items available across all pages' },
     // Success indicator
     success: { type: 'boolean', description: 'Operation success status' },
   },
