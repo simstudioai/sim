@@ -1,7 +1,9 @@
-import { CALENDAR_API_BASE, type GoogleCalendarApiAclRule } from '@/tools/google_calendar/types'
+import {
+  CALENDAR_API_BASE,
+  type GoogleCalendarAclRole,
+  type GoogleCalendarApiAclRule,
+} from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
-
-type GoogleCalendarAclRole = 'freeBusyReader' | 'reader' | 'writer' | 'owner'
 
 export interface GoogleCalendarUpdateAclParams {
   accessToken: string
