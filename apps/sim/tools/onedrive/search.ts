@@ -1,16 +1,17 @@
 import type {
   MicrosoftGraphDriveItem,
-  OneDriveListResponse,
+  OneDriveSearchResponse,
   OneDriveToolParams,
 } from '@/tools/onedrive/types'
 import { escapeODataStringLiteral } from '@/tools/onedrive/utils'
 import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
-  id: 'onedrive_list',
-  name: 'List OneDrive Files',
-  description: 'List files and folders in OneDrive',
+export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> = {
+  id: 'onedrive_search',
+  name: 'Search OneDrive Files',
+  description:
+    'Search for files and folders across OneDrive by name, metadata, or content (recursive)',
   version: '1.0',
 
   oauth: {
@@ -25,23 +26,18 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       visibility: 'hidden',
       description: 'The access token for the OneDrive API',
     },
-    folderId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Folder ID to list files from (e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M")',
-    },
     query: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter files by name prefix (e.g., "report", "invoice_2024")',
+      description:
+        'Search text matched against file name, metadata, and content. Not required when paginating with pageToken',
     },
     pageSize: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of files to return (e.g., 10, 50, 100)',
+      description: 'Maximum number of results to return (e.g., 10, 50, 100)',
     },
     pageToken: {
       type: 'string',
@@ -59,34 +55,21 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
         return assertGraphNextPageUrl(pageToken)
       }
 
-      // Use specific folder if provided, otherwise use root
-      const folderId = params.folderId?.trim()
-      const encodedFolderId = folderId ? encodeURIComponent(folderId) : ''
-      const baseUrl = encodedFolderId
-        ? `https://graph.microsoft.com/v1.0/me/drive/items/${encodedFolderId}/children`
-        : 'https://graph.microsoft.com/v1.0/me/drive/root/children'
+      const query = params.query?.trim()
+      if (!query) {
+        throw new Error('A search query is required')
+      }
 
-      const url = new URL(baseUrl)
-
-      // Use Microsoft Graph $select parameter
+      const url = new URL(
+        `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(escapeODataStringLiteral(query))}')`
+      )
       url.searchParams.append(
         '$select',
         'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference,@microsoft.graph.downloadUrl'
       )
-
-      // Add name filter if query provided
-      if (params.query) {
-        url.searchParams.append(
-          '$filter',
-          `startswith(name,'${escapeODataStringLiteral(params.query)}')`
-        )
-      }
-
-      // Add pagination
       if (params.pageSize) {
         url.searchParams.append('$top', Number(params.pageSize).toString())
       }
-
       return url.toString()
     },
     method: 'GET',
@@ -101,7 +84,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
     return {
       success: true,
       output: {
-        files: data.value.map((item: MicrosoftGraphDriveItem) => ({
+        files: (data.value || []).map((item: MicrosoftGraphDriveItem) => ({
           id: item.id,
           name: item.name,
           mimeType: item.file?.mimeType || (item.folder ? 'application/folder' : 'unknown'),
@@ -112,15 +95,17 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
           modifiedTime: item.lastModifiedDateTime,
           parents: item.parentReference ? [item.parentReference.id] : [],
         })),
-        // Use the actual @odata.nextLink URL as the continuation token
         nextPageToken: getGraphNextPageUrl(data),
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether files were listed successfully' },
-    files: { type: 'array', description: 'Array of file and folder objects with metadata' },
+    success: { type: 'boolean', description: 'Whether the search completed successfully' },
+    files: {
+      type: 'array',
+      description: 'Array of file and folder objects matching the search query',
+    },
     nextPageToken: {
       type: 'string',
       description: 'Token for retrieving the next page of results (optional)',
