@@ -1362,7 +1362,12 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
           }
           nextByRow[rid] = n
         }
-        return { ...prev, runningByRowId: nextByRow }
+        // An unexcluded table-wide stop cancels every claim, so the stale
+        // table-wide flag must drop with it (else the header reads "0
+        // running" until onSettled refetches). Scoped stops leave other rows'
+        // claims running — keep it.
+        const hasRunning = scope === 'all' && !filter && !excludedRowIds ? false : prev.hasRunning
+        return { ...prev, runningByRowId: nextByRow, hasRunning }
       })
       return { snapshots, runStateSnapshot }
     },
@@ -2091,9 +2096,16 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       // optimistic counter to the server's still-zero count.
       const dispatchId = data?.data?.dispatchId
       if (!dispatchId) {
-        // No dispatch created → no SSE to reconcile the bump; roll it back.
+        // No dispatch created (empty scope, or a Stop-all cancelled the run
+        // during server prep) → no SSE will reconcile the optimistic state.
+        // Roll back the counter bump, and refetch rows so the optimistic
+        // pending stamps drop — restoring the onMutate snapshot instead could
+        // clobber SSE events applied since (other runs, cascades).
         if (context?.didBumpRunState) {
           queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+        }
+        if (context?.snapshots) {
+          void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         }
         return
       }
