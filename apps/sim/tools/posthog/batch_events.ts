@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogIngestBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -63,33 +64,35 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      let batch: any[]
+      let batch: unknown
       try {
         batch = JSON.parse(params.batch)
-      } catch (e) {
-        batch = []
+      } catch (error) {
+        throw new Error(`Invalid batch JSON: ${getErrorMessage(error)}`)
+      }
+      if (!Array.isArray(batch)) {
+        throw new Error('batch must be a JSON array of events')
       }
 
       return {
         api_key: params.projectApiKey,
-        batch: batch,
+        batch,
       }
     },
   },
 
   transformResponse: async (response: Response, params) => {
     const data = await response.json()
-    let eventsProcessed = 0
-    try {
-      eventsProcessed = params ? JSON.parse(params.batch).length : 0
-    } catch {
-      eventsProcessed = 0
-    }
+    const eventsProcessed = params ? (JSON.parse(params.batch) as unknown[]).length : 0
+    const success = data.status === 1
+
     return {
-      success: true,
+      success,
       output: {
-        status: 'Batch events captured successfully',
-        events_processed: data.status === 1 ? eventsProcessed : 0,
+        status: success
+          ? 'Batch events captured successfully'
+          : `Batch events capture failed (status: ${data.status})`,
+        events_processed: success ? eventsProcessed : 0,
       },
     }
   },

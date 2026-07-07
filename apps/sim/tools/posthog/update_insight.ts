@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -131,8 +132,8 @@ export const updateInsightTool: ToolConfig<
       if (params.query) {
         try {
           body.query = JSON.parse(params.query)
-        } catch {
-          body.query = null
+        } catch (error) {
+          throw new Error(`Invalid query JSON: ${getErrorMessage(error)}`)
         }
       }
 

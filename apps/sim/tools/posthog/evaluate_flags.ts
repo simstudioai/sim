@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogIngestBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -92,24 +93,24 @@ export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsRes
       if (params.groups) {
         try {
           body.groups = JSON.parse(params.groups)
-        } catch {
-          body.groups = {}
+        } catch (error) {
+          throw new Error(`Invalid groups JSON: ${getErrorMessage(error)}`)
         }
       }
 
       if (params.personProperties) {
         try {
           body.person_properties = JSON.parse(params.personProperties)
-        } catch {
-          body.person_properties = {}
+        } catch (error) {
+          throw new Error(`Invalid personProperties JSON: ${getErrorMessage(error)}`)
         }
       }
 
       if (params.groupProperties) {
         try {
           body.group_properties = JSON.parse(params.groupProperties)
-        } catch {
-          body.group_properties = {}
+        } catch (error) {
+          throw new Error(`Invalid groupProperties JSON: ${getErrorMessage(error)}`)
         }
       }
 

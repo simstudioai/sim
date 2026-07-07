@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -134,16 +135,16 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
       if (params.parameters) {
         try {
           body.parameters = JSON.parse(params.parameters)
-        } catch {
-          body.parameters = {}
+        } catch (error) {
+          throw new Error(`Invalid parameters JSON: ${getErrorMessage(error)}`)
         }
       }
 
       if (params.filters) {
         try {
           body.filters = JSON.parse(params.filters)
-        } catch {
-          body.filters = {}
+        } catch (error) {
+          throw new Error(`Invalid filters JSON: ${getErrorMessage(error)}`)
         }
       }
 
