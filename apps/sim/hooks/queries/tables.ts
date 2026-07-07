@@ -2098,11 +2098,11 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       if (!dispatchId) {
         // No dispatch created (empty scope, or a Stop-all cancelled the run
         // during server prep) → no SSE will reconcile the optimistic state.
-        // Roll back the counter bump, and refetch rows so the optimistic
-        // pending stamps drop — restoring the onMutate snapshot instead could
-        // clobber SSE events applied since (other runs, cascades).
+        // Refetch both caches rather than restoring the onMutate snapshots —
+        // either restore could clobber fresher state applied since (SSE
+        // events, throttled refetches, a concurrent Stop-all's clear).
         if (context?.didBumpRunState) {
-          queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+          void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
         }
         if (context?.snapshots) {
           void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
