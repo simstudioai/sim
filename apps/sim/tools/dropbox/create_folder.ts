@@ -43,7 +43,7 @@ export const dropboxCreateFolderTool: ToolConfig<
       }
     },
     body: (params) => ({
-      path: params.path,
+      path: params.path.trim(),
       autorename: params.autorename ?? false,
     }),
   },

@@ -67,7 +67,7 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
     }),
     body: (params) => ({
       accessToken: params.accessToken,
-      path: params.path,
+      path: params.path.trim(),
       file: params.file,
       fileContent: params.fileContent,
       fileName: params.fileName,
@@ -107,7 +107,11 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
         client_modified: { type: 'string', description: 'Client modification time' },
         server_modified: { type: 'string', description: 'Server modification time' },
         rev: { type: 'string', description: 'Revision identifier' },
-        content_hash: { type: 'string', description: 'Content hash for the file' },
+        content_hash: {
+          type: 'string',
+          description: 'Content hash for the file',
+          optional: true,
+        },
       },
     },
   },
