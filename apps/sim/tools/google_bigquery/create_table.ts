@@ -73,13 +73,18 @@ export const googleBigQueryCreateTableTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const fields = typeof params.schema === 'string' ? JSON.parse(params.schema) : params.schema
+      let fields: unknown
+      try {
+        fields = typeof params.schema === 'string' ? JSON.parse(params.schema) : params.schema
+      } catch {
+        throw new Error('Schema must be valid JSON, e.g. [{"name":"id","type":"STRING"}]')
+      }
 
       const body: Record<string, unknown> = {
         tableReference: {
           projectId: params.projectId,
-          datasetId: params.datasetId,
-          tableId: params.tableId,
+          datasetId: params.datasetId.trim(),
+          tableId: params.tableId.trim(),
         },
         schema: { fields },
       }

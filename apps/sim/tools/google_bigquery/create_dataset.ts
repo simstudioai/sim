@@ -69,7 +69,7 @@ export const googleBigQueryCreateDatasetTool: ToolConfig<
       const body: Record<string, unknown> = {
         datasetReference: {
           projectId: params.projectId,
-          datasetId: params.datasetId,
+          datasetId: params.datasetId.trim(),
         },
       }
       if (params.location) body.location = params.location

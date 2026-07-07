@@ -423,11 +423,14 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
           newDatasetId,
           newTableId,
           datasetLocation,
+          location,
           ...rest
         } = params
         return {
           ...rest,
           oauthCredential,
+          ...(['query', 'get_query_results'].includes(String(params.operation)) &&
+            location && { location }),
           ...(params.operation === 'create_dataset' && newDatasetId && { datasetId: newDatasetId }),
           ...(params.operation === 'create_dataset' &&
             datasetLocation && { location: datasetLocation }),
@@ -481,7 +484,10 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
     totalBytesProcessed: { type: 'string', description: 'Bytes processed (query)' },
     cacheHit: { type: 'boolean', description: 'Whether result was cached (query)' },
     jobReference: { type: 'json', description: 'Job reference for incomplete queries (query)' },
-    pageToken: { type: 'string', description: 'Token for additional result pages (query)' },
+    pageToken: {
+      type: 'string',
+      description: 'Token for additional result pages (query, list_table_data, get_query_results)',
+    },
     datasets: { type: 'json', description: 'Array of dataset objects (list_datasets)' },
     tables: { type: 'json', description: 'Array of table objects (list_tables)' },
     totalItems: { type: 'number', description: 'Total items count (list_tables)' },
