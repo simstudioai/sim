@@ -17,8 +17,18 @@ const ListSuppressedDestinationsSchema = z.object({
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   reasons: z.string().nullish(),
-  startDate: z.string().nullish(),
-  endDate: z.string().nullish(),
+  startDate: z
+    .string()
+    .nullish()
+    .refine((v) => !v || !Number.isNaN(new Date(v).getTime()), {
+      message: 'startDate must be a valid date string',
+    }),
+  endDate: z
+    .string()
+    .nullish()
+    .refine((v) => !v || !Number.isNaN(new Date(v).getTime()), {
+      message: 'endDate must be a valid date string',
+    }),
   pageSize: z.number().int().min(1).max(1000).nullish(),
   nextToken: z.string().nullish(),
 })
