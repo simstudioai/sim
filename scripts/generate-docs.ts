@@ -190,6 +190,7 @@ interface TriggerInfo {
   id: string
   name: string
   description: string
+  polling: boolean
 }
 
 interface TriggerConfigField {
@@ -699,12 +700,14 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
         const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(segment)
+        const polling = /\bpolling\s*:\s*true/.test(segment)
 
         if (idMatch && nameMatch) {
           registry.set(idMatch[1], {
             id: idMatch[1],
             name: nameMatch[1],
             description: descMatch?.[1] ?? '',
+            polling,
           })
         }
       }

@@ -15,6 +15,8 @@ interface TriggerInfo {
   id: string
   name: string
   description: string
+  /** Whether this trigger checks on a schedule rather than receiving a push webhook. */
+  polling: boolean
 }
 
 /** Operation entry enriched from the tool registry at generation time. */

@@ -113,6 +113,11 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/** True when at least one trigger is a genuine push webhook rather than a scheduled poller. */
+function hasWebhookTrigger(triggers: { polling: boolean }[]): boolean {
+  return triggers.some((t) => !t.polling)
+}
+
 /**
  * Server-side rewrite of bare integration names in a curated template prompt
  * to `@`-mention form (`Slack` → `@Slack`) so the prompt chips with brand
@@ -175,7 +180,7 @@ function TemplateIconRow({ allTypes }: { allTypes: string[] }) {
               name={int?.name ?? bt}
               Icon={ToolIcon}
               as='span'
-              className='size-6 rounded-[4px]'
+              className='size-6 rounded-[4px] border border-[var(--border-1)]'
               iconClassName='size-3.5'
               fallbackClassName='text-[10px]'
               aria-hidden='true'
@@ -209,12 +214,13 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
   const faqDescription = sentenceWithTerminalPunctuation(description)
   const opCount = operations.length
   const triggerCount = triggers.length
+  const triggersArePolling = triggerCount > 0 && !hasWebhookTrigger(triggers)
   const topOpNames = operations.slice(0, 5).map((o) => o.name)
   const firstOp = operations[0]
   const firstTrigger = triggers[0]
   const pairings = relatedNames.slice(0, 2)
   const toolsPhrase = `${opCount} ${name} tool${opCount === 1 ? '' : 's'}`
-  const triggersPhrase = `${triggerCount} real-time trigger${triggerCount === 1 ? '' : 's'}`
+  const triggersPhrase = `${triggerCount} ${triggersArePolling ? 'scheduled' : 'real-time'} trigger${triggerCount === 1 ? '' : 's'}`
   const capabilityPhrase = [
     opCount > 0 ? toolsPhrase : null,
     triggerCount > 0 ? triggersPhrase : null,
@@ -274,7 +280,9 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
       ? [
           {
             question: `How do I trigger a Sim agent from ${name} automatically?`,
-            answer: `Add ${articleFor(name)} ${name} trigger block to your agent and copy its generated webhook URL into ${name}'s webhook settings. Sim supports ${triggersPhrase} for ${name}: ${triggerListPhrase}. Once configured, every matching ${name} event starts your agent instantly, no polling, no delay.`,
+            answer: triggersArePolling
+              ? `Add ${articleFor(name)} ${name} trigger block to your agent and configure it to check ${name} on a schedule. Sim supports ${triggersPhrase} for ${name}: ${triggerListPhrase}. Once configured, your agent runs automatically whenever new data appears.`
+              : `Add ${articleFor(name)} ${name} trigger block to your agent and copy its generated webhook URL into ${name}'s webhook settings. Sim supports ${triggersPhrase} for ${name}: ${triggerListPhrase}. Once configured, every matching ${name} event starts your agent instantly, no polling, no delay.`,
           },
           {
             question: `What data does Sim receive when a ${name} event triggers an agent?`,
@@ -330,7 +338,12 @@ export async function generateMetadata({
       ...(opSample ? [`${name} ${opSample}`] : []),
       `${categoryLabel} integration`,
       ...(integration.tags ?? []).map((tag) => `${name} ${tag.replace(/-/g, ' ')}`),
-      ...(integration.triggerCount > 0 ? [`${name} webhook`, `${name} trigger`] : []),
+      ...(integration.triggerCount > 0
+        ? [
+            ...(hasWebhookTrigger(integration.triggers) ? [`${name} webhook`] : []),
+            `${name} trigger`,
+          ]
+        : []),
       'AI workspace integrations',
       'AI agent integrations',
       'AI agent builder',
@@ -467,7 +480,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               ? `${operations.length} ${name} tool${operations.length === 1 ? '' : 's'}`
               : null,
             triggers.length > 0
-              ? `${triggers.length} real-time trigger${triggers.length === 1 ? '' : 's'}`
+              ? `${triggers.length} ${hasWebhookTrigger(triggers) ? 'real-time' : 'scheduled'} trigger${triggers.length === 1 ? '' : 's'}`
               : null,
           ]
             .filter((part): part is string => part !== null)
@@ -678,12 +691,18 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 </h2>
               </div>
               <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
-                {seo?.triggersIntro ?? (
-                  <>
-                    Connect {articleFor(name)} {name} webhook to Sim and your agent runs the instant
-                    an event happens, no polling, no delay.
-                  </>
-                )}
+                {seo?.triggersIntro ??
+                  (hasWebhookTrigger(triggers) ? (
+                    <>
+                      Connect {articleFor(name)} {name} webhook to Sim and your agent runs the
+                      instant an event happens, no polling, no delay.
+                    </>
+                  ) : (
+                    <>
+                      Sim checks {name} regularly and runs your agent automatically when new data
+                      appears.
+                    </>
+                  ))}
               </p>
             </div>
             <div className='h-px w-full bg-[var(--border)]' />
@@ -913,7 +932,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               alt='Sim'
               width={56}
               height={56}
-              className='shrink-0 rounded-xl'
+              className='shrink-0 rounded-xl border border-[var(--border-1)]'
               unoptimized
             />
             <div className='flex items-center gap-2'>
@@ -940,7 +959,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               bgColor={bgColor}
               name={name}
               Icon={IconComponent}
-              className='size-14 rounded-xl'
+              className='size-14 rounded-xl border border-[var(--border-1)]'
               iconClassName='size-7'
               fallbackClassName='text-[22px]'
               aria-hidden='true'

@@ -157,7 +157,7 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
     overview:
       'Integrate HubSpot into your workflow and run HubSpot automation inside Sim. Create, update, and manage CRM records, or trigger agents and workflows from HubSpot events. This HubSpot integration helps teams automate follow-ups, sync CRM data, and build faster HubSpot automation workflows from one AI workspace.',
     triggersIntro:
-      'Connect a HubSpot webhook to Sim and trigger workflows the moment CRM activity happens. Run agents when records are created or updated, then automate routing, enrichment, follow-ups, and downstream actions without manual work.',
+      'Sim checks HubSpot on a schedule and runs agents when records are created or updated, so you can automate routing, enrichment, follow-ups, and downstream actions without manual work.',
   },
   notion: {
     title: 'Notion Automation with Sim',

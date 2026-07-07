@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-06",
+  "updatedAt": "2026-07-07",
   "integrations": [
     {
       "type": "onepassword",
@@ -508,7 +508,8 @@
         {
           "id": "airtable_webhook",
           "name": "Airtable Webhook",
-          "description": "Trigger workflow from Airtable record changes like create, update, and delete events (requires Airtable credentials)"
+          "description": "Trigger workflow from Airtable record changes like create, update, and delete events (requires Airtable credentials)",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -1196,32 +1197,38 @@
         {
           "id": "ashby_application_submit",
           "name": "Ashby Application Submitted",
-          "description": "Trigger workflow when a new application is submitted"
+          "description": "Trigger workflow when a new application is submitted",
+          "polling": false
         },
         {
           "id": "ashby_candidate_stage_change",
           "name": "Ashby Candidate Stage Change",
-          "description": "Trigger workflow when a candidate changes interview stages"
+          "description": "Trigger workflow when a candidate changes interview stages",
+          "polling": false
         },
         {
           "id": "ashby_candidate_hire",
           "name": "Ashby Candidate Hired",
-          "description": "Trigger workflow when a candidate is hired"
+          "description": "Trigger workflow when a candidate is hired",
+          "polling": false
         },
         {
           "id": "ashby_candidate_delete",
           "name": "Ashby Candidate Deleted",
-          "description": "Trigger workflow when a candidate is deleted"
+          "description": "Trigger workflow when a candidate is deleted",
+          "polling": false
         },
         {
           "id": "ashby_job_create",
           "name": "Ashby Job Created",
-          "description": "Trigger workflow when a new job is created"
+          "description": "Trigger workflow when a new job is created",
+          "polling": false
         },
         {
           "id": "ashby_offer_create",
           "name": "Ashby Offer Created",
-          "description": "Trigger workflow when a new offer is created"
+          "description": "Trigger workflow when a new offer is created",
+          "polling": false
         }
       ],
       "triggerCount": 6,
@@ -1261,6 +1268,10 @@
           "description": "List recent Athena query execution IDs"
         },
         {
+          "name": "Batch Get Query Executions",
+          "description": "Get the status and details of up to 50 Athena query executions in one call"
+        },
+        {
           "name": "Create Named Query",
           "description": "Create a saved/named query in AWS Athena"
         },
@@ -1271,9 +1282,21 @@
         {
           "name": "List Named Queries",
           "description": "List saved/named query IDs in AWS Athena"
+        },
+        {
+          "name": "Delete Named Query",
+          "description": "Delete a saved/named query in AWS Athena"
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases available in an Athena data catalog"
+        },
+        {
+          "name": "List Table Metadata",
+          "description": "List tables and their column/partition metadata for an Athena database"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -1454,119 +1477,157 @@
         {
           "name": "Delete Webhook",
           "description": "Delete a webhook from Attio"
+        },
+        {
+          "name": "List Attributes",
+          "description": "List the attributes (schema fields) defined on an Attio object or list"
+        },
+        {
+          "name": "Get Attribute",
+          "description": "Get a single attribute (schema field) on an Attio object or list"
+        },
+        {
+          "name": "Create Attribute",
+          "description": "Create a new attribute (schema field) on an Attio object or list"
+        },
+        {
+          "name": "Update Attribute",
+          "description": "Update an attribute (schema field) on an Attio object or list"
         }
       ],
-      "operationCount": 41,
+      "operationCount": 45,
       "triggers": [
         {
           "id": "attio_record_created",
           "name": "Attio Record Created",
-          "description": "Trigger workflow when a new record is created in Attio"
+          "description": "Trigger workflow when a new record is created in Attio",
+          "polling": false
         },
         {
           "id": "attio_record_updated",
           "name": "Attio Record Updated",
-          "description": "Trigger workflow when a record is updated in Attio"
+          "description": "Trigger workflow when a record is updated in Attio",
+          "polling": false
         },
         {
           "id": "attio_record_deleted",
           "name": "Attio Record Deleted",
-          "description": "Trigger workflow when a record is deleted in Attio"
+          "description": "Trigger workflow when a record is deleted in Attio",
+          "polling": false
         },
         {
           "id": "attio_record_merged",
           "name": "Attio Record Merged",
-          "description": "Trigger workflow when two records are merged in Attio"
+          "description": "Trigger workflow when two records are merged in Attio",
+          "polling": false
         },
         {
           "id": "attio_note_created",
           "name": "Attio Note Created",
-          "description": "Trigger workflow when a new note is created in Attio"
+          "description": "Trigger workflow when a new note is created in Attio",
+          "polling": false
         },
         {
           "id": "attio_note_updated",
           "name": "Attio Note Updated",
-          "description": "Trigger workflow when a note is updated in Attio"
+          "description": "Trigger workflow when a note is updated in Attio",
+          "polling": false
         },
         {
           "id": "attio_note_deleted",
           "name": "Attio Note Deleted",
-          "description": "Trigger workflow when a note is deleted in Attio"
+          "description": "Trigger workflow when a note is deleted in Attio",
+          "polling": false
         },
         {
           "id": "attio_task_created",
           "name": "Attio Task Created",
-          "description": "Trigger workflow when a new task is created in Attio"
+          "description": "Trigger workflow when a new task is created in Attio",
+          "polling": false
         },
         {
           "id": "attio_task_updated",
           "name": "Attio Task Updated",
-          "description": "Trigger workflow when a task is updated in Attio"
+          "description": "Trigger workflow when a task is updated in Attio",
+          "polling": false
         },
         {
           "id": "attio_task_deleted",
           "name": "Attio Task Deleted",
-          "description": "Trigger workflow when a task is deleted in Attio"
+          "description": "Trigger workflow when a task is deleted in Attio",
+          "polling": false
         },
         {
           "id": "attio_comment_created",
           "name": "Attio Comment Created",
-          "description": "Trigger workflow when a new comment is created in Attio"
+          "description": "Trigger workflow when a new comment is created in Attio",
+          "polling": false
         },
         {
           "id": "attio_comment_resolved",
           "name": "Attio Comment Resolved",
-          "description": "Trigger workflow when a comment thread is resolved in Attio"
+          "description": "Trigger workflow when a comment thread is resolved in Attio",
+          "polling": false
         },
         {
           "id": "attio_comment_unresolved",
           "name": "Attio Comment Unresolved",
-          "description": "Trigger workflow when a comment thread is unresolved in Attio"
+          "description": "Trigger workflow when a comment thread is unresolved in Attio",
+          "polling": false
         },
         {
           "id": "attio_comment_deleted",
           "name": "Attio Comment Deleted",
-          "description": "Trigger workflow when a comment is deleted in Attio"
+          "description": "Trigger workflow when a comment is deleted in Attio",
+          "polling": false
         },
         {
           "id": "attio_list_entry_created",
           "name": "Attio List Entry Created",
-          "description": "Trigger workflow when a new list entry is created in Attio"
+          "description": "Trigger workflow when a new list entry is created in Attio",
+          "polling": false
         },
         {
           "id": "attio_list_entry_updated",
           "name": "Attio List Entry Updated",
-          "description": "Trigger workflow when a list entry is updated in Attio"
+          "description": "Trigger workflow when a list entry is updated in Attio",
+          "polling": false
         },
         {
           "id": "attio_list_entry_deleted",
           "name": "Attio List Entry Deleted",
-          "description": "Trigger workflow when a list entry is deleted in Attio"
+          "description": "Trigger workflow when a list entry is deleted in Attio",
+          "polling": false
         },
         {
           "id": "attio_list_created",
           "name": "Attio List Created",
-          "description": "Trigger workflow when a list is created in Attio"
+          "description": "Trigger workflow when a list is created in Attio",
+          "polling": false
         },
         {
           "id": "attio_list_updated",
           "name": "Attio List Updated",
-          "description": "Trigger workflow when a list is updated in Attio"
+          "description": "Trigger workflow when a list is updated in Attio",
+          "polling": false
         },
         {
           "id": "attio_list_deleted",
           "name": "Attio List Deleted",
-          "description": "Trigger workflow when a list is deleted in Attio"
+          "description": "Trigger workflow when a list is deleted in Attio",
+          "polling": false
         },
         {
           "id": "attio_workspace_member_created",
           "name": "Attio Workspace Member Created",
-          "description": "Trigger workflow when a new member is added to the Attio workspace"
+          "description": "Trigger workflow when a new member is added to the Attio workspace",
+          "polling": false
         },
         {
           "id": "attio_webhook",
           "name": "Attio Webhook (All Events)",
-          "description": "Trigger workflow on any Attio webhook event"
+          "description": "Trigger workflow on any Attio webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 22,
@@ -2071,8 +2132,21 @@
       "bgColor": "linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)",
       "iconName": "TextractIcon",
       "docsUrl": "https://docs.sim.ai/integrations/textract",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Analyze Document (Text, Tables, Forms)",
+          "description": ""
+        },
+        {
+          "name": "Analyze Expense (Invoices & Receipts)",
+          "description": "Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense"
+        },
+        {
+          "name": "Analyze Identity Document",
+          "description": "Extract identity document fields using AWS Textract AnalyzeID"
+        }
+      ],
+      "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2232,17 +2306,20 @@
         {
           "id": "azure_devops_build_failed",
           "name": "Azure DevOps Build Failed",
-          "description": "Trigger workflow when an Azure DevOps build fails, is canceled, or partially succeeds"
+          "description": "Trigger workflow when an Azure DevOps build fails, is canceled, or partially succeeds",
+          "polling": false
         },
         {
           "id": "azure_devops_work_item_created",
           "name": "Azure DevOps Work Item Created",
-          "description": "Trigger workflow when a work item is created in Azure DevOps"
+          "description": "Trigger workflow when a work item is created in Azure DevOps",
+          "polling": false
         },
         {
           "id": "azure_devops_webhook",
           "name": "Azure DevOps Webhook (All Service Hook Events)",
-          "description": "Trigger on whichever service hook event types you configure in Azure DevOps. Sim does not filter deliveries for this trigger."
+          "description": "Trigger on whichever service hook event types you configure in Azure DevOps. Sim does not filter deliveries for this trigger.",
+          "polling": false
         }
       ],
       "triggerCount": 3,
@@ -2509,7 +2586,7 @@
         },
         {
           "name": "Discover",
-          "description": "AI-powered web discovery that finds and ranks results by intent. Returns up to 1,000 results with optional cleaned page content for RAG and verification."
+          "description": "AI-powered web discovery that finds and ranks results by intent. Returns up to 20 results with optional cleaned page content for RAG and verification."
         },
         {
           "name": "Sync Scrape",
@@ -2650,47 +2727,56 @@
         {
           "id": "calcom_booking_created",
           "name": "CalCom Booking Created",
-          "description": "Trigger workflow when a new booking is created in Cal.com"
+          "description": "Trigger workflow when a new booking is created in Cal.com",
+          "polling": false
         },
         {
           "id": "calcom_booking_cancelled",
           "name": "CalCom Booking Cancelled",
-          "description": "Trigger workflow when a booking is cancelled in Cal.com"
+          "description": "Trigger workflow when a booking is cancelled in Cal.com",
+          "polling": false
         },
         {
           "id": "calcom_booking_rescheduled",
           "name": "CalCom Booking Rescheduled",
-          "description": "Trigger workflow when a booking is rescheduled in Cal.com"
+          "description": "Trigger workflow when a booking is rescheduled in Cal.com",
+          "polling": false
         },
         {
           "id": "calcom_booking_requested",
           "name": "CalCom Booking Requested",
-          "description": "Trigger workflow when a booking request is submitted (pending confirmation)"
+          "description": "Trigger workflow when a booking request is submitted (pending confirmation)",
+          "polling": false
         },
         {
           "id": "calcom_booking_rejected",
           "name": "CalCom Booking Rejected",
-          "description": "Trigger workflow when a booking request is rejected by the host"
+          "description": "Trigger workflow when a booking request is rejected by the host",
+          "polling": false
         },
         {
           "id": "calcom_booking_paid",
           "name": "CalCom Booking Paid",
-          "description": "Trigger workflow when payment is completed for a paid booking"
+          "description": "Trigger workflow when payment is completed for a paid booking",
+          "polling": false
         },
         {
           "id": "calcom_meeting_ended",
           "name": "CalCom Meeting Ended",
-          "description": "Trigger workflow when a Cal.com meeting ends"
+          "description": "Trigger workflow when a Cal.com meeting ends",
+          "polling": false
         },
         {
           "id": "calcom_recording_ready",
           "name": "CalCom Recording Ready",
-          "description": "Trigger workflow when a meeting recording is ready for download"
+          "description": "Trigger workflow when a meeting recording is ready for download",
+          "polling": false
         },
         {
           "id": "calcom_webhook",
           "name": "CalCom Webhook (All Events)",
-          "description": "Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)"
+          "description": "Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)",
+          "polling": false
         }
       ],
       "triggerCount": 9,
@@ -2744,22 +2830,26 @@
         {
           "id": "calendly_invitee_created",
           "name": "Calendly Invitee Created",
-          "description": "Trigger workflow when someone schedules a new event on Calendly"
+          "description": "Trigger workflow when someone schedules a new event on Calendly",
+          "polling": false
         },
         {
           "id": "calendly_invitee_canceled",
           "name": "Calendly Invitee Canceled",
-          "description": "Trigger workflow when someone cancels a scheduled event on Calendly"
+          "description": "Trigger workflow when someone cancels a scheduled event on Calendly",
+          "polling": false
         },
         {
           "id": "calendly_routing_form_submitted",
           "name": "Calendly Routing Form Submitted",
-          "description": "Trigger workflow when someone submits a Calendly routing form"
+          "description": "Trigger workflow when someone submits a Calendly routing form",
+          "polling": false
         },
         {
           "id": "calendly_webhook",
           "name": "Calendly Webhook",
-          "description": "Trigger workflow from any Calendly webhook event"
+          "description": "Trigger workflow from any Calendly webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 4,
@@ -2938,72 +3028,86 @@
         {
           "id": "clerk_user_created",
           "name": "Clerk User Created",
-          "description": "Trigger workflow when a Clerk user is created"
+          "description": "Trigger workflow when a Clerk user is created",
+          "polling": false
         },
         {
           "id": "clerk_user_updated",
           "name": "Clerk User Updated",
-          "description": "Trigger workflow when a Clerk user is updated"
+          "description": "Trigger workflow when a Clerk user is updated",
+          "polling": false
         },
         {
           "id": "clerk_user_deleted",
           "name": "Clerk User Deleted",
-          "description": "Trigger workflow when a Clerk user is deleted"
+          "description": "Trigger workflow when a Clerk user is deleted",
+          "polling": false
         },
         {
           "id": "clerk_session_created",
           "name": "Clerk Session Created",
-          "description": "Trigger workflow when a Clerk session is created"
+          "description": "Trigger workflow when a Clerk session is created",
+          "polling": false
         },
         {
           "id": "clerk_session_ended",
           "name": "Clerk Session Ended",
-          "description": "Trigger workflow when a Clerk session ends"
+          "description": "Trigger workflow when a Clerk session ends",
+          "polling": false
         },
         {
           "id": "clerk_session_removed",
           "name": "Clerk Session Removed",
-          "description": "Trigger workflow when a Clerk session is removed"
+          "description": "Trigger workflow when a Clerk session is removed",
+          "polling": false
         },
         {
           "id": "clerk_session_revoked",
           "name": "Clerk Session Revoked",
-          "description": "Trigger workflow when a Clerk session is revoked"
+          "description": "Trigger workflow when a Clerk session is revoked",
+          "polling": false
         },
         {
           "id": "clerk_organization_created",
           "name": "Clerk Organization Created",
-          "description": "Trigger workflow when a Clerk organization is created"
+          "description": "Trigger workflow when a Clerk organization is created",
+          "polling": false
         },
         {
           "id": "clerk_organization_updated",
           "name": "Clerk Organization Updated",
-          "description": "Trigger workflow when a Clerk organization is updated"
+          "description": "Trigger workflow when a Clerk organization is updated",
+          "polling": false
         },
         {
           "id": "clerk_organization_deleted",
           "name": "Clerk Organization Deleted",
-          "description": "Trigger workflow when a Clerk organization is deleted"
+          "description": "Trigger workflow when a Clerk organization is deleted",
+          "polling": false
         },
         {
           "id": "clerk_organization_membership_created",
           "name": "Clerk Organization Membership Created",
-          "description": "Trigger workflow when a Clerk organization membership is created"
+          "description": "Trigger workflow when a Clerk organization membership is created",
+          "polling": false
         },
         {
           "id": "clerk_organization_membership_updated",
           "name": "Clerk Organization Membership Updated",
-          "description": "Trigger workflow when a Clerk organization membership is updated"
+          "description": "Trigger workflow when a Clerk organization membership is updated",
+          "polling": false
         },
         {
           "id": "clerk_organization_membership_deleted",
           "name": "Clerk Organization Membership Deleted",
-          "description": "Trigger workflow when a Clerk organization membership is deleted"
+          "description": "Trigger workflow when a Clerk organization membership is deleted",
+          "polling": false
         },
         {
           "id": "clerk_webhook",
           "name": "Clerk Webhook",
-          "description": "Trigger workflow on any Clerk webhook event"
+          "description": "Trigger workflow on any Clerk webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 14,
@@ -3211,7 +3315,7 @@
       "slug": "cloudformation",
       "name": "CloudFormation",
       "description": "Manage and inspect AWS CloudFormation stacks, resources, and drift",
-      "longDescription": "Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.",
+      "longDescription": "Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
       "iconName": "CloudFormationIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudformation",
@@ -3219,6 +3323,34 @@
         {
           "name": "Describe Stacks",
           "description": "List and describe CloudFormation stacks"
+        },
+        {
+          "name": "Create Stack",
+          "description": "Create a new CloudFormation stack from a template"
+        },
+        {
+          "name": "Update Stack",
+          "description": "Update an existing CloudFormation stack with a new or previous template"
+        },
+        {
+          "name": "Delete Stack",
+          "description": "Delete a CloudFormation stack and its resources"
+        },
+        {
+          "name": "Cancel Update Stack",
+          "description": "Cancel an in-progress stack update and roll back to the last known stable state"
+        },
+        {
+          "name": "Create Change Set",
+          "description": "Preview the changes a stack create or update would make before applying them"
+        },
+        {
+          "name": "Describe Change Set",
+          "description": "View the resource changes a change set would make and its execution status"
+        },
+        {
+          "name": "Execute Change Set",
+          "description": "Apply a previously created and reviewed change set to its stack"
         },
         {
           "name": "List Stack Resources",
@@ -3241,11 +3373,15 @@
           "description": "Retrieve the template body for a CloudFormation stack"
         },
         {
+          "name": "Get Template Summary",
+          "description": "Get a summary of a template or deployed stack: resource types, required capabilities, and parameters, without full validation"
+        },
+        {
           "name": "Validate Template",
           "description": "Validate a CloudFormation template for syntax and structural correctness"
         }
       ],
-      "operationCount": 7,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -3268,6 +3404,10 @@
           "description": "Run a CloudWatch Log Insights query against one or more log groups"
         },
         {
+          "name": "Filter Log Events",
+          "description": "Search log events across all streams in a log group by filter pattern and time range, without writing a Log Insights query"
+        },
+        {
           "name": "Describe Log Groups",
           "description": "List available CloudWatch log groups"
         },
@@ -3278,6 +3418,10 @@
         {
           "name": "Describe Log Streams",
           "description": "List log streams within a CloudWatch log group"
+        },
+        {
+          "name": "Set Log Group Retention",
+          "description": "Set (or clear, for never-expire) the retention period for a CloudWatch log group"
         },
         {
           "name": "List Metrics",
@@ -3296,6 +3440,10 @@
           "description": "List and filter CloudWatch alarms"
         },
         {
+          "name": "Describe Alarm History",
+          "description": "Retrieve state-change and configuration history for CloudWatch alarms"
+        },
+        {
           "name": "Mute Alarm",
           "description": "Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration"
         },
@@ -3304,7 +3452,7 @@
           "description": "Delete a CloudWatch alarm mute rule, restoring alarm notifications"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -3331,12 +3479,20 @@
           "description": "Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens"
         },
         {
+          "name": "Get Pipeline Structure",
+          "description": "Get the structure of a CodePipeline pipeline, including its stages, actions, and variables"
+        },
+        {
           "name": "List Pipelines",
           "description": "List all CodePipeline pipelines in an AWS account and region"
         },
         {
           "name": "List Executions",
           "description": "List recent executions of a CodePipeline pipeline with status and source revisions"
+        },
+        {
+          "name": "List Action Executions",
+          "description": "List action-level execution history for a CodePipeline pipeline, including per-action status, timing, and error details"
         },
         {
           "name": "Get Execution",
@@ -3353,9 +3509,17 @@
         {
           "name": "Approve / Reject Approval",
           "description": "Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action"
+        },
+        {
+          "name": "Disable Stage Transition",
+          "description": "Prevent artifacts from transitioning into or out of a CodePipeline stage, freezing the pipeline at that point"
+        },
+        {
+          "name": "Enable Stage Transition",
+          "description": "Re-enable artifacts transitioning into or out of a CodePipeline stage after it was disabled"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -3563,117 +3727,140 @@
         {
           "id": "confluence_page_created",
           "name": "Confluence Page Created",
-          "description": "Trigger workflow when a new page is created in Confluence"
+          "description": "Trigger workflow when a new page is created in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_page_updated",
           "name": "Confluence Page Updated",
-          "description": "Trigger workflow when a page is updated in Confluence"
+          "description": "Trigger workflow when a page is updated in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_page_removed",
           "name": "Confluence Page Removed",
-          "description": "Trigger workflow when a page is removed or trashed in Confluence"
+          "description": "Trigger workflow when a page is removed or trashed in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_page_moved",
           "name": "Confluence Page Moved",
-          "description": "Trigger workflow when a page is moved in Confluence"
+          "description": "Trigger workflow when a page is moved in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_page_restored",
           "name": "Confluence Page Restored",
-          "description": "Trigger workflow when a page is restored from trash in Confluence"
+          "description": "Trigger workflow when a page is restored from trash in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_page_permissions_updated",
           "name": "Confluence Page Permissions Updated",
-          "description": "Trigger workflow when page permissions are changed in Confluence"
+          "description": "Trigger workflow when page permissions are changed in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_comment_created",
           "name": "Confluence Comment Created",
-          "description": "Trigger workflow when a comment is created in Confluence"
+          "description": "Trigger workflow when a comment is created in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_comment_removed",
           "name": "Confluence Comment Removed",
-          "description": "Trigger workflow when a comment is removed in Confluence"
+          "description": "Trigger workflow when a comment is removed in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_comment_updated",
           "name": "Confluence Comment Updated",
-          "description": "Trigger workflow when a comment is updated in Confluence"
+          "description": "Trigger workflow when a comment is updated in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_blog_created",
           "name": "Confluence Blog Post Created",
-          "description": "Trigger workflow when a blog post is created in Confluence"
+          "description": "Trigger workflow when a blog post is created in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_blog_updated",
           "name": "Confluence Blog Post Updated",
-          "description": "Trigger workflow when a blog post is updated in Confluence"
+          "description": "Trigger workflow when a blog post is updated in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_blog_removed",
           "name": "Confluence Blog Post Removed",
-          "description": "Trigger workflow when a blog post is removed in Confluence"
+          "description": "Trigger workflow when a blog post is removed in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_blog_restored",
           "name": "Confluence Blog Post Restored",
-          "description": "Trigger workflow when a blog post is restored from trash in Confluence"
+          "description": "Trigger workflow when a blog post is restored from trash in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_attachment_created",
           "name": "Confluence Attachment Created",
-          "description": "Trigger workflow when an attachment is uploaded in Confluence"
+          "description": "Trigger workflow when an attachment is uploaded in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_attachment_removed",
           "name": "Confluence Attachment Removed",
-          "description": "Trigger workflow when an attachment is removed in Confluence"
+          "description": "Trigger workflow when an attachment is removed in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_attachment_updated",
           "name": "Confluence Attachment Updated",
-          "description": "Trigger workflow when an attachment is updated in Confluence"
+          "description": "Trigger workflow when an attachment is updated in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_space_created",
           "name": "Confluence Space Created",
-          "description": "Trigger workflow when a new space is created in Confluence"
+          "description": "Trigger workflow when a new space is created in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_space_updated",
           "name": "Confluence Space Updated",
-          "description": "Trigger workflow when a space is updated in Confluence"
+          "description": "Trigger workflow when a space is updated in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_space_removed",
           "name": "Confluence Space Removed",
-          "description": "Trigger workflow when a space is removed in Confluence"
+          "description": "Trigger workflow when a space is removed in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_label_added",
           "name": "Confluence Label Added",
-          "description": "Trigger workflow when a label is added to content in Confluence"
+          "description": "Trigger workflow when a label is added to content in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_label_removed",
           "name": "Confluence Label Removed",
-          "description": "Trigger workflow when a label is removed from content in Confluence"
+          "description": "Trigger workflow when a label is removed from content in Confluence",
+          "polling": false
         },
         {
           "id": "confluence_user_created",
           "name": "Confluence User Created",
-          "description": "Trigger workflow when a new user is added to Confluence"
+          "description": "Trigger workflow when a new user is added to Confluence",
+          "polling": false
         },
         {
           "id": "confluence_webhook",
           "name": "Confluence Webhook (All Events)",
-          "description": "Trigger workflow on any Confluence webhook event"
+          "description": "Trigger workflow on any Confluence webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 23,
@@ -4368,6 +4555,10 @@
           "description": "Delete a message from a Discord channel"
         },
         {
+          "name": "Bulk Delete Messages",
+          "description": "Delete 2-100 messages from a Discord channel in a single request"
+        },
+        {
           "name": "Add Reaction",
           "description": "Add a reaction emoji to a Discord message"
         },
@@ -4382,6 +4573,10 @@
         {
           "name": "Unpin Message",
           "description": "Unpin a message in a Discord channel"
+        },
+        {
+          "name": "Get Pinned Messages",
+          "description": "Retrieve all pinned messages in a Discord channel"
         },
         {
           "name": "Create Thread",
@@ -4416,6 +4611,10 @@
           "description": "Get information about a Discord channel"
         },
         {
+          "name": "List Channels",
+          "description": "List all channels in a Discord server"
+        },
+        {
           "name": "Create Role",
           "description": "Create a new role in a Discord server"
         },
@@ -4434,6 +4633,10 @@
         {
           "name": "Remove Role",
           "description": "Remove a role from a member in a Discord server"
+        },
+        {
+          "name": "List Roles",
+          "description": "List all roles in a Discord server"
         },
         {
           "name": "Kick Member",
@@ -4484,7 +4687,7 @@
           "description": "Delete a Discord webhook"
         }
       ],
-      "operationCount": 35,
+      "operationCount": 39,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4670,11 +4873,23 @@
           "description": "Create a shareable link for a file or folder in Dropbox"
         },
         {
+          "name": "List Shared Links",
+          "description": "List shared links for a path, or for the entire account if no path is given"
+        },
+        {
           "name": "Search Files",
           "description": "Search for files and folders in Dropbox"
+        },
+        {
+          "name": "List Revisions",
+          "description": "List the revision history for a file in Dropbox (files only, not folders)"
+        },
+        {
+          "name": "Restore File",
+          "description": "Restore a specific revision of a file to the given path"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -4798,9 +5013,25 @@
         {
           "name": "Get QR Code",
           "description": "Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin."
+        },
+        {
+          "name": "List Domains",
+          "description": "Retrieve the custom domains registered in the workspace, so links can be created against the right domain."
+        },
+        {
+          "name": "List Tags",
+          "description": "Retrieve the tags defined in the workspace, so the right tag IDs can be assigned to links."
+        },
+        {
+          "name": "Create Tag",
+          "description": "Create a new tag in the workspace for organizing and filtering short links."
+        },
+        {
+          "name": "List Folders",
+          "description": "Retrieve the folders defined in the workspace, so the right folder ID can be used to organize links."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 17,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5379,12 +5610,14 @@
         {
           "id": "fathom_new_meeting",
           "name": "Fathom New Meeting Content",
-          "description": "Trigger workflow when new meeting content is ready in Fathom"
+          "description": "Trigger workflow when new meeting content is ready in Fathom",
+          "polling": false
         },
         {
           "id": "fathom_webhook",
           "name": "Fathom Webhook",
-          "description": "Generic webhook trigger for all Fathom events"
+          "description": "Generic webhook trigger for all Fathom events",
+          "polling": false
         }
       ],
       "triggerCount": 2,
@@ -5583,7 +5816,8 @@
         {
           "id": "fireflies_transcription_complete",
           "name": "Fireflies Transcription Complete",
-          "description": "Trigger workflow when a Fireflies meeting transcription is complete"
+          "description": "Trigger workflow when a Fireflies meeting transcription is complete",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -5706,6 +5940,10 @@
           "description": "Request reviewers for a pull request"
         },
         {
+          "name": "Create PR review",
+          "description": "Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A body is required for REQUEST_CHANGES and COMMENT reviews."
+        },
+        {
           "name": "Get file content",
           "description": "Get the content of a file from a GitHub repository. Supports files up to 1MB. Content is returned decoded and human-readable."
         },
@@ -5724,6 +5962,14 @@
         {
           "name": "Get directory tree",
           "description": "Get the contents of a directory in a GitHub repository. Returns a list of files and subdirectories. Use empty path or omit to get root directory contents."
+        },
+        {
+          "name": "Get README",
+          "description": "Get the preferred README for a GitHub repository, with its content decoded to plain text."
+        },
+        {
+          "name": "List tags",
+          "description": "List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs."
         },
         {
           "name": "List branches",
@@ -5796,6 +6042,10 @@
         {
           "name": "Get release",
           "description": "Get detailed information about a specific GitHub release by ID. Returns release metadata including assets and download URLs."
+        },
+        {
+          "name": "Get latest release",
+          "description": "Get the latest published, non-draft, non-prerelease release for a GitHub repository. Returns release metadata including assets and download URLs."
         },
         {
           "name": "Delete release",
@@ -5974,62 +6224,73 @@
           "description": "List users who have starred a repository"
         }
       ],
-      "operationCount": 83,
+      "operationCount": 87,
       "triggers": [
         {
           "id": "github_issue_opened",
           "name": "GitHub Issue Opened",
-          "description": "Trigger workflow when a new issue is opened in a GitHub repository"
+          "description": "Trigger workflow when a new issue is opened in a GitHub repository",
+          "polling": false
         },
         {
           "id": "github_issue_closed",
           "name": "GitHub Issue Closed",
-          "description": "Trigger workflow when an issue is closed in a GitHub repository"
+          "description": "Trigger workflow when an issue is closed in a GitHub repository",
+          "polling": false
         },
         {
           "id": "github_issue_comment",
           "name": "GitHub Issue Comment",
-          "description": "Trigger workflow when a comment is added to an issue (not pull requests)"
+          "description": "Trigger workflow when a comment is added to an issue (not pull requests)",
+          "polling": false
         },
         {
           "id": "github_pr_opened",
           "name": "GitHub PR Opened",
-          "description": "Trigger workflow when a new pull request is opened in a GitHub repository"
+          "description": "Trigger workflow when a new pull request is opened in a GitHub repository",
+          "polling": false
         },
         {
           "id": "github_pr_closed",
           "name": "GitHub PR Closed",
-          "description": "Trigger workflow when a pull request is closed without being merged (e.g., abandoned) in a GitHub repository"
+          "description": "Trigger workflow when a pull request is closed without being merged (e.g., abandoned) in a GitHub repository",
+          "polling": false
         },
         {
           "id": "github_pr_merged",
           "name": "GitHub PR Merged",
-          "description": "Trigger workflow when a pull request is successfully merged in a GitHub repository"
+          "description": "Trigger workflow when a pull request is successfully merged in a GitHub repository",
+          "polling": false
         },
         {
           "id": "github_pr_comment",
           "name": "GitHub PR Comment",
-          "description": "Trigger workflow when a comment is added to a pull request in a GitHub repository"
+          "description": "Trigger workflow when a comment is added to a pull request in a GitHub repository",
+          "polling": false
         },
         {
           "id": "github_pr_reviewed",
           "name": "GitHub PR Reviewed",
-          "description": "Trigger workflow when a pull request review is submitted, edited, or dismissed in a GitHub repository"
+          "description": "Trigger workflow when a pull request review is submitted, edited, or dismissed in a GitHub repository",
+          "polling": false
         },
         {
           "id": "github_push",
           "name": "GitHub Push",
-          "description": "Trigger workflow when code is pushed to a repository"
+          "description": "Trigger workflow when code is pushed to a repository",
+          "polling": false
         },
         {
           "id": "github_release_published",
           "name": "GitHub Release Published",
-          "description": "Trigger workflow when a new release is published in a GitHub repository"
+          "description": "Trigger workflow when a new release is published in a GitHub repository",
+          "polling": false
         },
         {
           "id": "github_workflow_run",
           "name": "GitHub Actions Workflow Run",
-          "description": "Trigger workflow when a GitHub Actions workflow run is requested, in progress, or completed"
+          "description": "Trigger workflow when a GitHub Actions workflow run is requested, in progress, or completed",
+          "polling": false
         }
       ],
       "triggerCount": 11,
@@ -6153,6 +6414,14 @@
           "description": "Create a new branch in a GitLab project repository"
         },
         {
+          "name": "Delete Branch",
+          "description": "Delete a branch from a GitLab project repository"
+        },
+        {
+          "name": "Compare Branches",
+          "description": "Compare two branches, tags, or commits in a GitLab project repository"
+        },
+        {
           "name": "Get MR Changes",
           "description": "Get the file changes (diffs) of a GitLab merge request"
         },
@@ -6171,39 +6440,53 @@
         {
           "name": "Play Job",
           "description": "Trigger (play) a manual GitLab job"
+        },
+        {
+          "name": "List Releases",
+          "description": "List releases in a GitLab project"
+        },
+        {
+          "name": "Create Release",
+          "description": "Create a new release in a GitLab project"
         }
       ],
-      "operationCount": 31,
+      "operationCount": 35,
       "triggers": [
         {
           "id": "gitlab_push",
           "name": "GitLab Push",
-          "description": "Trigger workflow when commits are pushed to a GitLab project"
+          "description": "Trigger workflow when commits are pushed to a GitLab project",
+          "polling": false
         },
         {
           "id": "gitlab_merge_request",
           "name": "GitLab Merge Request",
-          "description": "Trigger workflow when a merge request is opened, updated, or merged in GitLab"
+          "description": "Trigger workflow when a merge request is opened, updated, or merged in GitLab",
+          "polling": false
         },
         {
           "id": "gitlab_issue",
           "name": "GitLab Issue",
-          "description": "Trigger workflow when an issue is opened, updated, or closed in GitLab"
+          "description": "Trigger workflow when an issue is opened, updated, or closed in GitLab",
+          "polling": false
         },
         {
           "id": "gitlab_pipeline",
           "name": "GitLab Pipeline",
-          "description": "Trigger workflow when a pipeline status changes in GitLab"
+          "description": "Trigger workflow when a pipeline status changes in GitLab",
+          "polling": false
         },
         {
           "id": "gitlab_comment",
           "name": "GitLab Comment",
-          "description": "Trigger workflow when a comment is added on a commit, merge request, or issue"
+          "description": "Trigger workflow when a comment is added on a commit, merge request, or issue",
+          "polling": false
         },
         {
           "id": "gitlab_webhook",
           "name": "GitLab Event",
-          "description": "Trigger workflow from any GitLab webhook event"
+          "description": "Trigger workflow from any GitLab webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 6,
@@ -6280,7 +6563,8 @@
         {
           "id": "gmail_poller",
           "name": "Gmail Email Trigger",
-          "description": "Triggers when new emails are received in Gmail (requires Gmail credentials)"
+          "description": "Triggers when new emails are received in Gmail (requires Gmail credentials)",
+          "polling": true
         }
       ],
       "triggerCount": 1,
@@ -6406,12 +6690,14 @@
         {
           "id": "gong_webhook",
           "name": "Gong Webhook",
-          "description": "Generic webhook trigger for all Gong events"
+          "description": "Generic webhook trigger for all Gong events",
+          "polling": false
         },
         {
           "id": "gong_call_completed",
           "name": "Gong Call Completed",
-          "description": "Trigger workflow when a call is completed and processed in Gong"
+          "description": "Trigger workflow when a call is completed and processed in Gong",
+          "polling": false
         }
       ],
       "triggerCount": 2,
@@ -6514,8 +6800,20 @@
           "description": "Run a SQL query against Google BigQuery and return the results"
         },
         {
+          "name": "Get Query Results",
+          "description": "Fetch results for a previously submitted BigQuery job, or the next page of a Run Query result"
+        },
+        {
           "name": "List Datasets",
           "description": "List all datasets in a Google BigQuery project"
+        },
+        {
+          "name": "Create Dataset",
+          "description": "Create a new dataset in a Google BigQuery project"
+        },
+        {
+          "name": "Delete Dataset",
+          "description": "Delete a dataset from a Google BigQuery project"
         },
         {
           "name": "List Tables",
@@ -6526,11 +6824,23 @@
           "description": "Get metadata and schema for a Google BigQuery table"
         },
         {
+          "name": "Create Table",
+          "description": "Create a new table in a Google BigQuery dataset"
+        },
+        {
+          "name": "Delete Table",
+          "description": "Delete a table from a Google BigQuery dataset"
+        },
+        {
+          "name": "List Table Data",
+          "description": "Preview rows from a Google BigQuery table without running a query. Pair with Get Table to know the column order."
+        },
+        {
           "name": "Insert Rows",
           "description": "Insert rows into a Google BigQuery table using streaming insert"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -6625,8 +6935,20 @@
           "description": "Create a new secondary calendar"
         },
         {
+          "name": "Update Calendar",
+          "description": "Update a secondary calendar's metadata (title, description, location, time zone)"
+        },
+        {
+          "name": "Delete Calendar",
+          "description": "Permanently delete a secondary calendar (not the primary calendar)"
+        },
+        {
           "name": "Share Calendar",
           "description": "Grant a user, group, or domain access to a calendar by creating an ACL rule"
+        },
+        {
+          "name": "Update Sharing",
+          "description": "Change the access role granted by an existing calendar sharing (ACL) rule"
         },
         {
           "name": "List Sharing",
@@ -6637,12 +6959,13 @@
           "description": "Revoke an access control rule (sharing) from a calendar"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "google_calendar_poller",
           "name": "Google Calendar Event Trigger",
-          "description": "Triggers when events are created, updated, or cancelled in Google Calendar"
+          "description": "Triggers when events are created, updated, or cancelled in Google Calendar",
+          "polling": true
         }
       ],
       "triggerCount": 1,
@@ -6888,7 +7211,8 @@
         {
           "id": "google_drive_poller",
           "name": "Google Drive File Trigger",
-          "description": "Triggers when files are created, modified, or deleted in Google Drive"
+          "description": "Triggers when files are created, modified, or deleted in Google Drive",
+          "polling": true
         }
       ],
       "triggerCount": 1,
@@ -6950,7 +7274,8 @@
         {
           "id": "google_forms_webhook",
           "name": "Google Forms Webhook",
-          "description": "Trigger workflow from Google Form submissions (via Apps Script forwarder)"
+          "description": "Trigger workflow from Google Form submissions (via Apps Script forwarder)",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -7075,6 +7400,10 @@
           "description": "Search for places using a text query"
         },
         {
+          "name": "Nearby Places",
+          "description": "Search for places of a given type within a radius of a location"
+        },
+        {
           "name": "Place Details",
           "description": "Get detailed information about a specific place"
         },
@@ -7115,7 +7444,7 @@
           "description": "Get solar potential and panel insights for the building nearest a location"
         }
       ],
-      "operationCount": 15,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -7275,7 +7604,8 @@
         {
           "id": "google_sheets_poller",
           "name": "Google Sheets New Row Trigger",
-          "description": "Triggers when new rows are added to a Google Sheet"
+          "description": "Triggers when new rows are added to a Google Sheet",
+          "polling": true
         }
       ],
       "triggerCount": 1,
@@ -7803,42 +8133,50 @@
         {
           "id": "grain_item_added",
           "name": "Grain Item Added",
-          "description": "Trigger when a new item is added to a Grain view (recording, highlight, or story)"
+          "description": "Trigger when a new item is added to a Grain view (recording, highlight, or story)",
+          "polling": false
         },
         {
           "id": "grain_item_updated",
           "name": "Grain Item Updated",
-          "description": "Trigger when an item is updated in a Grain view (recording, highlight, or story)"
+          "description": "Trigger when an item is updated in a Grain view (recording, highlight, or story)",
+          "polling": false
         },
         {
           "id": "grain_webhook",
           "name": "Grain All Events",
-          "description": "Trigger on all actions (added, updated, removed) in a Grain view"
+          "description": "Trigger on all actions (added, updated, removed) in a Grain view",
+          "polling": false
         },
         {
           "id": "grain_recording_created",
           "name": "Grain Recording Created",
-          "description": "Trigger workflow when a new recording is added in Grain"
+          "description": "Trigger workflow when a new recording is added in Grain",
+          "polling": false
         },
         {
           "id": "grain_recording_updated",
           "name": "Grain Recording Updated",
-          "description": "Trigger workflow when a recording is updated in Grain"
+          "description": "Trigger workflow when a recording is updated in Grain",
+          "polling": false
         },
         {
           "id": "grain_highlight_created",
           "name": "Grain Highlight Created",
-          "description": "Trigger workflow when a new highlight/clip is created in Grain"
+          "description": "Trigger workflow when a new highlight/clip is created in Grain",
+          "polling": false
         },
         {
           "id": "grain_highlight_updated",
           "name": "Grain Highlight Updated",
-          "description": "Trigger workflow when a highlight/clip is updated in Grain"
+          "description": "Trigger workflow when a highlight/clip is updated in Grain",
+          "polling": false
         },
         {
           "id": "grain_story_created",
           "name": "Grain Story Created",
-          "description": "Trigger workflow when a new story is created in Grain"
+          "description": "Trigger workflow when a new story is created in Grain",
+          "polling": false
         }
       ],
       "triggerCount": 8,
@@ -7938,42 +8276,50 @@
         {
           "id": "greenhouse_candidate_hired",
           "name": "Greenhouse Candidate Hired",
-          "description": "Trigger workflow when a candidate is hired"
+          "description": "Trigger workflow when a candidate is hired",
+          "polling": false
         },
         {
           "id": "greenhouse_new_application",
           "name": "Greenhouse New Application",
-          "description": "Trigger workflow when a new application is submitted"
+          "description": "Trigger workflow when a new application is submitted",
+          "polling": false
         },
         {
           "id": "greenhouse_candidate_stage_change",
           "name": "Greenhouse Candidate Stage Change",
-          "description": "Trigger workflow when a candidate changes interview stages"
+          "description": "Trigger workflow when a candidate changes interview stages",
+          "polling": false
         },
         {
           "id": "greenhouse_candidate_rejected",
           "name": "Greenhouse Candidate Rejected",
-          "description": "Trigger workflow when a candidate is rejected"
+          "description": "Trigger workflow when a candidate is rejected",
+          "polling": false
         },
         {
           "id": "greenhouse_offer_created",
           "name": "Greenhouse Offer Created",
-          "description": "Trigger workflow when a new offer is created"
+          "description": "Trigger workflow when a new offer is created",
+          "polling": false
         },
         {
           "id": "greenhouse_job_created",
           "name": "Greenhouse Job Created",
-          "description": "Trigger workflow when a new job is created"
+          "description": "Trigger workflow when a new job is created",
+          "polling": false
         },
         {
           "id": "greenhouse_job_updated",
           "name": "Greenhouse Job Updated",
-          "description": "Trigger workflow when a job is updated"
+          "description": "Trigger workflow when a job is updated",
+          "polling": false
         },
         {
           "id": "greenhouse_webhook",
           "name": "Greenhouse Webhook (Endpoint Events)",
-          "description": "Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger."
+          "description": "Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger.",
+          "polling": false
         }
       ],
       "triggerCount": 8,
@@ -8288,7 +8634,8 @@
         {
           "id": "hubspot_poller",
           "name": "HubSpot CRM Trigger",
-          "description": "Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom objects) are created or updated, or when contacts join a list"
+          "description": "Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom objects) are created or updated, or when contacts join a list",
+          "polling": true
         }
       ],
       "triggerCount": 1,
@@ -8586,22 +8933,26 @@
         {
           "id": "incidentio_incident_created",
           "name": "incident.io Incident Created",
-          "description": "Trigger workflow when an incident is created in incident.io"
+          "description": "Trigger workflow when an incident is created in incident.io",
+          "polling": false
         },
         {
           "id": "incidentio_incident_updated",
           "name": "incident.io Incident Updated",
-          "description": "Trigger workflow when an incident is updated in incident.io"
+          "description": "Trigger workflow when an incident is updated in incident.io",
+          "polling": false
         },
         {
           "id": "incidentio_incident_status_updated",
           "name": "incident.io Incident Status Updated",
-          "description": "Trigger workflow when an incident"
+          "description": "Trigger workflow when an incident",
+          "polling": false
         },
         {
           "id": "incidentio_alert_created",
           "name": "incident.io Alert Created",
-          "description": "Trigger workflow when an alert is created in incident.io"
+          "description": "Trigger workflow when an alert is created in incident.io",
+          "polling": false
         }
       ],
       "triggerCount": 4,
@@ -8654,7 +9005,7 @@
       "slug": "instantly",
       "name": "Instantly",
       "description": "Manage Instantly leads, campaigns, emails, and lead lists",
-      "longDescription": "Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.",
+      "longDescription": "Integrate Instantly API V2 into workflows. Create, update, and list leads, manage lead interest status, delete leads in bulk, list, create, patch, activate, pause, and delete campaigns, reply to emails, and manage lead lists.",
       "bgColor": "#FFFFFF",
       "iconName": "InstantlyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/instantly",
@@ -8670,6 +9021,10 @@
         {
           "name": "Create Lead",
           "description": "Creates an Instantly V2 lead in a campaign or lead list."
+        },
+        {
+          "name": "Patch Lead",
+          "description": "Updates fields on an existing Instantly V2 lead."
         },
         {
           "name": "Delete Leads",
@@ -8696,6 +9051,14 @@
           "description": "Activates, starts, or resumes an Instantly V2 campaign."
         },
         {
+          "name": "Pause Campaign",
+          "description": "Pauses a running Instantly V2 campaign, stopping further email sends."
+        },
+        {
+          "name": "Delete Campaign",
+          "description": "Permanently deletes an Instantly V2 campaign."
+        },
+        {
           "name": "List Emails",
           "description": "Retrieves Instantly V2 Unibox emails with search and pagination filters."
         },
@@ -8712,107 +9075,127 @@
           "description": "Creates an Instantly V2 lead list."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 16,
       "triggers": [
         {
           "id": "instantly_webhook",
           "name": "Instantly Webhook",
-          "description": "Trigger workflow on any Instantly webhook event"
+          "description": "Trigger workflow on any Instantly webhook event",
+          "polling": false
         },
         {
           "id": "instantly_email_sent",
           "name": "Instantly Email Sent",
-          "description": "Trigger when Instantly sends an email"
+          "description": "Trigger when Instantly sends an email",
+          "polling": false
         },
         {
           "id": "instantly_email_opened",
           "name": "Instantly Email Opened",
-          "description": "Trigger when a lead opens an Instantly email"
+          "description": "Trigger when a lead opens an Instantly email",
+          "polling": false
         },
         {
           "id": "instantly_reply_received",
           "name": "Instantly Reply Received",
-          "description": "Trigger when a lead replies to an Instantly email"
+          "description": "Trigger when a lead replies to an Instantly email",
+          "polling": false
         },
         {
           "id": "instantly_auto_reply_received",
           "name": "Instantly Auto Reply Received",
-          "description": "Trigger when Instantly receives an auto-reply from a lead"
+          "description": "Trigger when Instantly receives an auto-reply from a lead",
+          "polling": false
         },
         {
           "id": "instantly_link_clicked",
           "name": "Instantly Link Clicked",
-          "description": "Trigger when a lead clicks a tracked Instantly link"
+          "description": "Trigger when a lead clicks a tracked Instantly link",
+          "polling": false
         },
         {
           "id": "instantly_email_bounced",
           "name": "Instantly Email Bounced",
-          "description": "Trigger when an Instantly email bounces"
+          "description": "Trigger when an Instantly email bounces",
+          "polling": false
         },
         {
           "id": "instantly_lead_unsubscribed",
           "name": "Instantly Lead Unsubscribed",
-          "description": "Trigger when an Instantly lead unsubscribes"
+          "description": "Trigger when an Instantly lead unsubscribes",
+          "polling": false
         },
         {
           "id": "instantly_account_error",
           "name": "Instantly Account Error",
-          "description": "Trigger when Instantly reports an account-level error"
+          "description": "Trigger when Instantly reports an account-level error",
+          "polling": false
         },
         {
           "id": "instantly_campaign_completed",
           "name": "Instantly Campaign Completed",
-          "description": "Trigger when an Instantly campaign completes"
+          "description": "Trigger when an Instantly campaign completes",
+          "polling": false
         },
         {
           "id": "instantly_lead_neutral",
           "name": "Instantly Lead Neutral",
-          "description": "Trigger when an Instantly lead is marked neutral"
+          "description": "Trigger when an Instantly lead is marked neutral",
+          "polling": false
         },
         {
           "id": "instantly_lead_interested",
           "name": "Instantly Lead Interested",
-          "description": "Trigger when an Instantly lead is marked interested"
+          "description": "Trigger when an Instantly lead is marked interested",
+          "polling": false
         },
         {
           "id": "instantly_lead_not_interested",
           "name": "Instantly Lead Not Interested",
-          "description": "Trigger when an Instantly lead is marked not interested"
+          "description": "Trigger when an Instantly lead is marked not interested",
+          "polling": false
         },
         {
           "id": "instantly_lead_meeting_booked",
           "name": "Instantly Lead Meeting Booked",
-          "description": "Trigger when an Instantly lead books a meeting"
+          "description": "Trigger when an Instantly lead books a meeting",
+          "polling": false
         },
         {
           "id": "instantly_lead_meeting_completed",
           "name": "Instantly Lead Meeting Completed",
-          "description": "Trigger when an Instantly lead completes a meeting"
+          "description": "Trigger when an Instantly lead completes a meeting",
+          "polling": false
         },
         {
           "id": "instantly_lead_closed",
           "name": "Instantly Lead Closed",
-          "description": "Trigger when an Instantly lead is marked closed"
+          "description": "Trigger when an Instantly lead is marked closed",
+          "polling": false
         },
         {
           "id": "instantly_lead_out_of_office",
           "name": "Instantly Lead Out Of Office",
-          "description": "Trigger when an Instantly lead is out of office"
+          "description": "Trigger when an Instantly lead is out of office",
+          "polling": false
         },
         {
           "id": "instantly_lead_wrong_person",
           "name": "Instantly Lead Wrong Person",
-          "description": "Trigger when an Instantly lead is marked wrong person"
+          "description": "Trigger when an Instantly lead is marked wrong person",
+          "polling": false
         },
         {
           "id": "instantly_lead_no_show",
           "name": "Instantly Lead No Show",
-          "description": "Trigger when an Instantly lead is marked no show"
+          "description": "Trigger when an Instantly lead is marked no show",
+          "polling": false
         },
         {
           "id": "instantly_supersearch_enrichment_completed",
           "name": "Instantly Supersearch Enrichment Completed",
-          "description": "Trigger when Instantly completes a Supersearch enrichment"
+          "description": "Trigger when Instantly completes a Supersearch enrichment",
+          "polling": false
         }
       ],
       "triggerCount": 20,
@@ -8961,32 +9344,38 @@
         {
           "id": "intercom_conversation_created",
           "name": "Intercom Conversation Created",
-          "description": "Trigger workflow when a new conversation is created in Intercom"
+          "description": "Trigger workflow when a new conversation is created in Intercom",
+          "polling": false
         },
         {
           "id": "intercom_conversation_reply",
           "name": "Intercom Conversation Reply",
-          "description": "Trigger workflow when someone replies to an Intercom conversation"
+          "description": "Trigger workflow when someone replies to an Intercom conversation",
+          "polling": false
         },
         {
           "id": "intercom_conversation_closed",
           "name": "Intercom Conversation Closed",
-          "description": "Trigger workflow when a conversation is closed in Intercom"
+          "description": "Trigger workflow when a conversation is closed in Intercom",
+          "polling": false
         },
         {
           "id": "intercom_contact_created",
           "name": "Intercom Contact Created",
-          "description": "Trigger workflow when a new lead is created in Intercom"
+          "description": "Trigger workflow when a new lead is created in Intercom",
+          "polling": false
         },
         {
           "id": "intercom_user_created",
           "name": "Intercom User Created",
-          "description": "Trigger workflow when a new user is created in Intercom"
+          "description": "Trigger workflow when a new user is created in Intercom",
+          "polling": false
         },
         {
           "id": "intercom_webhook",
           "name": "Intercom Webhook (All Events)",
-          "description": "Trigger workflow on any Intercom webhook event"
+          "description": "Trigger workflow on any Intercom webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 6,
@@ -9158,77 +9547,92 @@
         {
           "id": "jira_issue_created",
           "name": "Jira Issue Created",
-          "description": "Trigger workflow when a new issue is created in Jira"
+          "description": "Trigger workflow when a new issue is created in Jira",
+          "polling": false
         },
         {
           "id": "jira_issue_updated",
           "name": "Jira Issue Updated",
-          "description": "Trigger workflow when an issue is updated in Jira"
+          "description": "Trigger workflow when an issue is updated in Jira",
+          "polling": false
         },
         {
           "id": "jira_issue_deleted",
           "name": "Jira Issue Deleted",
-          "description": "Trigger workflow when an issue is deleted in Jira"
+          "description": "Trigger workflow when an issue is deleted in Jira",
+          "polling": false
         },
         {
           "id": "jira_issue_commented",
           "name": "Jira Issue Commented",
-          "description": "Trigger workflow when a comment is added to a Jira issue"
+          "description": "Trigger workflow when a comment is added to a Jira issue",
+          "polling": false
         },
         {
           "id": "jira_comment_updated",
           "name": "Jira Comment Updated",
-          "description": "Trigger workflow when a comment is updated on a Jira issue"
+          "description": "Trigger workflow when a comment is updated on a Jira issue",
+          "polling": false
         },
         {
           "id": "jira_comment_deleted",
           "name": "Jira Comment Deleted",
-          "description": "Trigger workflow when a comment is deleted from a Jira issue"
+          "description": "Trigger workflow when a comment is deleted from a Jira issue",
+          "polling": false
         },
         {
           "id": "jira_worklog_created",
           "name": "Jira Worklog Created",
-          "description": "Trigger workflow when time is logged on a Jira issue"
+          "description": "Trigger workflow when time is logged on a Jira issue",
+          "polling": false
         },
         {
           "id": "jira_worklog_updated",
           "name": "Jira Worklog Updated",
-          "description": "Trigger workflow when a worklog entry is updated on a Jira issue"
+          "description": "Trigger workflow when a worklog entry is updated on a Jira issue",
+          "polling": false
         },
         {
           "id": "jira_worklog_deleted",
           "name": "Jira Worklog Deleted",
-          "description": "Trigger workflow when a worklog entry is deleted from a Jira issue"
+          "description": "Trigger workflow when a worklog entry is deleted from a Jira issue",
+          "polling": false
         },
         {
           "id": "jira_sprint_created",
           "name": "Jira Sprint Created",
-          "description": "Trigger workflow when a sprint is created in Jira"
+          "description": "Trigger workflow when a sprint is created in Jira",
+          "polling": false
         },
         {
           "id": "jira_sprint_started",
           "name": "Jira Sprint Started",
-          "description": "Trigger workflow when a sprint is started in Jira"
+          "description": "Trigger workflow when a sprint is started in Jira",
+          "polling": false
         },
         {
           "id": "jira_sprint_closed",
           "name": "Jira Sprint Closed",
-          "description": "Trigger workflow when a sprint is closed in Jira"
+          "description": "Trigger workflow when a sprint is closed in Jira",
+          "polling": false
         },
         {
           "id": "jira_project_created",
           "name": "Jira Project Created",
-          "description": "Trigger workflow when a project is created in Jira"
+          "description": "Trigger workflow when a project is created in Jira",
+          "polling": false
         },
         {
           "id": "jira_version_released",
           "name": "Jira Version Released",
-          "description": "Trigger workflow when a version is released in Jira"
+          "description": "Trigger workflow when a version is released in Jira",
+          "polling": false
         },
         {
           "id": "jira_webhook",
           "name": "Jira Webhook (All Events)",
-          "description": "Trigger workflow on any Jira webhook event"
+          "description": "Trigger workflow on any Jira webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 15,
@@ -9426,27 +9830,32 @@
         {
           "id": "jsm_request_created",
           "name": "JSM Request Created",
-          "description": "Trigger workflow when a new service request is created in Jira Service Management"
+          "description": "Trigger workflow when a new service request is created in Jira Service Management",
+          "polling": false
         },
         {
           "id": "jsm_request_updated",
           "name": "JSM Request Updated",
-          "description": "Trigger workflow when a service request is updated in Jira Service Management"
+          "description": "Trigger workflow when a service request is updated in Jira Service Management",
+          "polling": false
         },
         {
           "id": "jsm_request_commented",
           "name": "JSM Request Commented",
-          "description": "Trigger workflow when a comment is added to a Jira Service Management request"
+          "description": "Trigger workflow when a comment is added to a Jira Service Management request",
+          "polling": false
         },
         {
           "id": "jsm_request_resolved",
           "name": "JSM Request Resolved",
-          "description": "Trigger workflow when a service request is resolved in Jira Service Management"
+          "description": "Trigger workflow when a service request is resolved in Jira Service Management",
+          "polling": false
         },
         {
           "id": "jsm_webhook",
           "name": "JSM Webhook (All Events)",
-          "description": "Trigger workflow on any Jira Service Management webhook event"
+          "description": "Trigger workflow on any Jira Service Management webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 5,
@@ -9826,47 +10235,56 @@
         {
           "id": "lemlist_email_replied",
           "name": "Lemlist Email Replied",
-          "description": "Trigger workflow when a lead replies to an email"
+          "description": "Trigger workflow when a lead replies to an email",
+          "polling": false
         },
         {
           "id": "lemlist_linkedin_replied",
           "name": "Lemlist LinkedIn Replied",
-          "description": "Trigger workflow when a lead replies to a LinkedIn message"
+          "description": "Trigger workflow when a lead replies to a LinkedIn message",
+          "polling": false
         },
         {
           "id": "lemlist_interested",
           "name": "Lemlist Lead Interested",
-          "description": "Trigger workflow when a lead is marked as interested"
+          "description": "Trigger workflow when a lead is marked as interested",
+          "polling": false
         },
         {
           "id": "lemlist_not_interested",
           "name": "Lemlist Lead Not Interested",
-          "description": "Trigger workflow when a lead is marked as not interested"
+          "description": "Trigger workflow when a lead is marked as not interested",
+          "polling": false
         },
         {
           "id": "lemlist_email_opened",
           "name": "Lemlist Email Opened",
-          "description": "Trigger workflow when a lead opens an email"
+          "description": "Trigger workflow when a lead opens an email",
+          "polling": false
         },
         {
           "id": "lemlist_email_clicked",
           "name": "Lemlist Email Clicked",
-          "description": "Trigger workflow when a lead clicks a link in an email"
+          "description": "Trigger workflow when a lead clicks a link in an email",
+          "polling": false
         },
         {
           "id": "lemlist_email_bounced",
           "name": "Lemlist Email Bounced",
-          "description": "Trigger workflow when an email bounces"
+          "description": "Trigger workflow when an email bounces",
+          "polling": false
         },
         {
           "id": "lemlist_email_sent",
           "name": "Lemlist Email Sent",
-          "description": "Trigger workflow when an email is sent"
+          "description": "Trigger workflow when an email is sent",
+          "polling": false
         },
         {
           "id": "lemlist_webhook",
           "name": "Lemlist Webhook (All Events)",
-          "description": "Trigger workflow on any Lemlist webhook event"
+          "description": "Trigger workflow on any Lemlist webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 9,
@@ -10203,77 +10621,92 @@
         {
           "id": "linear_issue_created_v2",
           "name": "Linear Issue Created",
-          "description": "Trigger workflow when a new issue is created in Linear"
+          "description": "Trigger workflow when a new issue is created in Linear",
+          "polling": false
         },
         {
           "id": "linear_issue_updated_v2",
           "name": "Linear Issue Updated",
-          "description": "Trigger workflow when an issue is updated in Linear"
+          "description": "Trigger workflow when an issue is updated in Linear",
+          "polling": false
         },
         {
           "id": "linear_issue_removed_v2",
           "name": "Linear Issue Removed",
-          "description": "Trigger workflow when an issue is removed/deleted in Linear"
+          "description": "Trigger workflow when an issue is removed/deleted in Linear",
+          "polling": false
         },
         {
           "id": "linear_comment_created_v2",
           "name": "Linear Comment Created",
-          "description": "Trigger workflow when a new comment is created in Linear"
+          "description": "Trigger workflow when a new comment is created in Linear",
+          "polling": false
         },
         {
           "id": "linear_comment_updated_v2",
           "name": "Linear Comment Updated",
-          "description": "Trigger workflow when a comment is updated in Linear"
+          "description": "Trigger workflow when a comment is updated in Linear",
+          "polling": false
         },
         {
           "id": "linear_project_created_v2",
           "name": "Linear Project Created",
-          "description": "Trigger workflow when a new project is created in Linear"
+          "description": "Trigger workflow when a new project is created in Linear",
+          "polling": false
         },
         {
           "id": "linear_project_updated_v2",
           "name": "Linear Project Updated",
-          "description": "Trigger workflow when a project is updated in Linear"
+          "description": "Trigger workflow when a project is updated in Linear",
+          "polling": false
         },
         {
           "id": "linear_cycle_created_v2",
           "name": "Linear Cycle Created",
-          "description": "Trigger workflow when a new cycle is created in Linear"
+          "description": "Trigger workflow when a new cycle is created in Linear",
+          "polling": false
         },
         {
           "id": "linear_cycle_updated_v2",
           "name": "Linear Cycle Updated",
-          "description": "Trigger workflow when a cycle is updated in Linear"
+          "description": "Trigger workflow when a cycle is updated in Linear",
+          "polling": false
         },
         {
           "id": "linear_label_created_v2",
           "name": "Linear Label Created",
-          "description": "Trigger workflow when a new label is created in Linear"
+          "description": "Trigger workflow when a new label is created in Linear",
+          "polling": false
         },
         {
           "id": "linear_label_updated_v2",
           "name": "Linear Label Updated",
-          "description": "Trigger workflow when a label is updated in Linear"
+          "description": "Trigger workflow when a label is updated in Linear",
+          "polling": false
         },
         {
           "id": "linear_project_update_created_v2",
           "name": "Linear Project Update Created",
-          "description": "Trigger workflow when a new project update is posted in Linear"
+          "description": "Trigger workflow when a new project update is posted in Linear",
+          "polling": false
         },
         {
           "id": "linear_customer_request_created_v2",
           "name": "Linear Customer Request Created",
-          "description": "Trigger workflow when a new customer request is created in Linear"
+          "description": "Trigger workflow when a new customer request is created in Linear",
+          "polling": false
         },
         {
           "id": "linear_customer_request_updated_v2",
           "name": "Linear Customer Request Updated",
-          "description": "Trigger workflow when a customer request is updated in Linear"
+          "description": "Trigger workflow when a customer request is updated in Linear",
+          "polling": false
         },
         {
           "id": "linear_webhook_v2",
           "name": "Linear Webhook",
-          "description": "Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type)."
+          "description": "Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type).",
+          "polling": false
         }
       ],
       "triggerCount": 15,
@@ -10481,32 +10914,38 @@
         {
           "id": "linq_message_received",
           "name": "Linq Message Received",
-          "description": "Trigger workflow when an inbound message is received"
+          "description": "Trigger workflow when an inbound message is received",
+          "polling": false
         },
         {
           "id": "linq_message_delivered",
           "name": "Linq Message Delivered",
-          "description": "Trigger workflow when a message is delivered"
+          "description": "Trigger workflow when a message is delivered",
+          "polling": false
         },
         {
           "id": "linq_message_failed",
           "name": "Linq Message Failed",
-          "description": "Trigger workflow when a message fails to deliver"
+          "description": "Trigger workflow when a message fails to deliver",
+          "polling": false
         },
         {
           "id": "linq_message_read",
           "name": "Linq Message Read",
-          "description": "Trigger workflow when a message is read"
+          "description": "Trigger workflow when a message is read",
+          "polling": false
         },
         {
           "id": "linq_reaction_added",
           "name": "Linq Reaction Added",
-          "description": "Trigger workflow when a reaction is added to a message"
+          "description": "Trigger workflow when a reaction is added to a message",
+          "polling": false
         },
         {
           "id": "linq_webhook",
           "name": "Linq Webhook (All Events)",
-          "description": "Trigger on any Linq webhook event (messages, reactions, chats, and more)"
+          "description": "Trigger on any Linq webhook event (messages, reactions, chats, and more)",
+          "polling": false
         }
       ],
       "triggerCount": 6,
@@ -10583,42 +11022,50 @@
         {
           "id": "loops_email_delivered",
           "name": "Loops Email Delivered",
-          "description": "Trigger workflow when a Loops email is delivered"
+          "description": "Trigger workflow when a Loops email is delivered",
+          "polling": false
         },
         {
           "id": "loops_email_opened",
           "name": "Loops Email Opened",
-          "description": "Trigger workflow when a Loops email is opened"
+          "description": "Trigger workflow when a Loops email is opened",
+          "polling": false
         },
         {
           "id": "loops_email_clicked",
           "name": "Loops Email Clicked",
-          "description": "Trigger workflow when a link in a Loops email is clicked"
+          "description": "Trigger workflow when a link in a Loops email is clicked",
+          "polling": false
         },
         {
           "id": "loops_email_hard_bounced",
           "name": "Loops Email Hard Bounced",
-          "description": "Trigger workflow when a Loops email hard bounces"
+          "description": "Trigger workflow when a Loops email hard bounces",
+          "polling": false
         },
         {
           "id": "loops_email_soft_bounced",
           "name": "Loops Email Soft Bounced",
-          "description": "Trigger workflow when a Loops email soft bounces"
+          "description": "Trigger workflow when a Loops email soft bounces",
+          "polling": false
         },
         {
           "id": "loops_campaign_email_sent",
           "name": "Loops Campaign Email Sent",
-          "description": "Trigger workflow when a Loops campaign email is sent"
+          "description": "Trigger workflow when a Loops campaign email is sent",
+          "polling": false
         },
         {
           "id": "loops_loop_email_sent",
           "name": "Loops Loop Email Sent",
-          "description": "Trigger workflow when a Loops loop email is sent"
+          "description": "Trigger workflow when a Loops loop email is sent",
+          "polling": false
         },
         {
           "id": "loops_transactional_email_sent",
           "name": "Loops Transactional Email Sent",
-          "description": "Trigger workflow when a Loops transactional email is sent"
+          "description": "Trigger workflow when a Loops transactional email is sent",
+          "polling": false
         }
       ],
       "triggerCount": 8,
@@ -11088,7 +11535,7 @@
       "slug": "microsoft-dataverse",
       "name": "Microsoft Dataverse",
       "description": "Manage records in Microsoft Dataverse tables",
-      "longDescription": "Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, and relevance search. Works with Dynamics 365, Power Platform, and custom Dataverse environments.",
+      "longDescription": "Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftDataverseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_dataverse",
@@ -11147,7 +11594,7 @@
         },
         {
           "name": "Download File",
-          "description": "Download a file from a file or image column on a Dataverse record. Returns the file content as a base64-encoded string along with file metadata from response headers."
+          "description": "Download a file from a file or image column on a Dataverse record. Stores the file in execution storage and returns a file reference, plus the base64 content and metadata directly."
         },
         {
           "name": "Associate Records",
@@ -11158,11 +11605,15 @@
           "description": "Remove an association between two records in Microsoft Dataverse. For collection-valued navigation properties, provide the target record ID. For single-valued navigation properties, only the navigation property name is needed."
         },
         {
+          "name": "Get Table Metadata",
+          "description": "Retrieve table (entity) and column (attribute) definitions for a Microsoft Dataverse table by its singular logical name. Use this to look up the correct entity set name and column logical names before building record data for other operations."
+        },
+        {
           "name": "WhoAmI",
           "description": "Retrieve the current authenticated user information from Microsoft Dataverse. Useful for testing connectivity and getting the user ID, business unit ID, and organization ID."
         }
       ],
-      "operationCount": 17,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -11254,6 +11705,26 @@
           "description": "Get details of a specific Microsoft Planner plan"
         },
         {
+          "name": "Create Plan",
+          "description": "Create a new Microsoft Planner plan owned by a Microsoft 365 group"
+        },
+        {
+          "name": "Update Plan",
+          "description": "Rename a Microsoft Planner plan"
+        },
+        {
+          "name": "Get Plan Details",
+          "description": "Get detailed information about a plan including category descriptions and sharing"
+        },
+        {
+          "name": "Update Plan Details",
+          "description": "Update a plan's category (color label) descriptions and shared-with user list in Microsoft Planner"
+        },
+        {
+          "name": "Delete Plan",
+          "description": "Delete a Microsoft Planner plan"
+        },
+        {
           "name": "List Buckets",
           "description": "List all buckets in a Microsoft Planner plan"
         },
@@ -11282,7 +11753,7 @@
           "description": "Update task details including description, checklist items, and references in Microsoft Planner"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -11296,7 +11767,7 @@
       "slug": "microsoft-teams",
       "name": "Microsoft Teams",
       "description": "Manage messages, reactions, and members in Teams",
-      "longDescription": "Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
+      "longDescription": "Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftTeamsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_teams",
@@ -11356,14 +11827,31 @@
         {
           "name": "List Channel Members",
           "description": "List all members of a Microsoft Teams channel"
+        },
+        {
+          "name": "List Chat Members",
+          "description": "List all members of a Microsoft Teams chat"
+        },
+        {
+          "name": "List Teams",
+          "description": "List the Microsoft Teams the current user is a direct member of"
+        },
+        {
+          "name": "List Chats",
+          "description": "List the Microsoft Teams chats the current user is part of"
+        },
+        {
+          "name": "List Channels",
+          "description": "List all channels in a Microsoft Teams team"
         }
       ],
-      "operationCount": 14,
+      "operationCount": 18,
       "triggers": [
         {
           "id": "microsoftteams_webhook",
           "name": "Microsoft Teams Channel",
-          "description": "Trigger workflow from Microsoft Teams channel messages via outgoing webhooks"
+          "description": "Trigger workflow from Microsoft Teams channel messages via outgoing webhooks",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -11506,47 +11994,56 @@
         {
           "id": "monday_item_created",
           "name": "Monday Item Created",
-          "description": "Trigger workflow when a new item is created on a Monday.com board"
+          "description": "Trigger workflow when a new item is created on a Monday.com board",
+          "polling": false
         },
         {
           "id": "monday_column_changed",
           "name": "Monday Column Value Changed",
-          "description": "Trigger workflow when any column value changes on a Monday.com board"
+          "description": "Trigger workflow when any column value changes on a Monday.com board",
+          "polling": false
         },
         {
           "id": "monday_status_changed",
           "name": "Monday Status Changed",
-          "description": "Trigger workflow when a status column value changes on a Monday.com board"
+          "description": "Trigger workflow when a status column value changes on a Monday.com board",
+          "polling": false
         },
         {
           "id": "monday_item_name_changed",
           "name": "Monday Item Name Changed",
-          "description": "Trigger workflow when an item name changes on a Monday.com board"
+          "description": "Trigger workflow when an item name changes on a Monday.com board",
+          "polling": false
         },
         {
           "id": "monday_item_archived",
           "name": "Monday Item Archived",
-          "description": "Trigger workflow when an item is archived on a Monday.com board"
+          "description": "Trigger workflow when an item is archived on a Monday.com board",
+          "polling": false
         },
         {
           "id": "monday_item_deleted",
           "name": "Monday Item Deleted",
-          "description": "Trigger workflow when an item is deleted on a Monday.com board"
+          "description": "Trigger workflow when an item is deleted on a Monday.com board",
+          "polling": false
         },
         {
           "id": "monday_item_moved",
           "name": "Monday Item Moved to Group",
-          "description": "Trigger workflow when an item is moved to any group on a Monday.com board"
+          "description": "Trigger workflow when an item is moved to any group on a Monday.com board",
+          "polling": false
         },
         {
           "id": "monday_subitem_created",
           "name": "Monday Subitem Created",
-          "description": "Trigger workflow when a subitem is created on a Monday.com board"
+          "description": "Trigger workflow when a subitem is created on a Monday.com board",
+          "polling": false
         },
         {
           "id": "monday_update_created",
           "name": "Monday Update Posted",
-          "description": "Trigger workflow when an update or comment is posted on a Monday.com item"
+          "description": "Trigger workflow when an update or comment is posted on a Monday.com item",
+          "polling": false
         }
       ],
       "triggerCount": 9,
@@ -11766,47 +12263,56 @@
         {
           "id": "notion_page_created",
           "name": "Notion Page Created",
-          "description": "Trigger workflow when a new page is created in Notion"
+          "description": "Trigger workflow when a new page is created in Notion",
+          "polling": false
         },
         {
           "id": "notion_page_properties_updated",
           "name": "Notion Page Properties Updated",
-          "description": "Trigger workflow when page properties are modified in Notion"
+          "description": "Trigger workflow when page properties are modified in Notion",
+          "polling": false
         },
         {
           "id": "notion_page_content_updated",
           "name": "Notion Page Content Updated",
-          "description": "Trigger workflow when page content is changed in Notion"
+          "description": "Trigger workflow when page content is changed in Notion",
+          "polling": false
         },
         {
           "id": "notion_page_deleted",
           "name": "Notion Page Deleted",
-          "description": "Trigger workflow when a page is deleted in Notion"
+          "description": "Trigger workflow when a page is deleted in Notion",
+          "polling": false
         },
         {
           "id": "notion_database_created",
           "name": "Notion Database Created",
-          "description": "Trigger workflow when a new database is created in Notion"
+          "description": "Trigger workflow when a new database is created in Notion",
+          "polling": false
         },
         {
           "id": "notion_database_schema_updated",
           "name": "Notion Database Schema Updated",
-          "description": "Trigger workflow when a database schema is modified in Notion"
+          "description": "Trigger workflow when a database schema is modified in Notion",
+          "polling": false
         },
         {
           "id": "notion_database_deleted",
           "name": "Notion Database Deleted",
-          "description": "Trigger workflow when a database is deleted in Notion"
+          "description": "Trigger workflow when a database is deleted in Notion",
+          "polling": false
         },
         {
           "id": "notion_comment_created",
           "name": "Notion Comment Created",
-          "description": "Trigger workflow when a comment or suggested edit is added in Notion"
+          "description": "Trigger workflow when a comment or suggested edit is added in Notion",
+          "polling": false
         },
         {
           "id": "notion_webhook",
           "name": "Notion Webhook (All Events)",
-          "description": "Trigger workflow on any Notion webhook event"
+          "description": "Trigger workflow on any Notion webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 9,
@@ -11990,8 +12496,8 @@
       "type": "onedrive",
       "slug": "onedrive",
       "name": "OneDrive",
-      "description": "Create, upload, download, list, and delete files",
-      "longDescription": "Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.",
+      "description": "Create, upload, download, search, move, copy, share, and delete files",
+      "longDescription": "Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list and search files, move or rename files, copy files, create sharing links, and delete files or folders.",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftOneDriveIcon",
       "docsUrl": "https://docs.sim.ai/integrations/onedrive",
@@ -12017,11 +12523,35 @@
           "description": "List files and folders in OneDrive"
         },
         {
+          "name": "Search Files",
+          "description": "Search for files and folders across OneDrive by name, metadata, or content (recursive)"
+        },
+        {
+          "name": "Get Item Info",
+          "description": "Get metadata for a specific OneDrive file or folder by ID, or the drive root"
+        },
+        {
+          "name": "Get Drive Info",
+          "description": "Get information about the OneDrive drive, including storage quota"
+        },
+        {
+          "name": "Move/Rename File",
+          "description": "Move a file or folder to a new parent folder, rename it, or both"
+        },
+        {
+          "name": "Copy File",
+          "description": "Copy a file or folder to another location within OneDrive"
+        },
+        {
+          "name": "Create Sharing Link",
+          "description": "Create a view or edit sharing link for a OneDrive file or folder"
+        },
+        {
           "name": "Delete File",
           "description": "Delete a file or folder from OneDrive"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -12114,7 +12644,8 @@
         {
           "id": "outlook_poller",
           "name": "Outlook Email Trigger",
-          "description": "Triggers when new emails are received in Outlook (requires Microsoft credentials)"
+          "description": "Triggers when new emails are received in Outlook (requires Microsoft credentials)",
+          "polling": true
         }
       ],
       "triggerCount": 1,
@@ -12129,7 +12660,7 @@
       "slug": "pagerduty",
       "name": "PagerDuty",
       "description": "Manage incidents and on-call schedules with PagerDuty",
-      "longDescription": "Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.",
+      "longDescription": "Integrate PagerDuty into your workflow to list, get, create, update, snooze, and merge incidents, add notes and list alerts, look up services and escalation policies, check on-call schedules, list users, and send monitoring events through the Events API v2.",
       "bgColor": "#06AC38",
       "iconName": "PagerDutyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pagerduty",
@@ -12137,6 +12668,10 @@
         {
           "name": "List Incidents",
           "description": "List incidents from PagerDuty with optional filters."
+        },
+        {
+          "name": "Get Incident",
+          "description": "Get a single incident from PagerDuty by ID."
         },
         {
           "name": "Create Incident",
@@ -12147,49 +12682,87 @@
           "description": "Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.)."
         },
         {
+          "name": "Snooze Incident",
+          "description": "Snooze a triggered PagerDuty incident for a number of seconds, after which it returns to triggered."
+        },
+        {
+          "name": "Merge Incidents",
+          "description": "Merge one or more source incidents into a target incident. Source incidents are resolved and their alerts move to the target."
+        },
+        {
           "name": "Add Note",
           "description": "Add a note to an existing PagerDuty incident."
+        },
+        {
+          "name": "List Incident Alerts",
+          "description": "List the individual alerts attached to a PagerDuty incident."
         },
         {
           "name": "List Services",
           "description": "List services from PagerDuty with optional name filter."
         },
         {
+          "name": "Get Service",
+          "description": "Get a single service from PagerDuty by ID."
+        },
+        {
           "name": "List On-Calls",
           "description": "List current on-call entries from PagerDuty."
+        },
+        {
+          "name": "List Escalation Policies",
+          "description": "List escalation policies from PagerDuty with an optional name filter."
+        },
+        {
+          "name": "List Schedules",
+          "description": "List on-call schedules from PagerDuty with an optional name filter."
+        },
+        {
+          "name": "List Users",
+          "description": "List users from PagerDuty with an optional name/email filter."
+        },
+        {
+          "name": "Send Event",
+          "description": "Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a service integration key. Used to page from monitoring/alerting sources without a PagerDuty user account."
         }
       ],
-      "operationCount": 6,
+      "operationCount": 15,
       "triggers": [
         {
           "id": "pagerduty_incident_triggered",
           "name": "PagerDuty Incident Triggered",
-          "description": "Trigger workflow when a new incident is triggered in PagerDuty"
+          "description": "Trigger workflow when a new incident is triggered in PagerDuty",
+          "polling": false
         },
         {
           "id": "pagerduty_incident_acknowledged",
           "name": "PagerDuty Incident Acknowledged",
-          "description": "Trigger workflow when an incident is acknowledged in PagerDuty"
+          "description": "Trigger workflow when an incident is acknowledged in PagerDuty",
+          "polling": false
         },
         {
           "id": "pagerduty_incident_resolved",
           "name": "PagerDuty Incident Resolved",
-          "description": "Trigger workflow when an incident is resolved in PagerDuty"
+          "description": "Trigger workflow when an incident is resolved in PagerDuty",
+          "polling": false
         },
         {
           "id": "pagerduty_incident_escalated",
           "name": "PagerDuty Incident Escalated",
-          "description": "Trigger workflow when an incident is escalated in PagerDuty"
+          "description": "Trigger workflow when an incident is escalated in PagerDuty",
+          "polling": false
         },
         {
           "id": "pagerduty_incident_reassigned",
           "name": "PagerDuty Incident Reassigned",
-          "description": "Trigger workflow when an incident is reassigned in PagerDuty"
+          "description": "Trigger workflow when an incident is reassigned in PagerDuty",
+          "polling": false
         },
         {
           "id": "pagerduty_webhook",
           "name": "PagerDuty Incident Event",
-          "description": "Trigger workflow from any PagerDuty incident event"
+          "description": "Trigger workflow from any PagerDuty incident event",
+          "polling": false
         }
       ],
       "triggerCount": 6,
@@ -12775,15 +13348,19 @@
         },
         {
           "name": "List Insights",
-          "description": "List all insights in a PostHog project. Returns insight configurations, filters, and metadata."
+          "description": "List all insights in a PostHog project. Returns insight configurations and metadata."
         },
         {
           "name": "Get Insight",
-          "description": "Get a specific insight by ID from PostHog. Returns detailed insight configuration, filters, and metadata."
+          "description": "Get a specific insight by ID from PostHog. Returns detailed insight configuration and metadata."
         },
         {
           "name": "Create Insight",
-          "description": "Create a new insight in PostHog. Requires insight name and configuration filters or query."
+          "description": "Create a new insight in PostHog. Requires insight name and a query configuration."
+        },
+        {
+          "name": "Update Insight",
+          "description": "Update an existing insight in PostHog. Can modify name, description, query, dashboards, tags, and favorited status."
         },
         {
           "name": "List Dashboards",
@@ -12792,6 +13369,10 @@
         {
           "name": "Get Dashboard",
           "description": "Get a specific dashboard by ID from PostHog. Returns detailed dashboard configuration, tiles, and metadata."
+        },
+        {
+          "name": "Create Dashboard",
+          "description": "Create a new dashboard in PostHog. Optionally seed it from a built-in template, then attach insights to it afterward."
         },
         {
           "name": "List Actions",
@@ -12808,6 +13389,10 @@
         {
           "name": "Create Cohort",
           "description": "Create a new cohort in PostHog. Requires cohort name and filter or query configuration."
+        },
+        {
+          "name": "Update Cohort",
+          "description": "Update an existing cohort in PostHog. Can modify name, description, filters, query, static membership, and deleted status."
         },
         {
           "name": "List Annotations",
@@ -12854,6 +13439,10 @@
           "description": "Create a new experiment in PostHog"
         },
         {
+          "name": "Update Experiment",
+          "description": "Update an existing experiment in PostHog. Use this to change dates, archive an experiment, or adjust its parameters and filters."
+        },
+        {
           "name": "List Surveys",
           "description": "List all surveys in a PostHog project. Surveys allow you to collect feedback from users."
         },
@@ -12868,6 +13457,10 @@
         {
           "name": "Update Survey",
           "description": "Update an existing survey in PostHog. Can modify questions, appearance, conditions, and other settings."
+        },
+        {
+          "name": "Delete Survey",
+          "description": "Delete a survey from PostHog. Use this to remove expired or unused surveys."
         },
         {
           "name": "List Session Recordings",
@@ -12922,7 +13515,7 @@
           "description": "Get detailed information about a specific organization by ID. Returns comprehensive organization settings, features, usage, and team information."
         }
       ],
-      "operationCount": 43,
+      "operationCount": 48,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -13814,42 +14407,50 @@
         {
           "id": "resend_email_sent",
           "name": "Resend Email Sent",
-          "description": "Trigger workflow when an email is sent"
+          "description": "Trigger workflow when an email is sent",
+          "polling": false
         },
         {
           "id": "resend_email_delivered",
           "name": "Resend Email Delivered",
-          "description": "Trigger workflow when an email is delivered"
+          "description": "Trigger workflow when an email is delivered",
+          "polling": false
         },
         {
           "id": "resend_email_bounced",
           "name": "Resend Email Bounced",
-          "description": "Trigger workflow when an email bounces"
+          "description": "Trigger workflow when an email bounces",
+          "polling": false
         },
         {
           "id": "resend_email_complained",
           "name": "Resend Email Complained",
-          "description": "Trigger workflow when an email is marked as spam"
+          "description": "Trigger workflow when an email is marked as spam",
+          "polling": false
         },
         {
           "id": "resend_email_opened",
           "name": "Resend Email Opened",
-          "description": "Trigger workflow when an email is opened"
+          "description": "Trigger workflow when an email is opened",
+          "polling": false
         },
         {
           "id": "resend_email_clicked",
           "name": "Resend Email Clicked",
-          "description": "Trigger workflow when a link in an email is clicked"
+          "description": "Trigger workflow when a link in an email is clicked",
+          "polling": false
         },
         {
           "id": "resend_email_failed",
           "name": "Resend Email Failed",
-          "description": "Trigger workflow when an email fails to send"
+          "description": "Trigger workflow when an email fails to send",
+          "polling": false
         },
         {
           "id": "resend_webhook",
           "name": "Resend Webhook (All Events)",
-          "description": "Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload."
+          "description": "Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload.",
+          "polling": false
         }
       ],
       "triggerCount": 8,
@@ -13914,32 +14515,38 @@
         {
           "id": "revenuecat_initial_purchase",
           "name": "RevenueCat Initial Purchase",
-          "description": "Trigger workflow when a subscriber makes their first purchase in RevenueCat"
+          "description": "Trigger workflow when a subscriber makes their first purchase in RevenueCat",
+          "polling": false
         },
         {
           "id": "revenuecat_renewal",
           "name": "RevenueCat Renewal",
-          "description": "Trigger workflow when a RevenueCat subscription renews"
+          "description": "Trigger workflow when a RevenueCat subscription renews",
+          "polling": false
         },
         {
           "id": "revenuecat_cancellation",
           "name": "RevenueCat Cancellation",
-          "description": "Trigger workflow when a subscriber cancels a RevenueCat subscription"
+          "description": "Trigger workflow when a subscriber cancels a RevenueCat subscription",
+          "polling": false
         },
         {
           "id": "revenuecat_expiration",
           "name": "RevenueCat Expiration",
-          "description": "Trigger workflow when a RevenueCat subscription expires"
+          "description": "Trigger workflow when a RevenueCat subscription expires",
+          "polling": false
         },
         {
           "id": "revenuecat_non_renewing_purchase",
           "name": "RevenueCat Non-Renewing Purchase",
-          "description": "Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat"
+          "description": "Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat",
+          "polling": false
         },
         {
           "id": "revenuecat_product_change",
           "name": "RevenueCat Product Change",
-          "description": "Trigger workflow when a subscriber changes their RevenueCat subscription product"
+          "description": "Trigger workflow when a subscriber changes their RevenueCat subscription product",
+          "polling": false
         }
       ],
       "triggerCount": 6,
@@ -14491,22 +15098,26 @@
         {
           "id": "rootly_incident_created",
           "name": "Rootly Incident Created",
-          "description": "Trigger workflow when a new incident is created in Rootly"
+          "description": "Trigger workflow when a new incident is created in Rootly",
+          "polling": false
         },
         {
           "id": "rootly_incident_updated",
           "name": "Rootly Incident Updated",
-          "description": "Trigger workflow when an incident is updated in Rootly"
+          "description": "Trigger workflow when an incident is updated in Rootly",
+          "polling": false
         },
         {
           "id": "rootly_incident_resolved",
           "name": "Rootly Incident Resolved",
-          "description": "Trigger workflow when an incident is resolved in Rootly"
+          "description": "Trigger workflow when an incident is resolved in Rootly",
+          "polling": false
         },
         {
           "id": "rootly_alert_created",
           "name": "Rootly Alert Created",
-          "description": "Trigger workflow when a new alert is created in Rootly"
+          "description": "Trigger workflow when a new alert is created in Rootly",
+          "polling": false
         }
       ],
       "triggerCount": 4,
@@ -14754,32 +15365,38 @@
         {
           "id": "salesforce_record_created",
           "name": "Salesforce Record Created",
-          "description": "Trigger workflow when a Salesforce record is created"
+          "description": "Trigger workflow when a Salesforce record is created",
+          "polling": false
         },
         {
           "id": "salesforce_record_updated",
           "name": "Salesforce Record Updated",
-          "description": "Trigger workflow when a Salesforce record is updated"
+          "description": "Trigger workflow when a Salesforce record is updated",
+          "polling": false
         },
         {
           "id": "salesforce_record_deleted",
           "name": "Salesforce Record Deleted",
-          "description": "Trigger workflow when a Salesforce record is deleted"
+          "description": "Trigger workflow when a Salesforce record is deleted",
+          "polling": false
         },
         {
           "id": "salesforce_opportunity_stage_changed",
           "name": "Salesforce Opportunity Stage Changed",
-          "description": "Trigger workflow when an opportunity stage changes"
+          "description": "Trigger workflow when an opportunity stage changes",
+          "polling": false
         },
         {
           "id": "salesforce_case_status_changed",
           "name": "Salesforce Case Status Changed",
-          "description": "Trigger workflow when a case status changes"
+          "description": "Trigger workflow when a case status changes",
+          "polling": false
         },
         {
           "id": "salesforce_webhook",
           "name": "Salesforce Webhook (All Events)",
-          "description": "Trigger workflow on any Salesforce webhook event"
+          "description": "Trigger workflow on any Salesforce webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 6,
@@ -15295,12 +15912,14 @@
         {
           "id": "sendblue_message_received",
           "name": "Sendblue Message Received",
-          "description": "Trigger when an inbound iMessage or SMS is received in Sendblue"
+          "description": "Trigger when an inbound iMessage or SMS is received in Sendblue",
+          "polling": false
         },
         {
           "id": "sendblue_message_status_updated",
           "name": "Sendblue Message Status Updated",
-          "description": "Trigger when an outbound message status changes (SENT, DELIVERED, ERROR) in Sendblue"
+          "description": "Trigger when an outbound message status changes (SENT, DELIVERED, ERROR) in Sendblue",
+          "polling": false
         }
       ],
       "triggerCount": 2,
@@ -15460,27 +16079,32 @@
         {
           "id": "sentry_issue_created",
           "name": "Sentry Issue Created",
-          "description": "Trigger workflow when a new issue is created in Sentry"
+          "description": "Trigger workflow when a new issue is created in Sentry",
+          "polling": false
         },
         {
           "id": "sentry_issue_resolved",
           "name": "Sentry Issue Resolved",
-          "description": "Trigger workflow when an issue is resolved in Sentry"
+          "description": "Trigger workflow when an issue is resolved in Sentry",
+          "polling": false
         },
         {
           "id": "sentry_error_created",
           "name": "Sentry Error Created",
-          "description": "Trigger workflow when a new error event is created in Sentry"
+          "description": "Trigger workflow when a new error event is created in Sentry",
+          "polling": false
         },
         {
           "id": "sentry_issue_alert",
           "name": "Sentry Issue Alert",
-          "description": "Trigger workflow when a Sentry issue alert rule fires"
+          "description": "Trigger workflow when a Sentry issue alert rule fires",
+          "polling": false
         },
         {
           "id": "sentry_metric_alert",
           "name": "Sentry Metric Alert",
-          "description": "Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)"
+          "description": "Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)",
+          "polling": false
         }
       ],
       "triggerCount": 5,
@@ -15555,27 +16179,32 @@
         {
           "id": "servicenow_incident_created",
           "name": "ServiceNow Incident Created",
-          "description": "Trigger workflow when a new incident is created in ServiceNow"
+          "description": "Trigger workflow when a new incident is created in ServiceNow",
+          "polling": false
         },
         {
           "id": "servicenow_incident_updated",
           "name": "ServiceNow Incident Updated",
-          "description": "Trigger workflow when an incident is updated in ServiceNow"
+          "description": "Trigger workflow when an incident is updated in ServiceNow",
+          "polling": false
         },
         {
           "id": "servicenow_change_request_created",
           "name": "ServiceNow Change Request Created",
-          "description": "Trigger workflow when a new change request is created in ServiceNow"
+          "description": "Trigger workflow when a new change request is created in ServiceNow",
+          "polling": false
         },
         {
           "id": "servicenow_change_request_updated",
           "name": "ServiceNow Change Request Updated",
-          "description": "Trigger workflow when a change request is updated in ServiceNow"
+          "description": "Trigger workflow when a change request is updated in ServiceNow",
+          "polling": false
         },
         {
           "id": "servicenow_webhook",
           "name": "ServiceNow Webhook (All Events)",
-          "description": "Trigger workflow on any ServiceNow webhook event"
+          "description": "Trigger workflow on any ServiceNow webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 5,
@@ -16077,7 +16706,8 @@
         {
           "id": "slack_webhook",
           "name": "Slack Webhook",
-          "description": "Trigger workflow from Slack events like mentions, messages, and reactions"
+          "description": "Trigger workflow from Slack events like mentions, messages, and reactions",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -17506,7 +18136,8 @@
         {
           "id": "stripe_webhook",
           "name": "Stripe Webhook",
-          "description": "Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)"
+          "description": "Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -17880,7 +18511,8 @@
         {
           "id": "telegram_webhook",
           "name": "Telegram Webhook",
-          "description": "Trigger workflow from Telegram bot messages and events"
+          "description": "Trigger workflow from Telegram bot messages and events",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -18200,7 +18832,7 @@
       "slug": "tinybird",
       "name": "Tinybird",
       "description": "Send events, query data, and manage Data Sources with Tinybird",
-      "longDescription": "Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.",
+      "longDescription": "Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, manage Data Sources by appending from a URL, truncating, or deleting rows by condition, and poll the status of asynchronous jobs.",
       "bgColor": "#2EF598",
       "iconName": "TinybirdIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tinybird",
@@ -18228,9 +18860,13 @@
         {
           "name": "Delete Data Source Rows",
           "description": "Delete rows from a Tinybird Data Source matching a SQL condition."
+        },
+        {
+          "name": "Get Job Status",
+          "description": "Check the status of an asynchronous Tinybird job (import, delete, etc.) by ID."
         }
       ],
-      "operationCount": 6,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -18552,12 +19188,14 @@
         {
           "id": "twilio_sms_received",
           "name": "Twilio SMS Received",
-          "description": "Trigger workflow when an inbound SMS or MMS message is received via Twilio"
+          "description": "Trigger workflow when an inbound SMS or MMS message is received via Twilio",
+          "polling": false
         },
         {
           "id": "twilio_sms_status",
           "name": "Twilio Message Status",
-          "description": "Trigger workflow when a Twilio message status changes (sent, delivered, failed)"
+          "description": "Trigger workflow when a Twilio message status changes (sent, delivered, failed)",
+          "polling": false
         }
       ],
       "triggerCount": 2,
@@ -18594,7 +19232,8 @@
         {
           "id": "twilio_voice_webhook",
           "name": "Twilio Voice Webhook",
-          "description": "Trigger workflow when phone calls are received via Twilio Voice"
+          "description": "Trigger workflow when phone calls are received via Twilio Voice",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -18651,7 +19290,8 @@
         {
           "id": "typeform_webhook",
           "name": "Typeform Webhook",
-          "description": "Trigger workflow when a Typeform submission is received"
+          "description": "Trigger workflow when a Typeform submission is received",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -19233,42 +19873,50 @@
         {
           "id": "vercel_deployment_created",
           "name": "Vercel Deployment Created",
-          "description": "Trigger workflow when a new deployment is created"
+          "description": "Trigger workflow when a new deployment is created",
+          "polling": false
         },
         {
           "id": "vercel_deployment_ready",
           "name": "Vercel Deployment Ready",
-          "description": "Trigger workflow when a deployment is ready to serve traffic"
+          "description": "Trigger workflow when a deployment is ready to serve traffic",
+          "polling": false
         },
         {
           "id": "vercel_deployment_error",
           "name": "Vercel Deployment Error",
-          "description": "Trigger workflow when a deployment fails"
+          "description": "Trigger workflow when a deployment fails",
+          "polling": false
         },
         {
           "id": "vercel_deployment_canceled",
           "name": "Vercel Deployment Canceled",
-          "description": "Trigger workflow when a deployment is canceled"
+          "description": "Trigger workflow when a deployment is canceled",
+          "polling": false
         },
         {
           "id": "vercel_project_created",
           "name": "Vercel Project Created",
-          "description": "Trigger workflow when a new project is created"
+          "description": "Trigger workflow when a new project is created",
+          "polling": false
         },
         {
           "id": "vercel_project_removed",
           "name": "Vercel Project Removed",
-          "description": "Trigger workflow when a project is removed"
+          "description": "Trigger workflow when a project is removed",
+          "polling": false
         },
         {
           "id": "vercel_domain_created",
           "name": "Vercel Domain Created",
-          "description": "Trigger workflow when a domain is created"
+          "description": "Trigger workflow when a domain is created",
+          "polling": false
         },
         {
           "id": "vercel_webhook",
           "name": "Vercel Webhook (Common Events)",
-          "description": "Trigger on a curated set of common Vercel events (deployments, projects, domains, edge config). Pick a specific trigger to listen to one event type only."
+          "description": "Trigger on a curated set of common Vercel events (deployments, projects, domains, edge config). Pick a specific trigger to listen to one event type only.",
+          "polling": false
         }
       ],
       "triggerCount": 8,
@@ -19357,22 +20005,26 @@
         {
           "id": "webflow_collection_item_created",
           "name": "Collection Item Created",
-          "description": "Trigger workflow when a new item is created in a Webflow CMS collection (requires Webflow credentials)"
+          "description": "Trigger workflow when a new item is created in a Webflow CMS collection (requires Webflow credentials)",
+          "polling": false
         },
         {
           "id": "webflow_collection_item_changed",
           "name": "Collection Item Changed",
-          "description": "Trigger workflow when an item is updated in a Webflow CMS collection (requires Webflow credentials)"
+          "description": "Trigger workflow when an item is updated in a Webflow CMS collection (requires Webflow credentials)",
+          "polling": false
         },
         {
           "id": "webflow_collection_item_deleted",
           "name": "Collection Item Deleted",
-          "description": "Trigger workflow when an item is deleted from a Webflow CMS collection (requires Webflow credentials)"
+          "description": "Trigger workflow when an item is deleted from a Webflow CMS collection (requires Webflow credentials)",
+          "polling": false
         },
         {
           "id": "webflow_form_submission",
           "name": "Form Submission",
-          "description": "Trigger workflow when a form is submitted on a Webflow site (requires Webflow credentials)"
+          "description": "Trigger workflow when a form is submitted on a Webflow site (requires Webflow credentials)",
+          "polling": false
         }
       ],
       "triggerCount": 4,
@@ -19422,7 +20074,8 @@
         {
           "id": "whatsapp_webhook",
           "name": "WhatsApp Webhook",
-          "description": "Trigger workflow from WhatsApp incoming messages and message status webhooks"
+          "description": "Trigger workflow from WhatsApp incoming messages and message status webhooks",
+          "polling": false
         }
       ],
       "triggerCount": 1,
@@ -20015,27 +20668,32 @@
         {
           "id": "zendesk_ticket_created",
           "name": "Zendesk Ticket Created",
-          "description": "Trigger workflow when a new ticket is created in Zendesk"
+          "description": "Trigger workflow when a new ticket is created in Zendesk",
+          "polling": false
         },
         {
           "id": "zendesk_ticket_status_changed",
           "name": "Zendesk Ticket Status Changed",
-          "description": "Trigger workflow when a ticket status changes in Zendesk"
+          "description": "Trigger workflow when a ticket status changes in Zendesk",
+          "polling": false
         },
         {
           "id": "zendesk_ticket_comment_added",
           "name": "Zendesk Ticket Comment Added",
-          "description": "Trigger workflow when a comment is added to a Zendesk ticket"
+          "description": "Trigger workflow when a comment is added to a Zendesk ticket",
+          "polling": false
         },
         {
           "id": "zendesk_ticket_priority_changed",
           "name": "Zendesk Ticket Priority Changed",
-          "description": "Trigger workflow when a ticket priority changes in Zendesk"
+          "description": "Trigger workflow when a ticket priority changes in Zendesk",
+          "polling": false
         },
         {
           "id": "zendesk_webhook",
           "name": "Zendesk Ticket Event",
-          "description": "Trigger workflow from any Zendesk ticket event"
+          "description": "Trigger workflow from any Zendesk ticket event",
+          "polling": false
         }
       ],
       "triggerCount": 5,
@@ -20182,32 +20840,38 @@
         {
           "id": "zoom_meeting_started",
           "name": "Zoom Meeting Started",
-          "description": "Trigger workflow when a Zoom meeting starts"
+          "description": "Trigger workflow when a Zoom meeting starts",
+          "polling": false
         },
         {
           "id": "zoom_meeting_ended",
           "name": "Zoom Meeting Ended",
-          "description": "Trigger workflow when a Zoom meeting ends"
+          "description": "Trigger workflow when a Zoom meeting ends",
+          "polling": false
         },
         {
           "id": "zoom_participant_joined",
           "name": "Zoom Participant Joined",
-          "description": "Trigger workflow when a participant joins a Zoom meeting"
+          "description": "Trigger workflow when a participant joins a Zoom meeting",
+          "polling": false
         },
         {
           "id": "zoom_participant_left",
           "name": "Zoom Participant Left",
-          "description": "Trigger workflow when a participant leaves a Zoom meeting"
+          "description": "Trigger workflow when a participant leaves a Zoom meeting",
+          "polling": false
         },
         {
           "id": "zoom_recording_completed",
           "name": "Zoom Recording Completed",
-          "description": "Trigger workflow when a Zoom cloud recording is completed"
+          "description": "Trigger workflow when a Zoom cloud recording is completed",
+          "polling": false
         },
         {
           "id": "zoom_webhook",
           "name": "Zoom Webhook (All Events)",
-          "description": "Trigger workflow on any Zoom webhook event"
+          "description": "Trigger workflow on any Zoom webhook event",
+          "polling": false
         }
       ],
       "triggerCount": 6,
