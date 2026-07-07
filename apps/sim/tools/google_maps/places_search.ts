@@ -60,7 +60,8 @@ export const googleMapsPlacesSearchTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Token from a previous search response to fetch the next page of results',
+      description:
+        'Token from a previous search response to fetch the next page of results. Wait a couple seconds after receiving the token before using it, or the API returns INVALID_REQUEST',
     },
   },
 

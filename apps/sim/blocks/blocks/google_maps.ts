@@ -240,7 +240,7 @@ export const GoogleMapsBlock: BlockConfig = {
       id: 'pageToken',
       title: 'Page Token',
       type: 'short-input',
-      placeholder: 'Token from a previous search to fetch the next page',
+      placeholder: 'Token from a previous search (wait ~2s before using it)',
       condition: { field: 'operation', value: 'places_search' },
       mode: 'advanced',
     },
@@ -570,7 +570,8 @@ export const GoogleMapsBlock: BlockConfig = {
 
         let radius: number | undefined
         if (params.radius) {
-          radius = Number.parseInt(params.radius, 10)
+          const parsedRadius = Number.parseInt(params.radius, 10)
+          radius = Number.isNaN(parsedRadius) ? undefined : parsedRadius
         }
 
         let placeIds: string[] | undefined
