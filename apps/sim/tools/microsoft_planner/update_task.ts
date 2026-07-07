@@ -86,14 +86,22 @@ export const updateTaskTool: ToolConfig<
       description:
         'The user ID to assign the task to (e.g., "e82f74c3-4d8a-4b5c-9f1e-2a6b8c9d0e3f")',
     },
+    appliedCategories: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated category labels to apply to the task, e.g. "category1,category3" (up to category1-category25, plan-defined color labels)',
+    },
   },
 
   request: {
     url: (params) => {
-      if (!params.taskId) {
+      const taskId = params.taskId?.trim()
+      if (!taskId) {
         throw new Error('Task ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}`
+      return `https://graph.microsoft.com/v1.0/planner/tasks/${taskId}`
     },
     method: 'PATCH',
     headers: (params) => {
@@ -123,6 +131,7 @@ export const updateTaskTool: ToolConfig<
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
+        Prefer: 'return=representation',
         'If-Match': cleanedEtag,
       }
     },
@@ -168,9 +177,22 @@ export const updateTaskTool: ToolConfig<
       ) {
         body.assignments = {
           [params.assigneeUserId]: {
-            '@odata.type': 'microsoft.graph.plannerAssignment',
+            '@odata.type': '#microsoft.graph.plannerAssignment',
             orderHint: ' !',
           },
+        }
+      }
+
+      if (params.appliedCategories?.trim()) {
+        const categories = params.appliedCategories
+          .split(',')
+          .map((category) => category.trim())
+          .filter(Boolean)
+
+        if (categories.length > 0) {
+          body.appliedCategories = Object.fromEntries(
+            categories.map((category) => [category, true])
+          )
         }
       }
 
@@ -184,7 +206,8 @@ export const updateTaskTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params?: MicrosoftPlannerToolParams) => {
-    // Check if response has content before parsing
+    // Check if response has content before parsing (Prefer: return=representation requests a
+    // body, but the service may still return 204 No Content for some tenants/requests)
     const text = await response.text()
     if (!text || text.trim() === '') {
       logger.info('Update successful but no response body returned (204 No Content)')
@@ -193,10 +216,10 @@ export const updateTaskTool: ToolConfig<
         output: {
           message: 'Task updated successfully',
           task: {} as PlannerTask,
-          taskId: params?.taskId || '',
+          taskId: params?.taskId?.trim() || '',
           etag: params?.etag || '',
           metadata: {
-            taskId: params?.taskId,
+            taskId: params?.taskId?.trim(),
           },
         },
       }

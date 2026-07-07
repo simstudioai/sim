@@ -1,19 +1,19 @@
 import { createLogger } from '@sim/logger'
 import type {
-  MicrosoftPlannerReadPlanResponse,
+  MicrosoftPlannerGetPlanDetailsResponse,
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('MicrosoftPlannerReadPlan')
+const logger = createLogger('MicrosoftPlannerGetPlanDetails')
 
-export const readPlanTool: ToolConfig<
+export const getPlanDetailsTool: ToolConfig<
   MicrosoftPlannerToolParams,
-  MicrosoftPlannerReadPlanResponse
+  MicrosoftPlannerGetPlanDetailsResponse
 > = {
-  id: 'microsoft_planner_read_plan',
-  name: 'Read Microsoft Planner Plan',
-  description: 'Get details of a specific Microsoft Planner plan',
+  id: 'microsoft_planner_get_plan_details',
+  name: 'Get Microsoft Planner Plan Details',
+  description: 'Get detailed information about a plan including category descriptions and sharing',
   version: '1.0',
 
   oauth: {
@@ -32,7 +32,7 @@ export const readPlanTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the plan to retrieve (e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J")',
+      description: 'The ID of the plan (e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J")',
     },
   },
 
@@ -42,7 +42,7 @@ export const readPlanTool: ToolConfig<
       if (!planId) {
         throw new Error('Plan ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/plans/${planId}`
+      return `https://graph.microsoft.com/v1.0/planner/plans/${planId}/details`
     },
     method: 'GET',
     headers: (params) => {
@@ -57,16 +57,18 @@ export const readPlanTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const plan = await response.json()
-    logger.info('Read plan response:', plan)
+    const planDetails = await response.json()
+    logger.info('Plan details retrieved:', planDetails)
 
-    const result: MicrosoftPlannerReadPlanResponse = {
+    const etag = planDetails['@odata.etag'] || ''
+
+    const result: MicrosoftPlannerGetPlanDetailsResponse = {
       success: true,
       output: {
-        plan,
+        planDetails,
+        etag,
         metadata: {
-          planId: plan.id,
-          planUrl: `https://graph.microsoft.com/v1.0/planner/plans/${plan.id}`,
+          planId: planDetails.id,
         },
       },
     }
@@ -75,14 +77,23 @@ export const readPlanTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the plan was retrieved successfully' },
-    plan: { type: 'object', description: 'The plan object with all properties' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the plan details were retrieved successfully',
+    },
+    planDetails: {
+      type: 'object',
+      description: 'The plan details including categoryDescriptions and sharedWith',
+    },
+    etag: {
+      type: 'string',
+      description: 'The ETag value for this plan details resource',
+    },
     metadata: {
       type: 'object',
-      description: 'Metadata including planId and planUrl',
+      description: 'Metadata including planId',
       properties: {
         planId: { type: 'string', description: 'Plan ID' },
-        planUrl: { type: 'string', description: 'Microsoft Graph API URL for the plan' },
       },
     },
   },

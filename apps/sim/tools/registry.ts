@@ -2321,9 +2321,12 @@ import {
 } from '@/tools/microsoft_excel'
 import {
   microsoftPlannerCreateBucketTool,
+  microsoftPlannerCreatePlanTool,
   microsoftPlannerCreateTaskTool,
   microsoftPlannerDeleteBucketTool,
+  microsoftPlannerDeletePlanTool,
   microsoftPlannerDeleteTaskTool,
+  microsoftPlannerGetPlanDetailsTool,
   microsoftPlannerGetTaskDetailsTool,
   microsoftPlannerListBucketsTool,
   microsoftPlannerListPlansTool,
@@ -2331,6 +2334,8 @@ import {
   microsoftPlannerReadPlanTool,
   microsoftPlannerReadTaskTool,
   microsoftPlannerUpdateBucketTool,
+  microsoftPlannerUpdatePlanDetailsTool,
+  microsoftPlannerUpdatePlanTool,
   microsoftPlannerUpdateTaskDetailsTool,
   microsoftPlannerUpdateTaskTool,
 } from '@/tools/microsoft_planner'
@@ -7609,6 +7614,11 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_planner_delete_task: microsoftPlannerDeleteTaskTool,
   microsoft_planner_list_plans: microsoftPlannerListPlansTool,
   microsoft_planner_read_plan: microsoftPlannerReadPlanTool,
+  microsoft_planner_create_plan: microsoftPlannerCreatePlanTool,
+  microsoft_planner_update_plan: microsoftPlannerUpdatePlanTool,
+  microsoft_planner_get_plan_details: microsoftPlannerGetPlanDetailsTool,
+  microsoft_planner_update_plan_details: microsoftPlannerUpdatePlanDetailsTool,
+  microsoft_planner_delete_plan: microsoftPlannerDeletePlanTool,
   microsoft_planner_list_buckets: microsoftPlannerListBucketsTool,
   microsoft_planner_read_bucket: microsoftPlannerReadBucketTool,
   microsoft_planner_create_bucket: microsoftPlannerCreateBucketTool,

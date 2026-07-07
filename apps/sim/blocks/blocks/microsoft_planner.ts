@@ -23,6 +23,9 @@ interface MicrosoftPlannerBlockParams {
   checklist?: string
   references?: string
   previewType?: string
+  appliedCategories?: string
+  categoryDescriptions?: string
+  sharedWith?: string
   [key: string]: string | number | boolean | undefined
 }
 
@@ -50,6 +53,11 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         { label: 'Delete Task', id: 'delete_task' },
         { label: 'List Plans', id: 'list_plans' },
         { label: 'Read Plan', id: 'read_plan' },
+        { label: 'Create Plan', id: 'create_plan' },
+        { label: 'Update Plan', id: 'update_plan' },
+        { label: 'Get Plan Details', id: 'get_plan_details' },
+        { label: 'Update Plan Details', id: 'update_plan_details' },
+        { label: 'Delete Plan', id: 'delete_plan' },
         { label: 'List Buckets', id: 'list_buckets' },
         { label: 'Read Bucket', id: 'read_bucket' },
         { label: 'Create Bucket', id: 'create_bucket' },
@@ -91,11 +99,30 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['create_task', 'read_task', 'read_plan', 'list_buckets', 'create_bucket'],
+        value: [
+          'create_task',
+          'read_task',
+          'read_plan',
+          'list_buckets',
+          'create_bucket',
+          'update_plan',
+          'delete_plan',
+          'get_plan_details',
+          'update_plan_details',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['read_plan', 'list_buckets', 'create_bucket', 'create_task'],
+        value: [
+          'read_plan',
+          'list_buckets',
+          'create_bucket',
+          'create_task',
+          'update_plan',
+          'delete_plan',
+          'get_plan_details',
+          'update_plan_details',
+        ],
       },
     },
 
@@ -109,11 +136,30 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['create_task', 'read_task', 'read_plan', 'list_buckets', 'create_bucket'],
+        value: [
+          'create_task',
+          'read_task',
+          'read_plan',
+          'list_buckets',
+          'create_bucket',
+          'update_plan',
+          'delete_plan',
+          'get_plan_details',
+          'update_plan_details',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['read_plan', 'list_buckets', 'create_bucket', 'create_task'],
+        value: [
+          'read_plan',
+          'list_buckets',
+          'create_bucket',
+          'create_task',
+          'update_plan',
+          'delete_plan',
+          'get_plan_details',
+          'update_plan_details',
+        ],
       },
       dependsOn: ['credential'],
     },
@@ -184,6 +230,9 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
           'update_bucket',
           'delete_bucket',
           'update_task_details',
+          'update_plan',
+          'update_plan_details',
+          'delete_plan',
         ],
       },
       dependsOn: ['credential'],
@@ -209,13 +258,14 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       required: { field: 'operation', value: 'create_bucket' },
     },
 
-    // Description for task details
+    // Description for task details (Microsoft Planner tasks store description on the
+    // task details resource, not the task itself, so this only applies to update_task_details)
     {
       id: 'description',
       title: 'Description',
       type: 'long-input',
       placeholder: 'Enter task description',
-      condition: { field: 'operation', value: ['create_task', 'update_task_details'] },
+      condition: { field: 'operation', value: ['update_task_details'] },
     },
 
     // Due Date
@@ -247,7 +297,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Start Date',
       type: 'short-input',
       placeholder: 'Enter start date in ISO 8601 format (optional)',
-      condition: { field: 'operation', value: ['update_task'] },
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description for Microsoft Planner task start date.
@@ -288,7 +339,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Priority',
       type: 'short-input',
       placeholder: 'Enter priority (0-10, optional)',
-      condition: { field: 'operation', value: ['update_task'] },
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
 
     // Percent Complete
@@ -297,7 +349,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Percent Complete',
       type: 'short-input',
       placeholder: 'Enter completion percentage (0-100, optional)',
-      condition: { field: 'operation', value: ['update_task'] },
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
 
     // Checklist for task details
@@ -305,7 +358,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'checklist',
       title: 'Checklist (JSON)',
       type: 'long-input',
-      placeholder: 'Enter checklist as JSON object (optional)',
+      placeholder:
+        'e.g. {"<generated-guid>": {"@odata.type": "microsoft.graph.plannerChecklistItem", "title": "Step 1", "isChecked": false}}',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['update_task_details'] },
     },
 
@@ -314,7 +369,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'references',
       title: 'References (JSON)',
       type: 'long-input',
-      placeholder: 'Enter references as JSON object (optional)',
+      placeholder:
+        'e.g. {"https%3A//example%2Ecom": {"@odata.type": "microsoft.graph.plannerExternalReference", "alias": "Docs", "type": "Other"}}',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['update_task_details'] },
     },
 
@@ -324,7 +381,71 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Preview Type',
       type: 'short-input',
       placeholder: 'Enter preview type (automatic, noPreview, checklist, description, reference)',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['update_task_details'] },
+    },
+
+    // Group ID for create plan
+    {
+      id: 'groupId',
+      title: 'Microsoft 365 Group ID',
+      type: 'short-input',
+      placeholder: 'Enter the Microsoft 365 group ID that will own the plan',
+      required: { field: 'operation', value: 'create_plan' },
+      condition: { field: 'operation', value: ['create_plan'] },
+      dependsOn: ['credential'],
+    },
+
+    // Plan title for create/update plan
+    {
+      id: 'planTitle',
+      title: 'Plan Title',
+      type: 'short-input',
+      placeholder: 'Enter the plan title',
+      required: { field: 'operation', value: ['create_plan', 'update_plan'] },
+      condition: { field: 'operation', value: ['create_plan', 'update_plan'] },
+      dependsOn: ['credential'],
+    },
+
+    // Applied categories for task create/update (color labels)
+    {
+      id: 'appliedCategories',
+      title: 'Categories',
+      type: 'short-input',
+      placeholder: 'e.g. category1,category3',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_task', 'update_task'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Microsoft Planner category keys based on the user's description.
+Valid keys are category1 through category25.
+Examples:
+- "flag it blocked" -> category1
+- "mark as urgent and needs review" -> category1,category2
+
+Return ONLY the comma-separated category keys - no explanations, no extra text.`,
+        placeholder: 'Describe which category labels to apply (e.g., "mark as blocked")...',
+      },
+    },
+
+    // Category descriptions for plan details (color label names)
+    {
+      id: 'categoryDescriptions',
+      title: 'Category Descriptions (JSON)',
+      type: 'long-input',
+      placeholder: 'e.g. {"category1": "Blocked", "category2": "At Risk"}',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['update_plan_details'] },
+    },
+
+    // Shared with for plan details
+    {
+      id: 'sharedWith',
+      title: 'Shared With (JSON)',
+      type: 'long-input',
+      placeholder: 'e.g. {"<user-id>": true}',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['update_plan_details'] },
     },
   ],
   tools: {
@@ -335,6 +456,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'microsoft_planner_delete_task',
       'microsoft_planner_list_plans',
       'microsoft_planner_read_plan',
+      'microsoft_planner_create_plan',
+      'microsoft_planner_update_plan',
+      'microsoft_planner_get_plan_details',
+      'microsoft_planner_update_plan_details',
+      'microsoft_planner_delete_plan',
       'microsoft_planner_list_buckets',
       'microsoft_planner_read_bucket',
       'microsoft_planner_create_bucket',
@@ -358,6 +484,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'microsoft_planner_list_plans'
           case 'read_plan':
             return 'microsoft_planner_read_plan'
+          case 'create_plan':
+            return 'microsoft_planner_create_plan'
+          case 'update_plan':
+            return 'microsoft_planner_update_plan'
+          case 'get_plan_details':
+            return 'microsoft_planner_get_plan_details'
+          case 'update_plan_details':
+            return 'microsoft_planner_update_plan_details'
+          case 'delete_plan':
+            return 'microsoft_planner_delete_plan'
           case 'list_buckets':
             return 'microsoft_planner_list_buckets'
           case 'read_bucket':
@@ -388,6 +524,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           bucketIdForRead,
           title,
           name,
+          planTitle,
           description,
           dueDateTime,
           startDateTime,
@@ -398,6 +535,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           checklist,
           references,
           previewType,
+          appliedCategories,
+          categoryDescriptions,
+          sharedWith,
           ...rest
         } = params
 
@@ -421,6 +561,58 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           return {
             ...baseParams,
             planId: planId?.trim(),
+          }
+        }
+
+        // Create Plan
+        if (operation === 'create_plan') {
+          return {
+            ...baseParams,
+            groupId: groupId?.trim(),
+            title: planTitle?.trim(),
+          }
+        }
+
+        // Update Plan
+        if (operation === 'update_plan') {
+          return {
+            ...baseParams,
+            planId: planId?.trim(),
+            etag: etag?.trim(),
+            title: planTitle?.trim(),
+          }
+        }
+
+        // Get Plan Details
+        if (operation === 'get_plan_details') {
+          return {
+            ...baseParams,
+            planId: planId?.trim(),
+          }
+        }
+
+        // Update Plan Details
+        if (operation === 'update_plan_details') {
+          const updatePlanDetailsParams: MicrosoftPlannerBlockParams = {
+            ...baseParams,
+            planId: planId?.trim(),
+            etag: etag?.trim(),
+          }
+          if (categoryDescriptions?.trim()) {
+            updatePlanDetailsParams.categoryDescriptions = categoryDescriptions.trim()
+          }
+          if (sharedWith?.trim()) {
+            updatePlanDetailsParams.sharedWith = sharedWith.trim()
+          }
+          return updatePlanDetailsParams
+        }
+
+        // Delete Plan
+        if (operation === 'delete_plan') {
+          return {
+            ...baseParams,
+            planId: planId?.trim(),
+            etag: etag?.trim(),
           }
         }
 
@@ -492,17 +684,26 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             title: title?.trim(),
           }
 
-          if (description?.trim()) {
-            createParams.description = description.trim()
-          }
           if (dueDateTime?.trim()) {
             createParams.dueDateTime = dueDateTime.trim()
+          }
+          if (startDateTime?.trim()) {
+            createParams.startDateTime = startDateTime.trim()
+          }
+          if (priority !== undefined) {
+            createParams.priority = Number(priority)
+          }
+          if (percentComplete !== undefined) {
+            createParams.percentComplete = Number(percentComplete)
           }
           if (assigneeUserId?.trim()) {
             createParams.assigneeUserId = assigneeUserId.trim()
           }
           if (effectiveBucketId) {
             createParams.bucketId = effectiveBucketId
+          }
+          if (appliedCategories?.trim()) {
+            createParams.appliedCategories = appliedCategories.trim()
           }
 
           return createParams
@@ -536,6 +737,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
           if (percentComplete !== undefined) {
             updateParams.percentComplete = Number(percentComplete)
+          }
+          if (appliedCategories?.trim()) {
+            updateParams.appliedCategories = appliedCategories.trim()
           }
 
           return updateParams
@@ -597,7 +801,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     bucketIdForRead: { type: 'string', description: 'Bucket ID for read operations' },
     title: { type: 'string', description: 'Task title' },
     name: { type: 'string', description: 'Bucket name' },
-    description: { type: 'string', description: 'Task or task details description' },
+    planTitle: { type: 'string', description: 'Plan title for create/update plan' },
+    description: { type: 'string', description: 'Task details description' },
     dueDateTime: { type: 'string', description: 'Due date' },
     startDateTime: { type: 'string', description: 'Start date' },
     assigneeUserId: { type: 'string', description: 'Assignee user ID' },
@@ -607,6 +812,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     checklist: { type: 'string', description: 'Checklist items as JSON' },
     references: { type: 'string', description: 'References as JSON' },
     previewType: { type: 'string', description: 'Preview type for task details' },
+    appliedCategories: {
+      type: 'string',
+      description: 'Comma-separated category labels to apply to a task (e.g., category1,category3)',
+    },
+    categoryDescriptions: { type: 'string', description: 'Plan category label names as JSON' },
+    sharedWith: { type: 'string', description: 'Plan shared-with user IDs as JSON' },
   },
   outputs: {
     message: {
@@ -637,6 +848,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     plans: {
       type: 'json',
       description: 'Array of Microsoft Planner plans',
+    },
+    planDetails: {
+      type: 'json',
+      description:
+        'The Microsoft Planner plan details, including categoryDescriptions and sharedWith',
     },
     bucket: {
       type: 'json',

@@ -1,20 +1,20 @@
 import { createLogger } from '@sim/logger'
 import type {
   MicrosoftPlannerToolParams,
-  MicrosoftPlannerUpdateBucketResponse,
-  PlannerBucket,
+  MicrosoftPlannerUpdatePlanResponse,
+  PlannerPlan,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('MicrosoftPlannerUpdateBucket')
+const logger = createLogger('MicrosoftPlannerUpdatePlan')
 
-export const updateBucketTool: ToolConfig<
+export const updatePlanTool: ToolConfig<
   MicrosoftPlannerToolParams,
-  MicrosoftPlannerUpdateBucketResponse
+  MicrosoftPlannerUpdatePlanResponse
 > = {
-  id: 'microsoft_planner_update_bucket',
-  name: 'Update Microsoft Planner Bucket',
-  description: 'Update a bucket in Microsoft Planner',
+  id: 'microsoft_planner_update_plan',
+  name: 'Update Microsoft Planner Plan',
+  description: 'Rename a Microsoft Planner plan',
   version: '1.0',
   errorExtractor: 'nested-error-object',
 
@@ -30,33 +30,33 @@ export const updateBucketTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Microsoft Planner API',
     },
-    bucketId: {
+    planId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the bucket to update (e.g., "hsOf2dhOJkC6Fey9VjDg1JgAC9Rq")',
-    },
-    name: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'The new name of the bucket',
+      description: 'The ID of the plan to update (e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J")',
     },
     etag: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The ETag value from the bucket to update (If-Match header)',
+      description: 'The ETag value from the plan to update (If-Match header)',
+    },
+    title: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The new title of the plan',
     },
   },
 
   request: {
     url: (params) => {
-      const bucketId = params.bucketId?.trim()
-      if (!bucketId) {
-        throw new Error('Bucket ID is required')
+      const planId = params.planId?.trim()
+      if (!planId) {
+        throw new Error('Plan ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/buckets/${bucketId}`
+      return `https://graph.microsoft.com/v1.0/planner/plans/${planId}`
     },
     method: 'PATCH',
     headers: (params) => {
@@ -71,12 +71,10 @@ export const updateBucketTool: ToolConfig<
 
       while (cleanedEtag.startsWith('"') && cleanedEtag.endsWith('"')) {
         cleanedEtag = cleanedEtag.slice(1, -1)
-        logger.info('Removed surrounding quotes:', cleanedEtag)
       }
 
       if (cleanedEtag.includes('\\"')) {
         cleanedEtag = cleanedEtag.replace(/\\"/g, '"')
-        logger.info('Cleaned escaped quotes from etag')
       }
 
       return {
@@ -87,17 +85,13 @@ export const updateBucketTool: ToolConfig<
       }
     },
     body: (params) => {
-      const body: Record<string, any> = {}
-
-      if (params.name) {
-        body.name = params.name
+      if (!params.title?.trim()) {
+        throw new Error('Plan title is required')
       }
 
-      if (Object.keys(body).length === 0) {
-        throw new Error('At least one field must be provided to update')
-      }
+      const body = { title: params.title.trim() }
 
-      logger.info('Updating bucket with body:', body)
+      logger.info('Updating plan with body:', body)
       return body
     },
   },
@@ -111,24 +105,23 @@ export const updateBucketTool: ToolConfig<
       return {
         success: true,
         output: {
-          bucket: {} as PlannerBucket,
+          plan: {} as PlannerPlan,
           metadata: {
-            bucketId: params?.bucketId?.trim(),
+            planId: params?.planId?.trim(),
           },
         },
       }
     }
 
-    const bucket = JSON.parse(text)
-    logger.info('Updated bucket:', bucket)
+    const plan = JSON.parse(text)
+    logger.info('Updated plan:', plan)
 
-    const result: MicrosoftPlannerUpdateBucketResponse = {
+    const result: MicrosoftPlannerUpdatePlanResponse = {
       success: true,
       output: {
-        bucket,
+        plan,
         metadata: {
-          bucketId: bucket.id,
-          planId: bucket.planId,
+          planId: plan.id,
         },
       },
     }
@@ -137,14 +130,13 @@ export const updateBucketTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the bucket was updated successfully' },
-    bucket: { type: 'object', description: 'The updated bucket object with all properties' },
+    success: { type: 'boolean', description: 'Whether the plan was updated successfully' },
+    plan: { type: 'object', description: 'The updated plan object with all properties' },
     metadata: {
       type: 'object',
-      description: 'Metadata including bucketId and planId',
+      description: 'Metadata including planId',
       properties: {
-        bucketId: { type: 'string', description: 'Updated bucket ID' },
-        planId: { type: 'string', description: 'Parent plan ID' },
+        planId: { type: 'string', description: 'Updated plan ID' },
       },
     },
   },

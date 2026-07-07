@@ -42,18 +42,31 @@ export const createTaskTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The title of the task (e.g., "Review quarterly report")',
     },
-    description: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'The description of the task',
-    },
     dueDateTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'The due date and time for the task in ISO 8601 format (e.g., "2025-03-15T17:00:00Z")',
+    },
+    startDateTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'The start date and time for the task in ISO 8601 format (e.g., "2025-03-10T09:00:00Z")',
+    },
+    priority: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'The priority of the task (0-10, where 0 is urgent and 10 is low)',
+    },
+    percentComplete: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'The percentage of task completion (0-100)',
     },
     assigneeUserId: {
       type: 'string',
@@ -67,6 +80,13 @@ export const createTaskTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'The bucket ID to place the task in (e.g., "hsOf2dhOJkC6Fey9VjDg1JgAC9Rq")',
+    },
+    appliedCategories: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated category labels to apply to the task, e.g. "category1,category3" (up to category1-category25, plan-defined color labels)',
     },
   },
 
@@ -109,15 +129,44 @@ export const createTaskTool: ToolConfig<
       }
 
       if (
+        params.startDateTime !== undefined &&
+        params.startDateTime !== null &&
+        params.startDateTime !== ''
+      ) {
+        body.startDateTime = params.startDateTime
+      }
+
+      if (params.priority !== undefined && params.priority !== null) {
+        body.priority = Number(params.priority)
+      }
+
+      if (params.percentComplete !== undefined && params.percentComplete !== null) {
+        body.percentComplete = Number(params.percentComplete)
+      }
+
+      if (
         params.assigneeUserId !== undefined &&
         params.assigneeUserId !== null &&
         params.assigneeUserId !== ''
       ) {
         body.assignments = {
           [params.assigneeUserId]: {
-            '@odata.type': 'microsoft.graph.plannerAssignment',
+            '@odata.type': '#microsoft.graph.plannerAssignment',
             orderHint: ' !',
           },
+        }
+      }
+
+      if (params.appliedCategories?.trim()) {
+        const categories = params.appliedCategories
+          .split(',')
+          .map((category) => category.trim())
+          .filter(Boolean)
+
+        if (categories.length > 0) {
+          body.appliedCategories = Object.fromEntries(
+            categories.map((category) => [category, true])
+          )
         }
       }
 
