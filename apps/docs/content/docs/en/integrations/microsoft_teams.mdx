@@ -29,7 +29,7 @@ In Sim, the Microsoft Teams integration enables your agents to interact directly
 
 ## Usage Instructions
 
-Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
+Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
 
 
 
@@ -346,6 +346,80 @@ List all members of a Microsoft Teams channel
 | `success` | boolean | Whether the listing was successful |
 | `members` | array | Array of channel members |
 | `memberCount` | number | Total number of members |
+
+### `microsoft_teams_list_chat_members`
+
+List all members of a Microsoft Teams chat
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Yes | The ID of the chat \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the listing was successful |
+| `members` | array | Array of chat members |
+| `memberCount` | number | Total number of members |
+| `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
+
+### `microsoft_teams_list_teams`
+
+List the Microsoft Teams the current user is a direct member of
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the listing was successful |
+| `teams` | array | Array of teams the user is a member of |
+| `teamCount` | number | Total number of teams |
+| `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
+
+### `microsoft_teams_list_chats`
+
+List the Microsoft Teams chats the current user is part of
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the listing was successful |
+| `chats` | array | Array of chats the user is part of |
+| `chatCount` | number | Total number of chats |
+| `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
+
+### `microsoft_teams_list_channels`
+
+List all channels in a Microsoft Teams team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Yes | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the listing was successful |
+| `channels` | array | Array of channels in the team |
+| `channelCount` | number | Total number of channels |
+| `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
 
 
 
