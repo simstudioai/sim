@@ -4,10 +4,11 @@ import type { TableRow } from '@/tools/types'
 /**
  * Creates a set of default headers used in HTTP requests.
  *
- * Identifies as Sim rather than impersonating a browser — browser-fingerprint
+ * Identifies as Sim rather than impersonating a browser. Browser-fingerprint
  * headers (Referer, Sec-Ch-Ua*) trip anti-CSRF/bot-defense heuristics on
- * providers like Atlassian, which explicitly reject REST calls carrying a
- * browser User-Agent. See https://support.atlassian.com/jira/kb/rest-api-calls-with-a-browser-user-agent-header-may-fail-csrf-checks/
+ * providers like Atlassian, which reject REST calls carrying a browser
+ * User-Agent regardless of X-Atlassian-Token. See
+ * https://support.atlassian.com/jira/kb/rest-api-calls-with-a-browser-user-agent-header-may-fail-csrf-checks/
  * @param customHeaders Additional user-provided headers to include
  * @param url Target URL for the request (used for setting Host header)
  * @returns Record of HTTP headers
