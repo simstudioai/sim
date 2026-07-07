@@ -39,6 +39,14 @@ const context = {
   chatId: 'chat-1',
 } as unknown as ExecutionContext
 
+const WORKSPACE_ACCESS = {
+  exists: true,
+  hasAccess: true,
+  canWrite: true,
+  canAdmin: false,
+  workspace: { id: WORKSPACE_ID },
+}
+
 function oauthCredentialActor(overrides: Record<string, unknown> = {}) {
   return {
     credential: {
@@ -60,7 +68,7 @@ describe('executeOAuthGetAuthLink', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_APP_URL = BASE_URL
-    mockEnsureWorkspaceAccess.mockResolvedValue(undefined)
+    mockEnsureWorkspaceAccess.mockResolvedValue(WORKSPACE_ACCESS)
   })
 
   describe('connect (no credentialId)', () => {
@@ -91,6 +99,19 @@ describe('executeOAuthGetAuthLink', () => {
       expect(url.searchParams.get('credentialId')).toBe(CREDENTIAL_ID)
       expect(output.message).toContain('Reconnect')
       expect(output.message).toContain(CREDENTIAL_ID)
+    })
+
+    it('reuses the already-resolved workspace access for the credential lookup', async () => {
+      mockGetCredentialActorContext.mockResolvedValue(oauthCredentialActor())
+
+      await executeOAuthGetAuthLink(
+        { providerName: 'google-email', credentialId: CREDENTIAL_ID },
+        context
+      )
+
+      expect(mockGetCredentialActorContext).toHaveBeenCalledWith(CREDENTIAL_ID, USER_ID, {
+        workspaceAccess: WORKSPACE_ACCESS,
+      })
     })
 
     it('fails with an agent-visible error for a nonexistent credential', async () => {

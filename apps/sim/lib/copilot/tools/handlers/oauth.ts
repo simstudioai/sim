@@ -4,6 +4,7 @@ import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export async function executeOAuthGetAuthLink(
   rawParams: Record<string, unknown>,
@@ -17,14 +18,18 @@ export async function executeOAuthGetAuthLink(
     if (!context.workspaceId || !context.userId) {
       throw new Error('workspaceId and userId are required to generate an OAuth link')
     }
-    await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
+    const workspaceAccess = await ensureWorkspaceAccess(
+      context.workspaceId,
+      context.userId,
+      'write'
+    )
     const result = await generateOAuthLink(
       context.workspaceId,
       context.workflowId,
       context.chatId,
       providerName,
       baseUrl,
-      credentialId ? { credentialId, userId: context.userId } : undefined
+      credentialId ? { credentialId, userId: context.userId, workspaceAccess } : undefined
     )
     const action = credentialId ? 'reconnect' : 'connect'
     return {
@@ -92,7 +97,7 @@ async function generateOAuthLink(
   chatId: string | undefined,
   providerName: string,
   baseUrl: string,
-  reconnect?: { credentialId: string; userId: string }
+  reconnect?: { credentialId: string; userId: string; workspaceAccess: WorkspaceAccess }
 ): Promise<{ url: string; providerId: string; serviceName: string }> {
   if (!workspaceId) {
     throw new Error('workspaceId is required to generate an OAuth link')
@@ -127,7 +132,9 @@ async function generateOAuthLink(
           `integrations page and press Reconnect on the credential there.`
       )
     }
-    const actor = await getCredentialActorContext(reconnect.credentialId, reconnect.userId)
+    const actor = await getCredentialActorContext(reconnect.credentialId, reconnect.userId, {
+      workspaceAccess: reconnect.workspaceAccess,
+    })
     if (!actor.credential || actor.credential.workspaceId !== workspaceId) {
       throw new Error(
         `Credential "${reconnect.credentialId}" was not found in this workspace. Read ` +

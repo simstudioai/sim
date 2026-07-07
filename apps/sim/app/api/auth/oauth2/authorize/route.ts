@@ -33,36 +33,41 @@ async function createConnectDraft(params: {
   workspaceId: string
   providerId: string
   credentialId?: string
+  /** Reconnect only: the credential's actual name, so audit records stay accurate. */
+  displayName?: string
 }): Promise<void> {
   const { userId, workspaceId, providerId, credentialId } = params
 
-  const service = getAllOAuthServices().find((s) => s.providerId === providerId)
-  const serviceName = service?.name ?? providerId
+  let displayName = params.displayName
+  if (!displayName) {
+    const service = getAllOAuthServices().find((s) => s.providerId === providerId)
+    const serviceName = service?.name ?? providerId
 
-  let userName: string | null = null
-  try {
-    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId))
-    userName = row?.name ?? null
-  } catch {
-    // Fall back to the "My {Service}" default
+    let userName: string | null = null
+    try {
+      const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId))
+      userName = row?.name ?? null
+    } catch {
+      // Fall back to the "My {Service}" default
+    }
+
+    // Auto-number against existing workspace credentials so repeat connects for
+    // the same provider stay distinguishable — same behavior as the connect
+    // modal, which computes this client-side. Best effort: on failure the name
+    // simply skips deduplication.
+    let takenNames: ReadonlySet<string> = new Set<string>()
+    try {
+      const rows = await db
+        .select({ displayName: credential.displayName })
+        .from(credential)
+        .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')))
+      takenNames = new Set(rows.map((row) => row.displayName.toLowerCase()))
+    } catch {
+      // Best effort — proceed without collision numbering
+    }
+
+    displayName = defaultCredentialDisplayName(userName, serviceName, takenNames)
   }
-
-  // Auto-number against existing workspace credentials so repeat connects for
-  // the same provider stay distinguishable — same behavior as the connect
-  // modal, which computes this client-side. Best effort: on failure the name
-  // simply skips deduplication.
-  let takenNames: ReadonlySet<string> = new Set<string>()
-  try {
-    const rows = await db
-      .select({ displayName: credential.displayName })
-      .from(credential)
-      .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')))
-    takenNames = new Set(rows.map((row) => row.displayName.toLowerCase()))
-  } catch {
-    // Best effort — proceed without collision numbering
-  }
-
-  const displayName = defaultCredentialDisplayName(userName, serviceName, takenNames)
 
   const now = new Date()
   const expiresAt = new Date(now.getTime() + DRAFT_TTL_MS)
@@ -141,7 +146,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.redirect(`${baseUrl}/workspace?error=workspace_access_denied`)
     }
 
+    let reconnectDisplayName: string | undefined
     if (credentialId) {
+      // Trello and Shopify authorize through their own custom flows that bypass
+      // this endpoint, so a reconnect draft written here would linger unconsumed
+      // and could later be picked up by their token-store callbacks, silently
+      // rebinding the credential. Mirror the copilot tool and reject reconnect.
+      if (providerId === 'trello' || providerId === 'shopify') {
+        logger.warn('Reconnect not supported for custom-flow provider', {
+          userId,
+          workspaceId,
+          providerId,
+          credentialId,
+        })
+        return NextResponse.redirect(`${baseUrl}/workspace?error=credential_reconnect_unsupported`)
+      }
+
       // Reconnect: the OAuth callback will rebind this credential to the fresh
       // account, so require the same credential-admin access as the draft POST
       // route — workspace write alone must not be enough to swap someone's tokens.
@@ -172,12 +192,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
         return NextResponse.redirect(`${baseUrl}/workspace?error=credential_provider_mismatch`)
       }
+      reconnectDisplayName = actor.credential.displayName
     }
 
     // Create the draft before initiating the link so it is guaranteed to exist
     // (and freshly clocked) when the OAuth callback's `account.create.after`
     // hook runs. If this throws, we never start the OAuth flow.
-    await createConnectDraft({ userId, workspaceId, providerId, credentialId })
+    await createConnectDraft({
+      userId,
+      workspaceId,
+      providerId,
+      credentialId,
+      displayName: reconnectDisplayName,
+    })
 
     const linkResponse = await auth.api.oAuth2LinkAccount({
       body: { providerId, callbackURL },

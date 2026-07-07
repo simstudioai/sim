@@ -58,6 +58,7 @@ function oauthCredentialActor(overrides: Record<string, unknown> = {}) {
       workspaceId: WORKSPACE_ID,
       type: 'oauth',
       providerId: 'google-email',
+      displayName: 'Work Gmail',
       ...((overrides.credential as Record<string, unknown>) ?? {}),
     },
     member: null,
@@ -187,6 +188,39 @@ describe('OAuth2 authorize route', () => {
           set: expect.objectContaining({ credentialId: CREDENTIAL_ID }),
         })
       )
+    })
+
+    it("uses the credential's actual display name for the reconnect draft (audit accuracy)", async () => {
+      mockGetCredentialActorContext.mockResolvedValue(
+        oauthCredentialActor({ credential: { displayName: 'Renamed By User' } })
+      )
+
+      await GET(
+        authorizeRequest({
+          providerId: 'google-email',
+          workspaceId: WORKSPACE_ID,
+          credentialId: CREDENTIAL_ID,
+        })
+      )
+
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({ displayName: 'Renamed By User' })
+      )
+    })
+
+    it('rejects reconnect for custom-flow providers (trello/shopify) and writes no draft', async () => {
+      for (const providerId of ['trello', 'shopify']) {
+        const response = await GET(
+          authorizeRequest({ providerId, workspaceId: WORKSPACE_ID, credentialId: CREDENTIAL_ID })
+        )
+
+        expect(response.headers.get('location')).toBe(
+          `${BASE_URL}/workspace?error=credential_reconnect_unsupported`
+        )
+      }
+      expect(mockGetCredentialActorContext).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+      expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
     })
 
     it('rejects when the caller is not a credential admin and writes no draft', async () => {
