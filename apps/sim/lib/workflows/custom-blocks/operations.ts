@@ -203,13 +203,18 @@ export async function getCustomBlockById(id: string) {
  * (or an org admin, who holds admin on every org workspace) can change its outputs.
  * `null` when no block matches.
  */
-export async function getCustomBlockManageContext(
-  id: string
-): Promise<{ organizationId: string; sourceWorkspaceId: string | null } | null> {
+export async function getCustomBlockManageContext(id: string): Promise<{
+  organizationId: string
+  sourceWorkspaceId: string | null
+  type: string
+  name: string
+} | null> {
   const [row] = await db
     .select({
       organizationId: customBlock.organizationId,
       sourceWorkspaceId: workflow.workspaceId,
+      type: customBlock.type,
+      name: customBlock.name,
     })
     .from(customBlock)
     .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
