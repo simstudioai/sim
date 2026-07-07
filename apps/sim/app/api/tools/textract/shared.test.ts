@@ -111,6 +111,7 @@ describe('pollTextractJob', () => {
         return { JobStatus: 'SUCCEEDED', Blocks: [{ Id: '2' }] }
       },
       (accumulated, page) => ({
+        ...accumulated,
         ...page,
         Blocks: [...(accumulated.Blocks ?? []), ...(page.Blocks ?? [])],
       })
@@ -118,6 +119,38 @@ describe('pollTextractJob', () => {
 
     expect(calls).toBe(2)
     expect(result.Blocks).toHaveLength(2)
+  })
+
+  it('preserves fields the first page has but a later page omits (e.g. DocumentMetadata)', async () => {
+    const result = await pollTextractJob<{
+      JobStatus?: string
+      NextToken?: string
+      Blocks?: unknown[]
+      DocumentMetadata?: { Pages?: number }
+    }>(
+      'req-4',
+      logger,
+      async (nextToken) => {
+        if (!nextToken) {
+          return {
+            JobStatus: 'SUCCEEDED',
+            Blocks: [{ Id: '1' }],
+            DocumentMetadata: { Pages: 3 },
+            NextToken: 'next',
+          }
+        }
+        // Follow-up pages from AWS often omit DocumentMetadata/model-version fields.
+        return { JobStatus: 'SUCCEEDED', Blocks: [{ Id: '2' }] }
+      },
+      (accumulated, page) => ({
+        ...accumulated,
+        ...page,
+        Blocks: [...(accumulated.Blocks ?? []), ...(page.Blocks ?? [])],
+      })
+    )
+
+    expect(result.Blocks).toHaveLength(2)
+    expect(result.DocumentMetadata).toEqual({ Pages: 3 })
   })
 
   it('throws a TextractRouteError when the job fails', async () => {

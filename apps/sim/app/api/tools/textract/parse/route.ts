@@ -156,6 +156,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
                 new GetDocumentTextDetectionCommand({ JobId: jobId, NextToken: nextToken })
               ),
         (accumulated, page) => ({
+          ...accumulated,
           ...page,
           Blocks: [...(accumulated.Blocks ?? []), ...(page.Blocks ?? [])],
         })

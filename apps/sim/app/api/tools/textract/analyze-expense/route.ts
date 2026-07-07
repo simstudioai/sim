@@ -165,6 +165,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         (nextToken) =>
           client.send(new GetExpenseAnalysisCommand({ JobId: jobId, NextToken: nextToken })),
         (accumulated, page) => ({
+          ...accumulated,
           ...page,
           ExpenseDocuments: [
             ...(accumulated.ExpenseDocuments ?? []),
