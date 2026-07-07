@@ -77,13 +77,11 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
+      const success = data.persons_deleted > 0
       return {
-        success: true,
+        success,
         output: {
-          status:
-            data.persons_deleted > 0
-              ? 'Person deleted successfully'
-              : 'No matching person found to delete',
+          status: success ? 'Person deleted successfully' : 'No matching person found to delete',
         },
       }
     },

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogIngestBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -95,8 +96,8 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
         if (params.properties) {
           try {
             body.properties = JSON.parse(params.properties)
-          } catch (e) {
-            body.properties = {}
+          } catch (error) {
+            throw new Error(`Invalid properties JSON: ${getErrorMessage(error)}`)
           }
         }
 
@@ -109,10 +110,15 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
     },
 
     transformResponse: async (response: Response) => {
+      const data = await response.json()
+      const success = data.status === 1
+
       return {
-        success: true,
+        success,
         output: {
-          status: 'Event captured successfully',
+          status: success
+            ? 'Event captured successfully'
+            : `Event capture failed (status: ${data.status})`,
         },
       }
     },

@@ -472,16 +472,6 @@ Return ONLY the JSON array.`,
       },
     },
     {
-      id: 'query',
-      title: 'Query (JSON)',
-      type: 'long-input',
-      placeholder: '{"kind": "HogQLQuery", "query": "SELECT ..."}',
-      condition: {
-        field: 'operation',
-        value: 'posthog_update_insight',
-      },
-    },
-    {
       id: 'values',
       title: 'Query Values (JSON)',
       type: 'long-input',
@@ -765,7 +755,10 @@ Return ONLY the JSON object.`,
       title: 'Query (JSON)',
       type: 'long-input',
       placeholder: '{"kind": "HogQLQuery", "query": "SELECT ..."}',
-      condition: { field: 'operation', value: 'posthog_create_insight' },
+      condition: {
+        field: 'operation',
+        value: ['posthog_create_insight', 'posthog_update_insight'],
+      },
     },
     {
       id: 'dashboards',
@@ -1377,7 +1370,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           params.property_type = params.propertyType
         }
 
-        if (params.operation === 'posthog_create_insight' && params.insightQuery) {
+        if (
+          (params.operation === 'posthog_create_insight' ||
+            params.operation === 'posthog_update_insight') &&
+          params.insightQuery
+        ) {
           params.query = params.insightQuery
         }
 
