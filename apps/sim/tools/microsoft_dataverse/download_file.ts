@@ -3,6 +3,7 @@ import type {
   DataverseDownloadFileParams,
   DataverseDownloadFileResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseDownloadFile')
@@ -55,8 +56,8 @@ export const dataverseDownloadFileTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})/${params.fileColumn}/$value`
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})/${params.fileColumn.trim()}/$value`
     },
     method: 'GET',
     headers: (params) => ({

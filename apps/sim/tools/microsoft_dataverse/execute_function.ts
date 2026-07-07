@@ -3,6 +3,7 @@ import type {
   DataverseExecuteFunctionParams,
   DataverseExecuteFunctionResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseExecuteFunction')
@@ -64,15 +65,17 @@ export const dataverseExecuteFunctionTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const functionName = params.functionName.trim()
       const paramStr = params.parameters ? `(${params.parameters})` : '()'
       if (params.entitySetName) {
+        const entitySetName = params.entitySetName.trim()
         if (params.recordId) {
-          return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})/Microsoft.Dynamics.CRM.${params.functionName}${paramStr}`
+          return `${baseUrl}/api/data/v9.2/${entitySetName}(${params.recordId.trim()})/Microsoft.Dynamics.CRM.${functionName}${paramStr}`
         }
-        return `${baseUrl}/api/data/v9.2/${params.entitySetName}/Microsoft.Dynamics.CRM.${params.functionName}${paramStr}`
+        return `${baseUrl}/api/data/v9.2/${entitySetName}/Microsoft.Dynamics.CRM.${functionName}${paramStr}`
       }
-      return `${baseUrl}/api/data/v9.2/${params.functionName}${paramStr}`
+      return `${baseUrl}/api/data/v9.2/${functionName}${paramStr}`
     },
     method: 'GET',
     headers: (params) => ({

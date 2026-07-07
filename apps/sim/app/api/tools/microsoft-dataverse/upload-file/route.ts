@@ -11,6 +11,7 @@ import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,8 +94,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const baseUrl = validatedData.environmentUrl.replace(/\/$/, '')
-    const uploadUrl = `${baseUrl}/api/data/v9.2/${validatedData.entitySetName}(${validatedData.recordId})/${validatedData.fileColumn}`
+    const baseUrl = getDataverseBaseUrl(validatedData.environmentUrl)
+    const uploadUrl = `${baseUrl}/api/data/v9.2/${validatedData.entitySetName.trim()}(${validatedData.recordId.trim()})/${validatedData.fileColumn.trim()}`
 
     const response = await secureFetchWithValidation(
       uploadUrl,
