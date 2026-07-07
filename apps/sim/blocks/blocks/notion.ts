@@ -244,6 +244,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
           'notion_retrieve_block_children',
           'notion_list_comments',
           'notion_list_users',
+          'notion_search',
         ],
       },
     },
@@ -451,7 +452,13 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['notion_retrieve_block_children', 'notion_list_comments', 'notion_list_users'],
+        value: [
+          'notion_retrieve_block_children',
+          'notion_list_comments',
+          'notion_list_users',
+          'notion_query_database',
+          'notion_search',
+        ],
       },
     },
   ],
@@ -916,10 +923,32 @@ export const NotionV2Block: BlockConfig<any> = {
     title: {
       type: 'string',
       description: 'Page or database title',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_read',
+          'notion_create_page',
+          'notion_update_page',
+          'notion_create_database',
+          'notion_read_database',
+          'notion_add_database_row',
+        ],
+      },
     },
     url: {
       type: 'string',
       description: 'Notion URL',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_read',
+          'notion_create_page',
+          'notion_update_page',
+          'notion_create_database',
+          'notion_read_database',
+          'notion_add_database_row',
+        ],
+      },
     },
     id: {
       type: 'string',
@@ -943,10 +972,31 @@ export const NotionV2Block: BlockConfig<any> = {
     created_time: {
       type: 'string',
       description: 'Creation timestamp',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_read',
+          'notion_create_page',
+          'notion_create_database',
+          'notion_read_database',
+          'notion_add_database_row',
+          'notion_create_comment',
+        ],
+      },
     },
     last_edited_time: {
       type: 'string',
       description: 'Last edit timestamp',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_read',
+          'notion_create_page',
+          'notion_update_page',
+          'notion_read_database',
+          'notion_add_database_row',
+        ],
+      },
     },
     // List/query/search outputs
     results: {
