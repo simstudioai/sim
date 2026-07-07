@@ -200,6 +200,18 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
 }
 
 /**
+ * The front-document fields (fileUpload/fileReference) are shared by all three operations.
+ * Analyze Identity Document is always synchronous, so they must stay visible for it regardless
+ * of a stale `processingMode` value left over from switching away from another operation.
+ */
+function documentFieldCondition(values?: Record<string, unknown>) {
+  if (values?.operation === 'analyze_id') {
+    return { field: 'operation', value: 'analyze_id' } as const
+  }
+  return { field: 'processingMode', value: 'async', not: true } as const
+}
+
+/**
  * Resolves a canonical document input to either an uploaded file object or a plain URL string.
  * `normalizeFileInput` only recognizes file objects (or JSON-serialized file references) — a raw
  * URL typed into the "File reference" advanced field falls through to `filePath` instead.
@@ -260,7 +272,7 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
       canonicalParamId: 'document',
       acceptedTypes: 'image/jpeg,image/png,application/pdf',
       placeholder: 'Upload JPEG, PNG, or single-page PDF (max 10MB)',
-      condition: { field: 'processingMode', value: 'async', not: true },
+      condition: documentFieldCondition,
       mode: 'basic',
       maxSize: 10,
     },
@@ -270,7 +282,7 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'document',
       placeholder: 'File reference',
-      condition: { field: 'processingMode', value: 'async', not: true },
+      condition: documentFieldCondition,
       mode: 'advanced' as const,
     },
     {
@@ -298,7 +310,11 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
       title: 'S3 URI',
       type: 'short-input' as SubBlockType,
       placeholder: 's3://bucket-name/path/to/document.pdf',
-      condition: { field: 'processingMode', value: 'async' },
+      condition: {
+        field: 'processingMode',
+        value: 'async',
+        and: { field: 'operation', value: 'analyze_id', not: true },
+      },
     },
     {
       id: 'region',
