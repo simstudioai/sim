@@ -1,0 +1,10 @@
+# Extras for the opt-in GLiNER engine — installed ONLY in the `gliner`
+# Dockerfile target, on top of requirements.txt. Pinned for reproducible image
+# builds; bump deliberately. presidio-analyzer 2.2.362 requires
+# gliner >=0.2.13,<1.0.0.
+#
+# torch is pinned in the Dockerfile instead: the CPU and CUDA targets install
+# the same version from different wheel indexes.
+gliner==0.2.27
+transformers==4.56.2
+huggingface_hub==0.35.3

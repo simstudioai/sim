@@ -1,5 +1,17 @@
 # ========================================
 # Combined Presidio service (analyzer + anonymizer) on a single port (5001)
+#
+# Targets (docker builds the LAST stage when no --target is given):
+#   (default) / spacy : lean image, spaCy NER only — what self-hosters get.
+#   gliner            : superset image (torch CPU + gliner + baked GLiNER
+#                       model + small spaCy models). Both PII_ENGINE=spacy
+#                       and PII_ENGINE=gliner work in it.
+#   gliner-gpu        : scaffold for the EC2-GPU fleet — same layout, CUDA
+#                       torch wheels (bundle their own CUDA libs; host only
+#                       needs the nvidia container runtime). Not built in CI.
+#
+# Source files are COPY'd last in each terminal stage so code edits never
+# re-download deps or models.
 # ========================================
 FROM python:3.12-slim-bookworm AS base
 
@@ -17,26 +29,9 @@ COPY apps/pii/requirements.txt ./requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# Pinned spaCy models (en + es/it/pl/fi, ~2.2GB total). Downloaded with
-# retries/resume — the large wheels truncate on flaky networks if pip fetches
-# the URLs directly.
-ARG SPACY_MODELS="en_core_web_lg-3.8.0 es_core_news_lg-3.8.0 it_core_news_lg-3.8.0 pl_core_news_lg-3.8.0 fi_core_news_lg-3.8.0"
-RUN --mount=type=cache,target=/root/.cache/pip \
-    for model in ${SPACY_MODELS}; do \
-      whl="${model}-py3-none-any.whl"; \
-      curl -fL --retry 5 --retry-delay 5 --retry-all-errors -C - \
-        -o "/tmp/${whl}" \
-        "https://github.com/explosion/spacy-models/releases/download/${model}/${whl}" || exit 1; \
-    done && \
-    pip install /tmp/*.whl && \
-    rm /tmp/*.whl
-
-COPY apps/pii/server.py ./server.py
-
 RUN groupadd -g 1001 pii && \
     useradd -u 1001 -g pii pii && \
     chown -R pii:pii /app
-USER pii
 
 # Listen on 5001. Runs as its own ECS service (separate task), reached via PII_URL;
 # 5001 avoids colliding with the app's 3000 in local/compose runs on one host.
@@ -48,3 +43,107 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
     CMD curl -fsS http://localhost:5001/health || exit 1
 
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5001"]
+
+# Pinned spaCy models (en + es/it/pl/fi, ~2.2GB total). Downloaded with
+# retries/resume — the large wheels truncate on flaky networks if pip fetches
+# the URLs directly. Shared by every terminal image so PII_ENGINE=spacy works
+# everywhere (the gliner opt-in stays reversible without an image swap).
+FROM base AS spacy-models
+ARG SPACY_MODELS="en_core_web_lg-3.8.0 es_core_news_lg-3.8.0 it_core_news_lg-3.8.0 pl_core_news_lg-3.8.0 fi_core_news_lg-3.8.0"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    for model in ${SPACY_MODELS}; do \
+      whl="${model}-py3-none-any.whl"; \
+      curl -fL --retry 5 --retry-delay 5 --retry-all-errors -C - \
+        -o "/tmp/${whl}" \
+        "https://github.com/explosion/spacy-models/releases/download/${model}/${whl}" || exit 1; \
+    done && \
+    pip install /tmp/*.whl && \
+    rm /tmp/*.whl
+
+# --- GLiNER (CPU) ------------------------------------------------------------
+FROM spacy-models AS gliner
+
+# torch pinned here (not requirements-gliner.txt) because the CPU and CUDA
+# targets install the same version from different wheel indexes. 2.11.0 is the
+# newest release published on both the cpu and cu128 indexes for py312.
+ARG TORCH_VERSION=2.11.0
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install torch==${TORCH_VERSION} --index-url https://download.pytorch.org/whl/cpu
+
+COPY apps/pii/requirements-gliner.txt ./requirements-gliner.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-gliner.txt
+
+# Small spaCy models (~60MB total) give the gliner engine tokenization +
+# lemmas for the regex recognizers; GLiNER does the NER (see engines.py).
+ARG SPACY_SM_MODELS="en_core_web_sm-3.8.0 es_core_news_sm-3.8.0 it_core_news_sm-3.8.0 pl_core_news_sm-3.8.0 fi_core_news_sm-3.8.0"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    for model in ${SPACY_SM_MODELS}; do \
+      whl="${model}-py3-none-any.whl"; \
+      curl -fL --retry 5 --retry-delay 5 --retry-all-errors -C - \
+        -o "/tmp/${whl}" \
+        "https://github.com/explosion/spacy-models/releases/download/${model}/${whl}" || exit 1; \
+    done && \
+    pip install /tmp/*.whl && \
+    rm /tmp/*.whl
+
+# Bake the GLiNER weights at build time (cached layer) so startup never
+# touches the network. HF_HUB_OFFLINE makes a missing/overridden
+# PII_GLINER_MODEL fail fast at startup instead of silently downloading.
+ENV HF_HOME=/opt/hf-cache
+ARG GLINER_MODEL=urchade/gliner_multi_pii-v1
+RUN python -c "from gliner import GLiNER; GLiNER.from_pretrained('${GLINER_MODEL}')" && \
+    chmod -R a+rX /opt/hf-cache
+ENV HF_HUB_OFFLINE=1
+
+# Bench + tests ride along only in this image — it's the only one with both
+# engines installed (see apps/pii/scripts/bench_engines.py). pytest/httpx are
+# baked in so the documented `docker run ... python -m pytest tests` works
+# as-is (the runtime user has no writable HOME for pip install --user).
+COPY apps/pii/requirements-dev.txt ./requirements-dev.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-dev.txt
+
+COPY --chown=pii:pii apps/pii/server.py apps/pii/engines.py ./
+COPY --chown=pii:pii apps/pii/scripts ./scripts
+COPY --chown=pii:pii apps/pii/tests ./tests
+
+USER pii
+
+# --- GLiNER (CUDA) scaffold — wired for the GPU fleet follow-up --------------
+FROM spacy-models AS gliner-gpu
+
+ARG TORCH_VERSION=2.11.0
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install torch==${TORCH_VERSION} --index-url https://download.pytorch.org/whl/cu128
+
+COPY apps/pii/requirements-gliner.txt ./requirements-gliner.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-gliner.txt
+
+ARG SPACY_SM_MODELS="en_core_web_sm-3.8.0 es_core_news_sm-3.8.0 it_core_news_sm-3.8.0 pl_core_news_sm-3.8.0 fi_core_news_sm-3.8.0"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    for model in ${SPACY_SM_MODELS}; do \
+      whl="${model}-py3-none-any.whl"; \
+      curl -fL --retry 5 --retry-delay 5 --retry-all-errors -C - \
+        -o "/tmp/${whl}" \
+        "https://github.com/explosion/spacy-models/releases/download/${model}/${whl}" || exit 1; \
+    done && \
+    pip install /tmp/*.whl && \
+    rm /tmp/*.whl
+
+ENV HF_HOME=/opt/hf-cache
+ARG GLINER_MODEL=urchade/gliner_multi_pii-v1
+RUN python -c "from gliner import GLiNER; GLiNER.from_pretrained('${GLINER_MODEL}')" && \
+    chmod -R a+rX /opt/hf-cache
+ENV HF_HUB_OFFLINE=1
+
+COPY --chown=pii:pii apps/pii/server.py apps/pii/engines.py ./
+COPY --chown=pii:pii apps/pii/scripts ./scripts
+
+USER pii
+
+# --- DEFAULT (last stage): the lean spaCy image, content-equivalent to today -
+FROM spacy-models AS spacy
+COPY --chown=pii:pii apps/pii/server.py apps/pii/engines.py ./
+USER pii

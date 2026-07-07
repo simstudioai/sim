@@ -824,6 +824,19 @@ pii:
     digest: ""       # sha256: pin overrides tag
     pullPolicy: IfNotPresent
 
+  # NER engine: "spacy" (default) or "gliner" (opt-in zero-shot transformer NER
+  # for PERSON/LOCATION/NRP/DATE_TIME; regex/checksum recognizers are identical
+  # on both engines). gliner requires the gliner image variant — the `-gliner`
+  # published tag (e.g. image.tag: latest-gliner) or a local
+  # `docker build --target gliner -f docker/pii.Dockerfile` — and fails fast at
+  # startup on the default image.
+  engine: "spacy"
+
+  # Torch device for the gliner engine: "cpu", "cuda", or "cuda:N". Empty
+  # auto-detects (cuda when a GPU is visible, else cpu). GPU resource requests
+  # (nvidia.com/gpu) are not wired yet — GPU scheduling is an infra follow-up.
+  device: ""
+
   # Number of replicas
   replicaCount: 1
 
