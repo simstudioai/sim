@@ -74,6 +74,18 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
   },
 
   transformResponse: async (response) => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to submit PR review (HTTP ${response.status})`,
+        output: {
+          content: '',
+          metadata: { id: 0, state: '', body: '', html_url: '', commit_id: '' },
+        },
+      }
+    }
+
     const review = await response.json()
 
     const content = `Review submitted for PR #${review.pull_request_url?.split('/').pop() ?? ''}
@@ -123,6 +135,24 @@ export const createPRReviewV2Tool: ToolConfig<CreatePRReviewParams, any> = {
   request: createPRReviewTool.request,
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to submit PR review (HTTP ${response.status})`,
+        output: {
+          id: 0,
+          user: null,
+          body: null,
+          state: '',
+          html_url: '',
+          pull_request_url: '',
+          commit_id: '',
+          submitted_at: null,
+        },
+      }
+    }
+
     const review = await response.json()
     return {
       success: true,

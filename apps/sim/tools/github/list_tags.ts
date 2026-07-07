@@ -63,6 +63,15 @@ export const listTagsTool: ToolConfig<ListTagsParams, TagsListResponse> = {
   },
 
   transformResponse: async (response) => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to list tags (HTTP ${response.status})`,
+        output: { content: '', metadata: { total_count: 0, tags: [] } },
+      }
+    }
+
     const tags = await response.json()
 
     const tagsList = tags
@@ -126,6 +135,15 @@ export const listTagsV2Tool: ToolConfig<ListTagsParams, any> = {
   request: listTagsTool.request,
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to list tags (HTTP ${response.status})`,
+        output: { items: [], count: 0 },
+      }
+    }
+
     const tags = await response.json()
     return {
       success: true,

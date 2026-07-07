@@ -50,6 +50,18 @@ export const getReadmeTool: ToolConfig<GetReadmeParams, ReadmeResponse> = {
   },
 
   transformResponse: async (response) => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to get README (HTTP ${response.status})`,
+        output: {
+          content: '',
+          metadata: { name: '', path: '', sha: '', size: 0, html_url: '', download_url: '' },
+        },
+      }
+    }
+
     const data = await response.json()
 
     let decodedContent = ''
@@ -109,6 +121,24 @@ export const getReadmeV2Tool: ToolConfig<GetReadmeParams, any> = {
   request: getReadmeTool.request,
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to get README (HTTP ${response.status})`,
+        output: {
+          name: '',
+          path: '',
+          sha: '',
+          size: 0,
+          encoding: '',
+          html_url: '',
+          download_url: null,
+          content: '',
+        },
+      }
+    }
+
     const data = await response.json()
 
     let decodedContent = ''

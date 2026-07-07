@@ -45,6 +45,29 @@ export const getLatestReleaseTool: ToolConfig<GetLatestReleaseParams, ReleaseRes
   },
 
   transformResponse: async (response) => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to get latest release (HTTP ${response.status})`,
+        output: {
+          content: '',
+          metadata: {
+            id: 0,
+            tag_name: '',
+            name: '',
+            html_url: '',
+            tarball_url: '',
+            zipball_url: '',
+            draft: false,
+            prerelease: false,
+            created_at: '',
+            published_at: '',
+          },
+        },
+      }
+    }
+
     const data = await response.json()
 
     const assetsInfo =
@@ -116,6 +139,30 @@ export const getLatestReleaseV2Tool: ToolConfig<GetLatestReleaseParams, any> = {
   request: getLatestReleaseTool.request,
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: error.message || `Failed to get latest release (HTTP ${response.status})`,
+        output: {
+          id: 0,
+          tag_name: '',
+          name: '',
+          body: null,
+          html_url: '',
+          tarball_url: '',
+          zipball_url: '',
+          draft: false,
+          prerelease: false,
+          author: null,
+          assets: [],
+          created_at: '',
+          published_at: null,
+          target_commitish: '',
+        },
+      }
+    }
+
     const data = await response.json()
     return {
       success: true,
