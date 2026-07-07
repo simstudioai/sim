@@ -28,9 +28,15 @@ export const listTeamsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
       success: { type: 'boolean', description: 'Whether the listing was successful' },
       teams: { type: 'array', description: 'Array of teams the user is a member of' },
       teamCount: { type: 'number', description: 'Total number of teams' },
+      hasMore: {
+        type: 'boolean',
+        description: 'Whether Graph indicated additional pages beyond this response',
+      },
     },
 
     request: {
+      // Note: GET /me/joinedTeams does not support OData query parameters ($top, etc.) per Graph docs:
+      // https://learn.microsoft.com/en-us/graph/api/user-list-joinedteams
       url: () => 'https://graph.microsoft.com/v1.0/me/joinedTeams',
       method: 'GET',
       headers: (params) => {
@@ -58,6 +64,7 @@ export const listTeamsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
         output: {
           teams,
           teamCount: teams.length,
+          hasMore: Boolean(data['@odata.nextLink']),
         },
       }
     },

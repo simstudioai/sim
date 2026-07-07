@@ -28,6 +28,10 @@ export const listChatsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
       success: { type: 'boolean', description: 'Whether the listing was successful' },
       chats: { type: 'array', description: 'Array of chats the user is part of' },
       chatCount: { type: 'number', description: 'Total number of chats' },
+      hasMore: {
+        type: 'boolean',
+        description: 'Whether Graph indicated additional pages beyond this response',
+      },
     },
 
     request: {
@@ -61,6 +65,7 @@ export const listChatsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
         output: {
           chats,
           chatCount: chats.length,
+          hasMore: Boolean(data['@odata.nextLink']),
         },
       }
     },

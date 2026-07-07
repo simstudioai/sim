@@ -142,6 +142,7 @@ export interface MicrosoftTeamsListMembersResponse extends ToolResponse {
   output: {
     members: MicrosoftTeamsMember[]
     memberCount: number
+    hasMore?: boolean
     metadata: {
       teamId?: string
       channelId?: string
@@ -162,6 +163,7 @@ export interface MicrosoftTeamsListTeamsResponse extends ToolResponse {
   output: {
     teams: MicrosoftTeamsTeamSummary[]
     teamCount: number
+    hasMore: boolean
   }
 }
 
@@ -179,6 +181,7 @@ export interface MicrosoftTeamsListChatsResponse extends ToolResponse {
   output: {
     chats: MicrosoftTeamsChatSummary[]
     chatCount: number
+    hasMore: boolean
   }
 }
 
@@ -195,6 +198,7 @@ export interface MicrosoftTeamsListChannelsResponse extends ToolResponse {
   output: {
     channels: MicrosoftTeamsChannelSummary[]
     channelCount: number
+    hasMore: boolean
     metadata: {
       teamId: string
     }

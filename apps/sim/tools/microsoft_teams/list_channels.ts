@@ -37,6 +37,10 @@ export const listChannelsTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether the listing was successful' },
     channels: { type: 'array', description: 'Array of channels in the team' },
     channelCount: { type: 'number', description: 'Total number of channels' },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether Graph indicated additional pages beyond this response',
+    },
   },
 
   request: {
@@ -74,6 +78,7 @@ export const listChannelsTool: ToolConfig<
       output: {
         channels,
         channelCount: channels.length,
+        hasMore: Boolean(data['@odata.nextLink']),
         metadata: {
           teamId: params?.teamId || '',
         },

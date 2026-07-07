@@ -515,6 +515,10 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     chatCount: { type: 'number', description: 'Total number of chats' },
     channels: { type: 'json', description: 'Array of channels in the team' },
     channelCount: { type: 'number', description: 'Total number of channels' },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether Graph indicated additional pages beyond this response',
+    },
     type: { type: 'string', description: 'Type of Teams message' },
     id: { type: 'string', description: 'Unique message identifier' },
     timestamp: { type: 'string', description: 'Message timestamp' },

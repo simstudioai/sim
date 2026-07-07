@@ -36,6 +36,10 @@ export const listChatMembersTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether the listing was successful' },
     members: { type: 'array', description: 'Array of chat members' },
     memberCount: { type: 'number', description: 'Total number of members' },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether Graph indicated additional pages beyond this response',
+    },
   },
 
   request: {
@@ -73,6 +77,7 @@ export const listChatMembersTool: ToolConfig<
       output: {
         members,
         memberCount: members.length,
+        hasMore: Boolean(data['@odata.nextLink']),
         metadata: {
           chatId: params?.chatId || '',
         },
