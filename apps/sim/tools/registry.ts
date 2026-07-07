@@ -3901,7 +3901,12 @@ import {
   temporalUnpauseScheduleTool,
   temporalUpdateWorkflowTool,
 } from '@/tools/temporal'
-import { textractParserTool, textractParserV2Tool } from '@/tools/textract'
+import {
+  textractAnalyzeExpenseTool,
+  textractAnalyzeIdTool,
+  textractParserTool,
+  textractParserV2Tool,
+} from '@/tools/textract'
 import { thinkingTool } from '@/tools/thinking'
 import {
   thriveAddAudienceManagersTool,
@@ -6946,6 +6951,8 @@ export const tools: Record<string, ToolConfig> = {
   mistral_parser_v3: mistralParserV3Tool,
   reducto_parser: reductoParserTool,
   reducto_parser_v2: reductoParserV2Tool,
+  textract_analyze_expense: textractAnalyzeExpenseTool,
+  textract_analyze_id: textractAnalyzeIdTool,
   textract_parser: textractParserTool,
   textract_parser_v2: textractParserV2Tool,
   thinking_tool: thinkingTool,
