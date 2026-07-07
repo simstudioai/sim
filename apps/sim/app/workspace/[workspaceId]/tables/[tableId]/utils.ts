@@ -93,35 +93,35 @@ export function formatValueForInput(value: unknown, type: string): string {
   return String(value)
 }
 
-/** A canonical date-cell value split into viewer-local editing parts. */
+/** A canonical date-cell value split into its wall-clock editing parts. */
 export interface DateCellLocalParts {
-  /** Local calendar day `YYYY-MM-DD`, or null when the value is unparseable. */
+  /** Calendar day `YYYY-MM-DD`, or null when the value is unparseable. */
   day: string | null
-  /** Local time-of-day `HH:mm:ss`, or null for calendar-date values. */
+  /** Time-of-day `HH:mm:ss`, or null for calendar-date values. */
   time: string | null
 }
 
 /**
  * Splits a canonical date-cell value into the day and time the date/time
- * pickers edit, read in the given IANA zone (the viewer's effective
- * timezone; runtime-local when omitted). Calendar dates have no time part.
+ * pickers edit — the value's **literal wall time**, no timezone conversion
+ * (display and editing are wall-clock-faithful for every viewer). Calendar
+ * dates have no time part; legacy strings normalize first.
  */
-export function dateValueToLocalParts(value: string, timeZone?: string): DateCellLocalParts {
+export function dateValueToLocalParts(value: string): DateCellLocalParts {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return { day: value, time: null }
-  const ms = Date.parse(value)
-  if (Number.isNaN(ms)) return { day: null, time: null }
-  const wall = getWallClockParts(new Date(ms), timeZone)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return {
-    day: `${wall.year}-${pad(wall.month)}-${pad(wall.day)}`,
-    time: `${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}`,
-  }
+  const wall = value.match(
+    /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/
+  )
+  if (wall) return { day: wall[1], time: `${wall[2]}:${wall[3] ?? '00'}` }
+  const canonical = normalizeDateCellValue(value)
+  if (!canonical || canonical === value) return { day: null, time: null }
+  return dateValueToLocalParts(canonical)
 }
 
 /**
  * Recombines picker-edited parts into a canonical date-cell value: a calendar
- * date when there is no time, else the UTC instant of that wall time in the
- * given zone (runtime-local when omitted).
+ * date when there is no time, else that wall time stamped with the given
+ * zone's offset (runtime-local when omitted).
  */
 export function localPartsToDateValue(day: string, time: string | null, timeZone?: string): string {
   if (!time) return day
@@ -137,23 +137,20 @@ export function todayLocalCalendarDate(timeZone?: string): string {
 
 /**
  * Format a stored date-cell value for display: calendar dates as MM/DD/YYYY,
- * instants in the viewer's effective timezone as MM/DD/YYYY h:mm AM/PM. Pass
- * `seconds: true` for editor drafts so re-saving an untouched cell keeps
- * second precision.
+ * instants as their literal wall time `MM/DD/YYYY h:mm AM/PM` — identical
+ * for every viewer. Pass `seconds: true` for editor drafts so re-saving an
+ * untouched cell keeps second precision.
  */
-export function storageToDisplay(
-  stored: string,
-  options?: { seconds?: boolean; timeZone?: string }
-): string {
+export function storageToDisplay(stored: string, options?: { seconds?: boolean }): string {
   return formatDateCellDisplay(stored, options)
 }
 
 /**
  * Parse a date-cell input string to its canonical storage form: `YYYY-MM-DD`
- * for date-only inputs (MM/DD/YYYY, MM/DD, ISO), a UTC ISO instant for inputs
- * carrying a time. Naive times are interpreted in `timeZone` (the viewer's
- * effective timezone; the runtime's zone when omitted). Returns null when
- * unparseable.
+ * for date-only inputs (MM/DD/YYYY, MM/DD, ISO), an offset-preserved instant
+ * for inputs carrying a time. Naive times are stamped with the offset of
+ * `timeZone` (the writer's effective timezone; the runtime's zone when
+ * omitted). Returns null when unparseable.
  */
 export function displayToStorage(display: string, timeZone?: string): string | null {
   const trimmed = display.trim()

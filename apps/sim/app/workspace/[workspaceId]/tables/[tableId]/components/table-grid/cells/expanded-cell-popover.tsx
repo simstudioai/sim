@@ -46,7 +46,6 @@ export function ExpandedCellPopover({
   const rootRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
-  const timeZone = useTimezone()
 
   const target = useMemo(() => {
     if (!expandedCell) return null
@@ -154,10 +153,7 @@ export function ExpandedCellPopover({
           key={`${expandedCell.rowId}:${expandedCell.columnKey ?? expandedCell.columnName}`}
           initialValue={
             target.column.type === 'date'
-              ? storageToDisplay(formatValueForInput(target.value, 'date'), {
-                  seconds: true,
-                  timeZone,
-                })
+              ? storageToDisplay(formatValueForInput(target.value, 'date'), { seconds: true })
               : formatValueForInput(target.value, target.column.type)
           }
           column={target.column}
@@ -215,6 +211,12 @@ function ExpandedCellEditor({
   const timeZone = useTimezone()
 
   const handleSave = () => {
+    // Untouched draft → close without writing. For dates this also avoids
+    // re-stamping the stored offset with this viewer's zone.
+    if (draftValue === initialValue) {
+      onClose()
+      return
+    }
     // Only date columns go through `displayToStorage` — it now parses many
     // date shapes, so a number draft like "2024" must not reach it.
     const raw =

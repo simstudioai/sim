@@ -17,48 +17,36 @@ describe('dateValueToLocalParts / localPartsToDateValue', () => {
     expect(localPartsToDateValue('2026-07-06', null)).toBe('2026-07-06')
   })
 
-  it('splits instants into local day/time and round-trips exactly', () => {
-    const stored = new Date(2026, 6, 6, 16, 4, 55).toISOString()
-    const parts = dateValueToLocalParts(stored)
-    expect(parts).toEqual({ day: '2026-07-06', time: '16:04:55' })
-    expect(localPartsToDateValue(parts.day as string, parts.time)).toBe(stored)
+  it('splits instants into their literal wall day/time — no zone conversion', () => {
+    expect(dateValueToLocalParts('2026-07-06T16:04:55-07:00')).toEqual({
+      day: '2026-07-06',
+      time: '16:04:55',
+    })
+    expect(dateValueToLocalParts('2026-07-06T23:04:55Z')).toEqual({
+      day: '2026-07-06',
+      time: '23:04:55',
+    })
+    expect(dateValueToLocalParts('2026-07-06T23:04:55.000Z')).toEqual({
+      day: '2026-07-06',
+      time: '23:04:55',
+    })
   })
 
-  it('keeps the time when only the day changes', () => {
-    const stored = new Date(2026, 6, 6, 16, 4, 55).toISOString()
-    const parts = dateValueToLocalParts(stored)
-    expect(localPartsToDateValue('2026-07-09', parts.time)).toBe(
-      new Date(2026, 6, 9, 16, 4, 55).toISOString()
+  it('recombines parts stamping the given zone offset, keeping the wall time', () => {
+    expect(localPartsToDateValue('2026-07-06', '16:04:55', 'America/New_York')).toBe(
+      '2026-07-06T16:04:55-04:00'
     )
-  })
-
-  it('accepts HH:mm times, defaulting seconds to zero', () => {
-    expect(localPartsToDateValue('2026-07-06', '16:04')).toBe(
-      new Date(2026, 6, 6, 16, 4, 0).toISOString()
+    expect(localPartsToDateValue('2026-07-09', '16:04:55', 'America/New_York')).toBe(
+      '2026-07-09T16:04:55-04:00'
+    )
+    expect(localPartsToDateValue('2026-07-06', '16:04', 'America/New_York')).toBe(
+      '2026-07-06T16:04:00-04:00'
     )
   })
 
   it('returns null parts for unparseable values', () => {
     expect(dateValueToLocalParts('garbage')).toEqual({ day: null, time: null })
     expect(dateValueToLocalParts('')).toEqual({ day: null, time: null })
-  })
-
-  it('reads and recombines parts in an explicit IANA zone', () => {
-    const stored = '2026-07-06T20:04:55.000Z'
-    const parts = dateValueToLocalParts(stored, 'America/New_York')
-    expect(parts).toEqual({ day: '2026-07-06', time: '16:04:55' })
-    expect(localPartsToDateValue(parts.day as string, parts.time, 'America/New_York')).toBe(stored)
-  })
-})
-
-describe('timezone-aware display round-trip', () => {
-  it('parses and renders wall times in the effective zone, not the runtime zone', () => {
-    const zone = 'America/New_York'
-    const stored = displayToStorage('07/06/2026 4:04:55 PM', zone)
-    expect(stored).toBe('2026-07-06T20:04:55.000Z')
-    expect(storageToDisplay(stored as string, { seconds: true, timeZone: zone })).toBe(
-      '07/06/2026 4:04:55 PM'
-    )
   })
 })
 
@@ -70,22 +58,25 @@ describe('displayToStorage', () => {
     expect(displayToStorage('7/6')).toBe(`${new Date().getFullYear()}-07-06`)
   })
 
-  it('parses M/D/YYYY with a time to a local-zone UTC instant', () => {
-    expect(displayToStorage('07/06/2026 4:04 PM')).toBe(
-      new Date(2026, 6, 6, 16, 4, 0).toISOString()
+  it('parses M/D/YYYY with a time to a wall time stamped with the given zone', () => {
+    expect(displayToStorage('07/06/2026 4:04 PM', 'America/New_York')).toBe(
+      '2026-07-06T16:04:00-04:00'
     )
-    expect(displayToStorage('07/06/2026 4:04:55 PM')).toBe(
-      new Date(2026, 6, 6, 16, 4, 55).toISOString()
+    expect(displayToStorage('07/06/2026 4:04:55 PM', 'America/New_York')).toBe(
+      '2026-07-06T16:04:55-04:00'
     )
-    expect(displayToStorage('07/06/2026 16:04')).toBe(new Date(2026, 6, 6, 16, 4, 0).toISOString())
-    expect(displayToStorage('07/06/2026 12:00 AM')).toBe(
-      new Date(2026, 6, 6, 0, 0, 0).toISOString()
+    expect(displayToStorage('07/06/2026 16:04', 'America/New_York')).toBe(
+      '2026-07-06T16:04:00-04:00'
+    )
+    expect(displayToStorage('07/06/2026 12:00 AM', 'America/New_York')).toBe(
+      '2026-07-06T00:00:00-04:00'
     )
   })
 
-  it('passes canonical instants and offset strings through Date.parse exactly', () => {
-    expect(displayToStorage('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55.000Z')
-    expect(displayToStorage('2026-07-06 16:04:55 PDT')).toBe('2026-07-06T23:04:55.000Z')
+  it('preserves the wall time and offset of canonical and offset strings', () => {
+    expect(displayToStorage('2026-07-06T16:04:55-07:00')).toBe('2026-07-06T16:04:55-07:00')
+    expect(displayToStorage('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55Z')
+    expect(displayToStorage('2026-07-06 16:04:55 PDT')).toBe('2026-07-06T16:04:55-07:00')
   })
 
   it('rejects invalid dates and times', () => {
@@ -102,10 +93,20 @@ describe('storageToDisplay', () => {
     expect(storageToDisplay('2026-07-06')).toBe('07/06/2026')
   })
 
-  it('round-trips an instant through the editor draft format', () => {
-    const stored = new Date(2026, 6, 6, 16, 4, 55).toISOString()
+  it('renders the literal wall time identically regardless of viewer or offset', () => {
+    expect(storageToDisplay('2026-07-06T16:04:55-07:00', { seconds: true })).toBe(
+      '07/06/2026 4:04:55 PM'
+    )
+    expect(storageToDisplay('2026-07-06T16:04:55+09:00', { seconds: true })).toBe(
+      '07/06/2026 4:04:55 PM'
+    )
+  })
+
+  it('round-trips an instant through the editor draft format without shifting', () => {
+    const stored = displayToStorage('07/06/2026 4:04:55 PM', 'America/New_York') as string
     const draft = storageToDisplay(stored, { seconds: true })
-    expect(displayToStorage(draft)).toBe(stored)
+    expect(draft).toBe('07/06/2026 4:04:55 PM')
+    expect(displayToStorage(draft, 'America/New_York')).toBe(stored)
   })
 })
 
@@ -113,7 +114,7 @@ describe('cleanCellValue', () => {
   it('normalizes date cells to canonical storage', () => {
     const column = { name: 'due', type: 'date' } as const
     expect(cleanCellValue('07/06/2026', column)).toBe('2026-07-06')
-    expect(cleanCellValue('2026-07-06T23:04:55.000Z', column)).toBe('2026-07-06T23:04:55.000Z')
+    expect(cleanCellValue('2026-07-06T16:04:55-07:00', column)).toBe('2026-07-06T16:04:55-07:00')
     expect(cleanCellValue('nope', column)).toBeNull()
     expect(cleanCellValue('', column)).toBeNull()
   })
@@ -127,7 +128,9 @@ describe('cleanCellValue', () => {
 describe('formatValueForInput', () => {
   it('gives editors the canonical value, surfacing legacy UTC midnights as calendar days', () => {
     expect(formatValueForInput('2026-07-06T00:00:00.000Z', 'date')).toBe('2026-07-06')
-    expect(formatValueForInput('2026-07-06T23:04:55.000Z', 'date')).toBe('2026-07-06T23:04:55.000Z')
+    expect(formatValueForInput('2026-07-06T16:04:55-07:00', 'date')).toBe(
+      '2026-07-06T16:04:55-07:00'
+    )
     expect(formatValueForInput('2026-07-06', 'date')).toBe('2026-07-06')
   })
 })

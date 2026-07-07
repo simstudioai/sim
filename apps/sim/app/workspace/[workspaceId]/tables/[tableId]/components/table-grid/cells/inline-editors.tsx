@@ -56,23 +56,20 @@ function InlineDateEditor({
   const timeZone = useTimezone()
 
   const storedValue = formatValueForInput(value, column.type)
-  const [draft, setDraft] = useState(() =>
+  const initialDraft =
     initialCharacter !== undefined
       ? initialCharacter
-      : storageToDisplay(storedValue, { seconds: true, timeZone })
-  )
+      : storageToDisplay(storedValue, { seconds: true })
+  const [draft, setDraft] = useState(initialDraft)
   const [invalid, setInvalid] = useState(false)
   /** Picker commits mutate the draft from timeouts/child handlers; reading it
    *  through a ref keeps the scheduled blur-save from saving a stale draft. */
   const draftRef = useRef(draft)
   draftRef.current = draft
 
-  /** The calendar is zone-agnostic (it works on wall times), so feed it the
-   *  wall representation of the draft in the viewer's effective zone. */
-  const draftParts = dateValueToLocalParts(
-    displayToStorage(draft, timeZone) ?? storedValue,
-    timeZone
-  )
+  /** The calendar works on wall times; feed it the draft's literal wall
+   *  representation. */
+  const draftParts = dateValueToLocalParts(displayToStorage(draft, timeZone) ?? storedValue)
   const pickerValue = draftParts.day
     ? draftParts.time
       ? `${draftParts.day}T${draftParts.time}`
@@ -98,6 +95,14 @@ function InlineDateEditor({
       if (doneRef.current) return
       clearTimeout(blurTimeoutRef.current)
       const current = draftRef.current
+      // Untouched draft → re-save the stored value byte-identical. Re-parsing
+      // the display form would re-stamp the offset with THIS viewer's zone,
+      // silently shifting the instant of a value someone else wrote.
+      if (storageVal === undefined && initialCharacter === undefined && current === initialDraft) {
+        doneRef.current = true
+        onSave(storedValue || null, reason)
+        return
+      }
       const raw = storageVal ?? displayToStorage(current, timeZone) ?? current
       if (raw && Number.isNaN(Date.parse(raw))) {
         if (reason === 'blur') {
@@ -114,7 +119,7 @@ function InlineDateEditor({
       doneRef.current = true
       onSave(raw || null, reason)
     },
-    [invalid, onSave, onCancel, timeZone]
+    [invalid, onSave, onCancel, timeZone, initialDraft, initialCharacter, storedValue]
   )
 
   const handleKeyDown = useCallback(
@@ -169,7 +174,7 @@ function InlineDateEditor({
       }
       const canonical = displayToStorage(picked, timeZone)
       if (!canonical) return
-      setDraft(storageToDisplay(canonical, { seconds: true, timeZone }))
+      setDraft(storageToDisplay(canonical, { seconds: true }))
       setInvalid(false)
       inputRef.current?.focus()
     },

@@ -9,6 +9,16 @@ import {
   storedDateToEditable,
 } from '@/lib/table/dates'
 
+/** The runtime zone's offset suffix at a given local wall time, e.g. `-07:00`. */
+function localOffsetSuffix(local: Date): string {
+  const minutes = -local.getTimezoneOffset()
+  if (minutes === 0) return 'Z'
+  const sign = minutes > 0 ? '+' : '-'
+  const abs = Math.abs(minutes)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
+}
+
 describe('isCalendarDateString', () => {
   it('accepts YYYY-MM-DD and rejects everything else', () => {
     expect(isCalendarDateString('2026-07-06')).toBe(true)
@@ -35,40 +45,48 @@ describe('normalizeDateCellValue', () => {
     expect(normalizeDateCellValue('2026')).toBe('2026-01-01')
   })
 
-  it('converts inputs with an explicit offset to exact UTC instants', () => {
-    expect(normalizeDateCellValue('2026-07-06T16:04:55-07:00')).toBe('2026-07-06T23:04:55.000Z')
-    expect(normalizeDateCellValue('2026-07-06 16:04:55 PDT')).toBe('2026-07-06T23:04:55.000Z')
-    expect(normalizeDateCellValue('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55.000Z')
-    expect(normalizeDateCellValue('2026-07-06 16:04:55+00')).toBe('2026-07-06T16:04:55.000Z')
+  it('preserves the wall time and offset of explicit-offset inputs', () => {
+    expect(normalizeDateCellValue('2026-07-06T16:04:55-07:00')).toBe('2026-07-06T16:04:55-07:00')
+    expect(normalizeDateCellValue('2026-07-06 16:04:55 PDT')).toBe('2026-07-06T16:04:55-07:00')
+    expect(normalizeDateCellValue('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55Z')
+    expect(normalizeDateCellValue('2026-07-06 16:04:55+00')).toBe('2026-07-06T16:04:55Z')
+    expect(normalizeDateCellValue('2026-07-06 16:04:55 EST')).toBe('2026-07-06T16:04:55-05:00')
   })
 
-  it('interprets naive datetimes in the runtime local zone by default', () => {
+  it('is idempotent on canonical instants', () => {
+    const canonical = '2026-07-06T16:04:55-07:00'
+    expect(normalizeDateCellValue(canonical)).toBe(canonical)
+    expect(normalizeDateCellValue(canonical, { timezone: 'Asia/Tokyo' })).toBe(canonical)
+  })
+
+  it('stamps naive datetimes with the runtime zone offset by default', () => {
+    const local = new Date(2026, 6, 6, 16, 4, 55)
     expect(normalizeDateCellValue('2026-07-06 16:04:55')).toBe(
-      new Date(2026, 6, 6, 16, 4, 55).toISOString()
+      `2026-07-06T16:04:55${localOffsetSuffix(local)}`
     )
   })
 
-  it('interprets naive datetimes in the provided IANA zone', () => {
+  it('stamps naive datetimes with the provided IANA zone offset', () => {
     // July → America/New_York is EDT (UTC-4)
     expect(normalizeDateCellValue('2026-07-06 16:04:55', { timezone: 'America/New_York' })).toBe(
-      '2026-07-06T20:04:55.000Z'
+      '2026-07-06T16:04:55-04:00'
     )
     // January → EST (UTC-5); DST resolved per wall date, not per import date
     expect(normalizeDateCellValue('2026-01-15 12:00', { timezone: 'America/New_York' })).toBe(
-      '2026-01-15T17:00:00.000Z'
+      '2026-01-15T12:00:00-05:00'
     )
     expect(normalizeDateCellValue('7/6/2026 4:04 PM', { timezone: 'America/Los_Angeles' })).toBe(
-      '2026-07-06T23:04:00.000Z'
+      '2026-07-06T16:04:00-07:00'
     )
   })
 
   it('ignores the zone option when the input carries an explicit offset', () => {
     expect(
       normalizeDateCellValue('2026-07-06T23:04:55.000Z', { timezone: 'America/New_York' })
-    ).toBe('2026-07-06T23:04:55.000Z')
+    ).toBe('2026-07-06T23:04:55Z')
     expect(
       normalizeDateCellValue('2026-07-06 16:04:55 PDT', { timezone: 'America/New_York' })
-    ).toBe('2026-07-06T23:04:55.000Z')
+    ).toBe('2026-07-06T16:04:55-07:00')
   })
 
   it('leaves calendar dates untouched by the zone option', () => {
@@ -101,44 +119,25 @@ describe('formatDateCellDisplay', () => {
     expect(formatDateCellDisplay('2026-07-06T00:00:00Z')).toBe('07/06/2026')
   })
 
-  it('renders instants in the viewer local zone with a 12-hour time', () => {
-    const stored = '2026-07-06T23:04:55.000Z'
-    const local = new Date(stored)
-    const hours24 = local.getHours()
-    const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12
-    const expectedDay = `${String(local.getMonth() + 1).padStart(2, '0')}/${String(
-      local.getDate()
-    ).padStart(2, '0')}/${local.getFullYear()}`
-    const meridiem = hours24 < 12 ? 'AM' : 'PM'
-    expect(formatDateCellDisplay(stored)).toBe(`${expectedDay} ${hours12}:04 ${meridiem}`)
-    expect(formatDateCellDisplay(stored, { seconds: true })).toBe(
-      `${expectedDay} ${hours12}:04:55 ${meridiem}`
+  it('renders the literal wall time — identical for every viewer', () => {
+    expect(formatDateCellDisplay('2026-07-06T16:04:55-07:00')).toBe('07/06/2026 4:04 PM')
+    expect(formatDateCellDisplay('2026-07-06T16:04:55-07:00', { seconds: true })).toBe(
+      '07/06/2026 4:04:55 PM'
     )
+    // The offset never shifts the displayed wall time
+    expect(formatDateCellDisplay('2026-07-06T16:04:55+09:00')).toBe('07/06/2026 4:04 PM')
+    expect(formatDateCellDisplay('2026-07-06T23:04:55Z')).toBe('07/06/2026 11:04 PM')
+    expect(formatDateCellDisplay('2026-07-06T00:30:00-07:00')).toBe('07/06/2026 12:30 AM')
   })
 
   it('omits the seconds suffix when seconds are zero', () => {
-    const stored = '2026-07-06T23:04:00.000Z'
-    expect(formatDateCellDisplay(stored, { seconds: true })).not.toContain(':04:')
+    expect(formatDateCellDisplay('2026-07-06T23:04:00Z', { seconds: true })).toBe(
+      '07/06/2026 11:04 PM'
+    )
   })
 
   it('returns unparseable legacy strings as-is', () => {
     expect(formatDateCellDisplay('garbage')).toBe('garbage')
-  })
-
-  it('renders instants in an explicit IANA zone', () => {
-    const stored = '2026-07-06T23:04:55.000Z'
-    expect(formatDateCellDisplay(stored, { timeZone: 'America/New_York' })).toBe(
-      '07/06/2026 7:04 PM'
-    )
-    expect(formatDateCellDisplay(stored, { timeZone: 'America/New_York', seconds: true })).toBe(
-      '07/06/2026 7:04:55 PM'
-    )
-    // Day rolls forward east of the instant's UTC day
-    expect(formatDateCellDisplay(stored, { timeZone: 'Asia/Tokyo' })).toBe('07/07/2026 8:04 AM')
-  })
-
-  it('keeps calendar dates zone-independent', () => {
-    expect(formatDateCellDisplay('2026-07-06', { timeZone: 'Asia/Tokyo' })).toBe('07/06/2026')
   })
 })
 
@@ -147,9 +146,10 @@ describe('storedDateToEditable', () => {
     expect(storedDateToEditable('2026-07-06T00:00:00.000Z')).toBe('2026-07-06')
   })
 
-  it('keeps calendar dates and real instants canonical', () => {
+  it('keeps calendar dates and canonicalizes instants', () => {
     expect(storedDateToEditable('2026-07-06')).toBe('2026-07-06')
-    expect(storedDateToEditable('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55.000Z')
+    expect(storedDateToEditable('2026-07-06T16:04:55-07:00')).toBe('2026-07-06T16:04:55-07:00')
+    expect(storedDateToEditable('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55Z')
   })
 
   it('passes unparseable legacy strings through', () => {

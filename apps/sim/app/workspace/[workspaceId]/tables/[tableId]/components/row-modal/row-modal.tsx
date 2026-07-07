@@ -247,7 +247,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   }
 
   if (column.type === 'date') {
-    const parts = dateValueToLocalParts(formatValueForInput(value, 'date'), timeZone)
+    const parts = dateValueToLocalParts(formatValueForInput(value, 'date'))
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>

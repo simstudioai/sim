@@ -1414,7 +1414,7 @@ export function TableGrid({
             }
           }
         } else if (column.type === 'date') {
-          text = storageToDisplay(String(val), { seconds: true, timeZone: timeZoneRef.current })
+          text = storageToDisplay(String(val), { seconds: true })
         } else {
           text = String(val)
         }
