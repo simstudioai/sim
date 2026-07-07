@@ -785,8 +785,16 @@ export async function runWorkflowColumn(opts: {
   } catch (err) {
     // Prep failed after the dispatch row was inserted — cancel it so an
     // orphaned `pending` dispatch can't pin the client's "about to run"
-    // overlay, then fail the request.
-    await cancelDispatchById(dispatchId)
+    // overlay, then fail the request with the ORIGINAL error. The cleanup is
+    // best-effort: its own failure must not mask the prep failure.
+    try {
+      await cancelDispatchById(dispatchId)
+    } catch (cleanupErr) {
+      logger.error(`[Cascade] [${requestId}] failed to cancel dispatch after prep failure`, {
+        dispatchId,
+        error: toError(cleanupErr).message,
+      })
+    }
     throw err
   }
 
