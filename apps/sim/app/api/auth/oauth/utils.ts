@@ -1,9 +1,9 @@
 import { createSign } from 'crypto'
 import { db } from '@sim/db'
-import { account, credential, credentialSetMember } from '@sim/db/schema'
+import { account, credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -638,90 +638,4 @@ export async function refreshTokenIfNeeded(
     return { accessToken: credential.accessToken, refreshed: false }
   }
   throw new Error('Failed to refresh token')
-}
-
-export interface CredentialSetCredential {
-  userId: string
-  credentialId: string
-  accessToken: string
-  providerId: string
-}
-
-export async function getCredentialsForCredentialSet(
-  credentialSetId: string,
-  providerId: string
-): Promise<CredentialSetCredential[]> {
-  logger.info(`Getting credentials for credential set ${credentialSetId}, provider ${providerId}`)
-
-  const members = await db
-    .select({ userId: credentialSetMember.userId })
-    .from(credentialSetMember)
-    .where(
-      and(
-        eq(credentialSetMember.credentialSetId, credentialSetId),
-        eq(credentialSetMember.status, 'active')
-      )
-    )
-
-  logger.info(`Found ${members.length} active members in credential set ${credentialSetId}`)
-
-  if (members.length === 0) {
-    logger.warn(`No active members found for credential set ${credentialSetId}`)
-    return []
-  }
-
-  const userIds = members.map((m) => m.userId)
-  logger.debug(`Member user IDs: ${userIds.join(', ')}`)
-
-  const credentials = await db
-    .select({
-      id: account.id,
-      userId: account.userId,
-      providerId: account.providerId,
-      accessToken: account.accessToken,
-      refreshToken: account.refreshToken,
-      accessTokenExpiresAt: account.accessTokenExpiresAt,
-    })
-    .from(account)
-    .where(and(inArray(account.userId, userIds), eq(account.providerId, providerId)))
-
-  logger.info(
-    `Found ${credentials.length} credentials with provider ${providerId} for ${members.length} members`
-  )
-
-  const results: CredentialSetCredential[] = []
-
-  for (const cred of credentials) {
-    const now = new Date()
-    const tokenExpiry = cred.accessTokenExpiresAt
-    const shouldRefresh =
-      !!cred.refreshToken && (!cred.accessToken || (tokenExpiry && tokenExpiry < now))
-
-    let accessToken = cred.accessToken
-
-    if (shouldRefresh && cred.refreshToken) {
-      const fresh = await performCoalescedRefresh({
-        accountId: cred.id,
-        providerId,
-        refreshToken: cred.refreshToken,
-        userId: cred.userId,
-      })
-      if (fresh) accessToken = fresh
-    }
-
-    if (accessToken) {
-      results.push({
-        userId: cred.userId,
-        credentialId: cred.id,
-        accessToken,
-        providerId,
-      })
-    }
-  }
-
-  logger.info(
-    `Found ${results.length} valid credentials for credential set ${credentialSetId}, provider ${providerId}`
-  )
-
-  return results
 }

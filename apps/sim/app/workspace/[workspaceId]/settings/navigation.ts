@@ -6,7 +6,6 @@ import {
   KeySquare,
   Lock,
   LogIn,
-  Mail,
   Palette,
   Send,
   Server,
@@ -25,7 +24,6 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 export type SettingsSection =
   | 'general'
   | 'secrets'
-  | 'credential-sets'
   | 'access-control'
   | 'audit-logs'
   | 'apikeys'
@@ -79,7 +77,6 @@ export interface NavigationItem {
 }
 
 const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
-const isCredentialSetsEnabled = isTruthy(getEnv('NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED'))
 const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
 const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
 const isWhitelabelingEnabled = isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED'))
@@ -88,7 +85,6 @@ const isDataRetentionEnabled = isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABL
 const isDataDrainsEnabled = isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED'))
 
 export const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
-export { isCredentialSetsEnabled }
 
 export const sectionConfig: { key: NavigationSection; title: string }[] = [
   { key: 'account', title: 'Account' },
@@ -216,17 +212,6 @@ export const allNavigationItems: NavigationItem[] = [
     selfHostedOverride: isInboxEnabled,
     showWhenLocked: true,
   },
-  ...(isCredentialSetsEnabled
-    ? [
-        {
-          id: 'credential-sets' as const,
-          label: 'Email polling',
-          description: 'Share email-polling credentials across your team.',
-          icon: Mail,
-          section: 'system' as const,
-        },
-      ]
-    : []),
   {
     id: 'recently-deleted',
     label: 'Recently deleted',

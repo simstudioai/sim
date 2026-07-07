@@ -35,7 +35,6 @@ export const authOAuthUtilsMockFns = {
   mockGetOAuthToken: vi.fn(),
   mockRefreshAccessTokenIfNeeded: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
-  mockGetCredentialsForCredentialSet: vi.fn(),
 }
 
 /**
@@ -55,5 +54,4 @@ export const authOAuthUtilsMock = {
   getOAuthToken: authOAuthUtilsMockFns.mockGetOAuthToken,
   refreshAccessTokenIfNeeded: authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded,
   refreshTokenIfNeeded: authOAuthUtilsMockFns.mockRefreshTokenIfNeeded,
-  getCredentialsForCredentialSet: authOAuthUtilsMockFns.mockGetCredentialsForCredentialSet,
 }

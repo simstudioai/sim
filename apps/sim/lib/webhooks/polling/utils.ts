@@ -1,14 +1,7 @@
 import { db } from '@sim/db'
-import {
-  account,
-  credentialSet,
-  webhook,
-  workflow,
-  workflowDeploymentVersion,
-} from '@sim/db/schema'
+import { account, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
-import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import type { WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
 import {
   getOAuthToken,
@@ -191,39 +184,14 @@ export async function updateWebhookProviderConfig(
 export async function resolveOAuthCredential(
   webhookData: WebhookRecord,
   oauthProvider: string,
-  requestId: string,
-  logger: Logger
+  requestId: string
 ): Promise<string> {
   const metadata = webhookData.providerConfig as Record<string, unknown> | null
   const credentialId = metadata?.credentialId as string | undefined
   const userId = metadata?.userId as string | undefined
-  const credentialSetId = (webhookData.credentialSetId as string | undefined) ?? undefined
 
   if (!credentialId && !userId) {
     throw new Error(`Missing credential info for webhook ${webhookData.id}`)
-  }
-
-  if (credentialSetId) {
-    const [cs] = await db
-      .select({ organizationId: credentialSet.organizationId })
-      .from(credentialSet)
-      .where(eq(credentialSet.id, credentialSetId))
-      .limit(1)
-
-    if (cs?.organizationId) {
-      const hasAccess = await isOrganizationOnTeamOrEnterprisePlan(cs.organizationId)
-      if (!hasAccess) {
-        logger.error(
-          `[${requestId}] Polling Group plan restriction: Your current plan does not support Polling Groups. Upgrade to Team or Enterprise to use this feature.`,
-          {
-            webhookId: webhookData.id,
-            credentialSetId,
-            organizationId: cs.organizationId,
-          }
-        )
-        throw new Error('Polling Group plan restriction')
-      }
-    }
   }
 
   let accessToken: string | null = null
