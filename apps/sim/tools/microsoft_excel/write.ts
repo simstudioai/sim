@@ -145,7 +145,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
       }
 
       const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
+        majorDimension: 'ROWS',
         values: processedValues,
       }
 
@@ -337,7 +337,7 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
       }
 
       const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
+        majorDimension: 'ROWS',
         values: processedValues,
       }
 
