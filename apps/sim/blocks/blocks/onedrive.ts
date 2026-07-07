@@ -12,10 +12,10 @@ const logger = createLogger('OneDriveBlock')
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
   name: 'OneDrive',
-  description: 'Create, upload, download, list, and delete files',
+  description: 'Create, upload, download, search, move, copy, share, and delete files',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.',
+    'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list and search files, move or rename files, copy files, create sharing links, and delete files or folders.',
   docsLink: 'https://docs.sim.ai/integrations/onedrive',
   category: 'tools',
   integrationType: IntegrationType.Documents,
@@ -33,6 +33,12 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         { label: 'Upload File', id: 'upload' },
         { label: 'Download File', id: 'download' },
         { label: 'List Files', id: 'list' },
+        { label: 'Search Files', id: 'search' },
+        { label: 'Get Item Info', id: 'get_item' },
+        { label: 'Get Drive Info', id: 'get_drive_info' },
+        { label: 'Move/Rename File', id: 'move' },
+        { label: 'Copy File', id: 'copy' },
+        { label: 'Create Sharing Link', id: 'create_share_link' },
         { label: 'Delete File', id: 'delete' },
       ],
     },
@@ -231,14 +237,37 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'Search Query',
       type: 'short-input',
       placeholder: 'Search for specific files (e.g., name contains "report")',
-      condition: { field: 'operation', value: 'list' },
+      condition: { field: 'operation', value: ['list', 'search'] },
     },
     {
       id: 'pageSize',
       title: 'Results Per Page',
       type: 'short-input',
       placeholder: 'Number of results (default: 100, max: 1000)',
-      condition: { field: 'operation', value: 'list' },
+      condition: { field: 'operation', value: ['list', 'search'] },
+    },
+    // Get Item Info Fields - File Selector (basic mode)
+    {
+      id: 'getItemFileSelector',
+      title: 'Select File or Folder',
+      type: 'file-selector',
+      canonicalParamId: 'getItemFileId',
+      serviceId: 'onedrive',
+      selectorKey: 'onedrive.files',
+      requiredScopes: getScopesForService('onedrive'),
+      placeholder: 'Select a file or folder (leave empty for the drive root)',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'get_item' },
+    },
+    {
+      id: 'getItemManualFileId',
+      title: 'File or Folder ID',
+      type: 'short-input',
+      canonicalParamId: 'getItemFileId',
+      placeholder: 'Enter file or folder ID (leave empty for the drive root)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_item' },
     },
     // Download File Fields - File Selector (basic mode)
     {
@@ -274,6 +303,170 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       placeholder: 'Optional: Override the filename',
       condition: { field: 'operation', value: 'download' },
     },
+    // Move/Rename File Fields - File Selector (basic mode)
+    {
+      id: 'moveFileSelector',
+      title: 'Select File or Folder to Move',
+      type: 'file-selector',
+      canonicalParamId: 'moveFileId',
+      serviceId: 'onedrive',
+      selectorKey: 'onedrive.files',
+      requiredScopes: getScopesForService('onedrive'),
+      placeholder: 'Select a file or folder to move or rename',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'move' },
+      required: true,
+    },
+    {
+      id: 'moveManualFileId',
+      title: 'File or Folder ID',
+      type: 'short-input',
+      canonicalParamId: 'moveFileId',
+      placeholder: 'Enter file or folder ID to move or rename',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move' },
+      required: true,
+    },
+    {
+      id: 'moveDestinationFolderSelector',
+      title: 'Select Destination Folder',
+      type: 'file-selector',
+      canonicalParamId: 'moveDestinationFolderId',
+      serviceId: 'onedrive',
+      selectorKey: 'onedrive.folders',
+      requiredScopes: getScopesForService('onedrive'),
+      mimeType: 'application/vnd.microsoft.graph.folder',
+      placeholder: 'Select a destination folder (leave empty to only rename)',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'move' },
+    },
+    {
+      id: 'moveDestinationManualFolderId',
+      title: 'Destination Folder ID',
+      type: 'short-input',
+      canonicalParamId: 'moveDestinationFolderId',
+      placeholder: 'Enter destination folder ID (leave empty to only rename)',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move' },
+    },
+    {
+      id: 'newName',
+      title: 'New Name',
+      type: 'short-input',
+      placeholder: 'New name for the file or folder (leave empty to only move)',
+      condition: { field: 'operation', value: 'move' },
+    },
+    // Copy File Fields - File Selector (basic mode)
+    {
+      id: 'copyFileSelector',
+      title: 'Select File or Folder to Copy',
+      type: 'file-selector',
+      canonicalParamId: 'copyFileId',
+      serviceId: 'onedrive',
+      selectorKey: 'onedrive.files',
+      requiredScopes: getScopesForService('onedrive'),
+      placeholder: 'Select a file or folder to copy',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'copy' },
+      required: true,
+    },
+    {
+      id: 'copyManualFileId',
+      title: 'File or Folder ID',
+      type: 'short-input',
+      canonicalParamId: 'copyFileId',
+      placeholder: 'Enter file or folder ID to copy',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'copy' },
+      required: true,
+    },
+    {
+      id: 'copyDestinationFolderSelector',
+      title: 'Select Destination Folder',
+      type: 'file-selector',
+      canonicalParamId: 'copyDestinationFolderId',
+      serviceId: 'onedrive',
+      selectorKey: 'onedrive.folders',
+      requiredScopes: getScopesForService('onedrive'),
+      mimeType: 'application/vnd.microsoft.graph.folder',
+      placeholder: 'Select a destination folder',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'copy' },
+      required: true,
+    },
+    {
+      id: 'copyDestinationManualFolderId',
+      title: 'Destination Folder ID',
+      type: 'short-input',
+      canonicalParamId: 'copyDestinationFolderId',
+      placeholder: 'Enter destination folder ID',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'copy' },
+      required: true,
+    },
+    {
+      id: 'destinationFileName',
+      title: 'New Name',
+      type: 'short-input',
+      placeholder: 'Optional name for the copy (defaults to the original name)',
+      condition: { field: 'operation', value: 'copy' },
+    },
+    // Create Sharing Link Fields - File Selector (basic mode)
+    {
+      id: 'shareLinkFileSelector',
+      title: 'Select File or Folder to Share',
+      type: 'file-selector',
+      canonicalParamId: 'shareLinkFileId',
+      serviceId: 'onedrive',
+      selectorKey: 'onedrive.files',
+      requiredScopes: getScopesForService('onedrive'),
+      placeholder: 'Select a file or folder to share',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'create_share_link' },
+      required: true,
+    },
+    {
+      id: 'shareLinkManualFileId',
+      title: 'File or Folder ID',
+      type: 'short-input',
+      canonicalParamId: 'shareLinkFileId',
+      placeholder: 'Enter file or folder ID to share',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_share_link' },
+      required: true,
+    },
+    {
+      id: 'linkType',
+      title: 'Link Type',
+      type: 'dropdown',
+      options: [
+        { label: 'View (read-only)', id: 'view' },
+        { label: 'Edit (read-write)', id: 'edit' },
+        { label: 'Embed', id: 'embed' },
+      ],
+      placeholder: 'Select link type',
+      condition: { field: 'operation', value: 'create_share_link' },
+      required: true,
+    },
+    {
+      id: 'linkScope',
+      title: 'Link Scope',
+      type: 'dropdown',
+      options: [
+        { label: 'Anyone with the link', id: 'anonymous' },
+        { label: 'People in my organization', id: 'organization' },
+        { label: 'Specific people', id: 'users' },
+      ],
+      placeholder: 'Select who can use the link',
+      condition: { field: 'operation', value: 'create_share_link' },
+    },
     // Delete File Fields - File Selector (basic mode)
     {
       id: 'deleteFileSelector',
@@ -308,6 +501,12 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       'onedrive_create_folder',
       'onedrive_download',
       'onedrive_list',
+      'onedrive_search',
+      'onedrive_get_item',
+      'onedrive_get_drive_info',
+      'onedrive_move',
+      'onedrive_copy',
+      'onedrive_create_share_link',
       'onedrive_delete',
     ],
     config: {
@@ -322,6 +521,18 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
             return 'onedrive_download'
           case 'list':
             return 'onedrive_list'
+          case 'search':
+            return 'onedrive_search'
+          case 'get_item':
+            return 'onedrive_get_item'
+          case 'get_drive_info':
+            return 'onedrive_get_drive_info'
+          case 'move':
+            return 'onedrive_move'
+          case 'copy':
+            return 'onedrive_copy'
+          case 'create_share_link':
+            return 'onedrive_create_share_link'
           case 'delete':
             return 'onedrive_delete'
           default:
@@ -335,9 +546,15 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           uploadFolderId,
           createFolderParentId,
           listFolderId,
+          moveDestinationFolderId,
+          copyDestinationFolderId,
           // File canonical params (per-operation)
           downloadFileId,
           deleteFileId,
+          moveFileId,
+          copyFileId,
+          shareLinkFileId,
+          getItemFileId,
           mimeType,
           values,
           downloadFileName,
@@ -377,6 +594,29 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           case 'delete':
             resolvedFileId = deleteFileId?.trim() || undefined
             break
+          case 'move':
+            resolvedFileId = moveFileId?.trim() || undefined
+            break
+          case 'copy':
+            resolvedFileId = copyFileId?.trim() || undefined
+            break
+          case 'create_share_link':
+            resolvedFileId = shareLinkFileId?.trim() || undefined
+            break
+          case 'get_item':
+            resolvedFileId = getItemFileId?.trim() || undefined
+            break
+        }
+
+        // Resolve destinationFolderId based on operation
+        let resolvedDestinationFolderId: string | undefined
+        switch (params.operation) {
+          case 'move':
+            resolvedDestinationFolderId = moveDestinationFolderId?.trim() || undefined
+            break
+          case 'copy':
+            resolvedDestinationFolderId = copyDestinationFolderId?.trim() || undefined
+            break
         }
 
         return {
@@ -386,6 +626,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           file: normalizedFile,
           folderId: resolvedFolderId,
           fileId: resolvedFileId,
+          destinationFolderId: resolvedDestinationFolderId,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...(downloadFileName && { fileName: downloadFileName }),
@@ -411,9 +652,29 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     deleteFileId: { type: 'string', description: 'File to delete' },
     downloadFileName: { type: 'string', description: 'File name override for download' },
     folderName: { type: 'string', description: 'Folder name for create_folder' },
-    // List operation inputs
+    // List / Search operation inputs
     query: { type: 'string', description: 'Search query' },
     pageSize: { type: 'number', description: 'Results per page' },
+    // Move operation inputs
+    moveFileId: { type: 'string', description: 'File or folder to move or rename' },
+    moveDestinationFolderId: { type: 'string', description: 'Destination folder for move' },
+    newName: { type: 'string', description: 'New name for move/rename' },
+    // Copy operation inputs
+    copyFileId: { type: 'string', description: 'File or folder to copy' },
+    copyDestinationFolderId: { type: 'string', description: 'Destination folder for copy' },
+    destinationFileName: { type: 'string', description: 'Optional name for the copy' },
+    // Create sharing link operation inputs
+    shareLinkFileId: { type: 'string', description: 'File or folder to share' },
+    linkType: { type: 'string', description: 'Type of sharing link: view, edit, or embed' },
+    linkScope: {
+      type: 'string',
+      description: 'Who can use the link: anonymous, organization, or users',
+    },
+    // Get item operation inputs
+    getItemFileId: {
+      type: 'string',
+      description: 'File or folder to retrieve metadata for (empty for drive root)',
+    },
   },
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation was successful' },
@@ -427,6 +688,37 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'json',
       description:
         'An array of OneDrive file objects, each containing details such as id, name, size, and more.',
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for retrieving the next page of list/search results, if any',
+    },
+    sourceFileId: {
+      type: 'string',
+      description: 'The ID of the file or folder that was copied',
+    },
+    name: {
+      type: 'string',
+      description: 'The requested name for the copy, if provided',
+    },
+    monitorUrl: {
+      type: 'string',
+      description: 'URL to poll for the status of an asynchronous copy operation',
+    },
+    link: {
+      type: 'json',
+      description: 'The created sharing link, including its type, scope, and URL',
+    },
+    driveId: { type: 'string', description: 'The ID of the drive' },
+    driveType: {
+      type: 'string',
+      description: 'The type of drive (e.g., "personal", "business")',
+    },
+    webUrl: { type: 'string', description: 'URL to the drive in the browser' },
+    owner: { type: 'string', description: 'Display name of the drive owner' },
+    quota: {
+      type: 'json',
+      description: 'Drive storage quota information (total, used, remaining, deleted, state)',
     },
   },
 }

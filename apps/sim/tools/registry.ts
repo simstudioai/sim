@@ -2481,10 +2481,16 @@ import {
   oktaUpdateUserTool,
 } from '@/tools/okta'
 import {
+  onedriveCopyTool,
   onedriveCreateFolderTool,
+  onedriveCreateShareLinkTool,
   onedriveDeleteTool,
   onedriveDownloadTool,
+  onedriveGetDriveInfoTool,
+  onedriveGetItemTool,
   onedriveListTool,
+  onedriveMoveTool,
+  onedriveSearchTool,
   onedriveUploadTool,
 } from '@/tools/onedrive'
 import {
@@ -7552,10 +7558,16 @@ export const tools: Record<string, ToolConfig> = {
   shopify_create_fulfillment: shopifyCreateFulfillmentTool,
   shopify_list_collections: shopifyListCollectionsTool,
   shopify_get_collection: shopifyGetCollectionTool,
+  onedrive_copy: onedriveCopyTool,
   onedrive_create_folder: onedriveCreateFolderTool,
+  onedrive_create_share_link: onedriveCreateShareLinkTool,
   onedrive_delete: onedriveDeleteTool,
   onedrive_download: onedriveDownloadTool,
+  onedrive_get_drive_info: onedriveGetDriveInfoTool,
+  onedrive_get_item: onedriveGetItemTool,
   onedrive_list: onedriveListTool,
+  onedrive_move: onedriveMoveTool,
+  onedrive_search: onedriveSearchTool,
   onedrive_upload: onedriveUploadTool,
   microsoft_dataverse_associate: dataverseAssociateTool,
   microsoft_dataverse_create_multiple: dataverseCreateMultipleTool,
