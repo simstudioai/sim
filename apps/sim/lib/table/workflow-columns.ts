@@ -365,7 +365,14 @@ export const TABLE_CONCURRENCY_LIMIT = 20
 export async function cancelWorkflowGroupRuns(
   tableId: string,
   rowId?: string,
-  options?: { groupIds?: string[]; filter?: Filter; excludeRowIds?: string[] }
+  options?: {
+    groupIds?: string[]
+    filter?: Filter
+    excludeRowIds?: string[]
+    /** Set by a manual run cancelling prior work: its own already-inserted
+     *  dispatch must survive the table-wide dispatch cancel. */
+    spareDispatchId?: string
+  }
 ): Promise<number> {
   const { getTableById } = await import('@/lib/table/service')
   const { updateRow } = await import('@/lib/table/rows/service')
@@ -387,7 +394,15 @@ export async function cancelWorkflowGroupRuns(
   // (its own run); whole-table or differently-scoped dispatches keep running —
   // their cells cancelled below are skipped via `cancelledAt > requestedAt`.
   if (!rowId) {
-    await markActiveDispatchesCancelled(tableId, options?.filter, options?.excludeRowIds)
+    const cancelledDispatches = await markActiveDispatchesCancelled(tableId, {
+      scopeFilter: options?.filter,
+      spareExcludedRowIds: options?.excludeRowIds,
+      spareDispatchId: options?.spareDispatchId,
+    })
+    logger.info(
+      `cancelWorkflowGroupRuns: cancelled ${cancelledDispatches.length} active dispatch(es) for table ${tableId}`,
+      { dispatchIds: cancelledDispatches.map((d) => d.id) }
+    )
   }
 
   const allGroups = table.schema.workflowGroups ?? []
@@ -678,67 +693,23 @@ export async function runWorkflowColumn(opts: {
   if (targetGroups.length === 0) return { dispatchId: null }
   const targetGroupIds = targetGroups.map((g) => g.id)
 
-  const { bulkClearWorkflowGroupCells, insertDispatch, runDispatcherToCompletion } = await import(
-    './dispatcher'
-  )
+  const {
+    bulkClearWorkflowGroupCells,
+    cancelDispatchById,
+    insertDispatch,
+    readDispatch,
+    runDispatcherToCompletion,
+  } = await import('./dispatcher')
 
-  // For manual runs (Run all rows / Run column / Refresh-row / Refresh-cell),
-  // cancel any prior active dispatches AND in-flight cells in scope before
-  // clearing. Without this:
-  //  - Two dispatcher loops would walk overlapping rows and burn duplicate work.
-  //  - mode:'all' bulk-clear deletes in-flight sidecar rows without aborting
-  //    workers — those would keep writing into the wiped state.
-  // Scope: table-wide cancel when rowIds is empty (also cancels active
-  // dispatches via markActiveDispatchesCancelled), per-row cancel otherwise
-  // (no dispatch cancel — other rows' dispatches keep running). Dep-edit
-  // cascade in `updateRow` already cancels its own scope before calling,
-  // so the duplicate work here is a cheap no-op for that caller.
-  // Auto-fire (`mode:'new'`) is harmless overlap-wise — the NOT EXISTS
-  // filter excludes already-attempted rows.
-  const cancelPriorRuns = isManualRun && (mode === 'all' || mode === 'incomplete')
-  if (cancelPriorRuns) {
-    if (!rowIds || rowIds.length === 0) {
-      // Filtered runs cancel only their own scope — a table-wide cancel here
-      // would stop unrelated work on rows outside the filter (or on deselected rows).
-      await cancelWorkflowGroupRuns(tableId, undefined, {
-        groupIds: targetGroupIds,
-        filter,
-        excludeRowIds,
-      })
-    } else {
-      // Per-row cancel — sequential so we don't fan out N parallel
-      // markActiveDispatchesCancelled calls (it's a no-op when rowId is set,
-      // but each call still touches the DB).
-      for (const rowId of rowIds) {
-        await cancelWorkflowGroupRuns(tableId, rowId, { groupIds: targetGroupIds })
-      }
-    }
-  }
-
-  // Wipe targeted output cols + executions[gid] before any cells fire so the
-  // user sees the column flip to empty/Pending instantly. Skipped for capped
-  // runs: the eager clear can't know which N rows the dispatcher will pick
-  // (they depend on per-row eligibility as it walks positions), so wiping all
-  // rows in scope would blank far more than we re-run. `mode: 'all'` re-runs
-  // completed cells without the clear anyway — the clear is only for instant
-  // feedback, which the capped rows still get via the dispatcher's pre-stamp.
-  // Skip the eager clear for a filtered run: `bulkClearWorkflowGroupCells` keys by `rowIds`, and a
-  // filtered scope has none — clearing table-wide would blank rows that don't match the filter. The
-  // dispatcher's per-row pre-stamp still provides instant Pending feedback as it walks.
-  if (!limit && !filter) {
-    await bulkClearWorkflowGroupCells({
-      tableId,
-      groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
-      rowIds,
-      excludeRowIds,
-      mode,
-    })
-  }
-
-  // Always insert a `table_run_dispatches` row. The dispatcher state machine
-  // is the single source of truth for cursor advancement, SSE emission, and
-  // cancel — backend (trigger.dev SaaS vs in-process) only affects how each
-  // window's cells get executed.
+  // Always insert a `table_run_dispatches` row, and insert it FIRST — before
+  // the prior-run cancel and the bulk clear below, which can take seconds on
+  // a large table. The client shows its Stop control optimistically from the
+  // moment the user clicks Run, so a Stop-all arriving during that prep work
+  // must find a dispatch row to cancel; inserted-after ordering made an early
+  // Stop-all a silent no-op and the run proceeded anyway. The dispatcher
+  // state machine is the single source of truth for cursor advancement, SSE
+  // emission, and cancel — backend (trigger.dev SaaS vs in-process) only
+  // affects how each window's cells get executed.
   const dispatchId = await insertDispatch({
     tableId,
     workspaceId,
@@ -756,6 +727,91 @@ export async function runWorkflowColumn(opts: {
     isManualRun,
     triggeredByUserId,
   })
+
+  try {
+    // For manual runs (Run all rows / Run column / Refresh-row / Refresh-cell),
+    // cancel any prior active dispatches AND in-flight cells in scope before
+    // clearing. Without this:
+    //  - Two dispatcher loops would walk overlapping rows and burn duplicate work.
+    //  - mode:'all' bulk-clear deletes in-flight sidecar rows without aborting
+    //    workers — those would keep writing into the wiped state.
+    // Scope: table-wide cancel when rowIds is empty (also cancels active
+    // dispatches via markActiveDispatchesCancelled, sparing the one just
+    // inserted above), per-row cancel otherwise (no dispatch cancel — other
+    // rows' dispatches keep running). Dep-edit cascade in `updateRow` already
+    // cancels its own scope before calling, so the duplicate work here is a
+    // cheap no-op for that caller. Auto-fire (`mode:'new'`) is harmless
+    // overlap-wise — the NOT EXISTS filter excludes already-attempted rows.
+    const cancelPriorRuns = isManualRun && (mode === 'all' || mode === 'incomplete')
+    if (cancelPriorRuns) {
+      if (!rowIds || rowIds.length === 0) {
+        // Filtered runs cancel only their own scope — a table-wide cancel here
+        // would stop unrelated work on rows outside the filter (or on deselected rows).
+        await cancelWorkflowGroupRuns(tableId, undefined, {
+          groupIds: targetGroupIds,
+          filter,
+          excludeRowIds,
+          spareDispatchId: dispatchId,
+        })
+      } else {
+        // Per-row cancel — sequential so we don't fan out N parallel
+        // markActiveDispatchesCancelled calls (it's a no-op when rowId is set,
+        // but each call still touches the DB).
+        for (const rowId of rowIds) {
+          await cancelWorkflowGroupRuns(tableId, rowId, { groupIds: targetGroupIds })
+        }
+      }
+    }
+
+    // Wipe targeted output cols + executions[gid] before any cells fire so the
+    // user sees the column flip to empty/Pending instantly. Skipped for capped
+    // runs: the eager clear can't know which N rows the dispatcher will pick
+    // (they depend on per-row eligibility as it walks positions), so wiping all
+    // rows in scope would blank far more than we re-run. `mode: 'all'` re-runs
+    // completed cells without the clear anyway — the clear is only for instant
+    // feedback, which the capped rows still get via the dispatcher's pre-stamp.
+    // Skip the eager clear for a filtered run: `bulkClearWorkflowGroupCells` keys by `rowIds`, and a
+    // filtered scope has none — clearing table-wide would blank rows that don't match the filter. The
+    // dispatcher's per-row pre-stamp still provides instant Pending feedback as it walks.
+    if (!limit && !filter) {
+      await bulkClearWorkflowGroupCells({
+        tableId,
+        groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
+        rowIds,
+        excludeRowIds,
+        mode,
+      })
+    }
+  } catch (err) {
+    // Prep failed after the dispatch row was inserted — cancel it so an
+    // orphaned `pending` dispatch can't pin the client's "about to run"
+    // overlay, then fail the request with the ORIGINAL error. The cleanup is
+    // best-effort: its own failure must not mask the prep failure.
+    try {
+      await cancelDispatchById(dispatchId)
+    } catch (cleanupErr) {
+      logger.error(`[Cascade] [${requestId}] failed to cancel dispatch after prep failure`, {
+        dispatchId,
+        error: toError(cleanupErr).message,
+      })
+    }
+    throw err
+  }
+
+  // A Stop-all can land during the prep above; its dispatch cancel is the
+  // authoritative stop. Don't fire the dispatcher loop for a dead dispatch —
+  // it would exit on its first status read, but the trigger.dev path would
+  // still spin up a task for nothing. Return a null dispatchId: the client
+  // seeds a returned id into its active-dispatch overlay, which would
+  // resurrect the Run/Stop UI the cancelled SSE event already cleared; null
+  // takes its "no dispatch created" path and rolls the optimistic bump back.
+  const current = await readDispatch(dispatchId)
+  if (!current || current.status === 'cancelled' || current.status === 'complete') {
+    logger.info(
+      `[Cascade] [${requestId}] dispatch ${dispatchId} cancelled during prep — not firing`
+    )
+    return { dispatchId: null }
+  }
 
   logger.info(
     `[Cascade] [${requestId}] dispatch ${dispatchId} table=${tableId} groups=[${targetGroupIds.join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
