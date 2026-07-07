@@ -7,6 +7,7 @@ import type {
   MicrosoftExcelV2ToolParams,
 } from '@/tools/microsoft_excel/types'
 import {
+  escapeODataString,
   getItemBasePath,
   getSpreadsheetWebUrl,
   parseGraphErrorMessage,
@@ -79,7 +80,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       const rangeInput = params.range.trim()
 
       if (!rangeInput.includes('!')) {
-        const sheetOnly = encodeURIComponent(rangeInput)
+        const sheetOnly = encodeURIComponent(escapeODataString(rangeInput))
         return `${basePath}/workbook/worksheets('${sheetOnly}')/usedRange(valuesOnly=true)`
       }
 
@@ -91,7 +92,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         )
       }
 
-      const sheetName = encodeURIComponent(match[1])
+      const sheetName = encodeURIComponent(escapeODataString(match[1]))
       const address = encodeURIComponent(match[2])
 
       return `${basePath}/workbook/worksheets('${sheetName}')/range(address='${address}')`
@@ -128,7 +129,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       }
 
       const basePath = getItemBasePath(spreadsheetId, driveId)
-      const rangeUrl = `${basePath}/workbook/worksheets('${encodeURIComponent(firstSheetName)}')/usedRange(valuesOnly=true)`
+      const rangeUrl = `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(firstSheetName))}')/usedRange(valuesOnly=true)`
 
       const rangeResp = await fetch(rangeUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -278,7 +279,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
       }
 
       const basePath = getItemBasePath(spreadsheetId, params.driveId)
-      const encodedSheetName = encodeURIComponent(sheetName)
+      const encodedSheetName = encodeURIComponent(escapeODataString(sheetName))
 
       if (!params.cellRange) {
         return `${basePath}/workbook/worksheets('${encodedSheetName}')/usedRange(valuesOnly=true)`
