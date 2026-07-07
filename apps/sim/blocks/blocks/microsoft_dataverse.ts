@@ -673,7 +673,10 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     fileName: { type: 'string', description: 'Name of the uploaded or downloaded file' },
     fileSize: { type: 'number', description: 'File size in bytes' },
     mimeType: { type: 'string', description: 'File MIME type' },
-    fileColumn: { type: 'string', description: 'File column name' },
+    fileColumn: {
+      type: 'string',
+      description: 'Logical name of the file column the file was uploaded to or downloaded from',
+    },
     logicalName: {
       type: 'string',
       description: 'Singular table logical name (get table metadata)',
