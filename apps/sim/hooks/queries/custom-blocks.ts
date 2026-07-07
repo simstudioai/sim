@@ -33,7 +33,7 @@ function useCustomBlocksQuery<T>(
   select: (r: CustomBlocksResult) => T
 ) {
   return useQuery({
-    queryKey: customBlockKeys.lists(),
+    queryKey: customBlockKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchCustomBlocks(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     staleTime: 60 * 1000,
