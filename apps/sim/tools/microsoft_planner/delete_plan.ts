@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerDeletePlanResponse,
   MicrosoftPlannerToolParams,
@@ -15,6 +16,7 @@ export const deletePlanTool: ToolConfig<
   name: 'Delete Microsoft Planner Plan',
   description: 'Delete a Microsoft Planner plan',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,

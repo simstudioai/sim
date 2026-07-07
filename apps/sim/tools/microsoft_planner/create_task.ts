@@ -165,7 +165,9 @@ export const createTaskTool: ToolConfig<
 
         if (categories.length > 0) {
           body.appliedCategories = Object.fromEntries(
-            categories.map((category) => [category, true])
+            categories.map((category) =>
+              category.startsWith('-') ? [category.slice(1), false] : [category, true]
+            )
           )
         }
       }

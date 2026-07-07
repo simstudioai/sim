@@ -412,19 +412,21 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'appliedCategories',
       title: 'Categories',
       type: 'short-input',
-      placeholder: 'e.g. category1,category3',
+      placeholder: 'e.g. category1,category3,-category5',
       mode: 'advanced',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a comma-separated list of Microsoft Planner category keys based on the user's description.
-Valid keys are category1 through category25.
+Valid keys are category1 through category25. Prefix a key with "-" to remove/clear that label (only meaningful on update).
 Examples:
 - "flag it blocked" -> category1
 - "mark as urgent and needs review" -> category1,category2
+- "remove the blocked label" -> -category1
 
 Return ONLY the comma-separated category keys - no explanations, no extra text.`,
-        placeholder: 'Describe which category labels to apply (e.g., "mark as blocked")...',
+        placeholder:
+          'Describe which category labels to apply or remove (e.g., "mark as blocked", "remove urgent label")...',
       },
     },
 
@@ -690,10 +692,10 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           if (startDateTime?.trim()) {
             createParams.startDateTime = startDateTime.trim()
           }
-          if (priority !== undefined) {
+          if (priority !== undefined && String(priority).trim() !== '') {
             createParams.priority = Number(priority)
           }
-          if (percentComplete !== undefined) {
+          if (percentComplete !== undefined && String(percentComplete).trim() !== '') {
             createParams.percentComplete = Number(percentComplete)
           }
           if (assigneeUserId?.trim()) {
@@ -732,10 +734,10 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           if (assigneeUserId?.trim()) {
             updateParams.assigneeUserId = assigneeUserId.trim()
           }
-          if (priority !== undefined) {
+          if (priority !== undefined && String(priority).trim() !== '') {
             updateParams.priority = Number(priority)
           }
-          if (percentComplete !== undefined) {
+          if (percentComplete !== undefined && String(percentComplete).trim() !== '') {
             updateParams.percentComplete = Number(percentComplete)
           }
           if (appliedCategories?.trim()) {

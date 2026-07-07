@@ -167,7 +167,7 @@ export const updateTaskTool: ToolConfig<
         body.percentComplete = params.percentComplete
       }
 
-      if (params.priority !== undefined) {
+      if (params.priority !== undefined && params.priority !== null) {
         body.priority = Number(params.priority)
       }
 
@@ -192,7 +192,9 @@ export const updateTaskTool: ToolConfig<
 
         if (categories.length > 0) {
           body.appliedCategories = Object.fromEntries(
-            categories.map((category) => [category, true])
+            categories.map((category) =>
+              category.startsWith('-') ? [category.slice(1), false] : [category, true]
+            )
           )
         }
       }
