@@ -661,11 +661,14 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   )
 }
 
-/** Compare curated inputs by their meaningful fields only (order-stable). */
+/**
+ * Compare inputs by only the authored data — the field id and its placeholder.
+ * name/type/description are derived live from the deployed Start (not stored), so
+ * comparing them would flag the form dirty when only Start metadata drifted.
+ */
 function normalizeInputsForCompare(items: ReadonlyArray<Partial<CustomBlockInput>>) {
   return items.map((i) => ({
     id: i.id ?? i.name ?? '',
     placeholder: i.placeholder ?? '',
-    description: i.description ?? '',
   }))
 }

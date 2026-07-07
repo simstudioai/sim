@@ -77,8 +77,10 @@ function applyInputPlaceholders(
   if (deployed.length === 0) return []
   if (!placeholders?.length) return deployed
   const byId = new Map(placeholders.map((p) => [p.id, p.placeholder]))
+  // Placeholders are stored under `field.id ?? field.name` (the form's key), so a
+  // legacy field with no stable id is keyed by name — look it up the same way.
   return deployed.map((field) => {
-    const placeholder = field.id ? byId.get(field.id) : undefined
+    const placeholder = byId.get(field.id ?? field.name)
     return placeholder ? { ...field, placeholder } : field
   })
 }
