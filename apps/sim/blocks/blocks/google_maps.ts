@@ -53,7 +53,7 @@ export const GoogleMapsBlock: BlockConfig = {
       hideWhenHosted: true,
       condition: { field: 'operation', value: 'speed_limits', not: true },
     },
-    // API Key — always visible for Speed Limits (deprecated API, no hosted key support)
+    // API Key — always visible for Speed Limits (Asset Tracking-license restricted, no hosted key support)
     {
       id: 'apiKey',
       title: 'API Key',

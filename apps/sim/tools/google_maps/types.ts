@@ -373,7 +373,7 @@ export interface GoogleMapsElevationResponse extends ToolResponse {
     elevation: number
     lat: number
     lng: number
-    resolution: number
+    resolution: number | null
   }
 }
 
