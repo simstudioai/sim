@@ -47,8 +47,14 @@ async function createConnectDraft(params: {
     try {
       const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId))
       userName = row?.name ?? null
-    } catch {
-      // Fall back to the "My {Service}" default
+    } catch (error) {
+      // Cosmetic only — fall back to the "My {Service}" default
+      logger.warn('User name lookup failed for connect draft display name', {
+        userId,
+        workspaceId,
+        providerId,
+        error,
+      })
     }
 
     // Auto-number against existing workspace credentials so repeat connects for
@@ -62,8 +68,14 @@ async function createConnectDraft(params: {
         .from(credential)
         .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')))
       takenNames = new Set(rows.map((row) => row.displayName.toLowerCase()))
-    } catch {
-      // Best effort — proceed without collision numbering
+    } catch (error) {
+      // Cosmetic only — proceed without collision numbering
+      logger.warn('Credential name lookup failed for connect draft deduplication', {
+        userId,
+        workspaceId,
+        providerId,
+        error,
+      })
     }
 
     displayName = defaultCredentialDisplayName(userName, serviceName, takenNames)
