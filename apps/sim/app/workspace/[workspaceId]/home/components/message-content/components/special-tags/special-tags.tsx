@@ -75,7 +75,6 @@ export interface CredentialTagData {
   value?: string
   type: CredentialTagType
   provider?: string
-  redacted?: boolean
   /**
    * Env-var key name to save the pasted secret under (secret_input only),
    * e.g. "OPENAI_API_KEY".
@@ -220,7 +219,11 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     }
     return typeof value.name === 'string' && value.name.trim().length > 0
   }
-  if (value.redacted === true) return value.value === undefined || typeof value.value === 'string'
+  // A sim_key chip is platform-filled: the model only marks where the workspace
+  // API key belongs (it never holds the value) and Sim injects it from the tool
+  // result, so the tag is valid with or without a `value`. Every other rendered
+  // type (e.g. link) needs a string value to render.
+  if (value.type === 'sim_key') return true
   return typeof value.value === 'string'
 }
 
@@ -878,7 +881,10 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
   }
 
   if (data.type === 'sim_key') {
-    return <SecretReveal value={data.value} redacted={data.redacted || !data.value} />
+    // SecretReveal masks itself when there's no value, so a value-less tag (the
+    // model's placeholder / persisted form) renders masked and a Sim-filled tag
+    // reveals the key + copy button — no separate "redacted" flag needed.
+    return <SecretReveal value={data.value} />
   }
 
   return null

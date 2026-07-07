@@ -187,7 +187,8 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     captureRevealedSimKeys(
       deps.revealedSimKeysRef.current,
       [deps.assistantId, state.streamRequestId],
-      modelContent
+      modelContent,
+      modelBlocks
     )
     const activeChatId = deps.options.targetChatId ?? deps.chatIdRef.current
     if (!activeChatId) {
