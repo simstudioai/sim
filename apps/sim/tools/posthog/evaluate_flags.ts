@@ -80,7 +80,7 @@ export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsRes
       return `${baseUrl}/flags/?v=2`
     },
     method: 'POST',
-    headers: (params) => ({
+    headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => {
