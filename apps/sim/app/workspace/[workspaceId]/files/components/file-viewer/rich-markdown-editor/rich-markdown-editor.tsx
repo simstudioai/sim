@@ -250,6 +250,7 @@ export function LoadedRichMarkdownEditor({
   const editor = useEditor({
     extensions: EXTENSIONS,
     editable: isEditable,
+    enablePasteRules: false,
     autofocus: streamingAtMountRef.current ? false : autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
