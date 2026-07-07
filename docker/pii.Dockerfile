@@ -47,4 +47,8 @@ EXPOSE 5001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
     CMD curl -fsS http://localhost:5001/health || exit 1
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5001"]
+# Worker count is env-driven so ONE image scales per task size: set PII_WORKERS to
+# the task's vCPU count (each worker loads the models independently, ~3 GB each, so
+# size task memory ≈ PII_WORKERS × 3 GB + overhead). Defaults to 1 for local/small.
+# `sh -c exec` expands the env var while keeping uvicorn as PID 1 for clean SIGTERM.
+CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port 5001 --workers ${PII_WORKERS:-1}"]
