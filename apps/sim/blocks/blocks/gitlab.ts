@@ -1196,7 +1196,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
               ref: params.ref?.trim() || undefined,
               releasedAt: params.releasedAt?.trim() || undefined,
               milestones: params.releaseMilestones
-                ? params.releaseMilestones.split(',').map((title: string) => title.trim())
+                ? params.releaseMilestones
+                    .split(',')
+                    .map((title: string) => title.trim())
+                    .filter(Boolean)
                 : undefined,
             }
 
