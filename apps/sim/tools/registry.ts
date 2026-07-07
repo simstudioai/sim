@@ -1304,9 +1304,15 @@ import {
   googleAppsheetFindRowsTool,
 } from '@/tools/google_appsheet'
 import {
+  googleBigQueryCreateDatasetTool,
+  googleBigQueryCreateTableTool,
+  googleBigQueryDeleteDatasetTool,
+  googleBigQueryDeleteTableTool,
+  googleBigQueryGetQueryResultsTool,
   googleBigQueryGetTableTool,
   googleBigQueryInsertRowsTool,
   googleBigQueryListDatasetsTool,
+  googleBigQueryListTableDataTool,
   googleBigQueryListTablesTool,
   googleBigQueryQueryTool,
 } from '@/tools/google_bigquery'
@@ -7738,6 +7744,12 @@ export const tools: Record<string, ToolConfig> = {
   google_bigquery_list_tables: googleBigQueryListTablesTool,
   google_bigquery_get_table: googleBigQueryGetTableTool,
   google_bigquery_insert_rows: googleBigQueryInsertRowsTool,
+  google_bigquery_create_dataset: googleBigQueryCreateDatasetTool,
+  google_bigquery_delete_dataset: googleBigQueryDeleteDatasetTool,
+  google_bigquery_create_table: googleBigQueryCreateTableTool,
+  google_bigquery_delete_table: googleBigQueryDeleteTableTool,
+  google_bigquery_list_table_data: googleBigQueryListTableDataTool,
+  google_bigquery_get_query_results: googleBigQueryGetQueryResultsTool,
   google_vault_create_matters_export: createMattersExportTool,
   google_vault_list_matters_export: listMattersExportTool,
   google_vault_create_matters_holds: createMattersHoldsTool,
