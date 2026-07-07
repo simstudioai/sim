@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { slackHandler } from '@/lib/webhooks/providers/slack'
+import { shouldSkipSlackTriggerEvent, slackHandler } from '@/lib/webhooks/providers/slack'
 
 const ctx = (body: unknown) => ({
   webhook: {},
@@ -206,5 +206,242 @@ describe('slackHandler extractIdempotencyId', () => {
 
   it('returns null when no identifier is present', () => {
     expect(slackHandler.extractIdempotencyId!({})).toBeNull()
+  })
+})
+
+const API_APP_ID = 'A_SELF'
+
+function slackBody(event: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+  return { team_id: 'T1', api_app_id: API_APP_ID, event, ...extra }
+}
+
+/** True when the event fires (i.e. is not skipped) for the given config. */
+function fires(config: Record<string, unknown>, event: Record<string, unknown>): boolean {
+  return !shouldSkipSlackTriggerEvent(slackBody(event), config)
+}
+
+describe('shouldSkipSlackTriggerEvent', () => {
+  it('fires a message event matching source=channel in a public channel', () => {
+    expect(
+      fires(
+        { eventType: 'message', source: ['channel'] },
+        {
+          type: 'message',
+          channel_type: 'channel',
+          channel: 'C1',
+          ts: '1.1',
+        }
+      )
+    ).toBe(true)
+  })
+
+  it('drops a DM when source is restricted to public channels', () => {
+    expect(
+      fires(
+        { eventType: 'message', source: ['channel'] },
+        {
+          type: 'message',
+          channel_type: 'im',
+          channel: 'D1',
+          ts: '1.1',
+        }
+      )
+    ).toBe(false)
+  })
+
+  it('source=[public,private] fires on both channel types but drops DMs', () => {
+    const source = ['channel', 'group']
+    expect(
+      fires(
+        { eventType: 'message', source },
+        {
+          type: 'message',
+          channel_type: 'channel',
+          channel: 'C1',
+          ts: '1.2',
+        }
+      )
+    ).toBe(true)
+    expect(
+      fires(
+        { eventType: 'message', source },
+        {
+          type: 'message',
+          channel_type: 'group',
+          channel: 'G1',
+          ts: '1.3',
+        }
+      )
+    ).toBe(true)
+    expect(
+      fires(
+        { eventType: 'message', source },
+        {
+          type: 'message',
+          channel_type: 'im',
+          channel: 'D1',
+          ts: '1.4',
+        }
+      )
+    ).toBe(false)
+  })
+
+  it('empty source matches any channel type', () => {
+    expect(
+      fires(
+        { eventType: 'message', source: [] },
+        {
+          type: 'message',
+          channel_type: 'im',
+          channel: 'D1',
+          ts: '1.5',
+        }
+      )
+    ).toBe(true)
+  })
+
+  it('a channel filter never drops a DM allowed by Source', () => {
+    const config = { eventType: 'message', source: ['im', 'channel'], channelFilter: ['C1'] }
+    expect(fires(config, { type: 'message', channel_type: 'im', channel: 'D1', ts: '1.6' })).toBe(
+      true
+    )
+    expect(
+      fires(config, { type: 'message', channel_type: 'channel', channel: 'C1', ts: '1.7' })
+    ).toBe(true)
+    expect(
+      fires(config, { type: 'message', channel_type: 'channel', channel: 'C2', ts: '1.8' })
+    ).toBe(false)
+  })
+
+  it('app_mention Threads=Only fires only on threaded mentions', () => {
+    expect(
+      fires(
+        { eventType: 'app_mention', threads: 'only' },
+        {
+          type: 'app_mention',
+          channel: 'C1',
+          ts: '2.0',
+        }
+      )
+    ).toBe(false)
+    expect(
+      fires(
+        { eventType: 'app_mention', threads: 'only' },
+        {
+          type: 'app_mention',
+          channel: 'C1',
+          ts: '2.1',
+          thread_ts: '2.0',
+        }
+      )
+    ).toBe(true)
+  })
+
+  it('maps message_changed to message_edited and not to message', () => {
+    const edit = {
+      type: 'message',
+      subtype: 'message_changed',
+      channel_type: 'channel',
+      channel: 'C1',
+      ts: '3.1',
+    }
+    expect(fires({ eventType: 'message_edited' }, edit)).toBe(true)
+    expect(fires({ eventType: 'message' }, edit)).toBe(false)
+  })
+
+  it("self-drops the app's own message unless includeOwnMessages is set", () => {
+    const own = {
+      type: 'message',
+      channel_type: 'channel',
+      channel: 'C1',
+      ts: '4.1',
+      app_id: API_APP_ID,
+      bot_id: 'B1',
+    }
+    expect(fires({ eventType: 'message' }, own)).toBe(false)
+    expect(fires({ eventType: 'message', includeOwnMessages: true }, own)).toBe(true)
+  })
+
+  it("self-drops the app's own reaction via stored bot_user_id", () => {
+    const event = {
+      type: 'reaction_added',
+      reaction: 'thumbsup',
+      user: 'U_BOT',
+      item: { channel: 'C1', ts: '5.0' },
+    }
+    expect(fires({ eventType: 'reaction_added', bot_user_id: 'U_BOT' }, event)).toBe(false)
+    expect(fires({ eventType: 'reaction_added', bot_user_id: 'U_OTHER' }, event)).toBe(true)
+  })
+
+  it('applies the emoji filter to reaction events', () => {
+    const event = {
+      type: 'reaction_added',
+      reaction: 'eyes',
+      user: 'U1',
+      item: { channel: 'C1', ts: '6.0' },
+    }
+    expect(fires({ eventType: 'reaction_added', emoji: 'thumbsup' }, event)).toBe(false)
+    expect(fires({ eventType: 'reaction_added', emoji: 'eyes, thumbsup' }, event)).toBe(true)
+  })
+
+  it('honors the legacy events array for pre-redesign webhooks', () => {
+    expect(
+      fires(
+        { events: ['message.channels'] },
+        {
+          type: 'message',
+          channel_type: 'channel',
+          channel: 'C1',
+          ts: '7.1',
+        }
+      )
+    ).toBe(true)
+  })
+
+  it('ignores other bots unless filterBotMessages is off', () => {
+    const otherBot = {
+      type: 'message',
+      channel_type: 'channel',
+      channel: 'C1',
+      ts: '8.1',
+      bot_id: 'B_OTHER',
+      app_id: 'A_OTHER',
+    }
+    expect(fires({ eventType: 'message' }, otherBot)).toBe(false)
+    expect(fires({ eventType: 'message', filterBotMessages: false }, otherBot)).toBe(true)
+  })
+})
+
+describe('slackHandler.shouldSkipEvent (custom-app path)', () => {
+  const message = slackBody({ type: 'message', channel_type: 'channel', channel: 'C1', ts: '9.1' })
+  const skipCtx = (providerConfig: Record<string, unknown>, body: unknown) => ({
+    webhook: {},
+    body,
+    requestId: 'r',
+    providerConfig,
+  })
+
+  it('applies the trigger filter for a slack_oauth webhook', () => {
+    // Configured for reactions, but a message arrives -> skip.
+    expect(
+      slackHandler.shouldSkipEvent!(
+        skipCtx({ triggerId: 'slack_oauth', eventType: 'reaction_added' }, message)
+      )
+    ).toBe(true)
+    // Configured for messages -> fire.
+    expect(
+      slackHandler.shouldSkipEvent!(
+        skipCtx({ triggerId: 'slack_oauth', eventType: 'message' }, message)
+      )
+    ).toBe(false)
+  })
+
+  it('never skips the legacy slack_webhook trigger (unfiltered)', () => {
+    expect(
+      slackHandler.shouldSkipEvent!(
+        skipCtx({ triggerId: 'slack_webhook', eventType: 'reaction_added' }, message)
+      )
+    ).toBe(false)
+    expect(slackHandler.shouldSkipEvent!(skipCtx({}, message))).toBe(false)
   })
 })

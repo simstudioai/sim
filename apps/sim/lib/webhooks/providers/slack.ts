@@ -12,11 +12,13 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import type {
   AuthContext,
+  EventFilterContext,
   FormatInputContext,
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { type SlackEventFilter, slackEventSupportsFilter } from '@/triggers/slack/shared'
 
 const logger = createLogger('WebhookProvider:Slack')
 
@@ -534,6 +536,221 @@ export function verifySlackRequestSignature(
   return null
 }
 
+/** Message subtypes that carry real content (vs system/join/topic messages). */
+const CONTENT_MESSAGE_SUBTYPES = new Set([
+  'file_share',
+  'me_message',
+  'thread_broadcast',
+  'bot_message',
+])
+
+/**
+ * Maps an inbound Slack Events API payload to the trigger `eventType` id it
+ * satisfies (see SLACK_EVENT_CATALOG). Returns null for payloads we do not
+ * surface. For most events the Slack `event.type` is the id verbatim; `message`
+ * fans out to `message` / `message_edited` / `message_deleted` by subtype.
+ */
+export function resolveSlackEventKey(body: Record<string, unknown>): string | null {
+  const event = body.event as Record<string, unknown> | undefined
+  if (!event) return null
+  const type = event.type as string | undefined
+
+  switch (type) {
+    case 'app_mention':
+    case 'reaction_added':
+    case 'reaction_removed':
+    case 'file_shared':
+    case 'member_joined_channel':
+    case 'member_left_channel':
+    case 'channel_created':
+    case 'channel_archive':
+    case 'channel_rename':
+    case 'pin_added':
+    case 'pin_removed':
+    case 'team_join':
+    case 'app_home_opened':
+    case 'assistant_thread_started':
+    case 'assistant_thread_context_changed':
+      return type
+    case 'message': {
+      const subtype = event.subtype as string | undefined
+      if (subtype === 'message_changed') return 'message_edited'
+      if (subtype === 'message_deleted') return 'message_deleted'
+      // Edits/deletes are handled above; other non-content subtypes (joins,
+      // topic/name changes, etc.) are not surfaced. `bot_message` is content so
+      // the "Ignore bot messages" toggle can decide, rather than being dropped.
+      if (subtype && !CONTENT_MESSAGE_SUBTYPES.has(subtype)) return null
+      return 'message'
+    }
+    default:
+      return null
+  }
+}
+
+/** True when the message originated from a bot (used to ignore other bots). */
+function isBotEvent(event: Record<string, unknown> | undefined): boolean {
+  if (!event) return false
+  return Boolean(event.bot_id) || event.subtype === 'bot_message'
+}
+
+/**
+ * True when the event was produced by this Slack app itself, identified by
+ * matching the producing `app_id` against the payload's `api_app_id`.
+ */
+function isOwnAppEvent(
+  event: Record<string, unknown> | undefined,
+  apiAppId: string | undefined
+): boolean {
+  if (!event || !apiAppId) return false
+  const appId =
+    (event.app_id as string | undefined) ??
+    ((event.bot_profile as Record<string, unknown> | undefined)?.app_id as string | undefined)
+  return appId === apiAppId
+}
+
+/** True when the event is a thread reply (Slack-canonical: thread_ts set and != ts). */
+function isThreadReply(event: Record<string, unknown> | undefined): boolean {
+  if (!event) return false
+  const threadTs = event.thread_ts as string | undefined
+  const ts = event.ts as string | undefined
+  return typeof threadTs === 'string' && threadTs.length > 0 && threadTs !== ts
+}
+
+function normalizeSelection(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String)
+  if (typeof value === 'string' && value.length > 0) return value.split(',').map((v) => v.trim())
+  return []
+}
+
+/**
+ * Back-compat matcher for pre-redesign webhooks that stored a multi-select
+ * `events` array of old ids (`message.im`, `message.channels`, ...). Maps the
+ * new `eventKey` back onto the legacy selection so existing deployments keep
+ * firing until they are re-deployed onto the single-event model.
+ */
+function matchesLegacyEvents(
+  rawEvents: unknown,
+  eventKey: string | null,
+  channelType: string | undefined
+): boolean {
+  const events = normalizeSelection(rawEvents)
+  if (events.length === 0 || !eventKey) return false
+  for (const legacy of events) {
+    if (legacy === eventKey) return true
+    if (eventKey === 'message') {
+      if (legacy === 'message.im' && channelType === 'im') return true
+      if (legacy === 'message.channels' && channelType === 'channel') return true
+      if (legacy === 'message.groups' && channelType === 'group') return true
+    }
+  }
+  return false
+}
+
+/**
+ * Decides whether an inbound Slack event should be dropped for a `slack_oauth`
+ * trigger webhook, applying the configured event, source, threads, emoji, name,
+ * channel, self-drop, and bot filters. Shared by the native app ingest route
+ * (`/api/webhooks/slack`) and the custom-app path route (via
+ * `slackHandler.shouldSkipEvent`) so both backends filter identically. Returns
+ * true to skip.
+ */
+export function shouldSkipSlackTriggerEvent(
+  body: Record<string, unknown>,
+  providerConfig: Record<string, unknown>
+): boolean {
+  const rawEvent = body.event as Record<string, unknown> | undefined
+  const eventKey = resolveSlackEventKey(body)
+  const channelType = rawEvent?.channel_type as string | undefined
+  const configuredEvent =
+    typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
+
+  // Match the single configured event. Pre-redesign webhooks fall back to the
+  // legacy multi-select `events` array.
+  if (configuredEvent) {
+    if (!eventKey || eventKey !== configuredEvent) return true
+  } else if (!matchesLegacyEvents(providerConfig.events, eventKey, channelType)) {
+    return true
+  }
+
+  const supports = (filter: SlackEventFilter): boolean =>
+    configuredEvent !== null && slackEventSupportsFilter(configuredEvent, filter)
+
+  // Source — restrict a message event to any of DM / public / private
+  // (multiselect by `channel_type`). Empty means any source.
+  if (supports('source')) {
+    const sources = normalizeSelection(providerConfig.source)
+    if (sources.length > 0 && (!channelType || !sources.includes(channelType))) return true
+  }
+
+  // Threads — include / exclude / only.
+  if (supports('threads')) {
+    const threads = typeof providerConfig.threads === 'string' ? providerConfig.threads : 'include'
+    const reply = isThreadReply(rawEvent)
+    if (threads === 'exclude' && reply) return true
+    if (threads === 'only' && !reply) return true
+  }
+
+  // Emoji — restrict a reaction event to specific emoji names.
+  if (supports('emoji')) {
+    const emojis = normalizeSelection(providerConfig.emoji)
+    const reaction = rawEvent?.reaction as string | undefined
+    if (emojis.length > 0 && (!reaction || !emojis.includes(reaction))) return true
+  }
+
+  // Name-contains — restrict channel_created to matching names.
+  if (supports('name')) {
+    const needle =
+      typeof providerConfig.nameContains === 'string' ? providerConfig.nameContains.trim() : ''
+    if (needle) {
+      const channel = rawEvent?.channel as Record<string, unknown> | undefined
+      const name = typeof channel?.name === 'string' ? channel.name : ''
+      if (!name.includes(needle)) return true
+    }
+  }
+
+  // Channels — picker or manual IDs, the basic/advanced sides of one canonical
+  // field. DMs always skip it: a DM's channel can't be picked, so a DM allowed
+  // by Source must not be dropped by a channel filter meant for real channels.
+  const eventChannel = resolveSlackEventChannel(rawEvent)
+  const channelScoped =
+    channelType !== 'im' && (configuredEvent ? supports('channels') : Boolean(eventChannel))
+  if (channelScoped) {
+    const pickerChannels = normalizeSelection(providerConfig.channelFilter)
+    const selectedChannels =
+      pickerChannels.length > 0
+        ? pickerChannels
+        : normalizeSelection(providerConfig.manualChannelFilter)
+    if (
+      selectedChannels.length > 0 &&
+      (!eventChannel || !selectedChannels.includes(eventChannel))
+    ) {
+      return true
+    }
+  }
+
+  // Self-drop (invariant): never fire on this app's own output unless the
+  // advanced opt-in is set. Reactions identify self by the stored bot user id,
+  // messages by app_id. Other bots are dropped by the "Ignore bot messages"
+  // toggle, but never our own output.
+  const includeOwn = providerConfig.includeOwnMessages === true
+  let ownEvent = isOwnAppEvent(
+    rawEvent,
+    typeof body.api_app_id === 'string' ? body.api_app_id : undefined
+  )
+  if (eventKey === 'reaction_added' || eventKey === 'reaction_removed') {
+    const botUserId =
+      typeof providerConfig.bot_user_id === 'string' ? providerConfig.bot_user_id : undefined
+    ownEvent = Boolean(botUserId) && (rawEvent?.user as string | undefined) === botUserId
+  }
+  if (ownEvent) {
+    if (!includeOwn) return true
+  } else if (isBotEvent(rawEvent) && providerConfig.filterBotMessages !== false) {
+    return true
+  }
+
+  return false
+}
+
 export const slackHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const signingSecret = providerConfig.signingSecret as string | undefined
@@ -545,6 +762,13 @@ export const slackHandler: WebhookProviderHandler = {
 
   handleChallenge(body: unknown) {
     return handleSlackChallenge(body)
+  },
+
+  shouldSkipEvent({ body, providerConfig }: EventFilterContext) {
+    // Only the unified `slack_oauth` trigger carries event/filter config on this
+    // (custom-app) path; the legacy `slack_webhook` trigger is unfiltered.
+    if (providerConfig.triggerId !== 'slack_oauth') return false
+    return shouldSkipSlackTriggerEvent(body as Record<string, unknown>, providerConfig)
   },
 
   extractIdempotencyId(body: unknown) {
