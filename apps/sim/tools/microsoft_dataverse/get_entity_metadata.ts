@@ -61,7 +61,10 @@ export const dataverseGetEntityMetadataTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getDataverseBaseUrl(params.environmentUrl)
-      const entityLogicalName = params.entityLogicalName.trim()
+      // OData string literals escape embedded single quotes by doubling them - URL-encoding the
+      // quote alone isn't sufficient since Dataverse URL-decodes the request before parsing the
+      // OData key predicate, so a percent-encoded quote would still land as a literal delimiter.
+      const entityLogicalName = params.entityLogicalName.trim().replace(/'/g, "''")
       const queryParts: string[] = []
       if (params.select) queryParts.push(`$select=${encodeURIComponent(params.select)}`)
       if (params.includeAttributes === 'true') {
@@ -91,7 +94,7 @@ export const dataverseGetEntityMetadataTool: ToolConfig<
       throw new Error(errorMessage)
     }
 
-    const data = await response.json().catch(() => ({}))
+    const data = await response.json()
     const displayName = data?.DisplayName?.UserLocalizedLabel?.Label ?? null
 
     return {
