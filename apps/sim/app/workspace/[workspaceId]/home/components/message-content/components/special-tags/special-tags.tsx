@@ -24,6 +24,7 @@ import type {
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -867,32 +868,51 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-function CredentialDisplay({ data }: { data: CredentialTagData }) {
+function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   const { canEdit } = useUserPermissionsContext()
 
+  // A connect URL carrying a credentialId re-authorizes that existing
+  // credential in place (reconnect) rather than creating a new one.
+  const reconnectCredentialId = useMemo(() => {
+    if (!data.value) return undefined
+    try {
+      return new URL(data.value).searchParams.get('credentialId') ?? undefined
+    } catch {
+      return undefined
+    }
+  }, [data.value])
+  const { data: reconnectCredential } = useWorkspaceCredential(reconnectCredentialId)
+
+  // Connecting a credential mutates the workspace — hide it from read-only members.
+  if (!data.provider || !canEdit) return null
+  // The connect link value comes from the streamed model output, so only
+  // render it as a clickable link when it resolves to a real http(s) URL.
+  if (!data.value || !isSafeHttpUrl(data.value)) return null
+  const Icon = getCredentialIcon(data.provider) ?? LockIcon
+  const label = reconnectCredentialId
+    ? `Reconnect ${reconnectCredential?.displayName ?? data.provider}`
+    : `Connect ${data.provider}`
+  return (
+    <a
+      href={data.value}
+      target='_blank'
+      rel='noopener noreferrer'
+      className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
+    >
+      {createElement(Icon, { className: 'size-[16px] shrink-0' })}
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+      <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+    </a>
+  )
+}
+
+function CredentialDisplay({ data }: { data: CredentialTagData }) {
   if (data.type === 'secret_input') {
     return <SecretInputDisplay data={data} />
   }
 
   if (data.type === 'link') {
-    // Connecting a credential mutates the workspace — hide it from read-only members.
-    if (!data.provider || !canEdit) return null
-    // The connect link value comes from the streamed model output, so only
-    // render it as a clickable link when it resolves to a real http(s) URL.
-    if (!data.value || !isSafeHttpUrl(data.value)) return null
-    const Icon = getCredentialIcon(data.provider) ?? LockIcon
-    return (
-      <a
-        href={data.value}
-        target='_blank'
-        rel='noopener noreferrer'
-        className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
-      >
-        {createElement(Icon, { className: 'size-[16px] shrink-0' })}
-        <span className='flex-1 text-[var(--text-body)] text-sm'>Connect {data.provider}</span>
-        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-      </a>
-    )
+    return <CredentialLinkDisplay data={data} />
   }
 
   if (data.type === 'sim_key') {
