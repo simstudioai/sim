@@ -799,17 +799,25 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     type: {
       type: 'string',
       description: 'Block type',
-      condition: { field: 'operation', value: 'notion_update_block' },
+      condition: { field: 'operation', value: ['notion_retrieve_block', 'notion_update_block'] },
     },
     block: {
       type: 'json',
-      description: 'The full updated Notion block object',
-      condition: { field: 'operation', value: 'notion_update_block' },
+      description: 'The full Notion block object',
+      condition: { field: 'operation', value: ['notion_retrieve_block', 'notion_update_block'] },
+    },
+    has_children: {
+      type: 'boolean',
+      description: 'Whether the block has nested blocks',
+      condition: { field: 'operation', value: 'notion_retrieve_block' },
     },
     archived: {
       type: 'boolean',
-      description: 'Whether the block was archived',
-      condition: { field: 'operation', value: ['notion_update_block', 'notion_delete_block'] },
+      description: 'Whether the block is archived',
+      condition: {
+        field: 'operation',
+        value: ['notion_retrieve_block', 'notion_update_block', 'notion_delete_block'],
+      },
     },
     discussion_id: {
       type: 'string',
