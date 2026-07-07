@@ -73,7 +73,7 @@ export const attioUpdateTaskTool: ToolConfig<AttioUpdateTaskParams, AttioUpdateT
               ? JSON.parse(params.linkedRecords)
               : params.linkedRecords
         } catch {
-          data.linked_records = []
+          throw new Error('Invalid JSON provided for linked records')
         }
       }
       if (params.assignees) {
@@ -81,7 +81,7 @@ export const attioUpdateTaskTool: ToolConfig<AttioUpdateTaskParams, AttioUpdateT
           data.assignees =
             typeof params.assignees === 'string' ? JSON.parse(params.assignees) : params.assignees
         } catch {
-          data.assignees = []
+          throw new Error('Invalid JSON provided for assignees')
         }
       }
       return { data }

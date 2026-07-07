@@ -67,23 +67,23 @@ export const attioCreateTaskTool: ToolConfig<AttioCreateTaskParams, AttioCreateT
     body: (params) => {
       let linkedRecords: unknown[] = []
       let assignees: unknown[] = []
-      try {
-        if (params.linkedRecords) {
+      if (params.linkedRecords) {
+        try {
           linkedRecords =
             typeof params.linkedRecords === 'string'
               ? JSON.parse(params.linkedRecords)
               : params.linkedRecords
+        } catch {
+          throw new Error('Invalid JSON provided for linked records')
         }
-      } catch {
-        linkedRecords = []
       }
-      try {
-        if (params.assignees) {
+      if (params.assignees) {
+        try {
           assignees =
             typeof params.assignees === 'string' ? JSON.parse(params.assignees) : params.assignees
+        } catch {
+          throw new Error('Invalid JSON provided for assignees')
         }
-      } catch {
-        assignees = []
       }
       return {
         data: {

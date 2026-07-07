@@ -62,7 +62,7 @@ export const attioUpdateListEntryTool: ToolConfig<
             ? JSON.parse(params.entryValues)
             : params.entryValues
       } catch {
-        entryValues = {}
+        throw new Error('Invalid JSON provided for entry values')
       }
       return { data: { entry_values: entryValues } }
     },

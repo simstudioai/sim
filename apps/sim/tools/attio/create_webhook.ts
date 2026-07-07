@@ -56,7 +56,7 @@ export const attioCreateWebhookTool: ToolConfig<
             ? JSON.parse(params.subscriptions)
             : params.subscriptions
       } catch {
-        subscriptions = []
+        throw new Error('Invalid JSON provided for webhook subscriptions')
       }
       return {
         data: {
