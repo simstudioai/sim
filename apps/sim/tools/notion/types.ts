@@ -685,11 +685,6 @@ export interface NotionCreateDatabaseParams {
   accessToken: string
 }
 
-interface NotionReadDatabaseParams {
-  databaseId: string
-  accessToken: string
-}
-
 export interface NotionAddDatabaseRowParams {
   databaseId: string
   properties: Record<string, any>

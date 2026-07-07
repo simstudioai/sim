@@ -50,7 +50,7 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
 
   request: {
     url: (params: NotionQueryDatabaseParams) => {
-      return `https://api.notion.com/v1/databases/${params.databaseId}/query`
+      return `https://api.notion.com/v1/databases/${params.databaseId.trim()}/query`
     },
     method: 'POST',
     headers: (params: NotionQueryDatabaseParams) => {

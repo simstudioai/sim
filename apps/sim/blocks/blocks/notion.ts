@@ -30,10 +30,12 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         { label: 'Read Page', id: 'notion_read' },
         { label: 'Read Database', id: 'notion_read_database' },
         { label: 'Create Page', id: 'notion_create_page' },
+        { label: 'Update Page Properties', id: 'notion_update_page' },
         { label: 'Create Database', id: 'notion_create_database' },
         { label: 'Add Database Row', id: 'notion_add_database_row' },
         { label: 'Append Content', id: 'notion_write' },
         { label: 'Append Block Children', id: 'notion_append_blocks' },
+        { label: 'Retrieve Block', id: 'notion_retrieve_block' },
         { label: 'Retrieve Block Children', id: 'notion_retrieve_block_children' },
         { label: 'Update Block', id: 'notion_update_block' },
         { label: 'Delete Block', id: 'notion_delete_block' },
@@ -77,7 +79,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['notion_read', 'notion_write'],
+        value: ['notion_read', 'notion_write', 'notion_update_page'],
       },
       required: true,
     },
@@ -91,7 +93,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['notion_read', 'notion_write'],
+        value: ['notion_read', 'notion_write', 'notion_update_page'],
       },
       required: true,
     },
@@ -192,7 +194,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_create_page',
       },
-      required: true,
       wandConfig: {
         enabled: true,
         prompt:
@@ -319,6 +320,22 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       },
     },
     {
+      id: 'properties',
+      title: 'Properties to Update',
+      type: 'code',
+      placeholder: 'Enter page properties as JSON object',
+      condition: { field: 'operation', value: 'notion_update_page' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate Notion page properties to update in JSON format based on the user\'s description. Properties must match the parent database schema. Common formats: Title: {"Name": {"title": [{"text": {"content": "Value"}}]}}, Text: {"Description": {"rich_text": [{"text": {"content": "Value"}}]}}, Number: {"Price": {"number": 10}}, Select: {"Status": {"select": {"name": "Done"}}}, Multi-select: {"Tags": {"multi_select": [{"name": "Tag1"}]}}, Date: {"Due": {"date": {"start": "2024-01-01"}}}, Checkbox: {"Done": {"checkbox": true}}. Return ONLY valid JSON - no explanations.',
+        placeholder:
+          'Describe the properties to update (e.g., "set status to Done, priority to High")...',
+        generationType: 'json-object',
+      },
+    },
+    {
       id: 'blockId',
       title: 'Page or Block ID',
       type: 'short-input',
@@ -328,6 +345,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: [
           'notion_append_blocks',
+          'notion_retrieve_block',
           'notion_retrieve_block_children',
           'notion_update_block',
           'notion_delete_block',
@@ -449,6 +467,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       'notion_add_database_row',
       'notion_update_page',
       'notion_append_blocks',
+      'notion_retrieve_block',
       'notion_retrieve_block_children',
       'notion_update_block',
       'notion_delete_block',
@@ -480,6 +499,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
             return 'notion_add_database_row'
           case 'notion_append_blocks':
             return 'notion_append_blocks'
+          case 'notion_retrieve_block':
+            return 'notion_retrieve_block'
           case 'notion_retrieve_block_children':
             return 'notion_retrieve_block_children'
           case 'notion_update_block':
@@ -519,7 +540,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         if (
           (operation === 'notion_create_page' ||
             operation === 'notion_create_database' ||
-            operation === 'notion_add_database_row') &&
+            operation === 'notion_add_database_row' ||
+            operation === 'notion_update_page') &&
           properties
         ) {
           if (typeof properties === 'string') {
@@ -651,17 +673,161 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     userId: { type: 'string', description: 'User identifier' },
   },
   outputs: {
-    // Common outputs across all Notion operations
+    // Outputs for the original content/metadata-shaped operations
     content: {
       type: 'string',
-      description: 'Page content, search results, or confirmation messages',
+      description: 'Page content, comment text, search results, or confirmation messages',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_read',
+          'notion_write',
+          'notion_create_page',
+          'notion_update_page',
+          'notion_query_database',
+          'notion_search',
+          'notion_create_database',
+          'notion_read_database',
+          'notion_create_comment',
+        ],
+      },
     },
-
-    // Metadata object containing operation-specific information
     metadata: {
       type: 'json',
       description:
         'Metadata containing operation-specific details including page/database info, results, and pagination data',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_read',
+          'notion_write',
+          'notion_create_page',
+          'notion_update_page',
+          'notion_query_database',
+          'notion_search',
+          'notion_create_database',
+          'notion_read_database',
+        ],
+      },
+    },
+
+    // Outputs for the API-aligned flat-shaped operations added after the legacy block was hidden
+    id: {
+      type: 'string',
+      description: 'Row, block, comment, or user ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_add_database_row',
+          'notion_retrieve_block',
+          'notion_update_block',
+          'notion_delete_block',
+          'notion_create_comment',
+          'notion_retrieve_user',
+        ],
+      },
+    },
+    url: {
+      type: 'string',
+      description: 'Notion page URL',
+      condition: { field: 'operation', value: 'notion_add_database_row' },
+    },
+    title: {
+      type: 'string',
+      description: 'Row title',
+      condition: { field: 'operation', value: 'notion_add_database_row' },
+    },
+    created_time: {
+      type: 'string',
+      description: 'Creation timestamp',
+      condition: {
+        field: 'operation',
+        value: ['notion_add_database_row', 'notion_create_comment'],
+      },
+    },
+    last_edited_time: {
+      type: 'string',
+      description: 'Last edit timestamp',
+      condition: { field: 'operation', value: 'notion_add_database_row' },
+    },
+    results: {
+      type: 'array',
+      description: 'Array of results (blocks, comments, or users)',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_append_blocks',
+          'notion_retrieve_block_children',
+          'notion_list_comments',
+          'notion_list_users',
+        ],
+      },
+    },
+    has_more: {
+      type: 'boolean',
+      description: 'Whether more results are available',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_append_blocks',
+          'notion_retrieve_block_children',
+          'notion_list_comments',
+          'notion_list_users',
+        ],
+      },
+    },
+    next_cursor: {
+      type: 'string',
+      description: 'Cursor for pagination',
+      condition: {
+        field: 'operation',
+        value: [
+          'notion_append_blocks',
+          'notion_retrieve_block_children',
+          'notion_list_comments',
+          'notion_list_users',
+        ],
+      },
+    },
+    type: {
+      type: 'string',
+      description: 'Block type',
+      condition: { field: 'operation', value: 'notion_update_block' },
+    },
+    block: {
+      type: 'json',
+      description: 'The full updated Notion block object',
+      condition: { field: 'operation', value: 'notion_update_block' },
+    },
+    archived: {
+      type: 'boolean',
+      description: 'Whether the block was archived',
+      condition: { field: 'operation', value: ['notion_update_block', 'notion_delete_block'] },
+    },
+    discussion_id: {
+      type: 'string',
+      description: 'Discussion thread ID',
+      condition: { field: 'operation', value: 'notion_create_comment' },
+    },
+    rich_text: {
+      type: 'json',
+      description: 'Rich text array of the comment',
+      condition: { field: 'operation', value: 'notion_create_comment' },
+    },
+    name: {
+      type: 'string',
+      description: 'User display name',
+      condition: { field: 'operation', value: 'notion_retrieve_user' },
+    },
+    avatar_url: {
+      type: 'string',
+      description: 'User avatar image URL',
+      condition: { field: 'operation', value: 'notion_retrieve_user' },
+    },
+    email: {
+      type: 'string',
+      description: 'User email address (person users only)',
+      condition: { field: 'operation', value: 'notion_retrieve_user' },
     },
   },
 }
@@ -721,6 +887,7 @@ export const NotionV2Block: BlockConfig<any> = {
       'notion_create_database_v2',
       'notion_add_database_row_v2',
       'notion_append_blocks_v2',
+      'notion_retrieve_block_v2',
       'notion_retrieve_block_children_v2',
       'notion_update_block_v2',
       'notion_delete_block_v2',
@@ -765,6 +932,7 @@ export const NotionV2Block: BlockConfig<any> = {
           'notion_add_database_row',
           'notion_read_database',
           'notion_update_page',
+          'notion_retrieve_block',
           'notion_update_block',
           'notion_delete_block',
           'notion_create_comment',
@@ -843,21 +1011,29 @@ export const NotionV2Block: BlockConfig<any> = {
       description: 'Whether content was successfully appended',
       condition: { field: 'operation', value: 'notion_write' },
     },
-    // Block update/delete outputs
+    // Block retrieve/update/delete outputs
     type: {
       type: 'string',
       description: 'Block type',
-      condition: { field: 'operation', value: 'notion_update_block' },
+      condition: { field: 'operation', value: ['notion_retrieve_block', 'notion_update_block'] },
     },
     block: {
       type: 'json',
-      description: 'The full updated Notion block object',
-      condition: { field: 'operation', value: 'notion_update_block' },
+      description: 'The full Notion block object',
+      condition: { field: 'operation', value: ['notion_retrieve_block', 'notion_update_block'] },
+    },
+    has_children: {
+      type: 'boolean',
+      description: 'Whether the block has nested blocks',
+      condition: { field: 'operation', value: 'notion_retrieve_block' },
     },
     archived: {
       type: 'boolean',
-      description: 'Whether the block was archived',
-      condition: { field: 'operation', value: ['notion_update_block', 'notion_delete_block'] },
+      description: 'Whether the block is archived',
+      condition: {
+        field: 'operation',
+        value: ['notion_retrieve_block', 'notion_update_block', 'notion_delete_block'],
+      },
     },
     // Comment outputs
     discussion_id: {
