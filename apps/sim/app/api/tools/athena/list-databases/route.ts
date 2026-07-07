@@ -30,25 +30,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       secretAccessKey: data.secretAccessKey,
     })
 
-    const command = new ListDatabasesCommand({
-      CatalogName: data.catalogName,
-      ...(data.workGroup && { WorkGroup: data.workGroup }),
-      ...(data.maxResults !== undefined && { MaxResults: data.maxResults }),
-      ...(data.nextToken && { NextToken: data.nextToken }),
-    })
+    try {
+      const command = new ListDatabasesCommand({
+        CatalogName: data.catalogName,
+        ...(data.workGroup && { WorkGroup: data.workGroup }),
+        ...(data.maxResults !== undefined && { MaxResults: data.maxResults }),
+        ...(data.nextToken && { NextToken: data.nextToken }),
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        databases: (response.DatabaseList ?? []).map((db) => ({
-          name: db.Name ?? '',
-          description: db.Description ?? null,
-        })),
-        nextToken: response.NextToken ?? null,
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          databases: (response.DatabaseList ?? []).map((db) => ({
+            name: db.Name ?? '',
+            description: db.Description ?? null,
+          })),
+          nextToken: response.NextToken ?? null,
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to list Athena databases')
     logger.error('ListDatabases failed', { error: errorMessage })

@@ -30,39 +30,43 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       secretAccessKey: data.secretAccessKey,
     })
 
-    const command = new ListTableMetadataCommand({
-      CatalogName: data.catalogName,
-      DatabaseName: data.databaseName,
-      ...(data.expression && { Expression: data.expression }),
-      ...(data.workGroup && { WorkGroup: data.workGroup }),
-      ...(data.maxResults !== undefined && { MaxResults: data.maxResults }),
-      ...(data.nextToken && { NextToken: data.nextToken }),
-    })
+    try {
+      const command = new ListTableMetadataCommand({
+        CatalogName: data.catalogName,
+        DatabaseName: data.databaseName,
+        ...(data.expression && { Expression: data.expression }),
+        ...(data.workGroup && { WorkGroup: data.workGroup }),
+        ...(data.maxResults !== undefined && { MaxResults: data.maxResults }),
+        ...(data.nextToken && { NextToken: data.nextToken }),
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        tables: (response.TableMetadataList ?? []).map((table) => ({
-          name: table.Name ?? '',
-          tableType: table.TableType ?? null,
-          createTime: table.CreateTime?.getTime() ?? null,
-          lastAccessTime: table.LastAccessTime?.getTime() ?? null,
-          columns: (table.Columns ?? []).map((col) => ({
-            name: col.Name ?? '',
-            type: col.Type ?? null,
-            comment: col.Comment ?? null,
+      return NextResponse.json({
+        success: true,
+        output: {
+          tables: (response.TableMetadataList ?? []).map((table) => ({
+            name: table.Name ?? '',
+            tableType: table.TableType ?? null,
+            createTime: table.CreateTime?.getTime() ?? null,
+            lastAccessTime: table.LastAccessTime?.getTime() ?? null,
+            columns: (table.Columns ?? []).map((col) => ({
+              name: col.Name ?? '',
+              type: col.Type ?? null,
+              comment: col.Comment ?? null,
+            })),
+            partitionKeys: (table.PartitionKeys ?? []).map((col) => ({
+              name: col.Name ?? '',
+              type: col.Type ?? null,
+              comment: col.Comment ?? null,
+            })),
           })),
-          partitionKeys: (table.PartitionKeys ?? []).map((col) => ({
-            name: col.Name ?? '',
-            type: col.Type ?? null,
-            comment: col.Comment ?? null,
-          })),
-        })),
-        nextToken: response.NextToken ?? null,
-      },
-    })
+          nextToken: response.NextToken ?? null,
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to list Athena table metadata')
     logger.error('ListTableMetadata failed', { error: errorMessage })

@@ -30,18 +30,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       secretAccessKey: data.secretAccessKey,
     })
 
-    const command = new DeleteNamedQueryCommand({
-      NamedQueryId: data.namedQueryId,
-    })
+    try {
+      const command = new DeleteNamedQueryCommand({
+        NamedQueryId: data.namedQueryId,
+      })
 
-    await client.send(command)
+      await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
+      return NextResponse.json({
         success: true,
-      },
-    })
+        output: {
+          success: true,
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to delete Athena named query')
     logger.error('DeleteNamedQuery failed', { error: errorMessage })

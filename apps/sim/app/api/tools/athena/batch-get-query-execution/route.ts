@@ -30,40 +30,46 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       secretAccessKey: data.secretAccessKey,
     })
 
-    const command = new BatchGetQueryExecutionCommand({
-      QueryExecutionIds: data.queryExecutionIds,
-    })
+    try {
+      const command = new BatchGetQueryExecutionCommand({
+        QueryExecutionIds: data.queryExecutionIds,
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        queryExecutions: (response.QueryExecutions ?? []).map((execution) => ({
-          queryExecutionId: execution.QueryExecutionId ?? '',
-          query: execution.Query ?? null,
-          state: execution.Status?.State ?? null,
-          stateChangeReason: execution.Status?.StateChangeReason ?? null,
-          statementType: execution.StatementType ?? null,
-          database: execution.QueryExecutionContext?.Database ?? null,
-          catalog: execution.QueryExecutionContext?.Catalog ?? null,
-          workGroup: execution.WorkGroup ?? null,
-          submissionDateTime: execution.Status?.SubmissionDateTime?.getTime() ?? null,
-          completionDateTime: execution.Status?.CompletionDateTime?.getTime() ?? null,
-          dataScannedInBytes: execution.Statistics?.DataScannedInBytes ?? null,
-          engineExecutionTimeInMillis: execution.Statistics?.EngineExecutionTimeInMillis ?? null,
-          queryPlanningTimeInMillis: execution.Statistics?.QueryPlanningTimeInMillis ?? null,
-          queryQueueTimeInMillis: execution.Statistics?.QueryQueueTimeInMillis ?? null,
-          totalExecutionTimeInMillis: execution.Statistics?.TotalExecutionTimeInMillis ?? null,
-          outputLocation: execution.ResultConfiguration?.OutputLocation ?? null,
-        })),
-        unprocessedQueryExecutionIds: (response.UnprocessedQueryExecutionIds ?? []).map((item) => ({
-          queryExecutionId: item.QueryExecutionId ?? null,
-          errorCode: item.ErrorCode ?? null,
-          errorMessage: item.ErrorMessage ?? null,
-        })),
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          queryExecutions: (response.QueryExecutions ?? []).map((execution) => ({
+            queryExecutionId: execution.QueryExecutionId ?? '',
+            query: execution.Query ?? null,
+            state: execution.Status?.State ?? null,
+            stateChangeReason: execution.Status?.StateChangeReason ?? null,
+            statementType: execution.StatementType ?? null,
+            database: execution.QueryExecutionContext?.Database ?? null,
+            catalog: execution.QueryExecutionContext?.Catalog ?? null,
+            workGroup: execution.WorkGroup ?? null,
+            submissionDateTime: execution.Status?.SubmissionDateTime?.getTime() ?? null,
+            completionDateTime: execution.Status?.CompletionDateTime?.getTime() ?? null,
+            dataScannedInBytes: execution.Statistics?.DataScannedInBytes ?? null,
+            engineExecutionTimeInMillis: execution.Statistics?.EngineExecutionTimeInMillis ?? null,
+            queryPlanningTimeInMillis: execution.Statistics?.QueryPlanningTimeInMillis ?? null,
+            queryQueueTimeInMillis: execution.Statistics?.QueryQueueTimeInMillis ?? null,
+            totalExecutionTimeInMillis: execution.Statistics?.TotalExecutionTimeInMillis ?? null,
+            outputLocation: execution.ResultConfiguration?.OutputLocation ?? null,
+          })),
+          unprocessedQueryExecutionIds: (response.UnprocessedQueryExecutionIds ?? []).map(
+            (item) => ({
+              queryExecutionId: item.QueryExecutionId ?? null,
+              errorCode: item.ErrorCode ?? null,
+              errorMessage: item.ErrorMessage ?? null,
+            })
+          ),
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to batch get Athena query executions')
     logger.error('BatchGetQueryExecution failed', { error: errorMessage })
