@@ -1,11 +1,11 @@
-import type { GoogleVaultCreateMattersHoldsParams } from '@/tools/google_vault/types'
+import type { GoogleVaultUpdateMattersHoldsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsParams> = {
-  id: 'google_vault_create_matters_holds',
-  name: 'Vault Create Hold',
-  description: 'Create a hold in a matter',
+export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsParams> = {
+  id: 'google_vault_update_matters_holds',
+  name: 'Vault Update Hold',
+  description: 'Update the name, query, or scope of an existing hold',
   version: '1.0.0',
 
   oauth: {
@@ -26,6 +26,12 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       visibility: 'user-or-llm',
       description: 'The matter ID (e.g., "12345678901234567890")',
     },
+    holdId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The hold ID to update (e.g., "holdId123456")',
+    },
     holdName: {
       type: 'string',
       required: true,
@@ -36,21 +42,21 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Data corpus to hold (MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE)',
+      description: 'Data corpus of the hold (MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE)',
     },
     accountEmails: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of user emails to put on hold (e.g., "user1@example.com, user2@example.com")',
+        'Comma-separated list of user emails covered by the hold (e.g., "user1@example.com, user2@example.com")',
     },
     orgUnitId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Organization unit ID to put on hold (e.g., "id:03ph8a2z1enx5q0", alternative to accounts)',
+        'Organization unit ID covered by the hold (e.g., "id:03ph8a2z1enx5q0", alternative to accounts)',
     },
     terms: {
       type: 'string',
@@ -82,8 +88,9 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
   },
 
   request: {
-    url: (params) => `https://vault.googleapis.com/v1/matters/${params.matterId}/holds`,
-    method: 'POST',
+    url: (params) =>
+      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/holds/${params.holdId.trim()}`,
+    method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
@@ -137,13 +144,13 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      const errorMessage = data.error?.message || 'Failed to create hold'
+      const errorMessage = data.error?.message || 'Failed to update hold'
       throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     return { success: true, output: { hold: data } }
   },
 
   outputs: {
-    hold: { type: 'json', description: 'Created hold object' },
+    hold: { type: 'json', description: 'Updated hold object' },
   },
 }

@@ -6,7 +6,7 @@ export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParam
   id: 'google_vault_list_matters_export',
   name: 'Vault List Exports',
   description: 'List exports for a matter',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
