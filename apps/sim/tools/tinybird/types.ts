@@ -151,6 +151,33 @@ export interface TinybirdDeleteDatasourceRowsResponse extends ToolResponse {
 }
 
 /**
+ * Parameters for checking the status of an asynchronous job
+ */
+export interface TinybirdGetJobParams extends TinybirdBaseParams {
+  base_url: string
+  job_id: string
+}
+
+/**
+ * Response from checking an asynchronous job's status
+ */
+export interface TinybirdGetJobResponse extends ToolResponse {
+  output: {
+    id: string | null
+    job_id: string | null
+    kind: string | null
+    status: string | null
+    job_url: string | null
+    created_at: string | null
+    started_at: string | null
+    updated_at: string | null
+    is_cancellable: boolean | null
+    error: string | null
+    job: Record<string, unknown> | null
+  }
+}
+
+/**
  * Union type for all possible Tinybird responses
  */
 export type TinybirdResponse =
@@ -160,3 +187,4 @@ export type TinybirdResponse =
   | TinybirdAppendDatasourceResponse
   | TinybirdTruncateDatasourceResponse
   | TinybirdDeleteDatasourceRowsResponse
+  | TinybirdGetJobResponse
