@@ -51,9 +51,14 @@ export const discordBulkDeleteMessagesTool: ToolConfig<
       Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordBulkDeleteMessagesParams) => {
-      const messages = (
-        Array.isArray(params.messageIds) ? params.messageIds : [params.messageIds]
-      ).map((id) => String(id).trim())
+      const messages = (Array.isArray(params.messageIds) ? params.messageIds : [params.messageIds])
+        .map((id) => String(id).trim())
+        .filter(Boolean)
+      if (messages.length < 2 || messages.length > 100) {
+        throw new Error(
+          `Discord requires 2-100 message IDs for bulk delete, got ${messages.length}`
+        )
+      }
       return { messages }
     },
   },
