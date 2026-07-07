@@ -143,12 +143,13 @@ describe('markdown paste', () => {
     ['space-flanked asterisks', 'area = 5 * width * height'],
     ['python args and kwargs', 'def foo(*args, **kwargs): pass'],
     ['snake_case identifiers', 'call user_name and file_path_here'],
-  ])('does not emphasize %s (strict CommonMark)', (_label, text) => {
+  ])('claims %s but leaves it byte-for-byte literal (strict CommonMark)', (_label, text) => {
     editor = mount()
-    paste(editor, text)
+    expect(paste(editor, text)).toBe(true)
     const json = JSON.stringify(editor.getJSON())
     expect(json).not.toContain('"type":"italic"')
     expect(json).not.toContain('"type":"bold"')
+    expect(editor.getText()).toBe(text)
   })
 
   it('parses markdown-shaped plain text even when an HTML sibling is present', () => {
