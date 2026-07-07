@@ -35,7 +35,8 @@ export function extractEmailFromAddress(fromAddress: string): string | undefined
 }
 
 /**
- * Get the personal email from address and reply-to
+ * Get the personal email from address, for the "from" header only.
+ * Reply-to for these emails should come from `getHelpEmailAddress()`, not this value.
  */
 export function getPersonalEmailFrom(): { from: string; replyTo: string | undefined } {
   const personalFrom = env.PERSONAL_EMAIL_FROM
@@ -49,4 +50,11 @@ export function getPersonalEmailFrom(): { from: string; replyTo: string | undefi
     from: getFromEmailAddress(),
     replyTo: undefined,
   }
+}
+
+/**
+ * Get the shared help inbox address, used as reply-to so replies reach the team rather than an individual
+ */
+export function getHelpEmailAddress(): string {
+  return `help@${env.EMAIL_DOMAIN || getEmailDomain()}`
 }

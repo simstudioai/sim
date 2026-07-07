@@ -94,6 +94,7 @@ vi.mock('@/lib/messaging/email/utils', () => ({
     from: 'billing@sim.test',
     replyTo: 'support@sim.test',
   })),
+  getHelpEmailAddress: vi.fn(() => 'help@sim.test'),
 }))
 
 vi.mock('@/lib/messaging/email/validation', () => ({
