@@ -77,8 +77,8 @@ export const dropboxListSharedLinksTool: ToolConfig<
     return {
       success: true,
       output: {
-        links: data.links || [],
-        hasMore: data.has_more || false,
+        links: data.links ?? [],
+        hasMore: data.has_more ?? false,
         cursor: data.cursor,
       },
     }
