@@ -213,7 +213,15 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
       JSON.stringify(visibleOutputs) !== JSON.stringify(existing.exposedOutputs) ||
       JSON.stringify(normalizeInputsForCompare(visibleInputs)) !==
         JSON.stringify(normalizeInputsForCompare(existing.inputFields))
-    : Boolean(name.trim() || selectedWorkflowId)
+    : Boolean(
+        name.trim() ||
+          description.trim() ||
+          selectedWorkflowId ||
+          selectedWorkspaceId !== workspaceId ||
+          iconUrl ||
+          visibleOutputs.length > 0 ||
+          visibleInputs.some((i) => i.placeholder?.trim())
+      )
 
   const guard = useSettingsUnsavedGuard({ isDirty: dirty })
 
@@ -259,6 +267,10 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   }
 
   function handleDiscard() {
+    if (isCreate) {
+      setSelectedWorkspaceId(workspaceId)
+      setSelectedWorkflowId('')
+    }
     setName(existing?.name ?? '')
     setDescription(existing?.description ?? '')
     setInputs(
