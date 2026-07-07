@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface GetExperimentParams {
   projectId: string
   experimentId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
 }
 
@@ -54,6 +56,13 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -64,7 +73,7 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}`
     },
     method: 'GET',
@@ -75,6 +84,11 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(error || 'Failed to get experiment')
+    }
+
     const data = await response.json()
 
     return {

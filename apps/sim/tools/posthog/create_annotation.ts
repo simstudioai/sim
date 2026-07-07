@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogCreateAnnotationParams {
   apiKey: string
   projectId: string
   region: string
+  host?: string
   content: string
   date_marker: string
   scope?: string
@@ -58,6 +60,13 @@ export const createAnnotationTool: ToolConfig<
       description: 'PostHog cloud region: "us" or "eu" (default: "us")',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     content: {
       type: 'string',
       required: true,
@@ -93,7 +102,7 @@ export const createAnnotationTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/annotations/`
     },
     method: 'POST',
@@ -124,6 +133,27 @@ export const createAnnotationTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          id: 0,
+          content: '',
+          date_marker: '',
+          created_at: '',
+          updated_at: '',
+          created_by: null,
+          dashboard_item: null,
+          insight_short_id: null,
+          insight_name: null,
+          scope: '',
+          deleted: false,
+        },
+        error: error || 'Failed to create annotation',
+      }
+    }
+
     const data = await response.json()
 
     return {

@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogGetOrganizationParams {
   organizationId: string
   apiKey: string
   region?: 'us' | 'eu'
+  host?: string
 }
 
 interface PostHogOrganizationDetail {
@@ -68,11 +70,18 @@ export const getOrganizationTool: ToolConfig<
       visibility: 'user-only',
       description: 'Cloud region: us or eu (default: us)',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/organizations/${params.organizationId}/`
     },
     method: 'GET',
@@ -83,6 +92,33 @@ export const getOrganizationTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          organization: {
+            id: '',
+            name: '',
+            slug: '',
+            created_at: '',
+            updated_at: '',
+            membership_level: 0,
+            plugins_access_level: 0,
+            teams: [],
+            available_product_features: [],
+            domain_whitelist: [],
+            is_member_join_email_enabled: false,
+            metadata: {},
+            customer_id: null,
+            available_features: [],
+            usage: null,
+          },
+        },
+        error: error || 'Failed to get organization',
+      }
+    }
+
     const data = await response.json()
 
     return {

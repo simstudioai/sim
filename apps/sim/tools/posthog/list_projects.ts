@@ -1,8 +1,10 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogListProjectsParams {
   apiKey: string
   region?: 'us' | 'eu'
+  host?: string
 }
 
 interface PostHogProject {
@@ -53,11 +55,18 @@ export const listProjectsTool: ToolConfig<PostHogListProjectsParams, PostHogList
         visibility: 'user-only',
         description: 'Cloud region: us or eu (default: us)',
       },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+      },
     },
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
         return `${baseUrl}/api/projects/`
       },
       method: 'GET',
@@ -68,12 +77,23 @@ export const listProjectsTool: ToolConfig<PostHogListProjectsParams, PostHogList
     },
 
     transformResponse: async (response: Response) => {
+      if (!response.ok) {
+        const error = await response.text()
+        return {
+          success: false,
+          output: {
+            projects: [],
+          },
+          error: error || 'Failed to list projects',
+        }
+      }
+
       const data = await response.json()
 
       return {
         success: true,
         output: {
-          projects: data.results.map((project: any) => ({
+          projects: (data.results || []).map((project: any) => ({
             id: project.id,
             uuid: project.uuid,
             organization: project.organization,

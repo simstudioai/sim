@@ -1,8 +1,10 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogListPersonsParams {
   apiKey: string
   region?: 'us' | 'eu'
+  host?: string
   projectId: string
   limit?: number
   offset?: number
@@ -48,6 +50,13 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
       description: 'PostHog region: us (default) or eu',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     projectId: {
       type: 'string',
       required: true,
@@ -83,7 +92,7 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       const url = new URL(`${baseUrl}/api/projects/${params.projectId}/persons/`)
 
       if (params.limit) url.searchParams.append('limit', params.limit.toString())

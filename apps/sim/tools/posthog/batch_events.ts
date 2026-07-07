@@ -1,8 +1,10 @@
+import { getPostHogIngestBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogBatchEventsParams {
   projectApiKey: string
   region?: 'us' | 'eu'
+  host?: string
   batch: string
 }
 
@@ -35,6 +37,13 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
       description: 'PostHog region: us (default) or eu',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     batch: {
       type: 'string',
       required: true,
@@ -46,8 +55,7 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
 
   request: {
     url: (params) => {
-      const baseUrl =
-        params.region === 'eu' ? 'https://eu.i.posthog.com' : 'https://us.i.posthog.com'
+      const baseUrl = getPostHogIngestBaseUrl(params.region, params.host)
       return `${baseUrl}/batch/`
     },
     method: 'POST',
@@ -69,14 +77,20 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     if (response.ok) {
       const data = await response.json()
+      let eventsProcessed = 0
+      try {
+        eventsProcessed = params ? JSON.parse(params.batch).length : 0
+      } catch {
+        eventsProcessed = 0
+      }
       return {
         success: true,
         output: {
           status: 'Batch events captured successfully',
-          events_processed: data.status === 1 ? JSON.parse(data.batch || '[]').length : 0,
+          events_processed: data.status === 1 ? eventsProcessed : 0,
         },
       }
     }

@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListSessionRecordingsParams {
   apiKey: string
   projectId: string
   region?: 'us' | 'eu'
+  host?: string
   limit?: number
   offset?: number
 }
@@ -69,6 +71,13 @@ export const listSessionRecordingsTool: ToolConfig<
       description: 'PostHog cloud region: us or eu (default: us)',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -85,7 +94,7 @@ export const listSessionRecordingsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       const url = new URL(`${baseUrl}/api/projects/${params.projectId}/session_recordings/`)
 
       if (params.limit) {
@@ -105,6 +114,18 @@ export const listSessionRecordingsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          recordings: [],
+          count: 0,
+        },
+        error: error || 'Failed to list session recordings',
+      }
+    }
+
     const data = await response.json()
 
     return {

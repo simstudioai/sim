@@ -1,3 +1,4 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetCohortParams {
@@ -5,6 +6,7 @@ interface PostHogGetCohortParams {
   projectId: string
   cohortId: string
   region: string
+  host?: string
 }
 
 interface PostHogGetCohortResponse {
@@ -61,11 +63,18 @@ export const getCohortTool: ToolConfig<PostHogGetCohortParams, PostHogGetCohortR
       description: 'PostHog cloud region: "us" or "eu" (default: "us")',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/cohorts/${params.cohortId}/`
     },
     method: 'GET',
@@ -76,6 +85,31 @@ export const getCohortTool: ToolConfig<PostHogGetCohortParams, PostHogGetCohortR
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          id: 0,
+          name: '',
+          description: '',
+          groups: [],
+          deleted: false,
+          filters: {},
+          query: null,
+          created_at: '',
+          created_by: null,
+          is_calculating: false,
+          last_calculation: '',
+          errors_calculating: 0,
+          count: 0,
+          is_static: false,
+          version: 0,
+        },
+        error: error || 'Failed to get cohort',
+      }
+    }
+
     const data = await response.json()
 
     return {

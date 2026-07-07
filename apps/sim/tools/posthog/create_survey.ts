@@ -1,3 +1,4 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogSurveyQuestion {
@@ -15,6 +16,7 @@ interface PostHogCreateSurveyParams {
   apiKey: string
   projectId: string
   region?: 'us' | 'eu'
+  host?: string
   name: string
   description?: string
   type?: 'popover' | 'api'
@@ -80,6 +82,13 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
         visibility: 'user-only',
         description: 'PostHog cloud region: us or eu (default: us)',
         default: 'us',
+      },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
       },
       name: {
         type: 'string',
@@ -154,7 +163,7 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
         return `${baseUrl}/api/projects/${params.projectId}/surveys/`
       },
       method: 'POST',
@@ -185,6 +194,25 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
     },
 
     transformResponse: async (response: Response) => {
+      if (!response.ok) {
+        const error = await response.text()
+        return {
+          success: false,
+          output: {
+            survey: {
+              id: '',
+              name: '',
+              description: '',
+              type: 'popover',
+              questions: [],
+              created_at: '',
+              created_by: {},
+            },
+          },
+          error: error || 'Failed to create survey',
+        }
+      }
+
       const data = await response.json()
 
       return {

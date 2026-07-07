@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListAnnotationsParams {
   apiKey: string
   projectId: string
   region: string
+  host?: string
   limit?: number
   offset?: number
 }
@@ -60,6 +62,13 @@ export const listAnnotationsTool: ToolConfig<
       description: 'PostHog cloud region: "us" or "eu" (default: "us")',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -76,7 +85,7 @@ export const listAnnotationsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
       let url = `${baseUrl}/api/projects/${params.projectId}/annotations/`
 
       const queryParams = []
@@ -97,6 +106,20 @@ export const listAnnotationsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+        },
+        error: error || 'Failed to list annotations',
+      }
+    }
+
     const data = await response.json()
 
     return {

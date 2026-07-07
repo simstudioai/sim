@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogUpdatePropertyDefinitionParams {
   projectId: string
   propertyDefinitionId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   description?: string
   tags?: string
@@ -66,6 +68,13 @@ export const updatePropertyDefinitionTool: ToolConfig<
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -100,7 +109,7 @@ export const updatePropertyDefinitionTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/property_definitions/${params.propertyDefinitionId}`
     },
     method: 'PATCH',
@@ -135,6 +144,11 @@ export const updatePropertyDefinitionTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(error || 'Failed to update property definition')
+    }
+
     const data = await response.json()
 
     return {

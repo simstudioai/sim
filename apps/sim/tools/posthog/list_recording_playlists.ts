@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListRecordingPlaylistsParams {
   apiKey: string
   projectId: string
   region?: 'us' | 'eu'
+  host?: string
   limit?: number
   offset?: number
 }
@@ -68,6 +70,13 @@ export const listRecordingPlaylistsTool: ToolConfig<
       description: 'PostHog cloud region: us or eu (default: us)',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -84,7 +93,7 @@ export const listRecordingPlaylistsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       const url = new URL(
         `${baseUrl}/api/projects/${params.projectId}/session_recording_playlists/`
       )
@@ -106,6 +115,18 @@ export const listRecordingPlaylistsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          playlists: [],
+          count: 0,
+        },
+        error: error || 'Failed to list recording playlists',
+      }
+    }
+
     const data = await response.json()
 
     return {

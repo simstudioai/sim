@@ -1,8 +1,10 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListFeatureFlagsParams {
   projectId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   limit?: number
   offset?: number
@@ -48,6 +50,13 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -70,7 +79,7 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       const url = new URL(`${baseUrl}/api/projects/${params.projectId}/feature_flags/`)
 
       if (params.limit) url.searchParams.append('limit', String(params.limit))
@@ -86,6 +95,11 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(error || 'Failed to list feature flags')
+    }
+
     const data = await response.json()
 
     return {

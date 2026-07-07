@@ -1,27 +1,26 @@
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export interface PostHogDeletePersonParams {
+interface PostHogDeleteSurveyParams {
   apiKey: string
+  projectId: string
+  surveyId: string
   region?: 'us' | 'eu'
   host?: string
-  projectId: string
-  personId: string
 }
 
-export interface PostHogDeletePersonResponse {
+interface PostHogDeleteSurveyResponse {
   success: boolean
   output: {
     status: string
   }
 }
 
-export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDeletePersonResponse> =
+export const deleteSurveyTool: ToolConfig<PostHogDeleteSurveyParams, PostHogDeleteSurveyResponse> =
   {
-    id: 'posthog_delete_person',
-    name: 'PostHog Delete Person',
-    description:
-      'Delete a person from PostHog. This will remove all associated events and data. Use with caution.',
+    id: 'posthog_delete_survey',
+    name: 'PostHog Delete Survey',
+    description: 'Delete a survey from PostHog. Use this to remove expired or unused surveys.',
     version: '1.0.0',
 
     params: {
@@ -29,13 +28,25 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
         type: 'string',
         required: true,
         visibility: 'user-only',
-        description: 'PostHog Personal API Key (for authenticated API access)',
+        description: 'PostHog Personal API Key',
+      },
+      projectId: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'PostHog Project ID (e.g., "12345" or project UUID)',
+      },
+      surveyId: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'Survey ID to delete (e.g., "01234567-89ab-cdef-0123-456789abcdef")',
       },
       region: {
         type: 'string',
         required: false,
         visibility: 'user-only',
-        description: 'PostHog region: us (default) or eu',
+        description: 'PostHog cloud region: us or eu (default: us)',
         default: 'us',
       },
       host: {
@@ -45,29 +56,17 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
         description:
           'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
       },
-      projectId: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'PostHog Project ID (e.g., "12345" or project UUID)',
-      },
-      personId: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'Person ID or UUID to delete (e.g., "01234567-89ab-cdef-0123-456789abcdef")',
-      },
     },
 
     request: {
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/persons/${params.personId}/`
+        return `${baseUrl}/api/projects/${params.projectId}/surveys/${params.surveyId}/`
       },
       method: 'DELETE',
       headers: (params) => ({
-        Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${params.apiKey}`,
       }),
     },
 
@@ -76,7 +75,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
         return {
           success: true,
           output: {
-            status: 'Person deleted successfully',
+            status: 'Survey deleted successfully',
           },
         }
       }
@@ -85,7 +84,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
       return {
         success: false,
         output: {
-          status: 'Failed to delete person',
+          status: 'Failed to delete survey',
         },
         error: error || 'Unknown error occurred',
       }
@@ -94,7 +93,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
     outputs: {
       status: {
         type: 'string',
-        description: 'Status message indicating whether the person was deleted successfully',
+        description: 'Status message indicating whether the survey was deleted successfully',
       },
     },
   }

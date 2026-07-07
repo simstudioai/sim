@@ -1,3 +1,4 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetSessionRecordingParams {
@@ -5,6 +6,7 @@ interface PostHogGetSessionRecordingParams {
   projectId: string
   recordingId: string
   region?: 'us' | 'eu'
+  host?: string
 }
 
 interface PostHogSessionRecording {
@@ -79,11 +81,18 @@ export const getSessionRecordingTool: ToolConfig<
       description: 'PostHog cloud region: us or eu (default: us)',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/session_recordings/${params.recordingId}/`
     },
     method: 'GET',
@@ -94,6 +103,31 @@ export const getSessionRecordingTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          recording: {
+            id: '',
+            distinct_id: '',
+            viewed: false,
+            recording_duration: 0,
+            active_seconds: 0,
+            inactive_seconds: 0,
+            start_time: '',
+            end_time: '',
+            click_count: 0,
+            keypress_count: 0,
+            console_log_count: 0,
+            console_warn_count: 0,
+            console_error_count: 0,
+          },
+        },
+        error: error || 'Failed to get session recording',
+      }
+    }
+
     const data = await response.json()
 
     return {

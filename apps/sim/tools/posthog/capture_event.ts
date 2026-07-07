@@ -1,8 +1,10 @@
+import { getPostHogIngestBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogCaptureEventParams {
   projectApiKey: string
   region?: 'us' | 'eu'
+  host?: string
   event: string
   distinctId: string
   properties?: string
@@ -38,6 +40,13 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
         description: 'PostHog region: us (default) or eu',
         default: 'us',
       },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+      },
       event: {
         type: 'string',
         required: true,
@@ -69,8 +78,7 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
 
     request: {
       url: (params) => {
-        const baseUrl =
-          params.region === 'eu' ? 'https://eu.i.posthog.com' : 'https://us.i.posthog.com'
+        const baseUrl = getPostHogIngestBaseUrl(params.region, params.host)
         return `${baseUrl}/capture/`
       },
       method: 'POST',

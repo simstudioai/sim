@@ -1,3 +1,4 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetInsightParams {
@@ -5,6 +6,7 @@ interface PostHogGetInsightParams {
   projectId: string
   insightId: string
   region: string
+  host?: string
 }
 
 interface PostHogGetInsightResponse {
@@ -59,11 +61,18 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
       description: 'PostHog cloud region: "us" or "eu" (default: "us")',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/insights/${params.insightId}/`
     },
     method: 'GET',
@@ -74,6 +83,29 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          id: 0,
+          name: '',
+          description: '',
+          filters: {},
+          query: null,
+          created_at: '',
+          created_by: null,
+          last_modified_at: '',
+          last_modified_by: null,
+          saved: false,
+          dashboards: [],
+          tags: [],
+          favorited: false,
+        },
+        error: error || 'Failed to get insight',
+      }
+    }
+
     const data = await response.json()
 
     return {

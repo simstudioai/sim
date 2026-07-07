@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListSurveysParams {
   apiKey: string
   projectId: string
   region?: 'us' | 'eu'
+  host?: string
   limit?: number
   offset?: number
 }
@@ -66,6 +68,13 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
       description: 'PostHog cloud region: us or eu (default: us)',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -82,7 +91,7 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       const url = new URL(`${baseUrl}/api/projects/${params.projectId}/surveys/`)
 
       if (params.limit) {
@@ -102,6 +111,18 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        success: false,
+        output: {
+          surveys: [],
+          count: 0,
+        },
+        error: error || 'Failed to list surveys',
+      }
+    }
+
     const data = await response.json()
 
     return {
