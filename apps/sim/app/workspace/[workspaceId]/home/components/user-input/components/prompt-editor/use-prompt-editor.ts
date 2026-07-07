@@ -180,13 +180,10 @@ export function usePromptEditor({
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
 
   /**
-   * Start offset of a mention/slash token the user just dismissed via outside
-   * click or Escape. A dismiss alone doesn't move the caret, so the very next
-   * `selectionchange`/click still lands inside the still-open token range and
-   * would otherwise reopen the menu it was just closed — the "can't click
-   * away" bug. Suppresses exactly one reopen per token; cleared the moment
-   * the user types again (`handleInputChange`) so editing the token still
-   * works normally.
+   * Start offset of a mention/slash token most recently dismissed by the user
+   * (outside click or Escape) without a following keystroke — suppresses a
+   * single reopen of the menu for that exact token when the caret's own
+   * selection-change handler runs immediately after.
    */
   const dismissedMentionStartRef = useRef<number | null>(null)
   const dismissedSlashStartRef = useRef<number | null>(null)
@@ -447,18 +444,23 @@ export function usePromptEditor({
     [textareaRef, addContextNotified]
   )
 
+  /**
+   * Only reachable via Radix's own dismiss detection (outside click /
+   * Escape) — programmatic closes (`skillsMenuRef.current?.close()`) bypass
+   * `onOpenChange` and never call this.
+   */
   const handleSkillsMenuClose = useCallback(() => {
-    // See `handlePlusMenuClose` — only reachable via a real Radix dismiss.
     dismissedSlashStartRef.current = slashRangeRef.current?.start ?? null
     slashRangeRef.current = null
     setSlashQuery(null)
   }, [])
 
+  /**
+   * Only reachable via Radix's own dismiss detection (outside click /
+   * Escape) — programmatic closes (`plusMenuRef.current?.close()`) bypass
+   * `onOpenChange` and never call this.
+   */
   const handlePlusMenuClose = useCallback(() => {
-    // Only reachable via Radix's own dismiss detection (outside click / Escape) —
-    // programmatic closes (`plusMenuRef.current?.close()`) bypass `onOpenChange`
-    // and never call this. Remember the token so the caret's own selection-change
-    // handler (fired by the same click) doesn't immediately reopen it.
     dismissedMentionStartRef.current = mentionRangeRef.current?.start ?? null
     atInsertPosRef.current = null
     mentionRangeRef.current = null
@@ -490,8 +492,6 @@ export function usePromptEditor({
         return
       }
 
-      // The user just dismissed the menu for this exact token (outside click /
-      // Escape) and hasn't typed since — a caret move alone must not reopen it.
       if (active.start === dismissedMentionStartRef.current) {
         if (mentionRangeRef.current !== null) {
           mentionRangeRef.current = null
@@ -529,7 +529,6 @@ export function usePromptEditor({
         return
       }
 
-      // See the mirrored check in `syncMentionState`.
       if (active.start === dismissedSlashStartRef.current) {
         if (slashRangeRef.current !== null) {
           slashRangeRef.current = null
@@ -628,8 +627,6 @@ export function usePromptEditor({
       const caret = e.target.selectionStart ?? finalValue.length
       valueRef.current = finalValue
       setValueState(finalValue)
-      // A keystroke is an active edit — always let it reopen a just-dismissed
-      // menu, even for the same token the user clicked away from.
       dismissedMentionStartRef.current = null
       dismissedSlashStartRef.current = null
       syncMentionState(e.target, finalValue, caret)

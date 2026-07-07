@@ -103,9 +103,6 @@ describe('usePromptEditor mention menu dismissal', () => {
 
     act(() => {
       typeInto(textarea, '@f')
-      // `onChange` in the real component is wired to `handleInputChange`; the
-      // hook only exposes it through the returned object, so invoke it the
-      // same way `<textarea onChange={editor.handleInputChange} />` would.
       result().handleInputChange({
         target: textarea,
         currentTarget: textarea,
@@ -131,24 +128,18 @@ describe('usePromptEditor mention menu dismissal', () => {
     })
     expect(result().mentionQuery).toBe('f')
 
-    // Radix's DismissableLayer calls this on outside pointerdown / Escape —
-    // never on a programmatic `plusMenuRef.current.close()`.
     act(() => {
       result().handlePlusMenuClose()
     })
     expect(result().mentionQuery).toBeNull()
 
-    // The same click that dismissed the popover also moves the caret via
-    // native textarea behavior; the caret lands back at the end of the text,
-    // i.e. still inside the unterminated "@f" token. Simulate the resulting
-    // onSelect/onMouseUp without any further keystroke.
     act(() => {
       textarea.setSelectionRange(2, 2)
       result().handleSelectAdjust()
     })
 
     expect(result().mentionQuery).toBeNull()
-    expect(openMenu.open).toHaveBeenCalledTimes(1) // only the original open — no reopen
+    expect(openMenu.open).toHaveBeenCalledTimes(1)
 
     unmount()
   })
@@ -173,7 +164,6 @@ describe('usePromptEditor mention menu dismissal', () => {
     })
     expect(openMenu.open).toHaveBeenCalledTimes(1)
 
-    // User keeps editing the same token — this must reopen it.
     act(() => {
       typeInto(textarea, '@fo', 3)
       result().handleInputChange({
@@ -208,8 +198,6 @@ describe('usePromptEditor mention menu dismissal', () => {
     })
     expect(openMenu.open).toHaveBeenCalledTimes(1)
 
-    // Clear the field and start a brand new mention elsewhere in the text —
-    // a stale dismissal must never leak onto an unrelated token.
     act(() => {
       typeInto(textarea, '@f done. @g', 11)
       result().handleInputChange({
