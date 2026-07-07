@@ -39,8 +39,8 @@ function hasAny(hints: ReadonlyArray<RegExp>, text: string): boolean {
 
 /**
  * Parses pasted plain text that looks like markdown into rich content, via the strict CommonMark
- * parser ({@link parseMarkdownToDoc}, `marked`). Pastes inside a code block are left untouched (code
- * is meant to stay literal).
+ * parser ({@link parseMarkdownToDoc}, `marked`). Pastes inside a code block or inline code are left
+ * untouched (code is meant to stay literal).
  *
  * Provenance decides plain-text-vs-HTML: a `text/html` sibling (copied from a browser, Slack, Notion,
  * GitHub, or this editor) is the signal the source was rich. Structural markdown is still parsed from
@@ -64,7 +64,7 @@ export const MarkdownPaste = Extension.create({
         props: {
           handlePaste: (_view, event) => {
             if (!editor.isEditable) return false
-            if (editor.isActive('codeBlock')) return false
+            if (editor.isActive('codeBlock') || editor.isActive('code')) return false
             const text = event.clipboardData?.getData('text/plain')
             if (!text) return false
             if (!hasAny(STRUCTURAL_MARKDOWN_HINTS, text)) {

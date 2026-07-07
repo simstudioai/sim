@@ -94,6 +94,14 @@ describe('markdown paste', () => {
     expect(paste(editor, '[link](https://example.com)')).toBe(false)
   })
 
+  it('keeps pasted markdown literal inside inline code', () => {
+    editor = mount()
+    editor.commands.setContent('a `codehere` b', { contentType: 'markdown' })
+    editor.commands.setTextSelection(6)
+    expect(editor.isActive('code')).toBe(true)
+    expect(paste(editor, '*italic*')).toBe(false)
+  })
+
   it('rejects the paste entirely in a read-only editor', () => {
     editor = mount(false)
     expect(paste(editor, '# heading\n\n- one\n- two')).toBe(false)
