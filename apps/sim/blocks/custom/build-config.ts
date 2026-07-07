@@ -50,9 +50,16 @@ export interface CustomBlockRow {
 
 /**
  * Params that carry the block's own wiring rather than a mapped Start input.
- * Everything else on the block is collected into the child `inputMapping`.
+ * Everything else on the block is collected into the child `inputMapping`. Shared
+ * with the serializer so "does this custom block declare input sub-blocks?" reads
+ * from one source instead of re-listing the structural ids.
  */
-const RESERVED_PARAMS = new Set(['workflowId', 'inputMapping', 'triggerMode', 'advancedMode'])
+export const RESERVED_PARAMS = new Set([
+  'workflowId',
+  'inputMapping',
+  'triggerMode',
+  'advancedMode',
+])
 
 /** Map a Start input field type to the editor sub-block type used to collect it. */
 function subBlockTypeForField(fieldType: string): SubBlockType {

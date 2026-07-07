@@ -15,7 +15,7 @@ import {
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
-import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
@@ -481,12 +481,10 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   // A custom block whose config declares its input fields (client overlay, or the
   // server overlay once it carries curated `inputFields`) can tell a live input
   // from a deleted one. Only when the config is schema-agnostic (legacy rows with
-  // no curated inputs) do we carry every stored field value forward blindly.
+  // no curated inputs) do we carry every stored field value forward blindly. A
+  // declared input is any sub-block that isn't the block's own reserved wiring.
   const customBlockHasDeclaredInputs =
-    isCustomBlock &&
-    blockConfig.subBlocks.some(
-      (config) => config.id !== 'workflowId' && config.id !== 'inputMapping'
-    )
+    isCustomBlock && blockConfig.subBlocks.some((config) => !RESERVED_PARAMS.has(config.id))
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)

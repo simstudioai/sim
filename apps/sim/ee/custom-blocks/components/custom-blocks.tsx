@@ -6,6 +6,7 @@ import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { CustomBlockDetail } from '@/ee/custom-blocks/components/custom-block-detail'
@@ -85,29 +86,19 @@ export function CustomBlocks() {
                   key={cb.id}
                   type='button'
                   onClick={() => setSelected(cb.id)}
-                  className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+                  className='w-full rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
-                  <div className='flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[var(--surface-3)]'>
-                    <Icon className='size-[18px] object-contain' />
-                  </div>
-                  <div className='flex min-w-0 flex-1 flex-col'>
-                    <div className='flex items-center gap-2'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        {cb.name}
-                      </span>
-                      {!cb.enabled && (
-                        <ChipTag variant='gray' className='flex-shrink-0'>
-                          Disabled
-                        </ChipTag>
-                      )}
-                    </div>
-                    {cb.description && (
-                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                        {cb.description}
-                      </span>
-                    )}
-                  </div>
-                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+                  <SettingsResourceRow
+                    icon={<Icon />}
+                    title={cb.name}
+                    description={cb.description || undefined}
+                    trailing={
+                      <div className='flex flex-shrink-0 items-center gap-2'>
+                        {!cb.enabled && <ChipTag variant='gray'>Disabled</ChipTag>}
+                        <ArrowRight className='size-4 text-[var(--text-icon)]' />
+                      </div>
+                    }
+                  />
                 </button>
               )
             })}

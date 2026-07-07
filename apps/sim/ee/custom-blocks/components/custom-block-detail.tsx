@@ -93,13 +93,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   const [name, setName] = useState(existing?.name ?? '')
   const [description, setDescription] = useState(existing?.description ?? '')
   const [inputs, setInputs] = useState<CustomBlockInput[]>(() =>
-    (existing?.inputFields ?? []).map((f) => ({
-      id: f.id ?? f.name,
-      name: f.name,
-      type: f.type,
-      placeholder: f.placeholder,
-      description: f.description,
-    }))
+    toCustomBlockInputs(existing?.inputFields)
   )
   const [outputs, setOutputs] = useState<CustomBlockOutput[]>(() => existing?.exposedOutputs ?? [])
   const [error, setError] = useState<string | null>(null)
@@ -273,15 +267,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     }
     setName(existing?.name ?? '')
     setDescription(existing?.description ?? '')
-    setInputs(
-      (existing?.inputFields ?? []).map((f) => ({
-        id: f.id ?? f.name,
-        name: f.name,
-        type: f.type,
-        placeholder: f.placeholder,
-        description: f.description,
-      }))
-    )
+    setInputs(toCustomBlockInputs(existing?.inputFields))
     setOutputs(existing?.exposedOutputs ?? [])
     iconUpload.reset()
     setError(null)
@@ -659,6 +645,27 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
       />
     </>
   )
+}
+
+/** Seed the editable inputs buffer from a block's (live-derived) input fields. */
+function toCustomBlockInputs(
+  fields:
+    | ReadonlyArray<{
+        id?: string
+        name: string
+        type: string
+        placeholder?: string
+        description?: string
+      }>
+    | undefined
+): CustomBlockInput[] {
+  return (fields ?? []).map((f) => ({
+    id: f.id ?? f.name,
+    name: f.name,
+    type: f.type,
+    placeholder: f.placeholder,
+    description: f.description,
+  }))
 }
 
 /**
