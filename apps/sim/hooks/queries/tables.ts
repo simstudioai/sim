@@ -271,7 +271,6 @@ export function getTableDetailQueryOptions(workspaceId: string, tableId: string)
 
 export interface TableRunState {
   dispatches: ActiveDispatch[]
-  runningCellCount: number
   runningByRowId: Record<string, number>
 }
 
@@ -282,7 +281,6 @@ async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promis
   })
   return {
     dispatches: response.data.dispatches,
-    runningCellCount: response.data.runningCellCount,
     runningByRowId: response.data.runningByRowId,
   }
 }
@@ -335,46 +333,28 @@ function countNewlyInFlight(before: RowExecutions, after: RowExecutions): number
   return n
 }
 
-/** The table's maintained, unfiltered `rowCount` from the detail cache (or
- *  `null` when the detail hasn't loaded). This is the right scope for a Run-all
- *  estimate: the dispatcher runs every row regardless of the active view
- *  filter, whereas the rows query's `totalCount` is filter-scoped. */
-function readTableRowCount(
-  queryClient: ReturnType<typeof useQueryClient>,
-  tableId: string
-): number | null {
-  const def = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
-  return typeof def?.rowCount === 'number' ? def.rowCount : null
-}
-
 /** Optimistically reflect a run on the "X running" badge + per-row gutter Stop
- *  instantly (the optimistic stamp eats the dispatcher's `pending` SSE, so
- *  `applyCell` never bumps the count, and the server's dispatch-scope count
- *  isn't live until the first window). `stampedByRow` drives the per-row gutter
- *  (loaded rows only); `cellCountDelta` is the badge delta — pass the full run
- *  scope (rows × groups) for Run-all so it matches the server, or omit to use
- *  the stamped total. Returns the prior snapshot for rollback. */
-function bumpRunState(
+ *  instantly, ahead of the dispatcher's real pending stamps and the next
+ *  server snapshot refetch. Cancels any in-flight run-state fetch first — a
+ *  fetch started before the click would otherwise resolve after this write
+ *  and clobber the bump back to the pre-run snapshot. Returns the prior
+ *  snapshot for rollback. */
+async function bumpRunState(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
-  stampedByRow: Record<string, number>,
-  cellCountDelta?: number
-): { snapshot: TableRunState | undefined } | null {
+  stampedByRow: Record<string, number>
+): Promise<{ snapshot: TableRunState | undefined } | null> {
   const stampedTotal = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
-  const countDelta = cellCountDelta ?? stampedTotal
-  if (countDelta === 0 && stampedTotal === 0) return null
+  if (stampedTotal === 0) return null
+  await queryClient.cancelQueries({ queryKey: tableKeys.activeDispatches(tableId) })
   const snapshot = queryClient.getQueryData<TableRunState>(tableKeys.activeDispatches(tableId))
   queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-    const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+    const base = prev ?? { dispatches: [], runningByRowId: {} }
     const nextByRow = { ...base.runningByRowId }
     for (const [rid, n] of Object.entries(stampedByRow)) {
       nextByRow[rid] = (nextByRow[rid] ?? 0) + n
     }
-    return {
-      ...base,
-      runningCellCount: base.runningCellCount + countDelta,
-      runningByRowId: nextByRow,
-    }
+    return { ...base, runningByRowId: nextByRow }
   })
   return { snapshot }
 }
@@ -647,7 +627,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         },
       })
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       const row = response.data.row
       if (!row) return
 
@@ -660,7 +640,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       // the "X running" badge + gutter Stop show immediately (the row had no
       // prior executions, so the stamped set is the full delta).
       const stampedCount = countNewlyInFlight({}, stamped.executions ?? {})
-      if (stampedCount > 0) bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
+      if (stampedCount > 0) await bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
 
       // `reconcileCreatedRow` only patches the default-order view. Filtered /
       // column-sorted rows queries can't be reconciled from that heuristic
@@ -904,7 +884,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         }
       })
 
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return {
         previousQueries,
         runStateSnapshot: bumped?.snapshot,
@@ -995,7 +975,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         }
       })
 
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return {
         previousQueries,
         runStateSnapshot: bumped?.snapshot,
@@ -1319,6 +1299,7 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
             })
           )
         : undefined
+      const touchedRowIds = new Set<string>()
       const snapshots = await snapshotAndMutateRows(
         queryClient,
         tableId,
@@ -1350,21 +1331,50 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
             }
             rowTouched = true
           }
-          return rowTouched ? { ...r, executions: nextExecutions } : null
+          if (!rowTouched) return null
+          touchedRowIds.add(r.id)
+          return { ...r, executions: nextExecutions }
         },
         { onlyKey }
       )
-      return { snapshots }
+
+      // Zero the badge + per-row gutter for the stopped rows immediately.
+      // Cancel any in-flight run-state fetch first — one started before the
+      // server processed the cancel would resolve with stale non-zero counts
+      // and resurrect the badge until onSettled's refetch lands.
+      await queryClient.cancelQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+      const runStateSnapshot = queryClient.getQueryData<TableRunState>(
+        tableKeys.activeDispatches(tableId)
+      )
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        if (!prev) return prev
+        const nextByRow: Record<string, number> = {}
+        for (const [rid, n] of Object.entries(prev.runningByRowId)) {
+          if (scope === 'all' && !filter) {
+            // Table-wide stop: everything not explicitly excluded is cancelled,
+            // including rows outside the loaded page slice.
+            if (!excludedRowIds?.has(rid)) continue
+          } else if (touchedRowIds.has(rid)) {
+            continue
+          }
+          nextByRow[rid] = n
+        }
+        return { ...prev, runningByRowId: nextByRow }
+      })
+      return { snapshots, runStateSnapshot }
     },
-    onError: (_err, _variables, context) => {
+    onError: (error, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+      queryClient.setQueryData(tableKeys.activeDispatches(tableId), context?.runStateSnapshot)
+      // A failed Stop must be loud — the optimistic clear above made the run
+      // look stopped, and silently reverting reads as "the cancel didn't work".
+      toast.error(`Failed to stop runs: ${error.message}`, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      // Refetch the run-state snapshot — server re-derives runningCellCount +
-      // runningByRowId from the freshly-updated sidecar via countRunningCells.
-      // Without this, the counter and row gutter button stay stale until the
-      // user refetches manually.
+      // Refetch the run-state snapshot — server re-derives runningByRowId from
+      // the freshly-updated sidecar via countRunningCells. Reconciles the
+      // optimistic clear above with whatever the cancel actually stopped.
       queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     },
   })
@@ -2062,14 +2072,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         return { ...r, data: nextData, executions: next }
       })
 
-      // Badge counts the whole run scope (rows × groups), matching the server's
-      // dispatch-scope count — not just the loaded rows we could stamp. For
-      // Run-all that's the table's totalCount; for a scoped run, the rowIds.
-      const scopeRowCount = targetRowIds
-        ? targetRowIds.size
-        : (readTableRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
-      const cellCountDelta = scopeRowCount * targetGroupIds.size
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow, cellCountDelta)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
     onError: (_err, _variables, context) => {
@@ -2092,7 +2095,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         return
       }
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-        const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+        const base = prev ?? { dispatches: [], runningByRowId: {} }
         if (base.dispatches.some((d) => d.id === dispatchId)) return base
         const dispatch: ActiveDispatch = {
           id: dispatchId,

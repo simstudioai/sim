@@ -3,10 +3,10 @@
 import { useEffect, useRef } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions, TableDefinition } from '@/lib/table'
-import { isExecInFlight } from '@/lib/table/deps'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
 import {
   consumeInitiatedExport,
@@ -22,30 +22,10 @@ interface PrunedEvent {
   earliestEventId: number | null
 }
 
-const RECONNECT_BACKOFF_MS = [500, 1_000, 2_000, 5_000, 10_000]
-const POINTER_PREFIX = 'table-event-stream-pointer:'
-const DISPATCH_INVALIDATE_DEBOUNCE_MS = 250
-
-function loadPointer(tableId: string): number {
-  if (typeof window === 'undefined') return 0
-  try {
-    const raw = window.sessionStorage.getItem(`${POINTER_PREFIX}${tableId}`)
-    if (!raw) return 0
-    const parsed = Number.parseInt(raw, 10)
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
-  } catch {
-    return 0
-  }
-}
-
-function savePointer(tableId: string, eventId: number): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.sessionStorage.setItem(`${POINTER_PREFIX}${tableId}`, String(eventId))
-  } catch {
-    // sessionStorage can throw under quota / private mode — ignore.
-  }
-}
+const RECONNECT_BACKOFF_BASE_MS = 500
+const RECONNECT_BACKOFF_MAX_MS = 10_000
+const RUN_STATE_REFETCH_THROTTLE_MS = 1_000
+const ROWS_INVALIDATE_DEBOUNCE_MS = 250
 
 interface UseTableEventStreamArgs {
   tableId: string | undefined
@@ -60,10 +40,13 @@ interface UseTableEventStreamArgs {
  * Subscribes to the table's SSE event stream and patches the React Query
  * cache as cell-state events arrive.
  *
- * Reconnect-resume: on transport error, reconnects with `from=` set to the
- * last seen `eventId`; server replays missed events from the Redis-backed
- * buffer. If the gap exceeds buffer retention (server emits `pruned`), the
- * hook full-refetches the row queries and resumes from the new earliest.
+ * Fresh mount tails from the latest event — the rows + run-state queries
+ * fetch current state from the DB, so replaying buffered history would only
+ * rewind fresh cells through stale intermediate states (queued → running →
+ * completed churn). Reconnect-resume: on transport error, reconnects with
+ * `from=` set to the last seen `eventId`; server replays missed events from
+ * the Redis-backed buffer. If the gap exceeds buffer retention (server emits
+ * `pruned`), the hook full-refetches and resumes tailing from latest.
  */
 export function useTableEventStream({
   tableId,
@@ -83,20 +66,71 @@ export function useTableEventStream({
     let cancelled = false
     let eventSource: EventSource | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    // Resume from the last seen eventId persisted in sessionStorage. Survives
-    // tab refresh; if the buffer has rolled past this id the server replies
-    // `pruned` and we full-refetch + restart from the new earliest.
-    let lastEventId = loadPointer(tableId)
+    // `null` = no cursor yet: connect without `from` and tail from latest.
+    // Advanced in memory per event; within-session reconnects resume from it.
+    let lastEventId: number | null = null
     let reconnectAttempt = 0
 
-    // Trailing-edge debounce coalesces window-completion bursts.
-    let dispatchInvalidateTimer: ReturnType<typeof setTimeout> | null = null
+    // Leading + trailing throttle for run-state refetches. Cell/dispatch SSE
+    // events arrive in bursts (the server flushes its buffer every 500ms): the
+    // leading edge keeps the badge stepping promptly on sporadic completions;
+    // the trailing timer coalesces a burst into one refetch per interval. A
+    // debounce would starve here — sustained bursts reset it indefinitely.
+    let runStateInvalidateTimer: ReturnType<typeof setTimeout> | null = null
+    let lastRunStateInvalidateAt = 0
+    let runStateFetchInFlight = false
+    let runStateDirtyDuringFetch = false
+    const invalidateRunState = async (): Promise<void> => {
+      lastRunStateInvalidateAt = Date.now()
+      // cancelRefetch: false — the default (true) cancels an in-flight refetch
+      // and restarts it. When the run-state fetch is slower than the throttle
+      // interval (a busy run congests the server), that livelocks: every
+      // interval kills the previous fetch before it can land and the badge
+      // freezes on the last value that ever resolved. Instead, let an
+      // in-flight fetch complete (slightly stale counts land), remember that
+      // events arrived meanwhile, and run one follow-up afterwards — without
+      // the follow-up, a run's final events deduping into a stale fetch would
+      // freeze the badge non-zero forever.
+      if (runStateFetchInFlight) {
+        runStateDirtyDuringFetch = true
+        return
+      }
+      runStateFetchInFlight = true
+      try {
+        await queryClient.invalidateQueries(
+          { queryKey: tableKeys.activeDispatches(tableId) },
+          { cancelRefetch: false }
+        )
+      } finally {
+        runStateFetchInFlight = false
+        if (runStateDirtyDuringFetch) {
+          runStateDirtyDuringFetch = false
+          scheduleDispatchInvalidate()
+        }
+      }
+    }
     const scheduleDispatchInvalidate = (): void => {
-      if (dispatchInvalidateTimer !== null) clearTimeout(dispatchInvalidateTimer)
-      dispatchInvalidateTimer = setTimeout(() => {
-        dispatchInvalidateTimer = null
-        void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
-      }, DISPATCH_INVALIDATE_DEBOUNCE_MS)
+      if (cancelled || runStateInvalidateTimer !== null) return
+      const elapsed = Date.now() - lastRunStateInvalidateAt
+      if (elapsed >= RUN_STATE_REFETCH_THROTTLE_MS) {
+        void invalidateRunState()
+        return
+      }
+      runStateInvalidateTimer = setTimeout(() => {
+        runStateInvalidateTimer = null
+        void invalidateRunState()
+      }, RUN_STATE_REFETCH_THROTTLE_MS - elapsed)
+    }
+    /** Urgent resync (usage-limit halt, prune recovery) — skips the throttle.
+     *  Default cancelRefetch here: a fetch started before the halt is stale by
+     *  definition, so kill it and read fresh. One-shot, so no churn risk. */
+    const invalidateDispatchesNow = (): void => {
+      if (runStateInvalidateTimer !== null) {
+        clearTimeout(runStateInvalidateTimer)
+        runStateInvalidateTimer = null
+      }
+      lastRunStateInvalidateAt = Date.now()
+      void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     }
 
     // Live-fill: import progress ticks arrive every N rows; coalesce the row
@@ -107,25 +141,7 @@ export function useTableEventStream({
       jobInvalidateTimer = setTimeout(() => {
         jobInvalidateTimer = null
         void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      }, DISPATCH_INVALIDATE_DEBOUNCE_MS)
-    }
-
-    // Keeps the per-row gutter (`runningByRowId`) live between dispatch events.
-    // `runningCellCount` (the "X running" badge) is NOT touched here — it's the
-    // server's dispatch-scope count, seeded optimistically on click and
-    // re-synced by `applyDispatch` on every window, so live matches reload.
-    const updateRunningByRow = (rowId: string, wasInFlight: boolean, isInFlight: boolean): void => {
-      if (wasInFlight === isInFlight) return
-      const delta = isInFlight ? 1 : -1
-      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-        if (!prev) return prev
-        const prevForRow = prev.runningByRowId[rowId] ?? 0
-        const nextForRow = Math.max(0, prevForRow + delta)
-        const nextByRow = { ...prev.runningByRowId }
-        if (nextForRow === 0) delete nextByRow[rowId]
-        else nextByRow[rowId] = nextForRow
-        return { ...prev, runningByRowId: nextByRow }
-      })
+      }, ROWS_INVALIDATE_DEBOUNCE_MS)
     }
 
     const applyCell = (event: Extract<TableEvent, { kind: 'cell' }>): void => {
@@ -140,18 +156,12 @@ export function useTableEventStream({
         runningBlockIds,
         blockErrors,
       } = event
-      let wasInFlight: boolean | null = null
       void snapshotAndMutateRows(
         queryClient,
         tableId,
         (row) => {
           if (row.id !== rowId) return null
           const prevExec = row.executions?.[groupId]
-          // In-flight = queued | running | pending. Server's countRunningCells
-          // counts all three (the gutter Run/Stop button reads this map and
-          // needs Stop visible during queued too, else clicking Play would
-          // re-enqueue a cell that's already queued).
-          if (wasInFlight === null) wasInFlight = isExecInFlight(prevExec)
           const nextExec: RowExecutionMetadata = {
             status,
             executionId: executionId ?? null,
@@ -171,13 +181,11 @@ export function useTableEventStream({
         },
         { cancelInFlight: false }
       )
-      if (wasInFlight === null) {
-        // Row outside the loaded page slice — can't compute the delta locally.
-        // Refetch the run-state snapshot from the server. Cheap and rare.
-        scheduleDispatchInvalidate()
-      } else {
-        updateRunningByRow(rowId, wasInFlight, isExecInFlight({ status } as RowExecutionMetadata))
-      }
+      // `runningByRowId` (the "X running" badge + per-row gutter) is
+      // server-derived: refetch the snapshot on the throttle instead of
+      // maintaining client-side ±1 deltas, which drift on unloaded rows,
+      // replays, and races with optimistic stamps.
+      scheduleDispatchInvalidate()
     }
 
     const applyDispatch = (event: Extract<TableEvent, { kind: 'dispatch' }>): void => {
@@ -185,10 +193,9 @@ export function useTableEventStream({
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
         // SSE may arrive before the initial fetch lands. Seed an empty
         // run-state so the dispatch isn't dropped; counters are reconciled
-        // by the subsequent fetch / per-cell SSE events.
+        // by the subsequent fetch.
         const base: TableRunState = prev ?? {
           dispatches: [],
-          runningCellCount: 0,
           runningByRowId: {},
         }
         const list = base.dispatches
@@ -225,9 +232,9 @@ export function useTableEventStream({
         return { ...base, dispatches: merged }
       })
       // The dispatcher emits this once per window (after the window's cells
-      // finish + the cursor advances) and on completion. Re-sync the
-      // dispatch-scope `runningCellCount` from the server so the badge steps
-      // down per window and matches a reload exactly.
+      // finish + the cursor advances) and on completion. Re-sync
+      // `runningByRowId` from the server so the badge steps down per window
+      // and matches a reload exactly.
       scheduleDispatchInvalidate()
     }
 
@@ -304,9 +311,11 @@ export function useTableEventStream({
       }
       // Blocked cells are left `queued` in the DB with no terminal cell event,
       // so `runningByRowId` would otherwise stay non-zero (stale "X running").
-      // Re-sync the server counts, and refetch rows so cells whose pre-stamps
-      // the server cleared drop their "Queued" state.
-      scheduleDispatchInvalidate()
+      // Re-sync the server counts immediately (the user is being told they're
+      // over limit — the badge must not linger behind the throttle), and
+      // refetch rows so cells whose pre-stamps the server cleared drop their
+      // "Queued" state.
+      invalidateDispatchesNow()
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
       onUsageLimitReachedRef.current?.({ dispatchId: event.dispatchId, message: event.message })
     }
@@ -314,9 +323,10 @@ export function useTableEventStream({
     const handlePrune = (payload: PrunedEvent): void => {
       logger.info('Table event buffer pruned — full refetch', { tableId, ...payload })
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      scheduleDispatchInvalidate()
-      lastEventId = typeof payload.earliestEventId === 'number' ? payload.earliestEventId : 0
-      savePointer(tableId, lastEventId)
+      invalidateDispatchesNow()
+      // Tail from latest after the refetch — replaying the surviving buffer
+      // over freshly-refetched rows would rewind them through stale states.
+      lastEventId = null
       // Close proactively so the server's close doesn't fire onerror and route
       // through the backoff path. Reconnect immediately from the new cursor.
       eventSource?.close()
@@ -327,9 +337,11 @@ export function useTableEventStream({
 
     const scheduleReconnect = (): void => {
       if (cancelled) return
-      const idx = Math.min(reconnectAttempt, RECONNECT_BACKOFF_MS.length - 1)
-      const delay = RECONNECT_BACKOFF_MS[idx]
       reconnectAttempt++
+      const delay = backoffWithJitter(reconnectAttempt, null, {
+        baseMs: RECONNECT_BACKOFF_BASE_MS,
+        maxMs: RECONNECT_BACKOFF_MAX_MS,
+      })
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null
         connect()
@@ -338,7 +350,11 @@ export function useTableEventStream({
 
     const connect = (): void => {
       if (cancelled) return
-      const url = `/api/table/${tableId}/events/stream?from=${lastEventId}`
+      // No cursor → tail from latest (server-side); otherwise replay-resume.
+      const url =
+        lastEventId === null
+          ? `/api/table/${tableId}/events/stream`
+          : `/api/table/${tableId}/events/stream?from=${lastEventId}`
       try {
         eventSource = new EventSource(url)
       } catch (err) {
@@ -354,9 +370,8 @@ export function useTableEventStream({
       eventSource.onmessage = (msg: MessageEvent<string>) => {
         try {
           const entry = JSON.parse(msg.data) as TableEventEntry
-          if (entry.eventId <= lastEventId) return
+          if (lastEventId !== null && entry.eventId <= lastEventId) return
           lastEventId = entry.eventId
-          savePointer(tableId, lastEventId)
           if (entry.event?.kind === 'cell') applyCell(entry.event)
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
           else if (entry.event?.kind === 'job') applyJob(entry.event)
@@ -388,12 +403,22 @@ export function useTableEventStream({
       }
     }
 
+    // In-SPA remount over a warm cache (table A → B → back to A within
+    // staleTime): the tail starts at "latest", so transitions that fired while
+    // unmounted were neither refetched (cache still fresh) nor replayed.
+    // Reconcile once. Cold mounts have no cached run-state → skip, the
+    // queries are already fetching.
+    if (queryClient.getQueryState(tableKeys.activeDispatches(tableId))?.data !== undefined) {
+      void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      void invalidateRunState()
+    }
+
     connect()
 
     return () => {
       cancelled = true
       if (reconnectTimer !== null) clearTimeout(reconnectTimer)
-      if (dispatchInvalidateTimer !== null) clearTimeout(dispatchInvalidateTimer)
+      if (runStateInvalidateTimer !== null) clearTimeout(runStateInvalidateTimer)
       if (jobInvalidateTimer !== null) clearTimeout(jobInvalidateTimer)
       eventSource?.close()
       eventSource = null

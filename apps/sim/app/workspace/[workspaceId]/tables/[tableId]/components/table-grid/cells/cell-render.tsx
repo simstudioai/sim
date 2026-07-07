@@ -15,7 +15,7 @@ export type CellRenderKind =
   | { kind: 'value'; text: string }
   | { kind: 'block-error' }
   | { kind: 'running' }
-  | { kind: 'pending-upstream' }
+  | { kind: 'pending-upstream'; paused: boolean }
   | { kind: 'queued' }
   | { kind: 'cancelled' }
   | { kind: 'error' }
@@ -93,9 +93,9 @@ export function resolveCellRender({
         exec?.status === 'pending' &&
         typeof exec.jobId === 'string' &&
         exec.jobId.startsWith('paused-')
-      if (isPaused) return { kind: 'pending-upstream' }
+      if (isPaused) return { kind: 'pending-upstream', paused: true }
       if (exec?.status === 'queued' || exec?.status === 'pending') return { kind: 'queued' }
-      return { kind: 'pending-upstream' }
+      return { kind: 'pending-upstream', paused: false }
     }
 
     // Waiting wins over a stale terminal status — show the actionable state.
@@ -259,48 +259,55 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
     case 'running':
       return (
         <Wrap isEditing={isEditing}>
-          <StatusBadge status='running' />
+          <BadgeTooltip tip='The block is running.'>
+            <StatusBadge status='running' />
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'pending-upstream':
       return (
         <Wrap isEditing={isEditing}>
-          <StatusBadge status='pending' />
+          <BadgeTooltip
+            tip={
+              kind.paused
+                ? 'Paused — waiting on input to resume.'
+                : 'Waiting on an earlier block in this run.'
+            }
+          >
+            <StatusBadge status='pending' />
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'cancelled':
       return (
         <Wrap isEditing={isEditing}>
-          <StatusBadge status='cancelled' />
+          <BadgeTooltip tip='Stopped before finishing — re-run to retry.'>
+            <StatusBadge status='cancelled' />
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'queued':
       return (
         <Wrap isEditing={isEditing}>
-          <Badge variant='gray' dot size='sm'>
-            Queued
-          </Badge>
+          <BadgeTooltip tip='In line to run — starts when a batch slot opens.'>
+            <Badge variant='gray' dot size='sm'>
+              Queued
+            </Badge>
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'waiting':
       return (
         <Wrap isEditing={isEditing}>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <span>
-                <Badge variant='gray' dot size='sm'>
-                  Waiting
-                </Badge>
-              </span>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              Waiting on {kind.labels.map((l) => `"${l}"`).join(', ')}
-            </Tooltip.Content>
-          </Tooltip.Root>
+          <BadgeTooltip tip={`Waiting on ${kind.labels.map((l) => `"${l}"`).join(', ')}`}>
+            <Badge variant='gray' dot size='sm'>
+              Waiting
+            </Badge>
+          </BadgeTooltip>
         </Wrap>
       )
 
@@ -391,18 +398,22 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
     case 'not-found':
       return (
         <Wrap isEditing={isEditing}>
-          <Badge variant='gray' dot size='sm'>
-            Not found
-          </Badge>
+          <BadgeTooltip tip='No match found for this row.'>
+            <Badge variant='gray' dot size='sm'>
+              Not found
+            </Badge>
+          </BadgeTooltip>
         </Wrap>
       )
 
     case 'no-output':
       return (
         <Wrap isEditing={isEditing}>
-          <Badge variant='gray' dot size='sm'>
-            No output
-          </Badge>
+          <BadgeTooltip tip='Finished with no value for this cell.'>
+            <Badge variant='gray' dot size='sm'>
+              No output
+            </Badge>
+          </BadgeTooltip>
         </Wrap>
       )
 
@@ -419,6 +430,19 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 function Wrap({ isEditing, children }: { isEditing: boolean; children: React.ReactNode }) {
   if (!isEditing) return <>{children}</>
   return <div className='invisible'>{children}</div>
+}
+
+/** Hover explanation for a status badge. The `<span>` trigger is required —
+ *  Badge/StatusBadge don't forward refs, so the tooltip anchors to a wrapper. */
+function BadgeTooltip({ tip, children }: { tip: string; children: React.ReactNode }) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span>{children}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='top'>{tip}</Tooltip.Content>
+    </Tooltip.Root>
+  )
 }
 
 const TYPEWRITER_MS_PER_CHAR = 15

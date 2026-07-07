@@ -5,7 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { countActiveRunCells, listActiveDispatches } from '@/lib/table/dispatcher'
+import { countRunningCells, listActiveDispatches } from '@/lib/table/dispatcher'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDispatchesAPI')
@@ -38,7 +38,12 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const rows = await listActiveDispatches(tableId)
-    const running = await countActiveRunCells(tableId, rows)
+    // Unclaimed `pending` pre-stamps are real queued work while a dispatch is
+    // active; with none active they're abandoned orphans that would pin the
+    // "X running" badge above zero forever.
+    const runningByRowId = await countRunningCells(tableId, {
+      includeUnclaimedPreStamps: rows.length > 0,
+    })
     const dispatches: ActiveDispatch[] = rows.map((r) => ({
       id: r.id,
       status: r.status as 'pending' | 'dispatching',
@@ -53,8 +58,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       success: true,
       data: {
         dispatches,
-        runningCellCount: running.total,
-        runningByRowId: running.byRowId,
+        runningByRowId,
       },
     })
   } catch (error) {
