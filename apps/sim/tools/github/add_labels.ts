@@ -60,7 +60,7 @@ export const addLabelsTool: ToolConfig<AddLabelsParams, LabelsResponse> = {
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const labelsData = await response.json()
 
     const labels = labelsData.map((label: any) => label.name)
@@ -74,8 +74,10 @@ All labels on issue: ${labels.join(', ')}`
         content,
         metadata: {
           labels,
-          issue_number: 0, // Will be filled from params in actual implementation
-          html_url: '', // Will be constructed from params
+          issue_number: params?.issue_number ?? 0,
+          html_url: params
+            ? `https://github.com/${params.owner}/${params.repo}/issues/${params.issue_number}`
+            : '',
         },
       },
     }

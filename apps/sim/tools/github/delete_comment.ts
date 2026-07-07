@@ -45,16 +45,20 @@ export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentRes
     }),
   },
 
-  transformResponse: async (response) => {
-    const content = `Comment #${response.url.split('/').pop()} successfully deleted`
+  transformResponse: async (response, params) => {
+    const deleted = response.status === 204
+    const commentId = params?.comment_id ?? Number(response.url.split('/').pop())
+    const content = deleted
+      ? `Comment #${commentId} successfully deleted`
+      : `Failed to delete comment #${commentId}`
 
     return {
       success: true,
       output: {
         content,
         metadata: {
-          deleted: true,
-          comment_id: Number(response.url.split('/').pop()),
+          deleted,
+          comment_id: commentId,
         },
       },
     }

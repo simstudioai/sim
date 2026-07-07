@@ -45,13 +45,21 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const pr = await response.json()
 
     const filesResponse = await fetch(
-      `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`
+      `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`,
+      {
+        headers: {
+          Accept: 'application/vnd.github.v3+json',
+          Authorization: `Bearer ${params?.apiKey}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      }
     )
-    const files = await filesResponse.json()
+    const filesJson = await filesResponse.json()
+    const files = Array.isArray(filesJson) ? filesJson : []
 
     const content = `PR #${pr.number}: "${pr.title}" (${pr.state}) - Created: ${pr.created_at}, Updated: ${pr.updated_at}
 Description: ${pr.body || 'No description'}
@@ -128,14 +136,21 @@ export const prV2Tool: ToolConfig<PROperationParams, any> = {
   params: prTool.params,
   request: prTool.request,
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const pr = await response.json()
 
-    // Fetch files changed
     const filesResponse = await fetch(
-      `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`
+      `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`,
+      {
+        headers: {
+          Accept: 'application/vnd.github.v3+json',
+          Authorization: `Bearer ${params?.apiKey}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      }
     )
-    const files = await filesResponse.json()
+    const filesJson = await filesResponse.json()
+    const files = Array.isArray(filesJson) ? filesJson : []
 
     return {
       success: true,
