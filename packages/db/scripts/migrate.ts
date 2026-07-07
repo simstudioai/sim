@@ -4,6 +4,7 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
+import { runScriptMigrations } from '../script-migrations/index'
 
 /**
  * Concurrent-index convention: plain `CREATE INDEX` write-blocks large/hot
@@ -111,6 +112,7 @@ try {
   try {
     await runMigrationsWithRetry()
     console.log('Migrations applied successfully.')
+    await runScriptMigrations(client)
     await warnOnInvalidIndexes()
   } finally {
     await releaseMigrationLock()
