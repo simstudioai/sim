@@ -12,7 +12,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   description: 'Manage messages, reactions, and members in Teams',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`',
+    'Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_teams',
   category: 'tools',
   integrationType: IntegrationType.Communication,
@@ -39,6 +39,10 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         { label: 'Remove Reaction', id: 'unset_reaction' },
         { label: 'List Team Members', id: 'list_team_members' },
         { label: 'List Channel Members', id: 'list_channel_members' },
+        { label: 'List Chat Members', id: 'list_chat_members' },
+        { label: 'List Teams', id: 'list_teams' },
+        { label: 'List Chats', id: 'list_chats' },
+        { label: 'List Channels', id: 'list_channels' },
       ],
       value: () => 'read_chat',
     },
@@ -83,6 +87,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           'reply_to_message',
           'list_team_members',
           'list_channel_members',
+          'list_channels',
         ],
       },
       required: true,
@@ -105,6 +110,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           'reply_to_message',
           'list_team_members',
           'list_channel_members',
+          'list_channels',
         ],
       },
       required: true,
@@ -122,7 +128,13 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['read_chat', 'write_chat', 'update_chat_message', 'delete_chat_message'],
+        value: [
+          'read_chat',
+          'write_chat',
+          'update_chat_message',
+          'delete_chat_message',
+          'list_chat_members',
+        ],
       },
       required: true,
     },
@@ -136,7 +148,13 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['read_chat', 'write_chat', 'update_chat_message', 'delete_chat_message'],
+        value: [
+          'read_chat',
+          'write_chat',
+          'update_chat_message',
+          'delete_chat_message',
+          'list_chat_members',
+        ],
       },
       required: true,
     },
@@ -281,6 +299,10 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       'microsoft_teams_unset_reaction',
       'microsoft_teams_list_team_members',
       'microsoft_teams_list_channel_members',
+      'microsoft_teams_list_chat_members',
+      'microsoft_teams_list_teams',
+      'microsoft_teams_list_chats',
+      'microsoft_teams_list_channels',
     ],
     config: {
       tool: (params) => {
@@ -313,6 +335,14 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
             return 'microsoft_teams_list_team_members'
           case 'list_channel_members':
             return 'microsoft_teams_list_channel_members'
+          case 'list_chat_members':
+            return 'microsoft_teams_list_chat_members'
+          case 'list_teams':
+            return 'microsoft_teams_list_teams'
+          case 'list_chats':
+            return 'microsoft_teams_list_chats'
+          case 'list_channels':
+            return 'microsoft_teams_list_channels'
           default:
             return 'microsoft_teams_read_chat'
         }
@@ -393,6 +423,21 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           return { ...baseParams, teamId: effectiveTeamId, channelId: effectiveChannelId }
         }
 
+        // Chat member operations
+        if (operation === 'list_chat_members') {
+          return { ...baseParams, chatId: effectiveChatId }
+        }
+
+        // List channels in a team
+        if (operation === 'list_channels') {
+          return { ...baseParams, teamId: effectiveTeamId }
+        }
+
+        // List the user's teams / chats — no additional identifiers required
+        if (operation === 'list_teams' || operation === 'list_chats') {
+          return baseParams
+        }
+
         // Operations that work with either chat or channel (get_message, reactions)
         // These tools handle the routing internally based on what IDs are provided
         if (
@@ -462,8 +507,14 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     },
     reactionType: { type: 'string', description: 'Emoji reaction that was added/removed' },
     success: { type: 'boolean', description: 'Whether the operation was successful' },
-    members: { type: 'json', description: 'Array of team/channel member objects' },
+    members: { type: 'json', description: 'Array of team/channel/chat member objects' },
     memberCount: { type: 'number', description: 'Total number of members' },
+    teams: { type: 'json', description: 'Array of teams the user is a member of' },
+    teamCount: { type: 'number', description: 'Total number of teams' },
+    chats: { type: 'json', description: 'Array of chats the user is part of' },
+    chatCount: { type: 'number', description: 'Total number of chats' },
+    channels: { type: 'json', description: 'Array of channels in the team' },
+    channelCount: { type: 'number', description: 'Total number of channels' },
     type: { type: 'string', description: 'Type of Teams message' },
     id: { type: 'string', description: 'Unique message identifier' },
     timestamp: { type: 'string', description: 'Message timestamp' },
@@ -579,6 +630,13 @@ export const MicrosoftTeamsBlockMeta = {
       description: 'List the members of a Microsoft Teams team or channel for routing or auditing.',
       content:
         '# List Team Members\n\nRetrieve who belongs to a Microsoft Teams team or channel.\n\n## Steps\n1. Decide whether you need team-wide membership or a single channel and pick List Team Members or List Channel Members.\n2. Run the operation with the team id (and channel id when needed).\n3. Normalize the result into a clean roster of names and roles.\n\n## Output\nA roster list with display name and role. Note the total count at the top.',
+    },
+    {
+      name: 'discover-teams-chats-channels',
+      description:
+        'Enumerate the teams, chats, and channels available to the connected Microsoft account before acting on them.',
+      content:
+        '# Discover Teams, Chats, and Channels\n\nResolve human-friendly names to the ids other Microsoft Teams operations need.\n\n## Steps\n1. Run List Teams to see every team the connected account belongs to, or List Chats to see active chats.\n2. If the target is a channel, run List Channels with the resolved team id to find the channel id.\n3. If the target is a chat, run List Chat Members to confirm the right people are present before writing to it.\n4. Feed the resolved team id, channel id, or chat id into the read/write/reply/reaction operations.\n\n## Output\nReturn the matched team, chat, or channel name alongside its id so subsequent steps can reference it.',
     },
   ],
 } as const satisfies BlockMeta

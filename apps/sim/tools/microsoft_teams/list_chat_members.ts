@@ -4,13 +4,13 @@ import type {
 } from '@/tools/microsoft_teams/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const listTeamMembersTool: ToolConfig<
+export const listChatMembersTool: ToolConfig<
   MicrosoftTeamsToolParams,
   MicrosoftTeamsListMembersResponse
 > = {
-  id: 'microsoft_teams_list_team_members',
-  name: 'List Microsoft Teams Team Members',
-  description: 'List all members of a Microsoft Teams team',
+  id: 'microsoft_teams_list_chat_members',
+  name: 'List Microsoft Teams Chat Members',
+  description: 'List all members of a Microsoft Teams chat',
   version: '1.0',
   errorExtractor: 'nested-error-object',
   oauth: {
@@ -24,28 +24,27 @@ export const listTeamMembersTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Microsoft Teams API',
     },
-    teamId: {
+    chatId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'The ID of the team (e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings)',
+      description: 'The ID of the chat (e.g., "19:abc123def456@thread.v2" - from chat listings)',
     },
   },
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the listing was successful' },
-    members: { type: 'array', description: 'Array of team members' },
+    members: { type: 'array', description: 'Array of chat members' },
     memberCount: { type: 'number', description: 'Total number of members' },
   },
 
   request: {
     url: (params) => {
-      const teamId = params.teamId?.trim()
-      if (!teamId) {
-        throw new Error('Team ID is required')
+      const chatId = params.chatId?.trim()
+      if (!chatId) {
+        throw new Error('Chat ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/members`
+      return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/members`
     },
     method: 'GET',
     headers: (params) => {
@@ -75,7 +74,7 @@ export const listTeamMembersTool: ToolConfig<
         members,
         memberCount: members.length,
         metadata: {
-          teamId: params?.teamId || '',
+          chatId: params?.chatId || '',
         },
       },
     }

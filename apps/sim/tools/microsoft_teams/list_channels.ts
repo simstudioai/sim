@@ -1,16 +1,16 @@
 import type {
-  MicrosoftTeamsListMembersResponse,
+  MicrosoftTeamsListChannelsResponse,
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const listTeamMembersTool: ToolConfig<
+export const listChannelsTool: ToolConfig<
   MicrosoftTeamsToolParams,
-  MicrosoftTeamsListMembersResponse
+  MicrosoftTeamsListChannelsResponse
 > = {
-  id: 'microsoft_teams_list_team_members',
-  name: 'List Microsoft Teams Team Members',
-  description: 'List all members of a Microsoft Teams team',
+  id: 'microsoft_teams_list_channels',
+  name: 'List Microsoft Teams Channels',
+  description: 'List all channels in a Microsoft Teams team',
   version: '1.0',
   errorExtractor: 'nested-error-object',
   oauth: {
@@ -35,8 +35,8 @@ export const listTeamMembersTool: ToolConfig<
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the listing was successful' },
-    members: { type: 'array', description: 'Array of team members' },
-    memberCount: { type: 'number', description: 'Total number of members' },
+    channels: { type: 'array', description: 'Array of channels in the team' },
+    channelCount: { type: 'number', description: 'Total number of channels' },
   },
 
   request: {
@@ -45,7 +45,7 @@ export const listTeamMembersTool: ToolConfig<
       if (!teamId) {
         throw new Error('Team ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/members`
+      return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels`
     },
     method: 'GET',
     headers: (params) => {
@@ -61,19 +61,19 @@ export const listTeamMembersTool: ToolConfig<
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     const data = await response.json()
 
-    const members = (data.value || []).map((member: any) => ({
-      id: member.id || '',
-      displayName: member.displayName || '',
-      email: member.email || '',
-      userId: member.userId || '',
-      roles: member.roles || [],
+    const channels = (data.value || []).map((channel: any) => ({
+      id: channel.id || '',
+      displayName: channel.displayName || '',
+      description: channel.description ?? '',
+      membershipType: channel.membershipType || 'standard',
+      webUrl: channel.webUrl || '',
     }))
 
     return {
       success: true,
       output: {
-        members,
-        memberCount: members.length,
+        channels,
+        channelCount: channels.length,
         metadata: {
           teamId: params?.teamId || '',
         },
