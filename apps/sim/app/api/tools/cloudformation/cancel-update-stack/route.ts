@@ -33,18 +33,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`Cancelling update for CloudFormation stack "${validatedData.stackName}"`)
 
-    const command = new CancelUpdateStackCommand({
-      StackName: validatedData.stackName,
-    })
+    try {
+      const command = new CancelUpdateStackCommand({
+        StackName: validatedData.stackName,
+      })
 
-    await client.send(command)
+      await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        message: `Update for stack "${validatedData.stackName}" is being cancelled and rolled back`,
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          message: `Update for stack "${validatedData.stackName}" is being cancelled and rolled back`,
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to cancel CloudFormation stack update')
     logger.error('CancelUpdateStack failed', { error: errorMessage })

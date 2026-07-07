@@ -62,10 +62,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const command = new DescribeAlarmHistoryCommand({
           ...(validatedData.alarmName && { AlarmName: validatedData.alarmName }),
-          // Without an alarm name, default to both alarm kinds (AWS otherwise only returns metric alarms).
-          ...(!validatedData.alarmName && {
-            AlarmTypes: ['MetricAlarm', 'CompositeAlarm'] as AlarmType[],
-          }),
+          // AWS defaults AlarmTypes to MetricAlarm-only, so always request both kinds explicitly.
+          AlarmTypes: ['MetricAlarm', 'CompositeAlarm'] as AlarmType[],
           ...(validatedData.historyItemType && {
             HistoryItemType: validatedData.historyItemType,
           }),

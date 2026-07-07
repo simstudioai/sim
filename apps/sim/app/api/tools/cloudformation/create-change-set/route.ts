@@ -36,26 +36,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       `Creating change set "${validatedData.changeSetName}" for stack "${validatedData.stackName}"`
     )
 
-    const command = new CreateChangeSetCommand({
-      StackName: validatedData.stackName,
-      ChangeSetName: validatedData.changeSetName,
-      TemplateBody: validatedData.templateBody,
-      UsePreviousTemplate: validatedData.usePreviousTemplate,
-      Parameters: toStackParameters(validatedData.parameters),
-      Capabilities: parseCapabilities(validatedData.capabilities),
-      ChangeSetType: validatedData.changeSetType,
-      Description: validatedData.description,
-    })
+    try {
+      const command = new CreateChangeSetCommand({
+        StackName: validatedData.stackName,
+        ChangeSetName: validatedData.changeSetName,
+        TemplateBody: validatedData.templateBody,
+        UsePreviousTemplate: validatedData.usePreviousTemplate,
+        Parameters: toStackParameters(validatedData.parameters),
+        Capabilities: parseCapabilities(validatedData.capabilities),
+        ChangeSetType: validatedData.changeSetType,
+        Description: validatedData.description,
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        changeSetId: response.Id ?? '',
-        stackId: response.StackId ?? '',
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          changeSetId: response.Id ?? '',
+          stackId: response.StackId ?? '',
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to create CloudFormation change set')
     logger.error('CreateChangeSet failed', { error: errorMessage })

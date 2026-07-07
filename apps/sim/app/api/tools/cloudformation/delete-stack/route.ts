@@ -33,28 +33,32 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`Deleting CloudFormation stack "${validatedData.stackName}"`)
 
-    const retainResources = validatedData.retainResources
-      ?.split(',')
-      .map((r) => r.trim())
-      .filter(Boolean)
+    try {
+      const retainResources = validatedData.retainResources
+        ?.split(',')
+        .map((r) => r.trim())
+        .filter(Boolean)
 
-    const command = new DeleteStackCommand({
-      StackName: validatedData.stackName,
-      ...(retainResources && retainResources.length > 0 && { RetainResources: retainResources }),
-    })
+      const command = new DeleteStackCommand({
+        StackName: validatedData.stackName,
+        ...(retainResources && retainResources.length > 0 && { RetainResources: retainResources }),
+      })
 
-    await client.send(command)
+      await client.send(command)
 
-    logger.info(
-      `Successfully requested deletion of CloudFormation stack "${validatedData.stackName}"`
-    )
+      logger.info(
+        `Successfully requested deletion of CloudFormation stack "${validatedData.stackName}"`
+      )
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        message: `Deletion of stack "${validatedData.stackName}" has been initiated`,
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          message: `Deletion of stack "${validatedData.stackName}" has been initiated`,
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to delete CloudFormation stack')
     logger.error('DeleteStack failed', { error: errorMessage })

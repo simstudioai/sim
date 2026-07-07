@@ -34,23 +34,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`Updating CloudFormation stack "${validatedData.stackName}"`)
 
-    const command = new UpdateStackCommand({
-      StackName: validatedData.stackName,
-      TemplateBody: validatedData.templateBody,
-      UsePreviousTemplate: validatedData.usePreviousTemplate,
-      Parameters: toStackParameters(validatedData.parameters),
-      Capabilities: parseCapabilities(validatedData.capabilities),
-      Tags: toStackTags(validatedData.tags),
-    })
+    try {
+      const command = new UpdateStackCommand({
+        StackName: validatedData.stackName,
+        TemplateBody: validatedData.templateBody,
+        UsePreviousTemplate: validatedData.usePreviousTemplate,
+        Parameters: toStackParameters(validatedData.parameters),
+        Capabilities: parseCapabilities(validatedData.capabilities),
+        Tags: toStackTags(validatedData.tags),
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        stackId: response.StackId ?? '',
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          stackId: response.StackId ?? '',
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to update CloudFormation stack')
     logger.error('UpdateStack failed', { error: errorMessage })

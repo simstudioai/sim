@@ -31,31 +31,35 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
 
-    const command = new GetTemplateSummaryCommand({
-      ...(validatedData.templateBody && { TemplateBody: validatedData.templateBody }),
-      ...(validatedData.stackName && { StackName: validatedData.stackName }),
-    })
+    try {
+      const command = new GetTemplateSummaryCommand({
+        ...(validatedData.templateBody && { TemplateBody: validatedData.templateBody }),
+        ...(validatedData.stackName && { StackName: validatedData.stackName }),
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        description: response.Description,
-        parameters: (response.Parameters ?? []).map((p) => ({
-          parameterKey: p.ParameterKey,
-          defaultValue: p.DefaultValue,
-          parameterType: p.ParameterType,
-          noEcho: p.NoEcho,
-          description: p.Description,
-        })),
-        capabilities: response.Capabilities ?? [],
-        capabilitiesReason: response.CapabilitiesReason,
-        resourceTypes: response.ResourceTypes ?? [],
-        version: response.Version,
-        declaredTransforms: response.DeclaredTransforms ?? [],
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          description: response.Description,
+          parameters: (response.Parameters ?? []).map((p) => ({
+            parameterKey: p.ParameterKey,
+            defaultValue: p.DefaultValue,
+            parameterType: p.ParameterType,
+            noEcho: p.NoEcho,
+            description: p.Description,
+          })),
+          capabilities: response.Capabilities ?? [],
+          capabilitiesReason: response.CapabilitiesReason,
+          resourceTypes: response.ResourceTypes ?? [],
+          version: response.Version,
+          declaredTransforms: response.DeclaredTransforms ?? [],
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to get CloudFormation template summary')
     logger.error('GetTemplateSummary failed', { error: errorMessage })

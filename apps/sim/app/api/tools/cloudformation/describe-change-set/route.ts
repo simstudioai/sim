@@ -31,37 +31,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
 
-    const command = new DescribeChangeSetCommand({
-      ChangeSetName: validatedData.changeSetName,
-      ...(validatedData.stackName && { StackName: validatedData.stackName }),
-    })
+    try {
+      const command = new DescribeChangeSetCommand({
+        ChangeSetName: validatedData.changeSetName,
+        ...(validatedData.stackName && { StackName: validatedData.stackName }),
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    const changes = (response.Changes ?? []).map((c) => ({
-      action: c.ResourceChange?.Action,
-      logicalResourceId: c.ResourceChange?.LogicalResourceId,
-      physicalResourceId: c.ResourceChange?.PhysicalResourceId,
-      resourceType: c.ResourceChange?.ResourceType,
-      replacement: c.ResourceChange?.Replacement,
-    }))
+      const changes = (response.Changes ?? []).map((c) => ({
+        action: c.ResourceChange?.Action,
+        logicalResourceId: c.ResourceChange?.LogicalResourceId,
+        physicalResourceId: c.ResourceChange?.PhysicalResourceId,
+        resourceType: c.ResourceChange?.ResourceType,
+        replacement: c.ResourceChange?.Replacement,
+      }))
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        changeSetName: response.ChangeSetName,
-        changeSetId: response.ChangeSetId,
-        stackId: response.StackId,
-        stackName: response.StackName,
-        description: response.Description,
-        executionStatus: response.ExecutionStatus,
-        status: response.Status,
-        statusReason: response.StatusReason,
-        creationTime: response.CreationTime?.getTime(),
-        capabilities: response.Capabilities ?? [],
-        changes,
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          changeSetName: response.ChangeSetName,
+          changeSetId: response.ChangeSetId,
+          stackId: response.StackId,
+          stackName: response.StackName,
+          description: response.Description,
+          executionStatus: response.ExecutionStatus,
+          status: response.Status,
+          statusReason: response.StatusReason,
+          creationTime: response.CreationTime?.getTime(),
+          capabilities: response.Capabilities ?? [],
+          changes,
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to describe CloudFormation change set')
     logger.error('DescribeChangeSet failed', { error: errorMessage })

@@ -33,19 +33,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`Executing change set "${validatedData.changeSetName}"`)
 
-    const command = new ExecuteChangeSetCommand({
-      ChangeSetName: validatedData.changeSetName,
-      ...(validatedData.stackName && { StackName: validatedData.stackName }),
-    })
+    try {
+      const command = new ExecuteChangeSetCommand({
+        ChangeSetName: validatedData.changeSetName,
+        ...(validatedData.stackName && { StackName: validatedData.stackName }),
+      })
 
-    await client.send(command)
+      await client.send(command)
 
-    return NextResponse.json({
-      success: true,
-      output: {
-        message: `Change set "${validatedData.changeSetName}" execution has been initiated`,
-      },
-    })
+      return NextResponse.json({
+        success: true,
+        output: {
+          message: `Change set "${validatedData.changeSetName}" execution has been initiated`,
+        },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Failed to execute CloudFormation change set')
     logger.error('ExecuteChangeSet failed', { error: errorMessage })
