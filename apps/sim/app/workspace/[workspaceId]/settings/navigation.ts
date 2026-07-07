@@ -27,6 +27,7 @@ export type SettingsSection =
   | 'secrets'
   | 'credential-sets'
   | 'access-control'
+  | 'custom-blocks'
   | 'audit-logs'
   | 'apikeys'
   | 'byok'
@@ -81,6 +82,7 @@ export interface NavigationItem {
 const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
 const isCredentialSetsEnabled = isTruthy(getEnv('NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED'))
 const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
+const isCustomBlocksEnabled = isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
 const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
 const isWhitelabelingEnabled = isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED'))
 const isAuditLogsEnabled = isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED'))
@@ -278,6 +280,16 @@ export const allNavigationItems: NavigationItem[] = [
     requiresEnterprise: true,
     selfHostedOverride: isWhitelabelingEnabled,
     docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
+  },
+  {
+    id: 'custom-blocks',
+    label: 'Custom blocks',
+    description: 'Publish workflows as reusable blocks for your organization.',
+    icon: HexSimple,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
+    selfHostedOverride: isCustomBlocksEnabled,
   },
   {
     id: 'admin',

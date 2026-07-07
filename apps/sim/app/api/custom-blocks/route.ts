@@ -31,6 +31,8 @@ function toWire(block: CustomBlockWithInputs) {
     id: block.id,
     organizationId: block.organizationId,
     workflowId: block.workflowId,
+    workflowName: block.workflowName,
+    workspaceName: block.workspaceName,
     type: block.type,
     name: block.name,
     description: block.description,
@@ -82,7 +84,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const userId = session.user.id
-  const { workspaceId, workflowId, name, description, iconUrl, exposedOutputs } = parsed.data.body
+  const { workspaceId, workflowId, name, description, iconUrl, inputs, exposedOutputs } =
+    parsed.data.body
 
   if (!(await hasWorkspaceAdminAccess(userId, workspaceId))) {
     return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
@@ -117,6 +120,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       name,
       description,
       iconUrl,
+      inputs,
       exposedOutputs,
     })
     return NextResponse.json({ customBlock: toWire(block) })

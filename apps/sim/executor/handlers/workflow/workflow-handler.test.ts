@@ -1,7 +1,10 @@
 import { setupGlobalFetchMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
-import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
+import {
+  remapCustomBlockInputKeys,
+  WorkflowBlockHandler,
+} from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -385,5 +388,47 @@ describe('WorkflowBlockHandler', () => {
         childTraceSpans: [],
       })
     })
+  })
+})
+
+describe('remapCustomBlockInputKeys', () => {
+  const childBlocks = {
+    start: {
+      type: 'start_trigger',
+      subBlocks: {
+        inputFormat: {
+          value: [
+            { id: 'f1', name: 'firstName', type: 'string' },
+            { id: 'f2', name: 'payload', type: 'object' },
+          ],
+        },
+      },
+    },
+  }
+
+  it('maps field ids to current names and drops keys with no matching field', () => {
+    const out = remapCustomBlockInputKeys(
+      { f1: 'Theodore', removed: 'stale' },
+      childBlocks as Record<string, unknown>
+    )
+    expect(out).toEqual({ firstName: 'Theodore' })
+    expect('removed' in out).toBe(false)
+  })
+
+  it('decodes an object/array input from its JSON-string value (no double-encoding)', () => {
+    const out = remapCustomBlockInputKeys(
+      { f1: 'Theodore', f2: '"hello"' },
+      childBlocks as Record<string, unknown>
+    )
+    expect(out).toEqual({ firstName: 'Theodore', payload: 'hello' })
+  })
+
+  it('parses a real object value and leaves invalid JSON as a raw string', () => {
+    expect(
+      remapCustomBlockInputKeys({ f2: '{"a":1}' }, childBlocks as Record<string, unknown>)
+    ).toEqual({ payload: { a: 1 } })
+    expect(
+      remapCustomBlockInputKeys({ f2: 'not json' }, childBlocks as Record<string, unknown>)
+    ).toEqual({ payload: 'not json' })
   })
 })

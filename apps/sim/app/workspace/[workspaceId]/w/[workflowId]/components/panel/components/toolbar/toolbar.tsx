@@ -39,6 +39,7 @@ import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
+import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
@@ -137,7 +138,7 @@ const ToolbarItem = memo(function ToolbarItem({
               'toolbar-item-icon transition-transform duration-200',
               getTileIconColorClass(item.bgColor),
               'group-hover:scale-110',
-              '!size-[10px]'
+              'size-[10px]'
             )}
           />
         )}
@@ -450,6 +451,9 @@ export const Toolbar = memo(
     const workspaceId = params?.workspaceId as string | undefined
     const currentWorkflowId = params?.workflowId as string | undefined
     const { data: customBlocksData } = useCustomBlocks(workspaceId)
+    // No-icon custom blocks fall back to the org's whitelabel logo, then the glyph.
+    const { data: whitelabel } = useWhitelabelSettings(customBlocksData?.[0]?.organizationId)
+    const fallbackIconUrl = whitelabel?.logoUrl ?? null
 
     const allTriggers = getTriggers()
     const allBlocks = getBlocks()
@@ -463,10 +467,10 @@ export const Toolbar = memo(
       return customBlocksData
         .filter((cb) => cb.enabled && cb.workflowId !== currentWorkflowId)
         .map((cb) => {
-          const icon = getCustomBlockIcon(cb.iconUrl)
-          // Uploaded icons render on a transparent tile (no colored box); the
+          const icon = getCustomBlockIcon(cb.iconUrl, fallbackIconUrl)
+          // An image (uploaded or whitelabel) renders on a transparent tile; the
           // default glyph keeps the neutral tile so it stays visible.
-          const tileColor = cb.iconUrl ? 'transparent' : CUSTOM_BLOCK_TILE_COLOR
+          const tileColor = cb.iconUrl || fallbackIconUrl ? 'transparent' : CUSTOM_BLOCK_TILE_COLOR
           return {
             name: cb.name,
             type: cb.type,
@@ -486,7 +490,7 @@ export const Toolbar = memo(
           } satisfies BlockItem
         })
         .sort((a, b) => a.name.localeCompare(b.name))
-    }, [customBlocksData, currentWorkflowId])
+    }, [customBlocksData, currentWorkflowId, fallbackIconUrl])
 
     const visibleTriggers = useMemo(() => {
       if (sandboxAllowedBlocks !== null) return []

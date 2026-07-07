@@ -9,7 +9,7 @@ import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 export const CUSTOM_BLOCK_TYPE_PREFIX = 'custom_block_'
 
 /** Whether a block type is a published custom block. */
-export function isCustomBlockType(type: string | undefined | null): boolean {
+export function isCustomBlockType(type: string | undefined | null): type is string {
   return typeof type === 'string' && type.startsWith(CUSTOM_BLOCK_TYPE_PREFIX)
 }
 
@@ -21,6 +21,18 @@ export interface CustomBlockOutput {
   blockId: string
   path: string
   name: string
+}
+
+/**
+ * A curated input the admin chose to expose on the block, keyed by the source
+ * Start field's stable `id`, with optional consumer-facing hints.
+ */
+export interface CustomBlockInput {
+  id: string
+  name: string
+  type: string
+  placeholder?: string
+  description?: string
 }
 
 /**
@@ -88,6 +100,7 @@ export function buildCustomBlockConfig(
       title: field.name,
       type,
       description: field.description,
+      placeholder: field.placeholder,
     }
     if (field.type === 'object' || field.type === 'array') sub.language = 'json'
     if (field.type === 'file[]') sub.multiple = true

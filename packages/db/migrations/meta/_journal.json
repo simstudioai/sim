@@ -1779,6 +1779,13 @@
       "when": 1782957781005,
       "tag": "0254_custom_block",
       "breakpoints": true
+    },
+    {
+      "idx": 255,
+      "version": "7",
+      "when": 1783198540620,
+      "tag": "0255_custom_block_inputs",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { hydrateClientCustomBlocks } from '@/blocks/custom/client-overlay'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
+import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 
 /**
@@ -19,6 +20,11 @@ export function CustomBlocksLoader() {
   const workspaceId = params?.workspaceId as string | undefined
   const { data } = useCustomBlocks(workspaceId)
 
+  // Blocks with no uploaded icon fall back to the org's whitelabel logo, then the
+  // default glyph. All blocks share the org, so read it off the first row.
+  const { data: whitelabel } = useWhitelabelSettings(data?.[0]?.organizationId)
+  const fallbackIconUrl = whitelabel?.logoUrl ?? null
+
   useEffect(() => {
     hydrateClientCustomBlocks(
       // Only enabled blocks are resolvable/executable server-side, so the client
@@ -26,8 +32,9 @@ export function CustomBlocksLoader() {
       // the block is offered but every run fails.
       (data ?? [])
         .filter((block) => block.enabled)
-        .map((block) =>
-          buildCustomBlockConfig(
+        .map((block) => {
+          const effectiveIcon = block.iconUrl || fallbackIconUrl
+          return buildCustomBlockConfig(
             {
               type: block.type,
               name: block.name,
@@ -37,13 +44,13 @@ export function CustomBlocksLoader() {
             },
             block.inputFields,
             {
-              icon: getCustomBlockIcon(block.iconUrl),
-              bgColor: block.iconUrl ? 'transparent' : undefined,
+              icon: getCustomBlockIcon(block.iconUrl, fallbackIconUrl),
+              bgColor: effectiveIcon ? 'transparent' : undefined,
             }
           )
-        )
+        })
     )
-  }, [data])
+  }, [data, fallbackIconUrl])
 
   return null
 }
