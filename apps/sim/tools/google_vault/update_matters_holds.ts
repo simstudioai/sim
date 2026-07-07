@@ -117,6 +117,12 @@ export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsPar
         body.accounts = emails.map((email: string) => ({ email }))
       } else if (params.orgUnitId) {
         body.orgUnit = { orgUnitId: params.orgUnitId }
+      } else {
+        throw new Error(
+          'Updating a hold replaces its full scope: re-provide the current Account Emails or Org Unit ID ' +
+            '(they are not preserved automatically). To add or remove individual custodians without ' +
+            'resending the full scope, use Add Held Accounts / Remove Held Accounts instead.'
+        )
       }
 
       if (params.corpus === 'MAIL' || params.corpus === 'GROUPS') {
