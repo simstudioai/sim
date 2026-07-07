@@ -962,6 +962,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
           result.tagIds = undefined
           result.tenantId = undefined
           result.folderId = undefined
+          result.trackConversion = undefined
         }
         if (params.operation !== 'create_link' && params.operation !== 'upsert_link') {
           result.url = undefined
@@ -985,7 +986,10 @@ export const DubBlock: BlockConfig<DubResponse> = {
           if (params.linkArchived === 'true') result.archived = true
           if (params.tenantId) result.tenantId = params.tenantId
           if (params.folderId) result.folderId = params.folderId
-          result.trackConversion = params.trackConversion === 'true'
+          // Only ever send `true` or omit — an explicit `false` on update_link would
+          // silently disable conversion tracking on links that already had it enabled,
+          // since Dub's update is a partial PATCH (matches linkRewrite/linkArchived).
+          result.trackConversion = params.trackConversion === 'true' ? true : undefined
         }
         if (params.operation === 'get_link') {
           if (params.getLinkExternalId) result.externalId = params.getLinkExternalId
