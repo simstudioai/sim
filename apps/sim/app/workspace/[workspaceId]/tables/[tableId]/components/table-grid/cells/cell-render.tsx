@@ -6,6 +6,7 @@ import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
 import type { RowExecutionMetadata } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import { storageToDisplay } from '../../../utils'
 import type { DisplayColumn } from '../types'
 import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
@@ -234,6 +235,7 @@ interface CellRenderProps {
 export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactElement | null {
   const valueText = kind.kind === 'value' ? kind.text : null
   const revealedValueText = useTypewriter(valueText)
+  const timeZone = useTimezone()
 
   switch (kind.kind) {
     case 'value':
@@ -332,7 +334,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
     case 'date':
       return (
         <span className={cn('text-[var(--text-primary)]', isEditing && 'invisible')}>
-          {storageToDisplay(kind.text)}
+          {storageToDisplay(kind.text, { seconds: true, timeZone })}
         </span>
       )
 

@@ -14,6 +14,7 @@ import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup 
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -485,6 +486,10 @@ export function TableGrid({
 
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
+
+  const timeZone = useTimezone()
+  const timeZoneRef = useRef(timeZone)
+  timeZoneRef.current = timeZone
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
@@ -1409,7 +1414,7 @@ export function TableGrid({
             }
           }
         } else if (column.type === 'date') {
-          text = storageToDisplay(String(val))
+          text = storageToDisplay(String(val), { seconds: true, timeZone: timeZoneRef.current })
         } else {
           text = String(val)
         }
@@ -2717,7 +2722,8 @@ export function TableGrid({
           try {
             rowData[currentCols[targetCol].key] = cleanCellValue(
               pasteRows[r][c],
-              currentCols[targetCol]
+              currentCols[targetCol],
+              timeZoneRef.current
             )
           } catch {
             /* skip invalid values */

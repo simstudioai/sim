@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { Chip, chipVariants } from '../chip/chip'
@@ -123,6 +123,35 @@ function extractTime(value: string | Date | undefined, fallback: string): string
   return typeof value === 'string' && value.includes('T') ? value.slice(11, 16) : fallback
 }
 
+/** Local `HH:mm` (plus `:ss` when non-zero) time-of-day of a `Date`. */
+function timeOfDayFrom(date: Date): string {
+  const base = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+  return date.getSeconds() > 0 ? `${base}:${pad2(date.getSeconds())}` : base
+}
+
+/**
+ * Parses a date value into its local day plus an optional time-of-day. Bare
+ * `YYYY-MM-DD` strings are pure days (no time). Datetime strings parse through
+ * `Date` so an explicit offset (`Z`, `-07:00`) resolves to the **local** day —
+ * unlike {@link parseDateValue}'s date-slice fast path, which would read the
+ * UTC day. A midnight-sharp time reads as "no time" so date-only values that
+ * arrive as `Date`s or `T00:00` strings stay pure days.
+ */
+function parseDateTimeValue(value: string | Date | undefined): {
+  date: Date | null
+  time: string | null
+} {
+  if (!value) return { date: null, time: null }
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return { date: parseDateValue(value), time: null }
+  }
+  const parsed = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(parsed.getTime())) return { date: null, time: null }
+  const isMidnight =
+    parsed.getHours() === 0 && parsed.getMinutes() === 0 && parsed.getSeconds() === 0
+  return { date: parsed, time: isMidnight ? null : timeOfDayFrom(parsed) }
+}
+
 /**
  * Orders a start/end pair and serializes the range bounds to the wire format.
  * Without `showTime` the bounds are bare `YYYY-MM-DD` days; with it, the start
@@ -164,10 +193,20 @@ interface CalendarBaseProps {
 
 interface CalendarSingleProps extends CalendarBaseProps {
   mode?: 'single'
-  /** Selected date as a `YYYY-MM-DD` string or `Date`. */
+  /** Selected date as a `YYYY-MM-DD` (or datetime) string or `Date`. */
   value?: string | Date
-  /** Called with the picked date in `YYYY-MM-DD` format. */
+  /**
+   * Called with the picked date in `YYYY-MM-DD` format — or, with `showTime`
+   * and a set time, the local wall time `YYYY-MM-DDTHH:mm[:ss]`.
+   */
   onChange?: (value: string) => void
+  /**
+   * Adds a time-of-day input under the grid. Day picks keep the current time
+   * (seconds included when the seeded value had them); time edits re-emit on
+   * the selected (or today's) day. Without a time set, day picks emit bare
+   * `YYYY-MM-DD` days.
+   */
+  showTime?: boolean
 }
 
 interface CalendarRangeProps extends CalendarBaseProps {
@@ -203,6 +242,9 @@ export type CalendarProps = CalendarSingleProps | CalendarRangeProps
  *
  * @example
  * <Calendar value={value} onChange={setValue} />
+ *
+ * @example
+ * <Calendar value={datetime} onChange={setDatetime} showTime />
  *
  * @example
  * <Calendar mode='range' startDate={from} endDate={to} showTime onRangeChange={apply} />
@@ -289,19 +331,35 @@ function WeekdayRow() {
   )
 }
 
-function SingleCalendarView({ value, onChange, className }: CalendarSingleProps) {
-  const selected = useMemo(() => parseDateValue(value), [value])
+function SingleCalendarView({ value, onChange, showTime = false, className }: CalendarSingleProps) {
+  const parsed = useMemo(() => parseDateTimeValue(value), [value])
+  const selected = parsed.date
   const { today, view, setView, goToPrevMonth, goToNextMonth, cells } = useCalendarView(selected)
 
-  useEffect(() => {
+  const [timeOfDay, setTimeOfDay] = useState<string | null>(parsed.time)
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
+    setTimeOfDay(parsed.time)
     if (selected) setView({ month: selected.getMonth(), year: selected.getFullYear() })
-  }, [selected, setView])
+  }
 
-  const selectDay = (day: number) => onChange?.(toDateString(view.year, view.month, day))
+  const emit = (year: number, month: number, day: number, time: string | null) => {
+    const dateStr = toDateString(year, month, day)
+    onChange?.(showTime && time ? `${dateStr}T${time}` : dateStr)
+  }
+
+  const selectDay = (day: number) => emit(view.year, view.month, day, timeOfDay)
 
   const goToToday = () => {
     setView({ month: today.getMonth(), year: today.getFullYear() })
-    onChange?.(toDateString(today.getFullYear(), today.getMonth(), today.getDate()))
+    emit(today.getFullYear(), today.getMonth(), today.getDate(), timeOfDay)
+  }
+
+  const handleTimeChange = (time: string) => {
+    setTimeOfDay(time)
+    const base = selected ?? today
+    emit(base.getFullYear(), base.getMonth(), base.getDate(), time)
   }
 
   return (
@@ -331,6 +389,18 @@ function SingleCalendarView({ value, onChange, className }: CalendarSingleProps)
           )
         })}
       </div>
+
+      {showTime && (
+        <div className='mt-1 flex items-center gap-2'>
+          <span className='shrink-0 text-[var(--text-muted)] text-caption'>Time</span>
+          <ChipTimePicker
+            value={timeOfDay?.slice(0, 5)}
+            onChange={handleTimeChange}
+            fullWidth
+            flush
+          />
+        </div>
+      )}
 
       <button
         type='button'

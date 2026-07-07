@@ -95,6 +95,7 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   TABLE_LIST_STALE_TIME,
   type TableQueryScope,
@@ -1410,6 +1411,7 @@ interface UploadCsvParams {
  */
 export function useUploadCsvToTable() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
 
   return useMutation({
     mutationFn: async ({ workspaceId, file }: UploadCsvParams) => {
@@ -1417,6 +1419,7 @@ export function useUploadCsvToTable() {
       // stream and needs workspaceId before it reaches the (large) file.
       const formData = new FormData()
       formData.append('workspaceId', workspaceId)
+      formData.append('timezone', timezone)
       formData.append('file', file)
 
       // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
@@ -1474,11 +1477,12 @@ async function uploadCsvToWorkspaceStorage(
  */
 export function useImportCsvAsync() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({ workspaceId, file, onProgress }: ImportCsvAsyncParams) => {
       const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
       const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName: file.name },
+        body: { workspaceId, fileKey, fileName: file.name, timezone },
       })
       return response.data
     },
@@ -1507,10 +1511,11 @@ interface ImportFileAsTableParams {
  */
 export function useImportFileAsTable() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
       const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName, deleteSourceFile: false },
+        body: { workspaceId, fileKey, fileName, deleteSourceFile: false, timezone },
       })
       return response.data
     },
@@ -1543,6 +1548,7 @@ interface ImportCsvIntoTableAsyncParams {
  */
 export function useImportCsvIntoTableAsync() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({
       workspaceId,
@@ -1556,7 +1562,7 @@ export function useImportCsvIntoTableAsync() {
       const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
       const response = await requestJson(importIntoTableAsyncContract, {
         params: { tableId },
-        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns },
+        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns, timezone },
       })
       return response.data
     },
@@ -1601,6 +1607,7 @@ interface ImportCsvIntoTableResponse {
  */
 export function useImportCsvIntoTable() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
 
   return useMutation({
     mutationFn: async ({
@@ -1616,6 +1623,7 @@ export function useImportCsvIntoTable() {
       const formData = new FormData()
       formData.append('workspaceId', workspaceId)
       formData.append('mode', mode)
+      formData.append('timezone', timezone)
       if (mapping) {
         formData.append('mapping', JSON.stringify(mapping))
       }

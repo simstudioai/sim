@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Calendar, cn, Popover, PopoverAnchor, PopoverContent, toast } from '@sim/emcn'
 import type { ColumnDefinition } from '@/lib/table'
+import { isCalendarDateString } from '@/lib/table/dates'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import {
   cleanCellValue,
+  dateValueToLocalParts,
   displayToStorage,
   formatValueForInput,
   storageToDisplay,
@@ -28,7 +31,13 @@ function handleEditorWheel(e: React.WheelEvent<HTMLInputElement>) {
   }
 }
 
-/** Inline editor for `date` columns — text input + popover calendar. */
+/**
+ * Inline editor for `date` columns — text input + popover with a calendar and
+ * a time field. Picking a day on a date-only value commits immediately (the
+ * pick fully determines the value); when the value carries a time, picker
+ * edits update the draft in place — the day pick keeps the time-of-day
+ * (including seconds), the time field keeps the day — and Enter/blur commits.
+ */
 function InlineDateEditor({
   value,
   column,
@@ -37,16 +46,38 @@ function InlineDateEditor({
   onCancel,
 }: InlineEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const doneRef = useRef(false)
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  /** Timestamp of the last pointerdown inside the popover — blur-save skips
+   *  and refocuses while a popover interaction is in flight (covers browsers
+   *  where buttons don't take focus on click). */
+  const popoverPointerAtRef = useRef(0)
+  const timeZone = useTimezone()
 
   const storedValue = formatValueForInput(value, column.type)
   const [draft, setDraft] = useState(() =>
-    initialCharacter !== undefined ? initialCharacter : storageToDisplay(storedValue)
+    initialCharacter !== undefined
+      ? initialCharacter
+      : storageToDisplay(storedValue, { seconds: true, timeZone })
   )
   const [invalid, setInvalid] = useState(false)
+  /** Picker commits mutate the draft from timeouts/child handlers; reading it
+   *  through a ref keeps the scheduled blur-save from saving a stale draft. */
+  const draftRef = useRef(draft)
+  draftRef.current = draft
 
-  const pickerValue = displayToStorage(draft) || storedValue || undefined
+  /** The calendar is zone-agnostic (it works on wall times), so feed it the
+   *  wall representation of the draft in the viewer's effective zone. */
+  const draftParts = dateValueToLocalParts(
+    displayToStorage(draft, timeZone) ?? storedValue,
+    timeZone
+  )
+  const pickerValue = draftParts.day
+    ? draftParts.time
+      ? `${draftParts.day}T${draftParts.time}`
+      : draftParts.day
+    : undefined
 
   useEffect(() => {
     const input = inputRef.current
@@ -66,7 +97,8 @@ function InlineDateEditor({
     (reason: SaveReason, storageVal?: string) => {
       if (doneRef.current) return
       clearTimeout(blurTimeoutRef.current)
-      const raw = storageVal ?? displayToStorage(draft) ?? draft
+      const current = draftRef.current
+      const raw = storageVal ?? displayToStorage(current, timeZone) ?? current
       if (raw && Number.isNaN(Date.parse(raw))) {
         if (reason === 'blur') {
           if (!invalid) toast.error('Invalid date')
@@ -82,7 +114,7 @@ function InlineDateEditor({
       doneRef.current = true
       onSave(raw || null, reason)
     },
-    [draft, invalid, onSave, onCancel]
+    [invalid, onSave, onCancel, timeZone]
   )
 
   const handleKeyDown = useCallback(
@@ -103,16 +135,45 @@ function InlineDateEditor({
     [doSave, onCancel]
   )
 
-  const handleBlur = useCallback(() => {
-    blurTimeoutRef.current = setTimeout(() => doSave('blur'), 200)
+  const handlePopoverPointerDown = useCallback(() => {
+    popoverPointerAtRef.current = Date.now()
+  }, [])
+
+  /** Saves on blur unless focus (or an in-flight pointer interaction) is still
+   *  inside the editor's input/popover system. */
+  const scheduleBlurSave = useCallback(() => {
+    clearTimeout(blurTimeoutRef.current)
+    blurTimeoutRef.current = setTimeout(() => {
+      const active = document.activeElement
+      if (active && (active === inputRef.current || popoverRef.current?.contains(active))) return
+      if (Date.now() - popoverPointerAtRef.current < 300) {
+        inputRef.current?.focus()
+        return
+      }
+      doSave('blur')
+    }, 200)
   }, [doSave])
 
+  /**
+   * The calendar (with `showTime`) owns the day/time merge and emits either a
+   * bare `YYYY-MM-DD` (no time — the pick fully determines the value, commit
+   * immediately) or a local `YYYY-MM-DDTHH:mm[:ss]` wall time (update the
+   * draft and keep editing).
+   */
   const handlePickerChange = useCallback(
-    (dateStr: string) => {
+    (picked: string) => {
       clearTimeout(blurTimeoutRef.current)
-      doSave('enter', dateStr)
+      if (isCalendarDateString(picked)) {
+        doSave('enter', picked)
+        return
+      }
+      const canonical = displayToStorage(picked, timeZone)
+      if (!canonical) return
+      setDraft(storageToDisplay(canonical, { seconds: true, timeZone }))
+      setInvalid(false)
+      inputRef.current?.focus()
     },
-    [doSave]
+    [doSave, timeZone]
   )
 
   const handlePickerOpenChange = useCallback((open: boolean) => {
@@ -133,7 +194,7 @@ function InlineDateEditor({
           setInvalid(false)
         }}
         onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
+        onBlur={scheduleBlurSave}
         placeholder='mm/dd/yyyy'
         className={cn(
           'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
@@ -142,8 +203,15 @@ function InlineDateEditor({
       />
       <Popover open onOpenChange={handlePickerOpenChange}>
         <PopoverAnchor className='absolute top-full left-0 size-0' />
-        <PopoverContent align='start' sideOffset={4} className='w-auto p-0'>
-          <Calendar value={pickerValue} onChange={handlePickerChange} />
+        <PopoverContent
+          ref={popoverRef}
+          align='start'
+          sideOffset={4}
+          className='w-auto p-0'
+          onPointerDownCapture={handlePopoverPointerDown}
+          onBlurCapture={scheduleBlurSave}
+        >
+          <Calendar value={pickerValue} onChange={handlePickerChange} showTime />
         </PopoverContent>
       </Popover>
     </>

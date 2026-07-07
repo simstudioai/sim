@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
@@ -404,6 +405,12 @@ export const importTableAsyncBodySchema = z.object({
    * (e.g. the file viewer's "Import as a table") that must survive the import.
    */
   deleteSourceFile: z.boolean().optional(),
+  /**
+   * IANA zone used to interpret naive datetime strings in the file (Excel and
+   * Sheets exports carry no offset). Defaults to the importing user's saved
+   * timezone, else UTC.
+   */
+  timezone: ianaTimezoneSchema.optional(),
 })
 
 export type ImportTableAsyncBody = z.input<typeof importTableAsyncBodySchema>
@@ -686,6 +693,12 @@ export const importIntoTableAsyncBodySchema = z.object({
   mode: csvImportModeSchema,
   mapping: z.record(z.string(), z.string().nullable()).optional(),
   createColumns: z.array(z.string()).optional(),
+  /**
+   * IANA zone used to interpret naive datetime strings in the file (Excel and
+   * Sheets exports carry no offset). Defaults to the importing user's saved
+   * timezone, else UTC.
+   */
+  timezone: ianaTimezoneSchema.optional(),
 })
 
 export type ImportIntoTableAsyncBody = z.input<typeof importIntoTableAsyncBodySchema>

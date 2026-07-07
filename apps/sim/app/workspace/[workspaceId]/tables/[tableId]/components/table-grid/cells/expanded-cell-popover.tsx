@@ -4,8 +4,14 @@ import type React from 'react'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@sim/emcn'
 import type { TableRow as TableRowType } from '@/lib/table'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import type { EditingCell, SaveReason } from '../../../types'
-import { cleanCellValue, displayToStorage, formatValueForInput } from '../../../utils'
+import {
+  cleanCellValue,
+  displayToStorage,
+  formatValueForInput,
+  storageToDisplay,
+} from '../../../utils'
 import type { DisplayColumn } from '../types'
 
 interface ExpandedCellPopoverProps {
@@ -40,6 +46,7 @@ export function ExpandedCellPopover({
   const rootRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const timeZone = useTimezone()
 
   const target = useMemo(() => {
     if (!expandedCell) return null
@@ -145,7 +152,14 @@ export function ExpandedCellPopover({
       {isEditable ? (
         <ExpandedCellEditor
           key={`${expandedCell.rowId}:${expandedCell.columnKey ?? expandedCell.columnName}`}
-          initialValue={formatValueForInput(target.value, target.column.type)}
+          initialValue={
+            target.column.type === 'date'
+              ? storageToDisplay(formatValueForInput(target.value, 'date'), {
+                  seconds: true,
+                  timeZone,
+                })
+              : formatValueForInput(target.value, target.column.type)
+          }
           column={target.column}
           rowId={target.row.id}
           onSave={onSave}
@@ -198,14 +212,16 @@ function ExpandedCellEditor({
 }: ExpandedCellEditorProps) {
   const [draftValue, setDraftValue] = useState(initialValue)
   const [parseError, setParseError] = useState<string | null>(null)
+  const timeZone = useTimezone()
 
   const handleSave = () => {
-    // `displayToStorage` only normalizes dates — it returns null for anything else.
-    // Fall back to the raw draft for non-date columns, matching the inline editor.
-    const raw = displayToStorage(draftValue) ?? draftValue
+    // Only date columns go through `displayToStorage` — it now parses many
+    // date shapes, so a number draft like "2024" must not reach it.
+    const raw =
+      column.type === 'date' ? (displayToStorage(draftValue, timeZone) ?? draftValue) : draftValue
     let cleaned: unknown
     try {
-      cleaned = cleanCellValue(raw, column)
+      cleaned = cleanCellValue(raw, column, timeZone)
     } catch {
       setParseError('Invalid JSON')
       return
