@@ -32,23 +32,23 @@ export const discordBanMemberTool: ToolConfig<DiscordBanMemberParams, DiscordBan
       visibility: 'user-or-llm',
       description: 'Reason for banning the member',
     },
-    deleteMessageDays: {
+    deleteMessageSeconds: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of days to delete messages for (0-7)',
+      description: 'Seconds of message history to delete, 0-604800 (7 days)',
     },
   },
 
   request: {
     url: (params: DiscordBanMemberParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId}/bans/${params.userId}`
+      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/bans/${params.userId.trim()}`
     },
     method: 'PUT',
     headers: (params) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }
       if (params.reason) {
         headers['X-Audit-Log-Reason'] = encodeURIComponent(params.reason)
@@ -57,8 +57,8 @@ export const discordBanMemberTool: ToolConfig<DiscordBanMemberParams, DiscordBan
     },
     body: (params: DiscordBanMemberParams) => {
       const body: any = {}
-      if (params.deleteMessageDays !== undefined) {
-        body.delete_message_days = Number(params.deleteMessageDays)
+      if (params.deleteMessageSeconds !== undefined) {
+        body.delete_message_seconds = Number(params.deleteMessageSeconds)
       }
       return body
     },
