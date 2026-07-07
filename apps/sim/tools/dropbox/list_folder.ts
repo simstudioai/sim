@@ -98,7 +98,7 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
             '.tag': { type: 'string', description: 'Type: file, folder, or deleted' },
             id: { type: 'string', description: 'Unique identifier', optional: true },
             name: { type: 'string', description: 'Name of the file/folder' },
-            path_display: { type: 'string', description: 'Display path' },
+            path_display: { type: 'string', description: 'Display path', optional: true },
             size: { type: 'number', description: 'Size in bytes (files only)', optional: true },
           },
         },

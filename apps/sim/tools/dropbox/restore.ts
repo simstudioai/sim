@@ -71,8 +71,8 @@ export const dropboxRestoreTool: ToolConfig<DropboxRestoreParams, DropboxRestore
       properties: {
         id: { type: 'string', description: 'Unique identifier for the file' },
         name: { type: 'string', description: 'Name of the file' },
-        path_display: { type: 'string', description: 'Display path of the file' },
-        path_lower: { type: 'string', description: 'Lowercase path of the file' },
+        path_display: { type: 'string', description: 'Display path of the file', optional: true },
+        path_lower: { type: 'string', description: 'Lowercase path of the file', optional: true },
         size: { type: 'number', description: 'Size of the file in bytes' },
         rev: { type: 'string', description: 'Revision identifier of the restored file' },
         server_modified: { type: 'string', description: 'Server modification time' },

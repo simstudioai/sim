@@ -101,8 +101,8 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
       properties: {
         id: { type: 'string', description: 'Unique identifier for the file' },
         name: { type: 'string', description: 'Name of the file' },
-        path_display: { type: 'string', description: 'Display path of the file' },
-        path_lower: { type: 'string', description: 'Lowercase path of the file' },
+        path_display: { type: 'string', description: 'Display path of the file', optional: true },
+        path_lower: { type: 'string', description: 'Lowercase path of the file', optional: true },
         size: { type: 'number', description: 'Size of the file in bytes' },
         client_modified: { type: 'string', description: 'Client modification time' },
         server_modified: { type: 'string', description: 'Server modification time' },

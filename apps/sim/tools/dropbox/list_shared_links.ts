@@ -94,7 +94,11 @@ export const dropboxListSharedLinksTool: ToolConfig<
           '.tag': { type: 'string', description: 'Type: file or folder' },
           url: { type: 'string', description: 'The shared link URL' },
           name: { type: 'string', description: 'Name of the shared item' },
-          path_lower: { type: 'string', description: 'Lowercase path of the shared item' },
+          path_lower: {
+            type: 'string',
+            description: 'Lowercase path of the shared item',
+            optional: true,
+          },
           expires: { type: 'string', description: 'Expiration date if set' },
         },
       },

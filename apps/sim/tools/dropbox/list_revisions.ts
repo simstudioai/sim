@@ -82,7 +82,7 @@ export const dropboxListRevisionsTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Unique identifier for this revision' },
           name: { type: 'string', description: 'Name of the file' },
-          path_display: { type: 'string', description: 'Display path' },
+          path_display: { type: 'string', description: 'Display path', optional: true },
           rev: { type: 'string', description: 'Revision identifier, pass to Restore' },
           size: { type: 'number', description: 'Size of this revision in bytes' },
           server_modified: { type: 'string', description: 'Server modification time' },
