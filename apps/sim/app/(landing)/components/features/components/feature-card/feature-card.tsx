@@ -15,8 +15,11 @@ interface FeatureCardProps {
   href?: string
   /** Label for {@link href}. */
   linkLabel?: string
-  /** Backdrop image under the floating callout (public path). */
-  backdropSrc: string
+  /**
+   * Backdrop image under the floating callout (public path). Omit for a solid
+   * stage in the hero visual's light grey (`--surface-3`).
+   */
+  backdropSrc?: string
   /**
    * Which side the media stage sits on from `lg` up (cards alternate down the
    * section, Cursor-style). Below `lg` the card always stacks media-first.
@@ -43,7 +46,9 @@ interface FeatureCardProps {
  * inside the outline - never floating over the media image.
  *
  * Below `lg` the card stacks - media on top, copy beneath - and the media
- * shortens so the card stays scannable in the compact grid.
+ * shortens so the card stays scannable in the compact grid. The pinned chip
+ * would overlap the full-width media there, so it relocates INTO the copy
+ * column, sitting above the `<h3>` as an in-flow eyebrow.
  */
 export function FeatureCard({
   eyebrow,
@@ -67,24 +72,27 @@ export function FeatureCard({
     >
       <ChipTag
         variant='mono'
-        className={cn('absolute top-4 z-10', mediaRight ? 'left-4' : 'right-4')}
+        className={cn('absolute top-4 z-10 max-lg:hidden', mediaRight ? 'left-4' : 'right-4')}
       >
         {eyebrow}
       </ChipTag>
       <div
         aria-hidden='true'
         className={cn(
-          'relative h-[650px] overflow-hidden rounded-[4px] max-sm:h-[280px] max-lg:order-1 max-lg:h-[360px]',
+          'relative aspect-[3/2] overflow-hidden rounded-[4px] max-lg:order-1 max-lg:aspect-[4/3]',
+          !backdropSrc && 'bg-[var(--surface-3)]',
           mediaRight && 'lg:order-2'
         )}
       >
-        <Image
-          src={backdropSrc}
-          alt=''
-          fill
-          sizes='(max-width: 1460px) 70vw, 900px'
-          className='object-cover'
-        />
+        {backdropSrc && (
+          <Image
+            src={backdropSrc}
+            alt=''
+            fill
+            sizes='(max-width: 1460px) 70vw, 900px'
+            className='object-cover'
+          />
+        )}
         <div className='absolute inset-0 flex items-center justify-center p-4 [&>*]:max-w-full'>
           {children}
         </div>
@@ -96,6 +104,9 @@ export function FeatureCard({
           mediaRight ? 'pl-4 max-lg:pl-0' : 'pr-4 max-lg:pr-0'
         )}
       >
+        <ChipTag variant='mono' className='hidden max-lg:mb-3 max-lg:inline-flex max-lg:self-start'>
+          {eyebrow}
+        </ChipTag>
         <h3 className='text-balance font-medium text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'>
           {title}
         </h3>

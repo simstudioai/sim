@@ -2,6 +2,7 @@
 
 import { type CSSProperties, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
+import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
 import {
   handleAnchors,
   STAGE_BLOCKS,
@@ -9,8 +10,6 @@ import {
   STAGE_EDGES,
   verticalSmoothStep,
 } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-data'
-import { WorkflowBlockContent } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block-content'
-import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 import { BLOCK_WIDTH } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /** Upper bound on the canvas render scale (the scale at the full 1300px cap). */
@@ -199,31 +198,6 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
           })}
         </div>
       </div>
-    </div>
-  )
-}
-
-/**
- * Block card shell for the vertical-flow stage - the hero-visual's faithful
- * {@link WorkflowBlockContent} body with top (incoming) / bottom (outgoing)
- * handle nubs instead of the horizontal-flow left/right ones.
- */
-function StageBlockCard({ block }: { block: BlockDef }) {
-  return (
-    <div className='relative rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm'>
-      <WorkflowBlockContent block={block} />
-      {!block.isTrigger && (
-        <span
-          aria-hidden
-          className='-translate-x-1/2 absolute top-[-7px] left-1/2 h-[7px] w-5 rounded-t-[2px] bg-[var(--workflow-edge)]'
-        />
-      )}
-      {!block.isTerminal && (
-        <span
-          aria-hidden
-          className='-translate-x-1/2 absolute bottom-[-7px] left-1/2 h-[7px] w-5 rounded-b-[2px] bg-[var(--workflow-edge)]'
-        />
-      )}
     </div>
   )
 }

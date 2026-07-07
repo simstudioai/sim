@@ -1,15 +1,8 @@
-import { CalloutFrame } from '@/app/(landing)/components/features/components/callout-frame'
+import { BuildCallout } from '@/app/(landing)/components/features/components/build-callout/build-callout'
 import { FeatureCard } from '@/app/(landing)/components/features/components/feature-card'
-import { FormationGraph } from '@/app/(landing)/components/features/components/formation-graph/formation-graph'
 import { IntegrationsCallout } from '@/app/(landing)/components/features/components/integrations-callout/integrations-callout'
 import { KnowledgeCallout } from '@/app/(landing)/components/features/components/knowledge-callout/knowledge-callout'
-import { LogsTablePreview } from '@/app/(landing)/components/features/components/logs-table-preview'
-
-/**
- * The shared backdrop painting behind a card's floating callout - the default
- * for beats without their own art (Integrate carries a dedicated backdrop).
- */
-const CARD_BACKDROP = '/landing/hero-backdrop.jpg'
+import { LogsCallout } from '@/app/(landing)/components/features/components/logs-callout'
 
 /**
  * Landing features - how Sim works, as a platform lifecycle. Four beats, in the
@@ -75,9 +68,8 @@ export function Features() {
           description='Wire blocks, models, and integrations into agent logic on a visual builder, from one agent to many working in parallel.'
           href='/workflows'
           linkLabel='Explore the workflow builder'
-          backdropSrc={CARD_BACKDROP}
         >
-          <FormationGraph />
+          <BuildCallout />
         </FeatureCard>
 
         {/* Monitor: watch every run. */}
@@ -85,13 +77,11 @@ export function Features() {
           eyebrow='Monitor'
           title='Watch every run, end to end.'
           description='Trace each run block by block, with full logs and the real cost, so you always know what ran and why.'
-          backdropSrc={CARD_BACKDROP}
+          backdropSrc='/landing/feature-monitor-backdrop.jpg'
           mediaSide='right'
           flushBottom
         >
-          <CalloutFrame className='w-[480px]' bodyClassName='h-[300px]' fade>
-            <LogsTablePreview />
-          </CalloutFrame>
+          <LogsCallout />
         </FeatureCard>
       </div>
 
