@@ -55,7 +55,12 @@ export const dropboxListSharedLinksTool: ToolConfig<
       const body: Record<string, any> = {}
       if (params.path) {
         const trimmedPath = params.path.trim()
-        body.path = trimmedPath === '/' ? '' : trimmedPath
+        // Dropbox only returns every shared link on the account when `path` is omitted
+        // entirely; sending "" scopes the results to the root folder instead. Since our UI
+        // tells users "/" means "list all links", omit the field rather than sending "".
+        if (trimmedPath !== '/' && trimmedPath !== '') {
+          body.path = trimmedPath
+        }
       }
       if (params.directOnly !== undefined) body.direct_only = params.directOnly
       if (params.cursor) body.cursor = params.cursor

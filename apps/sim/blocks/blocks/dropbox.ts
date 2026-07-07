@@ -334,6 +334,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'dropbox_list_revisions' },
       mode: 'advanced',
     },
+    {
+      id: 'beforeRev',
+      title: 'Before Revision',
+      type: 'short-input',
+      placeholder: 'Revision from a previous call, to fetch the next page',
+      condition: { field: 'operation', value: 'dropbox_list_revisions' },
+      mode: 'advanced',
+    },
     // Restore operation inputs
     {
       id: 'path',
@@ -442,6 +450,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     maxResults: { type: 'number', description: 'Maximum search results' },
     // List shared links inputs
     directOnly: { type: 'boolean', description: 'Only return direct links, not parent folders' },
+    // List revisions input
+    beforeRev: { type: 'string', description: 'Fetch revisions before this one (pagination)' },
     // Restore input
     rev: { type: 'string', description: 'Revision identifier to restore' },
   },

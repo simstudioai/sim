@@ -31,6 +31,13 @@ export const dropboxListRevisionsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Maximum number of revisions to return, 1-100 (default: 10)',
     },
+    beforeRev: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Only return revisions before this one. Pass the rev of the last revision from a previous call to fetch the next page.',
+    },
   },
 
   request: {
@@ -45,11 +52,17 @@ export const dropboxListRevisionsTool: ToolConfig<
         'Content-Type': 'application/json',
       }
     },
-    body: (params) => ({
-      path: params.path.trim(),
-      mode: 'path',
-      limit: params.limit ?? 10,
-    }),
+    body: (params) => {
+      const body: Record<string, any> = {
+        path: params.path.trim(),
+        mode: 'path',
+        limit: params.limit ?? 10,
+      }
+      if (params.beforeRev) {
+        body.before_rev = params.beforeRev.trim()
+      }
+      return body
+    },
   },
 
   transformResponse: async (response) => {

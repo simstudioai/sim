@@ -264,6 +264,7 @@ interface DropboxFileRevision {
 export interface DropboxListRevisionsParams extends DropboxBaseParams {
   path: string
   limit?: number
+  beforeRev?: string
 }
 
 export interface DropboxListRevisionsResponse extends ToolResponse {
