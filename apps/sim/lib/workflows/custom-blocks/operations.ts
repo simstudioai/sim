@@ -180,11 +180,11 @@ export async function listCustomBlocksWithInputs(
       description: row.description,
       iconUrl: row.iconUrl,
       enabled: row.enabled,
-      // Field set derived live from the deployed Start; stored placeholders merged in.
-      inputFields: applyInputPlaceholders(
-        row.inputs,
-        row.enabled ? await deriveInputFields(row.workflowId) : []
-      ),
+      // Field set derived live from the deployed Start; stored placeholders merged
+      // in. Derive even for a disabled block — the source workflow's deployment is
+      // independent of the block's enabled flag, and the edit form needs the real
+      // fields so a save doesn't overwrite the block's stored placeholders.
+      inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
       exposedOutputs: row.outputs ?? [],
     }))
   )

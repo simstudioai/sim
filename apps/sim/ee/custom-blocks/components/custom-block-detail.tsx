@@ -99,6 +99,19 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   const [error, setError] = useState<string | null>(null)
   const [showDelete, setShowDelete] = useState(false)
 
+  // Edit mode may mount before `useCustomBlocks` has resolved this row, leaving the
+  // buffers empty. Reseed them the first time the block's identity loads (or when it
+  // changes) — keyed on `existing.id` so a later refetch of the SAME block doesn't
+  // clobber in-progress edits. (The icon reseeds itself via `currentImage`.)
+  const [seededId, setSeededId] = useState(existing?.id ?? null)
+  if (existing && existing.id !== seededId) {
+    setSeededId(existing.id)
+    setName(existing.name)
+    setDescription(existing.description ?? '')
+    setInputs(toCustomBlockInputs(existing.inputFields))
+    setOutputs(existing.exposedOutputs ?? [])
+  }
+
   const iconUpload = useProfilePictureUpload({
     currentImage: existing?.iconUrl ?? null,
     onError: (e) => setError(e),
