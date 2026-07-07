@@ -39,6 +39,7 @@ const PipelineExecutionSummarySchema = z.object({
   stopTriggerReason: z.string().optional(),
   triggerType: z.string().optional(),
   triggerDetail: z.string().optional(),
+  rollbackTargetPipelineExecutionId: z.string().optional(),
   sourceRevisions: z.array(
     z.object({
       actionName: z.string(),

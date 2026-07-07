@@ -11,6 +11,7 @@ const GetTemplateSchema = z.object({
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   stackName: z.string().min(1, 'Stack name is required'),
+  templateStage: z.enum(['Original', 'Processed']).optional(),
 })
 
 const GetTemplateResponseSchema = z.object({
