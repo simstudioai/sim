@@ -118,6 +118,16 @@ function hasWebhookTrigger(triggers: { polling: boolean }[]): boolean {
   return triggers.some((t) => !t.polling)
 }
 
+/** Describes a trigger set's delivery kind(s), covering the mixed case so it never mislabels a polling trigger as real-time. */
+function triggerKindLabel(
+  triggers: { polling: boolean }[]
+): 'scheduled' | 'real-time' | 'scheduled and real-time' {
+  const hasWebhook = hasWebhookTrigger(triggers)
+  const hasPolling = triggers.some((t) => t.polling)
+  if (hasWebhook && hasPolling) return 'scheduled and real-time'
+  return hasWebhook ? 'real-time' : 'scheduled'
+}
+
 /**
  * Server-side rewrite of bare integration names in a curated template prompt
  * to `@`-mention form (`Slack` → `@Slack`) so the prompt chips with brand
@@ -220,7 +230,7 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
   const firstTrigger = triggers[0]
   const pairings = relatedNames.slice(0, 2)
   const toolsPhrase = `${opCount} ${name} tool${opCount === 1 ? '' : 's'}`
-  const triggersPhrase = `${triggerCount} ${triggersArePolling ? 'scheduled' : 'real-time'} trigger${triggerCount === 1 ? '' : 's'}`
+  const triggersPhrase = `${triggerCount} ${triggerKindLabel(triggers)} trigger${triggerCount === 1 ? '' : 's'}`
   const capabilityPhrase = [
     opCount > 0 ? toolsPhrase : null,
     triggerCount > 0 ? triggersPhrase : null,
@@ -286,7 +296,7 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
           },
           {
             question: `What data does Sim receive when a ${name} event triggers an agent?`,
-            answer: `Sim receives the full event payload ${name} sends, typically the record or object that changed, plus metadata like the event type and timestamp.${
+            answer: `Sim receives the full ${name} payload for the record or object that changed, plus metadata like the event type and timestamp, ${triggersArePolling ? `the next time ${name} is checked` : `delivered the instant ${name} sends it`}.${
               firstTriggerWhen
                 ? ` For example, the "${firstTrigger.name}" trigger fires ${sentenceWithTerminalPunctuation(firstTriggerWhen)}`
                 : ''
@@ -480,7 +490,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               ? `${operations.length} ${name} tool${operations.length === 1 ? '' : 's'}`
               : null,
             triggers.length > 0
-              ? `${triggers.length} ${hasWebhookTrigger(triggers) ? 'real-time' : 'scheduled'} trigger${triggers.length === 1 ? '' : 's'}`
+              ? `${triggers.length} ${triggerKindLabel(triggers)} trigger${triggers.length === 1 ? '' : 's'}`
               : null,
           ]
             .filter((part): part is string => part !== null)
