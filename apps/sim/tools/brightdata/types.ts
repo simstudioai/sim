@@ -6,6 +6,7 @@ export interface BrightDataScrapeUrlParams {
   url: string
   format?: string
   country?: string
+  dataFormat?: string
 }
 
 export interface BrightDataScrapeUrlResponse extends ToolResponse {
@@ -44,6 +45,7 @@ export interface BrightDataScrapeDatasetParams {
   datasetId: string
   urls: string
   format?: string
+  includeErrors?: boolean
 }
 
 export interface BrightDataScrapeDatasetResponse extends ToolResponse {
@@ -113,6 +115,7 @@ export interface BrightDataDiscoverParams {
   apiKey: string
   query: string
   numResults?: number
+  mode?: string
   intent?: string
   includeContent?: boolean
   format?: string
