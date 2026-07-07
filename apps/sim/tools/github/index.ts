@@ -20,6 +20,7 @@ import {
 } from '@/tools/github/create_issue_reaction'
 import { createMilestoneTool, createMilestoneV2Tool } from '@/tools/github/create_milestone'
 import { createPRTool, createPRV2Tool } from '@/tools/github/create_pr'
+import { createPRReviewTool, createPRReviewV2Tool } from '@/tools/github/create_pr_review'
 import { createProjectTool, createProjectV2Tool } from '@/tools/github/create_project'
 import { createReleaseTool, createReleaseV2Tool } from '@/tools/github/create_release'
 import { deleteBranchTool, deleteBranchV2Tool } from '@/tools/github/delete_branch'
@@ -48,9 +49,11 @@ import { getCommitTool, getCommitV2Tool } from '@/tools/github/get_commit'
 import { getFileContentTool, getFileContentV2Tool } from '@/tools/github/get_file_content'
 import { getGistTool, getGistV2Tool } from '@/tools/github/get_gist'
 import { getIssueTool, getIssueV2Tool } from '@/tools/github/get_issue'
+import { getLatestReleaseTool, getLatestReleaseV2Tool } from '@/tools/github/get_latest_release'
 import { getMilestoneTool, getMilestoneV2Tool } from '@/tools/github/get_milestone'
 import { getPRFilesTool, getPRFilesV2Tool } from '@/tools/github/get_pr_files'
 import { getProjectTool, getProjectV2Tool } from '@/tools/github/get_project'
+import { getReadmeTool, getReadmeV2Tool } from '@/tools/github/get_readme'
 import { getReleaseTool, getReleaseV2Tool } from '@/tools/github/get_release'
 import { getTreeTool, getTreeV2Tool } from '@/tools/github/get_tree'
 import { getWorkflowTool, getWorkflowV2Tool } from '@/tools/github/get_workflow'
@@ -69,6 +72,7 @@ import { listProjectsTool, listProjectsV2Tool } from '@/tools/github/list_projec
 import { listPRsTool, listPRsV2Tool } from '@/tools/github/list_prs'
 import { listReleasesTool, listReleasesV2Tool } from '@/tools/github/list_releases'
 import { listStargazersTool, listStargazersV2Tool } from '@/tools/github/list_stargazers'
+import { listTagsTool, listTagsV2Tool } from '@/tools/github/list_tags'
 import { listWorkflowRunsTool, listWorkflowRunsV2Tool } from '@/tools/github/list_workflow_runs'
 import { listWorkflowsTool, listWorkflowsV2Tool } from '@/tools/github/list_workflows'
 import { mergePRTool, mergePRV2Tool } from '@/tools/github/merge_pr'
@@ -281,3 +285,17 @@ export const githubCheckStarTool = checkStarTool
 export const githubCheckStarV2Tool = checkStarV2Tool
 export const githubListStargazersTool = listStargazersTool
 export const githubListStargazersV2Tool = listStargazersV2Tool
+
+// New exports - Repository content tools
+export const githubGetReadmeTool = getReadmeTool
+export const githubGetReadmeV2Tool = getReadmeV2Tool
+export const githubListTagsTool = listTagsTool
+export const githubListTagsV2Tool = listTagsV2Tool
+
+// New exports - Release tools
+export const githubGetLatestReleaseTool = getLatestReleaseTool
+export const githubGetLatestReleaseV2Tool = getLatestReleaseV2Tool
+
+// New exports - Pull request review tools
+export const githubCreatePRReviewTool = createPRReviewTool
+export const githubCreatePRReviewV2Tool = createPRReviewV2Tool

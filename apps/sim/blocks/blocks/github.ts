@@ -44,12 +44,15 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Get PR files', id: 'github_get_pr_files' },
         { label: 'Close pull request', id: 'github_close_pr' },
         { label: 'Request PR reviewers', id: 'github_request_reviewers' },
+        { label: 'Create PR review', id: 'github_create_pr_review' },
         // File Operations
         { label: 'Get file content', id: 'github_get_file_content' },
         { label: 'Create file', id: 'github_create_file' },
         { label: 'Update file', id: 'github_update_file' },
         { label: 'Delete file', id: 'github_delete_file' },
         { label: 'Get directory tree', id: 'github_get_tree' },
+        { label: 'Get README', id: 'github_get_readme' },
+        { label: 'List tags', id: 'github_list_tags' },
         // Branch Operations
         { label: 'List branches', id: 'github_list_branches' },
         { label: 'Get branch', id: 'github_get_branch' },
@@ -71,6 +74,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Update release', id: 'github_update_release' },
         { label: 'List releases', id: 'github_list_releases' },
         { label: 'Get release', id: 'github_get_release' },
+        { label: 'Get latest release', id: 'github_get_latest_release' },
         { label: 'Delete release', id: 'github_delete_release' },
         // Workflow Operations
         { label: 'List workflows', id: 'github_list_workflows' },
@@ -1598,6 +1602,68 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
+    // Create PR review parameters
+    {
+      id: 'pullNumber',
+      title: 'Pull Request Number',
+      type: 'short-input',
+      placeholder: 'e.g., 123',
+      required: true,
+      condition: { field: 'operation', value: 'github_create_pr_review' },
+    },
+    {
+      id: 'event',
+      title: 'Review Action',
+      type: 'dropdown',
+      options: [
+        { label: 'Approve', id: 'APPROVE' },
+        { label: 'Request changes', id: 'REQUEST_CHANGES' },
+        { label: 'Comment', id: 'COMMENT' },
+      ],
+      required: true,
+      condition: { field: 'operation', value: 'github_create_pr_review' },
+    },
+    {
+      id: 'body',
+      title: 'Review Body',
+      type: 'long-input',
+      placeholder: 'Review text (required for Request changes and Comment)',
+      condition: { field: 'operation', value: 'github_create_pr_review' },
+    },
+    {
+      id: 'commit_id',
+      title: 'Commit SHA',
+      type: 'short-input',
+      placeholder: 'e.g., 6dcb09b (defaults to the latest commit)',
+      condition: { field: 'operation', value: 'github_create_pr_review' },
+      mode: 'advanced',
+    },
+    // Get README parameters
+    {
+      id: 'ref',
+      title: 'Git Reference',
+      type: 'short-input',
+      placeholder: 'e.g., main (leave empty for default branch)',
+      condition: { field: 'operation', value: 'github_get_readme' },
+      mode: 'advanced',
+    },
+    // List tags parameters
+    {
+      id: 'per_page',
+      title: 'Results Per Page',
+      type: 'short-input',
+      placeholder: 'e.g., 30 (default: 30, max: 100)',
+      condition: { field: 'operation', value: 'github_list_tags' },
+      mode: 'advanced',
+    },
+    {
+      id: 'page',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: 'e.g., 1',
+      condition: { field: 'operation', value: 'github_list_tags' },
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: [
@@ -1619,12 +1685,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'github_get_pr_files',
       'github_close_pr',
       'github_request_reviewers',
+      'github_create_pr_review',
       // File tools
       'github_get_file_content',
       'github_create_file',
       'github_update_file',
       'github_delete_file',
       'github_get_tree',
+      'github_get_readme',
+      'github_list_tags',
       // Branch tools
       'github_list_branches',
       'github_get_branch',
@@ -1646,6 +1715,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'github_update_release',
       'github_list_releases',
       'github_get_release',
+      'github_get_latest_release',
       'github_delete_release',
       // Workflow tools
       'github_list_workflows',
@@ -1737,6 +1807,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_close_pr'
           case 'github_request_reviewers':
             return 'github_request_reviewers'
+          case 'github_create_pr_review':
+            return 'github_create_pr_review'
           // File operations
           case 'github_get_file_content':
             return 'github_get_file_content'
@@ -1748,6 +1820,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_delete_file'
           case 'github_get_tree':
             return 'github_get_tree'
+          case 'github_get_readme':
+            return 'github_get_readme'
+          case 'github_list_tags':
+            return 'github_list_tags'
           // Branch operations
           case 'github_list_branches':
             return 'github_list_branches'
@@ -1787,6 +1863,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_list_releases'
           case 'github_get_release':
             return 'github_get_release'
+          case 'github_get_latest_release':
+            return 'github_get_latest_release'
           case 'github_delete_release':
             return 'github_delete_release'
           // Workflow operations
@@ -1917,6 +1995,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     commit_title: { type: 'string', description: 'Commit title' },
     reviewers: { type: 'string', description: 'Reviewer usernames' },
     team_reviewers: { type: 'string', description: 'Team reviewer slugs' },
+    event: { type: 'string', description: 'PR review action' },
+    commit_id: { type: 'string', description: 'Commit SHA' },
     // File parameters
     content: { type: 'string', description: 'File content' },
     message: { type: 'string', description: 'Commit message' },
