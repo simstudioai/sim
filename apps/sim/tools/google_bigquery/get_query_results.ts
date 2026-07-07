@@ -83,7 +83,10 @@ export const googleBigQueryGetQueryResultsTool: ToolConfig<
         }
       }
       if (params.timeoutMs !== undefined && params.timeoutMs !== null) {
-        url.searchParams.set('timeoutMs', String(Number(params.timeoutMs)))
+        const timeoutMs = Number(params.timeoutMs)
+        if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+          url.searchParams.set('timeoutMs', String(timeoutMs))
+        }
       }
       if (params.location) url.searchParams.set('location', params.location)
       if (params.startIndex) url.searchParams.set('startIndex', params.startIndex)

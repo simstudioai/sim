@@ -77,7 +77,18 @@ export const googleBigQueryCreateTableTool: ToolConfig<
       try {
         fields = typeof params.schema === 'string' ? JSON.parse(params.schema) : params.schema
       } catch {
-        throw new Error('Schema must be valid JSON, e.g. [{"name":"id","type":"STRING"}]')
+        fields = null
+      }
+      if (
+        !Array.isArray(fields) ||
+        fields.length === 0 ||
+        !fields.every(
+          (f) => f && typeof f === 'object' && typeof (f as { name?: unknown }).name === 'string'
+        )
+      ) {
+        throw new Error(
+          'Schema must be a JSON array of column field definitions, e.g. [{"name":"id","type":"STRING"}]'
+        )
       }
 
       const body: Record<string, unknown> = {
