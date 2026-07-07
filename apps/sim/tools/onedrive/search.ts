@@ -46,7 +46,7 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
       }
 
       const url = new URL(
-        `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(query)}')`
+        `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(query).replace(/'/g, '%27')}')`
       )
       url.searchParams.append(
         '$select',

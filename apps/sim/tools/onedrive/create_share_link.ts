@@ -29,7 +29,7 @@ export const createShareLinkTool: ToolConfig<OneDriveToolParams, OneDriveShareLi
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Type of link to create: "view" (read-only) or "edit" (read-write)',
+      description: 'Type of link to create: "view" (read-only), "edit" (read-write), or "embed"',
     },
     linkScope: {
       type: 'string',
