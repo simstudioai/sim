@@ -3,6 +3,18 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+const EXISTING_DATASET_OPS = [
+  'list_tables',
+  'get_table',
+  'insert_rows',
+  'delete_dataset',
+  'create_table',
+  'delete_table',
+  'list_table_data',
+]
+const EXISTING_TABLE_OPS = ['get_table', 'insert_rows', 'delete_table', 'list_table_data']
+const LOCATION_OPS = ['query', 'get_query_results']
+
 export const GoogleBigQueryBlock: BlockConfig = {
   type: 'google_bigquery',
   name: 'Google BigQuery',
@@ -116,7 +128,7 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       title: 'Location',
       type: 'short-input',
       placeholder: 'Processing location (e.g., US, EU)',
-      condition: { field: 'operation', value: ['query', 'get_query_results'] },
+      condition: { field: 'operation', value: LOCATION_OPS },
     },
 
     {
@@ -168,30 +180,8 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       placeholder: 'Select BigQuery dataset',
       dependsOn: ['credential', 'projectId'],
       mode: 'basic',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_tables',
-          'get_table',
-          'insert_rows',
-          'delete_dataset',
-          'create_table',
-          'delete_table',
-          'list_table_data',
-        ],
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'list_tables',
-          'get_table',
-          'insert_rows',
-          'delete_dataset',
-          'create_table',
-          'delete_table',
-          'list_table_data',
-        ],
-      },
+      condition: { field: 'operation', value: EXISTING_DATASET_OPS },
+      required: { field: 'operation', value: EXISTING_DATASET_OPS },
     },
     {
       id: 'datasetId',
@@ -200,30 +190,8 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       canonicalParamId: 'datasetId',
       placeholder: 'Enter BigQuery dataset ID',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_tables',
-          'get_table',
-          'insert_rows',
-          'delete_dataset',
-          'create_table',
-          'delete_table',
-          'list_table_data',
-        ],
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'list_tables',
-          'get_table',
-          'insert_rows',
-          'delete_dataset',
-          'create_table',
-          'delete_table',
-          'list_table_data',
-        ],
-      },
+      condition: { field: 'operation', value: EXISTING_DATASET_OPS },
+      required: { field: 'operation', value: EXISTING_DATASET_OPS },
     },
 
     {
@@ -236,14 +204,8 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       placeholder: 'Select BigQuery table',
       dependsOn: ['credential', 'projectId', 'datasetSelector'],
       mode: 'basic',
-      condition: {
-        field: 'operation',
-        value: ['get_table', 'insert_rows', 'delete_table', 'list_table_data'],
-      },
-      required: {
-        field: 'operation',
-        value: ['get_table', 'insert_rows', 'delete_table', 'list_table_data'],
-      },
+      condition: { field: 'operation', value: EXISTING_TABLE_OPS },
+      required: { field: 'operation', value: EXISTING_TABLE_OPS },
     },
     {
       id: 'tableId',
@@ -252,14 +214,8 @@ Return ONLY the SQL query - no explanations, no quotes, no extra text.`,
       canonicalParamId: 'tableId',
       placeholder: 'Enter BigQuery table ID',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['get_table', 'insert_rows', 'delete_table', 'list_table_data'],
-      },
-      required: {
-        field: 'operation',
-        value: ['get_table', 'insert_rows', 'delete_table', 'list_table_data'],
-      },
+      condition: { field: 'operation', value: EXISTING_TABLE_OPS },
+      required: { field: 'operation', value: EXISTING_TABLE_OPS },
     },
 
     {
@@ -424,17 +380,20 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
           newTableId,
           datasetLocation,
           location,
+          datasetId,
+          tableId,
           ...rest
         } = params
+        const operation = String(params.operation)
         return {
           ...rest,
           oauthCredential,
-          ...(['query', 'get_query_results'].includes(String(params.operation)) &&
-            location && { location }),
-          ...(params.operation === 'create_dataset' && newDatasetId && { datasetId: newDatasetId }),
-          ...(params.operation === 'create_dataset' &&
-            datasetLocation && { location: datasetLocation }),
-          ...(params.operation === 'create_table' && newTableId && { tableId: newTableId }),
+          ...(LOCATION_OPS.includes(operation) && location && { location }),
+          ...(EXISTING_DATASET_OPS.includes(operation) && datasetId && { datasetId }),
+          ...(EXISTING_TABLE_OPS.includes(operation) && tableId && { tableId }),
+          ...(operation === 'create_dataset' && newDatasetId && { datasetId: newDatasetId }),
+          ...(operation === 'create_dataset' && datasetLocation && { location: datasetLocation }),
+          ...(operation === 'create_table' && newTableId && { tableId: newTableId }),
           ...(rows && { rows: typeof rows === 'string' ? rows : JSON.stringify(rows) }),
           ...(schema && { schema: typeof schema === 'string' ? schema : JSON.stringify(schema) }),
           ...(maxResults !== undefined && maxResults !== '' && { maxResults: Number(maxResults) }),
