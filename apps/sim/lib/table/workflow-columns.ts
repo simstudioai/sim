@@ -697,6 +697,7 @@ export async function runWorkflowColumn(opts: {
     bulkClearWorkflowGroupCells,
     cancelDispatchById,
     insertDispatch,
+    readDispatch,
     runDispatcherToCompletion,
   } = await import('./dispatcher')
 
@@ -796,7 +797,6 @@ export async function runWorkflowColumn(opts: {
   // seeds a returned id into its active-dispatch overlay, which would
   // resurrect the Run/Stop UI the cancelled SSE event already cleared; null
   // takes its "no dispatch created" path and rolls the optimistic bump back.
-  const { readDispatch } = await import('./dispatcher')
   const current = await readDispatch(dispatchId)
   if (!current || current.status === 'cancelled' || current.status === 'complete') {
     logger.info(

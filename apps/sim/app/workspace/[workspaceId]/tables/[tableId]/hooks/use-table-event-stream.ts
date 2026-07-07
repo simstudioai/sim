@@ -81,7 +81,6 @@ export function useTableEventStream({
     let runStateFetchInFlight = false
     let runStateDirtyDuringFetch = false
     const invalidateRunState = async (): Promise<void> => {
-      lastRunStateInvalidateAt = Date.now()
       // cancelRefetch: false — the default (true) cancels an in-flight refetch
       // and restarts it. When the run-state fetch is slower than the throttle
       // interval (a busy run congests the server), that livelocks: every
@@ -95,6 +94,9 @@ export function useTableEventStream({
         runStateDirtyDuringFetch = true
         return
       }
+      // Stamped only when a fetch actually starts — the coalesced path above
+      // must not reset the throttle clock, or it delays the follow-up.
+      lastRunStateInvalidateAt = Date.now()
       runStateFetchInFlight = true
       try {
         await queryClient.invalidateQueries(
