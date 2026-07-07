@@ -339,17 +339,16 @@ export function escapeHtml(value: string): string {
 
 /**
  * Convert a plain-text body to an HTML body that flows naturally in Gmail.
- * Blank lines become paragraph breaks; single newlines become `<br>`.
+ * Uses a single `white-space: pre-wrap` block so line breaks and blank lines
+ * are preserved without per-paragraph `<p>` margins — those margins are what
+ * Gmail's "Remove formatting" button strips, so avoiding them keeps drafts
+ * looking like a plain, unformatted email by default.
  * This avoids the narrow hard-wrapped rendering Gmail uses for `text/plain`.
  */
 export function plainTextToHtml(body: string): string {
   const normalized = body.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-  const paragraphs = normalized.split(/\n{2,}/)
-  const htmlParagraphs = paragraphs.map((paragraph) => {
-    const escaped = escapeHtml(paragraph).replace(/\n/g, '<br>')
-    return `<p>${escaped}</p>`
-  })
-  return `<!DOCTYPE html><html><body>${htmlParagraphs.join('')}</body></html>`
+  const escaped = escapeHtml(normalized)
+  return `<!DOCTYPE html><html><body><div style="white-space: pre-wrap;">${escaped}</div></body></html>`
 }
 
 /**

@@ -91,10 +91,10 @@ describe('escapeHtml', () => {
 })
 
 describe('plainTextToHtml', () => {
-  it('renders blank lines as paragraph breaks and single newlines as <br>', () => {
+  it('preserves line breaks and blank lines via white-space: pre-wrap', () => {
     const html = plainTextToHtml('Hi Janice,\n\nHope you are well.\nSecond line.')
-    expect(html).toContain('<p>Hi Janice,</p>')
-    expect(html).toContain('<p>Hope you are well.<br>Second line.</p>')
+    expect(html).toContain('white-space: pre-wrap')
+    expect(html).toContain('Hi Janice,\n\nHope you are well.\nSecond line.')
   })
 
   it('escapes HTML in the source text', () => {
@@ -150,7 +150,7 @@ describe('buildSimpleEmailMessage', () => {
     expect(plainIdx).toBeGreaterThan(-1)
     expect(htmlIdx).toBeGreaterThan(plainIdx)
     expect(decodePart(decoded, 'text/plain')).toBe('Hi Janice,\n\nQuick question.')
-    expect(decodePart(decoded, 'text/html')).toContain('<p>Hi Janice,</p>')
+    expect(decodePart(decoded, 'text/html')).toContain('Hi Janice,\n\nQuick question.')
   })
 
   it('encodes bodies as base64 so UTF-8 (emoji, accents) round-trips cleanly', () => {
@@ -242,7 +242,7 @@ describe('buildMimeMessage', () => {
     expect(message).toMatch(/Content-Type: multipart\/alternative; boundary="([^"]+)"/)
     expect(message).toContain('Content-Disposition: attachment; filename="note.txt"')
     expect(decodePart(message, 'text/plain')).toBe('Hello')
-    expect(decodePart(message, 'text/html')).toContain('<p>Hello</p>')
+    expect(decodePart(message, 'text/html')).toContain('Hello')
   })
 
   it('emits multipart/alternative without multipart/mixed when no attachments', () => {
