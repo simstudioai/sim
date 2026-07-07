@@ -242,8 +242,8 @@ export function findDuplicateTargetEntry(
   const sourcesByTarget = new Map<string, Set<string>>()
   for (const entry of entries) {
     if (entry.targetId == null) continue
-    // Null-byte separator so a targetId containing ':' (e.g. credentialSet:...) can't
-    // be confused with a different (resourceType, targetId) pair.
+    // Null-byte separator so a targetId containing ':' can't be confused with a
+    // different (resourceType, targetId) pair.
     const key = `${entry.resourceType}\u0000${entry.targetId}`
     const sources = sourcesByTarget.get(key)
     if (!sources) {

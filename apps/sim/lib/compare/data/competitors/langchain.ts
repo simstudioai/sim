@@ -32,7 +32,7 @@ export const langchainProfile: CompetitorProfile = {
     {
       title: 'Dynamic parallel fan-out via the Send API',
       description:
-        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer. This is a native map-reduce pattern, not a fixed number of parallel branches wired at build time.',
+        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer. Because the merge step is arbitrary code, a developer can implement any custom aggregation logic, not just a fixed join behavior.',
       shortDescription:
         'Send API spawns a runtime-determined number of parallel branches that merge via a reducer.',
       source: {
@@ -50,18 +50,6 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://www.langchain.com/langsmith/evaluation',
         label: 'LangSmith Evaluations',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'SKILL.md-based reusable agent skills via Deep Agents SkillsMiddleware',
-      description:
-        "The Deep Agents harness (LangChain's batteries-included agent framework) ships a SkillsMiddleware that loads named SKILL.md files from a directory and injects them into the system prompt using progressive disclosure (metadata surfaced first, full instructions pulled in on demand), letting a team define a workflow once and reuse it as a named capability across multiple agents.",
-      shortDescription:
-        'SkillsMiddleware loads named SKILL.md files and injects them via progressive disclosure.',
-      source: {
-        url: 'https://reference.langchain.com/python/deepagents/middleware/skills',
-        label: 'skills | deepagents | LangChain Reference',
         asOf: '2026-07-02',
       },
     },
@@ -115,27 +103,15 @@ export const langchainProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Durability is checkpoint persistence, not automatic failure detection',
-      description:
-        "LangGraph's checkpointer saves state after every node, but nothing automatically detects a crashed process; it only lets a resumed process recover from the last saved state. An operator (or external process supervisor) still has to notice the failure and trigger the resume.",
-      shortDescription:
-        'Checkpointer saves state on failure, but nothing automatically detects a crashed process.',
-      source: {
-        url: 'https://www.diagrid.io/blog/checkpoints-are-not-durable-execution-why-langgraph-crewai-google-adk-and-others-fall-short-for-production-agent-workflows',
-        label: "Why Checkpoints Aren't Durable Execution: LangGraph",
-        asOf: '2026-07-02',
-      },
-    },
-    {
       title: 'No dedicated native image/video/audio generation capability',
       description:
         'LangChain and LangGraph provide standardized model integrations, so an agent can call a multimodal provider (DALL-E, an image model via a provider integration) as a tool, but there is no first-party, dedicated generative-media node or block comparable to a purpose-built image/video-generation feature.',
       shortDescription:
         'Multimodal generation happens only through provider integrations, not a dedicated first-party block.',
       source: {
-        url: 'https://docs.langchain.com/oss/python/langchain/mcp',
-        label: 'Model Context Protocol (MCP) - Docs by LangChain',
-        asOf: '2026-07-02',
+        url: 'https://docs.langchain.com/oss/python/langchain/models',
+        label: 'Models - Docs by LangChain',
+        asOf: '2026-07-04',
       },
     },
     {
@@ -213,9 +189,9 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/langchain-ai/langgraph/blob/main/docs/docs/cloud/deployment/standalone_container.md',
-            label: 'Standalone container deployment docs (langgraph GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
+            label: 'Self-host standalone servers - Docs by LangChain',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -472,10 +448,10 @@ export const langchainProfile: CompetitorProfile = {
       },
       dynamicToolUse: {
         value:
-          'Yes: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of tools to a model and lets the model choose, at each step, which tool (if any) to call based on its own reasoning, rather than following a fixed, pre-wired sequence of tool calls',
+          "No: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of developer-selected tools to a model at build time, and the model only chooses among that bound pool at each step, rather than browsing or picking from a broader catalog (e.g. an entire MCP server's full tool list) at inference time",
         detail:
-          'This dynamic selection is the core mechanic LangGraph agent templates (e.g. the ReAct Agent template) are built around, and extends to MCP-provided tools loaded at runtime.',
-        shortValue: 'Yes, ReAct-style agents dynamically pick from a bound tool pool at each step',
+          "This is the same closed-list function-calling mechanism as Sim's Agent block: the tool pool, including any MCP-provided tools, is bound ahead of time by the developer, not browsed at runtime.",
+        shortValue: 'No, agent picks only among tools bound in at build time',
         confidence: 'verified',
         sources: [
           {
@@ -548,11 +524,11 @@ export const langchainProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'Yes: the Send API lets a routing function dynamically spawn N parallel branches at runtime (not just a fixed number configured ahead of time), each processing a slice of state, with results merged back through a state reducer once all branches complete. This is a native map-reduce/fan-out-fan-in pattern.',
+          'Yes: the Send API lets a routing function dynamically spawn one parallel branch per item in a collection of unknown length at runtime, each processing a slice of state, with results merged back through a state reducer once all branches complete. This is a native map-reduce/fan-out-fan-in pattern.',
         detail:
-          'This differs from a small, statically fixed number of parallel branches: the number of concurrent executions is determined by the routing function at run time, based on the size of whatever collection it is fanning out over.',
+          "This is a code-level equivalent of a 'fan out one branch per list item' pattern: the number of concurrent executions is determined by the routing function at run time, based on the size of whatever collection it is fanning out over, the same run-time-determined-count model that block-based parallel constructs also support alongside a fixed-count mode.",
         shortValue:
-          'Yes, Send API dynamically fans out to N parallel branches, merged via a reducer',
+          'Yes, Send API fans out one branch per list item at runtime, merged via a reducer',
         confidence: 'verified',
         sources: [
           {
@@ -564,7 +540,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          "Yes: LangChain shipped native A2A (Agent2Agent) support via langchain-adk (March 2026), letting any LangChain agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list. The local LangGraph dev server exposes A2A endpoints at /a2a/{assistant_id}.",
+          "Yes: the local LangGraph dev server and the LangSmith Deployment Agent Server both expose native A2A (Agent2Agent) endpoints at /a2a/{assistant_id}, letting any LangChain/LangGraph agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list.",
         detail:
           "The LangSmith Deployment A2A endpoint maps the protocol's contextId to a LangGraph thread_id automatically, so A2A conversations get the same tracing/observability as native LangGraph runs.",
         shortValue: 'Yes, native A2A server/client support with auto-generated Agent Cards',
@@ -644,8 +620,13 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://forum.langchain.com/t/langgraph-platform-deployment-failing/443',
-            label: 'LangGraph Platform - forum reference on deployment interfaces',
+            url: 'https://docs.langchain.com/langsmith/agent-server',
+            label: 'Agent Server - Docs by LangChain',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/server-a2a',
+            label: 'A2A endpoint in Agent Server - Docs by LangChain',
             asOf: '2026-07-02',
           },
         ],
@@ -1014,6 +995,26 @@ export const langchainProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          'Yes, once deployed: a run started against the LangGraph Agent Server (managed LangSmith Deployment cloud, a self-hosted container, or hybrid) executes entirely server-side against its Redis/Postgres backend, with no dependency on a client device staying open, awake, or connected; interrupt()-paused runs likewise sit server-side across an arbitrary human-response gap.',
+        detail:
+          "This requires the graph to already be deployed to the Agent Server; LangChain/LangGraph itself has no built-in trigger picker (schedule, webhook, connector event), so a developer's own cron job, webhook handler, or queue consumer is what calls the Agent Server API to start the run in the first place. Once that call is made, the run's execution has no further tie to the caller's device.",
+        shortValue: 'Yes once deployed to the Agent Server; the trigger itself is hand-wired',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/assistants',
+            label: 'Assistants - Docs by LangChain',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
+            label: 'Self-host standalone servers - Docs by LangChain',
+            asOf: '2026-07-04',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1078,9 +1079,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $260M), with reported headcount in the roughly 260-325 employee range as of mid-2026',
+          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $160M across seed, Series A, and Series B), with reported headcount in the roughly 260-325 employee range as of mid-2026',
         detail:
-          'Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.',
+          "Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). $10M + $25M + $125M totals approximately $160M; some third-party trackers report a higher ~$260M cumulative figure, which appears to double-count TechCrunch's July 2025 report of an in-progress raise (at a reported $1.1B valuation) as a separate round from its October 2025 close (the same round, at $1.25B) rather than an additional close, so $160M is the figure directly supported by LangChain's own funding announcement and primary reporting. Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.",
         shortValue:
           'Founded 2022; $125M Series B (Oct 2025) at $1.25B valuation; ~260-325 employees',
         confidence: 'verified',

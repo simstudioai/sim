@@ -28,17 +28,6 @@ export const tinesProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Story Copilot natural-language builder',
-      description:
-        'Launched February 2026, Story Copilot lets users describe an automation in plain language and generates the workflow automatically, alongside "Workbench," a platform-wide AI copilot.',
-      shortDescription: 'Workbench turns plain-language descriptions into working automations.',
-      source: {
-        url: 'https://www.tines.com/platform/ai/',
-        label: 'AI Agents, Copilots & MCP | Tines',
-        asOf: '2026-07-02',
-      },
-    },
-    {
       title: 'API-centric integration model',
       description:
         'Instead of a fixed library of app connectors, Tines is built around a generic HTTP Request action that calls any API directly, trading pre-built connectors for broader reach and more manual setup.',
@@ -51,13 +40,13 @@ export const tinesProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Native MCP server and client support',
+      title: 'Tines University certification ladder',
       description:
-        'Tines can act as both an MCP server (exposing its actions to AI clients) and an MCP client (consuming external MCP tools), framed around governed, policy-aligned AI access rather than unrestricted tool use.',
-      shortDescription: 'Acts as both an MCP server and client for governed AI tool access.',
+        'Tines University pairs free foundational courses with instructor-led and self-paced Bootcamps and two certification tiers, Core and Advanced, that builders can share on LinkedIn. Sim Academy is a structured docs section without a formal certification path.',
+      shortDescription: 'Core and Advanced certifications builders can share on LinkedIn.',
       source: {
-        url: 'https://www.tines.com/platform/ai/',
-        label: 'AI Agents, Copilots & MCP | Tines',
+        url: 'https://www.tines.com/get-certified/',
+        label: 'Get certified | Tines',
         asOf: '2026-07-02',
       },
     },
@@ -602,6 +591,11 @@ export const tinesProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
+            url: 'https://www.tines.com/whats-new/schedule-with-cron-expressions/',
+            label: 'Schedule with cron expressions',
+            asOf: '2026-07-04',
+          },
+          {
             url: 'https://www.tines.com/docs/actions/types/receive-email/',
             label: 'Receive Email docs',
             asOf: '2026-07-02',
@@ -824,7 +818,7 @@ export const tinesProfile: CompetitorProfile = {
         value:
           "Yes: credentials are scoped to Teams by default, and Team Admin/Editor roles control which teams a credential can be shared with. Sensitive settings like Access (where a credential can be used) and Domains (allowed outbound hosts/paths) are restricted to Team Admins or the credential's creator. Custom roles can extend the default viewer/builder/manager roles for finer-grained control.",
         detail:
-          "Governance operates at the team/role level with per-credential Access and Domain restrictions, not a credential-set-to-role assignment matrix like Sim's, but reaches a similar outcome.",
+          "Governance operates at the team/role level with per-credential Access and Domain restrictions, not a credential-to-role assignment matrix like Sim's, but reaches a similar outcome.",
         shortValue: 'Yes: team-scoped credential access rules',
         confidence: 'verified',
         sources: [
@@ -911,9 +905,9 @@ export const tinesProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://www.tines.com/docs/actions/overview',
+            url: 'https://www.tines.com/docs/actions/',
             label: 'Actions overview | Docs | Tines',
-            asOf: '2026-07-02',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1068,6 +1062,26 @@ export const tinesProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          "Yes: standard Stories (webhook, scheduled HTTP Request actions, Receive Email) run entirely server-side on Tines infrastructure, cloud-hosted or self-hosted, with no dependency on a browser tab or desktop client staying open. The one documented exception is a Story explicitly set to 'Workbench' mode, which can only be invoked interactively through Workbench chat and will not fire on its own schedule or accept external webhook events unless switched to a standard or 'Workbench and Send to Story' mode.",
+        detail:
+          'Workbench-only stories are intentionally excluded from license story limits precisely because they cannot run autonomously, confirming that autonomous (non-Workbench) stories are the default, unattended execution model.',
+        shortValue: 'Yes: runs server-side; Workbench-only mode is the one exception',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/docs/actions/types/webhook/',
+            label: 'Webhook | Docs | Tines',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://explained.tines.com/en/articles/9855926-using-stories-with-workbench',
+            label: 'Using stories with Workbench | Tines Explained',
+            asOf: '2026-07-04',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1106,6 +1120,8 @@ export const tinesProfile: CompetitorProfile = {
       companyMaturity: {
         value:
           'Founded 2018 (Dublin/Boston) by Eoin Hinchy and Thomas Kinsella; raised ~$272M total across 6 rounds, most recently a $125M Series C (Feb 2025) led by Goldman Sachs at unicorn valuation (~$1.125B); reported headcount roughly 500-550 as of early-to-mid 2026',
+        detail:
+          "No funding round beyond the Feb 2025 Series C is publicly confirmed as of this profile's research date; headcount reflects the most recently reported figures (around 548 employees as of March 2026), not necessarily the current count.",
         shortValue: 'Founded 2018, ~$272M raised, ~500-550 employees',
         confidence: 'estimated',
         sources: [

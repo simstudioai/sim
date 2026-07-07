@@ -279,7 +279,7 @@ function OverviewTab({
                 key={u.user_id}
                 className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-small last:border-b-0'
               >
-                <span className='flex-1 truncate font-mono text-[12px] text-[var(--text-primary)]'>
+                <span className='flex-1 truncate font-mono text-[var(--text-primary)] text-caption'>
                   {u.user_id}
                 </span>
                 <span className='w-[100px] text-right text-[var(--text-secondary)]'>
@@ -335,7 +335,7 @@ function OverviewTab({
                     key={r.request_id}
                     className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-1.5 text-small last:border-b-0'
                   >
-                    <span className='w-[180px] truncate font-mono text-[11px] text-[var(--text-primary)]'>
+                    <span className='w-[180px] truncate font-mono text-[var(--text-primary)] text-xs'>
                       {r.request_id ?? '—'}
                     </span>
                     <span className='w-[80px] truncate text-[var(--text-secondary)] text-caption'>
@@ -437,7 +437,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           <p className='mb-1 text-[var(--text-secondary)] text-caption'>
             License key (only shown once):
           </p>
-          <code className='block break-all font-mono text-[12px] text-[var(--text-primary)]'>
+          <code className='block break-all font-mono text-[var(--text-primary)] text-caption'>
             {generatedKey}
           </code>
         </div>
@@ -515,7 +515,7 @@ function StatCard({
       {loading ? (
         <Skeleton className='mt-1 h-[24px] w-[80px] rounded-sm' />
       ) : (
-        <p className='mt-1 font-medium text-[18px] text-[var(--text-primary)]'>{value ?? '—'}</p>
+        <p className='mt-1 font-medium text-[var(--text-primary)] text-lg'>{value ?? '—'}</p>
       )}
     </div>
   )

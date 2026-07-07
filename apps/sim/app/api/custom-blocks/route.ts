@@ -17,11 +17,7 @@ import {
   listCustomBlocksWithInputs,
   publishCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
-import {
-  checkWorkspaceAccess,
-  getWorkspaceWithOwner,
-  hasWorkspaceAdminAccess,
-} from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CustomBlocksAPI')
 
@@ -87,18 +83,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { workspaceId, workflowId, name, description, iconUrl, inputs, exposedOutputs } =
     parsed.data.body
 
-  if (!(await hasWorkspaceAdminAccess(userId, workspaceId))) {
+  const access = await checkWorkspaceAccess(workspaceId, userId)
+  if (!access.canAdmin) {
     return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
   }
 
-  const ws = await getWorkspaceWithOwner(workspaceId)
-  if (!ws?.organizationId) {
+  const organizationId = access.workspace?.organizationId
+  if (!organizationId) {
     return NextResponse.json(
       { error: 'Publishing a block requires the workspace to belong to an organization' },
       { status: 400 }
     )
   }
-  const organizationId = ws.organizationId
 
   if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: organizationId }))) {
     return NextResponse.json({ error: 'Deploy as block is not enabled' }, { status: 403 })

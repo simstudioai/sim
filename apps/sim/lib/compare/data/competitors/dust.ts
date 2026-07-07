@@ -17,25 +17,25 @@ export const dustProfile: CompetitorProfile = {
     'Dust is an enterprise AI agent platform where teams build no-code agents connected to company data and tools in a shared, multiplayer workspace, then deploy them to chat, Slack, and other surfaces.',
   standoutFeatures: [
     {
-      title: "'Skills' as reusable, shared agent instruction/tool packages",
+      title:
+        'Zero visual/flow layer by design, building only through forms, text, and conversation',
       description:
-        "Skills are named, reusable packages of instructions, knowledge, and tools that can be attached to multiple agents at once. Updating a Skill's instructions automatically propagates the improvement to every agent using it, rather than requiring each agent to be edited individually.",
-      shortDescription:
-        'Reusable instruction/tool packages that update every agent using them at once.',
+        "Dust's Agent Builder is entirely form and text based, name, description, instructions, model, tools, knowledge, guided by a conversational 'Sidekick' assistant, with no visual canvas at all (its earlier block-based 'Dust Apps' product is deprecated). Agents deploy natively into a shared, multiplayer workspace and out to Slack, Teams, and other chat surfaces. A team that wants agents assembled purely from plain-language instructions and templates, with no drag-and-drop layer to learn or maintain, gets that directly. Teams that do want infrastructure-as-code can also define Skills and agent configurations as files in a Git repository and sync them via an official GitHub Action, with the same PR review and rollback workflow as application code.",
+      shortDescription: 'No visual/flow canvas at all, only forms, text, and conversation.',
       source: {
-        url: 'https://docs.dust.tt/docs/skills',
-        label: 'Skills | Dust Docs',
+        url: 'https://docs.dust.tt/changelog/gitops-sync-for-skills-agent-configurations-with-github-action',
+        label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
         asOf: '2026-07-02',
       },
     },
     {
-      title: 'GitOps sync for Skills and agent configurations via GitHub Action',
+      title: "'Skills' can attach to many agents at once, with one edit propagating to all of them",
       description:
-        'An official dust-github-action lets teams define Skills and agent configurations as files in a Git repository, then sync them into a Dust workspace from a CI/CD pipeline. This gives agent configuration the same change history, pull-request review, and rollback workflow as application code.',
-      shortDescription: 'Agent/Skill configs can live in Git with PR review and CI/CD sync.',
+        "A single Skill can be attached to multiple agents simultaneously, and updating its instructions once automatically propagates that change to every agent using it, rather than requiring each agent's copy to be edited individually.",
+      shortDescription: 'One Skill edit auto-propagates to every agent it is attached to.',
       source: {
-        url: 'https://docs.dust.tt/changelog/gitops-sync-for-skills-agent-configurations-with-github-action',
-        label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
+        url: 'https://docs.dust.tt/docs/skills',
+        label: 'Skills | Dust Docs',
         asOf: '2026-07-02',
       },
     },
@@ -51,10 +51,11 @@ export const dustProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Dual-role MCP: consumes external servers and exposes Dust as one',
+      title: "Client-side MCP tools that execute locally in the end user's own environment",
       description:
-        "Dust agents can call tools from external MCP servers, remote or client-side (client-side tools execute in the user's own environment for sensitive operations). Dust can also be exposed as an MCP server, so external MCP-compatible clients (e.g. Claude Desktop, Cursor) can call Dust agents and data as tools.",
-      shortDescription: 'Both calls external MCP tools and can be called as an MCP server itself.',
+        "Beyond remote MCP servers, Dust supports client-side MCP servers whose tools run directly in the end user's local environment rather than on Dust's own infrastructure, for sensitive operations that shouldn't leave the user's machine. Dust can also be exposed as an MCP server itself, so external MCP-compatible clients (e.g. Claude Desktop, Cursor) can call Dust agents and data as tools.",
+      shortDescription:
+        "MCP tools that run locally in the user's own environment for sensitive operations.",
       source: {
         url: 'https://docs.dust.tt/docs/client-side-mcp-server',
         label: 'Client Side MCP Server (Preview) | Dust Docs',
@@ -87,10 +88,12 @@ export const dustProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'No dedicated pre-deployment evaluation/dataset-testing framework',
+      title:
+        'No dedicated pre-deployment evaluation/dataset-testing framework, a gap shared with most agent builders',
       description:
-        "Dust says it is 'not a pre-deployment evaluation platform': dataset-based regression testing belongs in CI/CD pipelines and specialized testing tools, and Dust builds observability signals into the agent-builder workflow instead of a formal eval-suite feature.",
-      shortDescription: 'Dust says it is not a pre-deployment evaluation platform.',
+        "Dust explicitly says it is 'not a pre-deployment evaluation platform': dataset-based regression testing belongs in CI/CD pipelines and specialized testing tools, and Dust builds observability signals into the agent-builder workflow instead of a formal eval-suite feature. This is a gap most agent builders share, including Sim, whose own Evaluator and Guardrails blocks are per-call scoring/validation primitives rather than a batch golden-dataset eval-suite runner.",
+      shortDescription:
+        'Dust says it is not a pre-deployment eval platform, a gap shared with most agent builders.',
       source: {
         url: 'https://dust.tt/blog/evaluation-to-maintenance',
         label: 'From Evaluation to Maintenance | Dust Blog',
@@ -161,7 +164,7 @@ export const dustProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          "No: the core repository is MIT-licensed and public on GitHub, but self-hosting isn't an officially supported deployment path. Dust is sold and operated only as hosted SaaS",
+          "No: the core repository is MIT-licensed and public on GitHub, but self-hosting isn't an officially supported deployment path; Dust is sold and operated only as hosted SaaS",
         detail:
           'dust-tt/dust is publicly available and MIT-licensed, but Dust the company documents only its hosted product (with US/EU region choice), not a supported self-managed installation.',
         shortValue: 'No, MIT code exists but only SaaS is supported',
@@ -706,16 +709,21 @@ export const dustProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          'Yes: a free Business tier for up to 5 users, 3 connectors, and 5 Spaces, no credit card required',
+          'Yes: a free Business tier for new workspaces, capped at 5 users, 3 connectors, and 5 Spaces, no credit card required',
         detail:
-          'Downgrading from a paid plan retains data but restricts the workspace to a single user, no connections, and limited agent interactions.',
-        shortValue: 'Free for up to 5 users, 3 connectors, 5 Spaces',
+          'This free tier is what a new workspace gets by default without a paid subscription. It is distinct from what happens when an existing paid workspace downgrades: canceling removes all users except the earliest-assigned admin, deletes existing connections, and deletes data sources over 50MB combined after a 7-day warning period, while original source data in the connected provider itself is untouched.',
+        shortValue: 'Free for new workspaces: up to 5 users, 3 connectors, 5 Spaces',
         confidence: 'verified',
         sources: [
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/subscriptions',
+            label: 'Subscriptions & Payments | Dust Docs',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -780,21 +788,21 @@ export const dustProfile: CompetitorProfile = {
       },
       auditLogging: {
         value:
-          'Yes: audit logs available on the Enterprise plan, documented with 365-day retention',
+          'Yes: audit logs available on the Enterprise plan, admin-only, with CSV export and continuous streaming to a SIEM (Datadog, Splunk, AWS S3, GCP GCS, custom HTTPS endpoint); no retention period is documented',
         detail:
-          "The Enterprise plan lists audit logs among its named features. A third-party enterprise summary specifies 365-day retention, though this figure isn't independently confirmed on Dust's own pricing/security pages.",
-        shortValue: 'Enterprise-tier audit logs, ~365-day retention',
+          "Dust's Audit Logs docs confirm the feature is Enterprise-only, accessible to workspace admins under Admin > People & Security > Audit Logs, with full-text search, time-range filtering, manual CSV export, and continuous streaming to external SIEM destinations. No page specifies how many days of audit history are retained.",
+        shortValue: 'Enterprise-tier audit logs with SIEM export; retention period not documented',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://dust.tt/home/pricing',
-            label: 'Dust Pricing',
-            asOf: '2026-07-02',
+            url: 'https://docs.dust.tt/docs/audit-logs',
+            label: 'Audit Logs | Dust Docs',
+            asOf: '2026-07-04',
           },
         ],
       },
       additionalCompliance: {
-        value: 'GDPR compliant, HIPAA-capable, SOC 2 Type II. No ISO 27001, PCI, or FedRAMP',
+        value: 'GDPR compliant, HIPAA-capable, SOC 2 Type II; no ISO 27001, PCI, or FedRAMP',
         detail:
           "Dust's security page and enterprise materials state GDPR compliance and HIPAA-compliance capability alongside SOC 2 Type II. No source confirms ISO 27001, PCI-DSS, or FedRAMP.",
         shortValue: 'GDPR, HIPAA-capable, SOC 2 Type II',
@@ -967,6 +975,26 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
+      unattendedExecution: {
+        value:
+          "Yes: Dust is a hosted, multi-tenant (or single-tenant Enterprise) cloud product, and scheduled/event-based Triggers run an agent in the background on Dust's own servers with no client device involved",
+        detail:
+          "Dust offers no desktop app or local agent; the product is used through a web chat interface, Slack, and Teams, and scheduled triggers (e.g. a daily pipeline review posted to Slack every morning) fire on Dust's cloud infrastructure regardless of whether any user has a browser tab, laptop, or session open at the time.",
+        shortValue: "Runs server-side on Dust's cloud; no client device dependency",
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/triggers',
+            label: 'Triggers | Dust Docs',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/scheduling-your-agent-beta',
+            label: 'Schedules | Dust Docs',
+            asOf: '2026-07-04',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1010,7 +1038,7 @@ export const dustProfile: CompetitorProfile = {
         value:
           'Dust, Inc. Founded 2022 in Paris by two former Stripe employees (one also ex-OpenAI). Raised a $40M Series B in May 2026 (co-led by Sequoia and Abstract, with Datadog and Snowflake participating), total funding over $60M. Reports 300,000+ agents deployed across 3,000+ organizations, 70% weekly active usage, and zero churn as of the raise',
         detail:
-          "Customers named in Dust's own materials include Datadog, 1Password, and Qonto (Qonto reports 50+ specialized agents and 50,000+ hours saved annually). As a 2022-founded, venture-backed private company, it carries materially more switching risk than an incumbent like Microsoft, though it has real enterprise traction and revenue-retention metrics (240% net revenue retention reported at the raise).",
+          "Customers named in Dust's own materials include Datadog, 1Password, and Qonto (Qonto reports 50+ specialized agents and 50,000+ hours saved annually). As a 2022-founded, venture-backed private company, it carries materially more switching risk than a large, publicly traded incumbent vendor, though it has real enterprise traction and revenue-retention metrics (240% net revenue retention reported at the raise).",
         shortValue: 'Founded 2022, Paris; $60M+ raised; 3,000+ orgs, 300,000+ agents',
         confidence: 'verified',
         sources: [

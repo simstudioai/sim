@@ -12,12 +12,14 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getMimeTypeFromExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { TranscriptSegment } from '@/tools/stt/types'
 
@@ -150,6 +152,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP!, {
         method: 'GET',
+        maxResponseBytes: MAX_FILE_SIZE,
       })
       if (!response.ok) {
         await response.text().catch(() => {})
@@ -297,8 +300,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] STT proxy error:`, error)
-    const errorMessage = getErrorMessage(error, 'Unknown error')
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    const isSizeLimit = isPayloadSizeLimitError(error)
+    const errorMessage = isSizeLimit
+      ? 'Audio file exceeds the maximum supported size'
+      : getErrorMessage(error, 'Unknown error')
+    return NextResponse.json({ error: errorMessage }, { status: isSizeLimit ? 413 : 500 })
   }
 })
 

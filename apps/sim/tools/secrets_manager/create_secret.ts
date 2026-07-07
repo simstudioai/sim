@@ -11,7 +11,7 @@ export const createSecretTool: ToolConfig<
   id: 'secrets_manager_create_secret',
   name: 'Secrets Manager Create Secret',
   description: 'Create a new secret in AWS Secrets Manager',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {

@@ -255,7 +255,7 @@ describe('collectForkDependentReconfigs', () => {
     expect(collectForkDependentReconfigs([replaceItem], states, resolve)).toEqual([])
   })
 
-  it('skips create-mode targets and credentialSet refs', () => {
+  it('skips create-mode targets', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([
         { id: 'credential', title: 'Credential', type: 'oauth-input' },
@@ -281,17 +281,6 @@ describe('collectForkDependentReconfigs', () => {
         resolve
       )
     ).toEqual([])
-
-    const orgSet = new Map<string, WorkflowState>([
-      [
-        'wf-src',
-        sourceState('gmail', {
-          credential: { value: 'credentialSet:cs-1' },
-          folder: { value: 'INBOX' },
-        }),
-      ],
-    ])
-    expect(collectForkDependentReconfigs([replaceItem], orgSet, resolve)).toEqual([])
   })
 
   it('walks the transitive chain and tags the context key a re-pick provides', () => {

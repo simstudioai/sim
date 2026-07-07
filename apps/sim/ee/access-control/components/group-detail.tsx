@@ -208,10 +208,8 @@ function AddMembersModal({
                           <Checkbox checked={isSelected} />
                           <MemberAvatar name={name} image={member.user?.image ?? null} />
                           <div className='min-w-0 flex-1'>
-                            <div className='truncate text-[14px] text-[var(--text-body)]'>
-                              {name}
-                            </div>
-                            <div className='truncate text-[12px] text-[var(--text-muted)]'>
+                            <div className='truncate text-[var(--text-body)] text-sm'>{name}</div>
+                            <div className='truncate text-[var(--text-muted)] text-caption'>
                               {email}
                             </div>
                           </div>

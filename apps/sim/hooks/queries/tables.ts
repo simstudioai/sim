@@ -95,13 +95,22 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
-import { type TableQueryScope, tableKeys } from '@/hooks/queries/utils/table-keys'
+import {
+  TABLE_LIST_STALE_TIME,
+  type TableQueryScope,
+  tableKeys,
+} from '@/hooks/queries/utils/table-keys'
 import {
   getNextTableRowsPageParam,
   type TableRowsPageParam,
 } from '@/hooks/queries/utils/table-rows-pagination'
 
 const logger = createLogger('TableQueries')
+export const TABLE_DETAIL_STALE_TIME = 30 * 1000
+export const TABLE_RUN_STATE_STALE_TIME = 30 * 1000
+export const TABLE_FIND_STALE_TIME = 30 * 1000
+export const TABLE_ROWS_STALE_TIME = 30 * 1000
+export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
   TableIdParamsInput & {
@@ -226,7 +235,7 @@ export function useTablesList(
       return response.data.tables
     },
     enabled: Boolean(workspaceId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
     refetchInterval:
       typeof refetchInterval === 'function'
@@ -244,7 +253,7 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     queryKey: tableKeys.detail(tableId ?? ''),
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_DETAIL_STALE_TIME,
   })
 }
 
@@ -256,7 +265,7 @@ export function getTableDetailQueryOptions(workspaceId: string, tableId: string)
   return {
     queryKey: tableKeys.detail(tableId),
     queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_DETAIL_STALE_TIME,
   }
 }
 
@@ -382,7 +391,7 @@ export function useTableRunState(tableId: string | undefined) {
     queryKey: tableKeys.activeDispatches(tableId ?? ''),
     queryFn: ({ signal }) => fetchTableRunState(tableId as string, signal),
     enabled: Boolean(tableId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_RUN_STATE_STALE_TIME,
   })
 }
 
@@ -444,7 +453,7 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
     queryFn: ({ signal }) =>
       fetchTableRowMatches({ workspaceId, tableId, q, filter, sort, signal }),
     enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
-    staleTime: 30 * 1000,
+    staleTime: TABLE_FIND_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -480,7 +489,7 @@ export function tableRowsInfiniteOptions({
     // Sorted views (and legacy rows without an order key) fall back to offset paging.
     getNextPageParam: (_lastPage, allPages): TableRowsPageParam | undefined =>
       getNextTableRowsPageParam(allPages, Boolean(sort)),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_ROWS_STALE_TIME,
   })
 }
 
@@ -1675,7 +1684,7 @@ export function useWorkspaceExportJobs(workspaceId?: string) {
     queryKey: tableKeys.exportJobs(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceExportJobs(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 5 * 1000,
+    staleTime: TABLE_EXPORT_JOBS_STALE_TIME,
     refetchInterval: (query) =>
       query.state.data?.some((j) => j.status === 'running') ? 2000 : false,
   })

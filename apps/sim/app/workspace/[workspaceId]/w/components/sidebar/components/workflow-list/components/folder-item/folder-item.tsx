@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { chipVariants, cn } from '@sim/emcn'
 import { Lock } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -49,15 +49,20 @@ import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
+  workspaceId: string
   folder: FolderTreeNode
 }
 
-export function FolderItem({ folder }: FolderItemProps) {
-  const { isAnyDragActive, dragDisabled, onFolderClick, onItemDragStart, onItemDragEnd } =
-    useSidebarListContext()
-  const params = useParams()
+export const FolderItem = memo(function FolderItem({ workspaceId, folder }: FolderItemProps) {
+  const {
+    isAnyDragActive,
+    dragDisabled,
+    activeWorkflowIdRef,
+    onFolderClick,
+    onItemDragStart,
+    onItemDragEnd,
+  } = useSidebarListContext()
   const router = useRouter()
-  const workspaceId = params.workspaceId as string
   const updateFolderMutation = useUpdateFolder()
   const createWorkflowMutation = useCreateWorkflow()
   const createFolderMutation = useCreateFolder()
@@ -95,7 +100,7 @@ export function FolderItem({ folder }: FolderItemProps) {
     workspaceId,
     workflowIds: capturedSelectionRef.current?.workflowIds || [],
     folderIds: capturedSelectionRef.current?.folderIds || [],
-    isActiveWorkflow: (id) => id === params.workflowId,
+    isActiveWorkflow: (id) => id === activeWorkflowIdRef.current,
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
@@ -117,10 +122,13 @@ export function FolderItem({ folder }: FolderItemProps) {
     hasWorkflows,
     handleExportFolder: handleExportThisFolder,
   } = useExportFolder({
+    workspaceId,
     folderId: folder.id,
   })
 
-  const { isExporting: isExportingSelection, handleExportSelection } = useExportSelection()
+  const { isExporting: isExportingSelection, handleExportSelection } = useExportSelection({
+    workspaceId,
+  })
 
   const isExporting = isExportingThisFolder || isExportingSelection
 
@@ -606,4 +614,4 @@ export function FolderItem({ folder }: FolderItemProps) {
       />
     </>
   )
-}
+})

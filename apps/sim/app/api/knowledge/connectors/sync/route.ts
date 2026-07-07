@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull, lte } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
@@ -11,6 +12,15 @@ import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ConnectorSyncSchedulerAPI')
+
+/**
+ * Per-tick cap on sync dispatches. Ordered by oldest `nextSyncAt` first so
+ * connectors beyond the cap are picked up by the next tick, not starved.
+ */
+const MAX_DISPATCHES_PER_TICK = 200
+
+/** Each dispatch does a joined SELECT + conditional UPDATE against the shared pool. */
+const DISPATCH_CONCURRENCY = 10
 
 /**
  * Cron endpoint that checks for connectors due for sync and dispatches sync jobs.
@@ -71,6 +81,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           isNull(knowledgeBase.deletedAt)
         )
       )
+      .orderBy(asc(knowledgeConnector.nextSyncAt))
+      .limit(MAX_DISPATCHES_PER_TICK)
 
     logger.info(`[${requestId}] Found ${dueConnectors.length} connectors due for sync`)
 
@@ -82,11 +94,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    for (const connector of dueConnectors) {
+    await mapWithConcurrency(dueConnectors, DISPATCH_CONCURRENCY, (connector) =>
       dispatchSync(connector.id, { requestId }).catch((error) => {
         logger.error(`[${requestId}] Failed to dispatch sync for connector ${connector.id}`, error)
       })
-    }
+    )
 
     return NextResponse.json({
       success: true,

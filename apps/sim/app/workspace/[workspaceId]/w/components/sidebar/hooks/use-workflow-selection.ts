@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useFolderStore } from '@/stores/folders/store'
 
@@ -41,6 +41,17 @@ export function useWorkflowSelection({
   )
 
   /**
+   * Read the click-time anchor values through refs so `handleWorkflowClick` keeps a stable
+   * identity across tab navigation. `activeWorkflowId` changes on every route change; without
+   * refs it would churn the shared sidebar list context on each tab switch and defeat the
+   * memoization of the WorkflowItem/FolderItem rows that consume it.
+   */
+  const workflowIdsRef = useRef(workflowIds)
+  workflowIdsRef.current = workflowIds
+  const activeWorkflowIdRef = useRef(activeWorkflowId)
+  activeWorkflowIdRef.current = activeWorkflowId
+
+  /**
    * After a workflow selection change, deselect any folder that is an ancestor of a selected
    * workflow to prevent ancestor-descendant co-selection.
    */
@@ -68,8 +79,9 @@ export function useWorkflowSelection({
    */
   const handleWorkflowClick = useCallback(
     (workflowId: string, shiftKey: boolean) => {
+      const activeWorkflowId = activeWorkflowIdRef.current
       if (shiftKey && activeWorkflowId && activeWorkflowId !== workflowId) {
-        selectRange(workflowIds, activeWorkflowId, workflowId)
+        selectRange(workflowIdsRef.current, activeWorkflowId, workflowId)
         deselectConflictingFolders()
       } else if (shiftKey) {
         toggleWorkflowSelection(workflowId)
@@ -78,14 +90,7 @@ export function useWorkflowSelection({
         selectOnly(workflowId)
       }
     },
-    [
-      workflowIds,
-      activeWorkflowId,
-      selectOnly,
-      selectRange,
-      toggleWorkflowSelection,
-      deselectConflictingFolders,
-    ]
+    [selectOnly, selectRange, toggleWorkflowSelection, deselectConflictingFolders]
   )
 
   return {

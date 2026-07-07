@@ -960,14 +960,12 @@ export function DataRetentionSettings() {
               >
                 <div className='flex min-w-0 flex-1 flex-col'>
                   <div className='flex items-center gap-2'>
-                    <span className='truncate text-[14px] text-[var(--text-body)]'>
-                      Organization
-                    </span>
+                    <span className='truncate text-[var(--text-body)] text-sm'>Organization</span>
                     <ChipTag variant='gray' className='flex-shrink-0'>
                       Default
                     </ChipTag>
                   </div>
-                  <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                  <span className='truncate text-[var(--text-muted)] text-caption'>
                     {orgRowSummary()}
                   </span>
                 </div>
@@ -981,10 +979,10 @@ export function DataRetentionSettings() {
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className='truncate text-[14px] text-[var(--text-body)]'>
+                    <span className='truncate text-[var(--text-body)] text-sm'>
                       {workspaceName(workspaceId)}
                     </span>
-                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                    <span className='truncate text-[var(--text-muted)] text-caption'>
                       {overrideRowSummary(workspaceId)}
                     </span>
                   </div>

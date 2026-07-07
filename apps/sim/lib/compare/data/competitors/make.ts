@@ -31,13 +31,13 @@ export const makeProfile: CompetitorProfile = {
     'Make (make.com) is a closed-source, cloud-only visual workflow-automation platform where users connect app "modules" on a canvas into scenarios. It now also offers AI Agent blocks, an MCP server, and a JS/Python code step, billed on a per-module-execution credit model.',
   standoutFeatures: [
     {
-      title: 'Native MCP Server',
+      title: '3,000+ integrations and an 8,000+ template gallery',
       description:
-        'Make ships a first-party, cloud-hosted Model Context Protocol server that exposes any scenario as a callable tool to external AI agents/clients (Claude, Cursor, etc.) via a generated token and URL, with no local infrastructure to manage.',
-      shortDescription: 'Cloud-hosted MCP server exposes scenarios as tools with zero setup.',
+        'Make lists 3,000+ integration apps and a public gallery of over 8,000 pre-built, importable scenario templates, free to browse on every plan including Free.',
+      shortDescription: '3,000+ integrations and an 8,000+ template gallery, free on every plan.',
       source: {
-        url: 'https://www.make.com/en/blog/model-context-protocol-mcp-server',
-        label: 'Make blog: What is MCP Server?',
+        url: 'https://www.make.com/en/templates',
+        label: 'Make Templates gallery',
         asOf: '2026-07-02',
       },
     },
@@ -53,35 +53,13 @@ export const makeProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Built-in Knowledge/RAG store for agents',
+      title: 'MCP Toolboxes for team-level shared servers',
       description:
-        "Users upload files directly to an agent's 'Knowledge,' which Make automatically chunks, embeds, and stores in a RAG vector database so the agent retrieves only relevant chunks at inference time, reducing token usage.",
-      shortDescription: 'Uploaded files are auto-chunked and embedded into a RAG store for agents.',
+        'Beyond exposing a single scenario as an MCP tool, Make offers MCP Toolboxes: team-level dedicated MCP servers that bundle a curated subset of multiple scenarios behind one shared endpoint for external AI clients to call.',
+      shortDescription: 'Team-level MCP servers bundling multiple scenarios as tools.',
       source: {
-        url: 'https://help.make.com/knowledge',
-        label: 'Make Knowledge help doc',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'In-scenario JS/Python code step',
-      description:
-        "The native 'Make Code' module lets users execute arbitrary JavaScript (Node.js) or Python directly inside a scenario step with no external server, for custom transforms and logic beyond the visual modules.",
-      shortDescription: 'Run JS or Python inline as a scenario step, no external server needed.',
-      source: {
-        url: 'https://www.make.com/en/blog/make-code-app',
-        label: 'Make blog: Make Code App',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: '8,000+ template gallery available on the free tier',
-      description:
-        "Make's public template gallery hosts over 8,000 pre-built scenarios spanning thousands of use cases, browsable and importable free on every plan including Free, with users paying only for the credits consumed when the imported scenario runs.",
-      shortDescription: '8,000+ importable scenario templates, free on every plan including Free.',
-      source: {
-        url: 'https://www.make.com/en/templates',
-        label: 'Make Templates gallery',
+        url: 'https://help.make.com/mcp-toolboxes',
+        label: 'MCP toolboxes - Make Help Center',
         asOf: '2026-07-02',
       },
     },
@@ -121,10 +99,10 @@ export const makeProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Audit logs and granular RBAC gated to higher tiers',
+      title: 'Granular RBAC gated to the Teams plan and above',
       description:
-        'Audit logs and full team/role-based permission management are only available starting on the Teams plan ($38/mo) and Enterprise, with default log retention of just 30 days even on paid plans; lower tiers (Free, Core, Pro) lack these governance controls.',
-      shortDescription: 'Audit logs and role-based permissions require the Teams plan or above.',
+        "Full team/role-based permission management is only available starting on the Teams plan ($38/mo) and Enterprise; lower tiers (Free, Core, Pro) get unlimited users but no role-based access controls, unlike Sim, which ships admin/write/read roles on every tier. Audit logs are also gated to Teams/Enterprise, with default retention of just 30 days on paid plans, though this specific gating pattern isn't unique to Make: Sim's own dedicated audit-log API is likewise Enterprise-only.",
+      shortDescription: 'RBAC needs the Teams plan or above; audit logs are similarly gated.',
       source: {
         url: 'https://www.make.com/en/pricing',
         label: 'Make Pricing page',
@@ -1196,6 +1174,26 @@ export const makeProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          "Yes: Make is a fully managed multi-tenant SaaS running on Amazon AWS, so scheduled, webhook, and MCP-triggered scenarios execute entirely on Make's own servers with zero dependency on any client device staying open, awake, or connected.",
+        detail:
+          "Scenario execution happens on Make's AWS infrastructure regardless of trigger type (scheduled, instant/webhook, or MCP tool call); closing the browser tab or shutting down a laptop has no effect on a scheduled or triggered scenario. The only local component Make offers is an optional on-premise agent that bridges Make's cloud to a private network for connectivity, not a requirement for scenarios themselves to run.",
+        shortValue: "Yes: runs server-side on Make's AWS infrastructure, no client dependency",
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.make.com/en/security',
+            label: 'Make Security page',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.make.com/en/on-prem-agents',
+            label: 'Make on-prem agents page',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1241,7 +1239,7 @@ export const makeProfile: CompetitorProfile = {
         value:
           'Founded 2012 (as Integromat, Prague, Czech Republic; bootstrapped, no VC rounds); acquired by Celonis for $100M+ in October 2020; rebranded to Make in 2022; operates as a business unit of Celonis, whose parent has raised ~$1.77B and is valued at ~$11-13B with 3,000+ employees (2024/2026 figures)',
         detail:
-          "Integromat was conceived in 2012 by Patrik Šimek in Prague and launched publicly in 2016. It grew to roughly $10M revenue and 11,000+ customers entirely bootstrapped, with no VC funding raised, before Celonis (Germany/US) acquired it in October 2020 for a reported $100M+. Sixteen months later, in February 2022, it was rebranded as 'Make' and now operates as a business unit within Celonis. Make has not disclosed separate headcount or funding figures as a standalone entity. Parent company Celonis (founded 2011 by Alex Rinke, Bastian Nominacher, and Martin Klenk) has raised approximately $1.77B in total funding, is valued at an estimated $11-13B, and reported 3,000+ staff across 20+ offices as of 2024.",
+          "Integromat was conceived in 2012 by Patrik Šimek in Prague and launched publicly in 2016. It grew to roughly $10M revenue entirely bootstrapped, with no VC funding raised, before Celonis (Germany/US) acquired it in October 2020 for a reported $100M+. TechCrunch's acquisition-day coverage cites 'more than 11,000 customers,' while a separate Latka estimate for the same year puts total registered users at 250K, a gap likely reflecting paying customers versus all signups rather than a contradiction. Sixteen months later, in February 2022, it was rebranded as 'Make' and now operates as a business unit within Celonis. Make has not disclosed separate headcount or funding figures as a standalone entity. Parent company Celonis (founded 2011 by Alex Rinke, Bastian Nominacher, and Martin Klenk) has raised approximately $1.77B in total funding, is valued at an estimated $11-13B, and reported 3,000+ staff across 20+ offices as of 2024.",
         shortValue: 'Founded 2012, acquired by Celonis in 2020',
         confidence: 'verified',
         sources: [

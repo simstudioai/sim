@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { env } from '@/lib/core/config/env'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { materializeLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
@@ -45,17 +47,27 @@ export interface RedactLargeValueRefsOptions {
  *
  * Traversal is SYNCHRONOUS (collect refs, then substitute) so a large ref-free
  * payload costs only a cheap walk — never a promise-per-node. Only the handful of
- * actual refs incur async hydrate → mask → re-store work.
+ * actual refs incur async hydrate → mask → re-store work, and those run in
+ * parallel with bounded concurrency ({@link REF_CONCURRENCY}).
  */
 export async function redactLargeValueRefs(
   payload: RedactablePayload,
   options: RedactLargeValueRefsOptions
 ): Promise<RedactablePayload> {
+  // Collect refs across the WHOLE payload first (shared `seen`), so every ref is
+  // hydrated+masked+re-stored in one bounded-concurrency pass instead of one
+  // sequential pass per key. A ref shared across keys is walked/masked once.
+  const refs: object[] = []
+  const seen = new WeakSet<object>()
+  for (const key of Object.keys(payload) as (keyof RedactablePayload)[]) {
+    if (payload[key] !== undefined) collectRefs(payload[key], refs, seen)
+  }
+  if (refs.length === 0) return payload
+
+  const replacements = await resolveReplacements(refs, options)
   const result: RedactablePayload = { ...payload }
   for (const key of Object.keys(payload) as (keyof RedactablePayload)[]) {
-    if (payload[key] !== undefined) {
-      result[key] = await redactValueRefs(payload[key], options)
-    }
+    if (payload[key] !== undefined) result[key] = substituteRefs(payload[key], replacements)
   }
   return result
 }
@@ -82,12 +94,44 @@ async function redactValueRefs(
   collectRefs(value, refs, new WeakSet())
   if (refs.length === 0) return value
 
-  const replacements = new Map<object, unknown>()
-  for (const ref of refs) {
-    if (replacements.has(ref)) continue
-    replacements.set(ref, await replaceRef(ref, options))
-  }
+  const replacements = await resolveReplacements(refs, options)
   return substituteRefs(value, replacements)
+}
+
+/**
+ * Max large-value refs hydrated → masked → re-stored in parallel per payload.
+ * Multiplies with the mask-batch chunk concurrency for total in-flight Presidio
+ * load, which the load-balanced fleet behind the internal ALB absorbs.
+ */
+const REF_CONCURRENCY = env.PII_REF_CONCURRENCY ?? 4
+
+/**
+ * Dedupe the collected refs by identity, then replace each in parallel (bounded by
+ * {@link REF_CONCURRENCY}). `Map.set` is synchronous, so concurrent workers writing
+ * the shared map do not race.
+ *
+ * `mapWithConcurrency`'s `fn` must not reject (a rejection fails the pool
+ * non-deterministically), so the mapper is total: it catches per-ref errors and
+ * records the first one. In `onFailure: 'throw'` mode `replaceRef` throws, so after
+ * the pool drains we rethrow that first error — an unmaskable ref still aborts the
+ * run rather than passing through. In `'scrub'` mode `replaceRef` never throws.
+ */
+async function resolveReplacements(
+  refs: object[],
+  options: RedactLargeValueRefsOptions
+): Promise<Map<object, unknown>> {
+  const unique = [...new Set(refs)]
+  const replacements = new Map<object, unknown>()
+  let firstError: unknown
+  await mapWithConcurrency(unique, REF_CONCURRENCY, async (ref) => {
+    try {
+      replacements.set(ref, await replaceRef(ref, options))
+    } catch (error) {
+      if (firstError === undefined) firstError = error
+    }
+  })
+  if (firstError !== undefined) throw firstError
+  return replacements
 }
 
 /** Depth-first sync walk collecting ref/manifest nodes (not recursing into them). */

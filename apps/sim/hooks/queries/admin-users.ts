@@ -5,6 +5,8 @@ import { client } from '@/lib/auth/auth-client'
 
 const logger = createLogger('AdminUsersQuery')
 
+export const ADMIN_USER_LIST_STALE_TIME = 30 * 1000
+
 export const adminUserKeys = {
   all: ['adminUsers'] as const,
   lists: () => [...adminUserKeys.all, 'list'] as const,
@@ -84,7 +86,7 @@ export function useAdminUsers(offset: number, limit: number, searchQuery: string
     queryKey: adminUserKeys.list(offset, limit, searchQuery),
     queryFn: ({ signal }) => fetchAdminUsers(offset, limit, searchQuery, signal),
     enabled: searchQuery.length > 0,
-    staleTime: 30 * 1000,
+    staleTime: ADMIN_USER_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

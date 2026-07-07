@@ -84,12 +84,23 @@ export const simProfile: CompetitorProfile = {
         asOf: '2026-07-02',
       },
     },
+    {
+      title: 'Live multiplayer canvas editing',
+      description:
+        'Real-time cursors, selection broadcasting, and synced concurrent edits over a dedicated realtime backend, so a team can build the same workflow together at the same time.',
+      shortDescription: 'Real-time cursors, selections, and synced edits on the same canvas.',
+      source: {
+        url: 'https://github.com/simstudioai/sim/blob/main/apps/realtime/src/handlers/presence.ts',
+        label: 'Sim codebase: realtime presence handler',
+        asOf: '2026-07-04',
+      },
+    },
   ],
   limitations: [
     {
       title: 'Smaller integration catalog than the largest generalist automation platforms',
       description:
-        "Sim ships 302 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (7,000+ apps) or Pipedream (1,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
+        "Sim ships 302 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (9,000+ apps) or Pipedream (3,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
       shortDescription:
         "302 blocks and ~3,900 tool actions, versus Zapier and Pipedream's larger raw app counts.",
       source: {
@@ -318,10 +329,9 @@ export const simProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more)',
-        detail:
-          'apps/sim/providers/models.ts defines 21 provider entries; openrouter/litellm/vllm/ollama resolve models dynamically at runtime rather than from a hardcoded model list.',
-        shortValue: '21 providers incl. OpenAI, Anthropic, Google, Bedrock',
+          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more), with OpenRouter, LiteLLM, vLLM, and Ollama resolving models dynamically at runtime rather than from a fixed list, so effective model reach extends well beyond the 21 named providers',
+        detail: 'apps/sim/providers/models.ts defines 21 provider entries.',
+        shortValue: '21 providers plus dynamic-resolution aggregators (OpenRouter, LiteLLM, etc.)',
         confidence: 'verified',
         sources: [
           {
@@ -359,8 +369,9 @@ export const simProfile: CompetitorProfile = {
       },
       knowledgeBaseRag: {
         value:
-          'Yes: native hybrid vector (pgvector) + keyword search knowledge base, 11 supported file formats, configurable chunking',
-        shortValue: 'Hybrid vector + keyword search, 11 file formats',
+          'Yes: native hybrid vector (pgvector) + keyword search knowledge base, 11 supported file formats, configurable chunking, plus 51 connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload',
+        shortValue:
+          'Hybrid vector + keyword search, 11 file formats, 51 continuously-synced connectors',
         confidence: 'verified',
         sources: [
           {
@@ -372,6 +383,11 @@ export const simProfile: CompetitorProfile = {
             url: 'https://docs.sim.ai/knowledgebase',
             label: 'Sim Docs: Knowledge Base document types',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/connectors/registry.ts',
+            label: 'Sim codebase: connector registry (51 connectors)',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -569,10 +585,11 @@ export const simProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '302 first-party blocks, ~3,900 underlying tool actions',
+        value:
+          '1,000+ integrations counting individual API actions, built from 302 first-party blocks and roughly 3,900 underlying tool actions',
         detail:
-          'Sim\'s landing page cites "1,000+ integrations," a broader figure counting individual API actions rather than top-level blocks. Both numbers describe the same integration surface.',
-        shortValue: '302 blocks, ~3,900 tool actions',
+          'Sim\'s landing page cites the "1,000+ integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.',
+        shortValue: '1,000+ integrations (302 blocks, ~3,900 tool actions)',
         confidence: 'verified',
         sources: [
           {
@@ -594,14 +611,20 @@ export const simProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value:
-          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.)',
-        shortValue: 'Webhook, cron, chat, REST API, triggers for 61 apps',
+          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.), plus a native row-level trigger on Sim Tables that fires on insert/update with an optional column watch-list and emits a before/after diff',
+        shortValue:
+          'Webhook, cron, chat, REST API, 61 app triggers, plus a diff-aware Tables trigger',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/triggers',
             label: 'Sim Docs: Triggers overview',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/triggers/table/poller.ts',
+            label: 'Sim codebase: Table row trigger',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -642,10 +665,20 @@ export const simProfile: CompetitorProfile = {
       },
       extensibilitySdk: {
         value:
-          'No official client SDK. The API is REST-only via an x-api-key header. Extensibility instead comes from MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
-        shortValue: 'No SDK; MCP, code block, and A2A protocol instead',
+          'Official client SDKs exist for Python (simstudio-sdk, pip install simstudio-sdk) and TypeScript/JavaScript (simstudio-ts-sdk, npm install simstudio-ts-sdk), both wrapping the REST API (x-api-key header) with methods like execute_workflow / executeWorkflow, retry-with-backoff, and usage-limit lookups. Extensibility is further extended by MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
+        shortValue: 'Official Python and TypeScript SDKs, plus MCP, code block, and A2A protocol',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.sim.ai/api-reference/python',
+            label: 'Sim Docs: Python SDK',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.sim.ai/api-reference/typescript',
+            label: 'Sim Docs: TypeScript SDK',
+            asOf: '2026-07-04',
+          },
           {
             url: 'https://docs.sim.ai/mcp',
             label: 'Sim Docs: Using MCP Tools',
@@ -778,8 +811,11 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       rbac: {
-        value: 'Yes: admin/write/read workspace permissions, org-level admin/member roles',
-        shortValue: 'Workspace and org-level role permissions',
+        value:
+          'Yes: admin/write/read workspace permissions, org-level admin/member roles, plus Enterprise-tier permission groups that allow/deny-list specific models, tools, and integrations per group on top of those base roles',
+        detail:
+          'See modelAndToolGovernance and credentialGovernance for the finer-grained permission-groups layer.',
+        shortValue: 'Workspace/org roles, plus per-group model and tool allow/deny lists',
         confidence: 'verified',
         sources: [
           {
@@ -791,6 +827,11 @@ export const simProfile: CompetitorProfile = {
             url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
             label: 'Sim codebase: permissionTypeEnum, role columns',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            label: 'Sim codebase: permission groups',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1053,6 +1094,26 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/execution/edge-manager.ts',
             label: 'Sim codebase: error-output edge routing',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: scheduled, webhook, and chat-triggered runs execute as background jobs on trigger.dev workers, entirely on Sim's servers",
+        detail:
+          'No client device needs to be open, awake, or connected for a run to fire or complete; closing the browser tab or shutting down a laptop has no effect on a scheduled or triggered workflow.',
+        shortValue: 'Runs server-side; no dependency on a client device staying open',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/core/async-jobs/backends/trigger-dev.ts',
+            label: 'Sim codebase: trigger.dev background job backend',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.sim.ai/triggers',
+            label: 'Sim Docs: Triggers',
             asOf: '2026-07-02',
           },
         ],

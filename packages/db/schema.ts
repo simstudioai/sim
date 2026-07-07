@@ -744,9 +744,6 @@ export const webhook = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     failedCount: integer('failed_count').default(0), // Track consecutive failures
     lastFailedAt: timestamp('last_failed_at'), // When the webhook last failed
-    credentialSetId: text('credential_set_id').references(() => credentialSet.id, {
-      onDelete: 'set null',
-    }), // For credential set webhooks - enables efficient queries
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -761,8 +758,6 @@ export const webhook = pgTable(
         table.workflowId,
         table.deploymentVersionId
       ),
-      // Optimize queries for credential set webhooks
-      credentialSetIdIdx: index('webhook_credential_set_id_idx').on(table.credentialSetId),
       archivedAtPartialIdx: index('webhook_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
@@ -3112,99 +3107,6 @@ export const pendingCredentialDraft = pgTable(
       table.providerId,
       table.workspaceId
     ),
-  })
-)
-
-export const credentialSet = pgTable(
-  'credential_set',
-  {
-    id: text('id').primaryKey(),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    description: text('description'),
-    providerId: text('provider_id').notNull(),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    createdByIdx: index('credential_set_created_by_idx').on(table.createdBy),
-    orgNameUnique: uniqueIndex('credential_set_org_name_unique').on(
-      table.organizationId,
-      table.name
-    ),
-    providerIdIdx: index('credential_set_provider_id_idx').on(table.providerId),
-  })
-)
-
-export const credentialSetMemberStatusEnum = pgEnum('credential_set_member_status', [
-  'active',
-  'pending',
-  'revoked',
-])
-
-export const credentialSetMember = pgTable(
-  'credential_set_member',
-  {
-    id: text('id').primaryKey(),
-    credentialSetId: text('credential_set_id')
-      .notNull()
-      .references(() => credentialSet.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    status: credentialSetMemberStatusEnum('status').notNull().default('pending'),
-    joinedAt: timestamp('joined_at'),
-    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    userIdIdx: index('credential_set_member_user_id_idx').on(table.userId),
-    uniqueMembership: uniqueIndex('credential_set_member_unique').on(
-      table.credentialSetId,
-      table.userId
-    ),
-    statusIdx: index('credential_set_member_status_idx').on(table.status),
-  })
-)
-
-export const credentialSetInvitationStatusEnum = pgEnum('credential_set_invitation_status', [
-  'pending',
-  'accepted',
-  'expired',
-  'cancelled',
-])
-
-export const credentialSetInvitation = pgTable(
-  'credential_set_invitation',
-  {
-    id: text('id').primaryKey(),
-    credentialSetId: text('credential_set_id')
-      .notNull()
-      .references(() => credentialSet.id, { onDelete: 'cascade' }),
-    email: text('email'),
-    token: text('token').notNull().unique(),
-    invitedBy: text('invited_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    status: credentialSetInvitationStatusEnum('status').notNull().default('pending'),
-    expiresAt: timestamp('expires_at').notNull(),
-    acceptedAt: timestamp('accepted_at'),
-    acceptedByUserId: text('accepted_by_user_id').references(() => user.id, {
-      onDelete: 'set null',
-    }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    credentialSetIdIdx: index('credential_set_invitation_set_id_idx').on(table.credentialSetId),
-    tokenIdx: index('credential_set_invitation_token_idx').on(table.token),
-    statusIdx: index('credential_set_invitation_status_idx').on(table.status),
-    expiresAtIdx: index('credential_set_invitation_expires_at_idx').on(table.expiresAt),
   })
 )
 

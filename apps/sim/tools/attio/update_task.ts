@@ -114,6 +114,7 @@ export const attioUpdateTaskTool: ToolConfig<AttioUpdateTaskParams, AttioUpdateT
         content: task.content_plaintext ?? null,
         deadlineAt: task.deadline_at ?? null,
         isCompleted: task.is_completed ?? false,
+        completedAt: task.completed_at ?? null,
         linkedRecords,
         assignees,
         createdByActor: task.created_by_actor ?? null,

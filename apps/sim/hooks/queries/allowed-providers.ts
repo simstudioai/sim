@@ -13,6 +13,8 @@ export const allowedProvidersKeys = {
   blacklisted: () => [...allowedProvidersKeys.all, 'blacklisted'] as const,
 }
 
+export const BLACKLISTED_PROVIDERS_STALE_TIME = 5 * 60 * 1000
+
 type BlacklistedProvidersResponse = ContractJsonResponse<typeof getAllowedProvidersContract>
 
 async function fetchBlacklistedProviders(
@@ -32,7 +34,7 @@ export function useBlacklistedProviders({ enabled = true }: { enabled?: boolean 
   return useQuery({
     queryKey: allowedProvidersKeys.blacklisted(),
     queryFn: ({ signal }) => fetchBlacklistedProviders(signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: BLACKLISTED_PROVIDERS_STALE_TIME,
     enabled,
   })
 }

@@ -23,7 +23,6 @@ export const envFlagsMock = {
   isTriggerDevEnabled: false,
   isTablesFractionalOrderingEnabled: false,
   isSsoEnabled: false,
-  isCredentialSetsEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
   isInboxEnabled: false,

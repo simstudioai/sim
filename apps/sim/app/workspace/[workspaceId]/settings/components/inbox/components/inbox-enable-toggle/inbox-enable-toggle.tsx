@@ -8,6 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  Label,
   Switch,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -62,12 +63,13 @@ export function InboxEnableToggle() {
     <>
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-1'>
-          <span className='text-[13px] text-[var(--text-primary)]'>Enable email inbox</span>
-          <span className='text-[12px] text-[var(--text-muted)]'>
+          <Label htmlFor='inbox-enabled'>Enable email inbox</Label>
+          <p className='text-[var(--text-muted)] text-caption'>
             Allow this workspace to receive tasks via email
-          </span>
+          </p>
         </div>
         <Switch
+          id='inbox-enabled'
           checked={config?.enabled ?? false}
           onCheckedChange={handleToggle}
           disabled={toggleInbox.isPending}

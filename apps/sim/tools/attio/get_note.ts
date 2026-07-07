@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { AttioGetNoteParams, AttioGetNoteResponse } from './types'
-import { NOTE_OUTPUT_PROPERTIES } from './types'
+import { mapNoteTags, NOTE_OUTPUT_PROPERTIES } from './types'
 
 const logger = createLogger('AttioGetNote')
 
@@ -56,7 +56,7 @@ export const attioGetNoteTool: ToolConfig<AttioGetNoteParams, AttioGetNoteRespon
         contentPlaintext: note.content_plaintext ?? null,
         contentMarkdown: note.content_markdown ?? null,
         meetingId: note.meeting_id ?? null,
-        tags: note.tags ?? [],
+        tags: mapNoteTags(note.tags),
         createdByActor: note.created_by_actor ?? null,
         createdAt: note.created_at ?? null,
       },

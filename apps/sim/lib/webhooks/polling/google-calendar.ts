@@ -99,12 +99,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const accessToken = await resolveOAuthCredential(
-        webhookData,
-        'google-calendar',
-        requestId,
-        logger
-      )
+      const accessToken = await resolveOAuthCredential(webhookData, 'google-calendar', requestId)
 
       const config = getProviderConfig<GoogleCalendarWebhookConfig>(webhookData.providerConfig)
       // Canonical key `calendarId` first; `manualCalendarId` is a transitional basic-first
