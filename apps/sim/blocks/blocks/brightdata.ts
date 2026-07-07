@@ -60,6 +60,18 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
       condition: { field: 'operation', value: 'scrape_url' },
     },
     {
+      id: 'dataFormat',
+      title: 'Convert To',
+      type: 'dropdown',
+      options: [
+        { label: 'None', id: '' },
+        { label: 'Markdown', id: 'markdown' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'scrape_url' },
+    },
+    {
       id: 'country',
       title: 'Country',
       type: 'short-input',
@@ -119,6 +131,26 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
       placeholder:
         'Describe what you are looking for (e.g., "find official pricing pages and change notes")',
       condition: { field: 'operation', value: 'discover' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a concise description of what the agent is trying to accomplish, to help rank web-discovery results by relevance (e.g., "find official pricing pages and recent change notes"). Return ONLY the intent description - no explanations, no extra text.',
+        placeholder: 'Describe what you are trying to accomplish...',
+      },
+    },
+    {
+      id: 'mode',
+      title: 'Search Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Standard', id: 'standard' },
+        { label: 'Deep', id: 'deep' },
+        { label: 'Fast', id: 'fast' },
+        { label: 'Zero Ranking', id: 'zeroRanking' },
+      ],
+      value: () => 'standard',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'discover' },
     },
     {
       id: 'includeContent',
@@ -133,7 +165,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
       type: 'dropdown',
       options: [
         { label: 'JSON', id: 'json' },
-        { label: 'Markdown', id: 'markdown' },
+        { label: 'Markdown', id: 'md' },
       ],
       value: () => 'json',
       mode: 'advanced',
@@ -154,6 +186,12 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
       placeholder: '[{"url": "https://example.com/product"}]',
       condition: { field: 'operation', value: 'sync_scrape' },
       required: { field: 'operation', value: 'sync_scrape' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of URL objects to scrape based on the user\'s description, in the form [{"url": "https://example.com/product"}]. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the URLs to scrape...',
+      },
     },
     {
       id: 'syncFormat',
@@ -165,6 +203,13 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
         { label: 'CSV', id: 'csv' },
       ],
       value: () => 'json',
+      condition: { field: 'operation', value: 'sync_scrape' },
+    },
+    {
+      id: 'syncIncludeErrors',
+      title: 'Include Errors',
+      type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'sync_scrape' },
     },
     {
@@ -182,6 +227,12 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
       placeholder: '[{"url": "https://example.com/product"}]',
       condition: { field: 'operation', value: 'scrape_dataset' },
       required: { field: 'operation', value: 'scrape_dataset' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of URL objects to scrape based on the user\'s description, in the form [{"url": "https://example.com/product"}]. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the URLs to scrape...',
+      },
     },
     {
       id: 'datasetFormat',
@@ -192,6 +243,13 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
         { label: 'CSV', id: 'csv' },
       ],
       value: () => 'json',
+      condition: { field: 'operation', value: 'scrape_dataset' },
+    },
+    {
+      id: 'datasetIncludeErrors',
+      title: 'Include Errors',
+      type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'scrape_dataset' },
     },
     {
@@ -251,6 +309,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
             result.url = params.url
             if (params.format) result.format = params.format
             if (params.country) result.country = params.country
+            if (params.dataFormat) result.dataFormat = params.dataFormat
             break
 
           case 'serp_search':
@@ -265,6 +324,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
           case 'discover':
             result.query = params.discoverQuery
             if (params.numResults) result.numResults = Number(params.numResults)
+            if (params.mode) result.mode = params.mode
             if (params.intent) result.intent = params.intent
             if (params.includeContent != null) result.includeContent = params.includeContent
             if (params.contentFormat) result.format = params.contentFormat
@@ -276,12 +336,15 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
             result.datasetId = params.syncDatasetId
             result.urls = params.syncUrls
             if (params.syncFormat) result.format = params.syncFormat
+            if (params.syncIncludeErrors != null) result.includeErrors = params.syncIncludeErrors
             break
 
           case 'scrape_dataset':
             result.datasetId = params.datasetId
             result.urls = params.urls
             if (params.datasetFormat) result.format = params.datasetFormat
+            if (params.datasetIncludeErrors != null)
+              result.includeErrors = params.datasetIncludeErrors
             break
 
           case 'snapshot_status':
@@ -308,6 +371,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
     zone: { type: 'string', description: 'Bright Data zone name' },
     url: { type: 'string', description: 'URL to scrape' },
     format: { type: 'string', description: 'Response format' },
+    dataFormat: { type: 'string', description: 'Convert scraped content to markdown' },
     country: { type: 'string', description: 'Country code for geo-targeting' },
     query: { type: 'string', description: 'Search query' },
     searchEngine: { type: 'string', description: 'Search engine to use' },
@@ -315,14 +379,23 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
     numResults: { type: 'number', description: 'Number of results' },
     discoverQuery: { type: 'string', description: 'Discover search query' },
     intent: { type: 'string', description: 'Intent for ranking results' },
+    mode: { type: 'string', description: 'Search depth and ranking mode for discover' },
     includeContent: { type: 'boolean', description: 'Include page content in discover results' },
     contentFormat: { type: 'string', description: 'Content format for discover results' },
     syncDatasetId: { type: 'string', description: 'Dataset scraper ID for sync scrape' },
     syncUrls: { type: 'string', description: 'JSON array of URL objects for sync scrape' },
     syncFormat: { type: 'string', description: 'Output format for sync scrape' },
+    syncIncludeErrors: {
+      type: 'boolean',
+      description: 'Include error reports in sync scrape results',
+    },
     datasetId: { type: 'string', description: 'Dataset scraper ID' },
     urls: { type: 'string', description: 'JSON array of URL objects to scrape' },
     datasetFormat: { type: 'string', description: 'Dataset output format' },
+    datasetIncludeErrors: {
+      type: 'boolean',
+      description: 'Include error reports in scrape dataset results',
+    },
     snapshotId: { type: 'string', description: 'Snapshot ID for status/download/cancel' },
     downloadFormat: { type: 'string', description: 'Download output format' },
   },
@@ -330,11 +403,18 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
     content: { type: 'string', description: 'Scraped page content' },
     url: { type: 'string', description: 'URL that was scraped' },
     statusCode: { type: 'number', description: 'HTTP status code' },
-    results: { type: 'json', description: 'Search or discover results array' },
+    results: {
+      type: 'json',
+      description:
+        'Search or discover results array: [{title, url, description, rank}] for SERP search, or [{url, title, description, relevanceScore, content}] for discover',
+    },
     query: { type: 'string', description: 'Search query executed' },
     searchEngine: { type: 'string', description: 'Search engine used' },
     totalResults: { type: 'number', description: 'Total number of discover results' },
-    data: { type: 'json', description: 'Scraped data records' },
+    data: {
+      type: 'json',
+      description: 'Array of scraped result records with dataset-specific fields',
+    },
     snapshotId: { type: 'string', description: 'Snapshot ID' },
     isAsync: { type: 'boolean', description: 'Whether sync scrape fell back to async' },
     status: { type: 'string', description: 'Job status' },
