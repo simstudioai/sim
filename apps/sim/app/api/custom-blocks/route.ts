@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -118,6 +119,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       iconUrl,
       inputs,
       exposedOutputs,
+    })
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CUSTOM_BLOCK_PUBLISHED,
+      resourceType: AuditResourceType.CUSTOM_BLOCK,
+      resourceId: block.id,
+      resourceName: block.name,
+      description: `Published custom block "${block.name}"`,
+      metadata: { organizationId, type: block.type, workflowId },
+      request,
     })
     return NextResponse.json({ customBlock: toWire(block) })
   } catch (error) {

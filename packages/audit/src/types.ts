@@ -19,6 +19,11 @@ export const AuditAction = {
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
 
+  // Custom Blocks (deploy-as-block)
+  CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',
+  CUSTOM_BLOCK_UPDATED: 'custom_block.updated',
+  CUSTOM_BLOCK_DELETED: 'custom_block.deleted',
+
   // Custom Tools
   CUSTOM_TOOL_CREATED: 'custom_tool.created',
   CUSTOM_TOOL_UPDATED: 'custom_tool.updated',
@@ -188,6 +193,7 @@ export const AuditResourceType = {
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
+  CUSTOM_BLOCK: 'custom_block',
   CUSTOM_TOOL: 'custom_tool',
   DATA_DRAIN: 'data_drain',
   DOCUMENT: 'document',
