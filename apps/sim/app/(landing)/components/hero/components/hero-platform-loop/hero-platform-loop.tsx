@@ -101,6 +101,7 @@ export function HeroPlatformLoop() {
 
     const showFinished = () => {
       clearScheduled()
+      setFading(false)
       setPhase('reply')
       setStageOpen(true)
       setBuiltCount(STAGE_BLOCKS.length)
