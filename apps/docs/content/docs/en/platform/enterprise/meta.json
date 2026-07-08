@@ -8,7 +8,8 @@
     "whitelabeling",
     "audit-logs",
     "data-retention",
-    "data-drains"
+    "data-drains",
+    "forks"
   ],
   "defaultOpen": false
 }
