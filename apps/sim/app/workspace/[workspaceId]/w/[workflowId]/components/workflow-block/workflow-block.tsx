@@ -331,9 +331,13 @@ const SubBlockRow = memo(function SubBlockRow({
 
   /** Hydrates tool references to display names. */
   const { data: customTools = [] } = useCustomTools(workspaceId || '')
+  const mcpToolSummaries = useMemo(
+    () => mcpToolsData.map((t) => ({ id: createMcpToolId(t.serverId, t.name), name: t.name })),
+    [mcpToolsData]
+  )
   const toolsDisplayValue = useMemo(
-    () => resolveToolsLabel(subBlock, rawValue, customTools),
-    [subBlock, rawValue, customTools]
+    () => resolveToolsLabel(subBlock, rawValue, customTools, mcpToolSummaries),
+    [subBlock, rawValue, customTools, mcpToolSummaries]
   )
 
   const filterDisplayValue = useMemo(

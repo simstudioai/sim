@@ -135,6 +135,20 @@ describe('resolveToolsLabel', () => {
     expect(resolveToolsLabel(toolInput, [{ type: 'workflow_input' }], [])).toBe('Workflow')
   })
 
+  it('prefers the live MCP tool name over the stored title', () => {
+    expect(
+      resolveToolsLabel(
+        toolInput,
+        [{ type: 'mcp', toolId: 'mcp-1', title: 'Renamed By Copilot' }],
+        [],
+        [{ id: 'mcp-1', name: 'Live MCP Name' }]
+      )
+    ).toBe('Live MCP Name')
+    expect(
+      resolveToolsLabel(toolInput, [{ type: 'mcp', toolId: 'mcp-1', title: 'Snapshot' }], [], [])
+    ).toBe('Snapshot')
+  })
+
   it('prefers the custom tool record over the stored title', () => {
     expect(
       resolveToolsLabel(

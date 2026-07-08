@@ -428,15 +428,17 @@ export function resolveVariablesLabel(
 
 /**
  * Resolves a tool-input value to a tool-name summary. Names come from static
- * sources first (block registry, custom-tool records) so that edits to the
- * stored entry's `title` cannot change what the UI shows; the stored title
- * and inline schema names are only fallbacks for shapes with no canonical
- * source (MCP snapshots, legacy entries).
+ * sources first (block registry, custom-tool records, live MCP tools) so that
+ * edits to the stored entry's `title` cannot change what the UI shows; the
+ * stored title and inline schema names are only fallbacks for shapes with no
+ * canonical source (MCP entries while server data is unavailable, legacy
+ * entries).
  */
 export function resolveToolsLabel(
   subBlock: SubBlockConfig | undefined,
   rawValue: unknown,
-  customTools: Array<{ id: string; title?: string; schema?: { function?: { name?: string } } }>
+  customTools: Array<{ id: string; title?: string; schema?: { function?: { name?: string } } }>,
+  mcpTools: Array<{ id: string; name: string }> = []
 ): string | null {
   if (subBlock?.type !== 'tool-input') return null
   if (!Array.isArray(rawValue) || rawValue.length === 0) return null
@@ -464,6 +466,11 @@ export function resolveToolsLabel(
         const customTool = customTools.find((candidate) => candidate.id === t.customToolId)
         if (customTool?.title) return customTool.title
         if (customTool?.schema?.function?.name) return customTool.schema.function.name
+      }
+
+      if (t.type === 'mcp' && typeof t.toolId === 'string') {
+        const mcpTool = mcpTools.find((candidate) => candidate.id === t.toolId)
+        if (mcpTool?.name) return mcpTool.name
       }
 
       if (typeof t.title === 'string' && t.title) return t.title
