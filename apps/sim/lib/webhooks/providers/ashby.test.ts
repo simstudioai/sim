@@ -127,7 +127,6 @@ describe('ashbyHandler', () => {
       expect(ashbyHandler.extractIdempotencyId!(body)).toBe(
         'ashby:candidateStageChange:app-1:2026-01-01T00:00:00Z'
       )
-      // identical retried delivery produces the same key
       expect(ashbyHandler.extractIdempotencyId!({ ...body })).toBe(
         ashbyHandler.extractIdempotencyId!(body)
       )
@@ -147,7 +146,6 @@ describe('ashbyHandler', () => {
       const created = { action: 'offerCreate', data: { offer: { id: 'offer-1', decidedAt: null } } }
       expect(ashbyHandler.extractIdempotencyId!(created)).toBe('ashby:offerCreate:offer-1')
 
-      // a retry delivered after decidedAt was populated must produce the same key
       const retriedAfterDecision = {
         action: 'offerCreate',
         data: { offer: { id: 'offer-1', decidedAt: '2026-01-02T00:00:00Z' } },
@@ -164,11 +162,8 @@ describe('ashbyHandler', () => {
       }
       const key = ashbyHandler.extractIdempotencyId!(body)
       expect(key).not.toBeNull()
-      // an identical retry (same bytes) produces the same key
       expect(ashbyHandler.extractIdempotencyId!({ ...body, data: { ...body.data } })).toBe(key)
 
-      // a genuinely different event on the same application (different
-      // content) must NOT collide with the one above
       const different = {
         action: 'candidateStageChange',
         data: { application: { id: 'app-1', status: 'Hired' } },

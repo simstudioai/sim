@@ -36,13 +36,6 @@ function validateAshbySignature(secretToken: string, signature: string, body: st
 }
 
 export const ashbyHandler: WebhookProviderHandler = {
-  /**
-   * Ashby webhook payloads carry no delivery/event id (confirmed against the
-   * live OpenAPI spec — every webhookType only has `action` + `data`), so we
-   * derive a stable key from the affected resource's id plus its
-   * `updatedAt`/`createdAt` (when present) to distinguish a retried delivery
-   * of the same event from a genuinely new one.
-   */
   extractIdempotencyId(body: unknown): string | null {
     const obj = body as Record<string, unknown>
     const action = typeof obj.action === 'string' ? obj.action : undefined
@@ -55,20 +48,10 @@ export const ashbyHandler: WebhookProviderHandler = {
     const offer = data.offer as Record<string, unknown> | undefined
 
     if (application?.id) {
-      // updatedAt is required by Ashby's schema and is the cheapest stable
-      // discriminator between a retry and a genuinely later event (e.g. a
-      // second stage change). If it's ever absent, fall back to a content
-      // hash of the full application payload — still stable across retries
-      // of the same delivery (identical bytes hash identically) without
-      // risking a false collision between two distinct events.
       const discriminator = application.updatedAt ?? buildFallbackDeliveryFingerprint(application)
       return `ashby:${action}:${application.id}:${discriminator}`
     }
     if (offer?.id) {
-      // offerCreate fires exactly once per offer, so the id alone is a
-      // stable key. `decidedAt` is populated only after the fact (candidate
-      // responds), so including it would give a retry of the same delivery
-      // a different key than the original attempt and defeat dedup.
       return `ashby:${action}:${offer.id}`
     }
     if (candidate?.id) {
@@ -222,10 +205,6 @@ export const ashbyHandler: WebhookProviderHandler = {
           userFriendlyMessage =
             'Access denied. Please ensure your Ashby API Key has the apiKeysWrite permission.'
         } else if (/duplicate webhook/i.test(errorMessage)) {
-          // Ashby has no webhook.list endpoint, so a lost externalId (e.g. a
-          // prior attempt succeeded in Ashby but we failed to persist the
-          // result) can't be self-healed by looking the webhook up — the
-          // user must remove the stale one in Ashby before retrying.
           userFriendlyMessage =
             'A webhook for this URL and event already exists in Ashby. This usually happens when a previous save succeeded in Ashby but Sim failed to record it. Delete the duplicate webhook under Ashby Settings > API/Webhooks, then re-save this trigger.'
         } else if (errorMessage && errorMessage !== 'Unknown Ashby API error') {
