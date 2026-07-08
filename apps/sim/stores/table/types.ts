@@ -40,7 +40,6 @@ export type TableUndoAction =
       type: 'create-rows'
       rows: Array<{
         rowId: string
-        position: number
         orderKey?: string
         data: Record<string, unknown>
       }>

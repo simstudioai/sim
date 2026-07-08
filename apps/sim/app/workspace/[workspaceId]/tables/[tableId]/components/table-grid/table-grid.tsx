@@ -2725,14 +2725,10 @@ export function TableGrid({
 
       const currentCols = columnsRef.current
       const currentRows = rowsRef.current
-      // Captured once before the loop so each new row in the batch gets a unique,
-      // sequential position via `+ (newRowIndex - currentRows.length)` below.
-      const lastRowPosition = currentRows.reduce((max, r) => Math.max(max, r.position), -1)
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const createBatchRows: Array<Record<string, unknown>> = []
-      const createBatchPositions: number[] = []
 
       for (let r = 0; r < pasteRows.length; r++) {
         const targetArrayIndex = currentAnchor.rowIndex + r
@@ -2764,7 +2760,6 @@ export function TableGrid({
           updateBatch.push({ rowId: existingRow.id, data: rowData })
         } else {
           createBatchRows.push(rowData)
-          createBatchPositions.push(lastRowPosition + 1 + (targetArrayIndex - currentRows.length))
         }
       }
 
@@ -2788,14 +2783,12 @@ export function TableGrid({
               const createdRows = response?.data?.rows ?? []
               const undoRows: Array<{
                 rowId: string
-                position: number
                 data: Record<string, unknown>
               }> = []
               for (let i = 0; i < createdRows.length; i++) {
                 if (createdRows[i]?.id) {
                   undoRows.push({
                     rowId: createdRows[i].id,
-                    position: createBatchPositions[i],
                     data: createBatchRows[i],
                   })
                 }
