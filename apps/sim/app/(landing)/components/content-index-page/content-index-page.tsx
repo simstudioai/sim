@@ -37,21 +37,24 @@ export function ContentIndexPage({
   collectionJsonLd,
 }: ContentIndexPageProps) {
   const filtered = tag ? posts.filter((p) => p.tags.includes(tag)) : posts
+  const dateSorted = [...filtered].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  )
 
-  const sorted =
-    page === 1
-      ? [...filtered].sort((a, b) => {
-          if (a.featured && !b.featured) return -1
-          if (!a.featured && b.featured) return 1
-          return new Date(b.date).getTime() - new Date(a.date).getTime()
-        })
-      : filtered
+  // Featured posts render once, in the page-1 featured row, regardless of
+  // where their date would otherwise place them — so they're carved out of
+  // the paginated pool up front rather than re-sorted to the front of page 1
+  // (which left them still reachable, and duplicated, on a later page).
+  const explicitlyFeatured = dateSorted.filter((p) => p.featured).slice(0, FEATURED_COUNT)
+  const featuredPosts =
+    explicitlyFeatured.length > 0 ? explicitlyFeatured : dateSorted.slice(0, FEATURED_COUNT)
+  const featuredSlugs = new Set(featuredPosts.map((p) => p.slug))
+  const paginated = dateSorted.filter((p) => !featuredSlugs.has(p.slug))
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / POSTS_PER_PAGE))
+  const totalPages = Math.max(1, Math.ceil(paginated.length / POSTS_PER_PAGE))
   const start = (page - 1) * POSTS_PER_PAGE
-  const pagePosts = sorted.slice(start, start + POSTS_PER_PAGE)
-  const featured = page === 1 ? pagePosts.slice(0, FEATURED_COUNT) : []
-  const remaining = page === 1 ? pagePosts.slice(FEATURED_COUNT) : pagePosts
+  const featured = page === 1 ? featuredPosts : []
+  const remaining = paginated.slice(start, start + POSTS_PER_PAGE)
 
   const pageHref = (targetPage: number) =>
     `${basePath}?page=${targetPage}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`
