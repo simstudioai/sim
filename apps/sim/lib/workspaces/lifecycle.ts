@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   apiKey,
@@ -38,6 +39,10 @@ interface ArchiveWorkspaceOptions {
    * the banned user specifically should not be handed a fresh workspace as a side effect.
    */
   force?: boolean
+  /** Attributed as the actor on the audit log entry for any auto-provisioned replacement workspace. */
+  actorId?: string
+  actorName?: string | null
+  actorEmail?: string | null
 }
 
 interface ArchiveWorkspaceResult {
@@ -119,7 +124,7 @@ export async function archiveWorkspace(
     if (!options.force) {
       const strandedUserIds = await findMembersStrandedByArchival(tx, workspaceId)
       for (const userId of strandedUserIds) {
-        await createWorkspaceRecord({
+        const fallbackWorkspace = await createWorkspaceRecord({
           userId,
           name: FALLBACK_WORKSPACE_NAME,
           organizationId: null,
@@ -127,6 +132,21 @@ export async function archiveWorkspace(
           billedAccountUserId: userId,
           executor: tx,
         })
+
+        if (options.actorId) {
+          recordAudit({
+            workspaceId: fallbackWorkspace.id,
+            actorId: options.actorId,
+            actorName: options.actorName,
+            actorEmail: options.actorEmail,
+            action: AuditAction.WORKSPACE_CREATED,
+            resourceType: AuditResourceType.WORKSPACE,
+            resourceId: fallbackWorkspace.id,
+            resourceName: fallbackWorkspace.name,
+            description: `Auto-created replacement workspace "${fallbackWorkspace.name}" for a member left with no workspace after deleting "${workspaceRecord.name}"`,
+            metadata: { deletedWorkspaceId: workspaceId, recipientUserId: userId },
+          })
+        }
       }
       provisionedWorkspaceUserIds = strandedUserIds
     }

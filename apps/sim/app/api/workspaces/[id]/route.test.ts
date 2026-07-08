@@ -83,6 +83,9 @@ describe('DELETE /api/workspaces/[id]', () => {
     expect(body).toEqual({ success: true })
     expect(mockArchiveWorkspace).toHaveBeenCalledWith('workspace-1', {
       requestId: 'workspace-workspace-1',
+      actorId: 'user-admin',
+      actorName: 'Admin',
+      actorEmail: 'admin@example.com',
     })
     expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({

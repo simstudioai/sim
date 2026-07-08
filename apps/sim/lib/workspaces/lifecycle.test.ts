@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { permissionsMock, permissionsMockFns } from '@sim/testing'
+import { auditMock, auditMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -40,6 +40,8 @@ vi.mock('@/lib/workspaces/utils', () => ({
 vi.mock('@/lib/workspaces/create', () => ({
   createWorkspaceRecord: mockCreateWorkspaceRecord,
 }))
+
+vi.mock('@sim/audit', () => auditMock)
 
 import { archiveWorkspace } from './lifecycle'
 
@@ -86,7 +88,7 @@ describe('workspace lifecycle', () => {
         where: vi.fn().mockResolvedValue([]),
       }),
     })
-    mockCreateWorkspaceRecord.mockResolvedValue({ id: 'fallback-workspace' })
+    mockCreateWorkspaceRecord.mockResolvedValue({ id: 'fallback-workspace', name: 'My Workspace' })
   })
 
   it('archives workspace and dependent resources under serializable isolation', async () => {
@@ -138,7 +140,12 @@ describe('workspace lifecycle', () => {
       callback(tx)
     )
 
-    const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
+    const result = await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      actorId: 'admin-1',
+      actorName: 'Admin',
+      actorEmail: 'admin@example.com',
+    })
 
     expect(result).toEqual({
       archived: true,
@@ -155,9 +162,42 @@ describe('workspace lifecycle', () => {
         executor: tx,
       })
     )
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin-1',
+        resourceId: 'fallback-workspace',
+        metadata: expect.objectContaining({
+          deletedWorkspaceId: 'workspace-1',
+          recipientUserId: 'user-victim',
+        }),
+      })
+    )
     // Deletion is never blocked — the workspace is still archived alongside the fallback creation.
     expect(tx.update).toHaveBeenCalledTimes(8)
     expect(tx.delete).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not record an audit entry for the fallback workspace when no actor is provided', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace 1',
+      ownerId: 'user-1',
+      archivedAt: null,
+    })
+    mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
+    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
+      accessibleWorkspaceRow('workspace-1'),
+    ])
+
+    const tx = createTx([{ userId: 'user-victim' }])
+    mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
+      callback(tx)
+    )
+
+    await archiveWorkspace('workspace-1', { requestId: 'req-1' })
+
+    expect(mockCreateWorkspaceRecord).toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('only provisions a fallback for the one member who would actually be stranded', async () => {
