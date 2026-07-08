@@ -1,6 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
+import { noop } from '@sim/utils/helpers'
 import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import {
   Resource,
@@ -42,8 +43,6 @@ interface ResourceChromeFallbackProps {
   /** Paint the Filter chip. */
   hasFilter?: boolean
 }
-
-const noop = () => {}
 
 /**
  * Route-transition fallback rendered by each resource route's `loading.tsx`. It

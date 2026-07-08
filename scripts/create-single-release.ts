@@ -2,6 +2,7 @@
 
 import { execSync } from 'node:child_process'
 import { Octokit } from '@octokit/rest'
+import { sleep } from '@sim/utils/helpers'
 
 const GITHUB_TOKEN = process.env.GH_PAT
 const REPO_OWNER = 'simstudioai'
@@ -139,7 +140,7 @@ async function fetchGitHubCommitDetails(
         prNumber,
       })
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await sleep(100)
     } catch (error: any) {
       console.warn(`⚠️ Could not fetch commit ${hash.substring(0, 7)}: ${error?.message || error}`)
 

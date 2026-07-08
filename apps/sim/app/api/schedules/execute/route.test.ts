@@ -140,6 +140,10 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
+vi.mock('@sim/utils/random', () => ({
+  randomInt: vi.fn(() => 0),
+}))
+
 import { GET, runScheduleTick } from './route'
 
 const SINGLE_SCHEDULE = [
@@ -382,7 +386,6 @@ describe('Scheduled Workflow Execution API Route', () => {
 
   it('executes database fallback schedules through durable async job rows', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
-    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
       .mockResolvedValueOnce([])
@@ -390,33 +393,28 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockReturnValueOnce(SINGLE_SCHEDULE)
       .mockResolvedValueOnce([{ id: 'job-id-1' }])
 
-    try {
-      await runScheduleTick('test-request-id')
-      expect(mockEnqueue).toHaveBeenCalledWith(
-        'schedule-execution',
-        expect.objectContaining({ scheduleId: 'schedule-1' }),
-        expect.objectContaining({
-          jobId: expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
-          metadata: expect.objectContaining({
-            workflowId: 'workflow-1',
-            workspaceId: 'workspace-1',
-          }),
-        })
-      )
-      expect(mockStartJob).not.toHaveBeenCalled()
-      expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-        expect.objectContaining({ scheduleId: 'schedule-1' })
-      )
-      expect(mockCompleteJob).toHaveBeenCalledWith('job-id-1', null)
-    } finally {
-      randomSpy.mockRestore()
-    }
+    await runScheduleTick('test-request-id')
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'schedule-execution',
+      expect.objectContaining({ scheduleId: 'schedule-1' }),
+      expect.objectContaining({
+        jobId: expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
+        metadata: expect.objectContaining({
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+        }),
+      })
+    )
+    expect(mockStartJob).not.toHaveBeenCalled()
+    expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduleId: 'schedule-1' })
+    )
+    expect(mockCompleteJob).toHaveBeenCalledWith('job-id-1', null)
   })
 
   it('releases database fallback claims when the global concurrency cap is full', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
     const claimedAt = new Date('2025-01-01T00:00:00.000Z')
-    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
     mockProcessingCounts(0, 0, 50)
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
@@ -425,20 +423,15 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockReturnValueOnce([{ ...SINGLE_SCHEDULE[0], lastQueuedAt: claimedAt }])
       .mockResolvedValueOnce([])
 
-    try {
-      await runScheduleTick('test-request-id')
-      expect(mockEnqueue).toHaveBeenCalled()
-      expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
-      expect(mockCompleteJob).not.toHaveBeenCalled()
-      expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
-    } finally {
-      randomSpy.mockRestore()
-    }
+    await runScheduleTick('test-request-id')
+    expect(mockEnqueue).toHaveBeenCalled()
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
+    expect(mockCompleteJob).not.toHaveBeenCalled()
+    expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
   })
 
   it('recovers stale database fallback processing jobs before resuming them', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
-    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
     const staleStartedAt = new Date('2024-12-31T00:00:00.000Z')
     mockProcessingCounts(0, 0)
     mockGetJob
@@ -473,25 +466,21 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockReturnValueOnce([{ ...SINGLE_SCHEDULE[0], lastQueuedAt: new Date('2025-01-01') }])
       .mockResolvedValueOnce([{ id: 'job-id-1' }])
 
-    try {
-      await runScheduleTick('test-request-id')
-      expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-        expect.objectContaining({ scheduleId: 'schedule-1' })
-      )
-      expect(mockCompleteJob).toHaveBeenCalledWith(
-        expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
-        null
-      )
-      expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'pending',
-          startedAt: null,
-          error: expect.stringContaining('stale schedule execution processing lease'),
-        })
-      )
-    } finally {
-      randomSpy.mockRestore()
-    }
+    await runScheduleTick('test-request-id')
+    expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduleId: 'schedule-1' })
+    )
+    expect(mockCompleteJob).toHaveBeenCalledWith(
+      expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
+      null
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'pending',
+        startedAt: null,
+        error: expect.stringContaining('stale schedule execution processing lease'),
+      })
+    )
   })
 
   it('resumes pending database fallback jobs without waiting for a stale schedule claim', async () => {
@@ -653,7 +642,6 @@ describe('Scheduled Workflow Execution API Route', () => {
 
   it('uses one backend mode decision for slot accounting and schedule processing', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
-    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
       .mockResolvedValueOnce([])
@@ -661,15 +649,11 @@ describe('Scheduled Workflow Execution API Route', () => {
       .mockReturnValueOnce(SINGLE_SCHEDULE)
       .mockResolvedValueOnce([{ id: 'job-id-1' }])
 
-    try {
-      await runScheduleTick('test-request-id')
-      expect(mockShouldExecuteInline).toHaveBeenCalledTimes(1)
-      expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-        expect.objectContaining({ scheduleId: 'schedule-1' })
-      )
-    } finally {
-      randomSpy.mockRestore()
-    }
+    await runScheduleTick('test-request-id')
+    expect(mockShouldExecuteInline).toHaveBeenCalledTimes(1)
+    expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduleId: 'schedule-1' })
+    )
   })
 
   it('restores the original claim token when an active durable job owns the occurrence', async () => {

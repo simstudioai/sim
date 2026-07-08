@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import type {
   ContractBody,
@@ -37,7 +38,7 @@ const AssumeRoleSchema = z.object({
         if (!v) return true
         try {
           const parsed = JSON.parse(v)
-          return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+          return isRecordLike(parsed)
         } catch {
           return false
         }

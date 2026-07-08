@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { NotionUpdateBlockParams } from '@/tools/notion/types'
 import { BLOCK_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import type { ToolConfig } from '@/tools/types'
@@ -19,12 +20,12 @@ interface NotionUpdateBlockResponse {
 function parseBlock(block: Record<string, any> | string): Record<string, any> {
   if (typeof block === 'string') {
     const parsed = JSON.parse(block)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    if (!isRecordLike(parsed)) {
       throw new Error('block must be a JSON object describing the block-type fields to update')
     }
     return parsed
   }
-  if (typeof block === 'object' && block !== null && !Array.isArray(block)) return block
+  if (isRecordLike(block)) return block
   throw new Error('block must be a JSON object describing the block-type fields to update')
 }
 

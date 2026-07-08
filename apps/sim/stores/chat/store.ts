@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { ChatMessage, ChatState } from './types'
@@ -109,9 +110,7 @@ export const useChatStore = create<ChatState>()(
             let stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
 
             // Truncate very long strings
-            if (stringValue.length > 2000) {
-              stringValue = `${stringValue.substring(0, 2000)}...`
-            }
+            stringValue = truncate(stringValue, 2000)
 
             // Escape quotes and wrap in quotes if contains special characters
             if (

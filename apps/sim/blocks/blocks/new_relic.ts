@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { NewRelicIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -13,9 +14,7 @@ function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undef
   try {
     return JSON.parse(trimmed) as NewRelicCustomAttributes
   } catch (error) {
-    throw new Error(
-      `Invalid JSON for customAttributes: ${error instanceof Error ? error.message : String(error)}`
-    )
+    throw new Error(`Invalid JSON for customAttributes: ${getErrorMessage(error)}`)
   }
 }
 

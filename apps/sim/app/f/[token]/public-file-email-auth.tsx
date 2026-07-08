@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
@@ -37,13 +38,13 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   }, [countdown])
 
   const sendCode = async () => {
-    if (!quickValidateEmail(email.trim().toLowerCase()).isValid) {
+    if (!quickValidateEmail(normalizeEmail(email)).isValid) {
       setError('Please enter a valid email address.')
       return
     }
     setError(null)
     try {
-      await requestOtp.mutateAsync({ email: email.trim().toLowerCase() })
+      await requestOtp.mutateAsync({ email: normalizeEmail(email) })
       setSent(true)
       setOtp('')
     } catch (err) {
@@ -55,7 +56,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
     if (code.length !== 6) return
     setError(null)
     try {
-      await verifyOtp.mutateAsync({ email: email.trim().toLowerCase(), otp: code })
+      await verifyOtp.mutateAsync({ email: normalizeEmail(email), otp: code })
       router.refresh()
     } catch (err) {
       setError(getErrorMessage(err, 'Invalid verification code'))
@@ -65,7 +66,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   const resend = async () => {
     setCountdown(30)
     try {
-      await requestOtp.mutateAsync({ email: email.trim().toLowerCase() })
+      await requestOtp.mutateAsync({ email: normalizeEmail(email) })
       setOtp('')
       setError(null)
     } catch (err) {

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { cn, Input, Label } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { publicFileSSOContract } from '@/lib/api/contracts/public-shares'
@@ -26,14 +27,14 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleAuthenticate = async () => {
-    if (!quickValidateEmail(email.trim().toLowerCase()).isValid) {
+    if (!quickValidateEmail(normalizeEmail(email)).isValid) {
       setError('Please enter a valid email address.')
       return
     }
     setError(null)
     setIsLoading(true)
     try {
-      const normalizedEmail = email.trim().toLowerCase()
+      const normalizedEmail = normalizeEmail(email)
       const { eligible } = await requestJson(publicFileSSOContract, {
         params: { token },
         body: { email: normalizedEmail },

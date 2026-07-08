@@ -1844,7 +1844,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'xAI',
     description: "xAI's Grok models",
-    defaultModel: 'grok-4.3',
+    defaultModel: 'grok-4.5',
     modelPatterns: [/^grok/],
     icon: xAIIcon,
     color: '#555555',
@@ -1852,6 +1852,20 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
+      {
+        id: 'grok-4.5',
+        pricing: {
+          input: 2.0,
+          output: 6.0,
+          updatedAt: '2026-07-08',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 500000,
+        releaseDate: '2026-07-08',
+        recommended: true,
+      },
       {
         id: 'grok-4.3',
         pricing: {
@@ -1865,7 +1879,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-30',
-        recommended: true,
       },
       {
         id: 'grok-4-latest',
