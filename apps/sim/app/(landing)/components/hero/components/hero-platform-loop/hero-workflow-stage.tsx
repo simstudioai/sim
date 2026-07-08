@@ -108,8 +108,8 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
               const target = STAGE_BLOCKS_BY_ID.get(to)
               if (!source || !target) return null
               const visible = builtIds.has(from) && builtIds.has(to)
-              const s = handleAnchors(source, source).out
-              const t = handleAnchors(target, target).in
+              const s = handleAnchors(source).out
+              const t = handleAnchors(target).in
               return (
                 <path
                   key={`${from}-${to}`}

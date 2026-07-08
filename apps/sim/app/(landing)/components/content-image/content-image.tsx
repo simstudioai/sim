@@ -39,6 +39,7 @@ export function ContentImage({
         )}
         sizes='(max-width: 768px) 100vw, 800px'
         loading='lazy'
+        unoptimized
         onClick={() => setIsLightboxOpen(true)}
       />
       <Lightbox

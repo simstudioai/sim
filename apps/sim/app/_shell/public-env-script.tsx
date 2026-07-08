@@ -1,13 +1,13 @@
-/** Matches `next-runtime-env`'s internal `PUBLIC_ENV_KEY` - the window global `getEnv()` reads. */
-const PUBLIC_ENV_KEY = '__ENV'
+import { PUBLIC_ENV_KEY } from 'next-runtime-env'
 
 /**
  * `NEXT_PUBLIC_*` values, captured once at module load (build time / server
  * start) rather than read per-request - correct on the hosted deployment,
- * where a build's env never changes between requests.
+ * where a build's env never changes between requests. Filter matches
+ * `next-runtime-env`'s own `getPublicEnv()` exactly.
  */
 const HOSTED_PUBLIC_ENV = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => key.startsWith('NEXT_PUBLIC_'))
+  Object.entries(process.env).filter(([key]) => /^NEXT_PUBLIC_/i.test(key))
 )
 
 /**

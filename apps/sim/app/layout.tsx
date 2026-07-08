@@ -228,10 +228,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </>
         )}
 
-        {/* next-runtime-env's PublicEnvScript calls unstable_noStore() unconditionally,
-            forcing the whole app into dynamic rendering - only self-hosted Docker
-            builds need that per-request re-injection. Hosted uses the static,
-            build-time equivalent so marketing pages stay eligible for ISR. */}
         {isHosted ? <PublicEnvScript /> : <RuntimePublicEnvScript />}
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
