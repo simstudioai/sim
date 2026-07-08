@@ -41,7 +41,6 @@ interface ArchiveWorkspaceOptions {
    * Only the interactive DELETE route should set this.
    */
   provisionFallbackForStrandedMembers?: boolean
-  /** Attributed as the actor on the audit log entry for any auto-provisioned replacement workspace. */
   actorId?: string
   actorName?: string | null
   actorEmail?: string | null
