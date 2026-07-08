@@ -144,7 +144,7 @@ export function buildApplicationSubmitOutputs(): Record<string, TriggerOutput> {
       currentInterviewStage: {
         id: { type: 'string', description: 'Current interview stage UUID' },
         title: { type: 'string', description: 'Current interview stage title' },
-        type: {
+        stageType: {
           type: 'string',
           description: 'Current interview stage type (e.g., Lead, Applied, Interview, Offer)',
         },
@@ -185,7 +185,7 @@ export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput
       currentInterviewStage: {
         id: { type: 'string', description: 'Current interview stage UUID' },
         title: { type: 'string', description: 'Current interview stage title' },
-        type: {
+        stageType: {
           type: 'string',
           description: 'Current interview stage type (e.g., Lead, Applied, Interview, Offer)',
         },
@@ -221,7 +221,7 @@ export function buildCandidateHireOutputs(): Record<string, TriggerOutput> {
       currentInterviewStage: {
         id: { type: 'string', description: 'Current interview stage UUID' },
         title: { type: 'string', description: 'Current interview stage title' },
-        type: {
+        stageType: {
           type: 'string',
           description: 'Current interview stage type (e.g., Lead, Applied, Interview, Offer)',
         },
