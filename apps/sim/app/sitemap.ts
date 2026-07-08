@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { getAllPostMeta as getAllBlogPostMeta } from '@/lib/blog/registry'
 import type { ContentMeta } from '@/lib/content/schema'
+import { latestModified } from '@/lib/content/utils'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
 import { getAllPostMeta as getAllLibraryPostMeta } from '@/lib/library/registry'
@@ -10,13 +11,6 @@ import {
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparison/utils'
 import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
-
-/** Latest `updated ?? date` across a content section's posts, for sitemap `lastModified`. */
-function latestPostDate(posts: ContentMeta[]): Date | undefined {
-  return posts.length > 0
-    ? new Date(Math.max(...posts.map((p) => new Date(p.updated ?? p.date).getTime())))
-    : undefined
-}
 
 /** One sitemap entry per author, timestamped by their most recently updated post. */
 function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute.Sitemap {
@@ -48,8 +42,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_URL
   const [posts, libraryPosts] = await Promise.all([getAllBlogPostMeta(), getAllLibraryPostMeta()])
 
-  const latestPostDateValue = latestPostDate(posts)
-  const latestLibraryPostDate = latestPostDate(libraryPosts)
+  const latestPostDateValue = latestModified(posts)
+  const latestLibraryPostDate = latestModified(libraryPosts)
 
   const modelTimes = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
     provider.models.map((model) => new Date(model.pricing.updatedAt).getTime())
