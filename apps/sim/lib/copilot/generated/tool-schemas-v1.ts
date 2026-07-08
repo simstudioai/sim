@@ -2572,6 +2572,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        credentialId: {
+          type: 'string',
+          description:
+            'Optional. The id of an EXISTING credential (from environment/credentials.json) to reconnect/re-authorize in place. Only when the user explicitly asks to reconnect or repair that credential — never for adding another account.',
+        },
         providerName: {
           type: 'string',
           description:
