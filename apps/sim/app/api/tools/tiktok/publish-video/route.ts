@@ -25,9 +25,13 @@ const TIKTOK_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/
 /** TikTok requires each chunk between 5MB and 64MB; the final chunk absorbs the remainder (up to ~2x this size, well under the 128MB cap). Capped at 1000 chunks total, which this default comfortably satisfies up to TikTok's 4GB video size limit. */
 const DEFAULT_CHUNK_SIZE = 10_000_000
 
-/** TikTok's documented maximum video file size. Enforced before downloading the file into
- * memory so an oversized upload fails fast instead of materializing multiple GB in-process. */
-const TIKTOK_MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024
+/** Maximum size this route will buffer in memory for a single file-upload request. TikTok's
+ * own limit is 4GB, but relaying that much through this server's memory per request isn't
+ * safe under concurrent load. Enforced before downloading the file so an oversized upload
+ * fails fast with a clean 413 instead of materializing hundreds of MB to multiple GB
+ * in-process. Users with larger files can use the "Public URL" source instead, since
+ * PULL_FROM_URL never routes bytes through this process. */
+const TIKTOK_MAX_VIDEO_BYTES = 250 * 1024 * 1024
 
 function computeChunkPlan(totalBytes: number): { chunkSize: number; totalChunkCount: number } {
   if (totalBytes <= DEFAULT_CHUNK_SIZE) {
@@ -193,8 +197,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         maxBytes: error.maxBytes,
         observedBytes: error.observedBytes,
       })
+      const maxMb = Math.floor(TIKTOK_MAX_VIDEO_BYTES / (1024 * 1024))
       return NextResponse.json(
-        { success: false, error: `Video exceeds TikTok's maximum file size of 4GB` },
+        {
+          success: false,
+          error: `Video exceeds the ${maxMb}MB limit for file uploads. Use a public video URL instead to post larger files.`,
+        },
         { status: 413 }
       )
     }

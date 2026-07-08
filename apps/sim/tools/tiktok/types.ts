@@ -20,9 +20,6 @@ export interface TikTokGetUserResponse extends ToolResponse {
     openId: string
     unionId: string | null
     displayName: string
-    avatarUrl: string | null
-    avatarUrl100: string | null
-    avatarLargeUrl: string | null
     bioDescription: string | null
     profileDeepLink: string | null
     isVerified: boolean | null

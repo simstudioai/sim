@@ -35,9 +35,6 @@ Get the authenticated TikTok user profile information including display name, av
 | `openId` | string | Unique TikTok user ID for this application |
 | `unionId` | string | Unique TikTok user ID across all apps from the same developer |
 | `displayName` | string | User display name |
-| `avatarUrl` | string | Profile image URL |
-| `avatarUrl100` | string | Profile image URL \(100x100\) |
-| `avatarLargeUrl` | string | Profile image URL \(large\) |
 | `bioDescription` | string | User bio description |
 | `profileDeepLink` | string | Deep link to user TikTok profile |
 | `isVerified` | boolean | Whether the account is verified |
@@ -66,7 +63,7 @@ Get a list of the authenticated user's TikTok videos with cover images, titles, 
 | `videos` | array | List of TikTok videos |
 |   ↳ `id` | string | Video ID |
 |   ↳ `title` | string | Video title |
-|   ↳ `coverImageUrl` | string | Cover image URL \(may expire\) |
+|   ↳ `coverImageUrl` | string | Signed cover image URL from TikTok CDN. Publicly fetchable without auth, but time-limited \(embeds an x-expires param\) — use it right away rather than storing it for later. |
 |   ↳ `embedLink` | string | Embeddable video URL |
 |   ↳ `duration` | number | Video duration in seconds |
 |   ↳ `createTime` | number | Unix timestamp when video was created |
@@ -98,7 +95,7 @@ Query specific TikTok videos by their IDs to get fresh metadata including cover 
 | `videos` | array | List of queried TikTok videos |
 |   ↳ `id` | string | Video ID |
 |   ↳ `title` | string | Video title |
-|   ↳ `coverImageUrl` | string | Cover image URL \(fresh URL\) |
+|   ↳ `coverImageUrl` | string | Signed cover image URL from TikTok CDN. Publicly fetchable without auth, but time-limited \(embeds an x-expires param\) — use it right away rather than storing it for later. |
 |   ↳ `embedLink` | string | Embeddable video URL |
 |   ↳ `duration` | number | Video duration in seconds |
 |   ↳ `createTime` | number | Unix timestamp when video was created |

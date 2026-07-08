@@ -87,7 +87,8 @@ export const tiktokQueryVideosTool: ToolConfig<TikTokQueryVideosParams, TikTokQu
             title: { type: 'string', description: 'Video title', optional: true },
             coverImageUrl: {
               type: 'string',
-              description: 'Cover image URL (fresh URL)',
+              description:
+                'Signed cover image URL from TikTok CDN. Publicly fetchable without auth, but time-limited (embeds an x-expires param) — use it right away rather than storing it for later.',
               optional: true,
             },
             embedLink: { type: 'string', description: 'Embeddable video URL', optional: true },

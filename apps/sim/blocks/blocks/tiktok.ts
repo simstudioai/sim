@@ -529,21 +529,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       description: 'User display name',
       condition: { field: 'operation', value: 'tiktok_get_user' },
     },
-    avatarUrl: {
-      type: 'string',
-      description: 'Profile image URL',
-      condition: { field: 'operation', value: 'tiktok_get_user' },
-    },
-    avatarUrl100: {
-      type: 'string',
-      description: 'Profile image URL (100x100)',
-      condition: { field: 'operation', value: 'tiktok_get_user' },
-    },
-    avatarLargeUrl: {
-      type: 'string',
-      description: 'Profile image URL (large)',
-      condition: { field: 'operation', value: 'tiktok_get_user' },
-    },
     bioDescription: {
       type: 'string',
       description: 'User bio description',
