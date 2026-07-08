@@ -1,6 +1,7 @@
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
+import { randomInt } from '@sim/utils/random'
 import { and, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
@@ -34,7 +35,7 @@ function slugifyForIdentifier(value: string): string {
  * so the number is the only collision guard across simultaneous transactions.
  */
 function buildIdentifierCandidate(workspaceSlug: string, workflowName: string): string {
-  const random = 100000 + Math.floor(Math.random() * 900000)
+  const random = randomInt(100000, 1000000)
   return `${workspaceSlug}-${slugifyForIdentifier(workflowName)}-${random}`
 }
 
