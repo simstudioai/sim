@@ -1779,13 +1779,6 @@
       "when": 1782957781005,
       "tag": "0254_custom_block",
       "breakpoints": true
-    },
-    {
-      "idx": 255,
-      "version": "7",
-      "when": 1783492694618,
-      "tag": "0255_optimal_molly_hayes",
-      "breakpoints": true
     }
   ]
 }
