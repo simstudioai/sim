@@ -55,6 +55,41 @@ function isWorkflowArtifactPath(path: string, filename: string): boolean {
   return trimmed.startsWith('workflows/') && trimmed.endsWith(`/${filename}`)
 }
 
+function decodePathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
+/**
+ * Verb for an mv call, derived from its arguments so the row reads as what
+ * the call actually does: a single source whose parent path matches the
+ * destination's (only the leaf changes) is a rename; multiple sources, a
+ * trailing-slash folder destination, or a parent change is a move. Segments
+ * are decoded so an encoded source compares correctly against a plain-text
+ * destination leaf.
+ */
+export function mvDisplayVerb(
+  source: string | undefined,
+  destination: string | undefined
+): 'Renaming' | 'Moving' {
+  if (!source || !destination || /\/\s*$/.test(destination)) return 'Moving'
+  const segments = (path: string) =>
+    path
+      .trim()
+      .replace(/^\/+|\/+$/g, '')
+      .split('/')
+      .map(decodePathSegment)
+  const src = segments(source)
+  const dst = segments(destination)
+  if (src.length < 2 || dst.length < 2) return 'Moving'
+  const sameParent = src.slice(0, -1).join('/') === dst.slice(0, -1).join('/')
+  const leafChanged = src.at(-1) !== dst.at(-1)
+  return sameParent && leafChanged ? 'Renaming' : 'Moving'
+}
+
 function workspaceFileTitle(args: ToolArgs): string {
   const title = stringArg(args, 'title')
   if (!title) return ''
@@ -196,6 +231,21 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'glob': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Finding ${target}` : 'Finding files'
+    }
+    case 'mv': {
+      const sources = stringArrayArg(args, 'sources')
+      const verb =
+        sources.length === 1 ? mvDisplayVerb(sources[0], stringArg(args, 'destination')) : 'Moving'
+      const target = firstStringArg(args, 'toolTitle', 'title')
+      return target ? `${verb} ${target}` : verb
+    }
+    case 'cp': {
+      const target = firstStringArg(args, 'toolTitle', 'title')
+      return target ? `Duplicating ${target}` : 'Duplicating workflow'
+    }
+    case 'mkdir': {
+      const target = firstStringArg(args, 'toolTitle', 'title')
+      return target ? `Creating ${target}` : 'Creating folder'
     }
     case 'enrichment_run': {
       const subject = nestedStringArg(
