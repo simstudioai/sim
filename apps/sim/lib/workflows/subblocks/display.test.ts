@@ -4,7 +4,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/blocks', () => ({
-  getBlock: (type: string) => (type === 'slack' ? { name: 'Slack' } : undefined),
+  getBlock: (type: string) => {
+    if (type === 'slack') return { name: 'Slack' }
+    if (type === 'workflow' || type === 'workflow_input') return { name: 'Workflow' }
+    return undefined
+  },
 }))
 
 import {
@@ -122,10 +126,13 @@ describe('resolveToolsLabel', () => {
     )
   })
 
-  it('falls back to the raw type id for unregistered block-backed tools', () => {
+  it('falls back to the stored title, then the raw type id, for unresolvable block types', () => {
     expect(
-      resolveToolsLabel(toolInput, [{ type: 'not_a_real_block', title: 'Sneaky Title' }], [])
-    ).toBe('not_a_real_block')
+      resolveToolsLabel(toolInput, [{ type: 'custom_block_gone', title: 'Invoice Parser' }], [])
+    ).toBe('Invoice Parser')
+    expect(resolveToolsLabel(toolInput, [{ type: 'custom_block_gone' }], [])).toBe(
+      'custom_block_gone'
+    )
   })
 
   it('renders the static label for workflow-as-tool entries regardless of stored title', () => {
@@ -141,11 +148,11 @@ describe('resolveToolsLabel', () => {
         toolInput,
         [{ type: 'mcp', toolId: 'mcp-1', title: 'Renamed By Copilot' }],
         [],
-        [{ id: 'mcp-1', name: 'Live MCP Name' }]
+        new Map([['mcp-1', 'Live MCP Name']])
       )
     ).toBe('Live MCP Name')
     expect(
-      resolveToolsLabel(toolInput, [{ type: 'mcp', toolId: 'mcp-1', title: 'Snapshot' }], [], [])
+      resolveToolsLabel(toolInput, [{ type: 'mcp', toolId: 'mcp-1', title: 'Snapshot' }], [])
     ).toBe('Snapshot')
   })
 

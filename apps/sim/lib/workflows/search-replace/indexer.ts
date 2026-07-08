@@ -23,6 +23,7 @@ import type {
 } from '@/lib/workflows/search-replace/types'
 import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/value-walker'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
+import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -954,7 +955,12 @@ function addToolInputMatches({
   const parentCanonicalModes = getSearchCanonicalModes(block)
 
   parseStoredToolInputValue(value).forEach((tool, toolIndex) => {
-    if (mode !== 'resource' && tool.title) {
+    // Index the resolved display name (not the stored mutable title) so
+    // search text and highlights match what the tool chip actually renders.
+    const toolDisplayName = resolveStoredToolName(tool, {
+      getBlockConfig: (type) => blockConfigs?.[type] ?? getBlock(type),
+    })
+    if (mode !== 'resource' && toolDisplayName) {
       addTextMatches({
         matches,
         idPrefix: 'tool-input-title',
@@ -963,7 +969,7 @@ function addToolInputMatches({
         canonicalSubBlockId,
         subBlockType: 'tool-input',
         fieldTitle: 'Tool',
-        value: tool.title,
+        value: toolDisplayName,
         valuePath: [toolIndex, 'title'],
         target: { kind: 'subblock' },
         query,

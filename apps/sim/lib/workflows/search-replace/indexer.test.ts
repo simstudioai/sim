@@ -1387,6 +1387,10 @@ describe('indexWorkflowSearchMatches', () => {
         custom: {
           subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
         },
+        native: {
+          name: 'Customer Mailer',
+          subBlocks: [],
+        },
       },
     }).filter((match) => match.blockId === 'tool-input-1')
 
@@ -1395,7 +1399,7 @@ describe('indexWorkflowSearchMatches', () => {
         expect.objectContaining({
           subBlockId: 'tools',
           valuePath: [0, 'title'],
-          searchText: 'Customer notifier',
+          searchText: 'Customer Mailer',
         }),
         expect.objectContaining({
           subBlockId: 'tools',
@@ -1404,6 +1408,7 @@ describe('indexWorkflowSearchMatches', () => {
         }),
       ])
     )
+    expect(matches.some((match) => match.searchText === 'Customer notifier')).toBe(false)
     expect(matches.some((match) => match.valuePath.includes('toolId'))).toBe(false)
     expect(matches.some((match) => match.valuePath.includes('operation'))).toBe(false)
     expect(matches.some((match) => match.valuePath.includes('credentialId'))).toBe(false)
