@@ -391,7 +391,8 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
           case 'tiktok_list_videos':
             return {
               ...(params.maxCount && { maxCount: Number(params.maxCount) }),
-              ...(params.cursor && { cursor: Number(params.cursor) }),
+              ...(params.cursor !== undefined &&
+                params.cursor !== '' && { cursor: Number(params.cursor) }),
             }
           case 'tiktok_query_videos':
             return {
@@ -413,9 +414,10 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
               disableDuet: toBoolean(params.disableDuet),
               disableStitch: toBoolean(params.disableStitch),
               disableComment: toBoolean(params.disableComment),
-              ...(params.videoCoverTimestampMs && {
-                videoCoverTimestampMs: Number(params.videoCoverTimestampMs),
-              }),
+              ...(params.videoCoverTimestampMs !== undefined &&
+                params.videoCoverTimestampMs !== '' && {
+                  videoCoverTimestampMs: Number(params.videoCoverTimestampMs),
+                }),
               isAigc: toBoolean(params.isAigc),
               brandContentToggle: toBoolean(params.brandContentToggle),
               brandOrganicToggle: toBoolean(params.brandOrganicToggle),
@@ -435,7 +437,10 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
                 .split('\n')
                 .map((url: string) => url.trim())
                 .filter(Boolean),
-              ...(params.photoCoverIndex && { photoCoverIndex: Number(params.photoCoverIndex) }),
+              ...(params.photoCoverIndex !== undefined &&
+                params.photoCoverIndex !== '' && {
+                  photoCoverIndex: Number(params.photoCoverIndex),
+                }),
               title: params.title,
               description: params.description,
               privacyLevel: params.privacyLevel || 'SELF_ONLY',
@@ -450,7 +455,10 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
                 .split('\n')
                 .map((url: string) => url.trim())
                 .filter(Boolean),
-              ...(params.photoCoverIndex && { photoCoverIndex: Number(params.photoCoverIndex) }),
+              ...(params.photoCoverIndex !== undefined &&
+                params.photoCoverIndex !== '' && {
+                  photoCoverIndex: Number(params.photoCoverIndex),
+                }),
               title: params.title,
               description: params.description,
             }
