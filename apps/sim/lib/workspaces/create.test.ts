@@ -60,7 +60,6 @@ describe('createWorkspaceRecord', () => {
     expect(record.name).toBe('My Workspace')
     expect(record.ownerId).toBe('user-1')
     expect(record.workspaceMode).toBe('personal')
-    // workspace insert, permission insert, workflow insert (default workflow not skipped)
     expect(tx.insert).toHaveBeenCalledTimes(3)
     expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledTimes(1)
   })
@@ -94,7 +93,6 @@ describe('createWorkspaceRecord', () => {
       executor: tx as never,
     })
 
-    // workspace insert, permission insert — no workflow insert
     expect(tx.insert).toHaveBeenCalledTimes(2)
     expect(mockSaveWorkflowToNormalizedTables).not.toHaveBeenCalled()
   })
