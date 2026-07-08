@@ -34,6 +34,8 @@ export interface CustomBlockWithInputs {
   organizationId: string
   workflowId: string
   workflowName: string
+  /** Source workflow's home workspace id — used client-side to gate manage affordances. */
+  workspaceId: string | null
   workspaceName: string | null
   type: string
   name: string
@@ -162,18 +164,24 @@ export async function listCustomBlocksWithInputs(
   organizationId: string
 ): Promise<CustomBlockWithInputs[]> {
   const rows = await db
-    .select({ block: customBlock, workflowName: workflow.name, workspaceName: workspace.name })
+    .select({
+      block: customBlock,
+      workflowName: workflow.name,
+      workspaceId: workflow.workspaceId,
+      workspaceName: workspace.name,
+    })
     .from(customBlock)
     .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
     .leftJoin(workspace, eq(workspace.id, workflow.workspaceId))
     .where(eq(customBlock.organizationId, organizationId))
 
   return Promise.all(
-    rows.map(async ({ block: row, workflowName, workspaceName }) => ({
+    rows.map(async ({ block: row, workflowName, workspaceId, workspaceName }) => ({
       id: row.id,
       organizationId: row.organizationId,
       workflowId: row.workflowId,
       workflowName,
+      workspaceId,
       workspaceName,
       type: row.type,
       name: row.name,

@@ -111,6 +111,7 @@ export function CustomBlocks() {
                 >
                   <SettingsResourceRow
                     icon={<Icon />}
+                    iconFill
                     title={cb.name}
                     description={cb.description || undefined}
                     trailing={
