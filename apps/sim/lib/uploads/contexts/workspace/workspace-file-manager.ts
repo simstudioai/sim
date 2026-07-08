@@ -1193,6 +1193,77 @@ export async function renameWorkspaceFile(
 }
 
 /**
+ * Move and/or rename a workspace file in one atomic row update. Either side
+ * may be a no-op (same folder = pure rename, same name = pure move); when
+ * both are unchanged the record is returned untouched. Conflicts at the
+ * destination throw {@link FileConflictError}. The `renamed`/`moved` flags
+ * report what actually changed, computed from the same read the update uses.
+ */
+export async function moveRenameWorkspaceFile(params: {
+  workspaceId: string
+  fileId: string
+  targetFolderId: string | null
+  newName: string
+}): Promise<{ file: WorkspaceFileRecord; renamed: boolean; moved: boolean }> {
+  const normalizedName = normalizeWorkspaceFileItemName(params.newName.trim(), 'File')
+
+  const fileRecord = await getWorkspaceFile(params.workspaceId, params.fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  const targetFolderId = await assertWorkspaceFileFolderTarget(
+    params.workspaceId,
+    params.targetFolderId
+  )
+  const currentFolderId = fileRecord.folderId ?? null
+  const renamed = fileRecord.name !== normalizedName
+  const moved = currentFolderId !== targetFolderId
+  if (!renamed && !moved) {
+    return { file: fileRecord, renamed, moved }
+  }
+
+  const exists = await fileExistsInWorkspace(params.workspaceId, normalizedName, targetFolderId)
+  if (exists) {
+    throw new FileConflictError(normalizedName)
+  }
+
+  let updated: { id: string }[]
+  try {
+    updated = await db
+      .update(workspaceFiles)
+      .set({ originalName: normalizedName, folderId: targetFolderId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(workspaceFiles.id, params.fileId),
+          eq(workspaceFiles.workspaceId, params.workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
+      )
+      .returning({ id: workspaceFiles.id })
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new FileConflictError(normalizedName)
+    }
+    throw error
+  }
+
+  if (updated.length === 0) {
+    throw new Error('File not found or could not be moved')
+  }
+
+  return {
+    file: {
+      ...fileRecord,
+      name: normalizedName,
+      folderId: targetFolderId,
+    },
+    renamed,
+    moved,
+  }
+}
+
+/**
  * Soft delete a workspace file.
  */
 export async function deleteWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {

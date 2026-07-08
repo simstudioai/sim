@@ -61,6 +61,33 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  cp: {
+    parameters: {
+      type: 'object',
+      properties: {
+        destination: {
+          type: 'string',
+          description:
+            'Target path under workflows/. An existing folder (or a path ending in "/") duplicates sources into it keeping their names; otherwise the last segment names the copy and the preceding segments are the target folder (created automatically when missing).',
+        },
+        sources: {
+          type: 'array',
+          description:
+            'Canonical workflow VFS paths to duplicate, e.g. ["workflows/My%20Workflow"]. Copy paths verbatim from glob/grep/read output.',
+          items: {
+            type: 'string',
+          },
+        },
+        toolTitle: {
+          type: 'string',
+          description:
+            'Target-only UI phrase for the action row, e.g. "My Workflow" or "Template to Archive", not a full sentence like "Copying My Workflow".',
+        },
+      },
+      required: ['sources', 'destination', 'toolTitle'],
+    },
+    resultSchema: undefined,
+  },
   crawl_website: {
     parameters: {
       type: 'object',
@@ -117,7 +144,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             files: {
               type: 'array',
               description:
-                'Files to create or overwrite. Parent folders must already exist for create mode.',
+                'Files to create or overwrite. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -161,24 +188,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['success', 'message'],
     },
-  },
-  create_file_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        path: {
-          type: 'string',
-          description:
-            'Canonical folder VFS path to create, e.g. "files/Images" or "files/Reports/2026".',
-        },
-        workspaceId: {
-          type: 'string',
-          description: 'Optional workspace ID. Defaults to the current workspace.',
-        },
-      },
-      required: ['path'],
-    },
-    resultSchema: undefined,
   },
   create_workflow: {
     parameters: {
@@ -726,7 +735,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             files: {
               type: 'array',
               description:
-                'Files to create or overwrite. Parent folders must already exist for create mode.',
+                'Files to create or overwrite. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -996,7 +1005,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1163,7 +1173,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1324,7 +1335,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1461,7 +1473,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1619,7 +1632,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -2105,18 +2119,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  list_file_folders: {
-    parameters: {
-      type: 'object',
-      properties: {
-        workspaceId: {
-          type: 'string',
-          description: 'Optional workspace ID. Defaults to the current workspace.',
-        },
-      },
-    },
-    resultSchema: undefined,
-  },
   list_integration_tools: {
     parameters: {
       properties: {
@@ -2300,35 +2302,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        destinationPath: {
-          type: 'string',
-          description:
-            'Destination parent folder\'s VFS path for move/create. Omit (or pass "workflows") to target the workspace root.',
-        },
         folderId: {
           type: 'string',
           description:
             'Target folder ID, used as a fallback when path is not given. Readable from a contained workflow\'s meta.json "folderId".',
         },
-        name: {
-          type: 'string',
-          description:
-            'Folder name. Required for rename (the new name); for create when you pass a destination parent instead of a full path.',
-        },
         operation: {
           type: 'string',
           description: 'The operation to perform.',
-          enum: ['create', 'rename', 'move', 'delete'],
-        },
-        parentId: {
-          type: 'string',
-          description:
-            'Destination parent folder ID, used as a fallback when destinationPath is not given.',
+          enum: ['delete'],
         },
         path: {
           type: 'string',
           description:
-            'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path. Identifies the folder for rename/move/delete; for create it is the new folder\'s full path (its parent must already exist).',
+            'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path.',
         },
       },
       required: ['operation'],
@@ -2532,62 +2519,52 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  move_file: {
+  mkdir: {
     parameters: {
       type: 'object',
       properties: {
-        destinationPath: {
-          type: 'string',
-          description:
-            'Canonical target folder path, e.g. "files/Images". Omit or pass "files" for root.',
-        },
         paths: {
           type: 'array',
-          description: 'Canonical workspace file VFS paths to move, e.g. ["files/photo.png"].',
+          description:
+            'Canonical folder VFS paths to create, e.g. ["files/Reports/2026"]. Missing parent segments are created automatically.',
           items: {
             type: 'string',
           },
         },
-      },
-      required: ['paths'],
-    },
-    resultSchema: undefined,
-  },
-  move_file_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        destinationPath: {
+        toolTitle: {
           type: 'string',
           description:
-            'Canonical target parent folder path, e.g. "files/Archive". Omit or pass "files" for root.',
-        },
-        path: {
-          type: 'string',
-          description: 'Canonical folder VFS path to move, e.g. "files/Reports/2026".',
+            'Target-only UI phrase for the action row, e.g. "Reports/2026" or "2 folders", not a full sentence like "Creating Reports".',
         },
       },
-      required: ['path'],
+      required: ['paths', 'toolTitle'],
     },
     resultSchema: undefined,
   },
-  move_workflow: {
+  mv: {
     parameters: {
       type: 'object',
       properties: {
-        folderId: {
+        destination: {
           type: 'string',
-          description: 'Target folder ID. Omit or pass empty string to move to workspace root.',
+          description:
+            'Target path. A path ending in "/" (or naming an existing folder) moves sources into it keeping their names — always use the trailing "/" form when targeting a folder. Otherwise the last segment is the new name and the preceding segments are the target folder (created automatically when missing).',
         },
-        workflowIds: {
+        sources: {
           type: 'array',
-          description: 'The workflow IDs to move.',
+          description:
+            'Canonical VFS paths to move or rename, e.g. ["files/draft.md"]. All sources must share one category. Copy paths verbatim from glob/grep/read output.',
           items: {
             type: 'string',
           },
         },
+        toolTitle: {
+          type: 'string',
+          description:
+            'Target-only UI phrase for the action row, e.g. "draft.md to Reports" or "3 files to Images", not a full sentence like "Moving draft.md".',
+        },
       },
-      required: ['workflowIds'],
+      required: ['sources', 'destination', 'toolTitle'],
     },
     resultSchema: undefined,
   },
@@ -2950,76 +2927,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         'examples',
       ],
     },
-  },
-  rename_file: {
-    parameters: {
-      type: 'object',
-      properties: {
-        newName: {
-          type: 'string',
-          description:
-            'New filename including extension, e.g. "draft_v2.md". Use move_file to move files between folders.',
-        },
-        path: {
-          type: 'string',
-          description:
-            'Canonical workspace file VFS path to rename, e.g. "files/Reports/draft.md".',
-        },
-      },
-      required: ['path', 'newName'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          description: 'Contains id and the new name.',
-        },
-        message: {
-          type: 'string',
-          description: 'Human-readable outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the rename succeeded.',
-        },
-      },
-      required: ['success', 'message'],
-    },
-  },
-  rename_file_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description: 'New folder name.',
-        },
-        path: {
-          type: 'string',
-          description: 'Canonical folder VFS path to rename, e.g. "files/Reports/Old".',
-        },
-      },
-      required: ['path', 'name'],
-    },
-    resultSchema: undefined,
-  },
-  rename_workflow: {
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description: 'The new name for the workflow.',
-        },
-        workflowId: {
-          type: 'string',
-          description: 'The workflow ID to rename.',
-        },
-      },
-      required: ['workflowId', 'name'],
-    },
-    resultSchema: undefined,
   },
   respond: {
     parameters: {
