@@ -932,6 +932,8 @@ function addToolInputMatches({
   workflowId,
   credentialTypeById,
   blockConfigs,
+  customTools,
+  mcpToolNamesById,
 }: {
   matches: WorkflowSearchMatch[]
   block: WorkflowSearchBlockState
@@ -951,6 +953,8 @@ function addToolInputMatches({
   workflowId?: string
   credentialTypeById?: Record<string, string | undefined>
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
+  customTools?: WorkflowSearchIndexerOptions['customTools']
+  mcpToolNamesById?: WorkflowSearchIndexerOptions['mcpToolNamesById']
 }) {
   const parentCanonicalModes = getSearchCanonicalModes(block)
 
@@ -958,6 +962,8 @@ function addToolInputMatches({
     // Index the resolved display name (not the stored mutable title) so
     // search text and highlights match what the tool chip actually renders.
     const toolDisplayName = resolveStoredToolName(tool, {
+      customTools,
+      mcpToolNamesById,
       getBlockConfig: (type) => blockConfigs?.[type] ?? getBlock(type),
     })
     if (mode !== 'resource' && toolDisplayName) {
@@ -1234,6 +1240,8 @@ export function indexWorkflowSearchMatches(
     workflowId,
     blockConfigs = {},
     credentialTypeById,
+    customTools,
+    mcpToolNamesById,
   } = options
 
   const matches: WorkflowSearchMatch[] = []
@@ -1369,6 +1377,8 @@ export function indexWorkflowSearchMatches(
           workflowId,
           credentialTypeById,
           blockConfigs,
+          customTools,
+          mcpToolNamesById,
         })
         continue
       }
