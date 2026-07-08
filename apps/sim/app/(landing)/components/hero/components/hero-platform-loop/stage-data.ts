@@ -1,14 +1,23 @@
-import { AgentIcon, CodeIcon, SlackIcon, StartIcon, TableIcon } from '@/components/icons'
+import {
+  AgentIcon,
+  AnthropicIcon,
+  CodeIcon,
+  GmailIcon,
+  HubspotIcon,
+  SlackIcon,
+} from '@/components/icons'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 import { BLOCK_WIDTH } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
  * Design-space geometry for the hero's live workflow stage - the lead-enrichment
- * flow the chat conversation "builds": Start feeds the enrichment agent, a
- * scoring function follows, and the flow fans out to Slack and Tables. Block
- * tiles use the platform's grey text ramp (each block a different shade, dark
- * enough to carry the white glyph) - color is reserved for REAL third-party
- * marks, so only Slack keeps its brand tile (#611F69).
+ * flow the chat conversation "builds": a new HubSpot lead feeds the enrichment
+ * agent (grounded on the Sales playbook knowledge base and a Claude model), a
+ * fit score follows, and the flow fans out to a Slack post and a Gmail intro.
+ * Every step past the code block is a REAL third-party integration, so its tile
+ * carries the brand mark - HubSpot (#FF7A59), Slack (#611F69), and Gmail (white
+ * tile, brand glyph); the Agent and Code blocks keep the platform grey ramp.
+ * Same four-level footprint as before, so it fits the right pane unchanged.
  *
  * Blocks are ordered by build sequence - the stage reveals `blocks[0..built-1]`
  * as the loop's build counter advances, and an edge draws once both its
@@ -16,12 +25,12 @@ import { BLOCK_WIDTH } from '@/app/(landing)/components/hero/components/hero-vis
  */
 export const STAGE_BLOCKS: BlockDef[] = [
   {
-    id: 'start',
-    name: 'Start',
-    icon: StartIcon,
-    bgColor: 'var(--text-muted)',
+    id: 'hubspot',
+    name: 'New HubSpot lead',
+    icon: HubspotIcon,
+    bgColor: '#FF7A59',
     isTrigger: true,
-    rows: [{ title: 'Inputs', value: '-' }],
+    rows: [{ title: 'Event', value: 'New contact' }],
     x: 155,
     y: 12,
   },
@@ -31,9 +40,9 @@ export const STAGE_BLOCKS: BlockDef[] = [
     icon: AgentIcon,
     bgColor: 'var(--text-primary)',
     rows: [
-      { title: 'Messages', value: '-' },
-      { title: 'Model', value: '-' },
-      { title: 'Files', value: '-' },
+      { title: 'Model', value: 'Claude', valueIcon: AnthropicIcon },
+      { title: 'Instructions', value: 'Qualify vs ICP' },
+      { title: 'Knowledge', value: 'Sales playbook' },
     ],
     x: 155,
     y: 172,
@@ -44,8 +53,8 @@ export const STAGE_BLOCKS: BlockDef[] = [
     icon: CodeIcon,
     bgColor: 'var(--text-secondary)',
     rows: [
-      { title: 'Code', value: '-' },
-      { title: 'Timeout', value: '-' },
+      { title: 'Code', value: 'score.ts' },
+      { title: 'Timeout', value: '30s' },
     ],
     x: 155,
     y: 390,
@@ -57,21 +66,22 @@ export const STAGE_BLOCKS: BlockDef[] = [
     bgColor: '#611F69',
     isTerminal: true,
     rows: [
-      { title: 'Channel', value: '-' },
-      { title: 'Message', value: '-' },
+      { title: 'Channel', value: '#sales' },
+      { title: 'Message', value: 'Summary' },
     ],
     x: 0,
     y: 580,
   },
   {
-    id: 'tables',
-    name: 'Save to Tables',
-    icon: TableIcon,
-    bgColor: 'var(--text-body)',
+    id: 'gmail',
+    name: 'Send intro',
+    icon: GmailIcon,
+    bgColor: '#FFFFFF',
+    tileBorder: true,
     isTerminal: true,
     rows: [
-      { title: 'Table', value: '-' },
-      { title: 'Operation', value: '-' },
+      { title: 'To', value: 'lead.email' },
+      { title: 'Subject', value: 'Welcome' },
     ],
     x: 310,
     y: 580,
@@ -80,10 +90,10 @@ export const STAGE_BLOCKS: BlockDef[] = [
 
 /** Source → target pairs, drawn in order as their endpoints land on canvas. */
 export const STAGE_EDGES: ReadonlyArray<readonly [string, string]> = [
-  ['start', 'enrich'],
+  ['hubspot', 'enrich'],
   ['enrich', 'score'],
   ['score', 'slack'],
-  ['score', 'tables'],
+  ['score', 'gmail'],
 ]
 
 /** Design-space bounding box of the layout above. */
