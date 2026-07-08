@@ -393,10 +393,12 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     const goCall = mockFetchGo.mock.calls[0]
     expect(goCall[0]).toBe('http://mothership.test/api/chats/fork')
     const goBody = JSON.parse(goCall[1].body)
+    // The copilot service only knows USER message ids, so the clone cut is the
+    // kept slice's last user message (msg-1), not the clicked assistant (msg-2).
     expect(goBody).toEqual({
       sourceChatId: 'chat-1',
       newChatId: body.id,
-      upToMessageId: 'msg-2',
+      upToMessageId: 'msg-1',
       userId: 'user-1',
     })
 
