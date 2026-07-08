@@ -171,12 +171,7 @@ function getStaticComponentFiles(): Map<string, string> {
   const files = new Map<string, string>()
 
   const allBlocks = getAllBlocks()
-  // Never bake custom blocks into the per-process static cache: `getAllBlocks()` is
-  // overlay-aware, so if this memoized build first runs inside a custom-block
-  // overlay it would freeze that org's blocks here forever — and a later-deleted
-  // definition's `components/blocks/*.json` would linger (the copilot still "sees"
-  // it) even though `materializeCustomBlocks` rebuilds the live set every request.
-  const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar && !isCustomBlockType(b.type))
+  const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
 
   let blocksFiltered = 0
   for (const block of visibleBlocks) {
