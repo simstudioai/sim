@@ -1430,7 +1430,7 @@ export function KnowledgeBase({
             : undefined
         }
         onViewTags={
-          contextMenuDocument && selectedDocuments.size === 1
+          contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
             ? () => handleViewDocumentTags(contextMenuDocument)
             : undefined
         }
