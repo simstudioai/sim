@@ -53,33 +53,66 @@ export function HeroStat() {
   const [count, setCount] = useState(COUNT_FROM)
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setSettled(true)
-      setRevealed(true)
-      setFilled(true)
-      setCount(COUNT_TO)
-      return
-    }
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
     let raf = 0
-    const settleTimer = setTimeout(() => setSettled(true), SETTLE_AT_MS)
-    const revealTimer = setTimeout(() => setRevealed(true), REVEAL_AT_MS)
-    const fillTimer = setTimeout(() => setFilled(true), FILL_AT_MS)
-    const countTimer = setTimeout(() => {
-      const start = performance.now()
-      const tick = (now: number) => {
-        const t = Math.min((now - start) / COUNT_DUR_MS, 1)
-        const eased = 1 - (1 - t) ** 3
-        setCount(Math.round(COUNT_FROM + (COUNT_TO - COUNT_FROM) * eased))
-        if (t < 1) raf = requestAnimationFrame(tick)
-      }
-      raf = requestAnimationFrame(tick)
-    }, REVEAL_AT_MS)
-    return () => {
+    let settleTimer: ReturnType<typeof setTimeout>
+    let revealTimer: ReturnType<typeof setTimeout>
+    let fillTimer: ReturnType<typeof setTimeout>
+    let countTimer: ReturnType<typeof setTimeout>
+
+    const clearScheduled = () => {
       clearTimeout(settleTimer)
       clearTimeout(revealTimer)
       clearTimeout(fillTimer)
       clearTimeout(countTimer)
       cancelAnimationFrame(raf)
+    }
+
+    const showSettled = () => {
+      clearScheduled()
+      setSettled(true)
+      setRevealed(true)
+      setFilled(true)
+      setCount(COUNT_TO)
+    }
+
+    const runEntrance = () => {
+      setSettled(false)
+      setRevealed(false)
+      setFilled(false)
+      setCount(COUNT_FROM)
+      settleTimer = setTimeout(() => setSettled(true), SETTLE_AT_MS)
+      revealTimer = setTimeout(() => setRevealed(true), REVEAL_AT_MS)
+      fillTimer = setTimeout(() => setFilled(true), FILL_AT_MS)
+      countTimer = setTimeout(() => {
+        const start = performance.now()
+        const tick = (now: number) => {
+          const t = Math.min((now - start) / COUNT_DUR_MS, 1)
+          const eased = 1 - (1 - t) ** 3
+          setCount(Math.round(COUNT_FROM + (COUNT_TO - COUNT_FROM) * eased))
+          if (t < 1) raf = requestAnimationFrame(tick)
+        }
+        raf = requestAnimationFrame(tick)
+      }, REVEAL_AT_MS)
+    }
+
+    // Re-synced on 'change' - not just on mount - so toggling the preference
+    // mid-entrance snaps straight to the settled state instead of leaving the
+    // stagger/count-up to keep running on its own clock.
+    const syncMotionPreference = () => {
+      clearScheduled()
+      if (media.matches) {
+        showSettled()
+        return
+      }
+      runEntrance()
+    }
+
+    syncMotionPreference()
+    media.addEventListener('change', syncMotionPreference)
+    return () => {
+      media.removeEventListener('change', syncMotionPreference)
+      clearScheduled()
     }
   }, [])
 
