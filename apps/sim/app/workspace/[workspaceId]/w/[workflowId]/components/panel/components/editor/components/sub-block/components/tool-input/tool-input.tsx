@@ -59,7 +59,7 @@ import {
   ActiveSearchTargetProvider,
   useActiveSearchTarget,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import { getAllBlocks } from '@/blocks'
+import { getAllBlocks, getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
@@ -1756,7 +1756,7 @@ export const ToolInput = memo(function ToolInput({
               ? mcpTool?.name || tool.title
               : isWorkflowTool
                 ? 'Workflow'
-                : toolBlock?.name || tool.type
+                : getBlock(tool.type)?.name || tool.type
 
           const useSubBlocks = !isCustomTool && !isMcpTool && subBlocksResult?.subBlocks?.length
           const displayParams: ToolParameterConfig[] = isCustomTool
