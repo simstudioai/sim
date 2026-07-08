@@ -57,9 +57,9 @@ export const simProfile: CompetitorProfile = {
         'Fork a whole workspace into a dev/qa/prod-style child environment, preview a diff, and promote changes bidirectionally. Credential and env-var remapping is required on every promote, so secrets never cross environments silently.',
       shortDescription: 'Fork, diff, and promote environments with mandatory credential remapping.',
       source: {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/ee/workspace-forking/lib/promote/promote.ts',
-        label: 'Sim codebase: fork promote engine',
-        asOf: '2026-07-02',
+        url: 'https://docs.sim.ai/platform/enterprise/forks',
+        label: 'Sim Docs: Workspace Forks',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -222,14 +222,9 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-            label: 'Sim codebase: workspaceForkResourceMap / workspaceForkPromoteRun',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/ee/workspace-forking/lib/promote/promote.ts',
-            label: 'Sim codebase: fork promote engine',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/enterprise/forks',
+            label: 'Sim Docs: Workspace Forks',
+            asOf: '2026-07-08',
           },
         ],
       },
