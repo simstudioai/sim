@@ -39,15 +39,7 @@ Integrate AWS Textract into your workflow to extract text, tables, forms, and ke
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | AWS Access Key ID |
-| `secretAccessKey` | string | Yes | AWS Secret Access Key |
-| `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
-| `processingMode` | string | No | Document type: single-page or multi-page. Defaults to single-page. |
-| `filePath` | string | No | URL to a document to be processed \(JPEG, PNG, or single-page PDF\). |
-| `file` | file | No | Document file to be processed \(JPEG, PNG, or single-page PDF\). |
-| `s3Uri` | string | No | S3 URI for multi-page processing \(s3://bucket/key\). |
-| `featureTypes` | array | No | Feature types to detect: TABLES, FORMS, QUERIES, SIGNATURES, LAYOUT. If not specified, only text detection is performed. |
-| `queries` | array | No | Custom queries to extract specific information. Only used when featureTypes includes QUERIES. |
+| `file` | file | No | Document to be processed \(JPEG, PNG, or single-page PDF\). |
 
 #### Output
 
@@ -85,5 +77,69 @@ Integrate AWS Textract into your workflow to extract text, tables, forms, and ke
 | `documentMetadata` | object | Metadata about the analyzed document |
 |   ↳ `pages` | number | Number of pages in the document |
 | `modelVersion` | string | Version of the Textract model used for processing |
+
+### `textract_analyze_expense`
+
+Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | AWS Access Key ID |
+| `secretAccessKey` | string | Yes | AWS Secret Access Key |
+| `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
+| `processingMode` | string | No | Document type: single-page or multi-page. Defaults to single-page. |
+| `file` | file | No | Invoice or receipt to be processed \(JPEG, PNG, or single-page PDF\). |
+| `filePath` | string | No | URL to an invoice or receipt to be processed, if not uploaded directly. |
+| `s3Uri` | string | No | S3 URI for multi-page processing \(s3://bucket/key\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseDocuments` | array | Detected expense documents with summary fields and line items |
+|   ↳ `expenseIndex` | number | Index of the expense document |
+|   ↳ `summaryFields` | array | Header fields such as vendor name, invoice date, and totals |
+|   ↳ `lineItemGroups` | array | Groups of line items \(e.g., purchased items and their prices\) |
+|     ↳ `lineItemGroupIndex` | number | Index of the line item group |
+|     ↳ `lineItems` | array | Individual line items within the group |
+|       ↳ `lineItemExpenseFields` | array | Fields for a single line item \(description, quantity, price\) |
+| `documentMetadata` | object | Metadata about the analyzed document |
+|   ↳ `pages` | number | Number of pages in the document |
+| `modelVersion` | string | Version of the AnalyzeExpense model used \(multi-page/async only\) |
+
+### `textract_analyze_id`
+
+Extract identity document fields using AWS Textract AnalyzeID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | AWS Access Key ID |
+| `secretAccessKey` | string | Yes | AWS Secret Access Key |
+| `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
+| `file` | file | No | Front of the identity document \(JPEG, PNG, or PDF\). |
+| `filePath` | string | No | URL to the front of the identity document, if not uploaded directly. |
+| `fileBack` | file | No | Back of the identity document, if applicable \(JPEG, PNG, or PDF\). |
+| `filePathBack` | string | No | URL to the back of the identity document, if not uploaded directly. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `identityDocuments` | array | Detected identity documents with normalized fields |
+|   ↳ `documentIndex` | number | Index of the document page set |
+|   ↳ `identityDocumentFields` | array | Normalized fields such as FIRST_NAME, LAST_NAME, DATE_OF_BIRTH, DOCUMENT_NUMBER, EXPIRATION_DATE |
+|     ↳ `type` | object | Normalized field label |
+|       ↳ `text` | string | Field label text |
+|       ↳ `confidence` | number | Confidence score \(0-100\) |
+|     ↳ `valueDetection` | object | Detected value for the field, with a normalized value for dates |
+|       ↳ `text` | string | Field value text |
+|       ↳ `confidence` | number | Confidence score \(0-100\) |
+| `documentMetadata` | object | Metadata about the analyzed document |
+|   ↳ `pages` | number | Number of pages analyzed |
+| `modelVersion` | string | Version of the AnalyzeID model used for processing |
 
 

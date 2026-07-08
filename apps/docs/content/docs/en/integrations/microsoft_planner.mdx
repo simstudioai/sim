@@ -64,10 +64,13 @@ Create a new task in Microsoft Planner
 | --------- | ---- | -------- | ----------- |
 | `planId` | string | Yes | The ID of the plan where the task will be created \(e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J"\) |
 | `title` | string | Yes | The title of the task \(e.g., "Review quarterly report"\) |
-| `description` | string | No | The description of the task |
 | `dueDateTime` | string | No | The due date and time for the task in ISO 8601 format \(e.g., "2025-03-15T17:00:00Z"\) |
+| `startDateTime` | string | No | The start date and time for the task in ISO 8601 format \(e.g., "2025-03-10T09:00:00Z"\) |
+| `priority` | number | No | The priority of the task \(0-10, where 0 is urgent and 10 is low\) |
+| `percentComplete` | number | No | The percentage of task completion \(0-100\) |
 | `assigneeUserId` | string | No | The user ID to assign the task to \(e.g., "e82f74c3-4d8a-4b5c-9f1e-2a6b8c9d0e3f"\) |
 | `bucketId` | string | No | The bucket ID to place the task in \(e.g., "hsOf2dhOJkC6Fey9VjDg1JgAC9Rq"\) |
+| `appliedCategories` | string | No | Comma-separated category labels to apply to the task, e.g. "category1,category3" \(up to category1-category25, plan-defined color labels\) |
 
 #### Output
 
@@ -97,6 +100,7 @@ Update a task in Microsoft Planner
 | `percentComplete` | number | No | The percentage of task completion \(0-100\) |
 | `priority` | number | No | The priority of the task \(0-10\) |
 | `assigneeUserId` | string | No | The user ID to assign the task to \(e.g., "e82f74c3-4d8a-4b5c-9f1e-2a6b8c9d0e3f"\) |
+| `appliedCategories` | string | No | Comma-separated category labels to apply to the task, e.g. "category1,category3" \(up to category1-category25, plan-defined color labels\) |
 
 #### Output
 
@@ -169,6 +173,109 @@ Get details of a specific Microsoft Planner plan
 | `metadata` | object | Metadata including planId and planUrl |
 |   ↳ `planId` | string | Plan ID |
 |   ↳ `planUrl` | string | Microsoft Graph API URL for the plan |
+
+### `microsoft_planner_create_plan`
+
+Create a new Microsoft Planner plan owned by a Microsoft 365 group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | The ID of the Microsoft 365 group that will own the plan \(e.g., "ebf3b108-5234-4e22-b93d-656d7dae5874"\). The current user must be a member of this group. |
+| `title` | string | Yes | The title of the plan |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the plan was created successfully |
+| `plan` | object | The created plan object with all properties |
+| `metadata` | object | Metadata including planId and groupId |
+|   ↳ `planId` | string | Created plan ID |
+|   ↳ `groupId` | string | Owning Microsoft 365 group ID |
+
+### `microsoft_planner_update_plan`
+
+Rename a Microsoft Planner plan
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Yes | The ID of the plan to update \(e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J"\) |
+| `etag` | string | Yes | The ETag value from the plan to update \(If-Match header\) |
+| `title` | string | Yes | The new title of the plan |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the plan was updated successfully |
+| `plan` | object | The updated plan object with all properties |
+| `metadata` | object | Metadata including planId |
+|   ↳ `planId` | string | Updated plan ID |
+
+### `microsoft_planner_get_plan_details`
+
+Get detailed information about a plan including category descriptions and sharing
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Yes | The ID of the plan \(e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the plan details were retrieved successfully |
+| `planDetails` | object | The plan details including categoryDescriptions and sharedWith |
+| `etag` | string | The ETag value for this plan details resource |
+| `metadata` | object | Metadata including planId |
+|   ↳ `planId` | string | Plan ID |
+
+### `microsoft_planner_update_plan_details`
+
+Update a plan's category (color label) descriptions and shared-with user list in Microsoft Planner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Yes | The ID of the plan \(e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J"\) |
+| `etag` | string | Yes | The ETag value from the plan details to update \(If-Match header\) |
+| `categoryDescriptions` | object | No | Category label names as a JSON object, e.g. \{"category1": "Blocked", "category2": "At Risk"\}. Set a value to null to clear a label. |
+| `sharedWith` | object | No | User IDs to share the plan with as a JSON object, e.g. \{"&lt;user-id&gt;": true\}. Set a value to false to unshare. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the plan details were updated successfully |
+| `planDetails` | object | The updated plan details object with categoryDescriptions and sharedWith |
+| `metadata` | object | Metadata including planId |
+|   ↳ `planId` | string | Plan ID |
+
+### `microsoft_planner_delete_plan`
+
+Delete a Microsoft Planner plan
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | Yes | The ID of the plan to delete \(e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J"\) |
+| `etag` | string | Yes | The ETag value from the plan to delete \(If-Match header\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the plan was deleted successfully |
+| `deleted` | boolean | Confirmation of deletion |
+| `metadata` | object | Additional metadata |
 
 ### `microsoft_planner_list_buckets`
 

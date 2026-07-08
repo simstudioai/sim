@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { revertCopilotCheckpointContract } from '@/lib/api/contracts/copilot'

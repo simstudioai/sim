@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
+import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
 
@@ -7,6 +8,7 @@ export const permissionGroupFullConfigSchema = z.object({
   allowedIntegrations: z.array(z.string()).nullable(),
   allowedModelProviders: z.array(z.string()).nullable(),
   deniedModels: z.array(z.string()).default([]),
+  deniedTools: z.array(z.string()).default([]),
   hideTraceSpans: z.boolean(),
   hideKnowledgeBaseTab: z.boolean(),
   hideTablesTab: z.boolean(),
@@ -21,9 +23,10 @@ export const permissionGroupFullConfigSchema = z.object({
   disableSkills: z.boolean(),
   disableInvitations: z.boolean(),
   disablePublicApi: z.boolean(),
+  disablePublicFileSharing: z.boolean(),
+  allowedFileShareAuthTypes: z.array(shareAuthTypeSchema).nullable(),
   hideDeployApi: z.boolean(),
   hideDeployMcp: z.boolean(),
-  hideDeployA2a: z.boolean(),
   hideDeployChatbot: z.boolean(),
   hideDeployTemplate: z.boolean(),
 })
@@ -62,9 +65,10 @@ export const permissionGroupSchema = z.object({
   creatorEmail: z.string().nullable(),
   memberCount: z.number(),
   isDefault: z.boolean(),
-  /** When true the group governs every workspace; when false only `workspaces`. */
-  appliesToAllWorkspaces: z.boolean(),
-  /** Workspaces targeted when `appliesToAllWorkspaces` is false (empty otherwise). */
+  /**
+   * Workspaces this group targets. Empty for the default group (which governs
+   * every workspace) and for a non-default group scoped to nothing.
+   */
   workspaces: z.array(permissionGroupWorkspaceRefSchema),
 })
 export type PermissionGroup = z.output<typeof permissionGroupSchema>
@@ -79,8 +83,7 @@ export const permissionGroupWriteSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   isDefault: z.boolean(),
-  appliesToAllWorkspaces: z.boolean(),
-  /** Ids of targeted workspaces when `appliesToAllWorkspaces` is false. */
+  /** Ids of targeted workspaces (empty for the default group). */
   workspaceIds: z.array(z.string()),
 })
 export type PermissionGroupWrite = z.output<typeof permissionGroupWriteSchema>
@@ -117,43 +120,28 @@ export const MAX_PERMISSION_GROUP_WORKSPACES = 500
 const workspaceIdsSchema = z.array(z.string().min(1)).max(MAX_PERMISSION_GROUP_WORKSPACES)
 
 /**
- * Enforce the workspace-scope invariants shared by create and update:
- *  - a specific-scope group (`appliesToAllWorkspaces === false`) must name at
- *    least one workspace,
- *  - the organization default group must apply to all workspaces, and
- *  - an all-workspaces or default group must not name specific workspaces
- *    (otherwise `workspaceIds` would be silently dropped server-side).
+ * The one cross-field scope rule shared by create and update: the organization
+ * default group governs every workspace, so it cannot also name specific
+ * workspaces (they would be silently dropped server-side). "Org-wide" is
+ * definitionally `isDefault` — there is no separate flag — so a default group
+ * with no `workspaceIds` is already the all-workspaces case and needs no
+ * assertion here.
+ *
+ * Everything else is left to the routes: a non-default group targets the
+ * workspaces in `workspaceIds` (empty is allowed on update — the group then
+ * governs nothing, since the resolver inner-joins the workspace link table), and
+ * the create route requires at least one workspace up front.
  */
 function refineWorkspaceScope(
-  body: { appliesToAllWorkspaces?: boolean; workspaceIds?: string[]; isDefault?: boolean },
+  body: { workspaceIds?: string[]; isDefault?: boolean },
   ctx: z.RefinementCtx
 ) {
-  // A default group is always org-wide, and an explicit all-workspaces group has
-  // no specific workspaces. Reject workspaceIds in either case rather than
-  // silently dropping them when the scope resolves to all-workspaces.
-  const allWorkspaces = body.isDefault === true || body.appliesToAllWorkspaces === true
-  if (allWorkspaces && body.workspaceIds && body.workspaceIds.length > 0) {
+  if (body.isDefault === true && body.workspaceIds && body.workspaceIds.length > 0) {
     ctx.addIssue({
       code: 'custom',
       path: ['workspaceIds'],
-      message: 'workspaceIds can only be set when the group targets specific workspaces',
+      message: 'The default group governs all workspaces and cannot target specific workspaces',
     })
-  }
-  if (body.appliesToAllWorkspaces === false) {
-    if (!body.workspaceIds || body.workspaceIds.length === 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['workspaceIds'],
-        message: 'Select at least one workspace when the group targets specific workspaces',
-      })
-    }
-    if (body.isDefault === true) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['appliesToAllWorkspaces'],
-        message: 'The default group must apply to all workspaces',
-      })
-    }
   }
 }
 
@@ -163,7 +151,6 @@ export const createPermissionGroupBodySchema = z
     description: z.string().max(500).optional(),
     config: permissionGroupConfigSchema.optional(),
     isDefault: z.boolean().optional(),
-    appliesToAllWorkspaces: z.boolean().optional(),
     workspaceIds: workspaceIdsSchema.optional(),
   })
   .superRefine(refineWorkspaceScope)
@@ -174,7 +161,6 @@ export const updatePermissionGroupBodySchema = z
     description: z.string().max(500).nullable().optional(),
     config: permissionGroupConfigSchema.optional(),
     isDefault: z.boolean().optional(),
-    appliesToAllWorkspaces: z.boolean().optional(),
     workspaceIds: workspaceIdsSchema.optional(),
   })
   .superRefine(refineWorkspaceScope)

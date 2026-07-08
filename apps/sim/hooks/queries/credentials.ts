@@ -20,6 +20,8 @@ import {
   type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
 import { environmentKeys } from '@/hooks/queries/environment'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-workspace-credentials'
 
 /**
  * Key prefix for OAuth credential queries.
@@ -27,43 +29,15 @@ import { environmentKeys } from '@/hooks/queries/environment'
  */
 const OAUTH_CREDENTIALS_KEY = ['oauthCredentials'] as const
 
+export const WORKSPACE_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
+export const WORKSPACE_CREDENTIAL_DETAIL_STALE_TIME = 60 * 1000
+export const WORKSPACE_CREDENTIAL_MEMBER_LIST_STALE_TIME = 30 * 1000
+
 export type {
   WorkspaceCredential,
   WorkspaceCredentialMember,
   WorkspaceCredentialRole,
   WorkspaceCredentialType,
-}
-
-export const workspaceCredentialKeys = {
-  all: ['workspaceCredentials'] as const,
-  lists: () => [...workspaceCredentialKeys.all, 'list'] as const,
-  list: (workspaceId?: string, type?: string, providerId?: string) =>
-    [
-      ...workspaceCredentialKeys.lists(),
-      workspaceId ?? 'none',
-      type ?? 'all',
-      providerId ?? 'all',
-    ] as const,
-  details: () => [...workspaceCredentialKeys.all, 'detail'] as const,
-  detail: (credentialId?: string) =>
-    [...workspaceCredentialKeys.details(), credentialId ?? 'none'] as const,
-  members: (credentialId?: string) =>
-    [...workspaceCredentialKeys.detail(credentialId), 'members'] as const,
-}
-
-/**
- * Fetch workspace credential list from API.
- * Used by the prefetch function for hover-based cache warming.
- */
-export async function fetchWorkspaceCredentialList(
-  workspaceId: string,
-  signal?: AbortSignal
-): Promise<WorkspaceCredential[]> {
-  const data = await requestJson(listWorkspaceCredentialsContract, {
-    query: { workspaceId },
-    signal,
-  })
-  return data.credentials ?? []
 }
 
 /**
@@ -74,7 +48,7 @@ export function prefetchWorkspaceCredentials(queryClient: QueryClient, workspace
   queryClient.prefetchQuery({
     queryKey: workspaceCredentialKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceCredentialList(workspaceId, signal),
-    staleTime: 60 * 1000,
+    staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
   })
 }
 
@@ -101,7 +75,7 @@ export function useWorkspaceCredentials(params: {
       return data.credentials ?? []
     },
     enabled: Boolean(workspaceId) && enabled,
-    staleTime: 60 * 1000,
+    staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
   })
 }
 
@@ -117,7 +91,7 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
       return data.credential ?? null
     },
     enabled: Boolean(credentialId) && enabled,
-    staleTime: 60 * 1000,
+    staleTime: WORKSPACE_CREDENTIAL_DETAIL_STALE_TIME,
   })
 }
 
@@ -246,7 +220,7 @@ export function useWorkspaceCredentialMembers(credentialId?: string) {
       return data.members ?? []
     },
     enabled: Boolean(credentialId),
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_CREDENTIAL_MEMBER_LIST_STALE_TIME,
   })
 }
 

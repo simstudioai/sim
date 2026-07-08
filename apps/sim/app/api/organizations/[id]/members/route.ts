@@ -8,6 +8,7 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -82,7 +83,7 @@ export const GET = withRouteHandler(
       }
 
       const userRole = memberEntry[0].role
-      const hasAdminAccess = ['owner', 'admin'].includes(userRole)
+      const hasAdminAccess = isOrgAdminRole(userRole)
 
       // Get organization members
       const query = db
@@ -234,7 +235,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      if (!['owner', 'admin'].includes(memberEntry[0].role)) {
+      if (!isOrgAdminRole(memberEntry[0].role)) {
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 

@@ -43,7 +43,7 @@ export const dropboxCreateFolderTool: ToolConfig<
       }
     },
     body: (params) => ({
-      path: params.path,
+      path: params.path.trim(),
       autorename: params.autorename ?? false,
     }),
   },
@@ -74,8 +74,8 @@ export const dropboxCreateFolderTool: ToolConfig<
       properties: {
         id: { type: 'string', description: 'Unique identifier for the folder' },
         name: { type: 'string', description: 'Name of the folder' },
-        path_display: { type: 'string', description: 'Display path of the folder' },
-        path_lower: { type: 'string', description: 'Lowercase path of the folder' },
+        path_display: { type: 'string', description: 'Display path of the folder', optional: true },
+        path_lower: { type: 'string', description: 'Lowercase path of the folder', optional: true },
       },
     },
   },

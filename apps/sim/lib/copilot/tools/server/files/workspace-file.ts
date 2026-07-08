@@ -34,6 +34,7 @@ import {
   getE2BDocFormat,
   PPTXGENJS_SOURCE_MIME,
 } from './doc-compile'
+import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
@@ -398,9 +399,11 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
           })
 
+          const embedWarning = await buildEmbeddedImageRefWarning(content, workspaceId)
+
           return {
             success: true,
-            message: `File "${fileName}" created successfully (${fileBuffer.length} bytes)`,
+            message: `File "${fileName}" created successfully (${fileBuffer.length} bytes)${embedWarning}`,
             data: {
               id: result.id,
               name: result.name,
@@ -428,6 +431,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord: existingFile,
             existingContent: currentBuffer.toString('utf-8'),
             contentType: normalized.contentType,
@@ -456,6 +460,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord,
             contentType: normalized.contentType,
             title: normalized.title,
@@ -601,6 +606,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord,
             existingContent,
             edit: {

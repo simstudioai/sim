@@ -11,7 +11,7 @@ const {
   mockMarkJobFailed,
   mockSetJobResultKey,
   mockAppendTableEvent,
-  mockUploadFile,
+  mockCreateMultipartUpload,
   mockDeleteFile,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
@@ -21,7 +21,7 @@ const {
   mockMarkJobFailed: vi.fn(),
   mockSetJobResultKey: vi.fn(),
   mockAppendTableEvent: vi.fn(),
-  mockUploadFile: vi.fn(),
+  mockCreateMultipartUpload: vi.fn(),
   mockDeleteFile: vi.fn(),
 }))
 
@@ -37,7 +37,7 @@ vi.mock('@/lib/table/jobs/service', () => ({
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mockUploadFile,
+  createMultipartUpload: mockCreateMultipartUpload,
   deleteFile: mockDeleteFile,
 }))
 
@@ -52,36 +52,65 @@ const table = {
 
 const payload = { jobId: 'job_1', tableId: 'tbl_1', workspaceId: 'ws_1', format: 'csv' as const }
 
+interface FakeHandle {
+  key: string
+  content: string
+  write: ReturnType<typeof vi.fn>
+  complete: ReturnType<typeof vi.fn>
+  abort: ReturnType<typeof vi.fn>
+}
+
+let lastHandle: FakeHandle | null
+
 describe('runTableExport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    lastHandle = null
     mockGetTableById.mockResolvedValue(table)
     mockUpdateJobProgress.mockResolvedValue(true)
     mockMarkJobReady.mockResolvedValue(true)
     mockMarkJobFailed.mockResolvedValue(undefined)
     mockSetJobResultKey.mockResolvedValue(undefined)
-    // Echo the requested key back like preserveKey-aware providers do; the runner must record
-    // THIS returned key, not its own constructed one.
-    mockUploadFile.mockImplementation((opts: { customKey: string }) =>
-      Promise.resolve({ key: opts.customKey })
-    )
     mockDeleteFile.mockResolvedValue(undefined)
+    // A handle that records every write so tests can assert the streamed bytes, and echoes the
+    // pinned key back from `complete` like the real uploader does.
+    mockCreateMultipartUpload.mockImplementation(({ key }: { key: string }) => {
+      const chunks: string[] = []
+      const handle: FakeHandle = {
+        key,
+        content: '',
+        write: vi.fn((chunk: Buffer | string) => {
+          chunks.push(typeof chunk === 'string' ? chunk : chunk.toString('utf8'))
+          return Promise.resolve()
+        }),
+        complete: vi.fn(() => {
+          handle.content = chunks.join('')
+          return Promise.resolve({ key, size: Buffer.byteLength(handle.content) })
+        }),
+        abort: vi.fn(() => Promise.resolve()),
+      }
+      lastHandle = handle
+      return Promise.resolve(handle)
+    })
     mockSelectExportRowPage.mockResolvedValue([
-      { id: 'r1', data: { col_name: 'Ada' }, position: 0 },
+      { id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' },
     ])
   })
 
-  it('pages rows, uploads the file, stamps the result key, and marks ready', async () => {
+  it('streams rows to the uploader, stamps the result key, and marks ready', async () => {
     await runTableExport(payload)
 
-    expect(mockUploadFile).toHaveBeenCalledTimes(1)
-    const upload = mockUploadFile.mock.calls[0][0]
-    expect(upload.customKey).toBe('workspace/ws_1/exports/tbl_1/job_1/People.csv')
-    expect(upload.preserveKey).toBe(true)
-    expect(upload.contentType).toContain('text/csv')
-    expect(upload.file.toString('utf8')).toBe('name\nAda\n')
+    expect(mockCreateMultipartUpload).toHaveBeenCalledTimes(1)
+    const init = mockCreateMultipartUpload.mock.calls[0][0]
+    expect(init.key).toBe('workspace/ws_1/exports/tbl_1/job_1/People.csv')
+    expect(init.context).toBe('workspace')
+    expect(init.contentType).toContain('text/csv')
 
-    expect(mockSetJobResultKey).toHaveBeenCalledWith('tbl_1', 'job_1', upload.customKey)
+    expect(lastHandle?.content).toBe('name\nAda\n')
+    expect(lastHandle?.complete).toHaveBeenCalledTimes(1)
+    expect(lastHandle?.abort).not.toHaveBeenCalled()
+
+    expect(mockSetJobResultKey).toHaveBeenCalledWith('tbl_1', 'job_1', init.key)
     expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'export', status: 'ready', progress: 1 })
@@ -91,38 +120,40 @@ describe('runTableExport', () => {
 
   it('serializes JSON exports with display-name keys', async () => {
     await runTableExport({ ...payload, format: 'json' })
-    const upload = mockUploadFile.mock.calls[0][0]
-    expect(upload.customKey.endsWith('/People.json')).toBe(true)
-    expect(JSON.parse(upload.file.toString('utf8'))).toEqual([{ name: 'Ada' }])
+    const init = mockCreateMultipartUpload.mock.calls[0][0]
+    expect(init.key.endsWith('/People.json')).toBe(true)
+    expect(JSON.parse(lastHandle?.content ?? '')).toEqual([{ name: 'Ada' }])
   })
 
-  it('stops without uploading when the ownership gate is lost (cancel)', async () => {
+  it('aborts the upload and never completes when ownership is lost (cancel)', async () => {
     mockUpdateJobProgress.mockResolvedValue(false)
 
     await runTableExport(payload)
 
-    expect(mockUploadFile).not.toHaveBeenCalled()
+    expect(lastHandle?.complete).not.toHaveBeenCalled()
+    expect(lastHandle?.abort).toHaveBeenCalledTimes(1)
     expect(mockMarkJobReady).not.toHaveBeenCalled()
     expect(mockMarkJobFailed).not.toHaveBeenCalled()
   })
 
-  it('stops before the upload when ownership is lost at the finalize gate', async () => {
+  it('aborts before completing when ownership is lost at the finalize gate', async () => {
     mockUpdateJobProgress.mockResolvedValueOnce(true).mockResolvedValue(false)
 
     await runTableExport(payload)
 
     expect(mockSelectExportRowPage).toHaveBeenCalledTimes(1)
-    expect(mockUploadFile).not.toHaveBeenCalled()
+    expect(lastHandle?.complete).not.toHaveBeenCalled()
+    expect(lastHandle?.abort).toHaveBeenCalledTimes(1)
     expect(mockMarkJobReady).not.toHaveBeenCalled()
     expect(mockMarkJobFailed).not.toHaveBeenCalled()
   })
 
-  it('cleans up an orphaned upload when the job was canceled at the wire', async () => {
+  it('deletes the finalized object when the job was canceled at the wire', async () => {
     mockMarkJobReady.mockResolvedValue(false)
 
     await runTableExport(payload)
 
-    expect(mockUploadFile).toHaveBeenCalledTimes(1)
+    expect(lastHandle?.complete).toHaveBeenCalledTimes(1)
     expect(mockDeleteFile).toHaveBeenCalledWith(
       expect.objectContaining({ key: expect.stringContaining('exports/tbl_1/job_1') })
     )
@@ -131,11 +162,12 @@ describe('runTableExport', () => {
     )
   })
 
-  it('marks the job failed and emits a failed event on error', async () => {
+  it('aborts the upload, marks the job failed, and emits a failed event on error', async () => {
     mockSelectExportRowPage.mockRejectedValue(new Error('boom'))
 
     await runTableExport(payload)
 
+    expect(lastHandle?.abort).toHaveBeenCalledTimes(1)
     expect(mockMarkJobFailed).toHaveBeenCalledWith('tbl_1', 'job_1', 'boom')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'export', status: 'failed', error: 'boom' })

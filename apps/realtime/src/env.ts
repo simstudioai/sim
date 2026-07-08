@@ -3,6 +3,8 @@ import { z } from 'zod'
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().url(),
+  DATABASE_URL_REALTIME: z.string().url().optional(),
+  DATABASE_REPLICA_URL_REALTIME: z.string().url().optional(),
   REDIS_URL: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().url().optional()
@@ -13,6 +15,7 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url(),
   ALLOWED_ORIGINS: z.string().optional(),
   PORT: z.coerce.number().int().positive().default(3002),
+  SIM_DB_ROLE: z.enum(['web', 'trigger', 'realtime']).optional(),
   DISABLE_AUTH: z
     .string()
     .optional()

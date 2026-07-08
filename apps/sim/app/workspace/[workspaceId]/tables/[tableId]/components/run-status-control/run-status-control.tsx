@@ -1,11 +1,15 @@
 'use client'
 
 import { memo } from 'react'
-import { Button } from '@/components/emcn'
-import { Loader, Square } from '@/components/emcn/icons'
+import { Button } from '@sim/emcn'
+import { Loader, Square } from '@sim/emcn/icons'
 
 interface RunStatusControlProps {
   running: number
+  /** No cell has been claimed by a worker yet — everything counted is queued
+   *  or pending, so labeling it "running" would be dishonest. Renders
+   *  "Queueing" without a count instead. */
+  queueing: boolean
   onStopAll: () => void
   isStopping: boolean
 }
@@ -17,6 +21,7 @@ interface RunStatusControlProps {
  */
 export const RunStatusControl = memo(function RunStatusControl({
   running,
+  queueing,
   onStopAll,
   isStopping,
 }: RunStatusControlProps) {
@@ -24,8 +29,14 @@ export const RunStatusControl = memo(function RunStatusControl({
     <div className='flex items-center gap-1.5'>
       <div className='flex items-center gap-1.5 px-1 text-[var(--text-tertiary)] text-caption'>
         <Loader animate className='size-[14px] shrink-0' />
-        <span className='tabular-nums'>{running}</span>
-        <span>running</span>
+        {queueing ? (
+          <span>Queueing</span>
+        ) : (
+          <>
+            <span className='tabular-nums'>{running}</span>
+            <span>running</span>
+          </>
+        )}
       </div>
       <Button
         variant='subtle'
@@ -34,7 +45,7 @@ export const RunStatusControl = memo(function RunStatusControl({
         disabled={isStopping}
       >
         <Square className='mr-1.5 size-[14px]' />
-        Stop all
+        {isStopping ? 'Stopping…' : 'Stop all'}
       </Button>
     </div>
   )

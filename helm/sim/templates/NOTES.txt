@@ -16,6 +16,9 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
 {{- if .Values.copilot.enabled }}
      kubectl --namespace {{ .Release.Namespace }} rollout status deployment/{{ include "sim.fullname" . }}-copilot
 {{- end }}
+{{- if .Values.pii.enabled }}
+     kubectl --namespace {{ .Release.Namespace }} rollout status deployment/{{ include "sim.fullname" . }}-pii
+{{- end }}
 
 2. Reach the application:
 {{- if and .Values.ingress.enabled .Values.ingress.app.host }}

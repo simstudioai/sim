@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
+import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@sim/emcn'
 import type {
   BYOKManagerKey,
   BYOKManagerProvider,
@@ -50,10 +50,10 @@ export function BYOKProviderKeysModal({
           {keys.map((key) => (
             <div key={key.id} className='flex items-center justify-between gap-2.5'>
               <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                <span className='truncate text-[14px] text-[var(--text-body)]'>
+                <span className='truncate text-[var(--text-body)] text-sm'>
                   {key.name ?? 'Unnamed key'}
                 </span>
-                <span className='truncate font-mono text-[12px] text-[var(--text-muted)]'>
+                <span className='truncate font-mono text-[var(--text-muted)] text-caption'>
                   {key.maskedKey}
                 </span>
               </div>
@@ -65,7 +65,7 @@ export function BYOKProviderKeysModal({
           ))}
         </div>
         {atCapacity && (
-          <p className='px-2 text-[12px] text-[var(--text-muted)]'>
+          <p className='px-2 text-[var(--text-muted)] text-caption'>
             Key limit reached ({maxKeys} keys per provider).
           </p>
         )}

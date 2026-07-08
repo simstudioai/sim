@@ -2,12 +2,6 @@
 
 import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { X } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 import {
   Button,
   Checkbox,
@@ -21,10 +15,18 @@ import {
   ChipModalHeader,
   ChipTextarea,
   type ComboboxOption,
+  cn,
   Loader,
-} from '@/components/emcn'
+  toast,
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { X } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { type FieldErrors, useForm } from 'react-hook-form'
+import { z } from 'zod'
 import type { StrategyOptions } from '@/lib/chunkers/types'
-import { cn } from '@/lib/core/utils/cn'
+import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
@@ -58,7 +60,13 @@ const FormSchema = z
       .min(1, 'Name is required')
       .max(100, 'Name must be less than 100 characters')
       .refine((value) => value.trim().length > 0, 'Name cannot be empty'),
-    description: z.string().max(500, 'Description must be less than 500 characters').optional(),
+    description: z
+      .string()
+      .max(
+        KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH,
+        `Description must be ${KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH} characters or less`
+      )
+      .optional(),
     minChunkSize: z
       .number()
       .min(1, 'Min chunk size must be at least 1 character')
@@ -223,6 +231,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   const isSubmitting =
     createKnowledgeBaseMutation.isPending || deleteKnowledgeBaseMutation.isPending || isUploading
 
+  const onInvalid = (formErrors: FieldErrors<FormInputValues>) => {
+    const firstMessage = Object.values(formErrors).find(
+      (fieldError) => typeof fieldError?.message === 'string'
+    )?.message
+    toast.error(
+      typeof firstMessage === 'string' ? firstMessage : 'Please fix the highlighted fields'
+    )
+  }
+
   const onSubmit = async (data: FormValues) => {
     setSubmitStatus(null)
 
@@ -292,7 +309,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     <ChipModal open={open} onOpenChange={handleClose} srTitle='Create Knowledge Base' size='lg'>
       <ChipModalHeader onClose={() => handleClose(false)}>Create Knowledge Base</ChipModalHeader>
 
-      <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className='flex min-h-0 flex-1 flex-col'>
         <button type='submit' hidden disabled={isSubmitting || !nameValue?.trim()} />
         <ChipModalBody>
           <input
@@ -317,7 +334,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             />
           </ChipModalField>
 
-          <ChipModalField type='custom' title='Description'>
+          <ChipModalField type='custom' title='Description' error={errors.description?.message}>
             <ChipTextarea
               placeholder='Describe this knowledge base (optional)'
               rows={4}
@@ -520,7 +537,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                     : 'Creating...'
                 : 'Creating...'
               : 'Create',
-            onClick: handleSubmit(onSubmit),
+            onClick: handleSubmit(onSubmit, onInvalid),
             disabled: isSubmitting || !nameValue?.trim(),
           }}
         />

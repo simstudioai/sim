@@ -45,12 +45,12 @@ export const discordEditMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordEditMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId}/messages/${params.messageId}`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}`
     },
     method: 'PATCH',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordEditMessageParams) => {
       const body: any = {}

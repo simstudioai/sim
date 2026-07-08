@@ -23,6 +23,7 @@ import {
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  SakanaIcon,
   TogetherIcon,
   VertexIcon,
   VllmIcon,
@@ -660,7 +661,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Anthropic',
     description: "Anthropic's Claude models",
-    defaultModel: 'claude-sonnet-4-6',
+    defaultModel: 'claude-sonnet-5',
     modelPatterns: [/^claude/],
     icon: AnthropicIcon,
     color: '#D97757',
@@ -668,6 +669,45 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
+      {
+        id: 'claude-fable-5',
+        pricing: {
+          input: 10.0,
+          cachedInput: 1.0,
+          output: 50.0,
+          updatedAt: '2026-07-01',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-06-09',
+      },
+      {
+        id: 'claude-sonnet-5',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 10.0,
+          updatedAt: '2026-06-30',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-06-30',
+        recommended: true,
+      },
       {
         id: 'claude-opus-4-8',
         pricing: {
@@ -746,7 +786,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-17',
-        recommended: true,
       },
       {
         id: 'claude-opus-4-5',
@@ -1719,6 +1758,32 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'deepseek-v4-pro',
+        pricing: {
+          input: 0.435,
+          cachedInput: 0.003625,
+          output: 0.87,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {},
+        contextWindow: 1000000,
+        releaseDate: '2026-04-24',
+      },
+      {
+        id: 'deepseek-v4-flash',
+        pricing: {
+          input: 0.14,
+          cachedInput: 0.0028,
+          output: 0.28,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-04-24',
+      },
+      {
         id: 'deepseek-chat',
         pricing: {
           input: 0.14,
@@ -2171,6 +2236,47 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       },
     ],
   },
+  sakana: {
+    id: 'sakana',
+    name: 'Sakana AI',
+    description: "Sakana AI's Fugu multi-agent models via an OpenAI-compatible API",
+    defaultModel: 'fugu',
+    modelPatterns: [/^fugu/],
+    icon: SakanaIcon,
+    color: '#E60000',
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'fugu',
+        pricing: {
+          input: 5,
+          cachedInput: 0.5,
+          output: 30,
+          updatedAt: '2026-06-22',
+        },
+        capabilities: {},
+        contextWindow: 1000000,
+        releaseDate: '2026-06-15',
+        speedOptimized: true,
+      },
+      {
+        id: 'fugu-ultra',
+        pricing: {
+          input: 5,
+          cachedInput: 0.5,
+          output: 30,
+          updatedAt: '2026-06-22',
+        },
+        capabilities: {},
+        contextWindow: 1000000,
+        releaseDate: '2026-06-15',
+        recommended: true,
+      },
+    ],
+  },
   mistral: {
     id: 'mistral',
     name: 'Mistral AI',
@@ -2325,6 +2431,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         releaseDate: '2025-08-12',
       },
       {
+        id: 'mistral-medium-2604',
+        pricing: {
+          input: 1.5,
+          output: 7.5,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1.5 },
+        },
+        contextWindow: 256000,
+        releaseDate: '2026-04-29',
+      },
+      {
         id: 'mistral-medium-2508',
         pricing: {
           input: 0.4,
@@ -2400,7 +2519,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1.5 },
         },
-        contextWindow: 128000,
+        contextWindow: 256000,
         releaseDate: '2025-07-30',
       },
       {
@@ -2413,7 +2532,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1.5 },
         },
-        contextWindow: 128000,
+        contextWindow: 256000,
         releaseDate: '2025-07-30',
       },
       {

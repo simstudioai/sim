@@ -1,13 +1,13 @@
 'use client'
 
 import {
-  Calendar,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { Calendar } from '@sim/emcn/icons'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 
 interface TaskDeleteDialogProps {

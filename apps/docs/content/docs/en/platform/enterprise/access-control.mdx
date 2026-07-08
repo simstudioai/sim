@@ -7,22 +7,22 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Access Control lets organization admins define permission groups that restrict what each set of organization members can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to the **organization** and can govern either every workspace in the organization or a specific subset of workspaces. A user can belong to multiple groups, but is governed by exactly one group in any given workspace. Restrictions are enforced both in the workflow executor and in Mothership, based on the organization that owns the workflow's workspace.
+Access Control lets organization admins define permission groups that restrict what each set of users can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to the **organization**. The organization's **default group** governs everyone org-wide; every other group targets a **specific set of workspaces** and, by default, governs **all members of those workspaces** (including external members) — or only specific members once you add them. A user is governed by exactly one group in any given workspace. Restrictions are enforced both in the workflow executor and in Mothership, based on the organization that owns the workflow's workspace.
 
 ---
 
 ## How it works
 
-Access control is built around **permission groups**. Each group belongs to a specific organization and has a name, an optional description, a **workspace scope** (all workspaces or a specific subset), and a configuration that defines what its members can and cannot do. A user can belong to multiple permission groups, but at most one group governs them in any given workspace. Personal workspaces that do not belong to an organization have no permission groups.
+Access control is built around **permission groups**. Each group belongs to a specific organization and has a name, an optional description, a **workspace scope**, an optional **member** list, and a configuration that defines what its members can and cannot do. The organization's single **default group** is org-wide; every other group targets a **specific set of workspaces**. A non-default group with **no members** governs **all members** of its workspaces (including external members); adding members narrows it to only those people. Personal workspaces that do not belong to an organization have no permission groups.
 
-Sim resolves the governing group for a user in a workspace deterministically, with **specific-over-all precedence**:
+Sim resolves the governing group for a user in a workspace deterministically:
 
-1. a group the user belongs to that **specifically targets that workspace** takes precedence; otherwise
-2. a group they belong to that applies to **all workspaces** applies; otherwise
+1. a non-default group targeting that workspace that the user is an **explicit member** of takes precedence; otherwise
+2. a non-default group targeting that workspace that has **no members** (so it governs all members of the workspace, including external members) applies; otherwise
 3. the organization's **default group** applies (if one is set); otherwise
 4. no restrictions apply.
 
-Because a user's specific-scope groups may not overlap on a workspace, and a user may belong to at most one all-workspaces group, the governing group is always unambiguous.
+Assignment-time checks keep this unambiguous: a workspace has at most one all-members group, and a user is an explicit member of at most one group per workspace.
 
 When a user runs a workflow or uses Mothership, Sim reads the resolved group's configuration and applies it:
 
@@ -41,11 +41,15 @@ Go to **Settings → Enterprise → Access Control** from any workspace in your 
 
 ### 2. Create a permission group
 
-Click **+ Create** and enter a name (required) and optional description. Choose whether the group applies to **all workspaces** in the organization or only a **specific set** of workspaces — when specific, pick the workspaces from the multi-select. You can also mark the group as the **organization default group** — when set, it governs every organization member who is not explicitly assigned to another group, as well as external workspace members operating in the organization's workspaces. Only one group per organization can be the default at a time, and the default group always applies to all workspaces.
+Click **+ Create** and enter a name (required) and optional description. A group either targets a **specific set of workspaces** (pick them from the multi-select) or is the **organization default group**. A workspace-scoped group applies to **all members** of its workspaces by default, including external members — you can narrow it to specific people later. Marking the group as the **default** makes it govern every workspace in the organization and every member not covered by another group (including external members); only one group per organization can be the default, and the default always applies to all workspaces.
 
 ### 3. Configure permissions
 
-Click **Details** on a group, then open **Configure Permissions**. There are three tabs.
+Click **Details** on a group, then open **Configure Permissions**. Non-default groups have a **Members** tab plus three restriction tabs; the default group has only the restriction tabs.
+
+#### Members
+
+A workspace-scoped group with **no members** applies to everyone in its workspaces (including external members). Add members here — searching your organization by name or email — to restrict the group to only those people; removing every member returns it to governing everyone. The default group ignores members and has no Members tab.
 
 #### Model Providers
 
@@ -60,7 +64,7 @@ Controls which AI model providers members of this group can use.
 
 Controls which workflow blocks members can place and execute.
 
-<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, A2A, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={500} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
+<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={500} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
 
 - **All checked (default):** All blocks are allowed.
 - **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified.
@@ -112,7 +116,6 @@ Controls visibility of platform features and modules.
 |---------|-------------------|
 | API | Hides the API deployment tab |
 | MCP | Hides the MCP deployment tab |
-| A2A | Hides the A2A deployment tab |
 | Chat | Hides the Chat deployment tab |
 | Template | Hides the Template deployment tab |
 
@@ -135,13 +138,15 @@ Controls visibility of platform features and modules.
 |---------|-------------------|
 | Invitations | Disables the ability to invite new members to the workspace |
 
-### 4. Add members
+### 4. Choose who it applies to
 
-Open the group's **Details** view and add members by searching for users by name or email. The member picker lists your organization's members. A user can belong to multiple groups, but only one group can govern them in any given workspace — so adding a user to a group is rejected when it would conflict with another of their groups on a workspace (two all-workspaces groups, or two specific groups that share a workspace). In bulk adds, conflicting users are skipped rather than added.
+A workspace-scoped group applies to **all members of its workspaces by default** — including external members. To restrict it to specific people instead, open **Configure Permissions → Members** and add members by searching your organization by name or email. Removing every member returns the group to governing everyone in its workspaces.
 
-You can also change a group's workspace scope at any time from the **Workspaces** row in the Details view.
+A user is governed by one group per workspace, so adding a user is rejected when it would conflict with another of their groups on a shared workspace (skipped rather than added in bulk). The default group ignores members entirely — it always governs everyone not covered by a workspace group.
 
-External workspace members (people who have access to a workspace but belong to a different organization) are not assigned to groups individually. They are governed by the organization's **default group** when one is set; otherwise no restrictions apply to them.
+Manage which workspaces a group governs from the **Workspaces** list in the group's **Details** view (Add and Remove). A non-default group is created targeting at least one workspace, but you can later remove all of them — a group with no workspaces simply governs nothing until you add one back.
+
+External workspace members (people who have access to a workspace but belong to a different organization) can't be added as named members, but a workspace-scoped group with no members — and the organization default group — still governs them.
 
 ---
 
@@ -169,10 +174,11 @@ When a user opens Mothership, their permission group is read before any block or
 ## User membership rules
 
 - A user can belong to **multiple** permission groups, but **at most one** group governs them in any given workspace.
-- For a given workspace, a group that **specifically targets that workspace** takes precedence over a group that applies to **all workspaces**, which takes precedence over the organization's **default group**.
-- A user's specific-scope groups may not overlap on a workspace, and a user may belong to at most one all-workspaces group. Adding a user in a way that would violate this is rejected (single add) or skipped (bulk add) — memberships are never silently moved between groups.
-- Users not governed by any group fall under the organization's **default group** if one is set; otherwise no restrictions are applied to them.
-- Only one group per organization can be marked as the **default group**, and it always applies to all workspaces. The default also governs external workspace members operating in the organization's workspaces.
+- For a given workspace, a non-default group the user is an **explicit member** of takes precedence over a non-default **all-members** group (one with no members) targeting that workspace, which takes precedence over the organization's **default group**.
+- A workspace has **at most one all-members group**, and a user is an explicit member of **at most one** group per workspace. Adding a user, adding a workspace, or removing a group's last member is rejected when it would violate this — memberships and scopes are never silently moved.
+- A workspace-scoped group with **no members** governs everyone in its workspaces (including external members); add members to narrow it to specific people.
+- Users not covered by any workspace group fall under the organization's **default group** if one is set; otherwise no restrictions are applied to them.
+- Only one group per organization can be the **default group**; it always applies to all workspaces, ignores members, and also governs external workspace members.
 - Personal or grandfathered workspaces that do not belong to an organization have no permission groups.
 
 ---
@@ -188,15 +194,19 @@ When a user opens Mothership, their permission group is read before any block or
   },
   {
     question: "Can a user be in multiple permission groups?",
-    answer: "Yes. A user can belong to multiple permission groups, but only one group governs them in any given workspace. A group that specifically targets a workspace takes precedence over an all-workspaces group, which takes precedence over the organization's default group. A user's specific-scope groups may not overlap on a workspace, and a user may belong to at most one all-workspaces group."
+    answer: "Yes. A user can belong to multiple permission groups, but only one governs them in any given workspace. A group they're an explicit member of takes precedence over an all-members group (one with no members) on that workspace, which takes precedence over the organization's default group. A workspace has at most one all-members group, and a user is an explicit member of at most one group per workspace."
+  },
+  {
+    question: "Does a permission group apply to everyone in its workspaces, or specific people?",
+    answer: "By default, a workspace-scoped group applies to all members of its workspaces, including external members. To restrict it to specific people, open Configure Permissions → Members and add them; the group then governs only those members. Removing every member returns it to governing everyone in its workspaces."
   },
   {
     question: "Can a permission group apply to only some workspaces?",
-    answer: "Yes. When creating or editing a group, choose 'Specific workspaces' and select the workspaces it should govern. A specific-scope group governs its members only in those workspaces; elsewhere those members fall back to their all-workspaces group (if any) or the organization default. The default group always applies to all workspaces."
+    answer: "Every non-default group targets a specific set of workspaces — choose them when you create the group or from the Workspaces list in its Details view. Only the organization default group is org-wide."
   },
   {
     question: "What governs a user who has no permission group assigned?",
-    answer: "If the organization has a default group, it governs every member (and external workspace member) who is not explicitly assigned to another group. If no default group is set, those users have no restrictions — all blocks, model providers, and platform features are available to them."
+    answer: "In a workspace targeted by an all-members group (one with no members), that group governs them. Otherwise the organization's default group governs them if one is set. If neither applies, they have no restrictions — all blocks, model providers, and platform features are available."
   },
   {
     question: "Does Mothership respect the same restrictions as the executor?",
@@ -204,11 +214,11 @@ When a user opens Mothership, their permission group is read before any block or
   },
   {
     question: "Can I apply different restrictions to different people or workspaces?",
-    answer: "Yes. Assign different sets of users to different permission groups to give them different restrictions, and scope each group to all workspaces or a specific subset to vary restrictions per workspace. A user can be in an all-workspaces group for a baseline plus a specific-workspace group that overrides it in select workspaces. Who can access a given workspace is still controlled separately by workspace invitations and permissions."
+    answer: "Yes. Scope each group to the workspaces it should govern, and either let it apply to everyone there or add members to target specific people. A workspace can have one all-members group plus additional groups that target specific people, who are governed by their own group instead. Who can access a given workspace is still controlled separately by workspace invitations and permissions."
   },
   {
     question: "What is the default group?",
-    answer: "The default group is the single group per organization that governs everyone not explicitly assigned to another group, including external workspace members operating in the organization's workspaces. Only one group per organization can be the default at a time. If no default is set, ungrouped users have no restrictions."
+    answer: "The default group is the single org-wide group that governs everyone not covered by a workspace group, including external workspace members. It always applies to all workspaces and ignores members. Only one per organization; if none is set, ungrouped users have no restrictions."
   }
 ]} />
 

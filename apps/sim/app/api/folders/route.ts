@@ -1,12 +1,11 @@
-import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createFolderContract, listFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performCreateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -43,16 +42,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied to this workspace' }, { status: 403 })
     }
 
-    const archivedFilter =
-      scope === 'archived'
-        ? isNotNull(workflowFolder.archivedAt)
-        : isNull(workflowFolder.archivedAt)
-
-    const folders = await db
-      .select()
-      .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), archivedFilter))
-      .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
+    const folders = await listFoldersForWorkspace(workspaceId, scope)
 
     return NextResponse.json({ folders })
   } catch (error) {
@@ -93,6 +83,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    await assertFolderMutable(parentId ?? null)
+
     const result = await performCreateFolder({
       id: clientId,
       userId: session.user.id,
@@ -123,6 +115,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ folder: newFolder })
   } catch (error) {
+    if (error instanceof FolderLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     logger.error('Error creating folder:', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

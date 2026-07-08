@@ -50,10 +50,12 @@ vi.mock('@/tools', () => ({
 
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
 import { bedrockProvider } from '@/providers/bedrock/index'
+import { clearProviderClientCacheForTests } from '@/providers/client-cache'
 
 describe('bedrockProvider credential handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearProviderClientCacheForTests()
     mockSend.mockResolvedValue({
       output: { message: { content: [{ text: 'response' }] } },
       usage: { inputTokens: 10, outputTokens: 5 },

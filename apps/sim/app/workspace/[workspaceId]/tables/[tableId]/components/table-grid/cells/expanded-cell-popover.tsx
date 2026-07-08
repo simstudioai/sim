@@ -2,10 +2,16 @@
 
 import type React from 'react'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/emcn'
+import { Button } from '@sim/emcn'
 import type { TableRow as TableRowType } from '@/lib/table'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import type { EditingCell, SaveReason } from '../../../types'
-import { cleanCellValue, displayToStorage, formatValueForInput } from '../../../utils'
+import {
+  cleanCellValue,
+  displayToStorage,
+  formatValueForInput,
+  storageToDisplay,
+} from '../../../utils'
 import type { DisplayColumn } from '../types'
 
 interface ExpandedCellPopoverProps {
@@ -145,7 +151,11 @@ export function ExpandedCellPopover({
       {isEditable ? (
         <ExpandedCellEditor
           key={`${expandedCell.rowId}:${expandedCell.columnKey ?? expandedCell.columnName}`}
-          initialValue={formatValueForInput(target.value, target.column.type)}
+          initialValue={
+            target.column.type === 'date'
+              ? storageToDisplay(formatValueForInput(target.value, 'date'), { seconds: true })
+              : formatValueForInput(target.value, target.column.type)
+          }
           column={target.column}
           rowId={target.row.id}
           onSave={onSave}
@@ -197,12 +207,36 @@ function ExpandedCellEditor({
   textareaRef,
 }: ExpandedCellEditorProps) {
   const [draftValue, setDraftValue] = useState(initialValue)
+  const [parseError, setParseError] = useState<string | null>(null)
+  const timeZone = useTimezone()
 
   const handleSave = () => {
-    // `displayToStorage` only normalizes dates — it returns null for anything else.
-    // Fall back to the raw draft for non-date columns, matching the inline editor.
-    const raw = displayToStorage(draftValue) ?? draftValue
-    const cleaned = cleanCellValue(raw, column)
+    // Untouched draft → close without writing. For dates this also avoids
+    // re-stamping the stored offset with this viewer's zone.
+    if (draftValue === initialValue) {
+      onClose()
+      return
+    }
+    // Only date columns go through `displayToStorage` — it now parses many
+    // date shapes, so a number draft like "2024" must not reach it.
+    const raw =
+      column.type === 'date' ? (displayToStorage(draftValue, timeZone) ?? draftValue) : draftValue
+    let cleaned: unknown
+    try {
+      cleaned = cleanCellValue(raw, column, timeZone)
+    } catch {
+      setParseError('Invalid JSON')
+      return
+    }
+    /** `cleanCellValue` nulls unparseable dates/numbers instead of throwing — reject rather than silently clear. */
+    if (
+      cleaned === null &&
+      draftValue.trim() !== '' &&
+      (column.type === 'date' || column.type === 'number')
+    ) {
+      setParseError(column.type === 'date' ? 'Invalid date' : 'Invalid number')
+      return
+    }
     onSave(rowId, column.key, cleaned, 'blur')
     onClose()
   }
@@ -219,16 +253,23 @@ function ExpandedCellEditor({
       <textarea
         ref={textareaRef}
         value={draftValue}
-        onChange={(e) => setDraftValue(e.target.value)}
+        onChange={(e) => {
+          setDraftValue(e.target.value)
+          setParseError(null)
+        }}
         onKeyDown={handleTextareaKeyDown}
         className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-none placeholder:text-[var(--text-muted)]'
         spellCheck={false}
         autoCorrect='off'
       />
       <div className='flex items-center justify-between border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
-        <span className='text-[var(--text-tertiary)] text-caption'>
-          <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
-        </span>
+        {parseError ? (
+          <span className='text-[var(--text-error)] text-caption'>{parseError}</span>
+        ) : (
+          <span className='text-[var(--text-tertiary)] text-caption'>
+            <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
+          </span>
+        )}
         <div className='flex items-center gap-1.5'>
           <Button variant='ghost' size='sm' onClick={onClose}>
             Cancel

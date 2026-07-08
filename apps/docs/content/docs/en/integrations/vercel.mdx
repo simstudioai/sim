@@ -49,6 +49,7 @@ List deployments for a Vercel project or team
 | `until` | number | No | Get deployments created before this JavaScript timestamp |
 | `limit` | number | No | Maximum number of deployments to return per request |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -87,6 +88,7 @@ Get details of a specific Vercel deployment
 | `deploymentId` | string | Yes | The unique deployment identifier or hostname |
 | `withGitRepoInfo` | string | No | Whether to add in gitRepo information \(true/false\) |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -145,6 +147,7 @@ Create a new deployment or redeploy an existing one
 | `gitSource` | string | No | JSON string defining the Git Repository source to deploy \(e.g. \{"type":"github","repo":"owner/repo","ref":"main"\}\) |
 | `forceNew` | string | No | Forces a new deployment even if there is a previous similar deployment \(0 or 1\) |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -174,6 +177,7 @@ Cancel a running Vercel deployment
 | `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | The deployment ID to cancel |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -198,6 +202,7 @@ Delete a Vercel deployment
 | `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | The deployment ID or URL to delete |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -222,6 +227,7 @@ Get build and runtime events for a Vercel deployment
 | `since` | number | No | Timestamp to start pulling build logs from |
 | `until` | number | No | Timestamp to stop pulling build logs at |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -250,6 +256,7 @@ List files in a Vercel deployment
 | `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | The deployment ID to list files for |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -279,6 +286,7 @@ Promote a deployment by pointing the production deployment to the given deployme
 | `projectId` | string | Yes | Project ID or name |
 | `deploymentId` | string | Yes | The ID of the deployment to promote to production |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -297,7 +305,9 @@ List all projects in a Vercel team or account
 | `apiKey` | string | Yes | Vercel Access Token |
 | `search` | string | No | Search projects by name |
 | `limit` | number | No | Maximum number of projects to return |
+| `from` | string | No | Continuation token for pagination, taken from the previous response's pagination.next value. Query only projects updated after this timestamp or continuation token. |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -307,10 +317,13 @@ List all projects in a Vercel team or account
 |   ↳ `id` | string | Project ID |
 |   ↳ `name` | string | Project name |
 |   ↳ `framework` | string | Framework |
+|   ↳ `rootDirectory` | string | Root directory of the project |
+|   ↳ `nodeVersion` | string | Node.js version |
 |   ↳ `createdAt` | number | Creation timestamp |
 |   ↳ `updatedAt` | number | Last updated timestamp |
 | `count` | number | Number of projects returned |
 | `hasMore` | boolean | Whether more projects are available |
+| `nextFrom` | string | Continuation token to pass as `from` to fetch the next page |
 
 ### `vercel_get_project`
 
@@ -323,6 +336,7 @@ Get details of a specific Vercel project
 | `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -331,6 +345,8 @@ Get details of a specific Vercel project
 | `id` | string | Project ID |
 | `name` | string | Project name |
 | `framework` | string | Project framework |
+| `rootDirectory` | string | Root directory of the project |
+| `nodeVersion` | string | Node.js version |
 | `createdAt` | number | Creation timestamp |
 | `updatedAt` | number | Last updated timestamp |
 | `link` | object | Git repository connection |
@@ -353,7 +369,11 @@ Create a new Vercel project
 | `buildCommand` | string | No | Custom build command |
 | `outputDirectory` | string | No | Custom output directory |
 | `installCommand` | string | No | Custom install command |
+| `rootDirectory` | string | No | Subdirectory of the repository the project lives in \(for monorepos\) |
+| `nodeVersion` | string | No | Node.js version to use \(e.g. 22.x, 20.x, 18.x\) |
+| `devCommand` | string | No | Custom dev server command |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -380,7 +400,11 @@ Update an existing Vercel project
 | `buildCommand` | string | No | Custom build command |
 | `outputDirectory` | string | No | Custom output directory |
 | `installCommand` | string | No | Custom install command |
+| `rootDirectory` | string | No | Subdirectory of the repository the project lives in \(for monorepos\) |
+| `nodeVersion` | string | No | Node.js version to use \(e.g. 22.x, 20.x, 18.x\) |
+| `devCommand` | string | No | Custom dev server command |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -402,6 +426,7 @@ Delete a Vercel project
 | `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -420,6 +445,7 @@ Pause a Vercel project
 | `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -440,6 +466,7 @@ Unpause a Vercel project
 | `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -460,6 +487,7 @@ List all domains for a Vercel project
 | `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 | `limit` | number | No | Maximum number of domains to return |
 
 #### Output
@@ -499,6 +527,7 @@ Add a domain to a Vercel project
 | `redirectStatusCode` | number | No | HTTP status code for redirect \(301, 302, 307, 308\) |
 | `gitBranch` | string | No | Git branch to link the domain to |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -531,6 +560,7 @@ Remove a domain from a Vercel project
 | `projectId` | string | Yes | Project ID or name |
 | `domain` | string | Yes | Domain name to remove |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -540,7 +570,7 @@ Remove a domain from a Vercel project
 
 ### `vercel_update_project_domain`
 
-Update a project domain
+Update a project domain's configuration on Vercel
 
 #### Input
 
@@ -553,6 +583,7 @@ Update a project domain
 | `redirectStatusCode` | number | No | HTTP status code for redirect \(301, 302, 307, 308\) |
 | `gitBranch` | string | No | Git branch to link the domain to |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -585,6 +616,7 @@ Verify a Vercel project domain by checking its verification challenge
 | `projectId` | string | Yes | Project ID or name |
 | `domain` | string | Yes | Domain name to verify |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -610,7 +642,10 @@ Retrieve environment variables for a Vercel project
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
+| `decrypt` | boolean | No | If true, decrypted variable values are returned instead of ciphertext |
+| `gitBranch` | string | No | Filter results to the environment variables for this git branch \(must have target=preview\) |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -645,6 +680,7 @@ Create an environment variable for a Vercel project
 | `gitBranch` | string | No | Git branch to associate with the variable \(requires target to include preview\) |
 | `comment` | string | No | Comment to add context to the variable \(max 500 characters\) |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -678,6 +714,7 @@ Update an environment variable for a Vercel project
 | `gitBranch` | string | No | Git branch to associate with the variable \(requires target to include preview\) |
 | `comment` | string | No | Comment to add context to the variable \(max 500 characters\) |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -705,6 +742,7 @@ Delete an environment variable from a Vercel project
 | `projectId` | string | Yes | Project ID or name |
 | `envId` | string | Yes | Environment variable ID to delete |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -723,6 +761,7 @@ List all domains in a Vercel account or team
 | `apiKey` | string | Yes | Vercel Access Token |
 | `limit` | number | No | Maximum number of domains to return \(default 20\) |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -744,6 +783,10 @@ List all domains in a Vercel account or team
 |     ↳ `id` | string | Creator ID |
 |     ↳ `username` | string | Creator username |
 |     ↳ `email` | string | Creator email |
+|   ↳ `customNameservers` | array | Custom nameservers |
+|   ↳ `userId` | string | Owner user ID |
+|   ↳ `teamId` | string | Owner team ID |
+|   ↳ `transferStartedAt` | number | Transfer start timestamp |
 | `count` | number | Number of domains returned |
 | `hasMore` | boolean | Whether more domains are available |
 
@@ -758,6 +801,7 @@ Get information about a specific domain in a Vercel account
 | `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name to retrieve |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -794,6 +838,7 @@ Add a new domain to a Vercel account or team
 | `apiKey` | string | Yes | Vercel Access Token |
 | `name` | string | Yes | The domain name to add |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -827,6 +872,7 @@ Delete a domain from a Vercel account or team
 | `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name to delete |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -846,6 +892,7 @@ Get the configuration for a domain in a Vercel account
 | `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name to get configuration for |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -873,6 +920,7 @@ List all DNS records for a domain in a Vercel account
 | `domain` | string | Yes | The domain name to list records for |
 | `limit` | number | No | Maximum number of records to return |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -906,10 +954,19 @@ Create a DNS record for a domain in a Vercel account
 | `domain` | string | Yes | The domain name to create the record for |
 | `recordName` | string | Yes | The subdomain or record name |
 | `recordType` | string | Yes | DNS record type \(A, AAAA, ALIAS, CAA, CNAME, HTTPS, MX, SRV, TXT, NS\) |
-| `value` | string | Yes | The value of the DNS record |
+| `value` | string | No | The value of the DNS record \(not used for SRV/HTTPS records\) |
 | `ttl` | number | No | Time to live in seconds |
 | `mxPriority` | number | No | Priority for MX records |
+| `srvTarget` | string | No | Target hostname for SRV records \(required when recordType is SRV\) |
+| `srvWeight` | number | No | Weight for SRV records \(required when recordType is SRV\) |
+| `srvPort` | number | No | Port for SRV records \(required when recordType is SRV\) |
+| `srvPriority` | number | No | Priority for SRV records \(required when recordType is SRV\) |
+| `httpsTarget` | string | No | Target hostname for HTTPS records \(required when recordType is HTTPS\) |
+| `httpsPriority` | number | No | Priority for HTTPS records \(required when recordType is HTTPS\) |
+| `httpsParams` | string | No | Optional service parameters for HTTPS records \(e.g. "alpn=h2,h3"\) |
+| `comment` | string | No | A comment to add context on what this DNS record is for \(max 500 characters\) |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -933,8 +990,16 @@ Update an existing DNS record for a domain in a Vercel account
 | `type` | string | No | DNS record type \(A, AAAA, ALIAS, CAA, CNAME, HTTPS, MX, SRV, TXT, NS\) |
 | `ttl` | number | No | Time to live in seconds \(60 to 2147483647\) |
 | `mxPriority` | number | No | Priority for MX records |
+| `srvTarget` | string | No | Target hostname for SRV records \(required together when updating SRV data\) |
+| `srvWeight` | number | No | Weight for SRV records \(required together when updating SRV data\) |
+| `srvPort` | number | No | Port for SRV records \(required together when updating SRV data\) |
+| `srvPriority` | number | No | Priority for SRV records \(required together when updating SRV data\) |
+| `httpsTarget` | string | No | Target hostname for HTTPS records \(required together when updating HTTPS data\) |
+| `httpsPriority` | number | No | Priority for HTTPS records \(required together when updating HTTPS data\) |
+| `httpsParams` | string | No | Optional service parameters for HTTPS records \(e.g. "alpn=h2,h3"\) |
 | `comment` | string | No | A comment to add context on what this DNS record is for \(max 500 characters\) |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -963,6 +1028,7 @@ Delete a DNS record for a domain in a Vercel account
 | `domain` | string | Yes | The domain name the record belongs to |
 | `recordId` | string | Yes | The ID of the DNS record to delete |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -983,6 +1049,7 @@ List aliases for a Vercel project or team
 | `domain` | string | No | Filter aliases by domain |
 | `limit` | number | No | Maximum number of aliases to return |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -1014,6 +1081,7 @@ Get details about a specific alias by ID or hostname
 | `apiKey` | string | Yes | Vercel Access Token |
 | `aliasId` | string | Yes | Alias ID or hostname to look up |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -1042,7 +1110,9 @@ Assign an alias (domain/subdomain) to a deployment
 | `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | Deployment ID to assign the alias to |
 | `alias` | string | Yes | The domain or subdomain to assign as an alias |
+| `redirect` | string | No | Hostname to 307-redirect the alias to instead of serving the deployment directly |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -1064,6 +1134,7 @@ Delete an alias by its ID
 | `apiKey` | string | Yes | Vercel Access Token |
 | `aliasId` | string | Yes | Alias ID to delete |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -1322,6 +1393,7 @@ Create a new deployment check
 | `externalId` | string | No | External identifier for the check |
 | `rerequestable` | boolean | No | Whether the check can be rerequested |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -1356,6 +1428,7 @@ Get details of a specific deployment check
 | `deploymentId` | string | Yes | Deployment ID the check belongs to |
 | `checkId` | string | Yes | Check ID to retrieve |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -1389,6 +1462,7 @@ List all checks for a deployment
 | `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | Deployment ID to list checks for |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -1432,6 +1506,7 @@ Update an existing deployment check
 | `path` | string | No | Page path being checked |
 | `output` | string | No | JSON string with check output metrics |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
 
 #### Output
 
@@ -1466,6 +1541,8 @@ Rerequest a deployment check
 | `deploymentId` | string | Yes | Deployment ID the check belongs to |
 | `checkId` | string | Yes | Check ID to rerequest |
 | `teamId` | string | No | Team ID to scope the request |
+| `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
+| `autoUpdate` | boolean | No | Whether to mark the check as running immediately on rerequest |
 
 #### Output
 

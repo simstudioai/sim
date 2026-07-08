@@ -9,8 +9,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "start": "bun src/index.ts",
+    "dev": "SIM_DB_ROLE=realtime DB_APP_NAME=sim-realtime bun --watch src/index.ts",
+    "start": "SIM_DB_ROLE=realtime DB_APP_NAME=sim-realtime bun src/index.ts",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
@@ -24,10 +24,11 @@
     "@sim/auth": "workspace:*",
     "@sim/db": "workspace:*",
     "@sim/logger": "workspace:*",
+    "@sim/platform-authz": "workspace:*",
     "@sim/realtime-protocol": "workspace:*",
+    "@sim/runtime-secrets": "workspace:*",
     "@sim/security": "workspace:*",
     "@sim/utils": "workspace:*",
-    "@sim/workflow-authz": "workspace:*",
     "@sim/workflow-persistence": "workspace:*",
     "@sim/workflow-types": "workspace:*",
     "@socket.io/redis-adapter": "8.3.0",

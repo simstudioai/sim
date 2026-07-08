@@ -19,6 +19,10 @@ export type { InboxConfig, InboxSendersResponseBody }
 export type InboxTaskItem = InboxTask
 export type InboxTasksResponse = InboxTasksResponseBody
 
+export const INBOX_CONFIG_STALE_TIME = 30 * 1000
+export const INBOX_SENDER_LIST_STALE_TIME = 60 * 1000
+export const INBOX_TASK_LIST_STALE_TIME = 15 * 1000
+
 export const inboxKeys = {
   all: ['inbox'] as const,
   configs: () => [...inboxKeys.all, 'config'] as const,
@@ -26,8 +30,8 @@ export const inboxKeys = {
   senders: () => [...inboxKeys.all, 'sender'] as const,
   senderList: (workspaceId: string) => [...inboxKeys.senders(), workspaceId] as const,
   tasks: () => [...inboxKeys.all, 'task'] as const,
-  taskList: (workspaceId: string, status?: string) =>
-    [...inboxKeys.tasks(), workspaceId, status ?? 'all'] as const,
+  taskList: (workspaceId: string, status?: string, cursor?: string, limit?: number) =>
+    [...inboxKeys.tasks(), workspaceId, status ?? 'all', cursor ?? '', limit ?? ''] as const,
 }
 
 type InboxTaskStatusFilter = InboxTaskStatus
@@ -70,7 +74,7 @@ export function useInboxConfig(workspaceId: string) {
     queryKey: inboxKeys.config(workspaceId),
     queryFn: ({ signal }) => fetchInboxConfig(workspaceId, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 30 * 1000,
+    staleTime: INBOX_CONFIG_STALE_TIME,
   })
 }
 
@@ -79,7 +83,7 @@ export function useInboxSenders(workspaceId: string) {
     queryKey: inboxKeys.senderList(workspaceId),
     queryFn: ({ signal }) => fetchInboxSenders(workspaceId, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: INBOX_SENDER_LIST_STALE_TIME,
   })
 }
 
@@ -88,10 +92,10 @@ export function useInboxTasks(
   opts: { status?: InboxTaskStatusFilter; cursor?: string; limit?: number } = {}
 ) {
   return useQuery({
-    queryKey: inboxKeys.taskList(workspaceId, opts.status),
+    queryKey: inboxKeys.taskList(workspaceId, opts.status, opts.cursor, opts.limit),
     queryFn: ({ signal }) => fetchInboxTasks(workspaceId, opts, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 15 * 1000,
+    staleTime: INBOX_TASK_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

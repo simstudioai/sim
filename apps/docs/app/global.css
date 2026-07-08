@@ -2,6 +2,8 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 @import "fumadocs-openapi/css/preset.css";
+@source "../../../packages/emcn/src";
+@source "../../../packages/workflow-renderer/src";
 
 /* Prevent overscroll bounce effect on the page */
 html,
@@ -18,6 +20,20 @@ body {
 
 @theme {
   --color-fd-primary: var(--color-fd-foreground);
+  /* Sim's custom type scale — emcn components (Label, Badge, the shared block
+     views) use these names, so they must resolve here or text falls back to the
+     inherited size. Mirrors apps/sim/tailwind.config.ts. */
+  --text-micro: 10px;
+  --text-xs: 11px;
+  --text-caption: 12px;
+  --text-small: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
+}
+
+/* Hide the floating Ask Sim widget while a workflow-preview lightbox is open. */
+body.wp-lightbox-open [aria-label="Ask Sim"] {
+  display: none;
 }
 
 /* Pure white light mode background */
@@ -41,6 +57,7 @@ body {
  */
 :root {
   --bg: #fefefe;
+  --workflow-edge: #e0e0e0;
   --surface-1: #fbfbfb;
   --surface-2: #ffffff;
   --surface-3: #f7f7f7;
@@ -50,6 +67,7 @@ body {
   --surface-active: #ececec;
   --border: #dedede;
   --border-1: #e0e0e0;
+  --divider: #ededed;
   --text-primary: #1a1a1a;
   --text-secondary: #525252;
   --text-tertiary: #5c5c5c;
@@ -59,8 +77,14 @@ body {
   --text-icon: #525252;
   --text-inverse: #ffffff;
   --text-error: #ef4444;
+  --text-muted-inverse: #a0a0a0;
   --brand-accent: #33c482;
   --brand-accent-hover: #2dac72;
+  --brand-secondary: #33b4ff;
+  --surface-inverted: #1b1b1b;
+  --surface-inverted-hover: #363636;
+  --border-inverted: #363636;
+  --border-muted: #e4e4e4;
   --badge-success-bg: #bbf7d0;
   --badge-success-text: #15803d;
   --badge-blue-bg: #bfdbfe;
@@ -84,6 +108,7 @@ body {
 
 .dark {
   --bg: #1b1b1b;
+  --workflow-edge: #454545;
   --surface-1: #1e1e1e;
   --surface-2: #232323;
   --surface-3: #242424;
@@ -93,6 +118,7 @@ body {
   --surface-active: #2c2c2c;
   --border: #333333;
   --border-1: #3d3d3d;
+  --divider: #393939;
   --text-primary: #e6e6e6;
   --text-secondary: #cccccc;
   --text-tertiary: #b3b3b3;
@@ -102,8 +128,14 @@ body {
   --text-icon: #a0a0a0;
   --text-inverse: #1b1b1b;
   --text-error: #ef4444;
+  --text-muted-inverse: #b3b3b3;
   --brand-accent: #33c482;
   --brand-accent-hover: #2dac72;
+  --brand-secondary: #33b4ff;
+  --surface-inverted: #242424;
+  --surface-inverted-hover: #363636;
+  --border-inverted: #3d3d3d;
+  --border-muted: #424242;
   --badge-success-bg: rgba(34, 197, 94, 0.2);
   --badge-success-text: #86efac;
   --badge-blue-bg: rgba(59, 130, 246, 0.2);
@@ -1646,55 +1678,6 @@ main article blockquote {
 [data-docs-page] table,
 [data-docs-page] [data-card] {
   box-shadow: none !important;
-}
-
-/* Workflow-preview theme scope. Values mirror the app's tokens in
-   apps/sim/app/_styles/globals.css (light from :root/.light, dark from .dark)
-   so the docs previews match the OG repository in both modes. */
-.wp-scope {
-  /* surfaces */
-  --wp-canvas: var(--bg);
-  --wp-panel: var(--surface-1);
-  --wp-surface: var(--surface-2);
-  --wp-header: var(--surface-3);
-  --wp-btn: var(--surface-4);
-  --wp-control: var(--surface-5);
-  --wp-active: var(--surface-active);
-  --wp-container-fill: rgba(0, 0, 0, 0.02);
-
-  /* borders */
-  --wp-border: var(--border);
-  --wp-border-1: var(--border-1);
-  --wp-chip-bg: var(--surface-5); /* ChipTag surface (light) */
-  --wp-chip-text: var(--text-body);
-  --wp-divider: #ededed; /* --divider */
-  --wp-edge: #e0e0e0; /* --workflow-edge */
-
-  /* text */
-  --wp-text: var(--text-primary);
-  --wp-text-2: var(--text-secondary);
-  --wp-text-3: var(--text-tertiary);
-  --wp-text-muted: var(--text-muted);
-  --wp-text-subtle: var(--text-subtle);
-
-  /* type badges (output inspector) */
-  --wp-badge-success-bg: var(--badge-success-bg);
-  --wp-badge-success-text: var(--badge-success-text);
-  --wp-badge-blue-bg: var(--badge-blue-bg);
-  --wp-badge-blue-text: var(--badge-blue-text);
-  --wp-badge-orange-bg: var(--badge-orange-bg);
-  --wp-badge-orange-text: var(--badge-orange-text);
-  --wp-badge-purple-bg: var(--badge-purple-bg);
-  --wp-badge-purple-text: var(--badge-purple-text);
-  --wp-badge-gray-bg: var(--badge-gray-bg);
-  --wp-badge-gray-text: var(--badge-gray-text);
-}
-
-.dark .wp-scope {
-  --wp-container-fill: rgba(255, 255, 255, 0.02);
-  --wp-chip-bg: var(--surface-4); /* ChipTag surface (dark) */
-  --wp-divider: #393939;
-  --wp-edge: #454545;
 }
 
 /* Tailwind v4 content sources */

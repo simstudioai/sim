@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { generateId } from '@sim/utils/id'
-import type { ComboboxOption } from '@/components/emcn'
+import { Button } from '@sim/emcn'
+import { Plus } from 'lucide-react'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
@@ -21,15 +21,6 @@ interface FilterBuilderProps {
   columns?: Array<{ value: string; label: string }>
   tableIdSubBlockId?: string
 }
-
-const createDefaultRule = (columns: ComboboxOption[]): FilterRule => ({
-  id: generateId(),
-  logicalOperator: 'and',
-  column: columns[0]?.value || '',
-  operator: 'eq',
-  value: '',
-  collapsed: false,
-})
 
 /** Visual builder for table filter rules in workflow blocks. */
 export function FilterBuilder({
@@ -52,8 +43,7 @@ export function FilterBuilder({
   }, [propColumns, dynamicColumns])
 
   const value = isPreview ? previewValue : storeValue
-  const rules: FilterRule[] =
-    Array.isArray(value) && value.length > 0 ? value : [createDefaultRule(columns)]
+  const rules: FilterRule[] = Array.isArray(value) ? value : []
   const isReadOnly = isPreview || disabled
 
   const { comparisonOptions, logicalOptions, addRule, removeRule, updateRule } = useFilterBuilder({
@@ -86,14 +76,24 @@ export function FilterBuilder({
   const handleRemoveRule = useCallback(
     (id: string) => {
       if (isReadOnly) return
-      if (rules.length === 1) {
-        setStoreValue([createDefaultRule(columns)])
-      } else {
-        removeRule(id)
-      }
+      removeRule(id)
     },
-    [isReadOnly, rules, columns, setStoreValue, removeRule]
+    [isReadOnly, removeRule]
   )
+
+  if (rules.length === 0) {
+    if (isReadOnly) return null
+    return (
+      <Button
+        variant='ghost'
+        onClick={addRule}
+        className='h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
+      >
+        <Plus className='size-[14px]' />
+        Add filter condition
+      </Button>
+    )
+  }
 
   return (
     <div className='space-y-2'>

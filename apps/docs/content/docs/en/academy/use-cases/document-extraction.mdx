@@ -1,0 +1,43 @@
+---
+title: Document Intake & Extraction
+description: A pipeline that takes incoming documents, extracts the fields you care about, and writes structured rows you can act on.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Use case" title="Document Intake & Extraction" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Turn a pile of unstructured documents, invoices, contracts, forms, into structured data. The workflow reads each file, extracts the fields that matter, and writes them as rows you can query and process.
+
+<WhatYouWillLearn
+  items={[
+    { title: 'Read real files', body: 'Take a PDF or image in and pull its contents into the workflow.' },
+    { title: 'Extract with an agent', body: 'Use a structured output so the agent returns clean, predictable fields.' },
+    { title: 'Persist the result', body: 'Write each extraction as a row in a table for downstream work.' },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The problem', time: '0:00' },
+    { title: 'Bring a file in', time: '0:35' },
+    { title: 'Extract structured fields', time: '1:20' },
+    { title: 'Write rows to a table', time: '2:15' },
+    { title: 'Run it on a batch', time: '3:00' },
+  ]}
+/>
+
+</div>
+
+## What you'll build
+
+A **file** comes in, an **Agent** block extracts the fields into a [structured output](/academy/agents/intro) so the shape is predictable, and a **Table** block writes the row. Run it across a batch and a folder of documents becomes a queryable table.
+
+This composes [files](/academy/files/intro), [agents](/academy/agents/intro), and [tables](/academy/tables/intro).

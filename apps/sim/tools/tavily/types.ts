@@ -142,27 +142,42 @@ interface TavilySearchResult {
   title: string
   url: string
   content: string
-  score: number
-  images?: string[]
+  score?: number
   raw_content?: string
+  favicon?: string
+}
+
+interface TavilyImageResult {
+  url: string
+  description?: string
 }
 
 export interface TavilySearchResponse extends ToolResponse {
   output: {
+    query: string
     results: TavilySearchResult[]
     answer?: string
-    query: string
-    images?: string[]
-    rawContent?: string
+    images?: Array<string | TavilyImageResult>
+    auto_parameters?: Record<string, unknown>
+    response_time: number
   }
+}
+
+interface TavilyExtractResultItem {
+  url: string
+  raw_content: string
+  images?: string[]
+  favicon?: string
 }
 
 export interface TavilyExtractResponse extends ToolResponse {
   output: {
-    content: string
-    title: string
-    url: string
-    rawContent?: string
+    results: TavilyExtractResultItem[]
+    failed_results?: Array<{
+      url: string
+      error: string
+    }>
+    response_time: number
   }
 }
 
@@ -173,22 +188,6 @@ export interface TavilyExtractParams {
   format?: string
   include_images?: boolean
   include_favicon?: boolean
-}
-
-interface ExtractResult {
-  url: string
-  raw_content: string
-}
-
-interface ExtractResponse extends ToolResponse {
-  output: {
-    results: ExtractResult[]
-    failed_results?: Array<{
-      url: string
-      error: string
-    }>
-    response_time: number
-  }
 }
 
 export interface TavilySearchParams {
@@ -212,24 +211,11 @@ export interface TavilySearchParams {
   auto_parameters?: boolean
 }
 
-interface SearchResult {
-  title: string
-  url: string
-  snippet: string
-  raw_content?: string
-}
-
-interface SearchResponse extends ToolResponse {
-  output: {
-    query: string
-    results: SearchResult[]
-    response_time: number
-  }
-}
-
 export type TavilyResponse = TavilySearchResponse | TavilyExtractResponse
 
-// Crawl API types
+/**
+ * Parameters for the Tavily Crawl tool.
+ */
 export interface TavilyCrawlParams {
   url: string
   apiKey: string
@@ -263,16 +249,9 @@ export interface CrawlResponse extends ToolResponse {
   }
 }
 
-interface TavilyCrawlResponse extends ToolResponse {
-  output: {
-    base_url: string
-    results: CrawlResult[]
-    response_time: number
-    request_id?: string
-  }
-}
-
-// Map API types
+/**
+ * Parameters for the Tavily Map tool.
+ */
 export interface TavilyMapParams {
   url: string
   apiKey: string
@@ -292,15 +271,6 @@ interface MapResult {
 }
 
 export interface MapResponse extends ToolResponse {
-  output: {
-    base_url: string
-    results: MapResult[]
-    response_time: number
-    request_id?: string
-  }
-}
-
-interface TavilyMapResponse extends ToolResponse {
   output: {
     base_url: string
     results: MapResult[]

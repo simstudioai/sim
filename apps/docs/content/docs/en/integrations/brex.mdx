@@ -724,6 +724,8 @@ List spend limits in the Brex account, optionally filtered by member user
 |   ↳ `status` | string | Spend limit status |
 |   ↳ `period_recurrence_type` | string | Period recurrence \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
 |   ↳ `spend_type` | string | Spend type of the limit |
+|   ↳ `start_date` | string | Spend limit start date |
+|   ↳ `end_date` | string | Spend limit end date |
 |   ↳ `owner_user_ids` | array | User IDs of the spend limit owners |
 |   ↳ `member_user_ids` | array | User IDs of the spend limit members |
 |   ↳ `current_period_balance` | json | Spend and rollover amounts for the current period |
@@ -737,6 +739,7 @@ List spend limits in the Brex account, optionally filtered by member user
 |     ↳ `rollover_amount` | json | Amount rolled over from previous periods |
 |       ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
 |       ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `authorization_settings` | json | Authorization settings \(base limit, authorization type, rollover refresh\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `brex_get_spend_limit`
@@ -858,6 +861,7 @@ List money transfers in the Brex account
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `display_name` | string | Transfer display name |
 |   ↳ `external_memo` | string | External memo |
+|   ↳ `is_ppro_enabled` | boolean | Whether Principal Protection \(PPRO\) is enabled |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `brex_get_transfer`
@@ -891,5 +895,6 @@ Get a Brex money transfer by its ID
 | `createdAt` | string | Creation timestamp |
 | `displayName` | string | Transfer display name |
 | `externalMemo` | string | External memo |
+| `isPproEnabled` | boolean | Whether Principal Protection \(PPRO\) is enabled |
 
 

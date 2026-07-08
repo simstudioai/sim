@@ -1,9 +1,9 @@
 import {
-  STORAGE_MOVE_OUTPUT_PROPERTIES,
+  STORAGE_MESSAGE_OUTPUT_PROPERTIES,
   type SupabaseStorageDeleteBucketParams,
   type SupabaseStorageDeleteBucketResponse,
 } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageDeleteBucketTool: ToolConfig<
@@ -13,7 +13,7 @@ export const storageDeleteBucketTool: ToolConfig<
   id: 'supabase_storage_delete_bucket',
   name: 'Supabase Storage Delete Bucket',
   description: 'Delete a storage bucket in Supabase',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -38,7 +38,7 @@ export const storageDeleteBucketTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket/${params.bucket}`
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket/${encodeStorageSegment(params.bucket)}`
     },
     method: 'DELETE',
     headers: (params) => ({
@@ -70,7 +70,7 @@ export const storageDeleteBucketTool: ToolConfig<
     results: {
       type: 'object',
       description: 'Delete operation result',
-      properties: STORAGE_MOVE_OUTPUT_PROPERTIES,
+      properties: STORAGE_MESSAGE_OUTPUT_PROPERTIES,
     },
   },
 }

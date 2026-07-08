@@ -3,7 +3,15 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { azureDevopsConnectorMeta } from '@/connectors/azure-devops/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseTagDate, readBodyWithLimit } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  htmlToPlainText,
+  joinTagArray,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+} from '@/connectors/utils'
 
 const logger = createLogger('AzureDevOpsConnector')
 
@@ -30,7 +38,7 @@ const FILE_BATCH_SIZE = 100
  * and aborts (returning null) the moment the cap is exceeded. Larger files are
  * skipped without being fully buffered.
  */
-const MAX_FILE_SIZE = 10 * 1024 * 1024
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 /** Bytes sniffed for a NUL byte when detecting binary files (matches git's heuristic). */
 const BINARY_SNIFF_BYTES = 8000
 /**
@@ -1090,7 +1098,27 @@ async function getFileDocument(
   const buffer = await readBodyWithLimit(contentResponse, MAX_FILE_SIZE)
   if (buffer === null) {
     logger.info('Skipping oversized Azure DevOps file', { path })
-    return null
+    const skippedTitle = path.split('/').filter(Boolean).pop() || path
+    return markSkipped(
+      {
+        externalId,
+        title: skippedTitle,
+        content: '',
+        mimeType: 'text/plain',
+        sourceUrl: buildFileSourceUrl(repo?.webUrl, branch, path),
+        contentHash: buildFileContentHash(repoId, item.objectId),
+        metadata: {
+          kind: 'file',
+          organization,
+          project,
+          repository: repo?.name ?? '',
+          repositoryId: repoId,
+          branch,
+          path,
+        },
+      },
+      sizeLimitSkipReason(MAX_FILE_SIZE)
+    )
   }
   if (isBinaryBuffer(buffer)) {
     logger.info('Skipping binary Azure DevOps file', { path })

@@ -72,17 +72,22 @@ export const mergePRTool: ToolConfig<MergePRParams, MergeResultResponse> = {
   },
 
   transformResponse: async (response) => {
-    if (response.status === 405) {
+    if (response.status === 405 || response.status === 409) {
       const error = await response.json()
+      const message =
+        error.message ||
+        (response.status === 409
+          ? 'Head branch was modified; review and try the merge again'
+          : 'Pull request is not mergeable')
       return {
         success: false,
-        error: error.message || 'Pull request is not mergeable',
+        error: message,
         output: {
           content: '',
           metadata: {
             sha: '',
             merged: false,
-            message: error.message || 'Pull request is not mergeable',
+            message,
           },
         },
       }
@@ -130,15 +135,20 @@ export const mergePRV2Tool: ToolConfig<MergePRParams, any> = {
   request: mergePRTool.request,
 
   transformResponse: async (response: Response) => {
-    if (response.status === 405) {
+    if (response.status === 405 || response.status === 409) {
       const error = await response.json()
+      const message =
+        error.message ||
+        (response.status === 409
+          ? 'Head branch was modified; review and try the merge again'
+          : 'Pull request is not mergeable')
       return {
         success: false,
-        error: error.message || 'Pull request is not mergeable',
+        error: message,
         output: {
           sha: null,
           merged: false,
-          message: error.message || 'Pull request is not mergeable',
+          message,
         },
       }
     }

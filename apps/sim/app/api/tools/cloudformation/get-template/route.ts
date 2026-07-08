@@ -33,6 +33,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const command = new GetTemplateCommand({
       StackName: validatedData.stackName,
+      ...(validatedData.templateStage && { TemplateStage: validatedData.templateStage }),
     })
 
     const response = await client.send(command)

@@ -38,6 +38,11 @@ export const workflowMcpServerKeys = {
 
 export type { WorkflowMcpServer, WorkflowMcpTool }
 
+export const WORKFLOW_MCP_SERVERS_LIST_STALE_TIME = 60 * 1000
+export const WORKFLOW_MCP_SERVER_DETAIL_STALE_TIME = 30 * 1000
+export const WORKFLOW_MCP_TOOLS_STALE_TIME = 30 * 1000
+export const WORKFLOW_MCP_DEPLOYED_WORKFLOWS_STALE_TIME = 30 * 1000
+
 /**
  * Fetch workflow MCP servers for a workspace
  */
@@ -68,7 +73,7 @@ export function useWorkflowMcpServers(workspaceId: string) {
     queryFn: ({ signal }) => fetchWorkflowMcpServers(workspaceId, signal),
     enabled: !!workspaceId,
     retry: false,
-    staleTime: 60 * 1000,
+    staleTime: WORKFLOW_MCP_SERVERS_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -102,7 +107,7 @@ export function useWorkflowMcpServer(workspaceId: string, serverId: string | nul
     queryFn: ({ signal }) => fetchWorkflowMcpServer(workspaceId, serverId!, signal),
     enabled: !!workspaceId && !!serverId,
     retry: false,
-    staleTime: 30 * 1000,
+    staleTime: WORKFLOW_MCP_SERVER_DETAIL_STALE_TIME,
   })
 }
 
@@ -138,7 +143,7 @@ export function useWorkflowMcpTools(workspaceId: string, serverId: string | null
     queryFn: ({ signal }) => fetchWorkflowMcpTools(workspaceId, serverId!, signal),
     enabled: !!workspaceId && !!serverId,
     retry: false,
-    staleTime: 30 * 1000,
+    staleTime: WORKFLOW_MCP_TOOLS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -262,7 +267,7 @@ interface AddWorkflowMcpToolParams {
   workflowId: string
   toolName?: string
   toolDescription?: string
-  parameterSchema?: Record<string, unknown>
+  parameterDescriptionOverrides?: Record<string, string>
 }
 
 export function useAddWorkflowMcpTool() {
@@ -275,12 +280,12 @@ export function useAddWorkflowMcpTool() {
       workflowId,
       toolName,
       toolDescription,
-      parameterSchema,
+      parameterDescriptionOverrides,
     }: AddWorkflowMcpToolParams) => {
       const data = await requestJson(createWorkflowMcpToolContract, {
         params: { id: serverId },
         query: { workspaceId },
-        body: { workflowId, toolName, toolDescription, parameterSchema },
+        body: { workflowId, toolName, toolDescription, parameterDescriptionOverrides },
       })
 
       logger.info(`Added tool to workflow MCP server: ${serverId}`)
@@ -311,6 +316,11 @@ interface UpdateWorkflowMcpToolParams {
   toolId: string
   toolName?: string
   toolDescription?: string
+  parameterDescriptionOverrides?: Record<string, string>
+  /**
+   * Full edited schema sent by the Settings edit modal, which has no Start-block context to compute
+   * sparse overrides; the server diffs it against the deployed base to extract the overrides.
+   */
   parameterSchema?: Record<string, unknown>
 }
 
@@ -409,7 +419,7 @@ export function useDeployedWorkflows(workspaceId: string) {
     queryKey: workflowMcpServerKeys.deployedWorkflows(workspaceId),
     queryFn: ({ signal }) => fetchDeployedWorkflows(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 30 * 1000,
+    staleTime: WORKFLOW_MCP_DEPLOYED_WORKFLOWS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

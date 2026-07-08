@@ -20,6 +20,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbClient } from '@/lib/db/types'
+import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('OrganizationBilling')
 
@@ -419,7 +420,11 @@ async function getOrganizationBillingSummary(organizationId: string) {
 }
 
 /**
- * Check if a user is an owner or admin of a specific organization
+ * Error-tolerant wrapper around {@link isOrganizationAdminOrOwner} for billing
+ * gates: on a DB error it logs and returns false instead of throwing, so a
+ * transient failure denies access rather than surfacing a 500 mid-checkout.
+ * Prefer the canonical {@link isOrganizationAdminOrOwner} when a thrown error
+ * should propagate.
  *
  * @param userId - The ID of the user to check
  * @param organizationId - The ID of the organization
@@ -430,18 +435,7 @@ export async function isOrganizationOwnerOrAdmin(
   organizationId: string
 ): Promise<boolean> {
   try {
-    const memberRecord = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-      .limit(1)
-
-    if (memberRecord.length === 0) {
-      return false
-    }
-
-    const userRole = memberRecord[0].role
-    return ['owner', 'admin'].includes(userRole)
+    return await isOrganizationAdminOrOwner(userId, organizationId)
   } catch (error) {
     logger.error('Error checking organization ownership/admin status:', error)
     return false

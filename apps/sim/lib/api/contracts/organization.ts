@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  type PiiRedactionSettings,
+  piiRedactionSettingsSchema,
+  retentionOverridesSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
@@ -98,16 +103,26 @@ const organizationDataRetentionHoursSchema = z
   .nullable()
   .optional()
 
+export type { PiiRedactionSettings }
+
 export const updateOrganizationDataRetentionBodySchema = z.object({
   logRetentionHours: organizationDataRetentionHoursSchema,
   softDeleteRetentionHours: organizationDataRetentionHoursSchema,
   taskCleanupHours: organizationDataRetentionHoursSchema,
+  piiRedaction: piiRedactionSettingsSchema.optional(),
+  retentionOverrides: retentionOverridesSchema.optional(),
 })
+
+export type UpdateOrganizationDataRetentionBody = z.input<
+  typeof updateOrganizationDataRetentionBodySchema
+>
 
 const organizationRetentionValuesSchema = z.object({
   logRetentionHours: z.number().int().nullable(),
   softDeleteRetentionHours: z.number().int().nullable(),
   taskCleanupHours: z.number().int().nullable(),
+  piiRedaction: piiRedactionSettingsSchema.nullable(),
+  retentionOverrides: retentionOverridesSchema.nullable(),
 })
 
 export type OrganizationRetentionValues = z.output<typeof organizationRetentionValuesSchema>
@@ -117,6 +132,8 @@ const organizationDataRetentionDataSchema = z.object({
   defaults: organizationRetentionValuesSchema,
   configured: organizationRetentionValuesSchema,
   effective: organizationRetentionValuesSchema,
+  piiRedactionEnabled: z.boolean(),
+  piiGranularRedactionEnabled: z.boolean(),
 })
 
 export type OrganizationDataRetention = z.output<typeof organizationDataRetentionDataSchema>
@@ -310,6 +327,8 @@ export const inviteOrganizationMembersContract = defineRouteContract({
           .object({
             invitationsSent: z.number(),
             invitedEmails: z.array(z.string()),
+            directlyAdded: z.array(z.string()).optional(),
+            directlyAddedCount: z.number().optional(),
             failedInvitations: z.array(z.object({ email: z.string(), error: z.string() })),
             existingMembers: z.array(z.string()),
             pendingInvitations: z.array(z.string()),
@@ -368,6 +387,8 @@ export const removeOrganizationMemberContract = defineRouteContract({
 export const organizationMemberUsageLimitDataSchema = z.object({
   creditsUsed: z.number(),
   creditLimit: z.number().nullable(),
+  /** Billing cadence of the org's subscription, so the UI can label the usage window. */
+  billingInterval: z.enum(['month', 'year']),
 })
 
 export const getOrganizationMemberUsageLimitContract = defineRouteContract({

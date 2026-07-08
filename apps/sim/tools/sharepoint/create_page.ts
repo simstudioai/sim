@@ -4,7 +4,7 @@ import type {
   SharepointPage,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { escapeHtml, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointCreatePage')
@@ -61,8 +61,8 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
 
   request: {
     url: (params) => {
-      const siteId = optionalTrim(params.siteSelector) || optionalTrim(params.siteId) || 'root'
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/pages`
+      const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
+      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages`
     },
     method: 'POST',
     headers: (params) => ({
@@ -103,7 +103,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
                   webparts: [
                     {
                       id: '6f9230af-2a98-4952-b205-9ede4f9ef548',
-                      innerHtml: `<p>${pageContent.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</p>`,
+                      innerHtml: `<p>${escapeHtml(pageContent)}</p>`,
                     },
                   ],
                 },

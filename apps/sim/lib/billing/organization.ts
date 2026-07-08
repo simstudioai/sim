@@ -7,6 +7,7 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
@@ -133,7 +134,7 @@ export async function ensureOrganizationForTeamSubscription(
 
   if (existingMembership.length > 0) {
     const membership = existingMembership[0]
-    if (membership.role === 'owner' || membership.role === 'admin') {
+    if (isOrgAdminRole(membership.role)) {
       /**
        * Atomic duplicate-subscription check + referenceId transfer.
        *

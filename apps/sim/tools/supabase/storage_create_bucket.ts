@@ -13,7 +13,7 @@ export const storageCreateBucketTool: ToolConfig<
   id: 'supabase_storage_create_bucket',
   name: 'Supabase Storage Create Bucket',
   description: 'Create a new storage bucket in Supabase',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -105,7 +105,7 @@ export const storageCreateBucketTool: ToolConfig<
     message: { type: 'string', description: 'Operation status message' },
     results: {
       type: 'object',
-      description: 'Created bucket information',
+      description: 'Created bucket result (name)',
       properties: STORAGE_CREATE_BUCKET_OUTPUT_PROPERTIES,
     },
   },

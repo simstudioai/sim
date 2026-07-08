@@ -11,6 +11,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import { areGroupDepsSatisfied } from '@/lib/table/deps'
 import type {
+  EnrichmentRunDetail,
   RowData,
   RowExecutionMetadata,
   RowExecutions,
@@ -29,8 +30,22 @@ export async function loadExecutionsByRow(
   const ids = Array.from(new Set(rowIds))
   const result = new Map<string, RowExecutions>()
   if (ids.length === 0) return result
+  // Explicit column list, never `select()` — `enrichmentDetails` is large and
+  // must stay off the hot grid read path (fetched on demand via
+  // `loadEnrichmentDetail`).
   const rows = await trx
-    .select()
+    .select({
+      rowId: tableRowExecutions.rowId,
+      groupId: tableRowExecutions.groupId,
+      status: tableRowExecutions.status,
+      executionId: tableRowExecutions.executionId,
+      jobId: tableRowExecutions.jobId,
+      workflowId: tableRowExecutions.workflowId,
+      error: tableRowExecutions.error,
+      runningBlockIds: tableRowExecutions.runningBlockIds,
+      blockErrors: tableRowExecutions.blockErrors,
+      cancelledAt: tableRowExecutions.cancelledAt,
+    })
     .from(tableRowExecutions)
     .where(inArray(tableRowExecutions.rowId, ids))
   for (const r of rows) {
@@ -59,6 +74,31 @@ export async function loadExecutionsByRow(
 export async function loadExecutionsForRow(trx: DbOrTx, rowId: string): Promise<RowExecutions> {
   const byRow = await loadExecutionsByRow(trx, [rowId])
   return byRow.get(rowId) ?? {}
+}
+
+/**
+ * Loads the enrichment cascade breakdown for one `(tableId, rowId, groupId)`,
+ * or `null` when there is no exec row or it predates the feature. Read on demand
+ * by the enrichment details panel — kept off `loadExecutionsByRow`.
+ */
+export async function loadEnrichmentDetail(
+  trx: DbOrTx,
+  tableId: string,
+  rowId: string,
+  groupId: string
+): Promise<EnrichmentRunDetail | null> {
+  const [row] = await trx
+    .select({ enrichmentDetails: tableRowExecutions.enrichmentDetails })
+    .from(tableRowExecutions)
+    .where(
+      and(
+        eq(tableRowExecutions.tableId, tableId),
+        eq(tableRowExecutions.rowId, rowId),
+        eq(tableRowExecutions.groupId, groupId)
+      ) as SQL
+    )
+    .limit(1)
+  return (row?.enrichmentDetails as EnrichmentRunDetail | null | undefined) ?? null
 }
 
 /**
@@ -212,6 +252,7 @@ export async function writeExecutionsPatch(
       runningBlockIds: value.runningBlockIds ?? [],
       blockErrors: value.blockErrors ?? {},
       cancelledAt: value.cancelledAt ? new Date(value.cancelledAt) : null,
+      enrichmentDetails: value.enrichmentDetails ?? null,
       updatedAt: new Date(),
     } as const
 
@@ -235,6 +276,11 @@ export async function writeExecutionsPatch(
             runningBlockIds: insertValues.runningBlockIds,
             blockErrors: insertValues.blockErrors,
             cancelledAt: insertValues.cancelledAt,
+            // Sticky: preserve a prior cascade breakdown when this write omits
+            // it (e.g. the running pickup stamp) so only an explicit detail
+            // overwrites it. Re-runs delete the row first, so this never serves
+            // stale detail across runs.
+            enrichmentDetails: sql`coalesce(excluded.enrichment_details, ${tableRowExecutions.enrichmentDetails})`,
             updatedAt: insertValues.updatedAt,
           },
           where: and(
@@ -269,6 +315,10 @@ export async function writeExecutionsPatch(
           runningBlockIds: insertValues.runningBlockIds,
           blockErrors: insertValues.blockErrors,
           cancelledAt: insertValues.cancelledAt,
+          // Sticky: preserve a prior cascade breakdown when this write omits it
+          // (e.g. the running pickup stamp) so only an explicit detail overwrites
+          // it. Re-runs delete the row first, so this never serves stale detail.
+          enrichmentDetails: sql`coalesce(excluded.enrichment_details, ${tableRowExecutions.enrichmentDetails})`,
           updatedAt: insertValues.updatedAt,
         },
       })

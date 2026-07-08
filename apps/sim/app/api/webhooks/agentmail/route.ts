@@ -19,6 +19,8 @@ import {
   agentMailMessageSchema,
   webhookSvixHeadersSchema,
 } from '@/lib/api/contracts/webhooks'
+import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import {
   assertContentLengthWithinLimit,
@@ -150,8 +152,8 @@ export const POST = withRouteHandler(async (req: Request) => {
       return NextResponse.json({ ok: true })
     }
 
-    const fromEmail = extractSenderEmail(message.from_) || ''
-    logger.info('Webhook received', { fromEmail, from_raw: message.from_, workspaceId: result.id })
+    const fromEmail = extractSenderEmail(message.from) || ''
+    logger.info('Webhook received', { fromEmail, from_raw: message.from, workspaceId: result.id })
 
     if (result.inboxAddress && fromEmail === result.inboxAddress.toLowerCase()) {
       logger.info('Skipping email from inbox itself', { workspaceId: result.id })
@@ -166,27 +168,35 @@ export const POST = withRouteHandler(async (req: Request) => {
     const emailMessageId = message.message_id
     const inReplyTo = message.in_reply_to || null
 
-    const [existingResult, isAllowed, recentCount, parentTaskResult] = await Promise.all([
-      emailMessageId
-        ? db
-            .select({ id: mothershipInboxTask.id })
-            .from(mothershipInboxTask)
-            .where(eq(mothershipInboxTask.emailMessageId, emailMessageId))
-            .limit(1)
-        : Promise.resolve([]),
-      isSenderAllowed(fromEmail, result.id),
-      getRecentTaskCount(result.id),
-      inReplyTo
-        ? db
-            .select({ chatId: mothershipInboxTask.chatId })
-            .from(mothershipInboxTask)
-            .where(eq(mothershipInboxTask.responseMessageId, inReplyTo))
-            .limit(1)
-        : Promise.resolve([]),
-    ])
+    const [existingResult, isAllowed, recentCount, parentTaskResult, isEntitled] =
+      await Promise.all([
+        emailMessageId
+          ? db
+              .select({ id: mothershipInboxTask.id })
+              .from(mothershipInboxTask)
+              .where(eq(mothershipInboxTask.emailMessageId, emailMessageId))
+              .limit(1)
+          : Promise.resolve([]),
+        isSenderAllowed(fromEmail, result.id),
+        getRecentTaskCount(result.id),
+        inReplyTo
+          ? db
+              .select({ chatId: mothershipInboxTask.chatId })
+              .from(mothershipInboxTask)
+              .where(eq(mothershipInboxTask.responseMessageId, inReplyTo))
+              .limit(1)
+          : Promise.resolve([]),
+        hasWorkspaceInboxAccess(result.id),
+      ])
 
     if (existingResult[0]) {
       logger.info('Duplicate webhook, skipping', { emailMessageId })
+      return NextResponse.json({ ok: true })
+    }
+
+    if (!isEntitled) {
+      logger.info('Inbox no longer entitled, rejecting', { workspaceId: result.id })
+      await createRejectedTask(result.id, message, 'not_entitled')
       return NextResponse.json({ ok: true })
     }
 
@@ -202,7 +212,7 @@ export const POST = withRouteHandler(async (req: Request) => {
 
     const chatId = parentTaskResult[0]?.chatId ?? null
 
-    const fromName = extractDisplayName(message.from_)
+    const fromName = extractDisplayName(message.from)
 
     const taskId = generateId()
     const bodyText = message.text?.substring(0, 50_000) || null
@@ -234,6 +244,7 @@ export const POST = withRouteHandler(async (req: Request) => {
           { taskId },
           {
             tags: [`workspaceId:${result.id}`, `taskId:${taskId}`],
+            region: await resolveTriggerRegion(),
           }
         )
         await db
@@ -323,8 +334,8 @@ async function createRejectedTask(
   await db.insert(mothershipInboxTask).values({
     id: generateId(),
     workspaceId,
-    fromEmail: extractSenderEmail(message.from_) || 'unknown',
-    fromName: extractDisplayName(message.from_),
+    fromEmail: extractSenderEmail(message.from) || 'unknown',
+    fromName: extractDisplayName(message.from),
     subject: message.subject || '(no subject)',
     bodyPreview: (message.text || '').substring(0, 200) || null,
     emailMessageId: message.message_id,
@@ -336,7 +347,7 @@ async function createRejectedTask(
 }
 
 /**
- * Extract the raw email address from AgentMail's from_ field.
+ * Extract the raw email address from AgentMail's from field.
  * Format: "username@domain.com" or "Display Name <username@domain.com>"
  */
 function extractSenderEmail(from: string): string {

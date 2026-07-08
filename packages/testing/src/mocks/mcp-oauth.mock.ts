@@ -12,6 +12,7 @@ import { vi } from 'vitest'
  */
 export const mcpOauthMockFns = {
   mockAssertSafeOauthServerUrl: vi.fn(),
+  mockMcpAuthGuarded: vi.fn(),
   mockGetOrCreateOauthRow: vi.fn(),
   mockLoadOauthRow: vi.fn(),
   mockLoadOauthRowByState: vi.fn(),
@@ -63,6 +64,7 @@ function buildSimMcpOauthProvider(value: object) {
  */
 export const mcpOauthMock = {
   assertSafeOauthServerUrl: mcpOauthMockFns.mockAssertSafeOauthServerUrl,
+  mcpAuthGuarded: mcpOauthMockFns.mockMcpAuthGuarded,
   getOrCreateOauthRow: mcpOauthMockFns.mockGetOrCreateOauthRow,
   loadOauthRow: mcpOauthMockFns.mockLoadOauthRow,
   loadOauthRowByState: mcpOauthMockFns.mockLoadOauthRowByState,

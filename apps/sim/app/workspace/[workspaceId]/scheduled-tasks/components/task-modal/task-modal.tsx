@@ -1,10 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { format } from 'date-fns'
-import { useParams } from 'next/navigation'
 import {
-  Calendar,
   ChipDatePicker,
   ChipModal,
   ChipModalFooter,
@@ -12,7 +9,10 @@ import {
   ChipModalHeader,
   ChipModalPromptBody,
   ChipTimePicker,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { Calendar } from '@sim/emcn/icons'
+import { format } from 'date-fns'
+import { useParams } from 'next/navigation'
 import { wallClockNow, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import {
   PromptEditor,

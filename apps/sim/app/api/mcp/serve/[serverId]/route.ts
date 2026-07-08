@@ -53,6 +53,7 @@ import {
   MCP_TOOL_BRIDGE_ACTOR_HEADER,
   MCP_TOOL_BRIDGE_HEADER,
 } from '@/lib/mcp/constants'
+import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowMcpServeAPI')
@@ -601,8 +602,11 @@ async function handleToolsList(
         toolName: workflowMcpTool.toolName,
         toolDescription: workflowMcpTool.toolDescription,
         parameterSchema: workflowMcpTool.parameterSchema,
+        workflowName: workflow.name,
+        workflowDescription: workflow.description,
       })
       .from(workflowMcpTool)
+      .innerJoin(workflow, eq(workflowMcpTool.workflowId, workflow.id))
       .where(
         and(
           eq(workflowMcpTool.serverId, serverId),
@@ -629,7 +633,10 @@ async function handleToolsList(
         )
         return {
           name: tool.toolName,
-          description: tool.toolDescription || `Execute workflow: ${tool.toolName}`,
+          description:
+            tool.toolDescription?.trim() ||
+            getMeaningfulWorkflowDescription(tool.workflowDescription, tool.workflowName) ||
+            `Execute workflow: ${tool.toolName}`,
           inputSchema: {
             type: 'object' as const,
             properties: schema?.properties || {},

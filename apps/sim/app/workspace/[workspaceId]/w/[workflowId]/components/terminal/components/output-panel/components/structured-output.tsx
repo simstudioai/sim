@@ -11,9 +11,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { List, type RowComponentProps, useListRef } from 'react-window'
-import { Badge, ChevronDown } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { Badge, ChevronDown, cn } from '@sim/emcn'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
 import {
   isLargeArrayManifest,
@@ -634,7 +633,8 @@ function countVisibleRows(data: unknown, expandedPaths: Set<string>, isError: bo
 }
 
 interface VirtualizedRowProps {
-  rows: FlatRow[]
+  row: FlatRow
+  index: number
   onToggle: (path: string) => void
   wrapText: boolean
   searchQuery: string
@@ -644,16 +644,21 @@ interface VirtualizedRowProps {
 /**
  * Virtualized row component for large data sets.
  */
-function VirtualizedRow({ index, style, ...props }: RowComponentProps<VirtualizedRowProps>) {
-  const { rows, onToggle, wrapText, searchQuery, currentMatchIndex } = props
-  const row = rows[index]
+function VirtualizedRow({
+  row,
+  index,
+  onToggle,
+  wrapText,
+  searchQuery,
+  currentMatchIndex,
+}: VirtualizedRowProps) {
   const paddingLeft = CONFIG.BASE_PADDING + row.depth * CONFIG.INDENT_PER_LEVEL
 
   if (row.type === 'header') {
     const badgeVariant = row.isError ? 'red' : BADGE_VARIANTS[row.valueType]
 
     return (
-      <div style={{ ...style, paddingLeft }} data-row-index={index}>
+      <div style={{ paddingLeft }} data-row-index={index}>
         <div
           className={STYLES.row}
           onClick={() => onToggle(row.path)}
@@ -684,14 +689,14 @@ function VirtualizedRow({ index, style, ...props }: RowComponentProps<Virtualize
 
   if (row.type === 'empty') {
     return (
-      <div style={{ ...style, paddingLeft }} data-row-index={index}>
+      <div style={{ paddingLeft }} data-row-index={index}>
         <div className={STYLES.emptyValue}>{row.displayText}</div>
       </div>
     )
   }
 
   return (
-    <div style={{ ...style, paddingLeft }} data-row-index={index}>
+    <div style={{ paddingLeft }} data-row-index={index}>
       <div
         className={cn(
           STYLES.value,
@@ -746,7 +751,7 @@ export const StructuredOutput = memo(function StructuredOutput({
   const prevDataJsonRef = useRef<string | null>(null)
   const prevIsErrorRef = useRef(isError)
   const internalRef = useRef<HTMLDivElement>(null)
-  const listRef = useListRef(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [containerHeight, setContainerHeight] = useState(400)
 
   const setContainerRef = useCallback(
@@ -864,18 +869,25 @@ export const StructuredOutput = memo(function StructuredOutput({
     return flattenTree(data, expandedPaths, pathToMatchIndices, isError)
   }, [data, expandedPaths, pathToMatchIndices, isError, useVirtualization])
 
+  const virtualizer = useVirtualizer({
+    count: flatRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => CONFIG.ROW_HEIGHT,
+    overscan: CONFIG.OVERSCAN_COUNT,
+  })
+
   // Scroll to match (virtualized)
   useEffect(() => {
-    if (!useVirtualization || allMatchPaths.length === 0 || !listRef.current) return
+    if (!useVirtualization || allMatchPaths.length === 0 || !scrollRef.current) return
 
     const currentPath = allMatchPaths[currentMatchIndex]
     const targetPath = currentPath.endsWith('.value') ? currentPath : `${currentPath}.value`
     const rowIndex = flatRows.findIndex((r) => r.path === targetPath || r.path === currentPath)
 
     if (rowIndex !== -1) {
-      listRef.current.scrollToRow({ index: rowIndex, align: 'center' })
+      virtualizer.scrollToIndex(rowIndex, { align: 'center' })
     }
-  }, [currentMatchIndex, allMatchPaths, flatRows, listRef, useVirtualization])
+  }, [currentMatchIndex, allMatchPaths, flatRows, virtualizer, useVirtualization])
 
   // Scroll to match (non-virtualized)
   useEffect(() => {
@@ -891,9 +903,20 @@ export const StructuredOutput = memo(function StructuredOutput({
     return () => cancelAnimationFrame(rafId)
   }, [currentMatchIndex, allMatchPaths.length, expandedPaths, useVirtualization])
 
+  const setVirtualizedScrollRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollRef.current = node
+      setContainerRef(node)
+    },
+    [setContainerRef]
+  )
+
   const containerClass = cn('flex flex-col pl-5', wrapText && 'overflow-x-hidden', className)
-  const virtualizedContainerClass = cn('relative', wrapText && 'overflow-x-hidden', className)
-  const listClass = wrapText ? 'overflow-x-hidden' : 'overflow-x-auto'
+  const virtualizedContainerClass = cn(
+    'overflow-y-auto',
+    wrapText ? 'overflow-x-hidden' : 'overflow-x-auto',
+    className
+  )
 
   // Running state
   if (isRunning && data === undefined) {
@@ -922,26 +945,32 @@ export const StructuredOutput = memo(function StructuredOutput({
   if (useVirtualization) {
     return (
       <div
-        ref={setContainerRef}
+        ref={setVirtualizedScrollRef}
         className={virtualizedContainerClass}
         style={{ height: containerHeight }}
       >
-        <List
-          listRef={listRef}
-          defaultHeight={containerHeight}
-          rowCount={flatRows.length}
-          rowHeight={CONFIG.ROW_HEIGHT}
-          rowComponent={VirtualizedRow}
-          rowProps={{
-            rows: flatRows,
-            onToggle: handleToggle,
-            wrapText,
-            searchQuery: searchQuery ?? '',
-            currentMatchIndex,
-          }}
-          overscanCount={CONFIG.OVERSCAN_COUNT}
-          className={listClass}
-        />
+        <div className='relative w-full' style={{ height: virtualizer.getTotalSize() }}>
+          {virtualizer.getVirtualItems().map((virtualItem) => (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              className='absolute top-0 left-0 w-full'
+              style={{
+                height: virtualItem.size,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <VirtualizedRow
+                row={flatRows[virtualItem.index]}
+                index={virtualItem.index}
+                onToggle={handleToggle}
+                wrapText={wrapText}
+                searchQuery={searchQuery ?? ''}
+                currentMatchIndex={currentMatchIndex}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

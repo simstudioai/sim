@@ -1,10 +1,21 @@
-import { spawn } from 'child_process'
-import fs from 'fs'
-import path from 'path'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { env } from '@/lib/core/config/env'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 
 const logger = createLogger('PIIValidator')
-const DEFAULT_TIMEOUT = 30000 // 30 seconds
+
+/**
+ * Concurrent chunk requests in flight from a single mask-batch call. Each chunk is
+ * itself a batched service call (spaCy `nlp.pipe` over many strings). Default 4;
+ * raise via `PII_SERVICE_CHUNK_CONCURRENCY` for a scaled Presidio fleet (this is
+ * the route → Presidio fan-out, inner to the app → route `PII_MASK_CHUNK_CONCURRENCY`).
+ */
+const CHUNK_CONCURRENCY = env.PII_SERVICE_CHUNK_CONCURRENCY ?? 4
+
+/** Presidio service serving /analyze, /anonymize, and combined /redact (VIN is native there). */
+const PII_URL = env.PII_URL || 'http://localhost:5001'
 
 export interface PIIValidationInput {
   text: string
@@ -29,12 +40,160 @@ export interface PIIValidationResult {
   maskedText?: string
 }
 
+interface AnalyzerSpan {
+  entity_type: string
+  start: number
+  end: number
+  score: number
+}
+
 /**
- * Validate text for PII using Microsoft Presidio
+ * Detect PII spans via the Presidio analyzer. An empty `entityTypes` ⇒ detect all.
+ * Throws on transport/HTTP failure so callers can apply their own fail-safe.
+ */
+async function analyze(
+  text: string,
+  entityTypes: string[],
+  language: string
+): Promise<AnalyzerSpan[]> {
+  const entities = entityTypes.length > 0 ? entityTypes : undefined
+
+  // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
+  const response = await fetch(`${PII_URL}/analyze`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text, language, ...(entities ? { entities } : {}) }),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio analyze failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  return (await response.json()) as AnalyzerSpan[]
+}
+
+/**
+ * Detect PII spans for many texts in a single analyzer pass (spaCy `nlp.pipe`),
+ * the batched counterpart to {@link analyze}. Returns one span array per input,
+ * in order. An empty `entityTypes` ⇒ detect all. Throws on transport/HTTP failure.
+ */
+async function analyzeBatch(
+  texts: string[],
+  entityTypes: string[],
+  language: string
+): Promise<AnalyzerSpan[][]> {
+  const entities = entityTypes.length > 0 ? entityTypes : undefined
+
+  // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
+  const response = await fetch(`${PII_URL}/analyze_batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ texts, language, ...(entities ? { entities } : {}) }),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio analyze failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  return (await response.json()) as AnalyzerSpan[][]
+}
+
+interface AnonymizeBatchItem {
+  text: string
+  analyzer_results: AnalyzerSpan[]
+}
+
+/**
+ * Mask many texts in a single anonymizer pass, the batched counterpart to
+ * {@link anonymize}. Each item carries its own detected spans; callers must omit
+ * items with no spans (those texts pass through unchanged). Returns masked text
+ * per item, in order. Throws on failure.
+ */
+async function anonymizeBatch(items: AnonymizeBatchItem[]): Promise<string[]> {
+  if (items.length === 0) return []
+
+  // boundary-raw-fetch: internal call to the Presidio anonymizer service via PII_URL
+  const response = await fetch(`${PII_URL}/anonymize_batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ items }),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio anonymize failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  const data = (await response.json()) as { texts: string[] }
+  return data.texts
+}
+
+/**
+ * Flips to `false` the first time `/redact_batch` returns 404 — an older Presidio
+ * image without the combined endpoint — so subsequent chunks skip straight to the
+ * legacy analyze+anonymize path instead of re-probing. Reset on process restart
+ * (a deploy), so a newly-rolled Presidio is picked up.
+ */
+let combinedRedactAvailable = true
+
+/**
+ * Analyze + anonymize a batch in ONE round-trip via `/redact_batch`, returning
+ * masked texts in request order. Halves the app↔service round-trips (and avoids
+ * shipping the text back up for anonymize) vs {@link analyzeBatch} + {@link anonymizeBatch}.
  *
- * Supports two modes:
- * - block: Fails validation if any PII is detected
- * - mask: Passes validation and returns masked text with PII replaced
+ * Returns `null` when the endpoint is absent (404 — an older Presidio image), so
+ * the caller falls back to the legacy two-call path. Any other non-2xx or a
+ * length mismatch throws so the caller applies its fail-safe (never leaks).
+ */
+async function redactBatch(
+  texts: string[],
+  entityTypes: string[],
+  language: string
+): Promise<string[] | null> {
+  const entities = entityTypes.length > 0 ? entityTypes : undefined
+
+  // boundary-raw-fetch: internal call to the Presidio combined redact service via PII_URL
+  const response = await fetch(`${PII_URL}/redact_batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ texts, language, ...(entities ? { entities } : {}) }),
+  })
+  if (response.status === 404) return null
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio redact_batch failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  const data = (await response.json()) as { texts: string[] }
+  if (data.texts.length !== texts.length) {
+    throw new Error(
+      `Presidio redact_batch returned ${data.texts.length} result(s) for ${texts.length} input(s)`
+    )
+  }
+  return data.texts
+}
+
+/**
+ * Mask spans via the Presidio anonymizer service. Omitting `anonymizers` uses the
+ * default `replace` operator, which yields `<ENTITY_TYPE>`. Throws on failure.
+ */
+async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
+  if (spans.length === 0) return text
+
+  // boundary-raw-fetch: internal call to the Presidio anonymizer service via PII_URL
+  const response = await fetch(`${PII_URL}/anonymize`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text, analyzer_results: spans }),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio anonymize failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  const data = (await response.json()) as { text: string }
+  return data.text
+}
+
+/**
+ * Validate text for PII using the Presidio service.
+ *
+ * - block: fails validation if any PII is detected
+ * - mask: passes and returns masked text with PII replaced by `<ENTITY_TYPE>`
  */
 export async function validatePII(input: PIIValidationInput): Promise<PIIValidationResult> {
   const { text, entityTypes, mode, language = 'en', requestId } = input
@@ -47,196 +206,122 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
   })
 
   try {
-    // Call Python script for PII detection
-    const result = await executePythonPIIDetection(text, entityTypes, mode, language, requestId)
+    const spans = await analyze(text, entityTypes, language)
 
+    const detectedEntities: DetectedPIIEntity[] = spans.map((s) => ({
+      type: s.entity_type,
+      start: s.start,
+      end: s.end,
+      score: s.score,
+      text: text.slice(s.start, s.end),
+    }))
+
+    if (spans.length === 0) {
+      logger.info(`[${requestId}] PII validation completed`, { passed: true, detectedCount: 0 })
+      return { passed: true, detectedEntities: [], maskedText: mode === 'mask' ? text : undefined }
+    }
+
+    if (mode === 'block') {
+      const counts = new Map<string, number>()
+      for (const e of detectedEntities) counts.set(e.type, (counts.get(e.type) ?? 0) + 1)
+      const summary = Array.from(counts.entries())
+        .map(([type, count]) => `${count} ${type}`)
+        .join(', ')
+      logger.info(`[${requestId}] PII validation completed`, {
+        passed: false,
+        detectedCount: detectedEntities.length,
+      })
+      return { passed: false, error: `PII detected: ${summary}`, detectedEntities }
+    }
+
+    // mask mode: the anonymizer replaces every span with `<ENTITY_TYPE>`.
+    const maskedText = await anonymize(text, spans)
     logger.info(`[${requestId}] PII validation completed`, {
-      passed: result.passed,
-      detectedCount: result.detectedEntities.length,
-      hasMaskedText: !!result.maskedText,
+      passed: true,
+      detectedCount: detectedEntities.length,
+      hasMaskedText: true,
     })
-
-    return result
-  } catch (error: any) {
-    logger.error(`[${requestId}] PII validation failed`, {
-      error: error.message,
-    })
-
+    return { passed: true, detectedEntities, maskedText }
+  } catch (error) {
+    logger.error(`[${requestId}] PII validation failed`, { error: getErrorMessage(error) })
     return {
       passed: false,
-      error: `PII validation failed: ${error.message}`,
+      error: `PII validation failed: ${getErrorMessage(error)}`,
       detectedEntities: [],
     }
   }
 }
 
 /**
- * Execute Python PII detection script
+ * Mask PII across many strings via the Presidio service, preserving input order.
+ *
+ * Strings are grouped into byte/count-budgeted chunks (see {@link chunkIndicesByBudget}),
+ * and each chunk is masked via the combined `/redact_batch` endpoint (one analyze +
+ * anonymize round-trip). Against an older Presidio without that endpoint, it falls
+ * back to the legacy `analyze_batch` + `anonymize_batch` pair — so the app is safe
+ * to deploy before or after the service. Chunks run with bounded concurrency.
+ * Strings with no detected PII pass through unchanged. Rejects on any service
+ * failure (which fails the whole batch) so callers can apply their own fail-safe (scrub).
  */
-async function executePythonPIIDetection(
-  text: string,
+export async function maskPIIBatch(
+  texts: string[],
   entityTypes: string[],
-  mode: string,
-  language: string,
-  requestId: string
-): Promise<PIIValidationResult> {
-  return new Promise((resolve, reject) => {
-    // Use path relative to project root
-    // In Next.js, process.cwd() returns the project root
-    const guardrailsDir = path.join(process.cwd(), 'lib/guardrails')
-    const scriptPath = path.join(guardrailsDir, 'validate_pii.py')
-    const venvPython = path.join(guardrailsDir, 'venv/bin/python3')
+  language = 'en'
+): Promise<string[]> {
+  if (texts.length === 0) return []
 
-    // Use venv Python if it exists, otherwise fall back to system python3
-    const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python3'
+  const result = new Array<string>(texts.length)
 
-    const python = spawn(pythonCmd, [scriptPath])
+  await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
+    const chunkTexts = indices.map((i) => texts[i])
 
-    let stdout = ''
-    let stderr = ''
-
-    const timeout = setTimeout(() => {
-      python.kill()
-      reject(new Error('PII validation timeout'))
-    }, DEFAULT_TIMEOUT)
-
-    // Write input to stdin as JSON
-    const inputData = JSON.stringify({
-      text,
-      entityTypes,
-      mode,
-      language,
-    })
-    python.stdin.write(inputData)
-    python.stdin.end()
-
-    python.stdout.on('data', (data) => {
-      stdout += data.toString()
-    })
-
-    python.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    python.on('close', (code) => {
-      clearTimeout(timeout)
-
-      if (code !== 0) {
-        logger.error(`[${requestId}] Python PII detection failed`, {
-          code,
-          stderr,
-        })
-        resolve({
-          passed: false,
-          error: stderr || 'PII detection failed',
-          detectedEntities: [],
+    if (combinedRedactAvailable) {
+      const masked = await redactBatch(chunkTexts, entityTypes, language)
+      if (masked) {
+        indices.forEach((originalIndex, pos) => {
+          result[originalIndex] = masked[pos]
         })
         return
       }
+      // 404: older Presidio image; stop probing and use the legacy path below.
+      combinedRedactAvailable = false
+    }
 
-      // Parse result from stdout
-      try {
-        const prefix = '__SIM_RESULT__='
-        const lines = stdout.split('\n')
-        const marker = lines.find((l) => l.startsWith(prefix))
+    const spansPerText = await analyzeBatch(chunkTexts, entityTypes, language)
 
-        if (marker) {
-          const jsonPart = marker.slice(prefix.length)
-          const result = JSON.parse(jsonPart)
-          resolve(result)
-        } else {
-          logger.error(`[${requestId}] No result marker found`, {
-            stdout,
-            stderr,
-            stdoutLines: lines,
-          })
-          resolve({
-            passed: false,
-            error: `No result marker found in output. stdout: ${stdout.substring(0, 200)}, stderr: ${stderr.substring(0, 200)}`,
-            detectedEntities: [],
-          })
-        }
-      } catch (error: any) {
-        logger.error(`[${requestId}] Failed to parse Python result`, {
-          error: error.message,
-          stdout,
-          stderr,
-        })
-        resolve({
-          passed: false,
-          error: `Failed to parse result: ${error.message}. stdout: ${stdout.substring(0, 200)}`,
-          detectedEntities: [],
-        })
+    // A short/misaligned batch response would silently leave the unmatched
+    // strings unmasked (fail-open). Throw so the caller applies its fail-safe
+    // (scrub for logs, abort for in-flight stages) instead of leaking PII.
+    if (spansPerText.length !== chunkTexts.length) {
+      throw new Error(
+        `Presidio analyze_batch returned ${spansPerText.length} result(s) for ${chunkTexts.length} input(s)`
+      )
+    }
+
+    const toAnonymize: AnonymizeBatchItem[] = []
+    const anonymizePositions: number[] = []
+    indices.forEach((originalIndex, pos) => {
+      const spans = spansPerText[pos] ?? []
+      if (spans.length === 0) {
+        result[originalIndex] = chunkTexts[pos]
+        return
       }
+      toAnonymize.push({ text: chunkTexts[pos], analyzer_results: spans })
+      anonymizePositions.push(pos)
     })
 
-    python.on('error', (error) => {
-      clearTimeout(timeout)
-      logger.error(`[${requestId}] Failed to spawn Python process`, {
-        error: error.message,
-      })
-      reject(
-        new Error(
-          `Failed to execute Python: ${error.message}. Make sure Python 3 and Presidio are installed.`
-        )
+    const masked = await anonymizeBatch(toAnonymize)
+    if (masked.length !== toAnonymize.length) {
+      throw new Error(
+        `Presidio anonymize_batch returned ${masked.length} result(s) for ${toAnonymize.length} input(s)`
       )
+    }
+    anonymizePositions.forEach((pos, k) => {
+      result[indices[pos]] = masked[k]
     })
   })
+
+  return result
 }
 
-/**
- * List of all supported PII entity types
- * Based on Microsoft Presidio's supported entities
- */
-export const SUPPORTED_PII_ENTITIES = {
-  // Common/Global
-  CREDIT_CARD: 'Credit card number',
-  CRYPTO: 'Cryptocurrency wallet address',
-  DATE_TIME: 'Date or time',
-  EMAIL_ADDRESS: 'Email address',
-  IBAN_CODE: 'International Bank Account Number',
-  IP_ADDRESS: 'IP address',
-  NRP: 'Nationality, religious or political group',
-  LOCATION: 'Location',
-  PERSON: 'Person name',
-  PHONE_NUMBER: 'Phone number',
-  MEDICAL_LICENSE: 'Medical license number',
-  URL: 'URL',
-
-  // USA
-  US_BANK_NUMBER: 'US bank account number',
-  US_DRIVER_LICENSE: 'US driver license',
-  US_ITIN: 'US Individual Taxpayer Identification Number',
-  US_PASSPORT: 'US passport number',
-  US_SSN: 'US Social Security Number',
-
-  // UK
-  UK_NHS: 'UK NHS number',
-  UK_NINO: 'UK National Insurance Number',
-
-  // Other countries
-  ES_NIF: 'Spanish NIF number',
-  ES_NIE: 'Spanish NIE number',
-  IT_FISCAL_CODE: 'Italian fiscal code',
-  IT_DRIVER_LICENSE: 'Italian driver license',
-  IT_VAT_CODE: 'Italian VAT code',
-  IT_PASSPORT: 'Italian passport',
-  IT_IDENTITY_CARD: 'Italian identity card',
-  PL_PESEL: 'Polish PESEL number',
-  SG_NRIC_FIN: 'Singapore NRIC/FIN',
-  SG_UEN: 'Singapore Unique Entity Number',
-  AU_ABN: 'Australian Business Number',
-  AU_ACN: 'Australian Company Number',
-  AU_TFN: 'Australian Tax File Number',
-  AU_MEDICARE: 'Australian Medicare number',
-  IN_PAN: 'Indian Permanent Account Number',
-  IN_AADHAAR: 'Indian Aadhaar number',
-  IN_VEHICLE_REGISTRATION: 'Indian vehicle registration',
-  IN_VOTER: 'Indian voter ID',
-  IN_PASSPORT: 'Indian passport',
-  FI_PERSONAL_IDENTITY_CODE: 'Finnish Personal Identity Code',
-  KR_RRN: 'Korean Resident Registration Number',
-  TH_TNIN: 'Thai National ID Number',
-} as const
-
-export type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES
+export { type PIIEntityType, SUPPORTED_PII_ENTITIES } from '@/lib/guardrails/pii-entities'

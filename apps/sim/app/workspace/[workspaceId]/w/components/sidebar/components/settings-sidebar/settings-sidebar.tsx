@@ -1,14 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChipConfirmModal, chipVariants, cn } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, ChipConfirmModal, chipVariants } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
@@ -24,6 +23,7 @@ import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
+import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -64,6 +64,7 @@ export function SettingsSidebar({
     enabled: isBillingEnabled,
     staleTime: 5 * 60 * 1000,
   })
+  const { data: inboxConfig } = useInboxConfig(workspaceId)
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders({
     enabled: !isHosted,
   })
@@ -79,6 +80,7 @@ export function SettingsSidebar({
   const isAdmin = userRole === 'admin'
   const isOrgAdminOrOwner = isOwner || isAdmin
   const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const inboxEntitled = inboxConfig?.entitled ?? false
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
   const isEnterprisePlan = isEnterprise(subscriptionData?.data?.plan)
@@ -297,7 +299,11 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
-                    const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
+                    const isLocked =
+                      item.requiresMax &&
+                      (item.id === 'inbox'
+                        ? !inboxEntitled
+                        : !subscriptionAccess.hasUsableMaxAccess)
                     const itemClassName = chipVariants({ active, fullWidth: true })
                     const content = (
                       <>

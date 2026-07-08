@@ -7,9 +7,12 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { runDetached } from '@/lib/core/utils/background'
 import {
   buildAutoMapping,
   COLUMN_TYPES,
+  CSV_ASYNC_IMPORT_THRESHOLD_BYTES,
   CSV_MAX_BATCH_SIZE,
   type CsvHeaderMapping,
   CsvImportValidationError,
@@ -17,6 +20,8 @@ import {
   getWorkspaceTableLimits,
   inferSchemaFromCsv,
   parseFileRows,
+  sanitizeName,
+  TABLE_LIMITS,
   validateMapping,
 } from '@/lib/table'
 import {
@@ -36,6 +41,9 @@ import {
   updateColumnConstraints,
   updateColumnType,
 } from '@/lib/table/columns/service'
+import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
+import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
+import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -52,14 +60,18 @@ import {
 import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
+  Filter,
   RowData,
   TableDefinition,
+  TableDeleteJobPayload,
+  TableUpdateJobPayload,
   WorkflowGroup,
   WorkflowGroupDependencies,
   WorkflowGroupDeploymentMode,
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
+import { markTableUpdateFailed, runTableUpdate } from '@/lib/table/update-runner'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
   addWorkflowGroup,
@@ -93,18 +105,136 @@ type UserTableResult = {
 
 const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
 
-async function resolveWorkspaceFile(
-  fileReference: string,
-  workspaceId: string
-): Promise<{ buffer: Buffer; name: string; type: string }> {
+async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspaceId: string) {
   const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
   if (!record) {
     throw new Error(
       `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )
   }
-  const buffer = await fetchWorkspaceFileBuffer(record)
-  return { buffer, name: record.name, type: record.type }
+  return record
+}
+
+/**
+ * Whether a workspace file should import as a background job instead of inline:
+ * CSV/TSV at or above the same byte threshold the UI uses. Other formats
+ * (xlsx/json) aren't supported by the streaming import worker and stay inline.
+ */
+function shouldImportInBackground(record: { name: string; size: number }): boolean {
+  const ext = record.name.split('.').pop()?.toLowerCase()
+  return (ext === 'csv' || ext === 'tsv') && record.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES
+}
+
+/**
+ * Dispatches a background import for an already-claimed job slot, mirroring the
+ * import-async routes: trigger.dev when enabled (survives deploys, retries),
+ * detached in-process worker otherwise. A failed dispatch releases the claim so
+ * a ghost `running` job can't hold the table's one-write-job slot.
+ */
+async function dispatchImportJob(payload: TableImportPayload): Promise<void> {
+  if (isTriggerDevEnabled) {
+    try {
+      const [{ tableImportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
+        import('@/background/table-import'),
+        import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
+      ])
+      await tasks.trigger<typeof tableImportTask>('table-import', payload, {
+        tags: [`tableId:${payload.tableId}`, `jobId:${payload.importId}`],
+        region: await resolveTriggerRegion(),
+      })
+    } catch (error) {
+      await releaseJobClaim(payload.tableId, payload.importId).catch(() => {})
+      throw error
+    }
+  } else {
+    runDetached('table-import', () => runTableImport(payload))
+  }
+}
+
+/**
+ * Dispatches a background filter-delete for an already-claimed job slot,
+ * mirroring the delete-async route. Same release-on-failed-dispatch guard as
+ * {@link dispatchImportJob}.
+ */
+async function dispatchDeleteJob(params: {
+  jobId: string
+  tableId: string
+  workspaceId: string
+  filter: Filter
+  cutoff: Date
+  maxRows?: number
+}): Promise<void> {
+  const { jobId, tableId, workspaceId, filter, cutoff, maxRows } = params
+  if (isTriggerDevEnabled) {
+    try {
+      const [{ tableDeleteTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
+        import('@/background/table-delete'),
+        import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
+      ])
+      await tasks.trigger<typeof tableDeleteTask>(
+        'table-delete',
+        { jobId, tableId, workspaceId, filter, cutoff: cutoff.toISOString(), maxRows },
+        { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
+      )
+    } catch (error) {
+      await releaseJobClaim(tableId, jobId).catch(() => {})
+      throw error
+    }
+  } else {
+    runDetached('table-delete', () =>
+      runTableDelete({ jobId, tableId, workspaceId, filter, cutoff, maxRows }).catch(
+        async (error) => {
+          await markTableDeleteFailed(tableId, jobId, error)
+          throw error
+        }
+      )
+    )
+  }
+}
+
+/**
+ * Dispatches a background bulk update for an already-claimed job slot, mirroring
+ * {@link dispatchDeleteJob}: trigger.dev when enabled, detached worker otherwise, releasing the
+ * slot on a failed dispatch.
+ */
+async function dispatchUpdateJob(params: {
+  jobId: string
+  tableId: string
+  workspaceId: string
+  filter: Filter
+  data: RowData
+  cutoff: Date
+  maxRows?: number
+}): Promise<void> {
+  const { jobId, tableId, workspaceId, filter, data, cutoff, maxRows } = params
+  if (isTriggerDevEnabled) {
+    try {
+      const [{ tableUpdateTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
+        import('@/background/table-update'),
+        import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
+      ])
+      await tasks.trigger<typeof tableUpdateTask>(
+        'table-update',
+        { jobId, tableId, workspaceId, filter, data, cutoff: cutoff.toISOString(), maxRows },
+        { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
+      )
+    } catch (error) {
+      await releaseJobClaim(tableId, jobId).catch(() => {})
+      throw error
+    }
+  } else {
+    runDetached('table-update', () =>
+      runTableUpdate({ jobId, tableId, workspaceId, filter, data, cutoff, maxRows }).catch(
+        async (error) => {
+          await markTableUpdateFailed(tableId, jobId, error)
+          throw error
+        }
+      )
+    )
+  }
 }
 
 /**
@@ -159,6 +289,20 @@ function parseDeploymentMode(value: unknown): WorkflowGroupDeploymentMode | unde
   return value === 'live' || value === 'deployed' ? value : undefined
 }
 
+/**
+ * Validates an optional row limit. There's no upper bound the caller must respect — the model may
+ * ask for any number. `MAX_QUERY_LIMIT` / `MAX_BULK_OPERATION_SIZE` are applied internally instead
+ * (query_rows clamps the page; bulk ops above the bound run as a background job). Returns an error
+ * message, or `null` when the limit is acceptable.
+ */
+function limitError(limit: unknown): string | null {
+  if (limit === undefined) return null
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
+    return 'Limit must be an integer of at least 1'
+  }
+  return null
+}
+
 async function batchInsertAll(
   tableId: string,
   rows: RowData[],
@@ -174,7 +318,9 @@ async function batchInsertAll(
     const requestId = generateId().slice(0, 8)
     const result = await batchInsertRows(
       { tableId, rows: batch, workspaceId, userId },
-      table,
+      // Pass the running total so each batch's capacity check sees cumulative rows,
+      // not the same pre-loop snapshot (which would let a multi-batch insert overshoot).
+      { ...table, rowCount: table.rowCount + inserted },
       requestId
     )
     inserted += result.length
@@ -222,7 +368,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: args.schema,
               workspaceId,
               userId: context.userId,
-              maxRows: planLimits.maxRowsPerTable,
               maxTables: planLimits.maxTables,
             },
             requestId
@@ -429,6 +574,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const queryLimitError = limitError(args.limit)
+          if (queryLimitError) {
+            return { success: false, message: queryLimitError }
+          }
+
           const table = await getTableById(args.tableId)
           if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
@@ -437,13 +587,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
           const nameById = buildNameById(table.schema)
+          // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
+          // tool result can't drain a whole table. `totalCount` in the response signals truncation,
+          // and the model pages with `offset`.
           const result = await queryRows(
             table,
             {
               filter: args.filter ? filterNamesToIds(args.filter, idByName) : undefined,
               sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
-              limit: args.limit,
+              limit:
+                args.limit !== undefined
+                  ? Math.min(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
+                  : undefined,
               offset: args.offset,
+              withExecutions: false,
             },
             requestId
           )
@@ -544,6 +701,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
+          const updateLimitError = limitError(args.limit)
+          if (updateLimitError) {
+            return { success: false, message: updateLimitError }
+          }
 
           const table = await getTableById(args.tableId)
           if (!table || table.workspaceId !== workspaceId) {
@@ -551,13 +712,67 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = generateId().slice(0, 8)
-          assertNotAborted()
           const idByName = buildIdByName(table.schema)
+          const idFilter = filterNamesToIds(args.filter, idByName)
+          const idData = rowDataNameToId(args.data, idByName)
+
+          // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
+          // (an explicit limit above the cap, or unbounded "update everything matching") runs in the
+          // background worker so a broad update on a huge table doesn't load every matching row into
+          // this request. A small explicit limit is the fast path — no count needed. A patch
+          // touching a unique column always stays inline (the service rejects bulk-setting a unique
+          // value across multiple rows).
+          const patchTouchesUnique = table.schema.columns.some(
+            (c) => c.unique === true && (c.id ?? c.name) in idData
+          )
+          const updateInlineEligible =
+            args.limit !== undefined && args.limit <= TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+          if (!updateInlineEligible && !patchTouchesUnique) {
+            const { totalCount } = await queryRows(
+              table,
+              { filter: idFilter, limit: 1, withExecutions: false },
+              requestId
+            )
+            const matchCount = totalCount ?? 0
+            const target = args.limit !== undefined ? Math.min(args.limit, matchCount) : matchCount
+            if (target > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              const cutoff = new Date()
+              const jobId = generateId()
+              const payload: TableUpdateJobPayload = {
+                filter: idFilter,
+                data: idData,
+                cutoff: cutoff.toISOString(),
+                affectedCount: target,
+                maxRows: args.limit,
+              }
+              assertNotAborted()
+              const claimed = await markTableJobRunning(table.id, jobId, 'update', payload)
+              if (!claimed) {
+                return { success: false, message: 'A job is already in progress for this table' }
+              }
+              await dispatchUpdateJob({
+                jobId,
+                tableId: table.id,
+                workspaceId,
+                filter: idFilter,
+                data: idData,
+                cutoff,
+                maxRows: args.limit,
+              })
+              return {
+                success: true,
+                message: `Started background update of ${target} matching rows (job ${jobId}). Rows update in the background — query_rows to check progress. Note: background updates don't auto-recompute workflow/enrichment columns; use run_column afterward if needed.`,
+                data: { jobId, affectedCount: target },
+              }
+            }
+          }
+
+          assertNotAborted()
           const result = await updateRowsByFilter(
             table,
             {
-              filter: filterNamesToIds(args.filter, idByName),
-              data: rowDataNameToId(args.data, idByName),
+              filter: idFilter,
+              data: idData,
               limit: args.limit,
               actorUserId: context.userId,
             },
@@ -581,6 +796,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
+          const deleteLimitError = limitError(args.limit)
+          if (deleteLimitError) {
+            return { success: false, message: deleteLimitError }
+          }
 
           const table = await getTableById(args.tableId)
           if (!table || table.workspaceId !== workspaceId) {
@@ -588,16 +807,77 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = generateId().slice(0, 8)
-          assertNotAborted()
           const idByName = buildIdByName(table.schema)
-          const result = await deleteRowsByFilter(
-            table,
-            {
-              filter: filterNamesToIds(args.filter, idByName),
-              limit: args.limit,
-            },
-            requestId
-          )
+          const idFilter = filterNamesToIds(args.filter, idByName)
+
+          // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
+          // above the cap, or unbounded "delete everything matching") hands off to the background
+          // delete worker so a broad delete on a huge table doesn't load every matching id into this
+          // request. A small explicit limit is the fast path.
+          const deleteInlineEligible =
+            args.limit !== undefined && args.limit <= TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+          if (!deleteInlineEligible) {
+            const { totalCount } = await queryRows(
+              table,
+              { filter: idFilter, limit: 1, withExecutions: false },
+              requestId
+            )
+            const matchCount = totalCount ?? 0
+            const target = args.limit !== undefined ? Math.min(args.limit, matchCount) : matchCount
+            if (target > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              const doomedCount = Math.min(target, table.rowCount)
+              const cutoff = new Date()
+              const jobId = generateId()
+              // Unbounded: mask the whole matching set (instant post-delete view), so `doomedCount`
+              // drives the count adjustment. Bounded (maxRows): no mask — `doomedCount` is omitted so
+              // the count isn't double-subtracted; rows disappear progressively as they're deleted.
+              const bounded = args.limit !== undefined
+              const payload: TableDeleteJobPayload = bounded
+                ? { filter: idFilter, cutoff: cutoff.toISOString(), maxRows: args.limit }
+                : { filter: idFilter, cutoff: cutoff.toISOString(), doomedCount }
+              assertNotAborted()
+              const claimed = await markTableJobRunning(table.id, jobId, 'delete', payload)
+              if (!claimed) {
+                return { success: false, message: 'A job is already in progress for this table' }
+              }
+              await dispatchDeleteJob({
+                jobId,
+                tableId: table.id,
+                workspaceId,
+                filter: idFilter,
+                cutoff,
+                maxRows: args.limit,
+              })
+              return {
+                success: true,
+                message: bounded
+                  ? `Started background delete of up to ${doomedCount} matching rows (job ${jobId}). Rows delete in the background — query_rows to check progress.`
+                  : `Started background delete of ${doomedCount} matching rows (job ${jobId}). The rows are hidden from reads immediately — query_rows already reflects the post-delete view.`,
+                data: { jobId, doomedCount },
+              }
+            }
+          }
+
+          // Claim the table's one-write-job slot for the inline delete too, so it
+          // can't interleave with a running background import/delete. Mask-safe: a
+          // payload-less delete job is ignored by pendingDeleteMask, and the delete
+          // completes synchronously within this request before the slot is released.
+          assertNotAborted()
+          const inlineDeleteId = generateId()
+          const deleteClaimed = await markTableJobRunning(table.id, inlineDeleteId, 'delete')
+          if (!deleteClaimed) {
+            return { success: false, message: 'A job is already in progress for this table' }
+          }
+          let result: Awaited<ReturnType<typeof deleteRowsByFilter>>
+          try {
+            result = await deleteRowsByFilter(
+              table,
+              { filter: idFilter, limit: args.limit },
+              requestId
+            )
+          } finally {
+            await releaseJobClaim(table.id, inlineDeleteId).catch(() => {})
+          }
 
           return {
             success: true,
@@ -726,7 +1006,71 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const file = await resolveWorkspaceFile(fileReference, workspaceId)
+          const record = await resolveWorkspaceFileRecordOrThrow(fileReference, workspaceId)
+
+          // Large CSV/TSV: create a placeholder table whose creation claims the
+          // job slot, then let the streaming import worker infer the schema and
+          // populate rows in the background (mirrors POST /api/table/import-async).
+          if (shouldImportInBackground(record)) {
+            const planLimits = await getWorkspaceTableLimits(workspaceId)
+            const tableName =
+              args.name ||
+              sanitizeName(record.name.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+                0,
+                TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
+              )
+            const requestId = generateId().slice(0, 8)
+            const importId = generateId()
+            assertNotAborted()
+            const table = await createTable(
+              {
+                name: tableName,
+                description: args.description || `Imported from ${record.name}`,
+                schema: { columns: [{ name: 'column_1', type: 'string' }] },
+                workspaceId,
+                userId: context.userId,
+                maxRows: planLimits.maxRowsPerTable,
+                maxTables: planLimits.maxTables,
+                jobStatus: 'running',
+                jobType: 'import',
+                jobId: importId,
+              },
+              requestId
+            )
+            try {
+              await dispatchImportJob({
+                importId,
+                tableId: table.id,
+                workspaceId,
+                userId: context.userId,
+                fileKey: record.key,
+                fileName: record.name,
+                delimiter: record.name.toLowerCase().endsWith('.tsv') ? '\t' : ',',
+                mode: 'create',
+                deleteSourceFile: false,
+              })
+            } catch (dispatchError) {
+              // The user never saw the placeholder — archive it back out.
+              await deleteTable(table.id, generateId().slice(0, 8)).catch(() => {})
+              throw dispatchError
+            }
+            return {
+              success: true,
+              message: `Created table "${table.name}" (${table.id}); importing rows from "${record.name}" in the background (job ${importId}). Columns and rows appear as the import progresses — query_rows to check what has landed.`,
+              data: {
+                tableId: table.id,
+                tableName: table.name,
+                jobId: importId,
+                sourceFile: record.name,
+              },
+            }
+          }
+
+          const file = {
+            buffer: await fetchWorkspaceFileBuffer(record),
+            name: record.name,
+            type: record.type,
+          }
           const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
           if (rows.length === 0) {
             return { success: false, message: 'File contains no data rows' }
@@ -748,7 +1092,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: { columns },
               workspaceId,
               userId: context.userId,
-              maxRows: planLimits.maxRowsPerTable,
               maxTables: planLimits.maxTables,
             },
             requestId
@@ -851,95 +1194,143 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table is archived: ${tableId}` }
           }
 
-          const file = await resolveWorkspaceFile(fileReference, workspaceId)
-          const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
-          if (rows.length === 0) {
-            return { success: false, message: 'File contains no data rows' }
-          }
+          const record = await resolveWorkspaceFileRecordOrThrow(fileReference, workspaceId)
 
-          const mapping: CsvHeaderMapping = rawMapping ?? buildAutoMapping(headers, table.schema)
-
-          let validation: ReturnType<typeof validateMapping>
-          try {
-            validation = validateMapping({
-              csvHeaders: headers,
-              mapping,
-              tableSchema: table.schema,
-            })
-          } catch (err) {
-            if (err instanceof CsvImportValidationError) {
-              return { success: false, message: err.message }
-            }
-            throw err
-          }
-
-          if (validation.mappedHeaders.length === 0) {
-            return {
-              success: false,
-              message: `No matching columns between file (${headers.join(', ')}) and table (${table.schema.columns.map((c) => c.name).join(', ')})`,
-            }
-          }
-
-          const coerced = coerceRowsForTable(rows, table.schema, validation.effectiveMap)
-
-          if (mode === 'replace') {
+          // Large CSV/TSV: claim the table's one-write-job slot and hand the
+          // file to the streaming import worker (mirrors
+          // POST /api/table/[tableId]/import-async).
+          if (shouldImportInBackground(record)) {
+            const importId = generateId()
             assertNotAborted()
-            const requestId = generateId().slice(0, 8)
-            const result = await replaceTableRows(
-              { tableId: table.id, rows: coerced, workspaceId, userId: context.userId },
-              table,
-              requestId
-            )
+            const claimed = await markTableJobRunning(table.id, importId, 'import')
+            if (!claimed) {
+              return { success: false, message: 'A job is already in progress for this table' }
+            }
+            await dispatchImportJob({
+              importId,
+              tableId: table.id,
+              workspaceId,
+              userId: context.userId,
+              fileKey: record.key,
+              fileName: record.name,
+              delimiter: record.name.toLowerCase().endsWith('.tsv') ? '\t' : ',',
+              mode,
+              mapping: rawMapping,
+              deleteSourceFile: false,
+            })
+            return {
+              success: true,
+              message: `Started background ${mode} import of "${record.name}" into "${table.name}" (job ${importId}). Rows appear as the import progresses — query_rows to check what has landed.`,
+              data: { tableId: table.id, jobId: importId, mode },
+            }
+          }
 
-            logger.info('Rows replaced from file', {
+          // Claim the table's one-write-job slot up front — before the download
+          // and parse — so the inline import is mutually exclusive with any
+          // background import/delete for its whole duration, not just the write,
+          // and contention is detected before the parse work is spent.
+          const inlineImportId = generateId()
+          assertNotAborted()
+          const inlineClaimed = await markTableJobRunning(table.id, inlineImportId, 'import')
+          if (!inlineClaimed) {
+            return { success: false, message: 'A job is already in progress for this table' }
+          }
+          try {
+            const file = {
+              buffer: await fetchWorkspaceFileBuffer(record),
+              name: record.name,
+              type: record.type,
+            }
+            const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
+            if (rows.length === 0) {
+              return { success: false, message: 'File contains no data rows' }
+            }
+
+            const mapping: CsvHeaderMapping = rawMapping ?? buildAutoMapping(headers, table.schema)
+
+            let validation: ReturnType<typeof validateMapping>
+            try {
+              validation = validateMapping({
+                csvHeaders: headers,
+                mapping,
+                tableSchema: table.schema,
+              })
+            } catch (err) {
+              if (err instanceof CsvImportValidationError) {
+                return { success: false, message: err.message }
+              }
+              throw err
+            }
+
+            if (validation.mappedHeaders.length === 0) {
+              return {
+                success: false,
+                message: `No matching columns between file (${headers.join(', ')}) and table (${table.schema.columns.map((c) => c.name).join(', ')})`,
+              }
+            }
+
+            const coerced = coerceRowsForTable(rows, table.schema, validation.effectiveMap)
+
+            if (mode === 'replace') {
+              const requestId = generateId().slice(0, 8)
+              const result = await replaceTableRows(
+                { tableId: table.id, rows: coerced, workspaceId, userId: context.userId },
+                table,
+                requestId
+              )
+
+              logger.info('Rows replaced from file', {
+                tableId: table.id,
+                fileName: file.name,
+                mode,
+                matchedColumns: validation.mappedHeaders.length,
+                deleted: result.deletedCount,
+                inserted: result.insertedCount,
+                userId: context.userId,
+              })
+
+              return {
+                success: true,
+                message: `Replaced rows in "${table.name}" from "${file.name}": deleted ${result.deletedCount}, inserted ${result.insertedCount}`,
+                data: {
+                  tableId: table.id,
+                  tableName: table.name,
+                  mode,
+                  matchedColumns: validation.mappedHeaders,
+                  skippedColumns: validation.skippedHeaders,
+                  deletedCount: result.deletedCount,
+                  insertedCount: result.insertedCount,
+                  sourceFile: file.name,
+                },
+              }
+            }
+
+            const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
+
+            logger.info('Rows imported from file', {
               tableId: table.id,
               fileName: file.name,
               mode,
               matchedColumns: validation.mappedHeaders.length,
-              deleted: result.deletedCount,
-              inserted: result.insertedCount,
+              rows: inserted,
               userId: context.userId,
             })
 
             return {
               success: true,
-              message: `Replaced rows in "${table.name}" from "${file.name}": deleted ${result.deletedCount}, inserted ${result.insertedCount}`,
+              message: `Imported ${inserted} rows into "${table.name}" from "${file.name}" (${validation.mappedHeaders.length} columns matched)`,
               data: {
                 tableId: table.id,
                 tableName: table.name,
                 mode,
                 matchedColumns: validation.mappedHeaders,
                 skippedColumns: validation.skippedHeaders,
-                deletedCount: result.deletedCount,
-                insertedCount: result.insertedCount,
+                rowCount: inserted,
                 sourceFile: file.name,
               },
             }
-          }
-
-          const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
-
-          logger.info('Rows imported from file', {
-            tableId: table.id,
-            fileName: file.name,
-            mode,
-            matchedColumns: validation.mappedHeaders.length,
-            rows: inserted,
-            userId: context.userId,
-          })
-
-          return {
-            success: true,
-            message: `Imported ${inserted} rows into "${table.name}" from "${file.name}" (${validation.mappedHeaders.length} columns matched)`,
-            data: {
-              tableId: table.id,
-              tableName: table.name,
-              mode,
-              matchedColumns: validation.mappedHeaders,
-              skippedColumns: validation.skippedHeaders,
-              rowCount: inserted,
-              sourceFile: file.name,
-            },
+          } finally {
+            await releaseJobClaim(table.id, inlineImportId).catch(() => {})
           }
         }
 

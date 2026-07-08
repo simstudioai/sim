@@ -4,6 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -14,8 +15,8 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { toast } from '@/components/emcn'
-import { isValidationError } from '@/lib/api/client/errors'
+import { useRouter } from 'next/navigation'
+import { extractValidationIssues, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
@@ -43,6 +44,7 @@ import {
   exportDownloadContract,
   exportTableAsyncContract,
   findTableRowsContract,
+  getEnrichmentDetailContract,
   getTableContract,
   type InsertTableRowBodyInput,
   importIntoTableAsyncContract,
@@ -69,8 +71,10 @@ import {
   updateTableRowContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
   CsvHeaderMapping,
+  EnrichmentRunDetail,
   Filter,
   RowData,
   RowExecutionMetadata,
@@ -79,7 +83,6 @@ import type {
   TableDefinition,
   TableMetadata,
   TableRow,
-  TableRowsCursor,
   WorkflowGroup,
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
@@ -92,41 +95,29 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { useTimezone } from '@/hooks/queries/general-settings'
+import {
+  TABLE_LIST_STALE_TIME,
+  type TableQueryScope,
+  tableKeys,
+} from '@/hooks/queries/utils/table-keys'
+import {
+  getNextTableRowsPageParam,
+  type TableRowsPageParam,
+} from '@/hooks/queries/utils/table-rows-pagination'
 
 const logger = createLogger('TableQueries')
-
-type TableQueryScope = 'active' | 'archived' | 'all'
-
-export const tableKeys = {
-  all: ['tables'] as const,
-  lists: () => [...tableKeys.all, 'list'] as const,
-  list: (workspaceId?: string, scope: TableQueryScope = 'active') =>
-    [...tableKeys.lists(), workspaceId ?? '', scope] as const,
-  details: () => [...tableKeys.all, 'detail'] as const,
-  detail: (tableId: string) => [...tableKeys.details(), tableId] as const,
-  exportJobs: (workspaceId?: string) =>
-    [...tableKeys.all, 'export-jobs', workspaceId ?? ''] as const,
-  rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
-  infiniteRows: (tableId: string, paramsKey: string) =>
-    [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
-  rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
-  find: (tableId: string, paramsKey: string) =>
-    [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
-  activeDispatches: (tableId: string) =>
-    [...tableKeys.detail(tableId), 'active-dispatches'] as const,
-}
+export const TABLE_DETAIL_STALE_TIME = 30 * 1000
+export const TABLE_RUN_STATE_STALE_TIME = 30 * 1000
+export const TABLE_FIND_STALE_TIME = 30 * 1000
+export const TABLE_ROWS_STALE_TIME = 30 * 1000
+export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
   TableIdParamsInput & {
     filter?: Filter | null
     sort?: Sort | null
   }
-
-/**
- * Infinite-rows page param: a keyset cursor on the default `(order_key, id)` order, or a numeric
- * offset for sorted views / legacy rows without an order key. `0` doubles as the first page.
- */
-export type TableRowsPageParam = number | TableRowsCursor
 
 export type TableRowsResponse = Pick<
   ContractJsonResponse<typeof listTableRowsContract>['data'],
@@ -245,7 +236,7 @@ export function useTablesList(
       return response.data.tables
     },
     enabled: Boolean(workspaceId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
     refetchInterval:
       typeof refetchInterval === 'function'
@@ -258,18 +249,32 @@ export function useTablesList(
  * Fetch a single table by id.
  */
 export function useTable(workspaceId: string | undefined, tableId: string | undefined) {
+  // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
   return useQuery({
     queryKey: tableKeys.detail(tableId ?? ''),
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_DETAIL_STALE_TIME,
   })
+}
+
+/**
+ * Shared table-detail query options so non-component callers (e.g. selector
+ * providers) can `ensureQueryData` the same cache entry `useTable` populates.
+ */
+export function getTableDetailQueryOptions(workspaceId: string, tableId: string) {
+  return {
+    queryKey: tableKeys.detail(tableId),
+    queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
+    staleTime: TABLE_DETAIL_STALE_TIME,
+  }
 }
 
 export interface TableRunState {
   dispatches: ActiveDispatch[]
-  runningCellCount: number
   runningByRowId: Record<string, number>
+  /** Any in-flight cell claimed by a worker, table-wide. */
+  hasRunning: boolean
 }
 
 async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promise<TableRunState> {
@@ -279,9 +284,47 @@ async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promis
   })
   return {
     dispatches: response.data.dispatches,
-    runningCellCount: response.data.runningCellCount,
     runningByRowId: response.data.runningByRowId,
+    hasRunning: response.data.hasRunning,
   }
+}
+
+async function fetchEnrichmentDetail(
+  tableId: string,
+  rowId: string,
+  groupId: string,
+  signal?: AbortSignal
+): Promise<EnrichmentRunDetail | null> {
+  const response = await requestJson(getEnrichmentDetailContract, {
+    params: { tableId, rowId, groupId },
+    signal,
+  })
+  return response.data.detail
+}
+
+/**
+ * Enrichment cascade breakdown for one cell, fetched on demand when the
+ * enrichment details panel opens. Kept off the hot grid read — only queried
+ * while `enabled` (panel open with a selected row + group).
+ *
+ * `staleTime: 0` so reopening the panel always refetches: a cell can be re-run
+ * between opens (the run writes new `enrichmentDetails` in the background with no
+ * client invalidation), and the panel is opened on demand, so a fresh fetch per
+ * open keeps the cascade in sync without a cached stale run.
+ */
+export function useEnrichmentDetail(
+  tableId: string,
+  rowId: string | null,
+  groupId: string | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: tableKeys.enrichmentDetail(tableId, rowId ?? '', groupId ?? ''),
+    queryFn: ({ signal }) =>
+      fetchEnrichmentDetail(tableId, rowId as string, groupId as string, signal),
+    enabled: Boolean(tableId && rowId && groupId) && (options?.enabled ?? true),
+    staleTime: 0,
+  })
 }
 
 /** Count groups flipped to in-flight (`pending`) by an optimistic schedule that
@@ -294,46 +337,28 @@ function countNewlyInFlight(before: RowExecutions, after: RowExecutions): number
   return n
 }
 
-/** The table's maintained, unfiltered `rowCount` from the detail cache (or
- *  `null` when the detail hasn't loaded). This is the right scope for a Run-all
- *  estimate: the dispatcher runs every row regardless of the active view
- *  filter, whereas the rows query's `totalCount` is filter-scoped. */
-function readTableRowCount(
-  queryClient: ReturnType<typeof useQueryClient>,
-  tableId: string
-): number | null {
-  const def = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
-  return typeof def?.rowCount === 'number' ? def.rowCount : null
-}
-
 /** Optimistically reflect a run on the "X running" badge + per-row gutter Stop
- *  instantly (the optimistic stamp eats the dispatcher's `pending` SSE, so
- *  `applyCell` never bumps the count, and the server's dispatch-scope count
- *  isn't live until the first window). `stampedByRow` drives the per-row gutter
- *  (loaded rows only); `cellCountDelta` is the badge delta — pass the full run
- *  scope (rows × groups) for Run-all so it matches the server, or omit to use
- *  the stamped total. Returns the prior snapshot for rollback. */
-function bumpRunState(
+ *  instantly, ahead of the dispatcher's real pending stamps and the next
+ *  server snapshot refetch. Cancels any in-flight run-state fetch first — a
+ *  fetch started before the click would otherwise resolve after this write
+ *  and clobber the bump back to the pre-run snapshot. Returns the prior
+ *  snapshot for rollback. */
+async function bumpRunState(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
-  stampedByRow: Record<string, number>,
-  cellCountDelta?: number
-): { snapshot: TableRunState | undefined } | null {
+  stampedByRow: Record<string, number>
+): Promise<{ snapshot: TableRunState | undefined } | null> {
   const stampedTotal = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
-  const countDelta = cellCountDelta ?? stampedTotal
-  if (countDelta === 0 && stampedTotal === 0) return null
+  if (stampedTotal === 0) return null
+  await queryClient.cancelQueries({ queryKey: tableKeys.activeDispatches(tableId) })
   const snapshot = queryClient.getQueryData<TableRunState>(tableKeys.activeDispatches(tableId))
   queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-    const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+    const base = prev ?? { dispatches: [], runningByRowId: {}, hasRunning: false }
     const nextByRow = { ...base.runningByRowId }
     for (const [rid, n] of Object.entries(stampedByRow)) {
       nextByRow[rid] = (nextByRow[rid] ?? 0) + n
     }
-    return {
-      ...base,
-      runningCellCount: base.runningCellCount + countDelta,
-      runningByRowId: nextByRow,
-    }
+    return { ...base, runningByRowId: nextByRow }
   })
   return { snapshot }
 }
@@ -350,7 +375,7 @@ export function useTableRunState(tableId: string | undefined) {
     queryKey: tableKeys.activeDispatches(tableId ?? ''),
     queryFn: ({ signal }) => fetchTableRunState(tableId as string, signal),
     enabled: Boolean(tableId),
-    staleTime: 30 * 1000,
+    staleTime: TABLE_RUN_STATE_STALE_TIME,
   })
 }
 
@@ -412,7 +437,7 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
     queryFn: ({ signal }) =>
       fetchTableRowMatches({ workspaceId, tableId, q, filter, sort, signal }),
     enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
-    staleTime: 30 * 1000,
+    staleTime: TABLE_FIND_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -441,19 +466,14 @@ export function tableRowsInfiniteOptions({
       })
     },
     initialPageParam: 0 as TableRowsPageParam,
-    getNextPageParam: (lastPage, _allPages, lastPageParam): TableRowsPageParam | undefined => {
-      if (lastPage.rows.length < pageSize) return undefined
-      // Default order pages by keyset cursor — each page is an index seek on (order_key, id),
-      // where OFFSET would re-scan every prior row (O(N²) across a deep scroll / full drain).
-      // Sorted views (and legacy rows without an order key) fall back to offset paging.
-      if (!sort) {
-        const last = lastPage.rows[lastPage.rows.length - 1]
-        if (last?.orderKey) return { orderKey: last.orderKey, id: last.id }
-      }
-      const param = lastPageParam as TableRowsPageParam
-      return (typeof param === 'number' ? param : 0) + lastPage.rows.length
-    },
-    staleTime: 30 * 1000,
+    // Termination comes from hasMoreTableRows (empty page / totalCount covered) — never from
+    // rows.length < pageSize, so a short server page can't be misread as end-of-table.
+    // Default order pages by keyset cursor — each page is an index seek on (order_key, id),
+    // where OFFSET would re-scan every prior row (O(N²) across a deep scroll / full drain).
+    // Sorted views (and legacy rows without an order key) fall back to offset paging.
+    getNextPageParam: (_lastPage, allPages): TableRowsPageParam | undefined =>
+      getNextTableRowsPageParam(allPages, Boolean(sort)),
+    staleTime: TABLE_ROWS_STALE_TIME,
   })
 }
 
@@ -484,9 +504,10 @@ export function useCreateTable(workspaceId: string) {
         body: { ...params, workspaceId },
       })
     },
+    // Unlike row writes, table naming has no inline validation surface — the
+    // issue message (e.g. the NAME_PATTERN rule) must reach the user as a toast.
     onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -530,9 +551,10 @@ export function useRenameTable(workspaceId: string) {
         body: { workspaceId, name },
       })
     },
+    // Inline rename reverts the field on failure with no message of its own, so
+    // the validation issue (e.g. the NAME_PATTERN rule) must surface as a toast.
     onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })
@@ -571,8 +593,26 @@ export function useDeleteTable(workspaceId: string) {
  * Populates the cache on success so the new row is immediately available
  * without waiting for the background refetch triggered by invalidation.
  */
+/**
+ * Toasts a failed row write. A plan row-limit failure (the best-effort cap in
+ * `assertRowCapacity`) gets an "Upgrade" action routing to the explore-plans page;
+ * other errors are a plain auto-dismissing toast. Validation errors are surfaced
+ * inline, not here.
+ */
+function notifyRowWriteError(error: Error, onUpgrade: () => void): void {
+  if (isValidationError(error)) return
+  if (error.message.toLowerCase().includes('row limit')) {
+    toast.error(error.message, {
+      action: { label: 'Upgrade', onClick: onUpgrade },
+    })
+    return
+  }
+  toast.error(error.message, { duration: 5000 })
+}
+
 export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async (
@@ -591,7 +631,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         },
       })
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       const row = response.data.row
       if (!row) return
 
@@ -604,7 +644,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       // the "X running" badge + gutter Stop show immediately (the row had no
       // prior executions, so the stamped set is the full delta).
       const stampedCount = countNewlyInFlight({}, stamped.executions ?? {})
-      if (stampedCount > 0) bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
+      if (stampedCount > 0) await bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
 
       // `reconcileCreatedRow` only patches the default-order view. Filtered /
       // column-sorted rows queries can't be reconciled from that heuristic
@@ -617,10 +657,8 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
       })
     },
-    onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
+    onError: (error) =>
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
       // cache + its `totalCount`; only refresh the count surfaces here so a late
@@ -783,6 +821,7 @@ type BatchCreateTableRowsResponse = ContractJsonResponse<typeof batchCreateTable
  */
 export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async (
@@ -797,10 +836,8 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
+    onError: (error) =>
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -850,7 +887,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         }
       })
 
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return {
         previousQueries,
         runStateSnapshot: bumped?.snapshot,
@@ -941,7 +978,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         }
       })
 
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return {
         previousQueries,
         runStateSnapshot: bumped?.snapshot,
@@ -1265,6 +1302,7 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
             })
           )
         : undefined
+      const touchedRowIds = new Set<string>()
       const snapshots = await snapshotAndMutateRows(
         queryClient,
         tableId,
@@ -1296,21 +1334,55 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
             }
             rowTouched = true
           }
-          return rowTouched ? { ...r, executions: nextExecutions } : null
+          if (!rowTouched) return null
+          touchedRowIds.add(r.id)
+          return { ...r, executions: nextExecutions }
         },
         { onlyKey }
       )
-      return { snapshots }
+
+      // Zero the badge + per-row gutter for the stopped rows immediately.
+      // Cancel any in-flight run-state fetch first — one started before the
+      // server processed the cancel would resolve with stale non-zero counts
+      // and resurrect the badge until onSettled's refetch lands.
+      await queryClient.cancelQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+      const runStateSnapshot = queryClient.getQueryData<TableRunState>(
+        tableKeys.activeDispatches(tableId)
+      )
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        if (!prev) return prev
+        const nextByRow: Record<string, number> = {}
+        for (const [rid, n] of Object.entries(prev.runningByRowId)) {
+          if (scope === 'all' && !filter) {
+            // Table-wide stop: everything not explicitly excluded is cancelled,
+            // including rows outside the loaded page slice.
+            if (!excludedRowIds?.has(rid)) continue
+          } else if (touchedRowIds.has(rid)) {
+            continue
+          }
+          nextByRow[rid] = n
+        }
+        // An unexcluded table-wide stop cancels every claim, so the stale
+        // table-wide flag must drop with it (else the header reads "0
+        // running" until onSettled refetches). Scoped stops leave other rows'
+        // claims running — keep it.
+        const hasRunning = scope === 'all' && !filter && !excludedRowIds ? false : prev.hasRunning
+        return { ...prev, runningByRowId: nextByRow, hasRunning }
+      })
+      return { snapshots, runStateSnapshot }
     },
-    onError: (_err, _variables, context) => {
+    onError: (error, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+      queryClient.setQueryData(tableKeys.activeDispatches(tableId), context?.runStateSnapshot)
+      // A failed Stop must be loud — the optimistic clear above made the run
+      // look stopped, and silently reverting reads as "the cancel didn't work".
+      toast.error(`Failed to stop runs: ${error.message}`, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      // Refetch the run-state snapshot — server re-derives runningCellCount +
-      // runningByRowId from the freshly-updated sidecar via countRunningCells.
-      // Without this, the counter and row gutter button stay stale until the
-      // user refetches manually.
+      // Refetch the run-state snapshot — server re-derives runningByRowId from
+      // the freshly-updated sidecar via countRunningCells. Reconciles the
+      // optimistic clear above with whatever the cancel actually stopped.
       queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     },
   })
@@ -1356,6 +1428,7 @@ interface UploadCsvParams {
  */
 export function useUploadCsvToTable() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
 
   return useMutation({
     mutationFn: async ({ workspaceId, file }: UploadCsvParams) => {
@@ -1363,6 +1436,7 @@ export function useUploadCsvToTable() {
       // stream and needs workspaceId before it reaches the (large) file.
       const formData = new FormData()
       formData.append('workspaceId', workspaceId)
+      formData.append('timezone', timezone)
       formData.append('file', file)
 
       // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
@@ -1420,16 +1494,50 @@ async function uploadCsvToWorkspaceStorage(
  */
 export function useImportCsvAsync() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({ workspaceId, file, onProgress }: ImportCsvAsyncParams) => {
       const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
       const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName: file.name },
+        body: { workspaceId, fileKey, fileName: file.name, timezone },
       })
       return response.data
     },
     onError: (error) => {
       logger.error('Failed to start async CSV import:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
+interface ImportFileAsTableParams {
+  workspaceId: string
+  fileKey: string
+  fileName: string
+}
+
+/**
+ * Kicks off a background import into a new table from a file ALREADY in workspace storage
+ * (e.g. the file viewer's "Import as a table"). Reuses the existing object — no re-upload —
+ * and sets `deleteSourceFile: false` so the user's original file survives the import (the normal
+ * upload-import flow deletes its single-use copy). Resolves with `{ tableId, importId }`; progress
+ * and the terminal state arrive over the table-events SSE stream.
+ */
+export function useImportFileAsTable() {
+  const queryClient = useQueryClient()
+  const timezone = useTimezone()
+  return useMutation({
+    mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
+      const response = await requestJson(importTableAsyncContract, {
+        body: { workspaceId, fileKey, fileName, deleteSourceFile: false, timezone },
+      })
+      return response.data
+    },
+    onError: (error) => {
+      logger.error('Failed to start import from file:', error)
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
@@ -1457,6 +1565,7 @@ interface ImportCsvIntoTableAsyncParams {
  */
 export function useImportCsvIntoTableAsync() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({
       workspaceId,
@@ -1470,7 +1579,7 @@ export function useImportCsvIntoTableAsync() {
       const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
       const response = await requestJson(importIntoTableAsyncContract, {
         params: { tableId },
-        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns },
+        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns, timezone },
       })
       return response.data
     },
@@ -1515,6 +1624,7 @@ interface ImportCsvIntoTableResponse {
  */
 export function useImportCsvIntoTable() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
 
   return useMutation({
     mutationFn: async ({
@@ -1530,6 +1640,7 @@ export function useImportCsvIntoTable() {
       const formData = new FormData()
       formData.append('workspaceId', workspaceId)
       formData.append('mode', mode)
+      formData.append('timezone', timezone)
       if (mapping) {
         formData.append('mapping', JSON.stringify(mapping))
       }
@@ -1598,7 +1709,7 @@ export function useWorkspaceExportJobs(workspaceId?: string) {
     queryKey: tableKeys.exportJobs(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceExportJobs(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 5 * 1000,
+    staleTime: TABLE_EXPORT_JOBS_STALE_TIME,
     refetchInterval: (query) =>
       query.state.data?.some((j) => j.status === 'running') ? 2000 : false,
   })
@@ -1976,14 +2087,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         return { ...r, data: nextData, executions: next }
       })
 
-      // Badge counts the whole run scope (rows × groups), matching the server's
-      // dispatch-scope count — not just the loaded rows we could stamp. For
-      // Run-all that's the table's totalCount; for a scoped run, the rowIds.
-      const scopeRowCount = targetRowIds
-        ? targetRowIds.size
-        : (readTableRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
-      const cellCountDelta = scopeRowCount * targetGroupIds.size
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow, cellCountDelta)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
     onError: (_err, _variables, context) => {
@@ -1999,14 +2103,21 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       // optimistic counter to the server's still-zero count.
       const dispatchId = data?.data?.dispatchId
       if (!dispatchId) {
-        // No dispatch created → no SSE to reconcile the bump; roll it back.
+        // No dispatch created (empty scope, or a Stop-all cancelled the run
+        // during server prep) → no SSE will reconcile the optimistic state.
+        // Refetch both caches rather than restoring the onMutate snapshots —
+        // either restore could clobber fresher state applied since (SSE
+        // events, throttled refetches, a concurrent Stop-all's clear).
         if (context?.didBumpRunState) {
-          queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+          void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+        }
+        if (context?.snapshots) {
+          void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         }
         return
       }
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-        const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+        const base = prev ?? { dispatches: [], runningByRowId: {}, hasRunning: false }
         if (base.dispatches.some((d) => d.id === dispatchId)) return base
         const dispatch: ActiveDispatch = {
           id: dispatchId,

@@ -9,3 +9,4 @@ export {
   type StreamLoopState,
 } from './stream-context'
 export { finalizeResidualToolCalls } from './stream-helpers'
+export { applyTurnTerminal } from './turn-model'

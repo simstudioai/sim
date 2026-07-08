@@ -1,15 +1,12 @@
 import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
-import { credentialSet } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { isProd } from '@/lib/core/config/env-flags'
 import {
   assertContentLengthWithinLimit,
   isPayloadSizeLimitError,
@@ -39,6 +36,10 @@ export interface WebhookProcessorOptions {
   actorUserId?: string
   executionId?: string
   correlation?: AsyncExecutionCorrelation
+  /** Epoch ms when the webhook HTTP request was first received (for dispatch-latency metrics). */
+  receivedAt?: number
+  /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
+  triggerTimestampMs?: number
 }
 
 export interface WebhookPreprocessingResult {
@@ -46,35 +47,6 @@ export interface WebhookPreprocessingResult {
   actorUserId?: string
   executionId?: string
   correlation?: AsyncExecutionCorrelation
-}
-
-async function verifyCredentialSetBilling(credentialSetId: string): Promise<{
-  valid: boolean
-  error?: string
-}> {
-  if (!isProd) {
-    return { valid: true }
-  }
-
-  const [set] = await db
-    .select({ organizationId: credentialSet.organizationId })
-    .from(credentialSet)
-    .where(eq(credentialSet.id, credentialSetId))
-    .limit(1)
-
-  if (!set) {
-    return { valid: false, error: 'Credential set not found' }
-  }
-
-  const hasTeamPlan = await isOrganizationOnTeamOrEnterprisePlan(set.organizationId)
-  if (!hasTeamPlan) {
-    return {
-      valid: false,
-      error: 'Credential sets require a Team or Enterprise plan. Please upgrade to continue.',
-    }
-  }
-
-  return { valid: true }
 }
 
 const WEBHOOK_BODY_LABEL = 'Webhook request body'
@@ -328,7 +300,7 @@ async function findWebhookAndWorkflow(
 /**
  * Finds all webhooks matching a path, scoped to a single workflow.
  *
- * Legitimate fan-out (credential sets) is always within one workflow, but paths
+ * Legitimate multi-webhook matches are always within one workflow, but paths
  * are user-controlled and only unique per deployment version, so two tenants can
  * register the same path. On collision we keep only the workflow that registered
  * the path first, so one tenant can never receive another's webhook deliveries.
@@ -394,9 +366,7 @@ export async function findAllWebhooksForPath(
   }
 
   if (results.length > 1) {
-    logger.info(
-      `[${options.requestId}] Found ${results.length} webhooks for path: ${options.path} (credential set fan-out)`
-    )
+    logger.info(`[${options.requestId}] Found ${results.length} webhooks for path: ${options.path}`)
   }
 
   return results
@@ -404,6 +374,16 @@ export async function findAllWebhooksForPath(
 
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
   return resolveEnvVarReferences(value, envVars) as string
+}
+
+/** True when any string value in the provider config contains an env-var reference (`{{VAR}}`). */
+function providerConfigReferencesEnvVars(config: Record<string, unknown>): boolean {
+  for (const value of Object.values(config)) {
+    if (typeof value === 'string' && value.includes('{{')) {
+      return true
+    }
+  }
+  return false
 }
 
 function resolveProviderConfigEnvVars(
@@ -432,22 +412,30 @@ export async function verifyProviderAuth(
   rawBody: string,
   requestId: string
 ): Promise<NextResponse | null> {
+  const handler = getProviderHandler(foundWebhook.provider)
+  const rawProviderConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+
+  /**
+   * Only fetch + decrypt the effective env when there is auth to verify AND the
+   * provider config actually references env vars (`{{VAR}}`). This avoids a DB
+   * read and decryption on the synchronous pre-ack path for the common case.
+   */
   let decryptedEnvVars: Record<string, string> = {}
-  try {
-    decryptedEnvVars = await getEffectiveDecryptedEnv(
-      foundWorkflow.userId,
-      foundWorkflow.workspaceId
-    )
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to fetch environment variables`, {
-      error,
-    })
+  if (handler.verifyAuth && providerConfigReferencesEnvVars(rawProviderConfig)) {
+    try {
+      decryptedEnvVars = await getEffectiveDecryptedEnv(
+        foundWorkflow.userId,
+        foundWorkflow.workspaceId
+      )
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to fetch environment variables`, {
+        error,
+      })
+    }
   }
 
-  const rawProviderConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
   const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
 
-  const handler = getProviderHandler(foundWebhook.provider)
   if (handler.verifyAuth) {
     const authResult = await handler.verifyAuth({
       webhook: foundWebhook,
@@ -565,17 +553,6 @@ export async function queueWebhookExecution(
     }
 
     const credentialId = providerConfig.credentialId as string | undefined
-    const credentialSetId = foundWebhook.credentialSetId as string | undefined
-
-    if (credentialSetId) {
-      const billingCheck = await verifyCredentialSetBilling(credentialSetId)
-      if (!billingCheck.valid) {
-        logger.warn(
-          `[${options.requestId}] Credential set billing check failed: ${billingCheck.error}`
-        )
-        return NextResponse.json({ error: billingCheck.error }, { status: 403 })
-      }
-    }
 
     const actorUserId = options.actorUserId
     if (!actorUserId) {
@@ -611,6 +588,10 @@ export async function queueWebhookExecution(
       blockId: foundWebhook.blockId,
       workspaceId: foundWorkflow.workspaceId,
       ...(credentialId ? { credentialId } : {}),
+      ...(options.receivedAt !== undefined ? { webhookReceivedAt: options.receivedAt } : {}),
+      ...(options.triggerTimestampMs !== undefined
+        ? { triggerTimestampMs: options.triggerTimestampMs }
+        : {}),
     }
 
     const isPolling = isPollingWebhookProvider(payload.provider)
@@ -641,10 +622,18 @@ export async function queueWebhookExecution(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
 
+      /**
+       * Inline runs in-process microseconds after the route resolved the actor,
+       * so reuse it to skip a redundant billed-account lookup. Set only on the
+       * in-process payload — the enqueued/persisted copy omits it so any deferred
+       * re-run re-resolves the current billed account.
+       */
+      const inlinePayload = { ...payload, resolvedActorUserId: actorUserId }
+
       void (async () => {
         try {
           await jobQueue.startJob(jobId)
-          const output = await executeWebhookJob(payload)
+          const output = await executeWebhookJob(inlinePayload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
           const errorMessage = toError(error).message
@@ -746,15 +735,6 @@ export async function processPolledWebhookEvent(
 
     const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
-    const credentialSetId = foundWebhook.credentialSetId as string | undefined
-
-    if (credentialSetId) {
-      const billingCheck = await verifyCredentialSetBilling(credentialSetId)
-      if (!billingCheck.valid) {
-        logger.warn(`[${requestId}] Credential set billing check failed: ${billingCheck.error}`)
-        return { success: false, error: billingCheck.error, statusCode: 403 }
-      }
-    }
 
     const actorUserId = preprocessResult.actorUserId
     if (!actorUserId) {

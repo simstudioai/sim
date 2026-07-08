@@ -7,8 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Duplicate, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Duplicate, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean

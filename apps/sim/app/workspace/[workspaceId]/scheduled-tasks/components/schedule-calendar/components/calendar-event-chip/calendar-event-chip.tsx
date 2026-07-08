@@ -1,8 +1,6 @@
 'use client'
-
+import { chipContentGap, chipPrimaryFillTokens, cn } from '@sim/emcn'
 import { format } from 'date-fns'
-import { chipContentGap, chipPrimaryFillTokens } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type {
   CalendarEvent,
   ScheduledTask,

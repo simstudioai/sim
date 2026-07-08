@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   Button,
   ChipCombobox,
@@ -13,10 +12,11 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
+  handleKeyboardActivation,
   Trash,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
@@ -170,13 +170,13 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
   }
 
   const fieldTypeOptions: ComboboxOption[] = useMemo(() => {
-    return SUPPORTED_FIELD_TYPES.filter((type) => hasAvailableSlots(type)).map((type) => {
+    return SUPPORTED_FIELD_TYPES.reduce<ComboboxOption[]>((acc, type) => {
       const { used, max } = getSlotUsageByFieldType(type)
-      return {
-        value: type,
-        label: `${FIELD_TYPE_LABELS[type]} (${used}/${max})`,
+      if (used < max) {
+        acc.push({ value: type, label: `${FIELD_TYPE_LABELS[type]} (${used}/${max})` })
       }
-    })
+      return acc
+    }, [])
   }, [kbTagDefinitions])
 
   const saveTagDefinition = async () => {

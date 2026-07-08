@@ -1,7 +1,7 @@
 'use client'
 
 import type { ElementType, ReactNode } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
+import { cn } from '@sim/emcn'
 import {
   Calendar,
   Connections,
@@ -13,9 +13,9 @@ import {
   Task,
   TerminalWindow,
   Workflow,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
+import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { cn } from '@/lib/core/utils/cn'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -25,9 +25,9 @@ import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { scheduleKeys } from '@/hooks/queries/schedules'
-import { tableKeys } from '@/hooks/queries/tables'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
@@ -255,9 +255,9 @@ const RESOURCE_INVALIDATORS: Record<
   scheduledtask: (qc, wId) => {
     qc.invalidateQueries({ queryKey: scheduleKeys.list(wId) })
   },
-  log: (qc, _wId, id) => {
+  log: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: logKeys.details() })
-    qc.invalidateQueries({ queryKey: logKeys.detail(id) })
+    qc.invalidateQueries({ queryKey: logKeys.detail(wId, id) })
   },
   /**
    * Integrations are sourced from the static integration catalog

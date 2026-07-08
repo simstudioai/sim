@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from '@/components/emcn'
 import type { McpOauthCallbackMessage, McpOauthCallbackReason } from '@/lib/mcp/oauth'
 import { mcpKeys, useStartMcpOauth } from '@/hooks/queries/mcp'
 

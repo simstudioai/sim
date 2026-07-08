@@ -35,7 +35,7 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
 
   request: {
     url: (params: NotionWriteParams) => {
-      return `https://api.notion.com/v1/blocks/${params.pageId}/children`
+      return `https://api.notion.com/v1/blocks/${params.pageId.trim()}/children`
     },
     method: 'PATCH',
     headers: (params: NotionWriteParams) => {

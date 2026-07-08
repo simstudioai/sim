@@ -1,9 +1,9 @@
 import { db, runOutsideTransactionContext, workflow, workflowDeploymentVersion } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import {
   loadWorkflowFromNormalizedTablesRaw,
   persistMigratedBlocks,
@@ -13,6 +13,7 @@ import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/t
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import type { Edge } from 'reactflow'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -99,6 +100,29 @@ export async function blockExistsInDeployment(
   }
 }
 
+const DEPLOYED_STATE_CACHE_MAX_ENTRIES = 500
+const DEPLOYED_STATE_CACHE_TTL_MS = 5 * 60 * 1000
+
+/**
+ * Caches post-migration deployed state by the immutable `deploymentVersionId`, so
+ * a redeploy/rollback (which changes the active id) self-invalidates. The TTL is
+ * absolute on purpose — it bounds the one non-immutable part, the live credential
+ * remap in `applyBlockMigrations` — so credential changes still propagate.
+ */
+const deployedStateCache = new LRUCache<string, DeployedWorkflowData>({
+  max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
+  ttl: DEPLOYED_STATE_CACHE_TTL_MS,
+})
+
+/** Evicts one deployed-state entry, or clears the cache when no id is given. */
+export function invalidateDeployedStateCache(deploymentVersionId?: string): void {
+  if (deploymentVersionId) {
+    deployedStateCache.delete(deploymentVersionId)
+    return
+  }
+  deployedStateCache.clear()
+}
+
 export async function loadDeployedWorkflowState(
   workflowId: string,
   providedWorkspaceId?: string
@@ -124,6 +148,11 @@ export async function loadDeployedWorkflowState(
       throw new Error(`Workflow ${workflowId} has no active deployment`)
     }
 
+    const cached = deployedStateCache.get(active.id)
+    if (cached) {
+      return structuredClone(cached)
+    }
+
     const state = active.state as WorkflowState & { variables?: Record<string, unknown> }
 
     let resolvedWorkspaceId = providedWorkspaceId
@@ -141,7 +170,7 @@ export async function loadDeployedWorkflowState(
       resolvedWorkspaceId
     )
 
-    return {
+    const deployedState: DeployedWorkflowData = {
       blocks: migratedBlocks,
       edges: state.edges || [],
       loops: state.loops || {},
@@ -150,6 +179,10 @@ export async function loadDeployedWorkflowState(
       isFromNormalizedTables: false,
       deploymentVersionId: active.id,
     }
+
+    deployedStateCache.set(active.id, deployedState)
+
+    return structuredClone(deployedState)
   } catch (error) {
     logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
     throw error
@@ -601,6 +634,23 @@ export async function deployWorkflow(params: {
           success: false as const,
           error: 'Workflow not found',
           errorCode: 'not_found' as const,
+        }
+      }
+
+      // Refuse to deploy an archived (soft-deleted) workflow. Checked under the row
+      // lock so it's atomic with a concurrent fork rollback that archives a
+      // promote-created workflow: a stale promote deploy can never resurrect it into
+      // an archived-but-deployed (incoherent) state.
+      const [archivedRow] = await tx
+        .select({ archivedAt: workflow.archivedAt })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+      if (archivedRow?.archivedAt != null) {
+        return {
+          success: false as const,
+          error: 'Cannot deploy an archived workflow',
+          errorCode: 'validation' as const,
         }
       }
 

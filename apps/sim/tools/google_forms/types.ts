@@ -92,6 +92,8 @@ export interface GoogleFormsGetResponsesParams {
   formId: string
   responseId?: string
   pageSize?: number
+  pageToken?: string
+  filter?: string
 }
 
 // ============================================

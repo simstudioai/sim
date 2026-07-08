@@ -5,9 +5,12 @@ import { googleMapsElevationTool } from '@/tools/google_maps/elevation'
 import { googleMapsGeocodeTool } from '@/tools/google_maps/geocode'
 import { googleMapsGeolocateTool } from '@/tools/google_maps/geolocate'
 import { googleMapsPlaceDetailsTool } from '@/tools/google_maps/place_details'
+import { googleMapsPlacesNearbyTool } from '@/tools/google_maps/places_nearby'
 import { googleMapsPlacesSearchTool } from '@/tools/google_maps/places_search'
+import { googleMapsPollenTool } from '@/tools/google_maps/pollen'
 import { googleMapsReverseGeocodeTool } from '@/tools/google_maps/reverse_geocode'
 import { googleMapsSnapToRoadsTool } from '@/tools/google_maps/snap_to_roads'
+import { googleMapsSolarTool } from '@/tools/google_maps/solar'
 import { googleMapsSpeedLimitsTool } from '@/tools/google_maps/speed_limits'
 import { googleMapsTimezoneTool } from '@/tools/google_maps/timezone'
 import { googleMapsValidateAddressTool } from '@/tools/google_maps/validate_address'
@@ -20,9 +23,12 @@ export {
   googleMapsGeocodeTool,
   googleMapsGeolocateTool,
   googleMapsPlaceDetailsTool,
+  googleMapsPlacesNearbyTool,
   googleMapsPlacesSearchTool,
+  googleMapsPollenTool,
   googleMapsReverseGeocodeTool,
   googleMapsSnapToRoadsTool,
+  googleMapsSolarTool,
   googleMapsSpeedLimitsTool,
   googleMapsTimezoneTool,
   googleMapsValidateAddressTool,

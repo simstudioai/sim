@@ -1,4 +1,6 @@
 export {
+  HighlightedText,
+  MemoizedActionItem,
   MemoizedCommandItem,
   MemoizedFileItem,
   MemoizedIconItem,

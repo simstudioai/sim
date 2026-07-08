@@ -1,7 +1,10 @@
 import { Buffer, isUtf8 } from 'buffer'
+import type { Readable } from 'stream'
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import JSZip from 'jszip'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
@@ -12,6 +15,12 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import {
+  getShareForResource,
+  getSharesForResources,
+  ShareValidationError,
+  upsertFileShare,
+} from '@/lib/public-shares/share-manager'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -20,14 +29,24 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import {
+  downloadFileFromStorage,
+  downloadServableFileFromStorage,
+} from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   assertActiveWorkspaceAccess,
+  getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import {
+  PublicFileSharingNotAllowedError,
+  validatePublicFileSharing,
+} from '@/ee/access-control/utils/permission-check'
 import type { UserFile } from '@/executor/types'
 
 export const dynamic = 'force-dynamic'
@@ -133,6 +152,153 @@ const MAX_GET_CONTENT_FILE_BYTES = 64 * 1024 * 1024
 /** Combined extracted-text cap so the content array stays within the large-value-ref ceiling. */
 const MAX_GET_CONTENT_TOTAL_BYTES = 64 * 1024 * 1024
 
+/** Per-file download cap for the compress operation. */
+const MAX_COMPRESS_FILE_BYTES = 100 * 1024 * 1024
+/** Combined input cap for the compress operation to bound in-memory archiving. */
+const MAX_COMPRESS_TOTAL_BYTES = 100 * 1024 * 1024
+
+/** Ensure an archive name ends with a single `.zip` extension. */
+const ensureZipExtension = (name: string): string =>
+  name.toLowerCase().endsWith('.zip') ? name : `${name}.zip`
+
+/** Strip the trailing extension from a file name (e.g., "report.pdf" -> "report"). */
+const stripExtension = (name: string): string => {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
+/**
+ * Reduce an arbitrary name to a safe, flat file name: takes the final path
+ * segment, drops directory and traversal components, and falls back when the
+ * result would be empty or a dot segment. Used for zip entry names and the
+ * compress archive name so untrusted input cannot introduce nested or
+ * zip-slip-style paths.
+ */
+const toFlatFileName = (name: string, fallback: string): string => {
+  const leaf = name.replace(/\\/g, '/').split('/').pop()?.trim()
+  if (!leaf || leaf === '.' || leaf === '..') return fallback
+  return leaf
+}
+
+/**
+ * Return a zip entry name unique within `usedNames`, appending a numeric suffix
+ * before the extension on collision (e.g., "data.csv" -> "data (1).csv").
+ */
+const uniqueZipEntryName = (name: string, usedNames: Set<string>): string => {
+  if (!usedNames.has(name)) {
+    usedNames.add(name)
+    return name
+  }
+
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ''
+  let counter = 1
+  let candidate = `${base} (${counter})${ext}`
+  while (usedNames.has(candidate)) {
+    counter += 1
+    candidate = `${base} (${counter})${ext}`
+  }
+  usedNames.add(candidate)
+  return candidate
+}
+
+/** Input archive download cap for the decompress operation. */
+const MAX_DECOMPRESS_ARCHIVE_BYTES = 100 * 1024 * 1024
+/** Maximum number of entries extracted from a single archive. */
+const MAX_DECOMPRESS_ENTRIES = 1000
+/** Maximum uncompressed size for any single archive entry. */
+const MAX_DECOMPRESS_ENTRY_BYTES = 100 * 1024 * 1024
+/** Maximum total uncompressed size across all entries, to bound zip-bomb expansion. */
+const MAX_DECOMPRESS_TOTAL_BYTES = 200 * 1024 * 1024
+
+const S_IFMT = 0o170000
+const S_IFLNK = 0o120000
+
+/**
+ * Read a zip entry's declared uncompressed size without materializing it. This
+ * value comes straight from the (attacker-controlled) ZIP metadata, so it is only
+ * usable as a cheap fast-reject for honestly-declared archives — never as the
+ * authoritative cap. {@link inflateEntryWithinCaps} enforces the real limit on the
+ * inflated byte stream.
+ */
+const readEntryUncompressedSize = (entry: JSZip.JSZipObject): number | undefined => {
+  const data = (entry as JSZip.JSZipObject & { _data?: { uncompressedSize?: number } })._data
+  const size = data?.uncompressedSize
+  return typeof size === 'number' && Number.isFinite(size) ? size : undefined
+}
+
+type InflateResult = { ok: true; buffer: Buffer } | { ok: false; reason: 'entry' | 'total' }
+
+/**
+ * Inflate a single zip entry through a streaming counting sink, tearing the
+ * stream down the moment cumulative output would exceed the per-entry cap or the
+ * remaining total budget. The declared uncompressed size in the ZIP header is
+ * attacker-controlled and is NOT trusted here: a forged-small or absent size
+ * cannot cause the full (potentially gigabyte-scale) entry to be materialized in
+ * memory, because enforcement happens on the actual inflated bytes as they
+ * arrive. Peak memory is bounded by the cap plus one DEFLATE chunk.
+ */
+const inflateEntryWithinCaps = (
+  entry: JSZip.JSZipObject,
+  remainingTotalBudget: number
+): Promise<InflateResult> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let size = 0
+    let settled = false
+    const stream = entry.nodeStream() as Readable
+
+    const settle = (result: InflateResult) => {
+      if (settled) return
+      settled = true
+      stream.destroy()
+      resolve(result)
+    }
+
+    stream.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > MAX_DECOMPRESS_ENTRY_BYTES) {
+        settle({ ok: false, reason: 'entry' })
+        return
+      }
+      if (size > remainingTotalBudget) {
+        settle({ ok: false, reason: 'total' })
+        return
+      }
+      chunks.push(chunk)
+    })
+    stream.on('end', () => settle({ ok: true, buffer: Buffer.concat(chunks, size) }))
+    stream.on('error', (error) => {
+      if (settled) return
+      settled = true
+      stream.destroy()
+      reject(error)
+    })
+  })
+
+/** True when a zip entry's unix mode marks it as a symlink (never extracted). */
+const isSymlinkEntry = (entry: JSZip.JSZipObject): boolean => {
+  const mode = (entry as JSZip.JSZipObject & { unixPermissions?: number | null }).unixPermissions
+  return typeof mode === 'number' && (mode & S_IFMT) === S_IFLNK
+}
+
+/**
+ * Normalize a zip entry path into safe workspace folder segments, guarding against
+ * zip-slip. Returns null for traversal (`..`), so the entry is skipped rather than
+ * written outside its intended location.
+ */
+const sanitizeArchiveEntryPath = (rawPath: string): string[] | null => {
+  const segments = rawPath
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== '.')
+
+  if (segments.length === 0 || segments.includes('..')) return null
+  return segments
+}
+
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
 
 /**
@@ -144,7 +310,7 @@ const extractUserFileTextContent = async (
   userFile: UserFile,
   requestId: string
 ): Promise<string> => {
-  const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+  const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger, {
     maxBytes: MAX_GET_CONTENT_FILE_BYTES,
   })
 
@@ -256,12 +422,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        const shares = await getSharesForResources('file', selectedFileIds)
+        const privateReadShare = () => ({
+          visibility: 'private' as const,
+          url: null,
+          allowedEmails: [] as string[],
+        })
+        const toReadShare = (fileId: string) => {
+          const share = shares.get(fileId)
+          if (!share || !share.isActive) return privateReadShare()
+          return {
+            visibility: share.authType,
+            url: share.url,
+            allowedEmails: share.allowedEmails,
+          }
+        }
         const userFiles = files
           .map((file) => workspaceFileToUserFile(file))
           .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
             Boolean(file)
           )
-          .concat(selectedInputFiles)
+          .map((file) => ({ ...file, share: toReadShare(file.id) }))
+          // Picker/upload entries have only a synthetic id (storage key/URL), so they
+          // never carry a canonical share — mark them private without a lookup.
+          .concat(selectedInputFiles.map((file) => ({ ...file, share: privateReadShare() })))
 
         logger.info('Files retrieved', {
           count: userFiles.length,
@@ -416,6 +600,102 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
+      case 'manage_sharing': {
+        const { fileId, fileInput, isActive, authType, password, allowedEmails } = body
+
+        // Check permission before probing file existence so a read-only caller
+        // can't distinguish 404 from 403 as a file-existence side channel.
+        // Publishing is more sensitive than the other mutating ops, so it
+        // requires write/admin (not just workspace access) like the share route.
+        const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+        if (permission !== 'admin' && permission !== 'write') {
+          return NextResponse.json(
+            { success: false, error: 'Insufficient permissions' },
+            { status: 403 }
+          )
+        }
+
+        // Resolve the canonical file id. The basic file picker provides an object
+        // with a storage `key` but no id, so map the key to the workspace file row.
+        let resolvedFileId = typeof fileId === 'string' ? fileId : undefined
+        if (!resolvedFileId && fileInput) {
+          const single = Array.isArray(fileInput) ? fileInput[0] : fileInput
+          if (single && typeof single === 'object') {
+            const record = single as Record<string, unknown>
+            if (typeof record.id === 'string' && record.id) resolvedFileId = record.id
+            else if (typeof record.fileId === 'string' && record.fileId)
+              resolvedFileId = record.fileId
+            else if (typeof record.key === 'string' && record.key) {
+              const meta = await getFileMetadataByKey(record.key, 'workspace')
+              resolvedFileId = meta?.id
+            }
+          }
+        }
+        if (!resolvedFileId) {
+          return NextResponse.json(
+            { success: false, error: 'A valid file is required to manage sharing' },
+            { status: 400 }
+          )
+        }
+
+        const file = await getWorkspaceFile(workspaceId, resolvedFileId)
+        if (!file) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${resolvedFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        // Enabling a share is gated by the org's access-control policy; disabling
+        // is always allowed so users can un-share after the policy is turned on.
+        if (isActive) {
+          // Resolve the auth type the same way upsertFileShare will (falling back
+          // to the existing share's type) so the policy gate can't be bypassed by
+          // re-enabling a pre-existing restricted share without an explicit authType.
+          const existingShare = await getShareForResource('file', resolvedFileId)
+          const resolvedAuthType = authType ?? existingShare?.authType ?? 'public'
+          try {
+            await validatePublicFileSharing(userId, workspaceId, resolvedAuthType)
+          } catch (error) {
+            if (error instanceof PublicFileSharingNotAllowedError) {
+              return NextResponse.json({ success: false, error: error.message }, { status: 403 })
+            }
+            throw error
+          }
+        }
+
+        const share = await upsertFileShare({
+          workspaceId,
+          fileId: resolvedFileId,
+          userId,
+          isActive,
+          authType,
+          password,
+          allowedEmails,
+        })
+
+        recordAudit({
+          workspaceId,
+          actorId: userId,
+          action: isActive ? AuditAction.FILE_SHARED : AuditAction.FILE_SHARE_DISABLED,
+          resourceType: AuditResourceType.FILE,
+          resourceId: resolvedFileId,
+          resourceName: file.name,
+          description: `${isActive ? 'Enabled' : 'Disabled'} public share for "${file.name}"`,
+          request,
+        })
+
+        logger.info('File sharing updated', {
+          fileId: resolvedFileId,
+          isActive,
+          authType: share.authType,
+        })
+
+        // A disabled link doesn't resolve, so don't hand back a dead URL.
+        const responseShare = share.isActive ? share : { ...share, url: '' }
+        return NextResponse.json({ success: true, data: { share: responseShare } })
+      }
+
       case 'append': {
         const { fileName, content } = body
 
@@ -462,6 +742,298 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           await releaseLock(lockKey, lockValue)
         }
       }
+
+      case 'compress': {
+        const { fileId, fileInput, archiveName } = body
+        const requestId = generateRequestId()
+
+        const selectedFileIds = Array.isArray(fileId)
+          ? fileId.map((id) => id.trim()).filter(Boolean)
+          : fileId
+            ? normalizeFileIdList(fileId)
+            : extractFileIdsFromInput(fileInput)
+        const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const workspaceFiles = await Promise.all(
+          selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
+        )
+        const missingFileId = selectedFileIds.find((_, index) => !workspaceFiles[index])
+        if (missingFileId) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${missingFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        const userFiles: UserFile[] = workspaceFiles
+          .map((file) => workspaceFileToUserFile(file))
+          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
+            Boolean(file)
+          )
+          .concat(selectedInputFiles)
+
+        const zip = new JSZip()
+        const usedNames = new Set<string>()
+        let totalBytes = 0
+        for (const userFile of userFiles) {
+          const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+          if (denied) return denied
+
+          const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+            maxBytes: MAX_COMPRESS_FILE_BYTES,
+          })
+          totalBytes += buffer.length
+          if (totalBytes > MAX_COMPRESS_TOTAL_BYTES) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Combined input is too large to compress. Maximum is ${
+                  MAX_COMPRESS_TOTAL_BYTES / (1024 * 1024)
+                } MB.`,
+              },
+              { status: 413 }
+            )
+          }
+          zip.file(uniqueZipEntryName(toFlatFileName(userFile.name, 'file'), usedNames), buffer)
+        }
+
+        const zipBuffer = await zip.generateAsync({
+          type: 'nodebuffer',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        })
+
+        const requestedName = typeof archiveName === 'string' ? archiveName.trim() : ''
+        const baseName = requestedName
+          ? toFlatFileName(requestedName, 'archive')
+          : userFiles.length === 1
+            ? stripExtension(toFlatFileName(userFiles[0].name, 'archive'))
+            : 'archive'
+        const leafName = ensureZipExtension(baseName)
+        const folderId = await ensureWorkspaceFileFolderPath({
+          workspaceId,
+          userId,
+          pathSegments: [],
+        })
+        const result = await uploadWorkspaceFile(
+          workspaceId,
+          userId,
+          zipBuffer,
+          leafName,
+          'application/zip',
+          { folderId }
+        )
+
+        const compressedFile: UserFile = {
+          ...result,
+          url: ensureAbsoluteUrl(result.url),
+          size: zipBuffer.length,
+        }
+
+        logger.info('Files compressed', {
+          fileId: result.id,
+          name: result.name,
+          fileCount: userFiles.length,
+          size: zipBuffer.length,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: compressedFile.id,
+            name: compressedFile.name,
+            size: compressedFile.size,
+            url: compressedFile.url,
+            files: [compressedFile],
+          },
+        })
+      }
+
+      case 'decompress': {
+        const { fileId, fileInput } = body
+        const requestId = generateRequestId()
+
+        const selectedFileIds = fileId ? [fileId] : extractFileIdsFromInput(fileInput)
+        const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+        if (selectedFileIds.length + selectedInputFiles.length > 1) {
+          return NextResponse.json(
+            { success: false, error: 'Decompress accepts a single .zip archive at a time' },
+            { status: 400 }
+          )
+        }
+
+        const workspaceFiles = await Promise.all(
+          selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
+        )
+        const missingFileId = selectedFileIds.find((_, index) => !workspaceFiles[index])
+        if (missingFileId) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${missingFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        const archive = workspaceFiles
+          .map((file) => workspaceFileToUserFile(file))
+          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
+            Boolean(file)
+          )
+          .concat(selectedInputFiles)[0]
+
+        if (!archive) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const denied = await assertToolFileAccess(archive.key, userId, requestId, logger)
+        if (denied) return denied
+
+        const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {
+          maxBytes: MAX_DECOMPRESS_ARCHIVE_BYTES,
+        })
+
+        let zip: JSZip
+        try {
+          zip = await JSZip.loadAsync(archiveBuffer)
+        } catch {
+          return NextResponse.json(
+            { success: false, error: `"${archive.name}" is not a valid .zip archive` },
+            { status: 400 }
+          )
+        }
+
+        const entries = Object.values(zip.files).filter(
+          (entry) => !entry.dir && !isSymlinkEntry(entry)
+        )
+        if (entries.length > MAX_DECOMPRESS_ENTRIES) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Archive has too many entries to extract. Maximum is ${MAX_DECOMPRESS_ENTRIES}.`,
+            },
+            { status: 413 }
+          )
+        }
+
+        const entryTooLargeResponse = (name: string) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: `Archive entry "${name}" is too large to extract. Maximum is ${
+                MAX_DECOMPRESS_ENTRY_BYTES / (1024 * 1024)
+              } MB per file.`,
+            },
+            { status: 413 }
+          )
+        const totalTooLargeResponse = () =>
+          NextResponse.json(
+            {
+              success: false,
+              error: `Archive expands to more than the ${
+                MAX_DECOMPRESS_TOTAL_BYTES / (1024 * 1024)
+              } MB extraction limit.`,
+            },
+            { status: 413 }
+          )
+
+        // Resolve which entries are safe to extract first, so unsafe entries
+        // (skipped below) never count toward the size caps.
+        const safeEntries: Array<{ entry: JSZip.JSZipObject; segments: string[] }> = []
+        let skippedCount = 0
+        for (const entry of entries) {
+          const segments = sanitizeArchiveEntryPath(entry.name)
+          if (!segments) {
+            skippedCount += 1
+            logger.warn('Skipping unsafe archive entry', { name: entry.name })
+            continue
+          }
+          safeEntries.push({ entry, segments })
+        }
+
+        let declaredTotal = 0
+        for (const { entry } of safeEntries) {
+          const declaredSize = readEntryUncompressedSize(entry)
+          if (declaredSize === undefined) continue
+          if (declaredSize > MAX_DECOMPRESS_ENTRY_BYTES) return entryTooLargeResponse(entry.name)
+          declaredTotal += declaredSize
+          if (declaredTotal > MAX_DECOMPRESS_TOTAL_BYTES) return totalTooLargeResponse()
+        }
+
+        const pending: Array<{ segments: string[]; buffer: Buffer }> = []
+        let totalBytes = 0
+        for (const { entry, segments } of safeEntries) {
+          const result = await inflateEntryWithinCaps(
+            entry,
+            MAX_DECOMPRESS_TOTAL_BYTES - totalBytes
+          )
+          if (!result.ok) {
+            return result.reason === 'entry'
+              ? entryTooLargeResponse(entry.name)
+              : totalTooLargeResponse()
+          }
+          totalBytes += result.buffer.length
+          pending.push({ segments, buffer: result.buffer })
+        }
+
+        if (pending.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `No files could be extracted from "${archive.name}".`,
+            },
+            { status: 422 }
+          )
+        }
+
+        const folderIdCache = new Map<string, string | null>()
+        const extractedFiles: UserFile[] = []
+        for (const { segments, buffer } of pending) {
+          const leafName = segments[segments.length - 1]
+          const folderSegments = segments.slice(0, -1)
+          const folderKey = folderSegments.join('/')
+          let folderId = folderIdCache.get(folderKey)
+          if (folderId === undefined) {
+            folderId = await ensureWorkspaceFileFolderPath({
+              workspaceId,
+              userId,
+              pathSegments: folderSegments,
+            })
+            folderIdCache.set(folderKey, folderId)
+          }
+
+          const mimeType = getMimeTypeFromExtension(getFileExtension(leafName))
+          const uploaded = await uploadWorkspaceFile(
+            workspaceId,
+            userId,
+            buffer,
+            leafName,
+            mimeType,
+            { folderId }
+          )
+          extractedFiles.push({ ...uploaded, url: ensureAbsoluteUrl(uploaded.url) })
+        }
+
+        logger.info('Archive decompressed', {
+          fileId: archive.id,
+          name: archive.name,
+          extractedCount: extractedFiles.length,
+          skippedCount,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            files: extractedFiles,
+          },
+        })
+      }
     }
   } catch (error) {
     if (isWorkspaceAccessDeniedError(error)) {
@@ -469,6 +1041,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { success: false, error: 'Workspace access denied' },
         { status: 403 }
       )
+    }
+    const notReady = docNotReadyResponse(error)
+    if (notReady) return notReady
+    if (error instanceof ShareValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }
     const message = getErrorMessage(error, 'Unknown error')
     logger.error('File operation failed', { operation: body.operation, error: message })

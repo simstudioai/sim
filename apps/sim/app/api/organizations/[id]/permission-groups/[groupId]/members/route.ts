@@ -4,7 +4,7 @@ import { permissionGroupMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { addPermissionGroupMemberContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -13,9 +13,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
 import { isOrganizationMember } from '@/lib/workspaces/permissions/utils'
 import {
+  type AllMembersConflict,
   acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
+  findAllMembersWorkspaceConflict,
   findScopeConflicts,
+  formatAllMembersConflictError,
   formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
@@ -102,10 +105,9 @@ export const POST = withRouteHandler(
         // the user in two groups that overlap on a workspace.
         await acquirePermissionGroupOrgLock(tx, organizationId)
 
-        // Re-read the group's scope under the lock: a concurrent scope change may
-        // have flipped all-vs-specific (and cleared its workspaces) since the
-        // pre-transaction load, so the conflict check must use one consistent
-        // snapshot of appliesToAllWorkspaces + workspaces.
+        // Re-read the group under the lock: a concurrent scope change may have
+        // changed its workspaces since the pre-transaction load, so the conflict
+        // check uses one consistent snapshot.
         const lockedGroup = await loadGroupInOrganization(id, organizationId, tx)
         if (!lockedGroup) {
           throw new Error('GROUP_NOT_FOUND')
@@ -127,16 +129,13 @@ export const POST = withRouteHandler(
         }
 
         // A user may belong to multiple groups, but only one may govern any given
-        // workspace. Reject when this group's scope would overlap a group the user
-        // is already in (all-vs-all, or specific groups sharing a workspace).
-        const groupWorkspaceIds = lockedGroup.appliesToAllWorkspaces
-          ? []
-          : (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
+        // workspace. Reject when the user is already an explicit member of another
+        // group that shares one of this group's workspaces.
+        const groupWorkspaceIds = (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
         const conflicts = await findScopeConflicts(
           {
             organizationId,
             excludeGroupId: id,
-            appliesToAllWorkspaces: lockedGroup.appliesToAllWorkspaces,
             workspaceIds: groupWorkspaceIds,
             candidateUserIds: [userId],
           },
@@ -238,6 +237,10 @@ export const DELETE = withRouteHandler(
       return NextResponse.json({ error: 'memberId is required' }, { status: 400 })
     }
 
+    // Populated inside the transaction when an all-members scope conflict is
+    // detected, so the catch can format the 409 after the rollback.
+    let allMembersConflict: AllMembersConflict | null = null
+
     try {
       const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
       if (denied) return denied
@@ -247,27 +250,58 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
       }
 
-      const [memberToRemove] = await db
-        .select({
-          id: permissionGroupMember.id,
-          userId: permissionGroupMember.userId,
-          email: user.email,
-        })
-        .from(permissionGroupMember)
-        .innerJoin(user, eq(permissionGroupMember.userId, user.id))
-        .where(
-          and(
-            eq(permissionGroupMember.id, memberId),
-            eq(permissionGroupMember.permissionGroupId, id)
+      const memberToRemove = await db.transaction(async (tx) => {
+        // Serialize permission-group writes for this org so the last-member check
+        // and the delete commit atomically: removing the last member turns a
+        // workspace group into an all-members group, which is unique per workspace.
+        await acquirePermissionGroupOrgLock(tx, organizationId)
+
+        const lockedGroup = await loadGroupInOrganization(id, organizationId, tx)
+        if (!lockedGroup) {
+          throw new Error('GROUP_NOT_FOUND')
+        }
+
+        const [member] = await tx
+          .select({
+            id: permissionGroupMember.id,
+            userId: permissionGroupMember.userId,
+            email: user.email,
+          })
+          .from(permissionGroupMember)
+          .innerJoin(user, eq(permissionGroupMember.userId, user.id))
+          .where(
+            and(
+              eq(permissionGroupMember.id, memberId),
+              eq(permissionGroupMember.permissionGroupId, id)
+            )
           )
-        )
-        .limit(1)
+          .limit(1)
 
-      if (!memberToRemove) {
-        return NextResponse.json({ error: 'Member not found' }, { status: 404 })
-      }
+        if (!member) {
+          throw new Error('MEMBER_NOT_FOUND')
+        }
 
-      await db.delete(permissionGroupMember).where(eq(permissionGroupMember.id, memberId))
+        if (!lockedGroup.isDefault) {
+          const [memberCountRow] = await tx
+            .select({ value: count() })
+            .from(permissionGroupMember)
+            .where(eq(permissionGroupMember.permissionGroupId, id))
+          if ((memberCountRow?.value ?? 0) <= 1) {
+            const workspaceIds = (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
+            const conflict = await findAllMembersWorkspaceConflict(
+              { organizationId, excludeGroupId: id, workspaceIds },
+              tx
+            )
+            if (conflict) {
+              allMembersConflict = conflict
+              throw new Error('ALL_MEMBERS_CONFLICT')
+            }
+          }
+        }
+
+        await tx.delete(permissionGroupMember).where(eq(permissionGroupMember.id, memberId))
+        return member
+      })
 
       logger.info('Removed member from permission group', {
         permissionGroupId: id,
@@ -297,6 +331,28 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      if (error instanceof Error && error.message === 'GROUP_NOT_FOUND') {
+        return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
+      }
+      if (error instanceof Error && error.message === 'MEMBER_NOT_FOUND') {
+        return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      }
+      if (
+        error instanceof Error &&
+        error.message === 'ALL_MEMBERS_CONFLICT' &&
+        allMembersConflict
+      ) {
+        return NextResponse.json(
+          { error: formatAllMembersConflictError(allMembersConflict) },
+          { status: 409 }
+        )
+      }
+      if (getPostgresErrorCode(error) === '55P03') {
+        return NextResponse.json(
+          { error: 'This group is being updated by another request. Please try again.' },
+          { status: 503 }
+        )
+      }
       logger.error('Error removing member from permission group', error)
       return NextResponse.json({ error: 'Failed to remove member' }, { status: 500 })
     }

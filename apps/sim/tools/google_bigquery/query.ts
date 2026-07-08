@@ -139,7 +139,11 @@ export const googleBigQueryQueryTool: ToolConfig<
       optional: true,
     },
     jobComplete: { type: 'boolean', description: 'Whether the query completed within the timeout' },
-    totalBytesProcessed: { type: 'string', description: 'Total bytes processed by the query' },
+    totalBytesProcessed: {
+      type: 'string',
+      description: 'Total bytes processed by the query',
+      optional: true,
+    },
     cacheHit: {
       type: 'boolean',
       description: 'Whether the query result was served from cache',

@@ -17,6 +17,7 @@ import {
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
+import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -60,6 +61,19 @@ export interface TableImportPayload {
   mapping?: CsvHeaderMapping
   /** (append/replace) CSV headers to auto-create as new columns (types inferred from the sample). */
   createColumns?: string[]
+  /**
+   * Whether the source object is deleted once the import is terminal. Defaults
+   * to true (the UI routes upload a single-use temp object per import); pass
+   * false when importing a persistent workspace file (Mothership) that must
+   * survive the import.
+   */
+  deleteSourceFile?: boolean
+  /**
+   * IANA zone used to interpret naive datetime strings in the file. The
+   * kickoff routes resolve it (request → user setting → UTC) so the detached
+   * worker never needs a settings lookup.
+   */
+  timezone?: string
 }
 
 /**
@@ -94,6 +108,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // order keys from it.
     const basePosition = mode === 'append' ? await nextImportStartPosition(tableId) : 0
     let lastOrderKey = mode === 'append' ? await nextImportStartOrderKey(tableId) : null
+
+    // Append keeps the existing rows; create/replace start from empty (replace deletes
+    // existing rows in resolveSetup). Per-batch capacity is checked against this base + the
+    // running total, so a stream that crosses the plan limit fails within one batch.
+    const existingRowCount = mode === 'append' ? table.rowCount : 0
 
     // Count bytes as they flow so the row total can be extrapolated from byte progress.
     let bytesRead = 0
@@ -186,7 +205,14 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
       const owns = await updateJobProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
-      const coerced = coerceRowsForTable(rows, schema, headerToColumn)
+      const coerced = coerceRowsForTable(rows, schema, headerToColumn, {
+        timezone: payload.timezone,
+      })
+      const rowLimit = await assertRowCapacity({
+        workspaceId,
+        currentRowCount: existingRowCount + inserted,
+        addedRows: coerced.length,
+      })
       const result = await bulkInsertImportBatch(
         {
           tableId,
@@ -199,6 +225,12 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         { ...table, schema },
         requestId
       )
+      notifyTableRowUsage({
+        workspaceId,
+        currentRowCount: existingRowCount + inserted,
+        addedRows: result.inserted,
+        limit: rowLimit,
+      })
       inserted += result.inserted
       lastOrderKey = result.lastOrderKey
       // Emit after the first batch, then every interval, so the bar appears early without flooding.
@@ -350,9 +382,12 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // Release the storage stream so its HTTP connection doesn't leak on failure.
     source?.destroy()
     // The uploaded source file is single-use (a fresh upload per import) — delete it once the
-    // import is terminal so the workspace bucket doesn't accumulate. Best-effort.
-    await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
-      logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
-    })
+    // import is terminal so the workspace bucket doesn't accumulate. Best-effort. Skipped for
+    // persistent workspace files (deleteSourceFile: false).
+    if (payload.deleteSourceFile !== false) {
+      await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
+        logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
+      })
+    }
   }
 }

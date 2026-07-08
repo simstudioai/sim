@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerToolParams,
   MicrosoftPlannerUpdateTaskDetailsResponse,
+  PlannerTaskDetails,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -16,7 +18,7 @@ export const updateTaskDetailsTool: ToolConfig<
   description:
     'Update task details including description, checklist items, and references in Microsoft Planner',
   version: '1.0',
-  errorExtractor: 'nested-error-object',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -70,10 +72,11 @@ export const updateTaskDetailsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      if (!params.taskId) {
+      const taskId = params.taskId?.trim()
+      if (!taskId) {
         throw new Error('Task ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}/details`
+      return `https://graph.microsoft.com/v1.0/planner/tasks/${taskId}/details`
     },
     method: 'PATCH',
     headers: (params) => {
@@ -127,11 +130,23 @@ export const updateTaskDetailsTool: ToolConfig<
       }
 
       if (params.checklist) {
-        body.checklist = params.checklist
+        try {
+          body.checklist =
+            typeof params.checklist === 'string' ? JSON.parse(params.checklist) : params.checklist
+        } catch {
+          throw new Error('Checklist must be valid JSON')
+        }
       }
 
       if (params.references) {
-        body.references = params.references
+        try {
+          body.references =
+            typeof params.references === 'string'
+              ? JSON.parse(params.references)
+              : params.references
+        } catch {
+          throw new Error('References must be valid JSON')
+        }
       }
 
       if (params.previewType) {
@@ -147,8 +162,24 @@ export const updateTaskDetailsTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const taskDetails = await response.json()
+  transformResponse: async (response: Response, params?: MicrosoftPlannerToolParams) => {
+    // Prefer: return=representation requests a body, but the service may still return
+    // 204 No Content for some tenants/requests
+    const text = await response.text()
+    if (!text || text.trim() === '') {
+      logger.info('Update successful but no response body returned (204 No Content)')
+      return {
+        success: true,
+        output: {
+          taskDetails: {} as PlannerTaskDetails,
+          metadata: {
+            taskId: params?.taskId?.trim(),
+          },
+        },
+      }
+    }
+
+    const taskDetails = JSON.parse(text)
     logger.info('Updated task details:', taskDetails)
 
     const result: MicrosoftPlannerUpdateTaskDetailsResponse = {

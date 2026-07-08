@@ -11,20 +11,36 @@ import {
   useRef,
   useState,
 } from 'react'
+import {
+  Button,
+  chipVariants,
+  cn,
+  Expandable,
+  ExpandableContent,
+  handleKeyboardActivation,
+  Info,
+} from '@sim/emcn'
 import clsx from 'clsx'
 import { ChevronDown, Search } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Button, chipVariants, Expandable, ExpandableContent, Info } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureEvent } from '@/lib/posthog/client'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { ToolbarItemContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
 import { useToolbarItemInteractions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+import {
+  buildCustomBlockConfig,
+  CUSTOM_BLOCK_TILE_COLOR,
+  isCustomBlockType,
+} from '@/blocks/custom/build-config'
+import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
+import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
+import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
 import { useToolbarStore } from '@/stores/panel'
@@ -119,9 +135,10 @@ const ToolbarItem = memo(function ToolbarItem({
         {Icon && (
           <Icon
             className={clsx(
-              'toolbar-item-icon text-white transition-transform duration-200',
+              'toolbar-item-icon transition-transform duration-200',
+              getTileIconColorClass(item.bgColor),
               'group-hover:scale-110',
-              '!size-[10px]'
+              'size-[10px]'
             )}
           />
         )}
@@ -185,8 +202,14 @@ let cachedTools: BlockItem[] | null = null
 function ensureBlockCaches() {
   if (cachedBlocks !== null && cachedTools !== null) return
 
-  const regularBlockConfigs = getCanonicalBlocksByCategory('blocks')
-  const toolConfigs = getCanonicalBlocksByCategory('tools')
+  // Exclude custom (deploy-as-block) blocks — they render in their own reactive
+  // "Custom Blocks" section, never in the static Core Blocks / Integrations caches.
+  const regularBlockConfigs = getCanonicalBlocksByCategory('blocks').filter(
+    (b) => !isCustomBlockType(b.type)
+  )
+  const toolConfigs = getCanonicalBlocksByCategory('tools').filter(
+    (b) => !isCustomBlockType(b.type)
+  )
 
   const regularBlockItems: BlockItem[] = regularBlockConfigs.map((block) => ({
     name: block.name,
@@ -343,10 +366,12 @@ export const Toolbar = memo(
     const searchInputRef = useRef<HTMLInputElement>(null)
     const triggerItemRefs = useRef<Array<HTMLDivElement | null>>([])
     const blockItemRefs = useRef<Array<HTMLDivElement | null>>([])
+    const customBlockItemRefs = useRef<Array<HTMLDivElement | null>>([])
     const toolItemRefs = useRef<Array<HTMLDivElement | null>>([])
 
     const triggerRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
     const blockRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
+    const customBlockRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
     const toolRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
 
     const getTriggerRefCallback = useCallback((index: number) => {
@@ -365,6 +390,15 @@ export const Toolbar = memo(
         }
       }
       return blockRefCallbacks.current[index]
+    }, [])
+
+    const getCustomBlockRefCallback = useCallback((index: number) => {
+      if (!customBlockRefCallbacks.current[index]) {
+        customBlockRefCallbacks.current[index] = (el) => {
+          customBlockItemRefs.current[index] = el
+        }
+      }
+      return customBlockRefCallbacks.current[index]
     }, [])
 
     const getToolRefCallback = useCallback((index: number) => {
@@ -413,9 +447,50 @@ export const Toolbar = memo(
 
     const { handleDragStart, handleItemClick } = useToolbarItemInteractions()
 
+    const params = useParams()
+    const workspaceId = params?.workspaceId as string | undefined
+    const currentWorkflowId = params?.workflowId as string | undefined
+    const { data: customBlocksData } = useCustomBlocks(workspaceId)
+    // No-icon custom blocks fall back to the org's whitelabel logo, then the glyph.
+    const { data: whitelabel } = useWhitelabelSettings(customBlocksData?.[0]?.organizationId)
+    const fallbackIconUrl = whitelabel?.logoUrl ?? null
+
     const allTriggers = getTriggers()
     const allBlocks = getBlocks()
     const allTools = getTools()
+
+    // Published custom blocks are their own section. Exclude disabled blocks (still
+    // resolvable so placed instances survive, but not offered for new placement) and
+    // the block bound to the CURRENT workflow — adding a workflow's own block recurses.
+    const allCustomBlocks = useMemo(() => {
+      if (!customBlocksData?.length) return []
+      return customBlocksData
+        .filter((cb) => cb.enabled && cb.workflowId !== currentWorkflowId)
+        .map((cb) => {
+          const icon = getCustomBlockIcon(cb.iconUrl, fallbackIconUrl)
+          // An image (uploaded or whitelabel) renders on a transparent tile; the
+          // default glyph keeps the neutral tile so it stays visible.
+          const tileColor = cb.iconUrl || fallbackIconUrl ? 'transparent' : CUSTOM_BLOCK_TILE_COLOR
+          return {
+            name: cb.name,
+            type: cb.type,
+            config: buildCustomBlockConfig(
+              {
+                type: cb.type,
+                name: cb.name,
+                description: cb.description,
+                workflowId: cb.workflowId,
+                exposedOutputs: cb.exposedOutputs,
+              },
+              cb.inputFields,
+              { icon, bgColor: tileColor }
+            ),
+            icon,
+            bgColor: tileColor,
+          } satisfies BlockItem
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+    }, [customBlocksData, currentWorkflowId, fallbackIconUrl])
 
     const visibleTriggers = useMemo(() => {
       if (sandboxAllowedBlocks !== null) return []
@@ -427,6 +502,12 @@ export const Toolbar = memo(
       if (sandboxAllowedBlocks === null) return permitted
       return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
     }, [filterBlocks, allBlocks, sandboxAllowedBlocks])
+
+    const visibleCustomBlocks = useMemo(() => {
+      const permitted = filterBlocks(allCustomBlocks)
+      if (sandboxAllowedBlocks === null) return permitted
+      return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
+    }, [filterBlocks, allCustomBlocks, sandboxAllowedBlocks])
 
     const visibleTools = useMemo(() => {
       const permitted = filterBlocks(allTools)
@@ -449,6 +530,13 @@ export const Toolbar = memo(
       return visibleBlocks.filter((block) => block.name.toLowerCase().includes(normalizedQuery))
     }, [visibleBlocks, isSearching, normalizedQuery])
 
+    const filteredCustomBlocks = useMemo(() => {
+      if (!isSearching) return visibleCustomBlocks
+      return visibleCustomBlocks.filter((block) =>
+        block.name.toLowerCase().includes(normalizedQuery)
+      )
+    }, [visibleCustomBlocks, isSearching, normalizedQuery])
+
     const filteredTools = useMemo(() => {
       if (!isSearching) return visibleTools
       return visibleTools.filter((tool) => tool.name.toLowerCase().includes(normalizedQuery))
@@ -460,6 +548,7 @@ export const Toolbar = memo(
      */
     triggerItemRefs.current.length = filteredTriggers.length
     blockItemRefs.current.length = filteredBlocks.length
+    customBlockItemRefs.current.length = filteredCustomBlocks.length
     toolItemRefs.current.length = filteredTools.length
 
     /**
@@ -470,6 +559,7 @@ export const Toolbar = memo(
     const sectionExpanded: Record<ToolbarSectionKey, boolean> = {
       triggers: isSearching ? filteredTriggers.length > 0 : expandedSections.triggers,
       blocks: isSearching ? filteredBlocks.length > 0 : expandedSections.blocks,
+      customBlocks: isSearching ? filteredCustomBlocks.length > 0 : expandedSections.customBlocks,
       tools: isSearching ? filteredTools.length > 0 : expandedSections.tools,
     }
 
@@ -743,6 +833,23 @@ export const Toolbar = memo(
             onItemClick={handleItemClick}
             onContextMenu={handleItemContextMenu}
           />
+          {allCustomBlocks.length > 0 && (
+            <ToolbarSection
+              label='Custom Blocks'
+              tooltip='Workflows published as reusable blocks across your organization'
+              sectionKey='customBlocks'
+              items={filteredCustomBlocks}
+              isTrigger={false}
+              expanded={sectionExpanded.customBlocks}
+              searching={isSearching}
+              animate={animationsEnabled}
+              onToggle={handleSectionToggle}
+              getItemRef={getCustomBlockRefCallback}
+              onDragStart={handleDragStart}
+              onItemClick={handleItemClick}
+              onContextMenu={handleItemContextMenu}
+            />
+          )}
           <ToolbarSection
             label='Integrations'
             tooltip='Connect agents to external services'

@@ -27,10 +27,6 @@ export interface GetBlockUpstreamReferencesParams {
   blockIds: string[]
 }
 
-export interface ListFoldersParams {
-  workspaceId?: string
-}
-
 // === Workflow Mutation Params ===
 
 export interface CreateWorkflowParams {
@@ -260,6 +256,15 @@ export interface RenameFolderParams {
 
 export interface DeleteFolderParams {
   folderIds: string[]
+}
+
+export interface ManageFolderParams {
+  operation: string
+  path?: string
+  folderId?: string
+  name?: string
+  destinationPath?: string
+  parentId?: string | null
 }
 
 export interface UpdateWorkspaceMcpServerParams {

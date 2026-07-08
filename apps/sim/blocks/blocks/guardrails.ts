@@ -1,4 +1,5 @@
 import { ShieldCheckIcon } from '@/components/icons'
+import { PII_ENTITY_GROUPS, PII_LANGUAGES } from '@/lib/guardrails/pii-entities'
 import type { BlockConfig } from '@/blocks/types'
 import {
   getModelOptions,
@@ -170,65 +171,15 @@ Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, 
       title: 'PII Types to Detect',
       type: 'grouped-checkbox-list',
       maxHeight: 400,
-      options: [
-        // Common PII types
-        { label: 'Person name', id: 'PERSON', group: 'Common' },
-        { label: 'Email address', id: 'EMAIL_ADDRESS', group: 'Common' },
-        { label: 'Phone number', id: 'PHONE_NUMBER', group: 'Common' },
-        { label: 'Location', id: 'LOCATION', group: 'Common' },
-        { label: 'Date or time', id: 'DATE_TIME', group: 'Common' },
-        { label: 'IP address', id: 'IP_ADDRESS', group: 'Common' },
-        { label: 'URL', id: 'URL', group: 'Common' },
-        { label: 'Credit card number', id: 'CREDIT_CARD', group: 'Common' },
-        { label: 'International bank account number (IBAN)', id: 'IBAN_CODE', group: 'Common' },
-        { label: 'Cryptocurrency wallet address', id: 'CRYPTO', group: 'Common' },
-        { label: 'Medical license number', id: 'MEDICAL_LICENSE', group: 'Common' },
-        { label: 'Nationality / religion / political group', id: 'NRP', group: 'Common' },
-
-        // USA
-        { label: 'US bank account number', id: 'US_BANK_NUMBER', group: 'USA' },
-        { label: 'US driver license number', id: 'US_DRIVER_LICENSE', group: 'USA' },
-        {
-          label: 'US individual taxpayer identification number (ITIN)',
-          id: 'US_ITIN',
-          group: 'USA',
-        },
-        { label: 'US passport number', id: 'US_PASSPORT', group: 'USA' },
-        { label: 'US Social Security number', id: 'US_SSN', group: 'USA' },
-
-        // UK
-        { label: 'UK National Insurance number', id: 'UK_NINO', group: 'UK' },
-        { label: 'UK NHS number', id: 'UK_NHS', group: 'UK' },
-
-        // Spain
-        { label: 'Spanish NIF number', id: 'ES_NIF', group: 'Spain' },
-        { label: 'Spanish NIE number', id: 'ES_NIE', group: 'Spain' },
-
-        // Italy
-        { label: 'Italian fiscal code', id: 'IT_FISCAL_CODE', group: 'Italy' },
-        { label: 'Italian driver license', id: 'IT_DRIVER_LICENSE', group: 'Italy' },
-        { label: 'Italian identity card', id: 'IT_IDENTITY_CARD', group: 'Italy' },
-        { label: 'Italian passport', id: 'IT_PASSPORT', group: 'Italy' },
-
-        // Poland
-        { label: 'Polish PESEL', id: 'PL_PESEL', group: 'Poland' },
-
-        // Singapore
-        { label: 'Singapore NRIC/FIN', id: 'SG_NRIC_FIN', group: 'Singapore' },
-
-        // Australia
-        { label: 'Australian business number (ABN)', id: 'AU_ABN', group: 'Australia' },
-        { label: 'Australian company number (ACN)', id: 'AU_ACN', group: 'Australia' },
-        { label: 'Australian tax file number (TFN)', id: 'AU_TFN', group: 'Australia' },
-        { label: 'Australian Medicare number', id: 'AU_MEDICARE', group: 'Australia' },
-
-        // India
-        { label: 'Indian Aadhaar', id: 'IN_AADHAAR', group: 'India' },
-        { label: 'Indian PAN', id: 'IN_PAN', group: 'India' },
-        { label: 'Indian vehicle registration', id: 'IN_VEHICLE_REGISTRATION', group: 'India' },
-        { label: 'Indian voter number', id: 'IN_VOTER', group: 'India' },
-        { label: 'Indian passport', id: 'IN_PASSPORT', group: 'India' },
-      ],
+      // Driven by the shared catalog (includes VIN and custom recognizers) so the
+      // block and the Data Retention settings never drift.
+      options: PII_ENTITY_GROUPS.flatMap((group) =>
+        group.entities.map((entity) => ({
+          label: entity.label,
+          id: entity.value,
+          group: group.label,
+        }))
+      ),
       condition: {
         field: 'validationType',
         value: ['pii'],
@@ -255,13 +206,7 @@ Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, 
       id: 'piiLanguage',
       title: 'Language',
       type: 'dropdown',
-      options: [
-        { label: 'English', id: 'en' },
-        { label: 'Spanish', id: 'es' },
-        { label: 'Italian', id: 'it' },
-        { label: 'Polish', id: 'pl' },
-        { label: 'Finnish', id: 'fi' },
-      ],
+      options: PII_LANGUAGES.map((language) => ({ label: language.label, id: language.value })),
       defaultValue: 'en',
       condition: {
         field: 'validationType',

@@ -4,6 +4,7 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
+import { runScriptMigrations } from '../script-migrations/index'
 
 /**
  * Concurrent-index convention: plain `CREATE INDEX` write-blocks large/hot
@@ -45,7 +46,12 @@ const hasDirectMigrationUrl = Boolean(process.env.MIGRATION_DATABASE_URL)
  * default recycles the connection after 30–60 min, silently dropping the
  * session advisory lock and `SET`s.
  */
-const client = postgres(url, { max: 1, connect_timeout: 10, max_lifetime: null })
+const client = postgres(url, {
+  max: 1,
+  connect_timeout: 10,
+  max_lifetime: null,
+  connection: { application_name: 'sim-migrate' },
+})
 
 /**
  * Cross-process migration lock. drizzle's `migrate()` has no built-in lock, so
@@ -66,14 +72,48 @@ const DDL_LOCK_TIMEOUT = '5s'
 const MAX_MIGRATE_ATTEMPTS = 8
 const MIGRATE_RETRY_BACKOFF = { baseMs: 2_000, maxMs: 30_000 } as const
 
+const CONNECT_MAX_ATTEMPTS = 10
+const CONNECT_RETRY_BACKOFF = { baseMs: 1_000, maxMs: 15_000 } as const
+
+/**
+ * Error codes that mean the database was momentarily unreachable rather than
+ * the migration being wrong: chiefly `53300` (too_many_connections — every
+ * non-superuser slot was taken, surfaced as "remaining connection slots are
+ * reserved for roles with the SUPERUSER attribute"), the `08xxx`
+ * connection_exception class, and the postgres-js driver's own transport
+ * codes. These are retried while opening the session; anything else is fatal.
+ */
+const TRANSIENT_CONNECT_CODES = new Set([
+  '53300',
+  '53400',
+  'CONNECT_TIMEOUT',
+  'CONNECTION_CLOSED',
+  'CONNECTION_DESTROYED',
+  'CONNECTION_ENDED',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENOTFOUND',
+])
+
+function isTransientConnectError(error: unknown): boolean {
+  const code = getPostgresErrorCode(error)
+  if (!code) return false
+  return TRANSIENT_CONNECT_CODES.has(code) || code.startsWith('08')
+}
+
 /** Backend pid of the lock-holding session; a change means the lock was lost. */
 let lockSessionPid = 0
 
 try {
+  await connectWithRetry()
   await acquireMigrationLock()
   try {
     await runMigrationsWithRetry()
     console.log('Migrations applied successfully.')
+    await assertLockSessionHeld()
+    await runScriptMigrations(client)
     await warnOnInvalidIndexes()
   } finally {
     await releaseMigrationLock()
@@ -84,6 +124,31 @@ try {
   process.exit(1)
 } finally {
   await client.end()
+}
+
+/**
+ * Open the migration session before taking the advisory lock, retrying
+ * transient connection failures with bounded backoff. The deploy database can
+ * briefly exhaust every non-superuser connection slot at peak (`53300`); the
+ * migration is a single short-lived session, so waiting out a spike that frees
+ * within seconds is far safer than failing the whole deploy. Non-transient
+ * errors (auth, unknown host config, etc.) still fail fast.
+ */
+async function connectWithRetry(): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await client`SELECT 1`
+      return
+    } catch (error) {
+      if (!isTransientConnectError(error) || attempt >= CONNECT_MAX_ATTEMPTS) throw error
+      const delayMs = backoffWithJitter(attempt, null, CONNECT_RETRY_BACKOFF)
+      console.warn(
+        `WARN: database unavailable (${getPostgresErrorCode(error)}); ` +
+          `attempt ${attempt}/${CONNECT_MAX_ATTEMPTS}, retrying in ${Math.round(delayMs)}ms.`
+      )
+      await sleep(delayMs)
+    }
+  }
 }
 
 /**
@@ -117,17 +182,25 @@ async function acquireMigrationLock(): Promise<void> {
  * Replays are safe: drizzle rolls the batch back on failure, and post-COMMIT
  * CONCURRENTLY statements are idempotent by convention.
  */
+/**
+ * Verify the session still holds the migration advisory lock: a changed
+ * backend pid means the connection was recycled and the lock silently dropped.
+ * Only sound on a direct connection — see `hasDirectMigrationUrl`.
+ */
+async function assertLockSessionHeld(): Promise<void> {
+  if (!hasDirectMigrationUrl) return
+  const [{ pid }] = await client`SELECT pg_backend_pid() AS pid`
+  if (pid !== lockSessionPid) {
+    throw new Error(
+      `Database session changed mid-run (backend pid ${lockSessionPid} -> ${pid}); ` +
+        'the migration advisory lock was lost. Aborting so a fresh runner can retry safely.'
+    )
+  }
+}
+
 async function runMigrationsWithRetry(): Promise<void> {
   for (let attempt = 1; ; attempt++) {
-    if (hasDirectMigrationUrl) {
-      const [{ pid }] = await client`SELECT pg_backend_pid() AS pid`
-      if (pid !== lockSessionPid) {
-        throw new Error(
-          `Database session changed mid-run (backend pid ${lockSessionPid} -> ${pid}); ` +
-            'the migration advisory lock was lost. Aborting so a fresh runner can retry safely.'
-        )
-      }
-    }
+    await assertLockSessionHeld()
     await client.unsafe('SET statement_timeout = 0')
     await client.unsafe(`SET lock_timeout = '${DDL_LOCK_TIMEOUT}'`)
     try {

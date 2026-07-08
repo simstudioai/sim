@@ -2,6 +2,23 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Badge,
+  Button,
+  ChevronDown,
+  ChipInput,
+  Code,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Duplicate,
+  Search as SearchIcon,
+  Tooltip,
+  useCopyToClipboard,
+} from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
@@ -14,25 +31,9 @@ import {
   X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import {
-  Badge,
-  Button,
-  ChevronDown,
-  ChipInput,
-  Code,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Duplicate,
-  Search as SearchIcon,
-  Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
-  DEFAULT_BLOCK_COLOR,
+  adjustBgForContrast,
   formatCostAmount,
   formatTokenCount,
   formatTps,
@@ -41,11 +42,12 @@ import {
   getDisplayName,
   hasErrorInTree,
   hasUnhandledErrorInTree,
+  iconColorClass,
   isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200
@@ -117,31 +119,6 @@ function getDisplayChildren(span: TraceSpan): TraceSpan[] {
   const hasToolCall = kids.some((c) => c.type?.toLowerCase() === 'tool')
   if (isAgent && !hasToolCall) return kids.filter((c) => c.type?.toLowerCase() !== 'model')
   return kids
-}
-
-/** Returns 'text-white' for dark backgrounds, dark text for light ones. */
-function iconColorClass(bgColor: string): string {
-  const hex = bgColor.replace('#', '')
-  if (hex.length !== 6) return 'text-white'
-  const r = Number.parseInt(hex.slice(0, 2), 16)
-  const g = Number.parseInt(hex.slice(2, 4), 16)
-  const b = Number.parseInt(hex.slice(4, 6), 16)
-  return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
-}
-
-/**
- * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).
- * Below the luminance threshold we fall back to the neutral block color used
- * for blocks with no distinct identity; everything brighter passes through.
- */
-function adjustBgForContrast(bgColor: string): string {
-  const hex = bgColor.replace('#', '')
-  if (hex.length !== 6) return bgColor
-  const r = Number.parseInt(hex.slice(0, 2), 16)
-  const g = Number.parseInt(hex.slice(2, 4), 16)
-  const b = Number.parseInt(hex.slice(4, 6), 16)
-  if (r * 299 + g * 587 + b * 114 < 30_000) return DEFAULT_BLOCK_COLOR
-  return bgColor
 }
 
 /**
@@ -691,7 +668,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   const endedAt = parseTime(span.endTime)
 
   const metaEntries: { label: string; value: string }[] = []
-  metaEntries.push({ label: 'Type', value: span.type })
+  metaEntries.push({
+    label: 'Type',
+    value: isCustomBlockType(span.type) ? 'custom block' : span.type,
+  })
   metaEntries.push({ label: 'Duration', value: formatDuration(duration, { precision: 2 }) || '—' })
   if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
   if (span.model) metaEntries.push({ label: 'Model', value: span.model })

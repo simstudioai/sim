@@ -13,6 +13,7 @@ const {
   mockDispatchAfterBatchInsert,
   mockMarkTableImporting,
   mockReleaseImportClaim,
+  mockGetMaxRowsPerTable,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockImportAppendRows: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockDispatchAfterBatchInsert: vi.fn(),
   mockMarkTableImporting: vi.fn(),
   mockReleaseImportClaim: vi.fn(),
+  mockGetMaxRowsPerTable: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -63,6 +65,13 @@ vi.mock('@/lib/table/jobs/service', () => ({
 
 vi.mock('@/lib/table/rows/service', () => ({
   dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
+}))
+
+/** The append pre-check reads the workspace's current plan row limit, not the frozen `table.maxRows`. */
+vi.mock('@/lib/table/billing', () => ({
+  getMaxRowsPerTable: mockGetMaxRowsPerTable,
+  wouldExceedRowLimit: (limit: number, current: number, added: number) =>
+    limit >= 0 && current + added > limit,
 }))
 
 import { POST } from '@/app/api/table/[tableId]/import/route'
@@ -167,6 +176,7 @@ describe('POST /api/table/[tableId]/import', () => {
     mockImportReplaceRows.mockResolvedValue({ deletedCount: 0, insertedCount: 0 })
     mockMarkTableImporting.mockResolvedValue(true)
     mockReleaseImportClaim.mockResolvedValue(undefined)
+    mockGetMaxRowsPerTable.mockResolvedValue(1_000_000)
   })
 
   it('returns 401 when the user is not authenticated', async () => {
@@ -288,11 +298,9 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(mockImportAppendRows).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects append when it would exceed maxRows', async () => {
-    mockCheckAccess.mockResolvedValueOnce({
-      ok: true,
-      table: buildTable({ rowCount: 99, maxRows: 100 }),
-    })
+  it('rejects append when it would exceed the current plan row limit', async () => {
+    mockCheckAccess.mockResolvedValueOnce({ ok: true, table: buildTable({ rowCount: 99 }) })
+    mockGetMaxRowsPerTable.mockResolvedValueOnce(100)
     const response = await callPost(
       createFormData(createCsvFile('name,age\nAlice,30\nBob,40'), { mode: 'append' })
     )

@@ -12,6 +12,7 @@ import {
   CreditsExhaustedEmail,
   EnterpriseSubscriptionEmail,
   FreeTierUpgradeEmail,
+  LimitThresholdEmail,
   PaymentFailedEmail,
   PlanWelcomeEmail,
   UsageThresholdEmail,
@@ -19,13 +20,14 @@ import {
 import {
   BatchInvitationEmail,
   InvitationEmail,
-  PollingGroupInvitationEmail,
+  WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
 import { HelpConfirmationEmail } from '@/components/emails/support'
+import type { UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-export { getEmailSubject } from './subjects'
+export { getEmailSubject, getLimitEmailSubject } from './subjects'
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -152,6 +154,18 @@ export async function renderFreeTierUpgradeEmail(params: {
   )
 }
 
+export async function renderLimitThresholdEmail(params: {
+  kind: 'warning' | 'reached'
+  reason: UpgradeReason
+  userName?: string
+  usageLabel: string
+  limitLabel: string
+  percentUsed: number
+  upgradeLink: string
+}): Promise<string> {
+  return await render(LimitThresholdEmail(params))
+}
+
 export async function renderPlanWelcomeEmail(params: {
   planName: string
   userName?: string
@@ -215,20 +229,16 @@ export async function renderWorkspaceInvitationEmail(
   )
 }
 
-export async function renderPollingGroupInvitationEmail(params: {
-  inviterName: string
-  organizationName: string
-  pollingGroupName: string
-  provider: 'google-email' | 'outlook'
-  inviteLink: string
-}): Promise<string> {
+export async function renderWorkspaceAddedEmail(
+  inviterName: string,
+  workspaceName: string,
+  workspaceLink: string
+): Promise<string> {
   return await render(
-    PollingGroupInvitationEmail({
-      inviterName: params.inviterName,
-      organizationName: params.organizationName,
-      pollingGroupName: params.pollingGroupName,
-      provider: params.provider,
-      inviteLink: params.inviteLink,
+    WorkspaceAddedEmail({
+      inviterName,
+      workspaceName,
+      workspaceLink,
     })
   )
 }

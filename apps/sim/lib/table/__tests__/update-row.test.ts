@@ -16,6 +16,16 @@ import { getUniqueColumns } from '@/lib/table/validation'
 
 vi.mock('@sim/db', () => dbChainMock)
 
+// Capacity is exercised in billing.test.ts; here it's a no-op so the timeout-scaling
+// suites can use large synthetic row counts without tripping the plan limit.
+vi.mock('@/lib/table/billing', () => ({
+  assertRowCapacity: vi.fn().mockResolvedValue(1_000_000),
+  notifyTableRowUsage: vi.fn(),
+  getMaxRowsPerTable: vi.fn().mockResolvedValue(1_000_000),
+  wouldExceedRowLimit: () => false,
+  TableRowLimitError: class TableRowLimitError extends Error {},
+}))
+
 vi.mock('@/lib/table/validation', () => ({
   validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
   validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),

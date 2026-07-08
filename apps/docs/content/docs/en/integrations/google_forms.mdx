@@ -46,6 +46,8 @@ Retrieve a single response or list responses from a Google Form
 | `formId` | string | Yes | Google Forms form ID |
 | `responseId` | string | No | Response ID - if provided, returns this specific response |
 | `pageSize` | number | No | Maximum number of responses to return \(service may return fewer\). Defaults to 5000. |
+| `pageToken` | string | No | Page token from a previous list response to fetch the next page of responses |
+| `filter` | string | No | Filter responses, e.g. "timestamp &gt; 2024-01-01T00:00:00Z" \(RFC3339 UTC\). Only timestamp filters are supported. |
 
 #### Output
 
@@ -56,6 +58,7 @@ Retrieve a single response or list responses from a Google Form
 |   ↳ `createTime` | string | When the response was created |
 |   ↳ `lastSubmittedTime` | string | When the response was last submitted |
 |   ↳ `answers` | json | Map of question IDs to answer values |
+| `nextPageToken` | string | Token to fetch the next page of responses \(null when no more pages\) |
 | `response` | object | Single form response \(when responseId is provided\) |
 |   ↳ `responseId` | string | Unique response ID |
 |   ↳ `createTime` | string | When the response was created |

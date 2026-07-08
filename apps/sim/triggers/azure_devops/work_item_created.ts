@@ -1,4 +1,4 @@
-import { AzureDevOpsIcon } from '@/components/icons'
+import { AzureIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
   azureDevOpsTriggerOptions,
@@ -13,7 +13,7 @@ export const azureDevOpsWorkItemCreatedTrigger: TriggerConfig = {
   provider: 'azure_devops',
   description: 'Trigger workflow when a work item is created in Azure DevOps',
   version: '1.0.0',
-  icon: AzureDevOpsIcon,
+  icon: AzureIcon,
 
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'azure_devops_work_item_created',

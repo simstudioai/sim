@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { copilotChats, permissions, workflow, workspace } from '@sim/db/schema'
+import { copilotChats, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createWorkflowCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -20,6 +20,7 @@ import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('CopilotChatsListAPI')
 
@@ -32,6 +33,21 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
+    // Active accessible workspaces (explicit + org-derived). Using the active
+    // scope keeps the archived-workspace exclusion the old join-based query had.
+    const accessibleRows = await listAccessibleWorkspaceRowsForUser(userId)
+    const accessibleWorkspaceIds = accessibleRows.map((row) => row.workspace.id)
+    const inAccessibleWorkspace =
+      accessibleWorkspaceIds.length > 0
+        ? or(
+            inArray(workflow.workspaceId, accessibleWorkspaceIds),
+            and(
+              isNull(copilotChats.workflowId),
+              inArray(copilotChats.workspaceId, accessibleWorkspaceIds)
+            )
+          )
+        : undefined
+
     const visibleChats = await db
       .selectDistinctOn([copilotChats.id], {
         id: copilotChats.id,
@@ -43,30 +59,14 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       })
       .from(copilotChats)
       .leftJoin(workflow, eq(copilotChats.workflowId, workflow.id))
-      .leftJoin(
-        workspace,
-        or(
-          eq(workflow.workspaceId, workspace.id),
-          and(isNull(copilotChats.workflowId), eq(copilotChats.workspaceId, workspace.id))
-        )
-      )
-      .leftJoin(
-        permissions,
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workspace.id),
-          eq(permissions.userId, userId)
-        )
-      )
       .where(
         and(
           eq(copilotChats.userId, userId),
           or(
             and(isNull(copilotChats.workflowId), isNull(copilotChats.workspaceId)),
-            sql`${permissions.id} IS NOT NULL`
+            inAccessibleWorkspace
           ),
-          or(isNull(workflow.id), isNull(workflow.archivedAt)),
-          or(isNull(workspace.id), isNull(workspace.archivedAt))
+          or(isNull(workflow.id), isNull(workflow.archivedAt))
         )
       )
       .orderBy(copilotChats.id, desc(copilotChats.updatedAt))

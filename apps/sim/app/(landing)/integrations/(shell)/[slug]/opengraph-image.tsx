@@ -9,7 +9,7 @@ export const size = {
   height: 630,
 }
 
-/** Raw catalog JSON, not the barrel — keeps `@/blocks/registry` out of the OG bundle. */
+/** Raw catalog JSON, not the barrel - keeps `@/blocks/registry` out of the OG bundle. */
 const integrations = integrationsJson.integrations as readonly Integration[]
 const bySlug = new Map(integrations.map((i) => [i.slug, i]))
 

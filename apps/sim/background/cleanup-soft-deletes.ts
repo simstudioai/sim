@@ -1,6 +1,5 @@
 import { db } from '@sim/db'
 import {
-  a2aAgent,
   copilotChats,
   document,
   knowledgeBase,
@@ -166,12 +165,6 @@ const CLEANUP_TARGETS = [
     softDeleteCol: workflowMcpServer.deletedAt,
     wsCol: workflowMcpServer.workspaceId,
     name: 'workflowMcpServer',
-  },
-  {
-    table: a2aAgent,
-    softDeleteCol: a2aAgent.archivedAt,
-    wsCol: a2aAgent.workspaceId,
-    name: 'a2aAgent',
   },
 ] as const
 

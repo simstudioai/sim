@@ -26,6 +26,7 @@ export enum BlockType {
   FUNCTION = 'function',
   AGENT = 'agent',
   MOTHERSHIP = 'mothership',
+  PI = 'pi',
   API = 'api',
   EVALUATOR = 'evaluator',
   VARIABLES = 'variables',
@@ -206,7 +207,7 @@ export const HTTP = {
 } as const
 
 export const AGENT = {
-  DEFAULT_MODEL: 'claude-sonnet-4-6',
+  DEFAULT_MODEL: 'claude-sonnet-5',
   get DEFAULT_FUNCTION_TIMEOUT() {
     return getMaxExecutionTimeout()
   },
@@ -220,18 +221,6 @@ export const MCP = {
   TOOL_PREFIX: 'mcp-',
 } as const
 
-export const CREDENTIAL_SET = {
-  PREFIX: 'credentialSet:',
-} as const
-
-export function isCredentialSetValue(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.startsWith(CREDENTIAL_SET.PREFIX)
-}
-
-export function extractCredentialSetId(value: string): string {
-  return value.slice(CREDENTIAL_SET.PREFIX.length)
-}
-
 export const MEMORY = {
   DEFAULT_SLIDING_WINDOW_SIZE: 10,
   DEFAULT_SLIDING_WINDOW_TOKENS: 4000,
@@ -241,13 +230,13 @@ export const MEMORY = {
 } as const
 
 export const ROUTER = {
-  DEFAULT_MODEL: 'claude-sonnet-4-6',
+  DEFAULT_MODEL: 'claude-sonnet-5',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'claude-sonnet-4-6',
+  DEFAULT_MODEL: 'claude-sonnet-5',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,

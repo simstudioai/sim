@@ -22,8 +22,12 @@ import {
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
 import {
+  type AllMembersConflict,
+  acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
+  findAllMembersWorkspaceConflict,
   findWorkspacesNotInOrganization,
+  formatAllMembersConflictError,
   getWorkspacesForGroups,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
@@ -51,7 +55,6 @@ export const GET = withRouteHandler(
         createdAt: permissionGroup.createdAt,
         updatedAt: permissionGroup.updatedAt,
         isDefault: permissionGroup.isDefault,
-        appliesToAllWorkspaces: permissionGroup.appliesToAllWorkspaces,
         creatorName: user.name,
         creatorEmail: user.email,
       })
@@ -94,6 +97,10 @@ export const POST = withRouteHandler(
 
     const { id: organizationId } = await context.params
 
+    // Populated inside the transaction when an all-members scope conflict is
+    // detected, so the catch can format the 409 after the rollback.
+    let allMembersConflict: AllMembersConflict | null = null
+
     try {
       const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
       if (denied) return denied
@@ -105,19 +112,21 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { name, description, config, isDefault } = parsed.data.body
 
-      // Resolve scope the same way the update route does: the default group is
-      // always organization-wide; otherwise an explicit `appliesToAllWorkspaces`
-      // wins, and supplying `workspaceIds` alone implies a specific scope (so
-      // those ids are never silently dropped).
-      const requestedWorkspaceIds = parsed.data.body.workspaceIds ?? []
-      const appliesToAllWorkspaces = isDefault
-        ? true
-        : parsed.data.body.appliesToAllWorkspaces !== undefined
-          ? parsed.data.body.appliesToAllWorkspaces
-          : requestedWorkspaceIds.length === 0
-      const workspaceIds = appliesToAllWorkspaces ? [] : Array.from(new Set(requestedWorkspaceIds))
+      // Only the organization default group is org-wide; every other group
+      // targets specific workspaces. "Org-wide" is definitionally `isDefault`.
+      const isDefaultGroup = isDefault === true
+      const workspaceIds = isDefaultGroup
+        ? []
+        : Array.from(new Set(parsed.data.body.workspaceIds ?? []))
 
-      if (!appliesToAllWorkspaces) {
+      if (!isDefaultGroup && workspaceIds.length === 0) {
+        return NextResponse.json(
+          { error: 'Select at least one workspace when the group targets specific workspaces' },
+          { status: 400 }
+        )
+      }
+
+      if (!isDefaultGroup) {
         const invalid = await findWorkspacesNotInOrganization(workspaceIds, organizationId)
         if (invalid.length > 0) {
           return NextResponse.json(
@@ -158,11 +167,28 @@ export const POST = withRouteHandler(
         createdAt: now,
         updatedAt: now,
         isDefault: isDefault || false,
-        appliesToAllWorkspaces,
       }
 
       await db.transaction(async (tx) => {
+        await acquirePermissionGroupOrgLock(tx, organizationId)
+
+        // A new non-default group has no members, so it governs all members of
+        // its workspaces; reject when another all-members group already does.
+        if (!isDefaultGroup) {
+          const conflict = await findAllMembersWorkspaceConflict(
+            { organizationId, excludeGroupId: newGroup.id, workspaceIds },
+            tx
+          )
+          if (conflict) {
+            allMembersConflict = conflict
+            throw new Error('ALL_MEMBERS_CONFLICT')
+          }
+        }
+
         if (isDefault) {
+          // Demote the prior default to a non-default group (only the default may
+          // be org-wide); it ends up with no workspaces (inert) until an admin
+          // re-scopes it.
           await tx
             .update(permissionGroup)
             .set({ isDefault: false, updatedAt: now })
@@ -191,7 +217,6 @@ export const POST = withRouteHandler(
         permissionGroupId: newGroup.id,
         organizationId,
         userId: session.user.id,
-        appliesToAllWorkspaces,
         workspaceCount: workspaceIds.length,
       })
 
@@ -207,7 +232,6 @@ export const POST = withRouteHandler(
         metadata: {
           organizationId,
           isDefault: isDefault || false,
-          appliesToAllWorkspaces,
           workspaceCount: workspaceIds.length,
         },
         request: req,
@@ -215,6 +239,22 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ permissionGroup: { ...newGroup, workspaceIds } }, { status: 201 })
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'ALL_MEMBERS_CONFLICT' &&
+        allMembersConflict
+      ) {
+        return NextResponse.json(
+          { error: formatAllMembersConflictError(allMembersConflict) },
+          { status: 409 }
+        )
+      }
+      if (getPostgresErrorCode(error) === '55P03') {
+        return NextResponse.json(
+          { error: 'This organization is being updated by another request. Please try again.' },
+          { status: 503 }
+        )
+      }
       if (getPostgresErrorCode(error) === '23505') {
         const constraint = getPostgresConstraintName(error)
         if (constraint === PERMISSION_GROUP_CONSTRAINTS.organizationName) {

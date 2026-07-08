@@ -1,0 +1,95 @@
+---
+title: Dropcontact
+description: Enrich B2B contacts with verified email, phone, and company data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dropcontact"
+  color="#0ABA9F"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dropcontact](https://www.dropcontact.com/) is a GDPR-compliant B2B enrichment service that verifies and completes contact data without relying on a static database — it computes and double-checks each result on demand.
+
+With Dropcontact, you can:
+
+- **Verify and enrich contacts:** Submit a name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile.
+- **Get deliverable emails only:** Dropcontact validates every email it returns, so credits are charged only when a verified address is found.
+- **Handle async enrichment cleanly:** Requests are processed asynchronously and Sim polls until the result is ready, so your workflow waits for a complete answer.
+
+In Sim, the Dropcontact integration lets your agents enrich and verify B2B contacts inside a workflow — keeping your CRM accurate and your outreach lists clean without manual lookups.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.
+
+
+
+## Actions
+
+### `dropcontact_enrich_contact`
+
+Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then polls until the result is ready (up to 2 minutes). Charges 1 credit only when a verified email is returned. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dropcontact API key \(X-Access-Token\) |
+| `email` | string | No | Email address of the contact to enrich |
+| `first_name` | string | No | First name of the contact |
+| `last_name` | string | No | Last name of the contact |
+| `full_name` | string | No | Full name \(alternative to first_name + last_name\) |
+| `company` | string | No | Company name |
+| `website` | string | No | Company website \(e.g. acme.com\) |
+| `num_siren` | string | No | French company SIREN number |
+| `phone` | string | No | Phone number |
+| `linkedin` | string | No | LinkedIn profile URL |
+| `country` | string | No | Country code \(ISO 3166-1 alpha-2, e.g. "US", "FR"\) |
+| `siren` | boolean | No | Include SIREN/SIRET enrichment \(France only\) |
+| `language` | string | No | Language for returned data \(e.g. "en", "fr"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `request_id` | string | Dropcontact async request ID |
+| `email_found` | boolean | Whether a verified email was found |
+| `email` | string | Primary verified email address |
+| `emails` | array | All email addresses returned \(each with email and qualification\) |
+|   ↳ `email` | string | Email address |
+|   ↳ `qualification` | string | Email qualification \(e.g. nominative@pro\) |
+| `qualification` | string | Primary email qualification \(e.g. nominative@pro, catch_all@pro\) |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `full_name` | string | Full name |
+| `civility` | string | Civility \(Mr, Mrs, etc.\) |
+| `phone` | string | Phone number |
+| `mobile_phone` | string | Mobile phone number |
+| `company` | string | Company name |
+| `website` | string | Company website |
+| `company_linkedin` | string | Company LinkedIn URL |
+| `linkedin` | string | Personal LinkedIn URL |
+| `country` | string | Country code \(ISO 3166-1 alpha-2\) |
+| `siren` | string | French SIREN number |
+| `siret` | string | French SIRET number |
+| `siret_address` | string | SIRET registered address |
+| `siret_zip` | string | SIRET registered postal code |
+| `siret_city` | string | SIRET registered city |
+| `vat` | string | VAT number |
+| `nb_employees` | string | Employee count range |
+| `employee_count` | number | Exact employee count \(Growth plan and above\) |
+| `naf5_code` | string | NAF/APE code \(France\) |
+| `naf5_des` | string | NAF/APE code description \(France\) |
+| `industry` | string | Industry classification |
+| `job` | string | Job title |
+| `job_level` | string | Job seniority level \(e.g. C-level, Director\) |
+| `job_function` | string | Job function \(e.g. Sales, Engineering\) |
+| `company_turnover` | string | Company revenue/turnover range |
+| `company_results` | string | Company net results |
+
+

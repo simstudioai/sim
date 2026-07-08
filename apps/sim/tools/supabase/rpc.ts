@@ -1,3 +1,4 @@
+import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseRpcParams, SupabaseRpcResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -6,7 +7,7 @@ export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
   id: 'supabase_rpc',
   name: 'Supabase RPC',
   description: 'Call a PostgreSQL function in Supabase',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -37,7 +38,9 @@ export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
 
   request: {
     url: (params) => {
-      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${params.functionName}`
+      const fnValidation = validateDatabaseIdentifier(params.functionName, 'functionName')
+      if (!fnValidation.isValid) throw new Error(fnValidation.error)
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${encodeURIComponent(params.functionName)}`
     },
     method: 'POST',
     headers: (params) => ({

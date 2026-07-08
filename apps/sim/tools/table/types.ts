@@ -23,6 +23,8 @@ export interface TableListParams {
 export interface TableRowInsertParams {
   tableId: string
   data: RowData
+  /** Unique column to match on for upsert; ignored by plain insert */
+  conflictTarget?: string
   _context?: WorkflowToolExecutionContext
 }
 
@@ -140,6 +142,9 @@ export interface TableGetSchemaResponse extends ToolResponse {
   output: {
     name: string
     columns: ColumnDefinition[]
+    columnCount: number
+    rowCount: number
+    maxRows: number
     message: string
   }
 }

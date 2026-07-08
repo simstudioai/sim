@@ -1667,6 +1667,132 @@
       "when": 1781554278388,
       "tag": "0238_workspace_scoped_permission_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 239,
+      "version": "7",
+      "when": 1781659761380,
+      "tag": "0239_wel_logs_desc_index_and_redundant_drops",
+      "breakpoints": true
+    },
+    {
+      "idx": 240,
+      "version": "7",
+      "when": 1781670551980,
+      "tag": "0240_table_rows_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 241,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0241_drop_table_row_cap_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1781818772450,
+      "tag": "0242_public_share",
+      "breakpoints": true
+    },
+    {
+      "idx": 243,
+      "version": "7",
+      "when": 1781895339512,
+      "tag": "0243_kb_workspace_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 244,
+      "version": "7",
+      "when": 1781899910981,
+      "tag": "0244_table_row_executions_enrichment_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1781904859472,
+      "tag": "0245_public_share_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 246,
+      "version": "7",
+      "when": 1781985478354,
+      "tag": "0246_convert_grandfathered_all_ws_permission_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 247,
+      "version": "7",
+      "when": 1782092169888,
+      "tag": "0247_workflow_mcp_tool_param_desc_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 248,
+      "version": "7",
+      "when": 1782158722013,
+      "tag": "0248_limit_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 249,
+      "version": "7",
+      "when": 1782260194924,
+      "tag": "0249_drop_permission_group_applies_to_all_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 250,
+      "version": "7",
+      "when": 1782365854239,
+      "tag": "0250_workspace_forking",
+      "breakpoints": true
+    },
+    {
+      "idx": 251,
+      "version": "7",
+      "when": 1782606413439,
+      "tag": "0251_wakeful_smiling_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 252,
+      "version": "7",
+      "when": 1782685998491,
+      "tag": "0252_remove_a2a",
+      "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1782860073503,
+      "tag": "0253_canonical_trigger_provider_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 254,
+      "version": "7",
+      "when": 1782957781005,
+      "tag": "0254_custom_block",
+      "breakpoints": true
+    },
+    {
+      "idx": 255,
+      "version": "7",
+      "when": 1783382202081,
+      "tag": "0255_remove_credential_sets",
+      "breakpoints": true
+    },
+    {
+      "idx": 256,
+      "version": "7",
+      "when": 1783392614134,
+      "tag": "0256_custom_block_inputs",
+      "breakpoints": true
     }
   ]
 }

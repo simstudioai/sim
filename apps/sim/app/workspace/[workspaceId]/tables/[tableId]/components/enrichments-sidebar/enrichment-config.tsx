@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import {
   Badge,
   Button,
@@ -13,10 +11,13 @@ import {
   Label,
   Switch,
   toast,
-} from '@/components/emcn'
-import { ArrowLeft, X } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft, X } from '@sim/emcn/icons'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
+import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'
 import { FieldError } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
@@ -49,7 +50,7 @@ function defaultColumnFor(
       c.name.toLowerCase() === input.id.toLowerCase() ||
       c.name.toLowerCase() === input.name.toLowerCase()
   )
-  return match?.name ?? ''
+  return match ? getColumnId(match) : ''
 }
 
 /**
@@ -71,14 +72,23 @@ export function EnrichmentConfig({
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const isEditing = Boolean(existingGroup)
 
-  /** Output column's persisted name (edit mode), used to detect renames. */
-  const originalOutputName = (outputId: string): string | undefined =>
-    existingGroup?.outputs.find((o) => o.outputId === outputId)?.columnName
+  /** Output's column (edit mode). Persisted `columnName` refs hold a stable
+   *  column id (name for legacy groups), so resolve id-or-name to the column. */
+  const outputColumn = (outputId: string): ColumnDefinition | undefined => {
+    const ref = existingGroup?.outputs.find((o) => o.outputId === outputId)?.columnName
+    return ref === undefined ? undefined : allColumns.find((c) => columnMatchesRef(c, ref))
+  }
+
+  /** Output column's persisted display name (edit mode), used to detect renames. */
+  const originalOutputName = (outputId: string): string | undefined => outputColumn(outputId)?.name
 
   const [inputMappings, setInputMappings] = useState<Record<string, string>>(() => {
     if (existingGroup) {
       const seed: Record<string, string> = {}
-      for (const m of existingGroup.inputMappings ?? []) seed[m.inputName] = m.columnName
+      for (const m of existingGroup.inputMappings ?? []) {
+        const col = allColumns.find((c) => columnMatchesRef(c, m.columnName))
+        seed[m.inputName] = col ? getColumnId(col) : m.columnName
+      }
       return seed
     }
     const seed: Record<string, string> = {}
@@ -94,7 +104,9 @@ export function EnrichmentConfig({
     const seed: Record<string, string> = {}
     if (existingGroup) {
       for (const o of existingGroup.outputs) {
-        if (o.outputId) seed[o.outputId] = o.columnName
+        if (!o.outputId) continue
+        const col = allColumns.find((c) => columnMatchesRef(c, o.columnName))
+        seed[o.outputId] = col?.name ?? o.columnName
       }
       return seed
     }
@@ -111,7 +123,7 @@ export function EnrichmentConfig({
   const [deps, setDeps] = useState<string[]>(() => existingGroup?.dependencies?.columns ?? [])
   const [showValidation, setShowValidation] = useState(false)
 
-  const columnOptions = allColumns.map((c) => ({ label: c.name, value: c.name }))
+  const columnOptions = allColumns.map((c) => ({ label: c.name, value: getColumnId(c) }))
   const missingRequired = enrichment.inputs.some((i) => i.required && !inputMappings[i.id])
   const depsValid = !autoRun || deps.length > 0
 
@@ -162,10 +174,13 @@ export function EnrichmentConfig({
           autoRun,
         })
         for (const o of enrichment.outputs) {
-          const original = originalOutputName(o.id)
+          const col = outputColumn(o.id)
           const next = (outputNames[o.id] ?? '').trim()
-          if (original && next && next !== original) {
-            await updateColumn.mutateAsync({ columnName: original, updates: { name: next } })
+          if (col && next && next !== col.name) {
+            await updateColumn.mutateAsync({
+              columnName: getColumnId(col),
+              updates: { name: next },
+            })
           }
         }
         toast.success(`Updated "${enrichment.name}"`)

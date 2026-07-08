@@ -1,5 +1,5 @@
+import { cn } from '@sim/emcn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { cn } from '@/lib/core/utils/cn'
 import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 
 function FileAttachmentPill(props: { mediaType: string; filename: string }) {

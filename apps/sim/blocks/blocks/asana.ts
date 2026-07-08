@@ -27,6 +27,14 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
         { label: 'Get Projects', id: 'get_projects' },
         { label: 'Search Tasks', id: 'search_tasks' },
         { label: 'Add Comment', id: 'add_comment' },
+        { label: 'Create Subtask', id: 'create_subtask' },
+        { label: 'Delete Task', id: 'delete_task' },
+        { label: 'Add Followers', id: 'add_followers' },
+        { label: 'Create Project', id: 'create_project' },
+        { label: 'Get Project', id: 'get_project' },
+        { label: 'List Workspaces', id: 'list_workspaces' },
+        { label: 'Create Section', id: 'create_section' },
+        { label: 'List Sections', id: 'list_sections' },
       ],
       value: () => 'get_task',
     },
@@ -234,6 +242,143 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         value: ['add_comment'],
       },
     },
+    {
+      id: 'createProjectWorkspaceSelector',
+      title: 'Workspace',
+      type: 'project-selector',
+      canonicalParamId: 'createProject_workspace',
+      serviceId: 'asana',
+      selectorKey: 'asana.workspaces',
+      placeholder: 'Select Asana workspace',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: ['create_project'],
+      },
+      required: true,
+    },
+    {
+      id: 'createProject_workspace',
+      title: 'Workspace GID',
+      type: 'short-input',
+      canonicalParamId: 'createProject_workspace',
+      placeholder: 'Enter Asana workspace GID',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['create_project'],
+      },
+      required: true,
+    },
+    {
+      id: 'projectGid',
+      title: 'Project GID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter Asana project GID',
+      condition: {
+        field: 'operation',
+        value: ['get_project', 'create_section', 'list_sections'],
+      },
+    },
+    {
+      id: 'subtaskParentGid',
+      title: 'Parent Task GID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter parent task GID',
+      condition: {
+        field: 'operation',
+        value: ['create_subtask'],
+      },
+    },
+    {
+      id: 'taskGid',
+      title: 'Task GID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter Asana task GID',
+      condition: {
+        field: 'operation',
+        value: ['delete_task', 'add_followers'],
+      },
+    },
+    {
+      id: 'name',
+      title: 'Name',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter a name',
+      condition: {
+        field: 'operation',
+        value: ['create_subtask', 'create_project', 'create_section'],
+      },
+    },
+    {
+      id: 'notes',
+      title: 'Notes',
+      type: 'long-input',
+      placeholder: 'Enter notes or description',
+      condition: {
+        field: 'operation',
+        value: ['create_subtask', 'create_project'],
+      },
+    },
+    {
+      id: 'assignee',
+      title: 'Assignee GID',
+      type: 'short-input',
+      placeholder: 'Enter assignee user GID',
+      condition: {
+        field: 'operation',
+        value: ['create_subtask'],
+      },
+    },
+    {
+      id: 'due_on',
+      title: 'Due Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      condition: {
+        field: 'operation',
+        value: ['create_subtask'],
+      },
+    },
+    {
+      id: 'followers',
+      title: 'Followers',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Comma-separated user GIDs (e.g. 12345, 67890)',
+      condition: {
+        field: 'operation',
+        value: ['add_followers'],
+      },
+    },
+    {
+      id: 'projects',
+      title: 'Projects',
+      type: 'short-input',
+      placeholder: 'Comma-separated project GIDs to filter by',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['search_tasks'],
+      },
+    },
+    {
+      id: 'completed',
+      title: 'Completion',
+      type: 'checkbox-list',
+      options: [{ label: 'Completed', id: 'completed' }],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['update_task', 'search_tasks'],
+      },
+    },
   ],
   tools: {
     access: [
@@ -243,6 +388,14 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       'asana_get_projects',
       'asana_search_tasks',
       'asana_add_comment',
+      'asana_create_subtask',
+      'asana_delete_task',
+      'asana_add_followers',
+      'asana_create_project',
+      'asana_get_project',
+      'asana_list_workspaces',
+      'asana_create_section',
+      'asana_list_sections',
     ],
     config: {
       tool: (params) => {
@@ -259,6 +412,22 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return 'asana_search_tasks'
           case 'add_comment':
             return 'asana_add_comment'
+          case 'create_subtask':
+            return 'asana_create_subtask'
+          case 'delete_task':
+            return 'asana_delete_task'
+          case 'add_followers':
+            return 'asana_add_followers'
+          case 'create_project':
+            return 'asana_create_project'
+          case 'get_project':
+            return 'asana_get_project'
+          case 'list_workspaces':
+            return 'asana_list_workspaces'
+          case 'create_section':
+            return 'asana_create_section'
+          case 'list_sections':
+            return 'asana_list_sections'
           default:
             return 'asana_get_task'
         }
@@ -272,6 +441,15 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               .map((p: string) => p.trim())
               .filter((p: string) => p.length > 0)
           : undefined
+
+        // Only send a completion value when the user actually checked the box; an
+        // empty/untouched checkbox must omit the field (not send `false`), so
+        // update_task doesn't silently un-complete a task and search_tasks doesn't
+        // implicitly filter to incomplete tasks.
+        const completedValue =
+          Array.isArray(params.completed) && params.completed.length > 0
+            ? params.completed.includes('completed')
+            : undefined
 
         const baseParams = {
           accessToken: oauthCredential?.accessToken,
@@ -302,7 +480,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               name: params.name,
               notes: params.notes,
               assignee: params.assignee,
-              completed: params.completed?.includes('completed'),
+              completed: completedValue,
               due_on: params.due_on,
             }
           case 'get_projects':
@@ -317,13 +495,65 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               text: params.searchText,
               assignee: params.assignee,
               projects: projectsArray,
-              completed: params.completed?.includes('completed'),
+              completed: completedValue,
             }
           case 'add_comment':
             return {
               ...baseParams,
               taskGid: params.taskGid,
               text: params.commentText,
+            }
+          case 'create_subtask':
+            return {
+              ...baseParams,
+              taskGid: params.subtaskParentGid,
+              name: params.name,
+              notes: params.notes,
+              assignee: params.assignee,
+              due_on: params.due_on,
+            }
+          case 'delete_task':
+            return {
+              ...baseParams,
+              taskGid: params.taskGid,
+            }
+          case 'add_followers':
+            return {
+              ...baseParams,
+              taskGid: params.taskGid,
+              followers: params.followers
+                ? params.followers
+                    .split(',')
+                    .map((f: string) => f.trim())
+                    .filter((f: string) => f.length > 0)
+                : [],
+            }
+          case 'create_project':
+            return {
+              ...baseParams,
+              workspace: params.createProject_workspace,
+              name: params.name,
+              notes: params.notes,
+            }
+          case 'get_project':
+            return {
+              ...baseParams,
+              projectGid: params.projectGid,
+            }
+          case 'list_workspaces':
+            return {
+              ...baseParams,
+            }
+          case 'create_section':
+            return {
+              ...baseParams,
+              projectGid: params.projectGid,
+              name: params.name,
+            }
+          case 'list_sections':
+            return {
+              ...baseParams,
+              projectGid: params.projectGid,
             }
           default:
             return baseParams
@@ -347,6 +577,13 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     completed: { type: 'array', description: 'Completion status' },
     searchText: { type: 'string', description: 'Search text' },
     commentText: { type: 'string', description: 'Comment text' },
+    createProject_workspace: {
+      type: 'string',
+      description: 'Workspace GID for creating a project',
+    },
+    projectGid: { type: 'string', description: 'Project GID' },
+    subtaskParentGid: { type: 'string', description: 'Parent task GID for creating a subtask' },
+    followers: { type: 'string', description: 'Comma-separated user GIDs to add as followers' },
   },
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },
@@ -364,6 +601,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     permalink_url: { type: 'string', description: 'URL to the resource in Asana' },
     tasks: { type: 'json', description: 'Array of tasks' },
     projects: { type: 'json', description: 'Array of projects' },
+    workspaces: { type: 'json', description: 'Array of workspaces' },
+    sections: { type: 'json', description: 'Array of sections' },
+    followers: { type: 'json', description: 'Array of followers on the task' },
+    archived: { type: 'boolean', description: 'Whether the project is archived' },
+    color: { type: 'string', description: 'Project color' },
+    deleted: { type: 'boolean', description: 'Whether the task was deleted' },
   },
 }
 

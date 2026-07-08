@@ -57,6 +57,24 @@ export const updateLinkTool: ToolConfig<DubUpdateLinkParams, DubUpdateLinkRespon
       visibility: 'user-or-llm',
       description: 'External ID for the link',
     },
+    tenantId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Tenant ID for grouping links created on behalf of a customer/tenant',
+    },
+    folderId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Folder ID to organize the link into',
+    },
+    trackConversion: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to track conversions (leads/sales) for the short link',
+    },
     tagIds: {
       type: 'string',
       required: false,
@@ -140,6 +158,9 @@ export const updateLinkTool: ToolConfig<DubUpdateLinkParams, DubUpdateLinkRespon
       if (params.title) body.title = params.title
       if (params.description) body.description = params.description
       if (params.externalId) body.externalId = params.externalId
+      if (params.tenantId) body.tenantId = params.tenantId
+      if (params.folderId) body.folderId = params.folderId
+      if (params.trackConversion !== undefined) body.trackConversion = params.trackConversion
       if (params.tagIds) body.tagIds = params.tagIds.split(',').map((id) => id.trim())
       if (params.comments) body.comments = params.comments
       if (params.expiresAt) body.expiresAt = params.expiresAt
@@ -176,8 +197,12 @@ export const updateLinkTool: ToolConfig<DubUpdateLinkParams, DubUpdateLinkRespon
         title: data.title ?? null,
         description: data.description ?? null,
         tags: data.tags ?? [],
+        folderId: data.folderId ?? null,
+        tenantId: data.tenantId ?? null,
+        trackConversion: data.trackConversion ?? false,
         clicks: data.clicks ?? 0,
         leads: data.leads ?? 0,
+        conversions: data.conversions ?? 0,
         sales: data.sales ?? 0,
         saleAmount: data.saleAmount ?? 0,
         lastClicked: data.lastClicked ?? null,
@@ -204,8 +229,12 @@ export const updateLinkTool: ToolConfig<DubUpdateLinkParams, DubUpdateLinkRespon
     title: { type: 'string', description: 'OG title', optional: true },
     description: { type: 'string', description: 'OG description', optional: true },
     tags: { type: 'json', description: 'Tags assigned to the link (id, name, color)' },
+    folderId: { type: 'string', description: 'Folder the link is organized into', optional: true },
+    tenantId: { type: 'string', description: 'Tenant ID associated with the link', optional: true },
+    trackConversion: { type: 'boolean', description: 'Whether conversion tracking is enabled' },
     clicks: { type: 'number', description: 'Number of clicks' },
     leads: { type: 'number', description: 'Number of leads' },
+    conversions: { type: 'number', description: 'Number of conversions' },
     sales: { type: 'number', description: 'Number of sales' },
     saleAmount: { type: 'number', description: 'Total sale amount in cents' },
     lastClicked: { type: 'string', description: 'Last clicked timestamp', optional: true },

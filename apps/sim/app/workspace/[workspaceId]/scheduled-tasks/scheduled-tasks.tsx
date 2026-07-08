@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Calendar, Plus } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
-import { Calendar, Plus } from '@/components/emcn'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components'
 import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { ScheduleCalendar } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar'

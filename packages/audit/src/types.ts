@@ -19,6 +19,11 @@ export const AuditAction = {
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
 
+  // Custom Blocks (deploy-as-block)
+  CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',
+  CUSTOM_BLOCK_UPDATED: 'custom_block.updated',
+  CUSTOM_BLOCK_DELETED: 'custom_block.deleted',
+
   // Custom Tools
   CUSTOM_TOOL_CREATED: 'custom_tool.created',
   CUSTOM_TOOL_UPDATED: 'custom_tool.updated',
@@ -33,17 +38,6 @@ export const AuditAction = {
 
   // Billing
   CREDIT_PURCHASED: 'credit.purchased',
-
-  // Credential Sets
-  CREDENTIAL_SET_CREATED: 'credential_set.created',
-  CREDENTIAL_SET_UPDATED: 'credential_set.updated',
-  CREDENTIAL_SET_DELETED: 'credential_set.deleted',
-  CREDENTIAL_SET_MEMBER_REMOVED: 'credential_set_member.removed',
-  CREDENTIAL_SET_MEMBER_LEFT: 'credential_set_member.left',
-  CREDENTIAL_SET_INVITATION_CREATED: 'credential_set_invitation.created',
-  CREDENTIAL_SET_INVITATION_ACCEPTED: 'credential_set_invitation.accepted',
-  CREDENTIAL_SET_INVITATION_RESENT: 'credential_set_invitation.resent',
-  CREDENTIAL_SET_INVITATION_REVOKED: 'credential_set_invitation.revoked',
 
   // Connector Documents
   CONNECTOR_DOCUMENT_RESTORED: 'connector_document.restored',
@@ -64,6 +58,8 @@ export const AuditAction = {
   FILE_DELETED: 'file.deleted',
   FILE_RESTORED: 'file.restored',
   FILE_MOVED: 'file.moved',
+  FILE_SHARED: 'file.shared',
+  FILE_SHARE_DISABLED: 'file.share_disabled',
 
   // Folders
   FOLDER_CREATED: 'folder.created',
@@ -99,6 +95,7 @@ export const AuditAction = {
 
   // Members
   MEMBER_INVITED: 'member.invited',
+  MEMBER_ADDED: 'member.added',
   MEMBER_REMOVED: 'member.removed',
   MEMBER_ROLE_CHANGED: 'member.role_changed',
 
@@ -179,6 +176,9 @@ export const AuditAction = {
   WORKSPACE_UPDATED: 'workspace.updated',
   WORKSPACE_DELETED: 'workspace.deleted',
   WORKSPACE_DUPLICATED: 'workspace.duplicated',
+  WORKSPACE_FORKED: 'workspace.forked',
+  WORKSPACE_FORK_PROMOTED: 'workspace.fork_promoted',
+  WORKSPACE_FORK_ROLLED_BACK: 'workspace.fork_rolled_back',
 } as const
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction]
@@ -193,7 +193,7 @@ export const AuditResourceType = {
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
-  CREDENTIAL_SET: 'credential_set',
+  CUSTOM_BLOCK: 'custom_block',
   CUSTOM_TOOL: 'custom_tool',
   DATA_DRAIN: 'data_drain',
   DOCUMENT: 'document',

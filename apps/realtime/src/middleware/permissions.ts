@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -11,7 +12,6 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 
 const logger = createLogger('SocketPermissions')

@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 import type { WorkflowGroup } from '@/lib/table'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'

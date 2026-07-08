@@ -3,24 +3,32 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
+import { db } from '@sim/db'
+import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
+import { eq } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
+import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
+import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { Executor } from '@/executor'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
@@ -304,7 +312,22 @@ async function finalizeExecutionError(params: {
   }
 }
 
+/**
+ * Establish the custom-block registry overlay for the execution's organization,
+ * then run the core. Wrapping here — the shared choke point for the sync route and
+ * the background job — puts `custom_block_*` types in scope for serialization,
+ * execution, and any nested child-workflow serialization (ALS propagates to the
+ * whole async subtree).
+ */
 export async function executeWorkflowCore(
+  options: ExecuteWorkflowCoreOptions
+): Promise<ExecutionResult> {
+  const workspaceId = options.snapshot.metadata.workspaceId
+  const rows = workspaceId ? await getCustomBlockRowsForWorkspace(workspaceId) : []
+  return withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
+}
+
+async function executeWorkflowCoreImpl(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   const {
@@ -349,51 +372,6 @@ export async function executeWorkflowCore(
   }
 
   try {
-    let blocks
-    let edges: Edge[]
-    let loops
-    let parallels
-
-    // Use workflowStateOverride if provided (for diff workflows)
-    if (metadata.workflowStateOverride) {
-      blocks = metadata.workflowStateOverride.blocks
-      edges = metadata.workflowStateOverride.edges
-      loops = metadata.workflowStateOverride.loops || {}
-      parallels = metadata.workflowStateOverride.parallels || {}
-      deploymentVersionId = metadata.workflowStateOverride.deploymentVersionId
-
-      logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
-        blocksCount: Object.keys(blocks).length,
-        edgesCount: edges.length,
-      })
-    } else if (useDraftState) {
-      const draftData = await loadWorkflowFromNormalizedTables(workflowId)
-
-      if (!draftData) {
-        throw new Error('Workflow not found or not yet saved')
-      }
-
-      blocks = draftData.blocks
-      edges = draftData.edges
-      loops = draftData.loops
-      parallels = draftData.parallels
-
-      logger.info(
-        `[${requestId}] Using draft workflow state from normalized tables (client execution)`
-      )
-    } else {
-      const deployedData = await loadDeployedWorkflowState(workflowId)
-      blocks = deployedData.blocks
-      edges = deployedData.edges
-      loops = deployedData.loops
-      parallels = deployedData.parallels
-      deploymentVersionId = deployedData.deploymentVersionId
-
-      logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
-    }
-
-    const mergedStates = mergeSubblockStateWithValues(blocks)
-
     const personalEnvUserId =
       metadata.isClientSession && metadata.sessionUserId
         ? metadata.sessionUserId
@@ -403,8 +381,69 @@ export async function executeWorkflowCore(
       throw new Error('Missing workflowUserId in execution metadata')
     }
 
-    const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =
-      await getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId)
+    /**
+     * Resolves the workflow state from the override, the draft tables, or the
+     * deployed snapshot. The async load (draft/deployed) has no data dependency
+     * on the environment load, so the two are awaited concurrently below.
+     */
+    const loadWorkflowState = async () => {
+      if (metadata.workflowStateOverride) {
+        const override = metadata.workflowStateOverride
+        logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
+          blocksCount: Object.keys(override.blocks).length,
+          edgesCount: override.edges.length,
+        })
+        return {
+          blocks: override.blocks,
+          edges: override.edges,
+          loops: override.loops || {},
+          parallels: override.parallels || {},
+          deploymentVersionId: override.deploymentVersionId,
+        }
+      }
+
+      if (useDraftState) {
+        const draftData = await loadWorkflowFromNormalizedTables(workflowId)
+
+        if (!draftData) {
+          throw new Error('Workflow not found or not yet saved')
+        }
+
+        logger.info(
+          `[${requestId}] Using draft workflow state from normalized tables (client execution)`
+        )
+        return {
+          blocks: draftData.blocks,
+          edges: draftData.edges,
+          loops: draftData.loops,
+          parallels: draftData.parallels,
+          deploymentVersionId: undefined,
+        }
+      }
+
+      const deployedData = await loadDeployedWorkflowState(workflowId)
+      logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
+      return {
+        blocks: deployedData.blocks,
+        edges: deployedData.edges,
+        loops: deployedData.loops,
+        parallels: deployedData.parallels,
+        deploymentVersionId: deployedData.deploymentVersionId,
+      }
+    }
+
+    const [workflowState, env] = await Promise.all([
+      loadWorkflowState(),
+      getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId),
+    ])
+
+    const { blocks, loops, parallels } = workflowState
+    const edges: Edge[] = workflowState.edges
+    deploymentVersionId = workflowState.deploymentVersionId
+
+    const mergedStates = mergeSubblockStateWithValues(blocks)
+
+    const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } = env
 
     // Use encrypted values for logging (don't log decrypted secrets)
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
@@ -619,6 +658,90 @@ export async function executeWorkflowCore(
       metadata.resumeFromSnapshot === true ||
       Boolean(runFromBlock?.sourceSnapshot && !runFromBlock.sourceExecutionId)
 
+    // Resolve the org/workspace PII redaction policy once; serves both the input
+    // stage (below) and the block-outputs stage (threaded into the executor).
+    // Resolved from stored rules UNCONDITIONALLY — deliberately NOT gated on the
+    // `pii-redaction` feature flag. The flag gates configuration (the settings
+    // route); a transient/false flag read at execution time would skip masking
+    // and leak PII (fail-open). Stored rules are only writable by entitled orgs,
+    // so their presence is the source of truth; absence yields the disabled
+    // default (one indexed lookup, no masking cost for non-PII orgs).
+    const [row] = await db
+      .select({ orgSettings: organization.dataRetentionSettings })
+      .from(workspace)
+      .leftJoin(organization, eq(organization.id, workspace.organizationId))
+      .where(eq(workspace.id, providedWorkspaceId))
+      .limit(1)
+    const piiRedaction: EffectivePiiRedaction = resolveEffectivePiiRedaction({
+      orgSettings: row?.orgSettings,
+      workspaceId: providedWorkspaceId,
+    })
+
+    if (piiRedaction.input.enabled) {
+      // Redact the input before the workflow sees it. `onFailure: 'throw'` aborts
+      // the run (handled by the surrounding catch) rather than feeding a scrub
+      // marker into execution or leaking unredacted input. A large input may
+      // already be offloaded to a large-value ref (opaque to the string walk), so
+      // hydrate → mask → re-store refs first, then mask inline strings.
+      const inputOpts = {
+        entityTypes: piiRedaction.input.entityTypes,
+        language: piiRedaction.input.language,
+        onFailure: 'throw' as const,
+      }
+      processedInput = await redactLargeValueRefsInValue(processedInput, {
+        ...inputOpts,
+        store: {
+          workspaceId: providedWorkspaceId,
+          workflowId,
+          executionId,
+          userId: userId ?? undefined,
+        },
+      })
+      processedInput = await redactObjectStrings(processedInput, inputOpts)
+    }
+
+    if (piiRedaction.blockOutputs.enabled) {
+      // Resume / run-from-block restore prior block outputs into state. If those
+      // predate the blockOutputs stage being enabled, re-mask them so downstream
+      // blocks can't read unredacted PII from restored snapshot state. Masking is
+      // idempotent, so outputs already masked in the original run are unaffected.
+      //
+      // Two disjoint passes cover the whole state: `redactLargeValueRefsInValue`
+      // hydrates → masks → re-stores any value offloaded to large-value storage
+      // (>8MB refs the string walk treats as opaque), then `redactObjectStrings`
+      // masks the remaining inline string leaves. Both fail-fast (`throw`), so an
+      // unmaskable restored value aborts the resume rather than warming raw PII
+      // into `blockStates` for downstream blocks.
+      const blockOutputOpts = {
+        entityTypes: piiRedaction.blockOutputs.entityTypes,
+        language: piiRedaction.blockOutputs.language,
+        onFailure: 'throw' as const,
+      }
+      const largeRefOpts = {
+        ...blockOutputOpts,
+        store: {
+          workspaceId: providedWorkspaceId,
+          workflowId,
+          executionId,
+          userId: userId ?? undefined,
+        },
+      }
+      if (snapshot.state?.blockStates) {
+        const hydrated = await redactLargeValueRefsInValue(snapshot.state.blockStates, largeRefOpts)
+        snapshot.state.blockStates = await redactObjectStrings(hydrated, blockOutputOpts)
+      }
+      if (runFromBlock?.sourceSnapshot?.blockStates) {
+        const hydrated = await redactLargeValueRefsInValue(
+          runFromBlock.sourceSnapshot.blockStates,
+          largeRefOpts
+        )
+        runFromBlock.sourceSnapshot.blockStates = await redactObjectStrings(
+          hydrated,
+          blockOutputOpts
+        )
+      }
+    }
+
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
@@ -631,6 +754,7 @@ export async function executeWorkflowCore(
       userId,
       isDeployedContext: !metadata.isClientSession,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,
+      piiBlockOutputRedaction: piiRedaction.blockOutputs,
       onBlockStart: wrappedOnBlockStart,
       onBlockComplete: wrappedOnBlockComplete,
       onStream,

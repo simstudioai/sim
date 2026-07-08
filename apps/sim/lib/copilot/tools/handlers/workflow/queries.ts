@@ -14,19 +14,18 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { resolveTriggerRunOptions, toPublicRunOption } from '@/lib/workflows/triggers/run-options'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { getWorkflowById, listFolders } from '@/lib/workflows/utils'
+import { getWorkflowById } from '@/lib/workflows/utils'
 import { listUserWorkspaces } from '@/lib/workspaces/utils'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
-import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
+import { ensureWorkflowAccess } from '../access'
 import type {
   GetBlockOutputsParams,
   GetBlockUpstreamReferencesParams,
   GetDeployedWorkflowStateParams,
   GetWorkflowDataParams,
   GetWorkflowRunOptionsParams,
-  ListFoldersParams,
 } from '../param-types'
 
 export async function executeListUserWorkspaces(
@@ -36,32 +35,6 @@ export async function executeListUserWorkspaces(
     const workspaces = await listUserWorkspaces(context.userId)
 
     return { success: true, output: { workspaces } }
-  } catch (error) {
-    return { success: false, error: toError(error).message }
-  }
-}
-
-export async function executeListFolders(
-  params: ListFoldersParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workspaceId =
-      (params?.workspaceId as string | undefined) ||
-      context.workspaceId ||
-      (await getDefaultWorkspaceId(context.userId))
-
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'read')
-
-    const folders = await listFolders(workspaceId)
-
-    return {
-      success: true,
-      output: {
-        workspaceId,
-        folders,
-      },
-    }
   } catch (error) {
     return { success: false, error: toError(error).message }
   }

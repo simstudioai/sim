@@ -1,9 +1,9 @@
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from '@/components/emcn'
 import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
@@ -22,6 +22,7 @@ import {
 } from '@/lib/uploads/client/direct-upload'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
+import { useFileContentSource } from '@/hooks/use-file-content-source'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
@@ -53,6 +54,11 @@ export const workspaceFilesKeys = {
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
 }
 
+export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
+export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
+export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
+export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
+
 /**
  * Storage info type
  */
@@ -75,7 +81,7 @@ export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
     queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
     queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, 'active', signal),
     enabled: !!workspaceId && !!fileId,
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     select: (files) => files.find((f) => f.id === fileId) ?? null,
   })
 }
@@ -108,22 +114,17 @@ export function useWorkspaceFiles(
     queryKey: workspaceFilesKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, scope, signal),
     enabled: !!workspaceId && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds - files can change frequently
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
 
 /**
- * Fetch file content as text via the serve URL
+ * Fetch file content as text via a content-source URL
  */
-async function fetchWorkspaceFileContent(
-  key: string,
-  signal?: AbortSignal,
-  raw?: boolean
-): Promise<string> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}${raw ? '&raw=1' : ''}`
+async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Promise<string> {
   // boundary-raw-fetch: binary/text download, response is not JSON
-  const response = await fetch(serveUrl, { signal, cache: 'no-store' })
+  const response = await fetch(url, { signal, cache: 'no-store' })
 
   if (!response.ok) {
     throw new Error('Failed to fetch file content')
@@ -143,11 +144,13 @@ export function useWorkspaceFileContent(
   key: string,
   raw?: boolean
 ) {
+  const source = useFileContentSource()
   return useQuery({
     queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
-    queryFn: ({ signal }) => fetchWorkspaceFileContent(key, signal, raw),
+    queryFn: ({ signal }) =>
+      fetchWorkspaceFileContent(source.buildUrl(key, { raw, bust: true }), signal),
     enabled: !!workspaceId && !!fileId && !!key,
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
     refetchOnWindowFocus: 'always',
   })
 }
@@ -177,16 +180,13 @@ export class DocNotReadyError extends Error {
  * so the query keeps polling.
  */
 async function fetchWorkspaceFileBinary(
-  key: string,
+  url: string,
   version: string | number | undefined,
   signal?: AbortSignal
 ): Promise<ArrayBuffer> {
-  const cacheParam =
-    version != null ? `v=${encodeURIComponent(String(version))}` : `t=${Date.now()}`
-  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&${cacheParam}`
   const init: RequestInit = version != null ? { signal } : { signal, cache: 'no-store' }
   // boundary-raw-fetch: binary download consumed as ArrayBuffer
-  const response = await fetch(serveUrl, init)
+  const response = await fetch(url, init)
   if (response.status === 409) throw new DocNotReadyError()
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
@@ -210,18 +210,24 @@ export function useWorkspaceFileBinary(
   key: string,
   options?: { enabled?: boolean; version?: string | number }
 ) {
+  const source = useFileContentSource()
   return useQuery({
     queryKey:
       options?.version != null
         ? [...workspaceFilesKeys.content(workspaceId, fileId, 'binary', key), options.version]
         : workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
-    queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, options?.version, signal),
+    queryFn: ({ signal }) =>
+      fetchWorkspaceFileBinary(
+        source.buildUrl(key, { version: options?.version, bust: true }),
+        options?.version,
+        signal
+      ),
     // Callers gate this on a readiness signal (e.g. the file has committed
     // content) so we don't 409-poll the serve route for a generated doc whose
     // compiled artifact hasn't been written yet — the doc is fetched once, when
     // it's actually ready, instead of hammering the serve URL through generation.
     enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FILE_BINARY_STALE_TIME,
     refetchOnWindowFocus: 'always',
     placeholderData: keepPreviousData,
     // While a generated doc is still compiling, serve returns 409. Poll (stay in
@@ -275,7 +281,7 @@ export function useStorageInfo(enabled = true) {
     queryFn: ({ signal }) => fetchStorageInfo(signal),
     enabled,
     retry: false, // Don't retry on 404
-    staleTime: 60 * 1000, // 1 minute - storage info doesn't change often
+    staleTime: WORKSPACE_STORAGE_INFO_STALE_TIME, // 1 minute - storage info doesn't change often
   })
 }
 

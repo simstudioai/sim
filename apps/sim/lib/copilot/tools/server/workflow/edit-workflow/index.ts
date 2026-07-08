@@ -1,8 +1,11 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+} from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -41,6 +44,7 @@ import {
 } from './lint'
 import { type EditWorkflowParams, isDeferredSkippedItem, type ValidationError } from './types'
 import {
+  collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
   preValidateCredentialInputs,
   UNRESOLVABLE_AT_LINT_NOTE,
@@ -105,6 +109,8 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     if (!authorization.allowed) {
       throw new Error(authorization.message || 'Unauthorized workflow access')
     }
+
+    await assertWorkflowMutable(workflowId)
 
     const workspaceId = authorization.workflow?.workspaceId ?? undefined
     const workflowName = authorization.workflow?.name ?? undefined
@@ -182,6 +188,31 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         )
       } catch (error) {
         logger.warn('Selector ID validation failed', {
+          error: toError(error).message,
+        })
+      }
+
+      // Resolve agent-block tool/skill references (custom tools, MCP servers,
+      // skills). A well-shaped entry whose id does not resolve is dropped at
+      // runtime, so the agent silently loses the tool/skill - surface it through
+      // the same lint + input-validation channels as credential/resource refs.
+      try {
+        const toolReferences = await collectUnresolvedAgentToolReferences(modifiedWorkflowState, {
+          userId: context.userId,
+          workspaceId,
+        })
+        unresolvedReferences.push(...toolReferences)
+        validationErrors.push(
+          ...toolReferences.map((ref) => ({
+            blockId: ref.blockId,
+            blockType: ref.blockType ?? 'agent',
+            field: ref.field,
+            value: ref.value,
+            error: ref.reason,
+          }))
+        )
+      } catch (error) {
+        logger.warn('Agent tool/skill reference validation failed', {
           error: toError(error).message,
         })
       }

@@ -1,16 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Plus, Server } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipConfirmModal,
   ChipInput,
   ChipModal,
@@ -24,11 +19,19 @@ import {
   Code,
   type ComboboxOption,
   Label,
-  Tooltip,
-} from '@/components/emcn'
-import { ArrowLeft, Search } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Check, Clipboard, Plus, Server } from 'lucide-react'
+import { useParams, useSearchParams } from 'next/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useCreateMcpServer } from '@/hooks/queries/mcp'
@@ -45,7 +48,6 @@ import {
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
-import { CreateApiKeyModal } from '../api-keys/components'
 
 const logger = createLogger('WorkflowMcpServers')
 
@@ -66,7 +68,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   const updateToolMutation = useUpdateWorkflowMcpTool()
   const updateServerMutation = useUpdateWorkflowMcpServer()
 
-  // API Keys - for "Create API key" link
   const { data: apiKeysData } = useApiKeys(workspaceId)
   const { data: workspaceSettingsData } = useWorkspaceSettings(workspaceId)
   const userPermissions = useUserPermissionsContext()
@@ -108,27 +109,27 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   const [editServerIsPublic, setEditServerIsPublic] = useState(false)
   const [activeServerTab, setActiveServerTab] = useState<'workflows' | 'details'>('details')
 
-  useEffect(() => {
-    if (toolToView) {
-      setEditingDescription(toolToView.toolDescription || '')
-      const schema = toolToView.parameterSchema as
-        | { properties?: Record<string, { type?: string; description?: string }> }
-        | undefined
-      const properties = schema?.properties
-      if (properties) {
-        const descriptions: Record<string, string> = {}
-        for (const [name, prop] of Object.entries(properties)) {
-          descriptions[name] = prop.description || ''
-        }
-        setEditingParameterDescriptions(descriptions)
-      } else {
-        setEditingParameterDescriptions({})
-      }
-    }
-  }, [toolToView])
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
   const mcpServerUrl = `${getBaseUrl()}/api/mcp/serve/${serverId}`
+
+  const handleOpenToolEdit = (tool: WorkflowMcpTool) => {
+    setToolToView(tool)
+    setEditingDescription(tool.toolDescription || '')
+    const schema = tool.parameterSchema as
+      | { properties?: Record<string, { type?: string; description?: string }> }
+      | undefined
+    const properties = schema?.properties
+    if (properties) {
+      const descriptions: Record<string, string> = {}
+      for (const [name, prop] of Object.entries(properties)) {
+        descriptions[name] = prop.description || ''
+      }
+      setEditingParameterDescriptions(descriptions)
+    } else {
+      setEditingParameterDescriptions({})
+    }
+  }
 
   const handleDeleteTool = async () => {
     if (!toolToDelete) return
@@ -186,7 +187,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         workspaceId,
         serverId,
         toolId: toolToView.id,
-        toolDescription: editingDescription.trim() || undefined,
+        toolDescription: editingDescription.trim(),
         parameterSchema: updatedSchema,
       })
       setToolToView(null)
@@ -216,7 +217,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
     return !descriptionChanged && !paramDescriptionsChanged
   })()
 
-  const tools = data?.tools ?? []
+  const tools = useMemo(() => data?.tools ?? [], [data?.tools])
 
   const availableWorkflows = useMemo(() => {
     const existingWorkflowIds = new Set(tools.map((t) => t.workflowId))
@@ -254,7 +255,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         return `claude mcp add "${safeName}" --url "${mcpServerUrl}" --header "X-API-Key:$SIM_API_KEY"`
       }
 
-      // Cursor supports direct URL configuration (no mcp-remote needed)
       if (client === 'cursor') {
         const cursorConfig = isPublic
           ? { url: mcpServerUrl }
@@ -263,7 +263,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         return JSON.stringify({ mcpServers: { [safeName]: cursorConfig } }, null, 2)
       }
 
-      // Claude Desktop and VS Code still use mcp-remote (stdio transport)
       const mcpRemoteArgs = isPublic
         ? ['-y', 'mcp-remote', mcpServerUrl]
         : ['-y', 'mcp-remote', mcpServerUrl, '--header', 'X-API-Key:$SIM_API_KEY']
@@ -354,328 +353,269 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   )
 
   if (isLoading) {
-    return (
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <Chip onClick={onBack} leftIcon={ArrowLeft}>
-            MCP Servers
-          </Chip>
-        </div>
-      </div>
-    )
+    return <SettingsPanel back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }} />
   }
 
   if (error || !data) {
     return (
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <Chip onClick={onBack} leftIcon={ArrowLeft}>
-            MCP Servers
-          </Chip>
-        </div>
+      <SettingsPanel back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }}>
         <div className='flex min-h-0 flex-1 items-center justify-center'>
           <p className='text-[var(--text-error)] text-xs leading-tight'>
             Failed to load server details
           </p>
         </div>
-      </div>
+      </SettingsPanel>
     )
   }
 
   const { server } = data
 
-  const detailHeaderJsx = (
-    <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-      <Chip onClick={onBack} leftIcon={ArrowLeft}>
-        MCP Servers
-      </Chip>
-      <div className='flex items-center'>
-        <Chip onClick={handleOpenEditServer}>Edit Server</Chip>
-        {showAddDisabledTooltip ? (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <div className='inline-flex'>
-                <Chip disabled>Add Workflows</Chip>
-              </div>
-            </Tooltip.Trigger>
-            <Tooltip.Content>
-              All deployed workflows have been added to this server.
-            </Tooltip.Content>
-          </Tooltip.Root>
-        ) : (
-          <Chip onClick={() => setShowAddWorkflow(true)} disabled={!canAddWorkflow}>
-            Add Workflows
-          </Chip>
-        )}
-      </div>
-    </div>
-  )
-
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        {detailHeaderJsx}
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col pt-4 pb-6'>
-            <div className='flex min-h-0 flex-1 flex-col'>
-              <ChipModalTabs
-                tabs={[
-                  { value: 'details', label: 'Details' },
-                  { value: 'workflows', label: 'Workflows' },
-                ]}
-                value={activeServerTab}
-                onChange={(value) => setActiveServerTab(value as 'workflows' | 'details')}
-              />
+      <SettingsPanel
+        back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }}
+        title={server.name}
+        actions={[
+          { text: 'Edit server', onSelect: handleOpenEditServer },
+          {
+            text: 'Add workflows',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setShowAddWorkflow(true),
+            disabled: !canAddWorkflow,
+            tooltip: showAddDisabledTooltip
+              ? 'All deployed workflows have been added to this server.'
+              : undefined,
+          },
+        ]}
+      >
+        <div className='flex min-h-0 flex-1 flex-col'>
+          <ChipModalTabs
+            tabs={[
+              { value: 'details', label: 'Details' },
+              { value: 'workflows', label: 'Workflows' },
+            ]}
+            value={activeServerTab}
+            onChange={(value) => setActiveServerTab(value as 'workflows' | 'details')}
+          />
 
-              <div className='min-h-[300px] pt-4'>
-                {activeServerTab === 'workflows' && (
-                  <div className='flex flex-col gap-4.5'>
-                    <div className='flex items-center justify-between'>
-                      <span className='font-medium text-[var(--text-primary)] text-sm'>
-                        Workflows
-                      </span>
-                      {showAddDisabledTooltip ? (
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <div className='inline-flex'>
-                              <Chip leftIcon={Plus} variant='primary' disabled>
-                                Add Workflow
-                              </Chip>
-                            </div>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content>
-                            All deployed workflows have been added to this server.
-                          </Tooltip.Content>
-                        </Tooltip.Root>
-                      ) : (
-                        <Chip
-                          leftIcon={Plus}
-                          variant='primary'
-                          onClick={() => setShowAddWorkflow(true)}
-                          disabled={!canAddWorkflow}
-                        >
-                          Add Workflow
-                        </Chip>
-                      )}
-                    </div>
+          <div className='min-h-[300px] pt-4'>
+            {activeServerTab === 'workflows' && (
+              <div className='flex flex-col gap-4.5'>
+                <span className='font-medium text-[var(--text-primary)] text-sm'>Workflows</span>
 
-                    {tools.length === 0 ? (
-                      <p className='text-[var(--text-muted)] text-sm'>
-                        No workflows added yet. Click &quot;Add Workflow&quot; to add a deployed
-                        workflow.
-                      </p>
-                    ) : (
-                      <div className='flex flex-col gap-2'>
-                        {tools.map((tool) => (
-                          <div key={tool.id} className='flex items-center justify-between gap-3'>
-                            <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                              <span className='text-[14px] text-[var(--text-body)]'>
-                                {tool.toolName}
-                              </span>
-                              <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                                {tool.toolDescription || 'No description'}
-                              </p>
-                            </div>
-                            <div className='flex flex-shrink-0 items-center gap-1'>
-                              <Chip onClick={() => setToolToView(tool)}>Edit</Chip>
-                              <Chip
-                                onClick={() => setToolToDelete(tool)}
-                                disabled={deleteToolMutation.isPending}
-                              >
-                                Remove
-                              </Chip>
-                            </div>
-                          </div>
-                        ))}
+                {tools.length === 0 ? (
+                  <p className='text-[var(--text-muted)] text-sm'>
+                    No workflows added yet. Click &quot;Add Workflow&quot; to add a deployed
+                    workflow.
+                  </p>
+                ) : (
+                  <div className='flex flex-col gap-2'>
+                    {tools.map((tool) => (
+                      <div key={tool.id} className='flex items-center justify-between gap-3'>
+                        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                          <span className='text-[var(--text-body)] text-sm'>{tool.toolName}</span>
+                          <p className='truncate text-[var(--text-muted)] text-caption'>
+                            {tool.toolDescription || 'No description'}
+                          </p>
+                        </div>
+                        <div className='flex flex-shrink-0 items-center gap-1'>
+                          <RowActionsMenu
+                            label='Tool actions'
+                            actions={[
+                              { label: 'Edit', onSelect: () => handleOpenToolEdit(tool) },
+                              {
+                                label: 'Remove',
+                                destructive: true,
+                                disabled: deleteToolMutation.isPending,
+                                onSelect: () => setToolToDelete(tool),
+                              },
+                            ]}
+                          />
+                        </div>
                       </div>
-                    )}
-
-                    {deployedWorkflows.length === 0 && !isLoadingWorkflows && (
-                      <p className='mt-1 text-[var(--text-muted)] text-xs'>
-                        Deploy a workflow first to add it to this server.
-                      </p>
-                    )}
+                    ))}
                   </div>
                 )}
 
-                {activeServerTab === 'details' && (
-                  <div className='flex flex-col gap-4.5'>
-                    <div className='grid grid-cols-[1fr_1fr_1fr] gap-x-6 gap-y-3.5'>
-                      <div className='flex flex-col gap-1'>
-                        <span className='font-medium text-[var(--text-primary)] text-sm'>
-                          Server Name
-                        </span>
-                        <p className='text-[var(--text-secondary)] text-base'>{server.name}</p>
-                      </div>
-                      <div className='flex flex-col gap-1'>
-                        <span className='font-medium text-[var(--text-primary)] text-sm'>
-                          Transport
-                        </span>
-                        <p className='text-[var(--text-secondary)] text-base'>Streamable-HTTP</p>
-                      </div>
-                      <div className='flex flex-col gap-1'>
-                        <span className='font-medium text-[var(--text-primary)] text-sm'>
-                          Access
-                        </span>
-                        <p className='text-[var(--text-secondary)] text-base'>
-                          {server.isPublic ? 'Public' : 'API Key'}
-                        </p>
-                      </div>
-                    </div>
+                {deployedWorkflows.length === 0 && !isLoadingWorkflows && (
+                  <p className='mt-1 text-[var(--text-muted)] text-xs'>
+                    Deploy a workflow first to add it to this server.
+                  </p>
+                )}
+              </div>
+            )}
 
-                    {server.description?.trim() && (
-                      <div className='flex flex-col gap-1'>
-                        <span className='font-medium text-[var(--text-primary)] text-sm'>
-                          Description
-                        </span>
-                        <p className='text-[var(--text-secondary)] text-base'>
-                          {server.description}
-                        </p>
-                      </div>
-                    )}
+            {activeServerTab === 'details' && (
+              <div className='flex flex-col gap-4.5'>
+                <div className='grid grid-cols-[1fr_1fr_1fr] gap-x-6 gap-y-3.5'>
+                  <div className='flex flex-col gap-1'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>
+                      Server Name
+                    </span>
+                    <p className='text-[var(--text-secondary)] text-base'>{server.name}</p>
+                  </div>
+                  <div className='flex flex-col gap-1'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>
+                      Transport
+                    </span>
+                    <p className='text-[var(--text-secondary)] text-base'>Streamable-HTTP</p>
+                  </div>
+                  <div className='flex flex-col gap-1'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>Access</span>
+                    <p className='text-[var(--text-secondary)] text-base'>
+                      {server.isPublic ? 'Public' : 'API Key'}
+                    </p>
+                  </div>
+                </div>
 
-                    <div className='flex flex-col gap-1'>
-                      <span className='font-medium text-[var(--text-primary)] text-sm'>URL</span>
-                      <p className='break-all text-[var(--text-secondary)] text-base'>
-                        {mcpServerUrl}
+                {server.description?.trim() && (
+                  <div className='flex flex-col gap-1'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>
+                      Description
+                    </span>
+                    <p className='text-[var(--text-secondary)] text-base'>{server.description}</p>
+                  </div>
+                )}
+
+                <div className='flex flex-col gap-1'>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>URL</span>
+                  <p className='break-all text-[var(--text-secondary)] text-base'>{mcpServerUrl}</p>
+                </div>
+
+                <div>
+                  <div className='mb-[6.5px] flex items-center justify-between'>
+                    <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
+                      MCP Client
+                    </span>
+                  </div>
+                  <ButtonGroup
+                    value={activeConfigTab}
+                    onValueChange={(v) => setActiveConfigTab(v as McpClientType)}
+                  >
+                    <ButtonGroupItem value='cursor'>Cursor</ButtonGroupItem>
+                    <ButtonGroupItem value='claude-code'>Claude Code</ButtonGroupItem>
+                    <ButtonGroupItem value='claude-desktop'>Claude Desktop</ButtonGroupItem>
+                    <ButtonGroupItem value='vscode'>VS Code</ButtonGroupItem>
+                    <ButtonGroupItem value='sim'>Sim</ButtonGroupItem>
+                  </ButtonGroup>
+                </div>
+
+                {activeConfigTab === 'sim' ? (
+                  <div className='rounded-lg border border-[var(--border-1)] p-4'>
+                    <div className='flex flex-col gap-3'>
+                      <p className='text-[var(--text-secondary)] text-small'>
+                        Add this MCP server to your workspace so you can use its tools in other
+                        workflows via the MCP block.
                       </p>
-                    </div>
-
-                    <div>
-                      <div className='mb-[6.5px] flex items-center justify-between'>
-                        <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
-                          MCP Client
-                        </span>
-                      </div>
-                      <ButtonGroup
-                        value={activeConfigTab}
-                        onValueChange={(v) => setActiveConfigTab(v as McpClientType)}
+                      <Button
+                        variant='primary'
+                        className='self-start'
+                        disabled={addToWorkspaceMutation.isPending || addedToWorkspace}
+                        onClick={async () => {
+                          try {
+                            const headers: Record<string, string> = server.isPublic
+                              ? {}
+                              : { 'X-API-Key': '{{SIM_API_KEY}}' }
+                            await addToWorkspaceMutation.mutateAsync({
+                              workspaceId,
+                              config: {
+                                name: server.name,
+                                transport: 'streamable-http',
+                                url: mcpServerUrl,
+                                timeout: 30000,
+                                headers,
+                                enabled: true,
+                              },
+                            })
+                            setAddedToWorkspace(true)
+                            addedToWorkspaceTimerRef.current = setTimeout(
+                              () => setAddedToWorkspace(false),
+                              3000
+                            )
+                          } catch (err) {
+                            logger.error('Failed to add server to workspace:', err)
+                          }
+                        }}
                       >
-                        <ButtonGroupItem value='cursor'>Cursor</ButtonGroupItem>
-                        <ButtonGroupItem value='claude-code'>Claude Code</ButtonGroupItem>
-                        <ButtonGroupItem value='claude-desktop'>Claude Desktop</ButtonGroupItem>
-                        <ButtonGroupItem value='vscode'>VS Code</ButtonGroupItem>
-                        <ButtonGroupItem value='sim'>Sim</ButtonGroupItem>
-                      </ButtonGroup>
-                    </div>
-
-                    {activeConfigTab === 'sim' ? (
-                      <div className='rounded-lg border border-[var(--border-1)] p-4'>
-                        <div className='flex flex-col gap-3'>
-                          <p className='text-[var(--text-secondary)] text-small'>
-                            Add this MCP server to your workspace so you can use its tools in other
-                            workflows via the MCP block.
-                          </p>
-                          <Button
-                            variant='primary'
-                            className='self-start'
-                            disabled={addToWorkspaceMutation.isPending || addedToWorkspace}
-                            onClick={async () => {
-                              try {
-                                const headers: Record<string, string> = server.isPublic
-                                  ? {}
-                                  : { 'X-API-Key': '{{SIM_API_KEY}}' }
-                                await addToWorkspaceMutation.mutateAsync({
-                                  workspaceId,
-                                  config: {
-                                    name: server.name,
-                                    transport: 'streamable-http',
-                                    url: mcpServerUrl,
-                                    timeout: 30000,
-                                    headers,
-                                    enabled: true,
-                                  },
-                                })
-                                setAddedToWorkspace(true)
-                                addedToWorkspaceTimerRef.current = setTimeout(
-                                  () => setAddedToWorkspace(false),
-                                  3000
-                                )
-                              } catch (err) {
-                                logger.error('Failed to add server to workspace:', err)
-                              }
-                            }}
-                          >
-                            {addToWorkspaceMutation.isPending ? (
-                              'Adding...'
-                            ) : addedToWorkspace ? (
-                              <>
-                                <Check className='mr-1.5 size-[14px]' />
-                                Added to Workspace
-                              </>
-                            ) : (
-                              <>
-                                <Server className='mr-1.5 size-[14px]' />
-                                Add to Workspace
-                              </>
-                            )}
-                          </Button>
-                          {addToWorkspaceMutation.isError && (
-                            <p className='text-[var(--text-error)] text-xs'>
-                              {addToWorkspaceMutation.error?.message || 'Failed to add server'}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className='mb-[6.5px] flex items-center justify-between'>
-                          <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
-                            Configuration
-                          </span>
-                          <Button
-                            variant='ghost'
-                            onClick={() => handleCopyConfig(server.isPublic, server.name)}
-                            className='!p-1.5 -my-1.5'
-                          >
-                            {copiedConfig ? (
-                              <Check className='size-[14px]' />
-                            ) : (
-                              <Clipboard className='size-[14px]' />
-                            )}
-                          </Button>
-                        </div>
-                        <div className='relative'>
-                          <Code.Viewer
-                            code={getConfigSnippet(activeConfigTab, server.isPublic, server.name)}
-                            language={activeConfigTab === 'claude-code' ? 'javascript' : 'json'}
-                            wrapText
-                            className='!min-h-0 rounded-sm border border-[var(--border-1)]'
-                          />
-                          {activeConfigTab === 'cursor' && (
-                            <a
-                              href={getCursorInstallUrl(server.isPublic, server.name)}
-                              className='absolute top-1.5 right-2 inline-flex rounded-md bg-[var(--surface-5)] ring-1 ring-[var(--border-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
-                            >
-                              <img
-                                src='https://cursor.com/deeplink/mcp-install-dark.svg'
-                                alt='Add to Cursor'
-                                className='h-[26px] rounded-md align-middle'
-                              />
-                            </a>
-                          )}
-                        </div>
-                        {!server.isPublic && (
-                          <p className='mt-2 text-[var(--text-muted)] text-xs'>
-                            Replace $SIM_API_KEY with your API key, or{' '}
-                            <button
-                              type='button'
-                              onClick={() => setShowCreateApiKeyModal(true)}
-                              className='underline hover-hover:text-[var(--text-secondary)]'
-                            >
-                              create one now
-                            </button>
-                          </p>
+                        {addToWorkspaceMutation.isPending ? (
+                          'Adding...'
+                        ) : addedToWorkspace ? (
+                          <>
+                            <Check className='mr-1.5 size-[14px]' />
+                            Added to Workspace
+                          </>
+                        ) : (
+                          <>
+                            <Server className='mr-1.5 size-[14px]' />
+                            Add to Workspace
+                          </>
                         )}
-                      </div>
+                      </Button>
+                      {addToWorkspaceMutation.isError && (
+                        <p className='text-[var(--text-error)] text-xs'>
+                          {addToWorkspaceMutation.error?.message || 'Failed to add server'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className='mb-[6.5px] flex items-center justify-between'>
+                      <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
+                        Configuration
+                      </span>
+                      <Button
+                        variant='ghost'
+                        onClick={() => handleCopyConfig(server.isPublic, server.name)}
+                        className='!p-1.5 -my-1.5'
+                      >
+                        {copiedConfig ? (
+                          <Check className='size-[14px]' />
+                        ) : (
+                          <Clipboard className='size-[14px]' />
+                        )}
+                      </Button>
+                    </div>
+                    <div className='relative'>
+                      <Code.Viewer
+                        code={getConfigSnippet(activeConfigTab, server.isPublic, server.name)}
+                        language={activeConfigTab === 'claude-code' ? 'javascript' : 'json'}
+                        wrapText
+                        className='!min-h-0 rounded-sm border border-[var(--border-1)]'
+                      />
+                      {activeConfigTab === 'cursor' && (
+                        <a
+                          href={getCursorInstallUrl(server.isPublic, server.name)}
+                          className='absolute top-1.5 right-2 inline-flex rounded-md bg-[var(--surface-5)] ring-1 ring-[var(--border-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
+                        >
+                          <img
+                            src='https://cursor.com/deeplink/mcp-install-dark.svg'
+                            alt='Add to Cursor'
+                            className='h-[26px] rounded-md align-middle'
+                          />
+                        </a>
+                      )}
+                    </div>
+                    {!server.isPublic && (
+                      <p className='mt-2 text-[var(--text-muted)] text-xs'>
+                        Replace $SIM_API_KEY with your API key, or{' '}
+                        <button
+                          type='button'
+                          onClick={() => setShowCreateApiKeyModal(true)}
+                          className='underline hover-hover:text-[var(--text-secondary)]'
+                        >
+                          create one now
+                        </button>
+                      </p>
                     )}
                   </div>
                 )}
               </div>
-            </div>
+            )}
           </div>
         </div>
-      </div>
+      </SettingsPanel>
 
       <ChipConfirmModal
         open={!!toolToDelete}
@@ -915,15 +855,17 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 export function WorkflowMcpServers() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const searchParams = useSearchParams()
 
   const { data: servers = [], isLoading, error } = useWorkflowMcpServers(workspaceId)
-  const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
-    useDeployedWorkflows(workspaceId)
+  const { data: deployedWorkflows = [] } = useDeployedWorkflows(workspaceId)
   const deleteServerMutation = useDeleteWorkflowMcpServer()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
-  const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(() =>
+    searchParams.get('mcpServerId')
+  )
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
 
@@ -975,93 +917,90 @@ export function WorkflowMcpServers() {
     )
   }
 
+  const actions: SettingsAction[] = [
+    {
+      text: 'Add server',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => setShowAddModal(true),
+      disabled: isLoading,
+    },
+  ]
+
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
-            <Chip
-              leftIcon={Plus}
-              variant='primary'
-              onClick={() => setShowAddModal(true)}
-              disabled={isLoading}
-            >
-              Add Server
-            </Chip>
-          </div>
-        </div>
-
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <ChipInput
-              icon={Search}
-              placeholder='Search servers...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-
-            <div className='min-h-0 flex-1'>
-              {error ? (
-                <div className='flex h-full flex-col items-center justify-center gap-2'>
-                  <p className='text-[var(--text-error)] text-sm leading-tight'>
-                    {getErrorMessage(error, 'Failed to load MCP servers')}
-                  </p>
-                </div>
-              ) : isLoading ? null : !hasServers ? (
-                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                  Click &quot;Add Server&quot; above to get started
-                </div>
-              ) : (
-                <div className='flex flex-col gap-2'>
-                  {filteredServers.map((server) => {
-                    const count = server.toolCount || 0
-                    const toolsLabel = `${count} tool${count !== 1 ? 's' : ''}`
-                    const isDeleting = deletingServers.has(server.id)
-                    return (
-                      <div key={server.id} className='flex items-center justify-between gap-3'>
-                        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                          <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
-                              {server.name}
-                            </span>
-                            {server.isPublic && (
-                              <Badge variant='outline' size='sm'>
-                                Public
-                              </Badge>
-                            )}
-                          </div>
-                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                            {toolsLabel}
-                          </p>
-                        </div>
-                        <div className='flex flex-shrink-0 items-center gap-1'>
-                          <Chip onClick={() => setSelectedServerId(server.id)}>Details</Chip>
-                          <Chip onClick={() => setServerToDelete(server)} disabled={isDeleting}>
-                            {isDeleting ? 'Deleting...' : 'Delete'}
-                          </Chip>
-                        </div>
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search servers...',
+        }}
+        actions={actions}
+      >
+        <div className='min-h-0 flex-1'>
+          {error ? (
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[var(--text-error)] text-sm leading-tight'>
+                {getErrorMessage(error, 'Failed to load MCP servers')}
+              </p>
+            </div>
+          ) : isLoading ? null : !hasServers ? (
+            <SettingsEmptyState>
+              Click &quot;Add server&quot; above to get started
+            </SettingsEmptyState>
+          ) : (
+            <div className='flex flex-col gap-2'>
+              {filteredServers.map((server) => {
+                const count = server.toolCount || 0
+                const toolsLabel = `${count} tool${count !== 1 ? 's' : ''}`
+                const isDeleting = deletingServers.has(server.id)
+                return (
+                  <div key={server.id} className='flex items-center justify-between gap-3'>
+                    <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                      <div className='flex items-center gap-1.5'>
+                        <span className='max-w-[200px] truncate text-[var(--text-body)] text-sm'>
+                          {server.name}
+                        </span>
+                        {server.isPublic && (
+                          <Badge variant='outline' size='sm'>
+                            Public
+                          </Badge>
+                        )}
                       </div>
-                    )
-                  })}
-                  {showNoResults && (
-                    <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                      No servers found matching "{searchTerm}"
+                      <p className='truncate text-[var(--text-muted)] text-caption'>{toolsLabel}</p>
                     </div>
-                  )}
-                </div>
+                    <div className='flex flex-shrink-0 items-center gap-1'>
+                      <RowActionsMenu
+                        label='Server actions'
+                        actions={[
+                          { label: 'Details', onSelect: () => setSelectedServerId(server.id) },
+                          {
+                            label: 'Delete',
+                            destructive: true,
+                            disabled: isDeleting,
+                            onSelect: () => setServerToDelete(server),
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+              {showNoResults && (
+                <SettingsEmptyState variant='inline'>
+                  No servers found matching "{searchTerm}"
+                </SettingsEmptyState>
               )}
             </div>
-          </div>
+          )}
         </div>
-      </div>
+      </SettingsPanel>
 
       <CreateWorkflowMcpServerModal
         open={showAddModal}
         onOpenChange={setShowAddModal}
         workspaceId={workspaceId}
         workflowOptions={workflowOptions}
-        isLoadingWorkflows={isLoadingWorkflows}
       />
 
       <ChipConfirmModal

@@ -38,7 +38,7 @@ vi.mock('@/lib/uploads/core/upload-token', () => ({
 
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
   completeS3MultipartUpload: mockCompleteS3MultipartUpload,
-  initiateS3MultipartUpload: vi.fn(),
+  initiateS3MultipartUpload: mockInitiateS3MultipartUpload,
   getS3MultipartPartUrls: vi.fn(),
   abortS3MultipartUpload: vi.fn(),
 }))
@@ -247,31 +247,38 @@ describe('POST /api/files/multipart action=initiate quota enforcement', () => {
     expect(body.error).toContain('Storage limit exceeded')
   })
 
-  it('does not check quota for quota-exempt contexts (og-images)', async () => {
+  it('allows quota-enforced contexts that pass the quota check', async () => {
     const res = await makeInitiateRequest({
-      fileName: 'img.png',
-      contentType: 'image/png',
+      fileName: 'doc.pdf',
+      contentType: 'application/pdf',
       fileSize: 99999,
       workspaceId: 'ws-1',
-      context: 'og-images',
+      context: 'knowledge-base',
     })
 
     const response = await POST(res)
-    expect(mockCheckStorageQuota).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 99999)
+    expect(mockInitiateS3MultipartUpload).toHaveBeenCalled()
   })
 
-  it('rejects logs context — not allowed via the multipart endpoint', async () => {
-    const res = await makeInitiateRequest({
-      fileName: 'exec.log',
-      contentType: 'text/plain',
-      fileSize: 1000,
-      workspaceId: 'ws-1',
-      context: 'logs',
-    })
+  it.each(['og-images', 'profile-pictures', 'workspace-logos', 'logs'])(
+    'rejects quota-exempt context %s — not allowed via the multipart endpoint',
+    async (context) => {
+      const res = await makeInitiateRequest({
+        fileName: 'asset.png',
+        contentType: 'image/png',
+        fileSize: 100 * 1024 * 1024 * 1024,
+        workspaceId: 'ws-1',
+        context,
+      })
 
-    const response = await POST(res)
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toMatch(/invalid storage context/i)
-  })
+      const response = await POST(res)
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toMatch(/invalid storage context/i)
+      expect(mockCheckStorageQuota).not.toHaveBeenCalled()
+      expect(mockInitiateS3MultipartUpload).not.toHaveBeenCalled()
+    }
+  )
 })

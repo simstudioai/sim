@@ -118,6 +118,22 @@ app.kubernetes.io/component: ollama
 {{- end }}
 
 {{/*
+PII (Presidio) specific labels
+*/}}
+{{- define "sim.pii.labels" -}}
+{{ include "sim.labels" . }}
+app.kubernetes.io/component: pii
+{{- end }}
+
+{{/*
+PII (Presidio) selector labels
+*/}}
+{{- define "sim.pii.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
+app.kubernetes.io/component: pii
+{{- end }}
+
+{{/*
 Migrations specific labels
 */}}
 {{- define "sim.migrations.labels" -}}
@@ -261,8 +277,8 @@ externalSecrets.remoteRefs.app when ESO is enabled. When ESO is on, the
 chart-managed Secret is not rendered — anything not mapped via ESO would
 be silently missing at runtime.
 
-Chart-computed keys (DATABASE_URL, SOCKET_SERVER_URL, OLLAMA_URL) are
-exempt because they're inlined on the container, not sourced from the
+Chart-computed keys (DATABASE_URL, SOCKET_SERVER_URL, OLLAMA_URL, PII_URL)
+are exempt because they're inlined on the container, not sourced from the
 Secret.
 
 Fail-fast is only safe for ESO because we can introspect remoteRefs at
@@ -273,7 +289,7 @@ than enforced.
 {{- define "sim.validateExternalSecretCoverage" -}}
 {{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}
 {{- $remoteRefs := default (dict) (default (dict) .Values.externalSecrets.remoteRefs).app -}}
-{{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" -}}
+{{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" -}}
 {{- $appEnv := default (dict) .Values.app.env -}}
 {{/*
   Required-key coverage: these are non-optional at runtime. With ESO enabled
@@ -427,6 +443,19 @@ Ollama URL
 {{- printf "http://%s:%v" $serviceName $port }}
 {{- else }}
 {{- .Values.app.env.OLLAMA_URL | default "http://localhost:11434" }}
+{{- end }}
+{{- end }}
+
+{{/*
+PII (Presidio) service URL
+*/}}
+{{- define "sim.piiUrl" -}}
+{{- if .Values.pii.enabled }}
+{{- $serviceName := printf "%s-pii" (include "sim.fullname" .) }}
+{{- $port := .Values.pii.service.port }}
+{{- printf "http://%s:%v" $serviceName $port }}
+{{- else }}
+{{- .Values.app.env.PII_URL | default "http://localhost:5001" }}
 {{- end }}
 {{- end }}
 

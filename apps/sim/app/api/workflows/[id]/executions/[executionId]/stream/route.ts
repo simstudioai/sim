@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { streamWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'

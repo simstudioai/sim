@@ -2,19 +2,19 @@
 
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { cn, toast, useToast } from '@sim/emcn'
+import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { toast, useToast } from '@/components/emcn'
-import { Loader, TableX } from '@/components/emcn/icons'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
-import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -90,6 +90,11 @@ export interface SelectionSnapshot {
   /** Total running/queued workflow runs across ALL rows. Drives the page-header
    *  RunStatusControl ("N running, Stop all"). */
   totalRunning: number
+  /** Whether any LOADED cell has actually been claimed by a worker
+   *  (`status === 'running'`). False while the in-flight set is all
+   *  queued/pending stamps — the header control then reads "Queueing"
+   *  instead of labeling queued work as running. */
+  hasRunningCell: boolean
   /** Whether any dispatch is active (pending/dispatching). Keeps the RunStatusControl
    *  + Stop-all visible during a run even when the per-row count momentarily reads 0
    *  (e.g. the first window of an auto-fired/capped dispatch before cells stamp). */
@@ -127,6 +132,10 @@ export interface SelectionSnapshot {
     /** True iff the exec is in a state that produced a server log
      *  (completed / error / running). Drives the View execution button. */
     canViewExecution: boolean
+    /** True iff this is an enrichment group with a terminal run (completed /
+     *  error) — drives "View execution" opening the enrichment details panel
+     *  instead of a workflow execution log. */
+    canViewEnrichment: boolean
   } | null
 }
 
@@ -153,6 +162,8 @@ interface TableGridProps {
   /** Open the enrichments slideout in edit mode for an existing enrichment group. */
   onOpenEnrichmentConfig: (group: WorkflowGroup) => void
   onOpenExecutionDetails: (executionId: string) => void
+  /** Open the enrichment details panel (cost + provider cascade) for a cell. */
+  onOpenEnrichmentDetails: (rowId: string, groupId: string) => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
@@ -283,6 +294,7 @@ export function TableGrid({
   onOpenEnrichments,
   onOpenEnrichmentConfig,
   onOpenExecutionDetails,
+  onOpenEnrichmentDetails,
   onOpenRowModal,
   onRequestDeleteRows,
   onRequestDeleteAllByFilter,
@@ -391,13 +403,27 @@ export function TableGrid({
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
   const runningByRowId = tableRunState?.runningByRowId ?? EMPTY_RUNNING_BY_ROW
-  // Actual in-flight cell count = sum of the live per-row map (kept current by
-  // applyCell's SSE deltas, and the same source the per-row gutter uses). The
-  // dispatch-scope `runningCellCount` over-counts already-completed groups on
-  // rows still inside a dispatch's scope — e.g. a cascade where 3 of 4 columns
-  // finished would read "4 running" instead of "1".
+  // In-flight cell count = sum of the server-derived per-row map (refetched on
+  // a throttle as cell SSE events arrive, stamped optimistically on run-click
+  // — the same source the per-row gutter uses).
   const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
   const hasActiveDispatch = (activeDispatches?.length ?? 0) > 0
+  // Claimed-cell signal for the "Queueing" vs "N running" label. Two sources
+  // OR'd: the loaded-rows scan flips instantly via SSE claim events, and the
+  // server's table-wide flag covers runs whose active window has scrolled
+  // past the loaded pages (where the scan alone would read "Queueing" for the
+  // rest of a long run).
+  const hasRunningLoaded = useMemo(() => {
+    for (const row of rows) {
+      const executions = row.executions
+      if (!executions) continue
+      for (const exec of Object.values(executions)) {
+        if (exec?.status === 'running') return true
+      }
+    }
+    return false
+  }, [rows])
+  const hasRunningCell = hasRunningLoaded || (tableRunState?.hasRunning ?? false)
 
   // True "select all" total: the filter-scoped COUNT(*) when a filter is active, else the whole
   // table. Drives the delete-confirm count and the action-bar cell count.
@@ -480,6 +506,10 @@ export function TableGrid({
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
 
+  const timeZone = useTimezone()
+  const timeZoneRef = useRef(timeZone)
+  timeZoneRef.current = timeZone
+
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
   const batchCreateRowsMutation = useBatchCreateTableRows({ workspaceId, tableId })
@@ -497,7 +527,10 @@ export function TableGrid({
     rowIds?: string[],
     limit?: RunLimit
   ) {
-    onRunColumn(groupId, runMode, rowIds, limit)
+    // Table-scoped runs (Run all / Run empty / Run N empty) honor the active
+    // filter; an explicit rowIds scope (Run selected) already names its rows.
+    const filter = rowIds ? undefined : (queryOptions.filter ?? undefined)
+    onRunColumn(groupId, runMode, rowIds, limit, filter)
   }
 
   const handleViewWorkflow = useCallback(
@@ -619,7 +652,7 @@ export function TableGrid({
 
   const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
   const { colWidth: checkboxColWidth, numRegionWidth } = checkboxColLayout(
-    tableData?.maxRows ?? 0,
+    tableData?.rowCount ?? 0,
     hasWorkflowColumns
   )
 
@@ -1005,6 +1038,9 @@ export function TableGrid({
   let contextMenuExecutionId: string | null = null
   let contextMenuIsWorkflowColumn = false
   let contextMenuHasStartedRun = false
+  // The (rowId, groupId) of the right-clicked enrichment cell when it has a
+  // terminal run — drives "View execution" opening the enrichment details panel.
+  let contextMenuEnrichment: { rowId: string; groupId: string } | null = null
   // The workflow group of the right-clicked cell, when it's a workflow-output
   // column. Scopes the run/re-run menu items to just that cell's group (the
   // cascade re-runs dependents on its own) instead of every group on the row.
@@ -1025,7 +1061,8 @@ export function TableGrid({
         _exec?.status === 'pending' &&
         typeof _exec?.jobId === 'string' &&
         _exec.jobId.startsWith('paused-')
-      // Enrichment cells have no workflow execution trace to open.
+      // Enrichment cells have no workflow execution trace; a terminal run opens
+      // the enrichment details panel instead.
       const _isEnrichmentGroup = workflowGroupById.get(_gid)?.type === 'enrichment'
       contextMenuHasStartedRun =
         !_isEnrichmentGroup &&
@@ -1034,10 +1071,22 @@ export function TableGrid({
           _exec?.status === 'running' ||
           _isPaused)
       contextMenuExecutionId = _exec?.executionId ?? null
+      if (
+        _isEnrichmentGroup &&
+        (_exec?.status === 'completed' || _exec?.status === 'error') &&
+        contextMenu.row
+      ) {
+        contextMenuEnrichment = { rowId: contextMenu.row.id, groupId: _gid }
+      }
     }
   }
 
   function handleViewExecution() {
+    if (contextMenuEnrichment) {
+      onOpenEnrichmentDetails(contextMenuEnrichment.rowId, contextMenuEnrichment.groupId)
+      closeContextMenu()
+      return
+    }
     if (!contextMenuExecutionId) return
     onOpenExecutionDetails(contextMenuExecutionId)
     closeContextMenu()
@@ -1387,7 +1436,7 @@ export function TableGrid({
             }
           }
         } else if (column.type === 'date') {
-          text = storageToDisplay(String(val))
+          text = storageToDisplay(String(val), { seconds: true })
         } else {
           text = String(val)
         }
@@ -2695,7 +2744,8 @@ export function TableGrid({
           try {
             rowData[currentCols[targetCol].key] = cleanCellValue(
               pasteRows[r][c],
-              currentCols[targetCol]
+              currentCols[targetCol],
+              timeZoneRef.current
             )
           } catch {
             /* skip invalid values */
@@ -3257,10 +3307,9 @@ export function TableGrid({
   }, [rowSelection, rows])
 
   // `runningByRowId` + `totalRunning` come from `useTableRunState` above —
-  // backend-bootstrapped via `countRunningCells` and kept live by
-  // `applyCell`'s SSE-driven delta. Counts only cells whose worker has
-  // actually claimed the cell (`status === 'running'`), ignoring optimistic
-  // queued/pending stamps.
+  // server-derived via `countRunningCells` (queued/running/pending), refetched
+  // on a throttle as cell SSE events arrive, plus optimistic stamps on
+  // run-click.
 
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
   // Mirror the action bar's Play / Refresh split: Play fills empty/failed,
@@ -3369,8 +3418,8 @@ export function TableGrid({
     // running/completed/error.
     const isPaused =
       status === 'pending' && typeof exec?.jobId === 'string' && exec.jobId.startsWith('paused-')
-    // Enrichment groups have no workflow execution to open — never offer "View
-    // execution" for them.
+    // Enrichment groups have no workflow execution / trace; instead a terminal
+    // run exposes the enrichment details panel (cost + provider cascade).
     const isEnrichmentGroup = workflowGroupById.get(groupId)?.type === 'enrichment'
     return {
       rowId: row.id,
@@ -3383,6 +3432,7 @@ export function TableGrid({
         !isEnrichmentGroup &&
         Boolean(exec?.executionId) &&
         (status === 'completed' || status === 'error' || status === 'running' || isPaused),
+      canViewEnrichment: isEnrichmentGroup && (status === 'completed' || status === 'error'),
     }
   }, [normalizedSelection, rows, displayColumns, workflowGroupById])
 
@@ -3474,7 +3524,8 @@ export function TableGrid({
           prev.singleWorkflowCell.rowId === singleWorkflowCell.rowId &&
           prev.singleWorkflowCell.groupId === singleWorkflowCell.groupId &&
           prev.singleWorkflowCell.executionId === singleWorkflowCell.executionId &&
-          prev.singleWorkflowCell.canViewExecution === singleWorkflowCell.canViewExecution
+          prev.singleWorkflowCell.canViewExecution === singleWorkflowCell.canViewExecution &&
+          prev.singleWorkflowCell.canViewEnrichment === singleWorkflowCell.canViewEnrichment
     const sameRunScope =
       (prev?.selectedRunScope ?? null) === null && selectedRunScope === null
         ? true
@@ -3496,6 +3547,7 @@ export function TableGrid({
       sameStats &&
       prev.runningInActionBarSelection === runningInActionBarSelection &&
       prev.totalRunning === totalRunning &&
+      prev.hasRunningCell === hasRunningCell &&
       prev.hasActiveDispatch === hasActiveDispatch &&
       prev.hasWorkflowColumns === hasWorkflowColumns &&
       prev.actionBarRowIds.length === actionBarRowIds.length &&
@@ -3507,6 +3559,7 @@ export function TableGrid({
       actionBarRowIds,
       runningInActionBarSelection,
       totalRunning,
+      hasRunningCell,
       hasActiveDispatch,
       hasWorkflowColumns,
       selectedRunScope,
@@ -3519,6 +3572,7 @@ export function TableGrid({
     actionBarRowIds,
     runningInActionBarSelection,
     totalRunning,
+    hasRunningCell,
     hasActiveDispatch,
     hasWorkflowColumns,
     selectedRunScope,
@@ -3619,6 +3673,7 @@ export function TableGrid({
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                                hasActiveFilter={Boolean(queryOptions.filter)}
                                 selectedRowIds={selectedRowIds}
                                 onInsertLeft={
                                   userPermissions.canEdit ? handleInsertColumnLeft : undefined
@@ -3879,7 +3934,10 @@ export function TableGrid({
         onInsertBelow={handleInsertRowBelow}
         onDuplicate={handleDuplicateRow}
         onViewExecution={handleViewExecution}
-        canViewExecution={Boolean(contextMenuExecutionId) && contextMenuHasStartedRun}
+        canViewExecution={
+          (Boolean(contextMenuExecutionId) && contextMenuHasStartedRun) ||
+          Boolean(contextMenuEnrichment)
+        }
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
         onRunWorkflows={

@@ -1,11 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff } from 'lucide-react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ChipModal,
   ChipModalBody,
@@ -13,22 +8,32 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Input,
-  Label,
-  Loader,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
-import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'
-import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
-import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
-import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
+import {
+  AuthDivider,
+  AuthField,
+  AuthFormMessage,
+  AuthHeader,
+  AuthInput,
+  AuthLegalFooter,
+  AuthNavPrompt,
+  AuthSubmitButton,
+  AuthTextLink,
+  PasswordInput,
+  SocialLoginButtons,
+  SSOLoginButton,
+} from '@/app/(auth)/components'
 
 const logger = createLogger('LoginForm')
 
@@ -89,11 +94,9 @@ export default function LoginPage({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
   const callbackUrlParam = searchParams?.get('callbackUrl')
   const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
   const invalidCallbackRef = useRef(false)
@@ -175,7 +178,6 @@ export default function LoginPage({
       const safeCallbackUrl = callbackUrl
       let errorHandled = false
 
-      setFormError(null)
       const result = await client.signIn.email(
         {
           email,
@@ -343,150 +345,81 @@ export default function LoginPage({
   const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
   const showDivider = (emailEnabled || showTopSSO) && showBottomSection
 
+  const emailFieldErrors = showEmailValidationError && emailErrors.length > 0 ? emailErrors : []
+  const passwordFieldErrors = showValidationError && passwordErrors.length > 0 ? passwordErrors : []
+  const canSubmit = email.trim().length > 0 && password.length > 0
+
   return (
     <>
-      <div className='space-y-1 text-center'>
-        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-          Sign in
-        </h1>
-        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-          Enter your details
-        </p>
-      </div>
+      <div className='space-y-6'>
+        <AuthHeader title='Sign in' description='Enter your details' />
 
-      {/* SSO Login Button (primary top-only when it is the only method) */}
-      {showTopSSO && (
-        <div className='mt-8'>
-          <SSOLoginButton callbackURL={callbackUrl} variant='primary' />
-        </div>
-      )}
+        {showTopSSO && <SSOLoginButton callbackURL={callbackUrl} variant='primary' />}
 
-      {/* Email/Password Form - show unless explicitly disabled */}
-      {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
-        <form onSubmit={onSubmit} className='mt-8 space-y-8'>
-          <div className='space-y-6'>
-            <div className='space-y-2'>
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='email'>Email</Label>
-              </div>
-              <Input
-                id='email'
-                name='email'
-                placeholder='Enter your email'
-                required
-                autoCapitalize='none'
-                autoComplete='email'
-                autoCorrect='off'
-                value={email}
-                onChange={handleEmailChange}
-                className={cn(
-                  showEmailValidationError &&
-                    emailErrors.length > 0 &&
-                    'border-[var(--text-error)] focus:border-[var(--text-error)]'
-                )}
-              />
-              {showEmailValidationError && emailErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
-                  {emailErrors.map((error) => (
-                    <p key={error}>{error}</p>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className='space-y-2'>
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='password'>Password</Label>
-                <button
-                  type='button'
-                  onClick={() => setForgotPasswordOpen(true)}
-                  className='font-medium text-[var(--landing-text-muted)] text-xs transition hover:text-[var(--landing-text)]'
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div className='relative'>
-                <Input
+        {emailEnabled && (
+          <form onSubmit={onSubmit} className='space-y-6'>
+            <div className='space-y-5'>
+              <AuthField htmlFor='email' label='Email' errors={emailFieldErrors}>
+                <AuthInput
+                  id='email'
+                  name='email'
+                  placeholder='Enter your email'
+                  required
+                  autoCapitalize='none'
+                  autoComplete='email'
+                  autoCorrect='off'
+                  value={email}
+                  onChange={handleEmailChange}
+                  error={emailFieldErrors.length > 0}
+                />
+              </AuthField>
+              <AuthField
+                htmlFor='password'
+                label='Password'
+                errors={passwordFieldErrors}
+                action={
+                  <AuthTextLink
+                    onClick={() => setForgotPasswordOpen(true)}
+                    className='text-caption'
+                  >
+                    Forgot password?
+                  </AuthTextLink>
+                }
+              >
+                <PasswordInput
                   id='password'
                   name='password'
                   required
-                  type={showPassword ? 'text' : 'password'}
                   autoCapitalize='none'
                   autoComplete='current-password'
                   autoCorrect='off'
                   placeholder='Enter your password'
                   value={password}
                   onChange={handlePasswordChange}
-                  className={cn(
-                    'pr-10',
-                    showValidationError &&
-                      passwordErrors.length > 0 &&
-                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
-                  )}
+                  error={passwordFieldErrors.length > 0}
                 />
-                <button
-                  type='button'
-                  onClick={() => setShowPassword(!showPassword)}
-                  className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {showValidationError && passwordErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
-                  {passwordErrors.map((error) => (
-                    <p key={error}>{error}</p>
-                  ))}
-                </div>
-              )}
+              </AuthField>
             </div>
-          </div>
 
-          {resetSuccessMessage && (
-            <div className='text-[#4CAF50] text-xs'>
-              <p>{resetSuccessMessage}</p>
-            </div>
-          )}
-
-          {formError && (
-            <div className='text-[var(--text-error)] text-xs'>
-              <p>{formError}</p>
-            </div>
-          )}
-
-          <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
-            {isLoading ? (
-              <span className='flex items-center gap-2'>
-                <Loader className='size-4' animate />
-                Signing in…
-              </span>
-            ) : (
-              'Sign in'
+            {resetSuccessMessage && (
+              <AuthFormMessage type='success'>
+                <p>{resetSuccessMessage}</p>
+              </AuthFormMessage>
             )}
-          </button>
-        </form>
-      )}
 
-      {/* Divider - show when we have multiple auth methods */}
-      {showDivider && (
-        <div className='relative my-6 font-light'>
-          <div className='absolute inset-0 flex items-center'>
-            <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
-          </div>
-          <div className='relative flex justify-center text-sm'>
-            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
-              Or continue with
-            </span>
-          </div>
-        </div>
-      )}
+            <AuthSubmitButton loading={isLoading} loadingLabel='Signing in…' disabled={!canSubmit}>
+              Sign in
+            </AuthSubmitButton>
+          </form>
+        )}
 
-      {showBottomSection && (
-        <div className={cn(!emailEnabled ? 'mt-8' : undefined)}>
+        {showDivider && <AuthDivider label='Or continue with' />}
+
+        {showBottomSection && (
           <SocialLoginButtons
             googleAvailable={googleAvailable}
-            microsoftAvailable={microsoftAvailable}
             githubAvailable={githubAvailable}
+            microsoftAvailable={microsoftAvailable}
             isProduction={isProduction}
             callbackURL={callbackUrl}
           >
@@ -494,41 +427,17 @@ export default function LoginPage({
               <SSOLoginButton callbackURL={callbackUrl} variant='outline' />
             )}
           </SocialLoginButtons>
-        </div>
-      )}
+        )}
 
-      {/* Only show signup link if email/password signup is enabled */}
-      {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
-        <div className='pt-6 text-center font-light text-[14px]'>
-          <span className='font-normal'>Don't have an account? </span>
-          <Link
+        {emailEnabled && (
+          <AuthNavPrompt
+            prompt="Don't have an account?"
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
-            className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
-          >
-            Sign up
-          </Link>
-        </div>
-      )}
+            linkLabel='Sign up'
+          />
+        )}
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] text-[var(--landing-text-muted)] leading-relaxed sm:px-8 md:px-11'>
-        By signing in, you agree to our{' '}
-        <Link
-          href='/terms'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
-        >
-          Terms of Service
-        </Link>{' '}
-        and{' '}
-        <Link
-          href='/privacy'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
-        >
-          Privacy Policy
-        </Link>
+        <AuthLegalFooter action='signing in' />
       </div>
 
       <ChipModal

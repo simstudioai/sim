@@ -18,6 +18,7 @@ export const supabaseStorageUploadBodySchema = z.object({
   path: z.string().optional().nullable(),
   fileData: FileInputSchema,
   contentType: z.string().optional().nullable(),
+  cacheControl: z.string().optional().nullable(),
   upsert: z.boolean().optional().default(false),
 })
 

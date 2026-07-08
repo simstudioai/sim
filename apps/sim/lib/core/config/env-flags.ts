@@ -38,7 +38,7 @@ export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
  * Block free-plan accounts from programmatic workflow execution (API key, public
- * API, MCP server, A2A agent server, generic webhooks, cross-origin chat embeds).
+ * API, MCP server, generic webhooks, cross-origin chat embeds).
  * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
  * dark and be enabled per-deployment once verified.
  */
@@ -75,6 +75,35 @@ if (isTruthy(env.DISABLE_AUTH)) {
 }
 
 /**
+ * Whether database/connector tools may connect to private, reserved, or loopback
+ * hosts (e.g. Docker/K8s service names, localhost). Off by default: the SSRF guard
+ * in {@link validateDatabaseHost} blocks these so an untrusted user cannot pivot
+ * into the deployment's internal network. Self-hosted operators can opt in when
+ * their database lives on the same private network. Blocked on the hosted platform
+ * regardless of the env var, mirroring {@link isAuthDisabled}.
+ */
+export const isPrivateDatabaseHostsAllowed = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS) && !isHosted
+
+if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
+  import('@sim/logger')
+    .then(({ createLogger }) => {
+      const logger = createLogger('EnvFlags')
+      if (isHosted) {
+        logger.error(
+          'ALLOW_PRIVATE_DATABASE_HOSTS is set but ignored on hosted environment. Private/reserved database hosts remain blocked for security.'
+        )
+      } else {
+        logger.warn(
+          'ALLOW_PRIVATE_DATABASE_HOSTS is enabled. Database/connector tools may reach private, reserved, and loopback hosts. Only use this in trusted private networks.'
+        )
+      }
+    })
+    .catch(() => {
+      // Fallback during config compilation when logger is unavailable
+    })
+}
+
+/**
  * Is user registration disabled
  */
 export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
@@ -83,11 +112,6 @@ export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
  * Is email/password authentication enabled (defaults to true)
  */
 export const isEmailPasswordEnabled = !isFalsy(env.EMAIL_PASSWORD_SIGNUP_ENABLED)
-
-/**
- * Is signup email validation enabled (disposable email blocking via better-auth-harmony)
- */
-export const isSignupEmailValidationEnabled = isTruthy(env.SIGNUP_EMAIL_VALIDATION_ENABLED)
 
 /**
  * Is MX-based signup validation enabled (blocks no-MX domains and denylisted shared spam
@@ -114,12 +138,6 @@ export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
  * Is SSO enabled for enterprise authentication
  */
 export const isSsoEnabled = isTruthy(env.SSO_ENABLED)
-
-/**
- * Is credential sets (email polling) enabled via env var override
- * This bypasses plan requirements for self-hosted deployments
- */
-export const isCredentialSetsEnabled = isTruthy(env.CREDENTIAL_SETS_ENABLED)
 
 /**
  * Is access control (permission groups) enabled via env var override
@@ -164,6 +182,12 @@ export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
  * This bypasses hosted requirements for self-hosted deployments
  */
 export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
+
+/**
+ * Is workspace forking enabled via env var override
+ * This bypasses hosted (Enterprise) requirements for self-hosted deployments
+ */
+export const isForkingEnabled = isTruthy(env.FORKING_ENABLED)
 
 /**
  * Is E2B enabled for remote code execution

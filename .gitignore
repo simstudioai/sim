@@ -9,6 +9,9 @@
 # bun specific
 bun-debug.log*
 
+# cursor debug logs
+.cursor/debug-*.log
+
 # this repo uses bun.lock; package-lock.json files are accidental
 package-lock.json
 
@@ -43,6 +46,11 @@ dump.rdb
 .env.development
 .env.test
 .env.production
+
+# editor swap files
+*.swp
+*.swo
+*.swn
 
 # vercel
 .vercel
@@ -88,3 +96,7 @@ i18n.cache
 
 # Personal Cursor Skills
 .cursor/skills/ask-sim/
+
+# Python (apps/pii tests/tooling)
+__pycache__/
+.pytest_cache/

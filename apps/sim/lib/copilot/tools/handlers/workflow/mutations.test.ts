@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createEnvMock } from '@sim/testing'
+import { createEnvMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -88,7 +88,16 @@ vi.mock('../access', () => ({
   getDefaultWorkspaceId: vi.fn(),
 }))
 
-import { executeRunFromBlock, executeSetGlobalWorkflowVariables } from './mutations'
+import { performUpdateWorkflow } from '@/lib/workflows/orchestration'
+import { verifyFolderWorkspace } from '@/lib/workflows/utils'
+import {
+  executeMoveWorkflow,
+  executeRunFromBlock,
+  executeSetGlobalWorkflowVariables,
+} from './mutations'
+
+const performUpdateWorkflowMock = vi.mocked(performUpdateWorkflow)
+const verifyFolderWorkspaceMock = vi.mocked(verifyFolderWorkspace)
 
 describe('executeSetGlobalWorkflowVariables', () => {
   beforeEach(() => {
@@ -131,6 +140,56 @@ describe('executeSetGlobalWorkflowVariables', () => {
       body: JSON.stringify({ workflowId: 'workflow-1' }),
     })
     expect(recordAuditMock).toHaveBeenCalled()
+  })
+})
+
+describe('lock enforcement', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 })) as typeof fetch
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
+    workflowAuthzMockFns.mockAssertFolderMutable.mockResolvedValue(undefined)
+  })
+
+  it('does not persist variable changes when the workflow is locked', async () => {
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: { id: 'workflow-1', variables: {} },
+    })
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValueOnce(
+      new Error('Workflow is locked')
+    )
+
+    const result = await executeSetGlobalWorkflowVariables(
+      {
+        workflowId: 'workflow-1',
+        operations: [{ operation: 'add', name: 'threshold', type: 'number', value: '5' }],
+      },
+      { userId: 'user-1' } as any
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Workflow is locked')
+    expect(setWorkflowVariablesMock).not.toHaveBeenCalled()
+  })
+
+  it('does not move a workflow into a locked target folder', async () => {
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workflow: { id: 'workflow-1', name: 'WF', folderId: null },
+    })
+    verifyFolderWorkspaceMock.mockResolvedValue(true)
+    workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+      new Error('Folder is locked')
+    )
+
+    const result = await executeMoveWorkflow(
+      { workflowIds: ['workflow-1'], folderId: 'locked-folder' },
+      { userId: 'user-1' } as any
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Folder is locked')
+    expect(performUpdateWorkflowMock).not.toHaveBeenCalled()
   })
 })
 

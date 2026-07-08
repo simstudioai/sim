@@ -3,9 +3,9 @@ import { runTableExport, type TableExportPayload } from '@/lib/table/export-runn
 
 /**
  * Trigger.dev wrapper around `runTableExport`. Retry-safe: a retried attempt regenerates the file
- * from scratch (failures clean up their partial upload), and the `table_jobs` ownership gate
- * stops a run that lost the job. `medium-1x` — the serialized file is buffered in memory before
- * the single-shot storage upload (~hundreds of MB worst case for enterprise 1M-row tables).
+ * from scratch (failures abort/clean up their partial upload), and the `table_jobs` ownership gate
+ * stops a run that lost the job. The file streams to storage in bounded multipart chunks (no longer
+ * buffered whole), so `medium-1x` is now headroom rather than a hard requirement.
  */
 export const tableExportTask = task({
   id: 'table-export',

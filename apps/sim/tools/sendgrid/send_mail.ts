@@ -149,7 +149,7 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the email was sent successfully' },
-    messageId: { type: 'string', description: 'SendGrid message ID' },
+    messageId: { type: 'string', description: 'SendGrid message ID', optional: true },
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
   },

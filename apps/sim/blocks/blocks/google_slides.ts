@@ -521,10 +521,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       id: 'mimeType',
       title: 'Image Format',
       type: 'dropdown',
-      options: [
-        { label: 'PNG', id: 'PNG' },
-        { label: 'GIF', id: 'GIF' },
-      ],
+      options: [{ label: 'PNG', id: 'PNG' }],
       condition: { field: 'operation', value: 'get_thumbnail' },
       value: () => 'PNG',
     },
@@ -3052,7 +3049,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     // Get thumbnail operation
     thumbnailPageId: { type: 'string', description: 'Slide object ID for thumbnail' },
     thumbnailSize: { type: 'string', description: 'Thumbnail size' },
-    mimeType: { type: 'string', description: 'Image format (PNG or GIF)' },
+    mimeType: { type: 'string', description: 'Image format (PNG)' },
     // Get page operation
     getPageObjectId: { type: 'string', description: 'Page/slide object ID to retrieve' },
     // Delete object operation

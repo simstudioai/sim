@@ -11,13 +11,45 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  */
 export const GOOGLE_SEARCH_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Title of the search result' },
+  htmlTitle: {
+    type: 'string',
+    description: 'Title of the search result with HTML markup',
+    optional: true,
+  },
   link: { type: 'string', description: 'URL of the search result' },
-  snippet: { type: 'string', description: 'Snippet or description of the search result' },
   displayLink: { type: 'string', description: 'Display URL (abbreviated form)', optional: true },
+  snippet: { type: 'string', description: 'Snippet or description of the search result' },
+  htmlSnippet: {
+    type: 'string',
+    description: 'Snippet of the search result with HTML markup',
+    optional: true,
+  },
+  formattedUrl: {
+    type: 'string',
+    description: 'Display URL shown beneath the result',
+    optional: true,
+  },
+  mime: { type: 'string', description: 'MIME type of the result', optional: true },
+  fileFormat: { type: 'string', description: 'File format of the result', optional: true },
+  cacheId: { type: 'string', description: "ID of Google's cached version", optional: true },
   pagemap: {
     type: 'object',
     description: 'PageMap information for the result (structured data)',
     optional: true,
+  },
+  image: {
+    type: 'object',
+    description: 'Image metadata (present when searchType is image)',
+    optional: true,
+    properties: {
+      contextLink: { type: 'string', description: 'URL of the page hosting the image' },
+      height: { type: 'number', description: 'Image height in pixels' },
+      width: { type: 'number', description: 'Image width in pixels' },
+      byteSize: { type: 'number', description: 'Image file size in bytes' },
+      thumbnailLink: { type: 'string', description: 'Thumbnail image URL' },
+      thumbnailHeight: { type: 'number', description: 'Thumbnail height in pixels' },
+      thumbnailWidth: { type: 'number', description: 'Thumbnail width in pixels' },
+    },
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -58,16 +90,41 @@ export interface GoogleSearchParams {
   apiKey: string
   searchEngineId: string
   num?: number | string
+  start?: number | string
+  dateRestrict?: string
+  fileType?: string
+  safe?: string
+  searchType?: string
+  siteSearch?: string
+  siteSearchFilter?: string
+  lr?: string
+  gl?: string
+  sort?: string
 }
 
 export interface GoogleSearchResponse extends ToolResponse {
   output: {
     items: Array<{
       title: string
+      htmlTitle?: string
       link: string
-      snippet: string
       displayLink?: string
-      pagemap?: Record<string, any>
+      snippet: string
+      htmlSnippet?: string
+      formattedUrl?: string
+      mime?: string
+      fileFormat?: string
+      cacheId?: string
+      pagemap?: Record<string, unknown>
+      image?: {
+        contextLink?: string
+        height?: number
+        width?: number
+        byteSize?: number
+        thumbnailLink?: string
+        thumbnailHeight?: number
+        thumbnailWidth?: number
+      }
     }>
     searchInformation: {
       totalResults: string
@@ -75,5 +132,6 @@ export interface GoogleSearchResponse extends ToolResponse {
       formattedSearchTime: string
       formattedTotalResults: string
     }
+    nextPageStartIndex: number | null
   }
 }

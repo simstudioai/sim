@@ -14,8 +14,8 @@ import {
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
-  getCanonicalValues,
   isCanonicalPair,
+  resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { isCustomTool } from '@/executor/constants'
 import {
@@ -151,6 +151,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   xai: buildProviderMetadata('xai'),
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
+  sakana: buildProviderMetadata('sakana'),
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
@@ -497,9 +498,14 @@ function resolveCanonicalResourceParams(
   for (const group of canonicalGroups) {
     const existing = resolved[group.canonicalId]
     if (existing !== undefined && existing !== null && existing !== '') continue
-    const { basicValue, advancedValue } = getCanonicalValues(group, params)
-    const pairMode = canonicalModes?.[`${blockType}:${group.canonicalId}`] ?? 'basic'
-    const chosen = pairMode === 'advanced' ? advancedValue : basicValue
+    // Route through the canonical SOT: an explicit scoped override wins, else the value heuristic -
+    // no `?? 'basic'` (which ignored an advanced-only value when basic was empty).
+    const explicitMode = canonicalModes?.[`${blockType}:${group.canonicalId}`]
+    const chosen = resolveActiveCanonicalValue(
+      group,
+      params,
+      explicitMode ? { [group.canonicalId]: explicitMode } : undefined
+    )
     if (chosen !== undefined) resolved[group.canonicalId] = chosen
   }
   return resolved
@@ -626,10 +632,14 @@ export async function transformBlockTool(
         let result = { ...params }
 
         for (const group of canonicalGroups) {
-          const { basicValue, advancedValue } = getCanonicalValues(group, result)
-          const scopedKey = `${block.type}:${group.canonicalId}`
-          const pairMode = canonicalModes?.[scopedKey] ?? 'basic'
-          const chosen = pairMode === 'advanced' ? advancedValue : basicValue
+          // Route through the canonical SOT: an explicit scoped override wins, else the value
+          // heuristic - no `?? 'basic'` (which dropped an advanced-only value when basic was empty).
+          const explicitMode = canonicalModes?.[`${block.type}:${group.canonicalId}`]
+          const chosen = resolveActiveCanonicalValue(
+            group,
+            result,
+            explicitMode ? { [group.canonicalId]: explicitMode } : undefined
+          )
 
           const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
           sourceIds.forEach((id) => delete result[id])

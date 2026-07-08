@@ -11,6 +11,12 @@ interface HmacVerifierOptions {
   headerName: string
   validateFn: (secret: string, signature: string, rawBody: string) => boolean | Promise<boolean>
   providerLabel: string
+  /**
+   * When true, reject (401) if no secret is configured instead of skipping
+   * verification. Use for providers where the secret is always present (e.g.
+   * auto-registered webhooks) so a missing secret fails closed.
+   */
+  requireSecret?: boolean
 }
 
 /**
@@ -22,6 +28,7 @@ export function createHmacVerifier({
   headerName,
   validateFn,
   providerLabel,
+  requireSecret = false,
 }: HmacVerifierOptions) {
   return async ({
     request,
@@ -31,6 +38,12 @@ export function createHmacVerifier({
   }: AuthContext): Promise<NextResponse | null> => {
     const secret = providerConfig[configKey] as string | undefined
     if (!secret) {
+      if (requireSecret) {
+        logger.warn(`[${requestId}] ${providerLabel} webhook secret not configured`)
+        return new NextResponse(`Unauthorized - Missing ${providerLabel} webhook secret`, {
+          status: 401,
+        })
+      }
       return null
     }
 

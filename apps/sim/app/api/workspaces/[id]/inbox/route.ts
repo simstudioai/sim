@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateInboxConfigContract } from '@/lib/api/contracts/inbox'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { hasInboxAccess } from '@/lib/billing/core/subscription'
+import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/inbox/lifecycle'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -21,18 +21,12 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const [hasAccess, permission] = await Promise.all([
-      hasInboxAccess(session.user.id),
-      getUserEntityPermissions(session.user.id, 'workspace', workspaceId),
-    ])
-    if (!hasAccess) {
-      return NextResponse.json({ error: 'Sim Mailer requires a Max plan' }, { status: 403 })
-    }
+    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (!permission) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const [wsResult, statsResult] = await Promise.all([
+    const [wsResult, statsResult, entitled] = await Promise.all([
       db
         .select({
           inboxEnabled: workspace.inboxEnabled,
@@ -49,6 +43,7 @@ export const GET = withRouteHandler(
         .from(mothershipInboxTask)
         .where(eq(mothershipInboxTask.workspaceId, workspaceId))
         .groupBy(mothershipInboxTask.status),
+      hasWorkspaceInboxAccess(workspaceId),
     ])
 
     const [ws] = wsResult
@@ -73,6 +68,7 @@ export const GET = withRouteHandler(
     return NextResponse.json({
       enabled: ws.inboxEnabled,
       address: ws.inboxAddress,
+      entitled,
       taskStats: stats,
     })
   }
@@ -86,21 +82,24 @@ export const PATCH = withRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const [hasAccess, permission] = await Promise.all([
-      hasInboxAccess(session.user.id),
-      getUserEntityPermissions(session.user.id, 'workspace', workspaceId),
-    ])
-    if (!hasAccess) {
-      return NextResponse.json({ error: 'Sim Mailer requires a Max plan' }, { status: 403 })
-    }
+    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (permission !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
+    const parsed = await parseRequest(updateInboxConfigContract, req, context)
+    if (!parsed.success) return parsed.response
+    const body = parsed.data.body
+
     try {
-      const parsed = await parseRequest(updateInboxConfigContract, req, context)
-      if (!parsed.success) return parsed.response
-      const body = parsed.data.body
+      if (body.enabled === false) {
+        await disableInbox(workspaceId)
+        return NextResponse.json({ enabled: false, address: null })
+      }
+
+      if (!(await hasWorkspaceInboxAccess(workspaceId))) {
+        return NextResponse.json({ error: 'Sim Mailer requires a Max plan' }, { status: 403 })
+      }
 
       if (body.enabled === true) {
         const [current] = await db
@@ -113,11 +112,6 @@ export const PATCH = withRouteHandler(
         }
         const config = await enableInbox(workspaceId, { username: body.username })
         return NextResponse.json(config)
-      }
-
-      if (body.enabled === false) {
-        await disableInbox(workspaceId)
-        return NextResponse.json({ enabled: false, address: null })
       }
 
       if (body.username) {

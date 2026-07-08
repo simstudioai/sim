@@ -555,6 +555,24 @@ export const PlatformEvents = {
   },
 
   /**
+   * Track member added directly to a workspace (no acceptance step) because
+   * they were already a member of the workspace's organization.
+   */
+  workspaceMemberAdded: (attrs: {
+    workspaceId: string
+    addedBy: string
+    addedUserId: string
+    role: string
+  }) => {
+    trackPlatformEvent('platform.workspace.member_added', {
+      'workspace.id': attrs.workspaceId,
+      'user.id': attrs.addedBy,
+      'member.id': attrs.addedUserId,
+      'member.role': attrs.role,
+    })
+  },
+
+  /**
    * Track member joined workspace
    */
   workspaceMemberJoined: (attrs: { workspaceId: string; userId: string; role: string }) => {
@@ -768,17 +786,6 @@ export const PlatformEvents = {
     trackPlatformEvent('platform.oauth.disconnected', {
       'user.id': attrs.userId,
       'oauth.provider': attrs.provider,
-    })
-  },
-
-  /**
-   * Track credential set created
-   */
-  credentialSetCreated: (attrs: { credentialSetId: string; userId: string; name: string }) => {
-    trackPlatformEvent('platform.credential_set.created', {
-      'credential_set.id': attrs.credentialSetId,
-      'credential_set.name': attrs.name,
-      'user.id': attrs.userId,
     })
   },
 

@@ -1,10 +1,11 @@
 'use client'
 
 import { type CSSProperties, useMemo } from 'react'
-import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/emcn'
+import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
+import { usePresenceStore } from '@/stores/presence/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 /**
@@ -80,7 +81,8 @@ function UserAvatar({ user, index }: UserAvatarProps) {
  * @returns Avatar stack for workflow presence
  */
 export function Avatars({ workflowId }: AvatarsProps) {
-  const { presenceUsers, currentWorkflowId, currentSocketId } = useSocket()
+  const { currentWorkflowId, currentSocketId } = useSocket()
+  const presenceUsers = usePresenceStore((state) => state.presenceUsers)
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
 
   /**

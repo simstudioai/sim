@@ -65,19 +65,45 @@ export function flushThinkingBlock(context: StreamingContext): void {
   context.currentThinkingBlock = null
 }
 
-export function flushSubagentThinkingBlock(context: StreamingContext): void {
-  if (context.currentSubagentThinkingBlock) {
-    stampBlockEnd(context.currentSubagentThinkingBlock)
-    context.contentBlocks.push(context.currentSubagentThinkingBlock)
+/**
+ * Flush open subagent thinking blocks into contentBlocks. With a parentToolCallId
+ * it flushes only that lane (used when a tool/text event arrives for a specific
+ * subagent); with no argument it flushes ALL open lanes (used at stream end and
+ * at subagent lifecycle boundaries). Safe to call repeatedly.
+ */
+export function flushSubagentThinkingBlock(
+  context: StreamingContext,
+  parentToolCallId?: string
+): void {
+  if (parentToolCallId !== undefined) {
+    const block = context.subagentThinkingBlocks.get(parentToolCallId)
+    if (block) {
+      stampBlockEnd(block)
+      context.contentBlocks.push(block)
+      context.subagentThinkingBlocks.delete(parentToolCallId)
+    }
+    return
   }
-  context.currentSubagentThinkingBlock = null
+  for (const block of context.subagentThinkingBlocks.values()) {
+    stampBlockEnd(block)
+    context.contentBlocks.push(block)
+  }
+  context.subagentThinkingBlocks.clear()
 }
 
+/**
+ * Resolve the subagent lane an event belongs to, using ONLY the event's own
+ * scope. The legacy fallback to a single "current subagent" pointer was removed:
+ * with concurrent subagents that pointer reflects whichever subagent started
+ * most recently and would mis-attribute interleaved events. Every subagent-lane
+ * event is guaranteed to carry parentToolCallId (Go stamps it), so a missing one
+ * is a real contract violation — callers warn and drop rather than guess.
+ */
 export function getScopedParentToolCallId(
   event: StreamEvent,
-  context: StreamingContext
+  _context: StreamingContext
 ): string | undefined {
-  return event.scope?.parentToolCallId || context.subAgentParentToolCallId
+  return event.scope?.parentToolCallId
 }
 
 /**
@@ -141,28 +167,23 @@ export function abortPendingToolIfStreamDead(
 }
 
 /**
- * Extract the `ui` object from a typed tool_call payload. The Go backend enriches
- * tool_call events with `ui: { requiresConfirmation, clientExecutable, ... }`.
+ * Extract the behavioral `ui` flags from a typed tool_call payload. The Go
+ * backend enriches tool_call events with `ui: { clientExecutable, internal,
+ * hidden }`; presentation (title/icon) is derived client-side from the tool name.
  */
 export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
-  requiresConfirmation: boolean
   clientExecutable: boolean
   simExecutable: boolean
   internal: boolean
   hidden: boolean
-  title?: string
-  phaseLabel?: string
 } {
   const raw = asRecord(data.ui)
   return {
-    requiresConfirmation: raw.requiresConfirmation === true || data.requiresConfirmation === true,
     clientExecutable:
       raw.clientExecutable === true || data.executor === MothershipStreamV1ToolExecutor.client,
     simExecutable: data.executor === MothershipStreamV1ToolExecutor.sim,
     internal: raw.internal === true,
     hidden: raw.hidden === true,
-    title: typeof raw.title === 'string' ? raw.title : undefined,
-    phaseLabel: typeof raw.phaseLabel === 'string' ? raw.phaseLabel : undefined,
   }
 }
 

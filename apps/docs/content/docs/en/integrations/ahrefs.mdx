@@ -18,8 +18,8 @@ With the Ahrefs integration in Sim, you can:
 - **Analyze Domain Rating & Authority**: Instantly check the Domain Rating (DR) and Ahrefs Rank of any website to gauge its authority.
 - **Fetch Backlinks**: Retrieve a list of backlinks pointing to a site or specific URL, with details like anchor text, referring page DR, and more.
 - **Get Backlink Statistics**: Access metrics on backlink types (dofollow, nofollow, text, image, redirect, etc.) for a domain or URL.
-- **Explore Organic Keywords** *(planned)*: View keywords a domain ranks for and their positions in Google search results.
-- **Discover Top Pages** *(planned)*: Identify the highest-performing pages by organic traffic and links.
+- **Explore Organic Keywords**: View keywords a domain ranks for and their positions in Google search results.
+- **Discover Top Pages**: Identify the highest-performing pages by organic traffic and links.
 
 These tools let your agents automate SEO research, monitor competitors, and generate reports—all as part of your workflow automations. To use the Ahrefs integration, you’ll need an Ahrefs Enterprise subscription with API access.
 {/* MANUAL-CONTENT-END */}
@@ -35,7 +35,7 @@ Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks
 
 ### `ahrefs_domain_rating`
 
-Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website
+Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website's backlink profile on a scale from 0 to 100.
 
 #### Input
 
@@ -52,6 +52,34 @@ Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating sh
 | `domainRating` | number | Domain Rating score \(0-100\) |
 | `ahrefsRank` | number | Ahrefs Rank - global ranking based on backlink profile strength |
 
+### `ahrefs_metrics`
+
+Get a one-call organic and paid search overview for a target domain or URL: organic traffic, organic keywords, paid traffic, paid keywords, and estimated traffic cost.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" |
+| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date to report metrics on, in YYYY-MM-DD format \(defaults to today\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metrics` | object | Organic and paid search overview |
+|   ↳ `organicTraffic` | number | Estimated monthly organic traffic |
+|   ↳ `organicKeywords` | number | Number of organic keywords ranked |
+|   ↳ `organicKeywordsTop3` | number | Number of organic keywords ranking in positions 1-3 |
+|   ↳ `organicCost` | number | Estimated monthly cost to replicate organic traffic via ads \(USD\) |
+|   ↳ `paidTraffic` | number | Estimated monthly paid search traffic |
+|   ↳ `paidKeywords` | number | Number of paid keywords targeted |
+|   ↳ `paidPages` | number | Number of pages receiving paid traffic |
+|   ↳ `paidCost` | number | Estimated monthly paid search spend \(USD\) |
+
 ### `ahrefs_backlinks`
 
 Get a list of backlinks pointing to a target domain or URL. Returns details about each backlink including source URL, anchor text, and domain rating.
@@ -61,10 +89,9 @@ Get a list of backlinks pointing to a target domain or URL. Returns details abou
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
-| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
-| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
-| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
+| `history` | string | No | Historical scope: "live" \(currently live backlinks\), "all_time" \(default, includes lost backlinks\), or "since:YYYY-MM-DD" \(backlinks found since a date\). |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 
 #### Output
@@ -82,28 +109,26 @@ Get a list of backlinks pointing to a target domain or URL. Returns details abou
 
 ### `ahrefs_backlinks_stats`
 
-Get backlink statistics for a target domain or URL. Returns totals for different backlink types including dofollow, nofollow, text, image, and redirect links.
+Get backlink and referring domain totals for a target domain or URL, both currently live and across all time.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
-| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
-| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date to report metrics on, in YYYY-MM-DD format \(defaults to today\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `stats` | object | Backlink statistics summary |
-|   ↳ `total` | number | Total number of live backlinks |
-|   ↳ `dofollow` | number | Number of dofollow backlinks |
-|   ↳ `nofollow` | number | Number of nofollow backlinks |
-|   ↳ `text` | number | Number of text backlinks |
-|   ↳ `image` | number | Number of image backlinks |
-|   ↳ `redirect` | number | Number of redirect backlinks |
+| `stats` | object | Backlink and referring domain totals |
+|   ↳ `liveBacklinks` | number | Number of currently live backlinks |
+|   ↳ `liveReferringDomains` | number | Number of currently live referring domains |
+|   ↳ `allTimeBacklinks` | number | Total backlinks ever discovered, including lost ones |
+|   ↳ `allTimeReferringDomains` | number | Total referring domains ever discovered, including lost ones |
 
 ### `ahrefs_referring_domains`
 
@@ -114,10 +139,9 @@ Get a list of domains that link to a target domain or URL. Returns unique referr
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
-| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
-| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
-| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
+| `history` | string | No | Historical scope: "live" \(currently live\), "all_time" \(default, includes lost domains\), or "since:YYYY-MM-DD" \(domains found since a date\). |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 
 #### Output
@@ -127,10 +151,34 @@ Get a list of domains that link to a target domain or URL. Returns unique referr
 | `referringDomains` | array | List of domains linking to the target |
 |   ↳ `domain` | string | The referring domain |
 |   ↳ `domainRating` | number | Domain Rating of the referring domain |
-|   ↳ `backlinks` | number | Total number of backlinks from this domain |
+|   ↳ `backlinks` | number | Total number of backlinks from this domain to the target |
 |   ↳ `dofollowBacklinks` | number | Number of dofollow backlinks from this domain |
 |   ↳ `firstSeen` | string | When the domain was first seen linking |
-|   ↳ `lastVisited` | string | When the domain was last checked |
+|   ↳ `lastVisited` | string | When the domain was last seen linking \(null if never re-crawled\) |
+
+### `ahrefs_broken_backlinks`
+
+Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `brokenBacklinks` | array | List of broken backlinks |
+|   ↳ `urlFrom` | string | The URL of the page containing the broken link |
+|   ↳ `urlTo` | string | The broken URL being linked to |
+|   ↳ `httpCode` | number | HTTP status code of the broken target URL \(e.g., 404, 410\) |
+|   ↳ `anchor` | string | The anchor text of the link |
+|   ↳ `domainRatingSource` | number | Domain Rating of the linking domain |
 
 ### `ahrefs_organic_keywords`
 
@@ -142,10 +190,9 @@ Get organic keywords that a target domain or URL ranks for in Google search resu
 | --------- | ---- | -------- | ----------- |
 | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
 | `country` | string | No | Country code for search results. Example: "us", "gb", "de" \(default: "us"\) |
-| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
-| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
-| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date to report metrics on, in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 
 #### Output
@@ -155,10 +202,37 @@ Get organic keywords that a target domain or URL ranks for in Google search resu
 | `keywords` | array | List of organic keywords the target ranks for |
 |   ↳ `keyword` | string | The keyword |
 |   ↳ `volume` | number | Monthly search volume |
-|   ↳ `position` | number | Current ranking position |
-|   ↳ `url` | string | The URL that ranks for this keyword |
+|   ↳ `position` | number | Best ranking position for this keyword |
+|   ↳ `url` | string | The URL that ranks at the best position for this keyword |
 |   ↳ `traffic` | number | Estimated monthly organic traffic |
 |   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
+
+### `ahrefs_organic_competitors`
+
+Get domains that compete with a target domain or URL for the same organic keywords, ranked by keyword overlap.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" |
+| `country` | string | No | Country code for search results. Example: "us", "gb", "de" \(default: "us"\) |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date to report metrics on, in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `competitors` | array | List of organic search competitors ranked by keyword overlap |
+|   ↳ `domain` | string | The competitor domain |
+|   ↳ `domainRating` | number | Domain Rating of the competitor |
+|   ↳ `commonKeywords` | number | Number of keywords the competitor and target both rank for |
+|   ↳ `targetKeywords` | number | Number of keywords the target ranks for |
+|   ↳ `competitorKeywords` | number | Number of keywords the competitor ranks for |
+|   ↳ `traffic` | number | Estimated monthly organic traffic for the competitor |
 
 ### `ahrefs_top_pages`
 
@@ -170,11 +244,9 @@ Get the top pages of a target domain sorted by organic traffic. Returns page URL
 | --------- | ---- | -------- | ----------- |
 | `target` | string | Yes | The target domain to analyze. Example: "example.com" |
 | `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
-| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\). Example: "domain" |
-| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
-| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
-| `select` | string | No | Comma-separated list of fields to return \(e.g., url,traffic,keywords,top_keyword,value\). Default: url,traffic,keywords,top_keyword,value |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\). Example: "domain" |
+| `date` | string | No | Date to report metrics on, in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 
 #### Output
@@ -210,34 +282,385 @@ Get detailed metrics for a keyword including search volume, keyword difficulty, 
 |   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
 |   ↳ `cpc` | number | Cost per click in USD |
 |   ↳ `clicks` | number | Estimated clicks per month |
-|   ↳ `clicksPercentage` | number | Percentage of searches that result in clicks |
+|   ↳ `clicksPercentage` | number | Percentage of searches that result in an organic click |
 |   ↳ `parentTopic` | string | The parent topic for this keyword |
 |   ↳ `trafficPotential` | number | Estimated traffic potential if ranking #1 |
+|   ↳ `intents` | object | Search intent flags \(informational, navigational, commercial, transactional, branded, local\) |
+|     ↳ `informational` | boolean | Query seeks information |
+|     ↳ `navigational` | boolean | Query seeks a specific site or page |
+|     ↳ `commercial` | boolean | Query researches a purchase decision |
+|     ↳ `transactional` | boolean | Query intends to complete a purchase |
+|     ↳ `branded` | boolean | Query references a specific brand |
+|     ↳ `local` | boolean | Query seeks local results |
 
-### `ahrefs_broken_backlinks`
+### `ahrefs_paid_pages`
 
-Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities.
+Get a target domain's pages that receive paid search traffic, sorted by estimated paid traffic. Returns page URLs with their paid traffic, keyword counts, and estimated spend.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
-| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |
-| `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |
-| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination. Example: 100 |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" |
+| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
+| `date` | string | No | Date to report metrics on, in YYYY-MM-DD format \(defaults to today\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
 | `apiKey` | string | Yes | Ahrefs API Key |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `brokenBacklinks` | array | List of broken backlinks |
-|   ↳ `urlFrom` | string | The URL of the page containing the broken link |
-|   ↳ `urlTo` | string | The broken URL being linked to |
-|   ↳ `httpCode` | number | HTTP status code \(e.g., 404, 410\) |
-|   ↳ `anchor` | string | The anchor text of the link |
-|   ↳ `domainRatingSource` | number | Domain Rating of the linking domain |
+| `paidPages` | array | List of pages receiving paid search traffic |
+|   ↳ `url` | string | The page URL |
+|   ↳ `traffic` | number | Estimated monthly paid search traffic |
+|   ↳ `keywords` | number | Number of paid keywords the page ranks for |
+|   ↳ `topKeyword` | string | The top keyword driving paid traffic to this page |
+|   ↳ `value` | number | Estimated monthly paid traffic cost in USD |
+|   ↳ `adsCount` | number | Number of unique ads shown for this page |
+
+### `ahrefs_anchors`
+
+Get the anchor text distribution for a target domain or URL's backlinks, showing how many links and referring domains use each anchor text.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
+| `history` | string | No | Historical scope: "live" \(currently live\), "all_time" \(default, includes lost backlinks\), or "since:YYYY-MM-DD" \(backlinks found since a date\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `anchors` | array | Anchor text distribution for the backlink profile |
+|   ↳ `anchor` | string | The anchor text |
+|   ↳ `backlinks` | number | Total backlinks using this anchor text |
+|   ↳ `dofollowBacklinks` | number | Number of dofollow backlinks using this anchor text |
+|   ↳ `referringDomains` | number | Number of unique referring domains using this anchor text |
+|   ↳ `firstSeen` | string | When a link with this anchor was first found |
+|   ↳ `lastSeen` | string | When a backlink with this anchor was last seen \(null if still live\) |
+
+### `ahrefs_related_terms`
+
+Get keyword ideas related to a seed keyword: terms the same top-ranking pages also rank for ("also rank for") or also discuss ("also talk about"), with volume, difficulty, and CPC.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyword` | string | Yes | The seed keyword to find related terms for |
+| `country` | string | No | Country code for keyword data. Example: "us", "gb", "de" \(default: "us"\) |
+| `terms` | string | No | Type of related keywords to return: "also_rank_for", "also_talk_about", or "all" \(default: "all"\) |
+| `viewFor` | string | No | Whether to derive related terms from the top 10 or top 100 ranking pages \(default: "top_10"\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `relatedTerms` | array | Related keyword ideas for the seed keyword |
+|   ↳ `keyword` | string | The related keyword |
+|   ↳ `volume` | number | Average monthly search volume |
+|   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
+|   ↳ `cpc` | number | Cost per click in USD |
+|   ↳ `parentTopic` | string | The parent topic for this keyword |
+|   ↳ `trafficPotential` | number | Estimated traffic potential if ranking #1 |
+|   ↳ `intents` | object | Search intent flags \(informational, navigational, commercial, transactional, branded, local\) |
+|   ↳ `serpFeatures` | array | SERP features present in the results |
+
+### `ahrefs_domain_rating_history`
+
+Get the historical Domain Rating (DR) trend for a target domain or URL over a date range, grouped daily, weekly, or monthly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" |
+| `dateFrom` | string | Yes | Start date of the historical period, in YYYY-MM-DD format |
+| `dateTo` | string | No | End date of the historical period, in YYYY-MM-DD format \(defaults to today\) |
+| `historyGrouping` | string | No | Time interval for grouping data points: "daily", "weekly", or "monthly" \(default: "monthly"\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domainRatings` | array | Historical Domain Rating data points |
+|   ↳ `date` | string | The date of the measurement |
+|   ↳ `domainRating` | number | Domain Rating score \(0-100\) on this date |
+
+### `ahrefs_metrics_history`
+
+Get the historical organic and paid traffic trend for a target domain or URL over a date range: organic traffic/cost and paid traffic/cost at each point in time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" |
+| `dateFrom` | string | Yes | Start date of the historical period, in YYYY-MM-DD format |
+| `dateTo` | string | No | End date of the historical period, in YYYY-MM-DD format \(defaults to today\) |
+| `volumeMode` | string | No | Search volume calculation: "monthly" or "average" \(default: "monthly"\) |
+| `historyGrouping` | string | No | Time interval for grouping data points: "daily", "weekly", or "monthly" \(default: "monthly"\) |
+| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metricsHistory` | array | Historical organic and paid traffic data points |
+|   ↳ `date` | string | Date of the metric entry |
+|   ↳ `organicTraffic` | number | Estimated monthly organic visits |
+|   ↳ `organicCost` | number | Estimated monthly cost to replicate organic traffic via ads \(USD\) |
+|   ↳ `paidTraffic` | number | Estimated monthly paid search visits |
+|   ↳ `paidCost` | number | Estimated monthly paid search spend \(USD\) |
+
+### `ahrefs_refdomains_history`
+
+Get the historical referring domains trend for a target domain or URL over a date range, grouped daily, weekly, or monthly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" |
+| `dateFrom` | string | Yes | Start date of the historical period, in YYYY-MM-DD format |
+| `dateTo` | string | No | End date of the historical period, in YYYY-MM-DD format \(defaults to today\) |
+| `historyGrouping` | string | No | Time interval for grouping data points: "daily", "weekly", or "monthly" \(default: "monthly"\) |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `referringDomainsHistory` | array | Historical referring domains count data points |
+|   ↳ `date` | string | The date of the data point |
+|   ↳ `referringDomains` | number | Total number of unique domains linking to the target on this date |
+
+### `ahrefs_keywords_history`
+
+Get the historical organic keyword ranking distribution for a target domain or URL over a date range: how many keywords rank in each position bucket at each point in time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" |
+| `dateFrom` | string | Yes | Start date of the historical period, in YYYY-MM-DD format |
+| `dateTo` | string | No | End date of the historical period, in YYYY-MM-DD format \(defaults to today\) |
+| `historyGrouping` | string | No | Time interval for grouping data points: "daily", "weekly", or "monthly" \(default: "monthly"\) |
+| `country` | string | No | Country code for search results. Example: "us", "gb", "de" \(default: "us"\) |
+| `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `keywordsHistory` | array | Historical organic keyword ranking distribution |
+|   ↳ `date` | string | Date of the record |
+|   ↳ `top3` | number | Keywords ranking in top 3 organic results |
+|   ↳ `top4To10` | number | Keywords ranking in positions 4-10 |
+|   ↳ `top11To20` | number | Keywords ranking in positions 11-20 |
+|   ↳ `top21To50` | number | Keywords ranking in positions 21-50 |
+|   ↳ `top51Plus` | number | Keywords ranking in position 51 and beyond |
+
+### `ahrefs_batch_analysis`
+
+Get bulk SEO metrics (Domain Rating, backlinks, referring domains, organic traffic, and more) for multiple domains or URLs in a single request. Useful for comparing many competitors at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `targets` | string | Yes | Comma-separated list of domains or URLs to analyze. Example: "example.com,competitor.com" |
+| `mode` | string | No | Analysis mode applied to every target: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains, default\), exact \(exact URL match\) |
+| `protocol` | string | No | Protocol applied to every target: "both" \(default\), "http", or "https" |
+| `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |
+| `volumeMode` | string | No | Search volume calculation: "monthly" or "average" \(default: "monthly"\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Bulk metrics for each analyzed target, in submission order |
+|   ↳ `url` | string | The analyzed target URL or domain |
+|   ↳ `index` | number | Index of the target in the submitted list |
+|   ↳ `domainRating` | number | Domain Rating score \(0-100\) |
+|   ↳ `ahrefsRank` | number | Ahrefs Rank \(global ranking\) |
+|   ↳ `backlinks` | number | Total backlinks to the target |
+|   ↳ `referringDomains` | number | Unique domains linking to the target |
+|   ↳ `organicTraffic` | number | Estimated monthly organic traffic |
+|   ↳ `organicKeywords` | number | Number of organic keywords ranked \(top 100\) |
+|   ↳ `paidTraffic` | number | Estimated monthly paid search traffic |
+|   ↳ `error` | string | Error message if this target could not be analyzed |
+
+### `ahrefs_site_audit_page_explorer`
+
+Get crawled pages from an Ahrefs Site Audit project with health and SEO metrics: HTTP status, title, link counts, backlinks, indexability, and traffic. Optionally filter to pages affected by a specific issue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | number | Yes | The Site Audit project ID \(found in the project URL in Ahrefs\) |
+| `date` | string | No | Crawl date in YYYY-MM-DDThh:mm:ss format \(defaults to the most recent crawl\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
+| `offset` | number | No | Number of results to skip, for pagination |
+| `issueId` | string | No | Only return pages affected by this issue ID |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `auditPages` | array | List of crawled pages with health and SEO metrics |
+|   ↳ `url` | string | The crawled page URL |
+|   ↳ `httpCode` | number | HTTP status code returned by the URL |
+|   ↳ `title` | array | Page title tag\(s\) |
+|   ↳ `internalLinks` | number | Number of internal outgoing links |
+|   ↳ `externalLinks` | number | Number of external outgoing links |
+|   ↳ `backlinks` | number | Number of incoming external links to the page |
+|   ↳ `compliant` | boolean | Whether the page is indexable \(200 status, no canonical/noindex\) |
+|   ↳ `traffic` | number | Estimated monthly organic traffic to the page |
+
+### `ahrefs_rank_tracker_overview`
+
+Get ranking overview metrics for the keywords tracked in an Ahrefs Rank Tracker project: position, search volume, keyword difficulty, and estimated traffic. This endpoint is free and does not consume API units.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | number | Yes | The Rank Tracker project ID \(found in the project URL in Ahrefs\) |
+| `date` | string | Yes | Date to report rankings for, in YYYY-MM-DD format |
+| `device` | string | Yes | Rankings device type: "desktop" or "mobile" |
+| `dateCompared` | string | No | Comparison date in YYYY-MM-DD format, to compute position/traffic deltas |
+| `volumeMode` | string | No | Search volume calculation: "monthly" or "average" \(default: "monthly"\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `overviews` | array | Ranking overview for each tracked keyword |
+|   ↳ `keyword` | string | The tracked keyword |
+|   ↳ `position` | number | Top organic search position |
+|   ↳ `volume` | number | Average monthly search volume |
+|   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
+|   ↳ `url` | string | Top-ranking URL |
+|   ↳ `traffic` | number | Estimated monthly organic visits |
+|   ↳ `serpFeatures` | array | SERP features present in the results |
+|   ↳ `bestPositionKind` | string | Type of the top position \(organic, paid, or SERP feature\) |
+
+### `ahrefs_rank_tracker_serp_overview`
+
+Get the full SERP (search engine results page) for a keyword tracked in an Ahrefs Rank Tracker project, including every ranking URL with its position, title, and authority metrics. This endpoint is free and does not consume API units.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | number | Yes | The Rank Tracker project ID \(found in the project URL in Ahrefs\) |
+| `keyword` | string | Yes | The tracked keyword to retrieve SERP data for |
+| `country` | string | Yes | Country code for the tracked keyword. Example: "us", "gb", "de" |
+| `device` | string | Yes | Rankings device type: "desktop" or "mobile" |
+| `topPositions` | number | No | Number of top organic positions to return \(defaults to all available\) |
+| `date` | string | No | Timestamp to return the last available SERP Overview at, in YYYY-MM-DDThh:mm:ss format |
+| `locationId` | number | No | Location ID of the tracked keyword, if tracked at a specific location |
+| `languageCode` | string | No | Language code of the tracked keyword |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `positions` | array | Every ranking result on the SERP for the tracked keyword |
+|   ↳ `position` | number | Position of the result in the SERP |
+|   ↳ `url` | string | URL of the ranking page |
+|   ↳ `title` | string | Page title |
+|   ↳ `type` | array | The kind of the position: organic, paid, or a SERP feature |
+|   ↳ `domainRating` | number | Domain Rating of the ranking domain |
+|   ↳ `urlRating` | number | URL Rating of the ranking page |
+|   ↳ `backlinks` | number | Total backlinks to the ranking domain |
+|   ↳ `refdomains` | number | Unique referring domains |
+|   ↳ `traffic` | number | Estimated monthly organic search traffic |
+|   ↳ `value` | number | Estimated monthly traffic value \(USD\) |
+|   ↳ `topKeyword` | string | Highest-traffic keyword ranking for this page |
+|   ↳ `topKeywordVolume` | number | Monthly search volume for the top keyword |
+|   ↳ `updateDate` | string | Date the SERP was last checked |
+
+### `ahrefs_rank_tracker_competitors_overview`
+
+Get competitor rankings for the keywords tracked in an Ahrefs Rank Tracker project: each tracked keyword's volume and difficulty alongside every competitor's position, traffic, and traffic value. This endpoint is free and does not consume API units.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | number | Yes | The Rank Tracker project ID \(found in the project URL in Ahrefs\) |
+| `date` | string | Yes | Date to report rankings for, in YYYY-MM-DD format |
+| `device` | string | Yes | Rankings device type: "desktop" or "mobile" |
+| `dateCompared` | string | No | Comparison date in YYYY-MM-DD format, to compute position/traffic deltas |
+| `volumeMode` | string | No | Search volume calculation: "monthly" or "average" \(default: "monthly"\) |
+| `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 1000\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `competitorKeywords` | array | Tracked keywords with competitor ranking data |
+|   ↳ `keyword` | string | The tracked keyword |
+|   ↳ `volume` | number | Average monthly search volume |
+|   ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |
+|   ↳ `serpFeatures` | array | SERP features present in the results |
+|   ↳ `competitorsList` | array | Ranking data for each tracked competitor on this keyword |
+|     ↳ `url` | string | The competitor's ranking URL |
+|     ↳ `position` | number | Current ranking position |
+|     ↳ `bestPositionKind` | string | Type of the best position achieved |
+|     ↳ `traffic` | number | Estimated traffic to the competitor |
+|     ↳ `value` | number | Estimated traffic value \(USD\) |
+
+### `ahrefs_rank_tracker_competitors_stats`
+
+Get aggregate competitor stats for an Ahrefs Rank Tracker project: each competitor's traffic, traffic value, average position, and share of voice across all tracked keywords. This endpoint is free and does not consume API units.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | number | Yes | The Rank Tracker project ID \(found in the project URL in Ahrefs\) |
+| `date` | string | Yes | Date to report metrics for, in YYYY-MM-DD format |
+| `device` | string | Yes | Rankings device type: "desktop" or "mobile" |
+| `volumeMode` | string | No | Search volume calculation: "monthly" or "average" \(default: "monthly"\) |
+| `apiKey` | string | Yes | Ahrefs API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `competitorsStats` | array | Aggregate stats for each tracked competitor |
+|   ↳ `competitor` | string | The competitor's URL |
+|   ↳ `traffic` | number | Estimated monthly organic visits |
+|   ↳ `trafficValue` | number | Estimated monthly organic traffic value \(USD\) |
+|   ↳ `averagePosition` | number | Average top organic position across tracked keywords |
+|   ↳ `pos1To3` | number | Keywords ranking in top 3 positions |
+|   ↳ `pos4To10` | number | Keywords ranking in positions 4-10 |
+|   ↳ `shareOfVoice` | number | Organic traffic share percentage |
+|   ↳ `shareOfTrafficValue` | number | Organic traffic value share percentage |
 
 

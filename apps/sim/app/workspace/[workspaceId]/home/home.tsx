@@ -1,11 +1,22 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type Dispatch,
+  lazy,
+  type SetStateAction,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { Button } from '@sim/emcn'
+import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
-import { Button } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
@@ -18,6 +29,7 @@ import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
+  MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
@@ -25,6 +37,7 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import {
   useMarkMothershipChatRead,
@@ -39,7 +52,6 @@ import {
   CreditsChip,
   MothershipChat,
   MothershipResourcesProvider,
-  MothershipView,
   SuggestedActions,
   UserInput,
   type UserInputHandle,
@@ -49,17 +61,67 @@ import type { FileAttachmentForApi, MothershipResource, MothershipResourceType }
 
 const logger = createLogger('Home')
 
+/**
+ * The resource preview panel pulls in the file-viewer stack (rich-markdown
+ * editor, CSV/PDF viewers). It only renders once a chat has messages, so it is
+ * code-split out of the initial `/chat` bundle and loaded on demand.
+ */
+const MothershipView = lazy(() =>
+  import('./components/mothership-view/mothership-view').then((m) => ({
+    default: m.MothershipView,
+  }))
+)
+
 interface HomeProps {
   chatId?: string
   userName?: string
   userId?: string
-  initialResourceId?: string | null
 }
 
-export function Home({ chatId, userName, userId, initialResourceId = null }: HomeProps) {
+export function Home({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
+  /**
+   * URL is the single source of truth for the selected resource. `Home` renders
+   * client-side, so nuqs reads `?resource=` from the URL on mount — the same
+   * value the page previously threaded through `initialResourceId` — and writes
+   * it back with `history: 'replace'`, the previous behavior, minus the banned
+   * `window.history.replaceState` param-mutation effect. The page wraps `Home`
+   * in Suspense for the `useSearchParams` requirement.
+   */
+  const [activeResourceParam, setResourceParam] = useQueryState(resourceParam.key, {
+    ...resourceParam.parser,
+    ...resourceUrlKeys,
+  })
+  /**
+   * Strips any leftover URL fragment on selection change, preserving the old
+   * effect's `url.hash = ''` (the only hash usage on this surface) without a
+   * separate effect-sync mirror. This rewrites the fragment only — it never
+   * mutates a query param via the History API.
+   *
+   * Order matters: the fragment is stripped synchronously BEFORE the nuqs write,
+   * because nuqs re-appends `location.hash` on its (deferred) flush — clearing the
+   * hash first ensures the param write doesn't carry the stale fragment back.
+   */
+  const setActiveResourceUrl = useCallback<Dispatch<SetStateAction<string | null>>>(
+    (action) => {
+      if (typeof window !== 'undefined' && window.location.hash) {
+        const { pathname, search } = window.location
+        window.history.replaceState(window.history.state, '', `${pathname}${search}`)
+      }
+      void setResourceParam(action)
+    },
+    [setResourceParam]
+  )
+  /**
+   * Controlled binding handed to `useChat` so the URL is the sole owner of the
+   * selection with no dual source.
+   */
+  const activeResourceState = useMemo<[string | null, Dispatch<SetStateAction<string | null>>]>(
+    () => [activeResourceParam, setActiveResourceUrl],
+    [activeResourceParam, setActiveResourceUrl]
+  )
   const firstName = userName?.split(' ')[0] ?? ''
   const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
   const { data: workflows = [] } = useWorkflows(workspaceId)
@@ -179,7 +241,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     chatId,
     getMothershipUseChatOptions({
       onResourceEvent: handleResourceEvent,
-      initialActiveResourceId: initialResourceId,
+      activeResourceState,
       onRequestStarted: ({ requestId, userMessageId }) => {
         captureEvent(posthogRef.current, 'task_request_started', {
           workspace_id: workspaceId,
@@ -190,17 +252,6 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
       },
     })
   )
-
-  useEffect(() => {
-    const url = new URL(window.location.href)
-    if (activeResourceId) {
-      url.searchParams.set('resource', activeResourceId)
-    } else {
-      url.searchParams.delete('resource')
-    }
-    url.hash = ''
-    window.history.replaceState(null, '', url.toString())
-  }, [activeResourceId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -263,14 +314,38 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     [workspaceId, chatId, sendMessage]
   )
 
+  /**
+   * Handles cross-surface send requests (terminal/console "Fix in Chat", the
+   * log "Troubleshoot in Chat" action). `preventDefault` claims the event so a
+   * producer that dispatched it while this chat is mounted knows a live chat
+   * consumed the message and skips its navigate-and-persist fallback.
+   */
   useEffect(() => {
     const handler = (e: Event) => {
-      const message = (e as CustomEvent<MothershipSendMessageDetail>).detail?.message
-      if (message) sendMessage(message)
+      const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
+      if (!detail?.message) return
+      e.preventDefault()
+      sendMessage(detail.message, undefined, detail.contexts)
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
   }, [sendMessage])
+
+  /**
+   * Consumes a one-shot handoff left by another surface (e.g. "Troubleshoot in
+   * Chat" on an errored log viewed from a different route) and auto-sends it
+   * into this fresh chat, tagging the run so Sim can inspect the failure. Only
+   * the cross-route path lands here — when a chat is already mounted the event
+   * above delivers directly. Gated to the new-chat surface (`!chatId`): a
+   * handoff always targets a fresh chat, so an existing `/chat/[chatId]` mount
+   * must never claim it if navigation races. `consume` clears the entry
+   * atomically, so it fires at most once even across a StrictMode remount.
+   */
+  useEffect(() => {
+    if (chatId) return
+    const handoff = MothershipHandoffStorage.consume(workspaceId)
+    if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
+  }, [chatId, workspaceId, sendMessage])
 
   function resolveResourceFromContext(
     context: ChatContext
@@ -453,17 +528,20 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
         reorderResources={reorderResources}
         collapseResource={collapseResource}
       >
-        <MothershipView
-          ref={mothershipRef}
-          workspaceId={workspaceId}
-          chatId={resolvedChatId}
-          resources={resources}
-          activeResourceId={activeResourceId}
-          isCollapsed={isResourceCollapsed}
-          previewSession={previewSession}
-          genericResourceData={genericResourceData ?? undefined}
-          className={skipResourceTransition ? '!transition-none' : undefined}
-        />
+        <Suspense fallback={null}>
+          <MothershipView
+            ref={mothershipRef}
+            workspaceId={workspaceId}
+            chatId={resolvedChatId}
+            resources={resources}
+            activeResourceId={activeResourceId}
+            isCollapsed={isResourceCollapsed}
+            previewSession={previewSession}
+            isAgentResponding={isSending}
+            genericResourceData={genericResourceData ?? undefined}
+            className={skipResourceTransition ? '!transition-none' : undefined}
+          />
+        </Suspense>
       </MothershipResourcesProvider>
 
       {isResourceCollapsed && (

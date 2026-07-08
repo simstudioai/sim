@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
@@ -31,6 +32,7 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -827,6 +829,8 @@ export async function maybeSendUsageThresholdEmail(params: {
   userEmail?: string
   userName?: string
   organizationId?: string
+  /** Workspace the usage occurred in, used to build a live upgrade/billing link. */
+  workspaceId?: string
   currentUsageAfter: number
   limit: number
 }): Promise<void> {
@@ -836,6 +840,13 @@ export async function maybeSendUsageThresholdEmail(params: {
 
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'
+
+    const upgradeCreditsLink = params.workspaceId
+      ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
+      : `${baseUrl}/workspace`
+    const billingSettingsLink = params.workspaceId
+      ? `${baseUrl}/workspace/${params.workspaceId}/settings/billing`
+      : `${baseUrl}/workspace`
 
     // Check for 80% threshold crossing — used for paid users (budget warning) and free users (upgrade nudge)
     const crosses80 = params.percentBefore < 80 && params.percentAfter >= 80
@@ -847,7 +858,7 @@ export async function maybeSendUsageThresholdEmail(params: {
 
     // For 80% threshold email (paid users only)
     if (crosses80 && !isFreeUser) {
-      const ctaLink = `${baseUrl}/workspace?billing=usage`
+      const ctaLink = billingSettingsLink
       const sendTo = async (email: string, name?: string) => {
         const prefs = await getEmailPreferences(email)
         if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
@@ -891,7 +902,7 @@ export async function maybeSendUsageThresholdEmail(params: {
           .where(eq(member.organizationId, params.organizationId))
 
         for (const a of admins) {
-          const isAdmin = a.role === 'owner' || a.role === 'admin'
+          const isAdmin = isOrgAdminRole(a.role)
           if (!isAdmin) continue
           if (a.enabled === false) continue
           if (!a.email) continue
@@ -902,7 +913,7 @@ export async function maybeSendUsageThresholdEmail(params: {
 
     // For 80% threshold email (free users only — skip if they also crossed 100% in same call)
     if (crosses80 && isFreeUser && !crosses100) {
-      const upgradeLink = `${baseUrl}/workspace?billing=upgrade`
+      const upgradeLink = upgradeCreditsLink
       const sendFreeTierEmail = async (email: string, name?: string) => {
         const prefs = await getEmailPreferences(email)
         if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
@@ -944,7 +955,7 @@ export async function maybeSendUsageThresholdEmail(params: {
 
     // For 100% threshold email (free users only — credits exhausted)
     if (crosses100 && isFreeUser) {
-      const upgradeLink = `${baseUrl}/workspace?billing=upgrade`
+      const upgradeLink = upgradeCreditsLink
       const sendExhaustedEmail = async (email: string, name?: string) => {
         const prefs = await getEmailPreferences(email)
         if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return

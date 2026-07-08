@@ -1,13 +1,6 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus, Square } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
-import { useShallow } from 'zustand/react/shallow'
 import {
   BubbleChatClose,
   BubbleChatPreview,
@@ -29,8 +22,15 @@ import {
   PopoverTrigger,
   Trash,
   toast,
-} from '@/components/emcn'
-import { Download, Lock, Unlock } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Lock, Unlock } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
+import { History, Plus, Square } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
+import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -110,15 +110,10 @@ const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
  *
  * @returns Panel on the right side of the workflow
  */
-interface PanelProps {
-  /** Override workspaceId when rendered outside a workspace route (e.g. sandbox mode) */
-  workspaceId?: string
-}
-
-export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: PanelProps = {}) {
+export const Panel = memo(function Panel() {
   const router = useRouter()
   const params = useParams()
-  const workspaceId = propWorkspaceId ?? (params.workspaceId as string)
+  const workspaceId = params.workspaceId as string
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)

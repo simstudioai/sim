@@ -51,12 +51,12 @@ export const discordUpdateMemberTool: ToolConfig<
 
   request: {
     url: (params: DiscordUpdateMemberParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId}/members/${params.userId}`
+      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/members/${params.userId.trim()}`
     },
     method: 'PATCH',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordUpdateMemberParams) => {
       const body: any = {}

@@ -1,0 +1,41 @@
+{
+  "name": "@sim/platform-authz",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    "./predicates": {
+      "types": "./src/predicates.ts",
+      "default": "./src/predicates.ts"
+    },
+    "./workspace": {
+      "types": "./src/workspace.ts",
+      "default": "./src/workspace.ts"
+    },
+    "./workflow": {
+      "types": "./src/workflow.ts",
+      "default": "./src/workflow.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "dependencies": {
+    "@sim/db": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^5.7.3"
+  }
+}

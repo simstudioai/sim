@@ -26,12 +26,28 @@ export const googleFormsConnectorMeta: ConnectorMeta = {
 
   configFields: [
     {
-      id: 'folderId',
-      title: 'Folder ID',
-      type: 'short-input',
-      placeholder: 'e.g. 1aBcDeFgHiJkLmNoPqRsTuVwXyZ (optional)',
+      id: 'folderSelector',
+      title: 'Folders',
+      type: 'selector',
+      selectorKey: 'google.drive',
+      mimeType: 'application/vnd.google-apps.folder',
+      canonicalParamId: 'folderId',
+      mode: 'basic',
+      multi: true,
+      placeholder: 'Select one or more folders (optional)',
       required: false,
-      description: 'Only sync forms inside this Drive folder. Leave blank to sync all forms.',
+      description: 'Only sync forms inside these Drive folders. Leave blank to sync all forms.',
+    },
+    {
+      id: 'folderId',
+      title: 'Folder IDs',
+      type: 'short-input',
+      canonicalParamId: 'folderId',
+      mode: 'advanced',
+      multi: true,
+      placeholder: 'e.g. 1aBcDeFg…, 2cDeFgHi… (comma-separated for multiple)',
+      required: false,
+      description: 'Only sync forms inside these Drive folders. Leave blank to sync all forms.',
     },
     {
       id: 'contentScope',

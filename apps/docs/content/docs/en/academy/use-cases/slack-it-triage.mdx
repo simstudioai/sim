@@ -1,0 +1,43 @@
+---
+title: Slack IT Triage Bot
+description: An agent that watches a Slack channel, classifies incoming IT requests, answers what it can from your docs, and routes the rest.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Use case" title="Slack IT Triage Bot" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Build an agent that lives in a Slack channel: it reads each incoming IT request, decides what kind it is, answers the ones it can from your internal docs, and routes the rest to the right person.
+
+<WhatYouWillLearn
+  items={[
+    { title: 'Trigger on real events', body: 'Start a workflow from a Slack message and read its contents.' },
+    { title: 'Let an agent decide', body: 'Classify the request and route it, answer, escalate, or file a ticket.' },
+    { title: 'Ground the answer', body: 'Search a knowledge base of IT docs so replies are accurate and cited.' },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The problem', time: '0:00' },
+    { title: 'Slack trigger', time: '0:30' },
+    { title: 'Classify and route', time: '1:10' },
+    { title: 'Answer from the docs', time: '2:00' },
+    { title: 'Escalate the rest', time: '2:50' },
+  ]}
+/>
+
+</div>
+
+## What you'll build
+
+A **Slack trigger** starts the workflow on each new message. An **Agent** block classifies the request and decides the path: a **knowledge-base search** drafts an answer for common questions, while anything it can't resolve is routed to a human or filed as a ticket. Every run is recorded in the [logs](/logs-debugging).
+
+This pulls together [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [knowledge bases](/academy/knowledge-bases/intro) into one system: the foundations, composed.

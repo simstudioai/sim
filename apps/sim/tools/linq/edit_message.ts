@@ -48,7 +48,9 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
   },
 
   transformResponse: async (response): Promise<LinqMessageResult> => {
-    const data = await response.json()
+    // Linq returns 200 with the updated Message, or 204 No Content when the edit
+    // is accepted for an already-deleted message — guard the empty-body case.
+    const data = await response.json().catch(() => null)
 
     if (!response.ok) {
       return {
@@ -58,6 +60,7 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
           id: '',
           chatId: '',
           isFromMe: null,
+          deliveryStatus: null,
           isDelivered: null,
           isRead: null,
           service: null,
@@ -70,20 +73,22 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
       }
     }
 
+    const message = data ?? {}
     return {
       success: true,
       output: {
-        id: data.id ?? '',
-        chatId: data.chat_id ?? '',
-        isFromMe: data.is_from_me ?? null,
-        isDelivered: data.is_delivered ?? null,
-        isRead: data.is_read ?? null,
-        service: data.service ?? null,
-        createdAt: data.created_at ?? null,
-        updatedAt: data.updated_at ?? null,
-        sentAt: data.sent_at ?? null,
-        parts: data.parts ?? [],
-        message: data,
+        id: message.id ?? '',
+        chatId: message.chat_id ?? '',
+        isFromMe: message.is_from_me ?? null,
+        deliveryStatus: message.delivery_status ?? null,
+        isDelivered: message.is_delivered ?? null,
+        isRead: message.is_read ?? null,
+        service: message.service ?? null,
+        createdAt: message.created_at ?? null,
+        updatedAt: message.updated_at ?? null,
+        sentAt: message.sent_at ?? null,
+        parts: message.parts ?? [],
+        message,
       },
     }
   },
@@ -96,12 +101,21 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
       description: 'Whether the message was sent by you',
       optional: true,
     },
-    isDelivered: {
-      type: 'boolean',
-      description: 'Whether the message was delivered',
+    deliveryStatus: {
+      type: 'string',
+      description: 'Delivery status (pending, queued, sent, delivered, received, read, failed)',
       optional: true,
     },
-    isRead: { type: 'boolean', description: 'Whether the message was read', optional: true },
+    isDelivered: {
+      type: 'boolean',
+      description: 'Whether the message was delivered (deprecated; use deliveryStatus)',
+      optional: true,
+    },
+    isRead: {
+      type: 'boolean',
+      description: 'Whether the message was read (deprecated; use deliveryStatus)',
+      optional: true,
+    },
     service: {
       type: 'string',
       description: 'Delivery service (iMessage, SMS, RCS)',

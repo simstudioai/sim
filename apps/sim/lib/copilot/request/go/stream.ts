@@ -392,10 +392,6 @@ export async function runStreamLoop(
           flushThinkingBlock(context)
           if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
             if (toolCallId) {
-              if (!context.subAgentParentStack.includes(toolCallId)) {
-                context.subAgentParentStack.push(toolCallId)
-              }
-              context.subAgentParentToolCallId = toolCallId
               context.subAgentContent[toolCallId] ??= ''
               context.subAgentToolCalls[toolCallId] ??= []
             }
@@ -424,20 +420,9 @@ export async function runStreamLoop(
             if (isPendingPause) {
               return
             }
-            if (toolCallId) {
-              const idx = context.subAgentParentStack.lastIndexOf(toolCallId)
-              if (idx >= 0) {
-                context.subAgentParentStack.splice(idx, 1)
-              } else {
-                logger.warn('subagent end without matching start', { toolCallId })
-              }
-            } else {
+            if (!toolCallId) {
               logger.warn('subagent end missing toolCallId')
             }
-            context.subAgentParentToolCallId =
-              context.subAgentParentStack.length > 0
-                ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
-                : undefined
             if (toolCallId) {
               for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
                 const b = context.contentBlocks[i]
@@ -456,10 +441,18 @@ export async function runStreamLoop(
           }
         }
 
-        if (handleSubagentRouting(streamEvent, context)) {
-          const handler = subAgentHandlers[streamEvent.type]
-          if (handler) {
-            await handler(streamEvent, context, execContext, options)
+        // Subagent-lane events are routed ONLY by their own scope. A valid one
+        // (has parentToolCallId) goes to the subagent handler; a malformed one
+        // (missing parentToolCallId — Go always stamps it, so this is defensive)
+        // is DROPPED rather than falling through to the main handler, which would
+        // merge foreign subagent text/tools into the durable main assistant
+        // message and mis-attribute it.
+        if (streamEvent.scope?.lane === 'subagent') {
+          if (handleSubagentRouting(streamEvent, context)) {
+            const handler = subAgentHandlers[streamEvent.type]
+            if (handler) {
+              await handler(streamEvent, context, execContext, options)
+            }
           }
           return context.streamComplete || undefined
         }

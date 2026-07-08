@@ -6,7 +6,7 @@ import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
   WorkflowLockedError,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -223,68 +223,20 @@ export const DELETE = withRouteHandler(
       await assertWorkflowMutable(webhookData.workflow.id)
 
       const foundWebhook = webhookData.webhook
-      const credentialSetId = foundWebhook.credentialSetId as string | undefined
-      const blockId = foundWebhook.blockId as string | undefined
 
-      if (credentialSetId && blockId) {
-        const allCredentialSetWebhooks = await db
-          .select()
-          .from(webhook)
-          .where(
-            and(
-              eq(webhook.workflowId, webhookData.workflow.id),
-              eq(webhook.blockId, blockId),
-              isNull(webhook.archivedAt)
-            )
-          )
+      await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
+      await db.delete(webhook).where(eq(webhook.id, id))
 
-        const webhooksToDelete = allCredentialSetWebhooks.filter(
-          (w) => w.credentialSetId === credentialSetId
-        )
-
-        for (const w of webhooksToDelete) {
-          await cleanupExternalWebhook(w, webhookData.workflow, requestId)
-        }
-
-        const idsToDelete = webhooksToDelete.map((w) => w.id)
-        for (const wId of idsToDelete) {
-          await db.delete(webhook).where(eq(webhook.id, wId))
-        }
-
-        try {
-          for (const wId of idsToDelete) {
-            PlatformEvents.webhookDeleted({
-              webhookId: wId,
-              workflowId: webhookData.workflow.id,
-            })
-          }
-        } catch {
-          // Telemetry should not fail the operation
-        }
-
-        logger.info(
-          `[${requestId}] Successfully deleted ${idsToDelete.length} webhooks for credential set`,
-          {
-            credentialSetId,
-            blockId,
-            deletedIds: idsToDelete,
-          }
-        )
-      } else {
-        await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
-        await db.delete(webhook).where(eq(webhook.id, id))
-
-        try {
-          PlatformEvents.webhookDeleted({
-            webhookId: id,
-            workflowId: webhookData.workflow.id,
-          })
-        } catch {
-          // Telemetry should not fail the operation
-        }
-
-        logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)
+      try {
+        PlatformEvents.webhookDeleted({
+          webhookId: id,
+          workflowId: webhookData.workflow.id,
+        })
+      } catch {
+        // Telemetry should not fail the operation
       }
+
+      logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)
 
       recordAudit({
         workspaceId: webhookData.workflow.workspaceId || null,
@@ -301,7 +253,6 @@ export const DELETE = withRouteHandler(
           workflowId: webhookData.workflow.id,
           webhookPath: foundWebhook.path || undefined,
           blockId: foundWebhook.blockId || undefined,
-          credentialSetId: credentialSetId || undefined,
         },
         request,
       })

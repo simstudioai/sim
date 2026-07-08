@@ -10,14 +10,14 @@ const {
   mockGetWorkspaceWithOwner,
   mockGetProviderFromModel,
   mockGetBlock,
-  mockExplicitGroup,
-  mockAllWorkspacesGroup,
+  mockWorkspaceGroups,
   mockDefaultGroup,
 } = vi.hoisted(() => ({
   DEFAULT_PERMISSION_GROUP_CONFIG: {
     allowedIntegrations: null,
     allowedModelProviders: null,
     deniedModels: [],
+    deniedTools: [],
     hideTraceSpans: false,
     hideKnowledgeBaseTab: false,
     hideTablesTab: false,
@@ -32,9 +32,10 @@ const {
     disableSkills: false,
     disableInvitations: false,
     disablePublicApi: false,
+    disablePublicFileSharing: false,
+    allowedFileShareAuthTypes: null,
     hideDeployApi: false,
     hideDeployMcp: false,
-    hideDeployA2a: false,
     hideDeployChatbot: false,
     hideDeployTemplate: false,
   },
@@ -43,23 +44,21 @@ const {
   mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
   mockGetBlock: vi.fn<(type: string) => { hideFromToolbar?: boolean } | undefined>(),
-  // resolveWorkspaceGroup joins member -> group -> LEFT JOIN group_workspace and
-  // awaits the `where` directly (no limit). resolveOrganizationWideGroup joins
-  // member -> group (inner only) with limit. resolveDefaultGroup selects group
-  // directly with limit. The db mock branches on which joins were used:
-  //   leftJoin            -> mockExplicitGroup (the user's group rows)
-  //   innerJoin (no left) -> mockAllWorkspacesGroup (org-wide member group)
-  //   no join             -> mockDefaultGroup (the org default)
-  mockExplicitGroup: {
+  // resolveWorkspaceGroup selects non-default groups targeting the workspace
+  // (FROM permissionGroup INNER JOIN permissionGroupWorkspace), awaiting the
+  // builder directly; each row carries `isMember`/`hasMembers` booleans. A row
+  // with neither flag set reads as an all-members group (hasMembers falsy).
+  // resolveDefaultGroup selects the org default directly with limit(1), no join.
+  // The db mock branches on whether an inner join was used.
+  mockWorkspaceGroups: {
     value: [] as Array<{
       id?: string
       name?: string
       config: Record<string, unknown>
-      appliesToAllWorkspaces?: boolean
-      targetsWorkspace?: string | null
+      isMember?: boolean
+      hasMembers?: boolean
     }>,
   },
-  mockAllWorkspacesGroup: { value: [] as Array<{ config: Record<string, unknown> }> },
   mockDefaultGroup: { value: [] as Array<{ config: Record<string, unknown> }> },
 }))
 
@@ -67,27 +66,19 @@ vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn().mockImplementation(() => {
       let usedInnerJoin = false
-      let usedLeftJoin = false
-      const resolveRows = () => {
-        if (usedLeftJoin) return mockExplicitGroup.value
-        if (usedInnerJoin) return mockAllWorkspacesGroup.value
-        return mockDefaultGroup.value
-      }
+      const resolveRows = () => (usedInnerJoin ? mockWorkspaceGroups.value : mockDefaultGroup.value)
       const chain: Record<string, unknown> = {}
       chain.from = vi.fn().mockReturnValue(chain)
       chain.innerJoin = vi.fn().mockImplementation(() => {
         usedInnerJoin = true
         return chain
       })
-      chain.leftJoin = vi.fn().mockImplementation(() => {
-        usedLeftJoin = true
-        return chain
-      })
+      chain.leftJoin = vi.fn().mockReturnValue(chain)
       chain.where = vi.fn().mockReturnValue(chain)
       chain.orderBy = vi.fn().mockReturnValue(chain)
       chain.limit = vi.fn().mockImplementation(() => Promise.resolve(resolveRows()))
-      // resolveWorkspaceGroup awaits the builder directly after `where` (no limit),
-      // so the chain must be thenable.
+      // resolveWorkspaceGroup awaits the builder directly after `orderBy` (no
+      // limit), so the chain must be thenable.
       chain.then = (onFulfilled: (rows: unknown) => unknown) =>
         Promise.resolve(resolveRows()).then(onFulfilled)
       return chain
@@ -105,6 +96,7 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
   asc: vi.fn(),
+  sql: vi.fn(),
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -148,10 +140,13 @@ import {
   McpToolsNotAllowedError,
   ModelNotAllowedError,
   ProviderNotAllowedError,
+  PublicFileSharingNotAllowedError,
   SkillsNotAllowedError,
+  ToolNotAllowedError,
   validateBlockType,
   validateMcpToolsAllowed,
   validateModelProvider,
+  validatePublicFileSharing,
 } from './permission-check'
 
 /** Default an org-backed, enterprise-entitled workspace so resolution reaches the group queries. */
@@ -185,11 +180,10 @@ describe('IntegrationNotAllowedError', () => {
   })
 })
 
-describe('getUserPermissionConfig (org-scoped resolution)', () => {
+describe('getUserPermissionConfig (org + entitlement gating)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockExplicitGroup.value = []
-    mockAllWorkspacesGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
   })
@@ -221,18 +215,9 @@ describe('getUserPermissionConfig (org-scoped resolution)', () => {
     expect(config).toBeNull()
   })
 
-  it('returns the explicit group config when the user is assigned to one', async () => {
+  it('falls back to the org default group when no workspace group governs the user', async () => {
     setEnterpriseOrgWorkspace()
-    mockExplicitGroup.value = [{ config: { disableMcpTools: true } }]
-
-    const config = await getUserPermissionConfig('user-123', 'workspace-1')
-
-    expect(config?.disableMcpTools).toBe(true)
-  })
-
-  it('falls back to the org default group when the user has no explicit group', async () => {
-    setEnterpriseOrgWorkspace()
-    mockExplicitGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = [{ config: { disableSkills: true } }]
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
@@ -240,9 +225,9 @@ describe('getUserPermissionConfig (org-scoped resolution)', () => {
     expect(config?.disableSkills).toBe(true)
   })
 
-  it('governs an external member (no explicit group) via the org default group', async () => {
+  it('governs an external member via the org default group', async () => {
     setEnterpriseOrgWorkspace()
-    mockExplicitGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = [{ config: { disableCustomTools: true } }]
 
     const config = await getUserPermissionConfig('external-user', 'workspace-1')
@@ -250,55 +235,60 @@ describe('getUserPermissionConfig (org-scoped resolution)', () => {
     expect(config?.disableCustomTools).toBe(true)
   })
 
-  it('returns null when there is no explicit group and no default group', async () => {
+  it('returns null when no workspace group and no default group apply', async () => {
     setEnterpriseOrgWorkspace()
-    mockExplicitGroup.value = []
-    mockAllWorkspacesGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = []
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
     expect(config).toBeNull()
   })
-
-  it('prefers the explicit group over the org default group', async () => {
-    setEnterpriseOrgWorkspace()
-    mockExplicitGroup.value = [{ config: { disableMcpTools: true } }]
-    mockDefaultGroup.value = [{ config: { disableSkills: true } }]
-
-    const config = await getUserPermissionConfig('user-123', 'workspace-1')
-
-    expect(config?.disableMcpTools).toBe(true)
-    expect(config?.disableSkills).toBe(false)
-  })
 })
 
-describe('getUserPermissionConfig (workspace-scope precedence)', () => {
+describe('getUserPermissionConfig (workspace-group precedence)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockExplicitGroup.value = []
-    mockAllWorkspacesGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
 
-  it('prefers a specific group covering the workspace over an all-workspaces group', async () => {
-    mockExplicitGroup.value = [
-      {
-        id: 'all',
-        name: 'All',
-        config: { disableMcpTools: true },
-        appliesToAllWorkspaces: true,
-        targetsWorkspace: null,
-      },
-      {
-        id: 'specific',
-        name: 'Specific',
-        config: { disableSkills: true },
-        appliesToAllWorkspaces: false,
-        targetsWorkspace: 'workspace-1',
-      },
+  it('governs an explicit member via their workspace group', async () => {
+    mockWorkspaceGroups.value = [
+      { id: 'g', config: { disableMcpTools: true }, isMember: true, hasMembers: true },
+    ]
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config?.disableMcpTools).toBe(true)
+  })
+
+  it('governs all members (including non-listed) via an all-members group', async () => {
+    mockWorkspaceGroups.value = [
+      { id: 'g', config: { disableSkills: true }, isMember: false, hasMembers: false },
+    ]
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config?.disableSkills).toBe(true)
+  })
+
+  it('governs an external member via an all-members group', async () => {
+    mockWorkspaceGroups.value = [
+      { id: 'g', config: { disableCustomTools: true }, isMember: false, hasMembers: false },
+    ]
+
+    const config = await getUserPermissionConfig('external-user', 'workspace-1')
+
+    expect(config?.disableCustomTools).toBe(true)
+  })
+
+  it('prefers an explicit-member group over an all-members group on the same workspace', async () => {
+    mockWorkspaceGroups.value = [
+      { id: 'all', config: { disableMcpTools: true }, isMember: false, hasMembers: false },
+      { id: 'explicit', config: { disableSkills: true }, isMember: true, hasMembers: true },
     ]
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
@@ -307,41 +297,9 @@ describe('getUserPermissionConfig (workspace-scope precedence)', () => {
     expect(config?.disableMcpTools).toBe(false)
   })
 
-  it('uses the all-workspaces group when no specific group covers the workspace', async () => {
-    mockExplicitGroup.value = [
-      {
-        id: 'all',
-        name: 'All',
-        config: { disableMcpTools: true },
-        appliesToAllWorkspaces: true,
-        targetsWorkspace: null,
-      },
-      {
-        // A specific group the user is in, but it does not target this workspace
-        // (left join produced no row, so targetsWorkspace is null).
-        id: 'specific-other',
-        name: 'Specific Other',
-        config: { disableSkills: true },
-        appliesToAllWorkspaces: false,
-        targetsWorkspace: null,
-      },
-    ]
-
-    const config = await getUserPermissionConfig('user-123', 'workspace-1')
-
-    expect(config?.disableMcpTools).toBe(true)
-    expect(config?.disableSkills).toBe(false)
-  })
-
-  it('falls back to the org default when the user has only a non-covering specific group', async () => {
-    mockExplicitGroup.value = [
-      {
-        id: 'specific-other',
-        name: 'Specific Other',
-        config: { disableSkills: true },
-        appliesToAllWorkspaces: false,
-        targetsWorkspace: null,
-      },
+  it('a narrowed group (has members) does not govern a non-member; falls back to default', async () => {
+    mockWorkspaceGroups.value = [
+      { id: 'narrowed', config: { disableSkills: true }, isMember: false, hasMembers: true },
     ]
     mockDefaultGroup.value = [{ config: { disableCustomTools: true } }]
 
@@ -350,13 +308,23 @@ describe('getUserPermissionConfig (workspace-scope precedence)', () => {
     expect(config?.disableCustomTools).toBe(true)
     expect(config?.disableSkills).toBe(false)
   })
+
+  it('a narrowed group does not govern a non-member; unrestricted when no default', async () => {
+    mockWorkspaceGroups.value = [
+      { id: 'narrowed', config: { disableSkills: true }, isMember: false, hasMembers: true },
+    ]
+    mockDefaultGroup.value = []
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config).toBeNull()
+  })
 })
 
 describe('validateBlockType', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockExplicitGroup.value = []
-    mockAllWorkspacesGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = []
   })
 
@@ -433,8 +401,7 @@ describe('validateBlockType', () => {
 describe('validateModelProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockExplicitGroup.value = []
-    mockAllWorkspacesGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
@@ -446,7 +413,7 @@ describe('validateModelProvider', () => {
   })
 
   it('throws ProviderNotAllowedError when provider is not in allowlist', async () => {
-    mockExplicitGroup.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    mockWorkspaceGroups.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -455,14 +422,14 @@ describe('validateModelProvider', () => {
   })
 
   it('allows when provider is on the allowlist', async () => {
-    mockExplicitGroup.value = [{ config: { allowedModelProviders: ['anthropic', 'openai'] } }]
+    mockWorkspaceGroups.value = [{ config: { allowedModelProviders: ['anthropic', 'openai'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await validateModelProvider('user-123', 'workspace-1', 'gpt-4')
   })
 
   it('throws ModelNotAllowedError when the model is on the denylist', async () => {
-    mockExplicitGroup.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockWorkspaceGroups.value = [{ config: { deniedModels: ['gpt-4'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -471,7 +438,7 @@ describe('validateModelProvider', () => {
   })
 
   it('denylist match is case-insensitive', async () => {
-    mockExplicitGroup.value = [{ config: { deniedModels: ['Ollama/Llama3'] } }]
+    mockWorkspaceGroups.value = [{ config: { deniedModels: ['Ollama/Llama3'] } }]
     mockGetProviderFromModel.mockReturnValue('ollama')
 
     await expect(
@@ -480,7 +447,9 @@ describe('validateModelProvider', () => {
   })
 
   it('enforces the denylist even when no provider allowlist is set', async () => {
-    mockExplicitGroup.value = [{ config: { allowedModelProviders: null, deniedModels: ['gpt-4'] } }]
+    mockWorkspaceGroups.value = [
+      { config: { allowedModelProviders: null, deniedModels: ['gpt-4'] } },
+    ]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -489,14 +458,14 @@ describe('validateModelProvider', () => {
   })
 
   it('allows a model that is not on the denylist', async () => {
-    mockExplicitGroup.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockWorkspaceGroups.value = [{ config: { deniedModels: ['gpt-4'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await validateModelProvider('user-123', 'workspace-1', 'gpt-4o')
   })
 
-  it('applies the org default group when the user has no explicit group', async () => {
-    mockExplicitGroup.value = []
+  it('applies the org default group when no workspace group governs the user', async () => {
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
@@ -509,15 +478,14 @@ describe('validateModelProvider', () => {
 describe('validateMcpToolsAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockExplicitGroup.value = []
-    mockAllWorkspacesGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
 
   it('throws McpToolsNotAllowedError when disableMcpTools is set', async () => {
-    mockExplicitGroup.value = [{ config: { disableMcpTools: true } }]
+    mockWorkspaceGroups.value = [{ config: { disableMcpTools: true } }]
 
     await expect(validateMcpToolsAllowed('user-123', 'workspace-1')).rejects.toBeInstanceOf(
       McpToolsNotAllowedError
@@ -525,24 +493,62 @@ describe('validateMcpToolsAllowed', () => {
   })
 
   it('no-ops when disableMcpTools is false', async () => {
-    mockExplicitGroup.value = [{ config: {} }]
+    mockWorkspaceGroups.value = [{ config: {} }]
 
     await validateMcpToolsAllowed('user-123', 'workspace-1')
+  })
+})
+
+describe('validatePublicFileSharing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockWorkspaceGroups.value = []
+    mockDefaultGroup.value = []
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+    setEnterpriseOrgWorkspace()
+  })
+
+  it('throws when public file sharing is fully disabled', async () => {
+    mockWorkspaceGroups.value = [{ config: { disablePublicFileSharing: true } }]
+    await expect(
+      validatePublicFileSharing('user-123', 'workspace-1', 'password')
+    ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
+  })
+
+  it('throws when the auth type is not in the allow-list', async () => {
+    mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }]
+    await expect(
+      validatePublicFileSharing('user-123', 'workspace-1', 'public')
+    ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
+  })
+
+  it('allows an auth type that is in the allow-list', async () => {
+    mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }]
+    await validatePublicFileSharing('user-123', 'workspace-1', 'password')
+  })
+
+  it('allows any auth type when the allow-list is null', async () => {
+    mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: null } }]
+    await validatePublicFileSharing('user-123', 'workspace-1', 'email')
+  })
+
+  it('no-ops when no auth type is provided (master switch only)', async () => {
+    mockWorkspaceGroups.value = [{ config: { allowedFileShareAuthTypes: ['password'] } }]
+    await validatePublicFileSharing('user-123', 'workspace-1')
   })
 })
 
 describe('assertPermissionsAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockExplicitGroup.value = []
-    mockAllWorkspacesGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
     setEnterpriseOrgWorkspace()
   })
 
   it('throws ProviderNotAllowedError when model provider is blocked', async () => {
-    mockExplicitGroup.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    mockWorkspaceGroups.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(
@@ -555,7 +561,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws ModelNotAllowedError when the model is on the denylist', async () => {
-    mockExplicitGroup.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockWorkspaceGroups.value = [{ config: { deniedModels: ['gpt-4'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(
@@ -568,7 +574,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws IntegrationNotAllowedError when block type is blocked', async () => {
-    mockExplicitGroup.value = [{ config: { allowedIntegrations: ['slack'] } }]
+    mockWorkspaceGroups.value = [{ config: { allowedIntegrations: ['slack'] } }]
 
     await expect(
       assertPermissionsAllowed({
@@ -580,7 +586,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('exempts legacy blocks from the integration allowlist', async () => {
-    mockExplicitGroup.value = [{ config: { allowedIntegrations: ['slack'] } }]
+    mockWorkspaceGroups.value = [{ config: { allowedIntegrations: ['slack'] } }]
     mockGetBlock.mockImplementation((type) =>
       type === 'notion' ? { hideFromToolbar: true } : undefined
     )
@@ -592,8 +598,71 @@ describe('assertPermissionsAllowed', () => {
     })
   })
 
+  it('throws ToolNotAllowedError when the tool is on the denylist', async () => {
+    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        toolId: 'slack_canvas',
+      })
+    ).rejects.toBeInstanceOf(ToolNotAllowedError)
+  })
+
+  it('allows a tool that is not on the denylist', async () => {
+    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+
+    await assertPermissionsAllowed({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      toolId: 'slack_message',
+    })
+  })
+
+  it('allows every tool when the denylist is empty', async () => {
+    mockWorkspaceGroups.value = [{ config: { deniedTools: [] } }]
+
+    await assertPermissionsAllowed({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      toolId: 'slack_canvas',
+    })
+  })
+
+  it('denies a tool even when its block is allowed by the integration allowlist', async () => {
+    mockWorkspaceGroups.value = [
+      { config: { allowedIntegrations: ['slack'], deniedTools: ['slack_canvas'] } },
+    ]
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        blockType: 'slack',
+        toolId: 'slack_canvas',
+      })
+    ).rejects.toBeInstanceOf(ToolNotAllowedError)
+  })
+
+  it('still enforces the tool denylist for an exempt block type', async () => {
+    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+    mockGetBlock.mockImplementation((type) =>
+      type === 'slack' ? { hideFromToolbar: true } : undefined
+    )
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        blockType: 'slack',
+        toolId: 'slack_canvas',
+      })
+    ).rejects.toBeInstanceOf(ToolNotAllowedError)
+  })
+
   it('throws CustomToolsNotAllowedError when custom tools are disabled', async () => {
-    mockExplicitGroup.value = [{ config: { disableCustomTools: true } }]
+    mockWorkspaceGroups.value = [{ config: { disableCustomTools: true } }]
 
     await expect(
       assertPermissionsAllowed({
@@ -605,7 +674,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws SkillsNotAllowedError when skills are disabled', async () => {
-    mockExplicitGroup.value = [{ config: { disableSkills: true } }]
+    mockWorkspaceGroups.value = [{ config: { disableSkills: true } }]
 
     await expect(
       assertPermissionsAllowed({
@@ -617,8 +686,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('passes when the workspace has no blocking config', async () => {
-    mockExplicitGroup.value = []
-    mockAllWorkspacesGroup.value = []
+    mockWorkspaceGroups.value = []
     mockDefaultGroup.value = []
 
     await assertPermissionsAllowed({

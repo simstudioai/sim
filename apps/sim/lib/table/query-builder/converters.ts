@@ -21,14 +21,20 @@ export function filterRulesToFilter(rules: FilterRule[]): Filter | null {
   let currentGroup: Filter = {}
 
   for (const rule of rules) {
+    // Honor the OR boundary before skipping incomplete rows, so an incomplete
+    // `or` row between two valid conditions still starts a new group.
     const isOr = rule.logicalOperator === 'or'
-    const ruleValue = toRuleValue(rule.operator, rule.value)
-
     if (isOr && Object.keys(currentGroup).length > 0) {
       orGroups.push({ ...currentGroup })
       currentGroup = {}
     }
 
+    // Skip incomplete rows (no column selected) so a blank builder row never
+    // serializes to a `{ '': ... }` predicate. The OR boundary above is still
+    // applied; the row just contributes no condition.
+    if (!rule.column) continue
+
+    const ruleValue = toRuleValue(rule.operator, rule.value)
     const existing = currentGroup[rule.column]
     currentGroup[rule.column] =
       existing === undefined

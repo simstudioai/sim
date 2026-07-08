@@ -1,9 +1,14 @@
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { transformTable } from '@/tools/shared/table'
 import type { TableRow } from '@/tools/types'
 
 /**
- * Creates a set of default headers used in HTTP requests
+ * Creates a set of default headers used in HTTP requests.
+ *
+ * Identifies as Sim rather than impersonating a browser. Browser-fingerprint
+ * headers (Referer, Sec-Ch-Ua*) trip anti-CSRF/bot-defense heuristics on
+ * providers like Atlassian, which reject REST calls carrying a browser
+ * User-Agent regardless of X-Atlassian-Token. See
+ * https://support.atlassian.com/jira/kb/rest-api-calls-with-a-browser-user-agent-header-may-fail-csrf-checks/
  * @param customHeaders Additional user-provided headers to include
  * @param url Target URL for the request (used for setting Host header)
  * @returns Record of HTTP headers
@@ -13,16 +18,11 @@ export const getDefaultHeaders = (
   url?: string
 ): Record<string, string> => {
   const headers: Record<string, string> = {
-    'User-Agent':
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    'User-Agent': 'Sim/1.0 (+https://sim.ai)',
     Accept: '*/*',
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
-    Referer: getBaseUrl(),
-    'Sec-Ch-Ua': 'Chromium;v=91, Not-A.Brand;v=99',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"macOS"',
     ...customHeaders,
   }
 

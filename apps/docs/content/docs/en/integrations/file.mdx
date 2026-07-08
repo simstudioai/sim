@@ -1,6 +1,6 @@
 ---
 title: File
-description: Read, get content, fetch, write, and append files
+description: Read, get content, fetch, write, append, compress, decompress, and manage sharing for files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.
+Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
 
 
 
@@ -24,60 +24,52 @@ Read workspace file objects, extract the text content of files, fetch and parse 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\) or fetched file objects \(fetch\) |
-| `contents` | array | Array of file text contents, one entry per file \(get content\) |
-| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
-| `id` | string | File ID \(write and append\) |
-| `name` | string | File name \(write and append\) |
-| `size` | number | File size in bytes \(write and append\) |
-| `url` | string | URL to access the file \(write and append\) |
+| `files` | file[] | Workspace file objects |
 
 ### `file_get_content`
 
+Extract the text content of one or more workspace files from selected file objects or canonical workspace file IDs.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\) or fetched file objects \(fetch\) |
-| `contents` | array | Array of file text contents, one entry per file \(get content\) |
-| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
-| `id` | string | File ID \(write and append\) |
-| `name` | string | File name \(write and append\) |
-| `size` | number | File size in bytes \(write and append\) |
-| `url` | string | URL to access the file \(write and append\) |
+| `contents` | array | Array of file text contents, one entry per file in input order |
 
 ### `file_fetch`
 
+Fetch and parse a file from a URL with optional custom headers.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `headers` | object | No | HTTP headers to include when fetching URL-based files. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\) or fetched file objects \(fetch\) |
-| `contents` | array | Array of file text contents, one entry per file \(get content\) |
-| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
-| `id` | string | File ID \(write and append\) |
-| `name` | string | File name \(write and append\) |
-| `size` | number | File size in bytes \(write and append\) |
-| `url` | string | URL to access the file \(write and append\) |
+| `files` | file[] | Fetched files as UserFile objects |
+| `combinedContent` | string | Combined content of all fetched files |
 
 ### `file_write`
 
-Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., 
+Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").
 
 #### Input
 
@@ -115,5 +107,69 @@ Append content to an existing workspace file. The file must already exist. Conte
 | `name` | string | File name |
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
+
+### `file_compress`
+
+Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
+| `archiveName` | string | No | Name for the .zip archive \(e.g., "documents.zip"\). Defaults to the source file name when compressing a single file, otherwise "archive.zip". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Compressed archive file ID |
+| `name` | string | Compressed archive file name |
+| `size` | number | Compressed archive size in bytes |
+| `url` | string | URL to access the compressed archive |
+| `files` | file[] | Compressed archive file object, as a single-item array |
+
+### `file_decompress`
+
+Extract the contents of a .zip archive into the workspace, preserving the archive folder structure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID of the .zip archive to extract. |
+| `fileInput` | file | No | Selected .zip archive file object. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | file[] | Extracted workspace file objects |
+
+### `file_manage_sharing`
+
+Enable or disable the public share link for a workspace file, and set its access mode (public, password, email, or SSO). Idempotent: the public link stays stable across changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical ID of the workspace file to update sharing for. |
+| `fileInput` | file | No | Selected workspace file object \(from the file picker\). |
+| `isActive` | boolean | Yes | Whether the public link is enabled. Set to false to make the file private. |
+| `authType` | string | No | Access mode for the link: "public", "password", "email", or "sso". Defaults to "public". |
+| `password` | string | No | Password to protect the link. Required when authType is "password". |
+| `allowedEmails` | array | No | Allowed emails or "@domain" patterns. Required when authType is "email" or "sso". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | Public share URL for the file |
+| `isActive` | boolean | Whether the public link is enabled |
+| `authType` | string | Access mode: public, password, email, or sso |
+| `hasPassword` | boolean | Whether the share is password-protected |
+| `allowedEmails` | array | Allowed emails/domains for email or SSO access |
 
 

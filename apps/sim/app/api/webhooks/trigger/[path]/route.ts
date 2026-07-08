@@ -69,6 +69,17 @@ async function handleWebhookPost(
   request: NextRequest,
   context: { params: Promise<{ path: string }> }
 ): Promise<NextResponse> {
+  const receivedAt = Date.now()
+  /**
+   * Slack signs every interactive request with the originating interaction time.
+   * Capturing it lets the executor surface the true trigger_id age (the window
+   * that expires at 3s) instead of only the in-workflow block timings.
+   */
+  const slackRequestTimestamp = request.headers.get('x-slack-request-timestamp')
+  const triggerTimestampMs = slackRequestTimestamp
+    ? Number(slackRequestTimestamp) * 1000
+    : undefined
+
   const requestId = generateRequestId()
   const parsed = await parseRequest(webhookTriggerPostContract, request, context)
   if (!parsed.success) return parsed.response
@@ -93,7 +104,7 @@ async function handleWebhookPost(
     return challengeResponse
   }
 
-  // Find all webhooks for this path (supports credential set fan-out where multiple webhooks share a path)
+  // Find all webhooks for this path (multiple webhooks in one workflow may share a path)
   const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
   // Internal trigger providers (sim, table) are fired in-process, never over
@@ -123,8 +134,7 @@ async function handleWebhookPost(
     return new NextResponse('Not Found', { status: 404 })
   }
 
-  // Process each webhook
-  // For credential sets with shared paths, each webhook represents a different credential
+  // Process each webhook matched on this path
   const responses: NextResponse[] = []
   let billingBlocked = false
 
@@ -200,6 +210,8 @@ async function handleWebhookPost(
       actorUserId: preprocessResult.actorUserId,
       executionId: preprocessResult.executionId,
       correlation: preprocessResult.correlation,
+      receivedAt,
+      triggerTimestampMs: Number.isFinite(triggerTimestampMs) ? triggerTimestampMs : undefined,
     })
     responses.push(response)
   }
@@ -216,9 +228,7 @@ async function handleWebhookPost(
   }
 
   // For multiple webhooks, return success if at least one succeeded
-  logger.info(
-    `[${requestId}] Processed ${responses.length} webhooks for path: ${path} (credential set fan-out)`
-  )
+  logger.info(`[${requestId}] Processed ${responses.length} webhooks for path: ${path}`)
   return NextResponse.json({
     success: true,
     webhooksProcessed: responses.length,

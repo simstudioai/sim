@@ -1,11 +1,9 @@
 import { db } from '@sim/db'
-import { account, credentialSetMember, webhook, workflowDeploymentVersion } from '@sim/db/schema'
+import { webhook, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import type { DbOrTx } from '@/lib/db/types'
-import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
   cleanupExternalWebhook,
@@ -13,11 +11,13 @@ import {
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import {
-  findConflictingWebhookPathOwner,
-  syncWebhooksForCredentialSet,
-} from '@/lib/webhooks/utils.server'
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  isCanonicalPair,
+  resolveActiveCanonicalValue,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -25,7 +25,6 @@ import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('DeployWebhookSync')
-const CREDENTIAL_SET_PREFIX = 'credentialSet:'
 
 interface TriggerSaveError {
   message: string
@@ -34,12 +33,10 @@ interface TriggerSaveError {
 interface TriggerSaveResult {
   success: boolean
   error?: TriggerSaveError
-  warnings?: string[]
 }
 
 export async function validateTriggerWebhookConfigForDeploy(
-  blocks: Record<string, BlockState>,
-  executor: DbOrTx = db
+  blocks: Record<string, BlockState>
 ): Promise<TriggerSaveResult> {
   const triggerBlocks = Object.values(blocks || {}).filter((b) => b && b.enabled !== false)
 
@@ -48,7 +45,6 @@ export async function validateTriggerWebhookConfigForDeploy(
     if (!triggerId || !isTriggerValid(triggerId)) continue
 
     const triggerDef = getTrigger(triggerId)
-    const provider = triggerDef.provider
     const { providerConfig, missingFields } = buildProviderConfig(block, triggerId, triggerDef)
 
     if (missingFields.length > 0) {
@@ -71,67 +67,9 @@ export async function validateTriggerWebhookConfigForDeploy(
         },
       }
     }
-
-    if (providerConfig.credentialSetId) {
-      const oauthProviderId = getProviderIdFromServiceId(provider)
-      const hasCredential = await credentialSetHasProviderCredential(
-        providerConfig.credentialSetId as string,
-        oauthProviderId,
-        executor
-      )
-      if (!hasCredential) {
-        return {
-          success: false,
-          error: {
-            message: `No valid credentials found in credential set for ${provider}. Please connect accounts and try again.`,
-            status: 400,
-          },
-        }
-      }
-    }
   }
 
   return { success: true }
-}
-
-async function credentialSetHasProviderCredential(
-  credentialSetId: string,
-  providerId: string,
-  executor: DbOrTx
-): Promise<boolean> {
-  const members = await executor
-    .select({ userId: credentialSetMember.userId })
-    .from(credentialSetMember)
-    .where(
-      and(
-        eq(credentialSetMember.credentialSetId, credentialSetId),
-        eq(credentialSetMember.status, 'active')
-      )
-    )
-
-  if (members.length === 0) return false
-
-  const [credential] = await executor
-    .select({ id: account.id })
-    .from(account)
-    .where(
-      and(
-        inArray(
-          account.userId,
-          members.map((member) => member.userId)
-        ),
-        eq(account.providerId, providerId),
-        or(isNotNull(account.accessToken), isNotNull(account.refreshToken))
-      )
-    )
-    .limit(1)
-
-  return Boolean(credential)
-}
-
-interface CredentialSetSyncResult {
-  error: TriggerSaveError | null
-  warnings: string[]
 }
 
 interface SaveTriggerWebhooksInput {
@@ -250,7 +188,13 @@ function getConfigValue(block: BlockState, subBlock: SubBlockConfig): unknown {
   return fieldValue
 }
 
-function buildProviderConfig(
+/**
+ * Build the persisted `webhook.providerConfig` for a trigger block at deploy time.
+ *
+ * Exported for unit testing the canonical-collapse pass; not part of the public
+ * deploy API.
+ */
+export function buildProviderConfig(
   block: BlockState,
   triggerId: string,
   triggerDef: { subBlocks: SubBlockConfig[] }
@@ -258,7 +202,6 @@ function buildProviderConfig(
   providerConfig: Record<string, unknown>
   missingFields: string[]
   credentialId?: string
-  credentialSetId?: string
   triggerPath: string
 } {
   const triggerConfigValue = getSubBlockValue(block, 'triggerConfig')
@@ -308,6 +251,25 @@ function buildProviderConfig(
     }
   }
 
+  // Collapse each canonical pair (basic + advanced swap) to its ACTIVE value under the
+  // canonical key, so pollers read one authoritative key instead of guessing basic-first.
+  // resolveActiveCanonicalValue is the shared SOT: an explicit block.data.canonicalModes
+  // override, else the value heuristic. The raw subblock keys written in the first pass are
+  // kept for transitional readers (removable in a follow-up contract phase). This only runs on
+  // a (re)deploy, so any drift collapse is scoped to the new deployment version — already
+  // deployed rows are migrated separately and keep their current resource.
+  const canonicalModes = block.data?.canonicalModes
+  const flatSubBlockValues = buildSubBlockValues(block.subBlocks || {})
+  for (const group of Object.values(canonicalIndex.groupsById)) {
+    if (!isCanonicalPair(group)) continue
+    const activeValue = resolveActiveCanonicalValue(group, flatSubBlockValues, canonicalModes)
+    if (activeValue !== null && activeValue !== undefined && activeValue !== '') {
+      providerConfig[group.canonicalId] = activeValue
+    } else {
+      delete providerConfig[group.canonicalId]
+    }
+  }
+
   const credentialConfig = triggerDef.subBlocks.find(
     (subBlock) => subBlock.id === 'triggerCredentials'
   )
@@ -321,15 +283,9 @@ function buildProviderConfig(
   }
 
   let credentialId: string | undefined
-  let credentialSetId: string | undefined
   if (typeof triggerCredentials === 'string' && triggerCredentials.length > 0) {
-    if (triggerCredentials.startsWith(CREDENTIAL_SET_PREFIX)) {
-      credentialSetId = triggerCredentials.slice(CREDENTIAL_SET_PREFIX.length)
-      providerConfig.credentialSetId = credentialSetId
-    } else {
-      credentialId = triggerCredentials
-      providerConfig.credentialId = credentialId
-    }
+    credentialId = triggerCredentials
+    providerConfig.credentialId = credentialId
   }
 
   providerConfig.triggerId = triggerId
@@ -340,7 +296,7 @@ function buildProviderConfig(
       ? triggerPathValue
       : block.id
 
-  return { providerConfig, missingFields, credentialId, credentialSetId, triggerPath }
+  return { providerConfig, missingFields, credentialId, triggerPath }
 }
 
 async function configurePollingIfNeeded(
@@ -363,91 +319,6 @@ async function configurePollingIfNeeded(
   }
 
   return null
-}
-
-async function syncCredentialSetWebhooks(params: {
-  workflowId: string
-  blockId: string
-  provider: string
-  triggerPath: string
-  providerConfig: Record<string, unknown>
-  requestId: string
-  deploymentVersionId?: string
-}): Promise<CredentialSetSyncResult> {
-  const {
-    workflowId,
-    blockId,
-    provider,
-    triggerPath,
-    providerConfig,
-    requestId,
-    deploymentVersionId,
-  } = params
-
-  const credentialSetId = providerConfig.credentialSetId as string | undefined
-  if (!credentialSetId) {
-    return { error: null, warnings: [] }
-  }
-
-  const oauthProviderId = getProviderIdFromServiceId(provider)
-
-  const { credentialId: _cId, credentialSetId: _csId, userId: _uId, ...baseConfig } = providerConfig
-
-  const syncResult = await syncWebhooksForCredentialSet({
-    workflowId,
-    blockId,
-    provider,
-    basePath: triggerPath,
-    credentialSetId,
-    oauthProviderId,
-    providerConfig: baseConfig as Record<string, unknown>,
-    requestId,
-    deploymentVersionId,
-  })
-
-  const warnings: string[] = []
-
-  if (syncResult.failed.length > 0) {
-    const failedCount = syncResult.failed.length
-    const totalCount = syncResult.webhooks.length + failedCount
-    warnings.push(
-      `${failedCount} of ${totalCount} credentials in the set failed to sync for ${provider}. Some team members may not receive triggers.`
-    )
-  }
-
-  if (syncResult.webhooks.length === 0) {
-    return {
-      error: {
-        message: `No valid credentials found in credential set for ${provider}. Please connect accounts and try again.`,
-        status: 400,
-      },
-      warnings,
-    }
-  }
-
-  const handler = getProviderHandler(provider)
-  if (handler.configurePolling) {
-    for (const wh of syncResult.webhooks) {
-      if (wh.isNew) {
-        const rows = await db.select().from(webhook).where(eq(webhook.id, wh.id)).limit(1)
-        if (rows.length > 0) {
-          const success = await handler.configurePolling({ webhook: rows[0], requestId })
-          if (!success) {
-            await db.delete(webhook).where(eq(webhook.id, wh.id))
-            return {
-              error: {
-                message: `Failed to configure ${provider} polling. Please check account permissions.`,
-                status: 500,
-              },
-              warnings,
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return { error: null, warnings }
 }
 
 /**
@@ -504,13 +375,11 @@ export async function saveTriggerWebhooksForDeploy({
     provider: string
     providerConfig: Record<string, unknown>
     triggerPath: string
-    triggerDef: ReturnType<typeof getTrigger>
   }
   const webhookConfigs = new Map<string, WebhookConfig>()
 
   const webhooksToDelete: typeof existingWebhooks = []
   const blocksNeedingWebhook: BlockState[] = []
-  const blocksNeedingCredentialSetSync: BlockState[] = []
 
   for (const block of triggerBlocks) {
     const triggerId = resolveTriggerId(block)
@@ -562,12 +431,7 @@ export async function saveTriggerWebhooksForDeploy({
       }
     }
 
-    webhookConfigs.set(block.id, { provider, providerConfig, triggerPath, triggerDef })
-
-    if (providerConfig.credentialSetId) {
-      blocksNeedingCredentialSetSync.push(block)
-      continue
-    }
+    webhookConfigs.set(block.id, { provider, providerConfig, triggerPath })
 
     const existingForBlock = webhooksByBlockId.get(block.id) ?? []
     if (existingForBlock.length === 0) {
@@ -635,45 +499,6 @@ export async function saveTriggerWebhooksForDeploy({
       }
       if (!strictExternalCleanup || cleanupSucceeded) {
         await db.delete(webhook).where(eq(webhook.id, wh.id))
-      }
-    }
-  }
-
-  const collectedWarnings: string[] = []
-
-  for (const block of blocksNeedingCredentialSetSync) {
-    const config = webhookConfigs.get(block.id)
-    if (!config) continue
-
-    const { provider, providerConfig, triggerPath } = config
-
-    try {
-      const syncResult = await syncCredentialSetWebhooks({
-        workflowId,
-        blockId: block.id,
-        provider,
-        triggerPath,
-        providerConfig,
-        requestId,
-        deploymentVersionId,
-      })
-
-      if (syncResult.warnings.length > 0) {
-        collectedWarnings.push(...syncResult.warnings)
-      }
-
-      if (syncResult.error) {
-        return { success: false, error: syncResult.error, warnings: collectedWarnings }
-      }
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
-      return {
-        success: false,
-        error: {
-          message: (error as Error)?.message || 'Failed to save trigger configuration',
-          status: 500,
-        },
-        warnings: collectedWarnings,
       }
     }
   }
@@ -785,8 +610,6 @@ export async function saveTriggerWebhooksForDeploy({
           path: sub.triggerPath,
           provider: sub.provider,
           providerConfig: sub.updatedProviderConfig,
-          credentialSetId:
-            (sub.updatedProviderConfig.credentialSetId as string | undefined) || null,
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -885,7 +708,7 @@ export async function saveTriggerWebhooksForDeploy({
     }
   }
 
-  return { success: true, warnings: collectedWarnings.length > 0 ? collectedWarnings : undefined }
+  return { success: true }
 }
 
 async function persistCreatedWebhookRecordAfterCleanupFailure({
@@ -914,7 +737,6 @@ async function persistCreatedWebhookRecordAfterCleanupFailure({
       path: sub.triggerPath,
       provider: sub.provider,
       providerConfig: sub.updatedProviderConfig,
-      credentialSetId: (sub.updatedProviderConfig.credentialSetId as string | undefined) || null,
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),

@@ -8,6 +8,7 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
@@ -28,7 +29,7 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
+import { getHelpEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('StripeInvoiceWebhooks')
@@ -300,9 +301,7 @@ async function sendPaymentFailureEmails(
         .from(member)
         .where(eq(member.organizationId, sub.referenceId))
 
-      const ownerAdminIds = members
-        .filter((m) => m.role === 'owner' || m.role === 'admin')
-        .map((m) => m.userId)
+      const ownerAdminIds = members.filter((m) => isOrgAdminRole(m.role)).map((m) => m.userId)
 
       if (ownerAdminIds.length > 0) {
         const users = await db
@@ -338,7 +337,8 @@ async function sendPaymentFailureEmails(
           })
         )
 
-        const { from, replyTo } = getPersonalEmailFrom()
+        const { from } = getPersonalEmailFrom()
+        const replyTo = getHelpEmailAddress()
         await sendEmail({
           to: userToNotify.email,
           subject: 'Payment Failed - Action Required',
@@ -722,9 +722,7 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
           .from(member)
           .where(eq(member.organizationId, entityId))
 
-        const ownerAdminIds = members
-          .filter((m) => m.role === 'owner' || m.role === 'admin')
-          .map((m) => m.userId)
+        const ownerAdminIds = members.filter((m) => isOrgAdminRole(m.role)).map((m) => m.userId)
 
         if (ownerAdminIds.length > 0) {
           recipients = await db

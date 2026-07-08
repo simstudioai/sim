@@ -36,7 +36,7 @@ Whether you’re building internal tools, automating business processes, or powe
 
 ## Usage Instructions
 
-Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).
+Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).
 
 
 
@@ -165,6 +165,7 @@ Insert or update data in a Supabase table (upsert operation)
 | `table` | string | Yes | The name of the Supabase table to upsert data into |
 | `schema` | string | No | Database schema to upsert into \(default: public\). Use this to access tables in other schemas. |
 | `data` | array | Yes | The data to upsert \(insert or update\) - array of objects or a single object |
+| `onConflict` | string | No | Comma-separated column\(s\) with a unique or primary key constraint to resolve conflicts on \(e.g., "email"\). Defaults to the primary key. |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
@@ -263,9 +264,31 @@ Call a PostgreSQL function in Supabase
 | `message` | string | Operation status message |
 | `results` | json | Result returned from the function |
 
+### `supabase_invoke_function`
+
+Invoke a Supabase Edge Function over HTTP
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Yes | The name of the Edge Function to invoke \(e.g., "hello-world"\) |
+| `method` | string | No | HTTP method to use: GET, POST, PUT, PATCH, or DELETE \(default: POST\) |
+| `body` | json | No | Request payload to send to the function as a JSON object \(ignored for GET\) |
+| `headers` | json | No | Additional request headers as a JSON object of header name to value |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | json | Response body returned by the Edge Function |
+
 ### `supabase_introspect`
 
-Introspect Supabase database schema to get table structures, columns, and relationships
+Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)
 
 #### Input
 
@@ -286,11 +309,11 @@ Introspect Supabase database schema to get table structures, columns, and relati
 |   ↳ `columns` | array | Array of column definitions |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Column data type |
-|     ↳ `nullable` | boolean | Whether the column allows null values |
+|     ↳ `nullable` | boolean | Whether the column allows null values — a NOT NULL column that has a default value is misreported as nullable, since the OpenAPI spec this is derived from omits it from the required list in that case |
 |     ↳ `default` | string | Default value for the column |
-|     ↳ `isPrimaryKey` | boolean | Whether the column is a primary key |
-|     ↳ `isForeignKey` | boolean | Whether the column is a foreign key |
-|     ↳ `references` | object | Foreign key reference details |
+|     ↳ `isPrimaryKey` | boolean | Best-effort guess based on the column being named "id" \(not authoritative\) |
+|     ↳ `isForeignKey` | boolean | True only if the column has a "references table.column" SQL comment; most databases will show false even for real foreign keys |
+|     ↳ `references` | object | Foreign key reference details, when detected via SQL comment |
 |       ↳ `table` | string | Referenced table name |
 |       ↳ `column` | string | Referenced column name |
 |   ↳ `primaryKey` | array | Array of primary key column names |
@@ -298,7 +321,7 @@ Introspect Supabase database schema to get table structures, columns, and relati
 |     ↳ `column` | string | Local column name |
 |     ↳ `referencesTable` | string | Referenced table name |
 |     ↳ `referencesColumn` | string | Referenced column name |
-|   ↳ `indexes` | array | Array of index definitions |
+|   ↳ `indexes` | array | Always empty — index definitions are not exposed by the OpenAPI spec this tool reads |
 |     ↳ `name` | string | Index name |
 |     ↳ `columns` | array | Columns included in the index |
 |     ↳ `unique` | boolean | Whether the index enforces uniqueness |
@@ -318,6 +341,7 @@ Upload a file to a Supabase storage bucket
 | `path` | string | No | Optional folder path \(e.g., "folder/subfolder/"\) |
 | `fileData` | json | Yes | File to upload - UserFile object \(basic mode\) or string content \(advanced mode: base64 or plain text\). Supports data URLs. |
 | `contentType` | string | No | MIME type of the file \(e.g., "image/jpeg", "text/plain"\) |
+| `cacheControl` | string | No | Cache-Control header value in seconds for the stored object \(e.g., "3600"; default: "3600"\) |
 | `upsert` | boolean | No | If true, overwrites existing file \(default: false\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
@@ -327,9 +351,11 @@ Upload a file to a Supabase storage bucket
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | object | Upload result including file path, bucket, and public URL |
-|   ↳ `id` | string | Unique identifier for the uploaded file |
+|   ↳ `Id` | string | Unique identifier for the uploaded file |
+|   ↳ `Key` | string | Full object key including bucket name |
 |   ↳ `path` | string | Path to the uploaded file within the bucket |
-|   ↳ `fullPath` | string | Full path including bucket name |
+|   ↳ `bucket` | string | Name of the bucket the file was uploaded to |
+|   ↳ `publicUrl` | string | Public URL for the uploaded file |
 
 ### `supabase_storage_download`
 
@@ -364,7 +390,7 @@ List files in a Supabase storage bucket
 | `path` | string | No | The folder path to list files from \(default: root\) |
 | `limit` | number | No | Maximum number of files to return \(default: 100\) |
 | `offset` | number | No | Number of files to skip \(for pagination\) |
-| `sortBy` | string | No | Column to sort by: name, created_at, updated_at \(default: name\) |
+| `sortBy` | string | No | Column to sort by: name, created_at, updated_at, last_accessed_at \(default: name\) |
 | `sortOrder` | string | No | Sort order: asc or desc \(default: asc\) |
 | `search` | string | No | Search term to filter files by name |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
@@ -437,6 +463,8 @@ Move a file within a Supabase storage bucket
 | `message` | string | Operation status message |
 | `results` | object | Move operation result |
 |   ↳ `message` | string | Operation status message |
+|   ↳ `Id` | string | Identifier of the destination object |
+|   ↳ `Key` | string | Full object key of the destination |
 
 ### `supabase_storage_copy`
 
@@ -457,8 +485,9 @@ Copy a file within a Supabase storage bucket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
-| `results` | object | Copy operation result |
-|   ↳ `message` | string | Operation status message |
+| `results` | object | Copy operation result with the destination object key |
+|   ↳ `Key` | string | Full object key of the copied file |
+|   ↳ `Id` | string | Identifier of the copied object |
 
 ### `supabase_storage_create_bucket`
 
@@ -480,8 +509,51 @@ Create a new storage bucket in Supabase
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
-| `results` | object | Created bucket information |
+| `results` | object | Created bucket result \(name\) |
 |   ↳ `name` | string | Created bucket name |
+
+### `supabase_storage_update_bucket`
+
+Update the configuration of an existing Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the bucket to update |
+| `isPublic` | boolean | No | Whether the bucket should be publicly accessible \(leave unset to keep the current value\) |
+| `fileSizeLimit` | number | No | Maximum file size in bytes \(leave unset to keep the current value\) |
+| `allowedMimeTypes` | array | No | Array of allowed MIME types \(e.g., \["image/png", "image/jpeg"\]\) — leave unset to keep the current value |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | object | Update operation result |
+|   ↳ `message` | string | Operation status message |
+
+### `supabase_storage_empty_bucket`
+
+Delete all objects inside a Supabase storage bucket without deleting the bucket itself
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the bucket to empty |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | object | Empty bucket operation result |
+|   ↳ `message` | string | Operation status message |
 
 ### `supabase_storage_list_buckets`
 
@@ -541,7 +613,6 @@ Get the public URL for a file in a Supabase storage bucket
 | `bucket` | string | Yes | The name of the storage bucket |
 | `path` | string | Yes | The path to the file \(e.g., "folder/file.jpg"\) |
 | `download` | boolean | No | If true, forces download instead of inline display \(default: false\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -571,5 +642,28 @@ Create a temporary signed URL for a file in a Supabase storage bucket
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `signedUrl` | string | The temporary signed URL to access the file |
+
+### `supabase_storage_create_signed_upload_url`
+
+Create a temporary signed URL a client can use to upload directly to a Supabase storage bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Yes | The name of the storage bucket |
+| `path` | string | Yes | The destination path for the uploaded file \(e.g., "folder/file.jpg"\) |
+| `upsert` | boolean | No | If true, allows overwriting an existing file at this path \(default: false\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `signedUrl` | string | The temporary signed URL a client can PUT the file to |
+| `path` | string | The destination object path |
+| `token` | string | The upload token embedded in the signed URL |
 
 

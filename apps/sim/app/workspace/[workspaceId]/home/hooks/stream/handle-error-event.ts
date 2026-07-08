@@ -1,23 +1,16 @@
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import type {
-  StreamEventScope,
-  StreamLoopContext,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
+import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 
 type ErrorEvent = Extract<PersistedStreamEventEnvelope, { type: 'error' }>
 
-export function handleErrorEvent(
-  ctx: StreamLoopContext,
-  parsed: ErrorEvent,
-  scope: StreamEventScope
-): void {
+/**
+ * The inline error tag is folded into the model by `reduceEvent` (scoped to the
+ * erroring lane). This handler owns the side effects: flag the stream error and
+ * surface the message, then flush the serialized snapshot.
+ */
+export function handleErrorEvent(ctx: StreamLoopContext, parsed: ErrorEvent): void {
   const { state, ops, deps } = ctx
   state.sawStreamError = true
   deps.setError(parsed.payload.message || parsed.payload.error || 'An error occurred')
-  ops.appendInlineErrorTag(
-    ops.buildInlineErrorTag(parsed.payload),
-    scope.scopedSubagent,
-    ops.resolveParentForSubagentBlock(scope.scopedSubagent, scope.scopedParentToolCallId),
-    typeof parsed.ts === 'string' ? parsed.ts : undefined
-  )
+  ops.flush()
 }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { PublicEnvScript } from 'next-runtime-env'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
@@ -78,26 +79,36 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // window yields a width >= MIN instead of a sub-minimum sliver.
                 var defaultSidebarWidth = 248;
                 try {
-                  var stored = localStorage.getItem('sidebar-state');
-                  if (stored) {
-                    var parsed = JSON.parse(stored);
-                    var state = parsed && parsed.state;
-                    var isCollapsed = state && state.isCollapsed;
+                  // Collapse comes from the cookie (independent of localStorage
+                  // parsing); the persisted width is read defensively below. Match the
+                  // value strictly so 'sidebar_collapsed=10' isn't read as collapsed.
+                  var cookieMatch = document.cookie.match(/(?:^|;\s*)sidebar_collapsed=([^;]*)/);
+                  var hasCookie = cookieMatch !== null;
+                  var collapsed = cookieMatch !== null && cookieMatch[1] === '1';
 
-                    if (isCollapsed) {
-                      document.documentElement.style.setProperty('--sidebar-width', '51px');
-                      document.documentElement.setAttribute('data-sidebar-collapsed', '');
-                    } else {
-                      var width = state && state.sidebarWidth;
-                      var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
-                      var finalWidth =
-                        typeof width === 'number' && isFinite(width)
-                          ? Math.min(Math.max(width, 248), maxSidebarWidth)
-                          : defaultSidebarWidth;
-                      document.documentElement.style.setProperty('--sidebar-width', finalWidth + 'px');
-                    }
+                  var state = null;
+                  try {
+                    var stored = localStorage.getItem('sidebar-state');
+                    state = stored ? JSON.parse(stored).state : null;
+                  } catch (e) {}
+
+                  // One-time migration: seed the cookie from the legacy localStorage
+                  // flag for users who collapsed before the cookie existed.
+                  if (!hasCookie && state && typeof state.isCollapsed === 'boolean') {
+                    collapsed = state.isCollapsed;
+                    document.cookie = 'sidebar_collapsed=' + (collapsed ? '1' : '0') + '; path=/; max-age=31536000; samesite=lax';
+                  }
+
+                  if (collapsed) {
+                    document.documentElement.style.setProperty('--sidebar-width', '51px');
                   } else {
-                    document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
+                    var width = state && state.sidebarWidth;
+                    var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
+                    var finalWidth =
+                      typeof width === 'number' && isFinite(width)
+                        ? Math.min(Math.max(width, 248), maxSidebarWidth)
+                        : defaultSidebarWidth;
+                    document.documentElement.style.setProperty('--sidebar-width', finalWidth + 'px');
                   }
                 } catch (e) {
                   document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
@@ -232,17 +243,19 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </noscript>
         )}
         <HydrationErrorHandler />
-        <PostHogProvider>
-          <ThemeProvider>
-            <QueryProvider>
-              <SessionProvider>
-                <TooltipProvider>
-                  <BrandedLayout>{children}</BrandedLayout>
-                </TooltipProvider>
-              </SessionProvider>
-            </QueryProvider>
-          </ThemeProvider>
-        </PostHogProvider>
+        <NuqsAdapter>
+          <PostHogProvider>
+            <ThemeProvider>
+              <QueryProvider>
+                <SessionProvider>
+                  <TooltipProvider>
+                    <BrandedLayout>{children}</BrandedLayout>
+                  </TooltipProvider>
+                </SessionProvider>
+              </QueryProvider>
+            </ThemeProvider>
+          </PostHogProvider>
+        </NuqsAdapter>
       </body>
     </html>
   )

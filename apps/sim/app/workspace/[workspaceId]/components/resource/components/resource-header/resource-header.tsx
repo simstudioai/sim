@@ -8,14 +8,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ArrowUpLeft } from 'lucide-react'
-import { createPortal } from 'react-dom'
 import {
   Chip,
   ChipChevronDown,
   chipContentIconClass,
   chipGeometryClass,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -29,8 +28,9 @@ import {
   PopoverSection,
   useFloatingTooltip,
   useIsOverflowing,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { ArrowUpLeft } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
@@ -371,6 +371,14 @@ interface BreadcrumbLocationPopoverProps {
   veilBoundaryRef: React.RefObject<HTMLDivElement | null>
 }
 
+/**
+ * Grace period before a hover-out dismisses the path popover. Covers the gap
+ * the pointer crosses between the trigger and the popover content (and brief
+ * jitter at their edges); re-entering either within this window cancels the
+ * close. Standard hover-intent close delay — not tied to any navigation timing.
+ */
+const POPOVER_CLOSE_DELAY_MS = 120
+
 function BreadcrumbLocationPopover({
   icon: Icon,
   breadcrumbs,
@@ -381,22 +389,44 @@ function BreadcrumbLocationPopover({
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rootBreadcrumb = breadcrumbs[0]
 
-  const openPopover = () => {
+  const cancelScheduledClose = () => {
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current)
       closeTimeoutRef.current = null
     }
+  }
+
+  /**
+   * Hover-intent open. Driven only by pointer-/keyboard-enter — never by
+   * pointer movement. This is what makes the popover dismiss cleanly on a
+   * click-to-navigate: a stationary click fires no enter event, so once
+   * {@link navigateAndClose} sets `open` false nothing re-opens it before the
+   * route swaps. (A move-driven open would re-fire under the resting cursor and
+   * flash the popover/veil back in mid-navigation.)
+   */
+  const openPopover = () => {
+    cancelScheduledClose()
     setOpen(true)
   }
 
   const scheduleClose = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current)
-    }
+    cancelScheduledClose()
     closeTimeoutRef.current = setTimeout(() => {
       setOpen(false)
       closeTimeoutRef.current = null
-    }, 120)
+    }, POPOVER_CLOSE_DELAY_MS)
+  }
+
+  /**
+   * Closes the popover up front, then runs the crumb's handler. Closing first
+   * lets the veil fade and the popover play its exit animation instead of
+   * snapping away when navigation unmounts the header.
+   */
+  const navigateAndClose = (onClick?: () => void) => {
+    if (!onClick) return
+    cancelScheduledClose()
+    setOpen(false)
+    onClick()
   }
 
   useEffect(() => {
@@ -413,15 +443,11 @@ function BreadcrumbLocationPopover({
           <button
             type='button'
             aria-label={rootBreadcrumb?.label ?? 'Path'}
-            onClick={rootBreadcrumb?.onClick}
+            onClick={() => navigateAndClose(rootBreadcrumb?.onClick)}
             onFocus={openPopover}
             onBlur={scheduleClose}
             onMouseEnter={openPopover}
             onMouseLeave={scheduleClose}
-            onMouseMove={openPopover}
-            onPointerEnter={openPopover}
-            onPointerLeave={scheduleClose}
-            onPointerMove={openPopover}
             className={cn(
               chipVariants({ flush: true }),
               'max-w-none gap-1.5 px-2 transition-colors',
@@ -457,10 +483,6 @@ function BreadcrumbLocationPopover({
           )}
           onMouseEnter={openPopover}
           onMouseLeave={scheduleClose}
-          onMouseMove={openPopover}
-          onPointerEnter={openPopover}
-          onPointerLeave={scheduleClose}
-          onPointerMove={openPopover}
         >
           <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
             <span className='inline-flex items-center gap-1'>
@@ -474,7 +496,7 @@ function BreadcrumbLocationPopover({
                 key={`${crumb.label}-${index}`}
                 icon={crumb.icon || (index === 0 ? Icon : undefined)}
                 label={crumb.label}
-                onClick={crumb.onClick}
+                onClick={crumb.onClick ? () => navigateAndClose(crumb.onClick) : undefined}
                 active={index === breadcrumbs.length - 1}
               />
             ))}

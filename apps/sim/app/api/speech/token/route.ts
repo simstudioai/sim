@@ -71,7 +71,10 @@ async function validateChatAuth(
 
     const cookieName = `chat_auth_${chatId}`
     const authCookie = request.cookies.get(cookieName)
-    if (authCookie && validateAuthToken(authCookie.value, chatId, chatData.password)) {
+    if (
+      authCookie &&
+      validateAuthToken(authCookie.value, chatId, chatData.authType, chatData.password)
+    ) {
       return { valid: true, ownerId: chatData.userId, workspaceId: chatData.workspaceId }
     }
 

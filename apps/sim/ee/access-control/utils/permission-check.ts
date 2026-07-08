@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
+import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   getAllowedIntegrationsFromEnv,
@@ -49,6 +50,13 @@ export class IntegrationNotAllowedError extends Error {
   }
 }
 
+export class ToolNotAllowedError extends Error {
+  constructor(toolId: string) {
+    super(`Tool "${toolId}" is not allowed based on your permission group settings`)
+    this.name = 'ToolNotAllowedError'
+  }
+}
+
 export class McpToolsNotAllowedError extends Error {
   constructor() {
     super('MCP tools are not allowed based on your permission group settings')
@@ -81,6 +89,13 @@ export class PublicApiNotAllowedError extends Error {
   constructor() {
     super('Public API access is not allowed based on your permission group settings')
     this.name = 'PublicApiNotAllowedError'
+  }
+}
+
+export class PublicFileSharingNotAllowedError extends Error {
+  constructor() {
+    super('Public file sharing is not allowed based on your permission group settings')
+    this.name = 'PublicFileSharingNotAllowedError'
   }
 }
 
@@ -151,18 +166,18 @@ async function resolveDefaultGroup(
 
 /**
  * Resolve the group governing `userId` in `workspaceId` (which belongs to
- * `organizationId`). Deterministic precedence, one effective group per
- * workspace:
- *   1. a specific-scope group the user is in that targets this workspace, else
- *   2. the user's all-workspaces group, else
+ * `organizationId`). One effective group per workspace, by precedence:
+ *   1. a non-default group targeting this workspace that `userId` is an explicit
+ *      member of, else
+ *   2. a non-default group targeting this workspace that has no explicit members
+ *      — governs all members of the workspace, including external members, else
  *   3. the organization's default group (also governs external members), else
  *   4. `null` (unrestricted).
  *
- * Specific-scope groups a user belongs to should not overlap on a workspace,
- * and a user should belong to at most one all-workspaces group (enforced at
- * assignment time, though not by a DB constraint). If an overlap nonetheless
- * exists, the oldest group wins — rows are ordered by `created_at` (then `id`)
- * so resolution is deterministic.
+ * Assignment-time conflict checks keep this unambiguous: at most one all-members
+ * group per workspace, and a user is an explicit member of at most one group per
+ * workspace. If an overlap nonetheless exists, the oldest group wins — rows are
+ * ordered by `created_at` (then `id`).
  *
  * Callers gate on enterprise entitlement before invoking this and merge the env
  * allowlist afterwards.
@@ -177,13 +192,18 @@ export async function resolveWorkspaceGroup(
       id: permissionGroup.id,
       name: permissionGroup.name,
       config: permissionGroup.config,
-      appliesToAllWorkspaces: permissionGroup.appliesToAllWorkspaces,
-      // Non-null only when this group has a specific row targeting the workspace.
-      targetsWorkspace: permissionGroupWorkspace.workspaceId,
+      isMember: sql<boolean>`exists (
+        select 1 from ${permissionGroupMember}
+        where ${permissionGroupMember.permissionGroupId} = ${permissionGroup.id}
+          and ${permissionGroupMember.userId} = ${userId}
+      )`,
+      hasMembers: sql<boolean>`exists (
+        select 1 from ${permissionGroupMember}
+        where ${permissionGroupMember.permissionGroupId} = ${permissionGroup.id}
+      )`,
     })
-    .from(permissionGroupMember)
-    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-    .leftJoin(
+    .from(permissionGroup)
+    .innerJoin(
       permissionGroupWorkspace,
       and(
         eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id),
@@ -191,60 +211,17 @@ export async function resolveWorkspaceGroup(
       )
     )
     .where(
-      and(
-        eq(permissionGroupMember.userId, userId),
-        eq(permissionGroupMember.organizationId, organizationId)
-      )
+      and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, false))
     )
     .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
 
-  const specific = rows.find((row) => !row.appliesToAllWorkspaces && row.targetsWorkspace !== null)
-  const winner = specific ?? rows.find((row) => row.appliesToAllWorkspaces)
+  const winner = rows.find((row) => row.isMember) ?? rows.find((row) => !row.hasMembers)
 
   if (winner) {
     return {
       permissionGroupId: winner.id,
       groupName: winner.name,
       config: parsePermissionGroupConfig(winner.config),
-    }
-  }
-
-  return resolveDefaultGroup(organizationId)
-}
-
-/**
- * Organization-level resolution (no specific workspace in context, e.g.
- * organization-wide invitations): the user's all-workspaces group, else the
- * organization default. Specific-scope groups require a workspace and therefore
- * do not gate organization-level actions.
- */
-export async function resolveOrganizationWideGroup(
-  userId: string,
-  organizationId: string
-): Promise<ResolvedPermissionGroup | null> {
-  const [allWorkspacesGroup] = await db
-    .select({
-      id: permissionGroup.id,
-      name: permissionGroup.name,
-      config: permissionGroup.config,
-    })
-    .from(permissionGroupMember)
-    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-    .where(
-      and(
-        eq(permissionGroupMember.userId, userId),
-        eq(permissionGroupMember.organizationId, organizationId),
-        eq(permissionGroup.appliesToAllWorkspaces, true)
-      )
-    )
-    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
-    .limit(1)
-
-  if (allWorkspacesGroup) {
-    return {
-      permissionGroupId: allWorkspacesGroup.id,
-      groupName: allWorkspacesGroup.name,
-      config: parsePermissionGroupConfig(allWorkspacesGroup.config),
     }
   }
 
@@ -285,12 +262,46 @@ export async function getUserPermissionConfig(
 }
 
 /**
+ * Throws {@link PublicFileSharingNotAllowedError} if the user's effective permission
+ * group for the workspace disables public file sharing, or — when `authType` is
+ * given — if that auth mode isn't in the group's `allowedFileShareAuthTypes`
+ * allow-list (`null` allows all). No-op when access control doesn't apply
+ * (non-enterprise / disabled), so non-governed orgs are unaffected.
+ */
+export async function validatePublicFileSharing(
+  userId: string,
+  workspaceId: string,
+  authType?: ShareAuthType
+): Promise<void> {
+  const config = await getUserPermissionConfig(userId, workspaceId)
+  if (!config) {
+    return
+  }
+  if (config.disablePublicFileSharing) {
+    throw new PublicFileSharingNotAllowedError()
+  }
+  if (
+    authType &&
+    config.allowedFileShareAuthTypes !== null &&
+    !config.allowedFileShareAuthTypes.includes(authType)
+  ) {
+    logger.warn('File share auth type blocked by permission group', {
+      userId,
+      workspaceId,
+      authType,
+    })
+    throw new PublicFileSharingNotAllowedError()
+  }
+}
+
+/**
  * Org-addressed variant of {@link getUserPermissionConfig}. Use when only the
- * organization is known (e.g. organization-level invitations); resolves the
- * user's all-workspaces group or the org default.
+ * organization is known (e.g. organization-level invitations). Non-default
+ * groups target specific workspaces and never gate organization-level actions,
+ * so this resolves the organization's default group — which governs everyone not
+ * covered by a workspace group.
  */
 export async function getUserPermissionConfigForOrganization(
-  userId: string,
   organizationId: string
 ): Promise<PermissionGroupConfig | null> {
   if (!isHosted && !isAccessControlEnabled) {
@@ -302,7 +313,7 @@ export async function getUserPermissionConfigForOrganization(
     return mergeEnvAllowlist(null)
   }
 
-  const resolved = await resolveOrganizationWideGroup(userId, organizationId)
+  const resolved = await resolveDefaultGroup(organizationId)
   return mergeEnvAllowlist(resolved?.config ?? null)
 }
 
@@ -514,7 +525,7 @@ export async function validateInvitationsAllowed(
   }
 
   if (organizationId) {
-    const config = await getUserPermissionConfigForOrganization(userId, organizationId)
+    const config = await getUserPermissionConfigForOrganization(organizationId)
     if (config?.disableInvitations) {
       logger.warn('Invitations blocked by permission group (organization-wide)', {
         userId,
@@ -562,6 +573,12 @@ interface PermissionAssertion {
   workspaceId: string | undefined
   model?: string
   blockType?: string
+  /**
+   * Concrete tool ID being executed (e.g. `slack_canvas`). Checked against the
+   * group's `deniedTools` denylist so an admin can allow an integration but deny
+   * specific operations within it. Pass the normalized tool id.
+   */
+  toolId?: string
   toolKind?: ToolKind
   ctx?: ExecutionContext
 }
@@ -577,11 +594,11 @@ interface PermissionAssertion {
  * callsite covers every future config field.
  */
 export async function assertPermissionsAllowed(req: PermissionAssertion): Promise<void> {
-  const { userId, workspaceId, model, blockType, toolKind, ctx } = req
+  const { userId, workspaceId, model, blockType, toolId, toolKind, ctx } = req
 
   const blockTypeExempt = blockType ? isBlockTypeAccessControlExempt(blockType) : false
 
-  if (blockTypeExempt && !model && !toolKind) {
+  if (blockTypeExempt && !model && !toolKind && !toolId) {
     return
   }
 
@@ -628,6 +645,11 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
         )
       }
     }
+  }
+
+  if (toolId && config?.deniedTools?.includes(toolId)) {
+    logger.warn('Tool blocked by permission group', { userId, workspaceId, toolId })
+    throw new ToolNotAllowedError(toolId)
   }
 
   if (toolKind && config) {

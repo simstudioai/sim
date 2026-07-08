@@ -1,8 +1,18 @@
 'use client'
 
-import { BookOpen, ChevronDown, ChevronRight, Pencil } from 'lucide-react'
-import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
-import { BLOCK_ICONS } from '@/components/workflow-preview/block-icons'
+import {
+  ChipSelect,
+  ChipSwitch,
+  ChipTag,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  cn,
+  FieldDivider,
+  Label,
+} from '@sim/emcn'
+import { BookOpen, Pencil } from 'lucide-react'
+import { resolveIcon } from '@/components/workflow-preview/block-icons'
+import { formatReferences } from '@/components/workflow-preview/format-references'
 
 type FieldKind = 'select' | 'input' | 'textarea' | 'code' | 'slider' | 'toggle'
 
@@ -16,12 +26,6 @@ interface InspectorField {
   placeholder?: string
   /** Slider fill, 0–100. */
   percent?: number
-}
-
-interface InspectorConnection {
-  name: string
-  type?: string
-  color?: string
 }
 
 interface InspectorTool {
@@ -38,53 +42,48 @@ interface BlockInspectorProps {
   color?: string
   fields: InspectorField[]
   tools?: InspectorTool[]
-  connections?: InspectorConnection[]
   /** Render as a borderless panel filling its parent (the lightbox sidebar). */
   embedded?: boolean
 }
 
-function resolveIcon(type: string) {
-  return BLOCK_ICONS[type] ?? blockTypeToIconMap[type] ?? null
-}
+const NOOP = () => {}
 
-const CONTROL =
-  'flex w-full items-center justify-between gap-2 rounded-[10px] bg-[var(--wp-control)] px-3 py-2.5 text-[13px]'
-
+/**
+ * Read-only facsimile of one configuration field, composed from emcn chip
+ * chrome: `select`→{@link ChipSelect}, `toggle`→{@link ChipSwitch}; text fields
+ * (`input`/`textarea`/`code`) render the value with `<...>`/`{{...}}` references
+ * highlighted via {@link formatReferences} in the canonical chip field surface.
+ * `slider` has no chip equivalent and stays a minimal app-token bar.
+ */
 function FieldControl({ field }: { field: InspectorField }) {
   const kind = field.kind ?? 'input'
-  const hasValue = field.value !== undefined && field.value !== ''
-  const textColor = hasValue ? 'var(--wp-text)' : 'var(--wp-text-muted)'
-  const text = hasValue ? field.value : (field.placeholder ?? '—')
+  const value = field.value ?? ''
+  const placeholder = field.placeholder ?? '—'
 
-  if (kind === 'textarea' || kind === 'code') {
+  if (kind === 'select') {
     return (
-      <div
-        className='w-full rounded-[10px] bg-[var(--wp-control)] px-3 py-2.5 text-[13px] leading-[1.55]'
-        style={{
-          color: textColor,
-          fontFamily: kind === 'code' ? 'var(--font-mono, monospace)' : undefined,
-        }}
-      >
-        {text}
-      </div>
+      <ChipSelect
+        fullWidth
+        value={value || undefined}
+        onChange={NOOP}
+        placeholder={placeholder}
+        options={value ? [{ value, label: value }] : []}
+      />
     )
   }
 
   if (kind === 'toggle') {
     const on = field.value === 'on'
     return (
-      <div className='flex items-center gap-2'>
-        <div
-          className='flex h-[18px] w-[32px] items-center rounded-full px-[2px] transition-colors'
-          style={{ background: on ? '#33C482' : 'var(--wp-border-1)' }}
-        >
-          <div
-            className='size-[14px] rounded-full bg-white'
-            style={{ marginLeft: on ? 'auto' : 0 }}
-          />
-        </div>
-        <span className='text-[12px] text-[var(--wp-text-muted)]'>{on ? 'On' : 'Off'}</span>
-      </div>
+      <ChipSwitch
+        value={on ? 'on' : 'off'}
+        onChange={NOOP}
+        aria-label={field.label}
+        options={[
+          { value: 'on', label: 'On' },
+          { value: 'off', label: 'Off' },
+        ]}
+      />
     )
   }
 
@@ -92,37 +91,65 @@ function FieldControl({ field }: { field: InspectorField }) {
     const percent = field.percent ?? 50
     return (
       <div className='flex w-full items-center gap-3'>
-        <div className='relative h-[4px] flex-1 rounded-full bg-[var(--wp-border-1)]'>
+        <div className='relative h-[4px] flex-1 rounded-full bg-[var(--surface-5)]'>
           <div
-            className='absolute inset-y-0 left-0 rounded-full bg-[#33C482]'
+            className='absolute inset-y-0 left-0 rounded-full bg-[var(--brand-secondary)]'
             style={{ width: `${percent}%` }}
           />
           <div
-            className='-translate-y-1/2 absolute top-1/2 size-[12px] rounded-full bg-white'
+            className='-translate-y-1/2 absolute top-1/2 size-[12px] rounded-full border border-[var(--border-1)] bg-white'
             style={{ left: `calc(${percent}% - 6px)` }}
           />
         </div>
-        <span className='text-[13px] text-[var(--wp-text)]'>{field.value}</span>
+        <span className='text-[13px] text-[var(--text-primary)]'>{field.value}</span>
       </div>
     )
   }
 
+  // input / textarea / code: read-only value with `<...>` block references and
+  // `{{...}}` environment variables highlighted, in the canonical chip chrome.
+  const content = value ? (
+    formatReferences(value)
+  ) : (
+    <span className='text-[var(--text-muted)]'>{placeholder}</span>
+  )
+  if (kind === 'textarea' || kind === 'code') {
+    return (
+      <div
+        className={cn(
+          chipFieldSurfaceClass,
+          chipFieldTextClass,
+          'min-h-[60px] whitespace-pre-wrap break-words px-2 py-1.5',
+          kind === 'code' && 'font-mono'
+        )}
+      >
+        {content}
+      </div>
+    )
+  }
   return (
-    <div className={CONTROL}>
-      <span className='truncate' style={{ color: textColor }}>
-        {text}
-      </span>
-      {kind === 'select' && (
-        <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--wp-text-muted)]' />
-      )}
+    <div className={cn(chipFieldSurfaceClass, 'flex h-[30px] items-center px-2')}>
+      <span className={cn(chipFieldTextClass, 'min-w-0 truncate')}>{content}</span>
+    </div>
+  )
+}
+
+function InspectorFieldRow({ field }: { field: InspectorField }) {
+  return (
+    <div className='flex flex-col gap-2.5'>
+      <Label className='pl-0.5'>
+        {field.label}
+        {field.required && <span className='ml-0.5'>*</span>}
+      </Label>
+      <FieldControl field={field} />
     </div>
   )
 }
 
 /**
  * A read-only facsimile of the editor's right-hand block inspector: the block
- * header, its configuration fields as static controls, and its connections.
- * Hand-authored per usage, like {@link WorkflowPreview} examples.
+ * header, its configuration fields as static chip controls, and its
+ * connections. Hand-authored per usage, like {@link WorkflowPreview} examples.
  */
 export function BlockInspector({
   name,
@@ -130,100 +157,69 @@ export function BlockInspector({
   color = '#33C482',
   fields,
   tools,
-  connections,
   embedded = false,
 }: BlockInspectorProps) {
   const Icon = resolveIcon(type)
+  const hasTools = Boolean(tools && tools.length > 0)
 
   return (
     <div
-      className={
+      className={cn(
+        'bg-[var(--surface-1)]',
         embedded
-          ? 'wp-scope flex h-full w-full flex-col overflow-y-auto bg-[var(--wp-panel)]'
-          : 'wp-scope not-prose my-6 w-full max-w-[380px] overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-panel)]'
-      }
+          ? 'flex h-full w-full flex-col overflow-y-auto'
+          : 'not-prose my-6 w-full max-w-[380px] overflow-hidden rounded-xl border border-[var(--border)]'
+      )}
     >
-      <div className='flex items-center gap-2.5 border-[var(--wp-border)] border-b px-3 py-2.5'>
-        <div
-          className='flex size-[22px] flex-shrink-0 items-center justify-center rounded-[6px]'
-          style={{ background: color }}
-        >
-          {Icon && <Icon className='size-[13px] text-white' />}
+      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
+          <div
+            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            style={{ background: color }}
+          >
+            {Icon && <Icon className='size-[12px] text-white' />}
+          </div>
+          <span className='truncate font-medium text-[var(--text-primary)] text-sm'>{name}</span>
         </div>
-        <span className='font-medium text-[14px] text-[var(--wp-text)]'>{name}</span>
-        <span className='ml-auto flex items-center gap-2.5 text-[var(--wp-text-muted)]'>
-          <Pencil className='size-[13px]' />
-          <BookOpen className='size-[13px]' />
-        </span>
+        <div className='flex shrink-0 items-center gap-2 text-[var(--text-secondary)]'>
+          <Pencil className='size-[14px]' />
+          <BookOpen className='size-[14px]' />
+        </div>
       </div>
 
-      <div className='flex flex-col px-3 py-1'>
+      <div className='flex flex-col px-3 py-3'>
         {fields.map((field, i) => (
-          <div
-            key={field.label}
-            className='flex flex-col gap-2 py-3'
-            style={i > 0 ? { borderTop: '1px dashed var(--wp-divider)' } : undefined}
-          >
-            <span className='font-medium text-[13px] text-[var(--wp-text)]'>
-              {field.label}
-              {field.required && <span className='ml-1 text-[var(--wp-text-muted)]'>*</span>}
-            </span>
-            <FieldControl field={field} />
+          <div key={field.label}>
+            {i > 0 && <FieldDivider />}
+            <InspectorFieldRow field={field} />
           </div>
         ))}
 
-        {tools && tools.length > 0 && (
-          <div
-            className='flex flex-col gap-2 py-3'
-            style={fields.length > 0 ? { borderTop: '1px dashed var(--wp-divider)' } : undefined}
-          >
-            <span className='font-medium text-[13px] text-[var(--wp-text)]'>Tools</span>
-            <div className='flex flex-wrap gap-[6px]'>
-              {tools.map((tool) => {
-                const TIcon = resolveIcon(tool.type)
-                return (
-                  <div
-                    key={tool.type}
-                    className='flex items-center gap-[5px] rounded-[6px] border border-[var(--wp-border-1)] bg-[var(--wp-control)] px-[7px] py-[4px]'
-                  >
-                    <div
-                      className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
-                      style={{ background: tool.bgColor }}
-                    >
-                      {TIcon && <TIcon className='size-[9px] text-white' />}
-                    </div>
-                    <span className='text-[12px] text-[var(--wp-text)]'>{tool.name}</span>
-                  </div>
-                )
-              })}
+        {hasTools && (
+          <div>
+            {fields.length > 0 && <FieldDivider />}
+            <div className='flex flex-col gap-2.5'>
+              <Label className='pl-0.5'>Tools</Label>
+              <div className='flex flex-wrap gap-[6px]'>
+                {tools?.map((tool) => {
+                  const TIcon = resolveIcon(tool.type)
+                  return (
+                    <ChipTag key={tool.type} variant='gray'>
+                      <span
+                        className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                        style={{ background: tool.bgColor }}
+                      >
+                        {TIcon && <TIcon className='size-[9px] text-white' />}
+                      </span>
+                      {tool.name}
+                    </ChipTag>
+                  )
+                })}
+              </div>
             </div>
           </div>
         )}
       </div>
-
-      {connections && connections.length > 0 && (
-        <div className='border-[var(--wp-border)] border-t px-3 py-2.5'>
-          <div className='flex items-center gap-1.5 text-[12px] text-[var(--wp-text-muted)]'>
-            <ChevronDown className='size-[12px]' />
-            Connections
-          </div>
-          {connections.map((c) => {
-            const CIcon = c.type ? resolveIcon(c.type) : null
-            return (
-              <div key={c.name} className='mt-2 flex items-center gap-2'>
-                <div
-                  className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-[5px]'
-                  style={{ background: c.color ?? 'var(--wp-border-1)' }}
-                >
-                  {CIcon && <CIcon className='size-[10px] text-white' />}
-                </div>
-                <span className='text-[13px] text-[var(--wp-text)]'>{c.name}</span>
-                <ChevronRight className='size-[12px] text-[var(--wp-text-muted)]' />
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

@@ -19,22 +19,36 @@ For **hallucination detection**, you'll need:
 - A knowledge base with documents
 - An LLM provider API key (or use hosted models)
 
-### Python Validators (PII Detection)
+### PII Detection (Presidio service)
 
-For **PII detection**, you need to set up a Python virtual environment and install Microsoft Presidio:
+PII detection runs against a **standalone Presidio service** — a combined analyzer + anonymizer
+(built from `docker/pii.Dockerfile`, source in `apps/pii/server.py`) that constructs a warm
+`AnalyzerEngine` + `AnonymizerEngine` once and exposes `/analyze`, `/anonymize`, and `/health` on a
+single port. In deployment it is its **own ECS service** (a dedicated task/service, not a sidecar in
+the app task), reached over the network via `PII_URL` and scaled independently of the app. The app
+(both the Next.js server and the trigger.dev runtime) is a thin HTTP client (`validate_pii.ts`) — no
+Python, no local venv.
+
+Locally, build and run it as a container:
 
 ```bash
-cd apps/sim/lib/guardrails
-./setup.sh
+docker build -f docker/pii.Dockerfile -t sim-pii .
+docker run -d -p 5001:5001 sim-pii
 ```
 
-This will:
-1. Create a Python virtual environment in `apps/sim/lib/guardrails/venv`
-2. Install required dependencies:
-   - `presidio-analyzer` - PII detection engine
-   - `presidio-anonymizer` - PII masking/anonymization
+Point the app at it with `PII_URL`:
 
-The TypeScript wrapper will automatically use the virtual environment's Python interpreter.
+- **Local**: `PII_URL=http://localhost:5001` (the default)
+- **Deployed**: `PII_URL` points to the Presidio ECS service's internal endpoint (service-discovery
+  DNS / internal load balancer) — never `localhost`, since the service runs in a separate task
+
+The image bakes in the recognizers itself — a check-digit-validated **VIN** recognizer and
+multi-language NLP models (en/es/it/pl/fi). The redaction language is configured per rule (Data
+Retention) and defaults to English.
+
+> **Deploy requirement:** the execution-altering redaction stages (workflow input + block outputs)
+> fail-fast and abort a run if the Presidio service is unreachable. Every environment that can run
+> workflows must have a reachable Presidio service at `PII_URL`.
 
 ## Usage
 
@@ -93,10 +107,8 @@ See [Presidio documentation](https://microsoft.github.io/presidio/supported_enti
 - `validate_json.ts` - JSON validation (TypeScript)
 - `validate_regex.ts` - Regex validation (TypeScript)
 - `validate_hallucination.ts` - Hallucination detection with RAG + LLM scoring (TypeScript)
-- `validate_pii.ts` - PII detection TypeScript wrapper (TypeScript)
-- `validate_pii.py` - PII detection using Microsoft Presidio (Python)
+- `validate_pii.ts` - PII detection client: calls the Presidio service's /analyze + /anonymize (TypeScript)
+- `pii-entities.ts` - Client-safe PII entity + language catalog (shared by the block and Data Retention)
+- `mask-client.ts` - Internal HTTP client for batch PII masking from the log-redaction persist path
 - `validate.test.ts` - Test suite for JSON and regex validators
-- `validate_hallucination.py` - Legacy Python hallucination detector (deprecated)
-- `requirements.txt` - Python dependencies for PII detection (and legacy hallucination)
-- `setup.sh` - Legacy installation script (deprecated)
 

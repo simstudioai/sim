@@ -1,0 +1,43 @@
+---
+title: Sales Data Management & Enrichment
+description: A table-backed system that takes thin lead records, enriches them in parallel, scores them, and writes the results back.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Use case" title="Sales Data Management & Enrichment" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Run your sales pipeline as data. Start with thin lead records in a table, enrich each one, company info, fit signals, score it, and write the results back, all in parallel across the whole table.
+
+<WhatYouWillLearn
+  items={[
+    { title: 'Treat a table as the system', body: 'Hold leads as rows and operate over them in bulk.' },
+    { title: 'Enrich and score', body: 'Look up each lead, gather context, and let an agent score the fit.' },
+    { title: 'Run at scale', body: 'Use workflow columns to process every row in parallel.' },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The problem', time: '0:00' },
+    { title: 'Leads as a table', time: '0:35' },
+    { title: 'Enrich each row', time: '1:20' },
+    { title: 'Score the fit', time: '2:10' },
+    { title: 'Run in parallel', time: '3:00' },
+  ]}
+/>
+
+</div>
+
+## What you'll build
+
+Leads live in a **table**. A **workflow column** runs per row: it enriches the record, an **Agent** block scores the fit, and the results are written straight back into the table. The table becomes both the queue and the record.
+
+This is [tables](/academy/tables/intro) and [agents](/academy/agents/intro) composed into a pipeline that operates at scale.

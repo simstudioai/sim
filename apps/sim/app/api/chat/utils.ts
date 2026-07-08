@@ -1,37 +1,20 @@
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import { isWorkspaceApiExecutionEntitled } from '@/lib/billing/core/api-access'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled, isFreeApiDeploymentGateEnabled } from '@/lib/core/config/env-flags'
-import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { RateLimiter } from '@/lib/core/rate-limiter'
+import { setDeploymentAuthCookie } from '@/lib/core/security/deployment'
 import {
-  isEmailAllowed,
-  setDeploymentAuthCookie,
-  validateAuthToken,
-} from '@/lib/core/security/deployment'
-import { decryptSecret } from '@/lib/core/security/encryption'
-import { getClientIp } from '@/lib/core/utils/request'
+  type DeploymentAuthResult,
+  validateDeploymentAuth,
+} from '@/lib/core/security/deployment-auth'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatAuthUtils')
-
-const rateLimiter = new RateLimiter()
-
-/**
- * Throttles unauthenticated password guesses per client IP against a single
- * deployment, mirroring the OTP/SSO IP limits.
- */
-const PASSWORD_IP_RATE_LIMIT: TokenBucketConfig = {
-  maxTokens: 10,
-  refillRate: 10,
-  refillIntervalMs: 15 * 60_000,
-}
 
 export function setChatAuthCookie(
   response: NextResponse,
@@ -157,144 +140,15 @@ export async function checkChatAccess(
     : { hasAccess: false }
 }
 
+/**
+ * Validates auth for a deployed chat. Thin wrapper over the shared
+ * {@link validateDeploymentAuth} with the `'chat'` cookie/rate-limit namespace.
+ */
 export async function validateChatAuth(
   requestId: string,
   deployment: any,
   request: NextRequest,
   parsedBody?: any
-): Promise<{ authorized: boolean; error?: string; status?: number; retryAfterMs?: number }> {
-  const authType = deployment.authType || 'public'
-
-  if (authType === 'public') {
-    return { authorized: true }
-  }
-
-  if (authType !== 'sso') {
-    const cookieName = `chat_auth_${deployment.id}`
-    const authCookie = request.cookies.get(cookieName)
-
-    if (authCookie && validateAuthToken(authCookie.value, deployment.id, deployment.password)) {
-      return { authorized: true }
-    }
-  }
-
-  if (authType === 'password') {
-    if (request.method === 'GET') {
-      return { authorized: false, error: 'auth_required_password' }
-    }
-
-    try {
-      if (!parsedBody) {
-        return { authorized: false, error: 'Password is required' }
-      }
-
-      const { password, input } = parsedBody
-
-      if (input && !password) {
-        return { authorized: false, error: 'auth_required_password' }
-      }
-
-      if (!password) {
-        return { authorized: false, error: 'Password is required' }
-      }
-
-      if (!deployment.password) {
-        logger.error(`[${requestId}] No password set for password-protected chat: ${deployment.id}`)
-        return { authorized: false, error: 'Authentication configuration error' }
-      }
-
-      const ip = getClientIp(request)
-      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-        `chat-password:ip:${deployment.id}:${ip}`,
-        PASSWORD_IP_RATE_LIMIT
-      )
-      if (!ipRateLimit.allowed) {
-        logger.warn(
-          `[${requestId}] Password attempt IP rate limit exceeded for chat ${deployment.id} from ${ip}`
-        )
-        return {
-          authorized: false,
-          error: 'Too many attempts. Please try again later.',
-          status: 429,
-          retryAfterMs: ipRateLimit.retryAfterMs ?? PASSWORD_IP_RATE_LIMIT.refillIntervalMs,
-        }
-      }
-
-      const { decrypted } = await decryptSecret(deployment.password)
-      if (!safeCompare(password, decrypted)) {
-        return { authorized: false, error: 'Invalid password' }
-      }
-
-      return { authorized: true }
-    } catch (error) {
-      logger.error(`[${requestId}] Error validating password:`, error)
-      return { authorized: false, error: 'Authentication error' }
-    }
-  }
-
-  if (authType === 'email') {
-    if (request.method === 'GET') {
-      return { authorized: false, error: 'auth_required_email' }
-    }
-
-    try {
-      if (!parsedBody) {
-        return { authorized: false, error: 'Email is required' }
-      }
-
-      const { email, input } = parsedBody
-
-      if (input && !email) {
-        return { authorized: false, error: 'auth_required_email' }
-      }
-
-      if (!email) {
-        return { authorized: false, error: 'Email is required' }
-      }
-
-      const allowedEmails = deployment.allowedEmails || []
-
-      if (isEmailAllowed(email, allowedEmails)) {
-        return { authorized: false, error: 'otp_required' }
-      }
-
-      return { authorized: false, error: 'Email not authorized' }
-    } catch (error) {
-      logger.error(`[${requestId}] Error validating email:`, error)
-      return { authorized: false, error: 'Authentication error' }
-    }
-  }
-
-  if (authType === 'sso') {
-    try {
-      if (request.method !== 'GET' && !parsedBody) {
-        return { authorized: false, error: 'SSO authentication is required' }
-      }
-
-      const { getSession } = await import('@/lib/auth')
-      const session = await getSession()
-
-      if (!session || !session.user) {
-        return { authorized: false, error: 'auth_required_sso' }
-      }
-
-      const userEmail = session.user.email
-      if (!userEmail) {
-        return { authorized: false, error: 'SSO session does not contain email' }
-      }
-
-      const allowedEmails = deployment.allowedEmails || []
-
-      if (isEmailAllowed(userEmail, allowedEmails)) {
-        return { authorized: true }
-      }
-
-      return { authorized: false, error: 'Your email is not authorized to access this chat' }
-    } catch (error) {
-      logger.error(`[${requestId}] Error validating SSO:`, error)
-      return { authorized: false, error: 'SSO authentication error' }
-    }
-  }
-
-  return { authorized: false, error: 'Unsupported authentication type' }
+): Promise<DeploymentAuthResult> {
+  return validateDeploymentAuth(requestId, deployment, request, parsedBody, 'chat')
 }

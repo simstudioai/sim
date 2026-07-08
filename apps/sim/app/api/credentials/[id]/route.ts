@@ -1,44 +1,34 @@
-import { db } from '@sim/db'
-import { credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkspaceCredentialContract } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCredentialActorContext } from '@/lib/credentials/access'
+import { type CredentialActorContext, getCredentialActorContext } from '@/lib/credentials/access'
 import { performDeleteCredential, performUpdateCredential } from '@/lib/credentials/orchestration'
 
 const logger = createLogger('CredentialByIdAPI')
 
-async function getCredentialResponse(credentialId: string, userId: string) {
-  const [row] = await db
-    .select({
-      id: credential.id,
-      workspaceId: credential.workspaceId,
-      type: credential.type,
-      displayName: credential.displayName,
-      description: credential.description,
-      providerId: credential.providerId,
-      accountId: credential.accountId,
-      envKey: credential.envKey,
-      envOwnerUserId: credential.envOwnerUserId,
-      createdBy: credential.createdBy,
-      createdAt: credential.createdAt,
-      updatedAt: credential.updatedAt,
-      role: credentialMember.role,
-      status: credentialMember.status,
-    })
-    .from(credential)
-    .innerJoin(
-      credentialMember,
-      and(eq(credentialMember.credentialId, credential.id), eq(credentialMember.userId, userId))
-    )
-    .where(eq(credential.id, credentialId))
-    .limit(1)
+function formatCredentialResponse(access: CredentialActorContext) {
+  const cred = access.credential
+  if (!cred) return null
 
-  return row ?? null
+  return {
+    id: cred.id,
+    workspaceId: cred.workspaceId,
+    type: cred.type,
+    displayName: cred.displayName,
+    description: cred.description,
+    providerId: cred.providerId,
+    accountId: cred.accountId,
+    envKey: cred.envKey,
+    envOwnerUserId: cred.envOwnerUserId,
+    createdBy: cred.createdBy,
+    createdAt: cred.createdAt,
+    updatedAt: cred.updatedAt,
+    role: access.isAdmin ? 'admin' : (access.member?.role ?? null),
+    status: access.member?.status ?? (access.isAdmin ? 'active' : null),
+  }
 }
 
 export const GET = withRouteHandler(
@@ -55,12 +45,11 @@ export const GET = withRouteHandler(
       if (!access.credential) {
         return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
       }
-      if (!access.hasWorkspaceAccess || !access.member) {
+      if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const row = await getCredentialResponse(id, session.user.id)
-      return NextResponse.json({ credential: row }, { status: 200 })
+      return NextResponse.json({ credential: formatCredentialResponse(access) }, { status: 200 })
     } catch (error) {
       logger.error('Failed to fetch credential', error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -109,8 +98,8 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: result.error }, { status })
       }
 
-      const row = await getCredentialResponse(id, session.user.id)
-      return NextResponse.json({ credential: row }, { status: 200 })
+      const access = await getCredentialActorContext(id, session.user.id)
+      return NextResponse.json({ credential: formatCredentialResponse(access) }, { status: 200 })
     } catch (error) {
       logger.error('Failed to update credential', error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

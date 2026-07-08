@@ -1,0 +1,53 @@
+---
+title: What is Sim?
+description: Sim is a unified workspace for building and operating AI systems, data, workflows, and the integrations that connect them to the outside world.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { FAQ } from '@/components/ui/faq'
+
+<VideoPlaceholder eyebrow="Get Started" title="What is Sim?" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/what-is-sim.mp4" className="mt-2" />
+
+Sim is a unified workspace for **building and operating AI systems**. Everything you make lives in one place, and everything connects.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'What a workspace is',
+      body: 'A workspace holds two things: resources, your data, and workflows: your processes. Both live together and reference each other.',
+    },
+    {
+      title: 'How the pieces relate',
+      body: 'Workflows are where work happens; resources are what they work on; integrations are how both reach the outside world.',
+    },
+  ]}
+/>
+
+## The workspace
+
+A **workspace** is a collection of shared resources and the workflows that use them.
+
+- **Resources** are your data: [tables](/academy/tables/intro) (structured records), [knowledge bases](/academy/knowledge-bases/intro) (searchable memory), and [files](/academy/files/intro) (documents and media).
+- **Workflows** are your processes: the agents and automations that read those resources, act, and write results back.
+
+Everything in a workspace can see everything else in it. A workflow reads a table, searches a knowledge base, produces a file, and the next workflow picks up where it left off.
+
+## Integrations connect you to the outside world
+
+**Integrations** are plugins. They let your resources and workflows reach services beyond Sim, send a Slack message, read a Gmail inbox, write a row to a CRM, call any API. You connect an account once, and any workflow can use it.
+
+So the whole picture is small: a workspace is **data + processes**, integrations plug it into **everything else**, and the rest of this course is just learning each piece and watching them compose.
+
+## Related documentation
+
+- [Introduction](/introduction)
+- [Getting started](/getting-started)
+
+<FAQ items={[
+  { question: "What is Sim?", answer: "Sim is a visual platform for building AI workflows and agents: you compose triggers, integrations, tables, files, knowledge bases, and AI agent blocks into automated processes, without code." },
+  { question: "What does the Academy cover?", answer: "A sequenced video course: workflows and how they execute, the chat as your workspace control plane, building AI agents with tools, skills, and memory, structured data in tables, documents as files, and knowledge bases for retrieval." },
+  { question: "Do I need to watch in order?", answer: "Each lesson stands alone, but the sequence builds: workflows first, then chat and agents, then the data resources they work with. If you are new, start with What is Sim and the Workflows section." },
+  { question: "How long are the lessons?", answer: "Each video runs a few minutes, with a written summary, the workflow it builds, chapter markers, and answers to common questions on every page." },
+]} />
+

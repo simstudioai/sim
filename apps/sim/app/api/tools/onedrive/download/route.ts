@@ -9,7 +9,9 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,6 +122,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       downloadUrlValidation.resolvedIP!,
       {
         headers: { Authorization: authHeader },
+        maxResponseBytes: MAX_FILE_SIZE,
       }
     )
 
@@ -167,7 +170,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         success: false,
         error: getErrorMessage(error, 'Unknown error occurred'),
       },
-      { status: 500 }
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
     )
   }
 })

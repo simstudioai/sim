@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { Button, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
-import type { ComboboxOption } from '@/components/emcn'
+import { Plus } from 'lucide-react'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/query-builder/constants'
 import { useCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
@@ -51,8 +52,7 @@ export function SortBuilder({
   )
 
   const value = isPreview ? previewValue : storeValue
-  const rules: SortRule[] =
-    Array.isArray(value) && value.length > 0 ? value : [createDefaultRule(columns)]
+  const rules: SortRule[] = Array.isArray(value) ? value : []
   const isReadOnly = isPreview || disabled
 
   const addRule = useCallback(() => {
@@ -63,13 +63,9 @@ export function SortBuilder({
   const removeRule = useCallback(
     (id: string) => {
       if (isReadOnly) return
-      if (rules.length === 1) {
-        setStoreValue([createDefaultRule(columns)])
-      } else {
-        setStoreValue(rules.filter((r) => r.id !== id))
-      }
+      setStoreValue(rules.filter((r) => r.id !== id))
     },
-    [isReadOnly, rules, columns, setStoreValue]
+    [isReadOnly, rules, setStoreValue]
   )
 
   const updateRule = useCallback(
@@ -87,6 +83,20 @@ export function SortBuilder({
     },
     [isReadOnly, rules, setStoreValue]
   )
+
+  if (rules.length === 0) {
+    if (isReadOnly) return null
+    return (
+      <Button
+        variant='ghost'
+        onClick={addRule}
+        className='h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
+      >
+        <Plus className='size-[14px]' />
+        Add sort
+      </Button>
+    )
+  }
 
   return (
     <div className='space-y-2'>

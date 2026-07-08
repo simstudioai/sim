@@ -29,9 +29,11 @@ export type StorageContext =
  * metadata assets (`profile-pictures`, `workspace-logos`, `og-images`). All
  * other contexts are user-driven uploads and must pass quota validation.
  *
- * Note: `logs` is excluded from `ALLOWED_UPLOAD_CONTEXTS` in the multipart
- * endpoint, so it is unreachable there. The exemption applies to non-multipart
- * (single-part) upload paths used by the execution logging pipeline.
+ * Note: every quota-exempt context is excluded from `ALLOWED_UPLOAD_CONTEXTS`
+ * in the multipart endpoint, so none are reachable there — the exemption applies
+ * only to the single-part upload paths (presigned/FormData) those small assets
+ * actually use. The multipart endpoint therefore only ever serves
+ * quota-enforced contexts.
  */
 export const QUOTA_EXEMPT_STORAGE_CONTEXTS = new Set<StorageContext>([
   'profile-pictures',

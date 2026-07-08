@@ -6,8 +6,6 @@ import { Maximize2, X } from 'lucide-react'
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
-  Background,
-  BackgroundVariant,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
@@ -19,9 +17,10 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
-import { PreviewBlockNode } from '@/components/workflow-preview/preview-block-node'
-import { PreviewContainerNode } from '@/components/workflow-preview/preview-container-node'
+import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
+import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
 import {
   EASE_OUT,
   type PreviewBlock,
@@ -59,6 +58,8 @@ function PreviewEdge({
     targetY,
     sourcePosition,
     targetPosition,
+    borderRadius: 8,
+    offset: 30,
   })
 
   if (data?.animate) {
@@ -89,8 +90,8 @@ function PreviewEdge({
 }
 
 const NODE_TYPES: NodeTypes = {
-  previewBlock: PreviewBlockNode,
-  previewContainer: PreviewContainerNode,
+  previewBlock: DocsBlockNode,
+  previewContainer: DocsContainerNode,
 }
 const EDGE_TYPES: EdgeTypes = { previewEdge: PreviewEdge }
 const PRO_OPTIONS = { hideAttribution: true }
@@ -116,21 +117,41 @@ const SELECT_TITLES = new Set([
 ])
 
 function inspectorFieldsFor(block: PreviewBlock) {
-  const rowFields = block.rows.map((row) => ({
-    label: row.title,
-    kind:
-      TEXTAREA_TITLES.has(row.title) || row.value.length > 40
-        ? ('textarea' as const)
-        : SELECT_TITLES.has(row.title)
-          ? ('select' as const)
-          : ('input' as const),
-    value: row.value,
-  }))
+  // Show the block type's full field list (from the reference data) with this
+  // block's example values overlaid, so the inspector reads like the editor's
+  // panel — every field — not just the summary rows shown on the canvas node.
+  // Apply the template only when the block authored rows that are actually a
+  // subset of it; otherwise the type string is ambiguous (a `table` action vs
+  // the table trigger, a `webhook` trigger vs the webhook action) and the wrong
+  // template would win, so the block's own authored rows are the source of
+  // truth. A block with no rows (e.g. a router defined only by its branches)
+  // keeps its empty set rather than inheriting the template's invented defaults.
+  const exampleByTitle = new Map(block.rows.map((row) => [row.title, row.value]))
+  const template = BLOCK_DISPLAY_WORKFLOWS[block.type]?.blocks[0]?.rows
+  const fullRows =
+    template &&
+    block.rows.length > 0 &&
+    block.rows.every((row) => template.some((field) => field.title === row.title))
+      ? template
+      : block.rows
+  const rowFields = fullRows.map((row) => {
+    const value = exampleByTitle.get(row.title) ?? row.value
+    return {
+      label: row.title,
+      kind:
+        TEXTAREA_TITLES.has(row.title) || value.length > 40
+          ? ('textarea' as const)
+          : SELECT_TITLES.has(row.title)
+            ? ('select' as const)
+            : ('input' as const),
+      value,
+    }
+  })
   const branchFields = (block.branches ?? []).map((branch) => ({
     label: branch.label,
     kind: 'code' as const,
-    value: branch.value,
-    placeholder: '—',
+    // Match the canvas + the editor's getDisplayValue: a blank value reads as '-'.
+    value: branch.value || '-',
   }))
   return [...rowFields, ...branchFields]
 }
@@ -143,10 +164,12 @@ function PreviewFlow({
   selectedBlock,
   interactive = false,
   onNodeClick,
+  onPaneClick,
 }: WorkflowPreviewProps & {
   selectedBlock?: string
   interactive?: boolean
   onNodeClick?: (blockId: string) => void
+  onPaneClick?: () => void
 }) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => toReactFlowElements(workflow, animate, { highlightBlock, highlightEdge, selectedBlock }),
@@ -156,8 +179,18 @@ function PreviewFlow({
   const [nodes, setNodes] = useState<Node[]>(initialNodes)
   const [edges, setEdges] = useState<Edge[]>(initialEdges)
 
+  /**
+   * Apply data changes (highlight/selection) without discarding positions the
+   * viewer has dragged — only a different workflow should relayout the canvas.
+   */
   useEffect(() => {
-    setNodes(initialNodes)
+    setNodes((prev) => {
+      const positions = new Map(prev.map((node) => [node.id, node.position]))
+      return initialNodes.map((node) => {
+        const position = positions.get(node.id)
+        return position ? { ...node, position } : node
+      })
+    })
     setEdges(initialEdges)
   }, [initialNodes, initialEdges])
 
@@ -177,6 +210,7 @@ function PreviewFlow({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
+      onPaneClick={onPaneClick}
       nodeTypes={NODE_TYPES}
       edgeTypes={EDGE_TYPES}
       defaultEdgeOptions={{ type: 'previewEdge' }}
@@ -186,18 +220,16 @@ function PreviewFlow({
       zoomOnScroll={interactive}
       zoomOnDoubleClick={interactive}
       panOnScroll={false}
-      zoomOnPinch={interactive}
+      zoomOnPinch
       panOnDrag
       preventScrolling={interactive}
       autoPanOnNodeDrag={false}
       proOptions={PRO_OPTIONS}
-      minZoom={0.2}
+      minZoom={0.1}
       fitView
       fitViewOptions={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS}
       className='h-full w-full'
-    >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1} color='var(--wp-border)' />
-    </ReactFlow>
+    />
   )
 }
 
@@ -214,7 +246,7 @@ function PreviewFlow({
  */
 export function WorkflowPreview({
   workflow,
-  height = 260,
+  height = 340,
   animate = false,
   highlightBlock,
   highlightEdge,
@@ -230,21 +262,17 @@ export function WorkflowPreview({
     document.addEventListener('keydown', onKey)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    document.body.classList.add('wp-lightbox-open')
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = previousOverflow
+      document.body.classList.remove('wp-lightbox-open')
     }
   }, [expanded])
 
   const selectedBlock = selectedId
     ? (workflow.blocks.find((b) => b.id === selectedId) ?? null)
     : null
-  const incoming = selectedBlock
-    ? workflow.edges
-        .filter((e) => e.target === selectedBlock.id)
-        .map((e) => workflow.blocks.find((b) => b.id === e.source))
-        .filter((b): b is PreviewBlock => Boolean(b))
-    : []
 
   const openWith = (blockId: string | null) => {
     setSelectedId(blockId)
@@ -254,7 +282,7 @@ export function WorkflowPreview({
   return (
     <LazyMotion features={domAnimation}>
       <div
-        className='wp-scope not-prose group relative my-6 overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-canvas)]'
+        className='not-prose group relative my-6 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
         style={{ height }}
       >
         <ReactFlowProvider key={`${workflow.id}-${highlightBlock ?? ''}-${highlightEdge ?? ''}`}>
@@ -264,13 +292,14 @@ export function WorkflowPreview({
             highlightBlock={highlightBlock}
             highlightEdge={highlightEdge}
             onNodeClick={(id) => openWith(id)}
+            onPaneClick={() => openWith(null)}
           />
         </ReactFlowProvider>
         <button
           type='button'
           aria-label='Expand workflow preview'
           onClick={() => openWith(null)}
-          className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--wp-border-1)] bg-[var(--wp-btn)] text-[var(--wp-text-muted)] opacity-0 transition-opacity duration-150 hover:text-[var(--wp-text)] group-hover:opacity-100'
+          className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] opacity-0 transition-opacity duration-150 hover:text-[var(--text-primary)] group-hover:opacity-100'
         >
           <Maximize2 className='size-[13px]' />
         </button>
@@ -284,19 +313,19 @@ export function WorkflowPreview({
           role='presentation'
         >
           <div
-            className='wp-scope relative flex h-[86vh] w-[92vw] overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-canvas)]'
+            className='relative flex h-[86vh] w-[92vw] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
             onClick={(e) => e.stopPropagation()}
             onKeyDown={() => {}}
             role='presentation'
           >
             <div className='relative min-w-0 flex-1'>
               <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
-                <span className='text-[13px] text-[var(--wp-text-muted)]'>{workflow.name}</span>
+                <span className='text-[13px] text-[var(--text-muted)]'>{workflow.name}</span>
                 <button
                   type='button'
                   aria-label='Close'
                   onClick={() => setExpanded(false)}
-                  className='pointer-events-auto flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--wp-border-1)] bg-[var(--wp-btn)] text-[var(--wp-text-muted)] transition-colors hover:text-[var(--wp-text)]'
+                  className='pointer-events-auto flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
                 >
                   <X className='size-[14px]' />
                 </button>
@@ -309,11 +338,12 @@ export function WorkflowPreview({
                   selectedBlock={selectedId ?? undefined}
                   interactive
                   onNodeClick={(id) => setSelectedId(id)}
+                  onPaneClick={() => setSelectedId(null)}
                 />
               </ReactFlowProvider>
             </div>
 
-            <div className='w-[340px] flex-shrink-0 border-[var(--wp-border)] border-l'>
+            <div className='w-[340px] flex-shrink-0 border-[var(--border)] border-l'>
               {selectedBlock ? (
                 <BlockInspector
                   embedded
@@ -322,14 +352,9 @@ export function WorkflowPreview({
                   color={selectedBlock.bgColor}
                   fields={inspectorFieldsFor(selectedBlock)}
                   tools={selectedBlock.tools}
-                  connections={incoming.map((b) => ({
-                    name: b.name,
-                    type: b.type,
-                    color: b.bgColor,
-                  }))}
                 />
               ) : (
-                <div className='flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--wp-text-muted)]'>
+                <div className='flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--text-muted)]'>
                   Select a block to see its full configuration
                 </div>
               )}

@@ -21,7 +21,7 @@
  * Response: AdminSingleResponse<AdminOrganization & { memberId: string }>
  */
 
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
@@ -70,8 +70,8 @@ export const GET = withRouteHandler(
 
     try {
       const [countResult, organizations] = await Promise.all([
-        db.select({ total: count() }).from(organization),
-        db
+        dbReplica.select({ total: count() }).from(organization),
+        dbReplica
           .select({
             id: organization.id,
             name: organization.name,

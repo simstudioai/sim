@@ -3,7 +3,12 @@ import { toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseTagDate } from '@/connectors/utils'
+import {
+  buildDriveParentsClause,
+  joinTagArray,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('GoogleDocsConnector')
 
@@ -152,10 +157,8 @@ function fileToStub(file: DriveFile): ExternalDocument {
 function buildQuery(sourceConfig: Record<string, unknown>): string {
   const parts: string[] = ['trashed = false', "mimeType = 'application/vnd.google-apps.document'"]
 
-  const folderId = sourceConfig.folderId as string | undefined
-  if (folderId?.trim()) {
-    parts.push(`'${folderId.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents`)
-  }
+  const parentsClause = buildDriveParentsClause(parseMultiValue(sourceConfig.folderId))
+  if (parentsClause) parts.push(parentsClause)
 
   return parts.join(' and ')
 }
@@ -298,7 +301,7 @@ export const googleDocsConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const folderId = sourceConfig.folderId as string | undefined
+    const folderIds = parseMultiValue(sourceConfig.folderId)
     const maxDocs = sourceConfig.maxDocs as string | undefined
 
     if (maxDocs && (Number.isNaN(Number(maxDocs)) || Number(maxDocs) <= 0)) {
@@ -306,30 +309,38 @@ export const googleDocsConnector: ConnectorConfig = {
     }
 
     try {
-      if (folderId?.trim()) {
-        const url = `https://www.googleapis.com/drive/v3/files/${folderId.trim()}?fields=id,name,mimeType&supportsAllDrives=true`
-        const response = await fetchWithRetry(
-          url,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
+      if (folderIds.length > 0) {
+        for (const folderId of folderIds) {
+          const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`
+          const response = await fetchWithRetry(
+            url,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/json',
+              },
             },
-          },
-          VALIDATE_RETRY_OPTIONS
-        )
+            VALIDATE_RETRY_OPTIONS
+          )
 
-        if (!response.ok) {
-          if (response.status === 404) {
-            return { valid: false, error: 'Folder not found. Check the folder ID and permissions.' }
+          if (!response.ok) {
+            if (response.status === 404) {
+              return {
+                valid: false,
+                error: `Folder "${folderId}" not found. Check the folder ID and permissions.`,
+              }
+            }
+            return {
+              valid: false,
+              error: `Failed to access folder "${folderId}": ${response.status}`,
+            }
           }
-          return { valid: false, error: `Failed to access folder: ${response.status}` }
-        }
 
-        const folder = await response.json()
-        if (folder.mimeType !== 'application/vnd.google-apps.folder') {
-          return { valid: false, error: 'The provided ID is not a folder' }
+          const folder = await response.json()
+          if (folder.mimeType !== 'application/vnd.google-apps.folder') {
+            return { valid: false, error: `"${folderId}" is not a folder` }
+          }
         }
       } else {
         const url =

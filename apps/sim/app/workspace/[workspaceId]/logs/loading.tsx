@@ -1,7 +1,7 @@
 'use client'
 
-import { Library, RefreshCw } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+import { Library, RefreshCw } from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,

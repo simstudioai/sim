@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateOrganizationContract } from '@/lib/api/contracts/organization'
@@ -73,7 +74,7 @@ export const GET = withRouteHandler(
       }
 
       const userRole = memberEntry[0].role
-      const hasAdminAccess = ['owner', 'admin'].includes(userRole)
+      const hasAdminAccess = isOrgAdminRole(userRole)
 
       const response: OrganizationDetailsResponse = {
         success: true,
@@ -148,7 +149,7 @@ export const PUT = withRouteHandler(
         )
       }
 
-      if (!['owner', 'admin'].includes(memberEntry[0].role)) {
+      if (!isOrgAdminRole(memberEntry[0].role)) {
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 

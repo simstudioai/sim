@@ -1,4 +1,4 @@
-import { Body, Container, Head, Html, Img, Preview, Section } from '@react-email/components'
+import { Body, Container, Font, Head, Html, Img, Preview, Section } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailFooter } from '@/components/emails/components/email-footer'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -30,10 +30,22 @@ export function EmailLayout({
 }: EmailLayoutProps) {
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
+  const hasCustomLogo = Boolean(brand.logoUrl)
 
   return (
     <Html>
-      <Head />
+      <Head>
+        <Font
+          fontFamily='Season Sans'
+          fallbackFontFamily={['Helvetica', 'sans-serif']}
+          webFont={{
+            url: `${baseUrl}/brand/fonts/SeasonSansUprightsVF.woff2`,
+            format: 'woff2',
+          }}
+          fontWeight='300 800'
+          fontStyle='normal'
+        />
+      </Head>
       <Preview>{preview}</Preview>
       <Body style={baseStyles.main}>
         {/* Main card container */}
@@ -42,10 +54,10 @@ export function EmailLayout({
           <Section style={baseStyles.header}>
             <Img
               src={brand.logoUrl || `${baseUrl}/brand/color/email/wordmark.png`}
-              width='107'
-              height='33'
+              height='34'
+              {...(hasCustomLogo ? {} : { width: '70' })}
               alt={brand.name}
-              style={{ display: 'block' }}
+              style={hasCustomLogo ? { display: 'block', width: 'auto' } : { display: 'block' }}
             />
           </Section>
 

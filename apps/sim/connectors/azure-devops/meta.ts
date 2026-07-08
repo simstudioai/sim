@@ -1,4 +1,4 @@
-import { AzureDevOpsIcon } from '@/components/icons'
+import { AzureIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const azureDevopsConnectorMeta: ConnectorMeta = {
@@ -7,7 +7,7 @@ export const azureDevopsConnectorMeta: ConnectorMeta = {
   description:
     'Sync wiki pages, work items, and repository files from an Azure DevOps project into your knowledge base',
   version: '1.1.0',
-  icon: AzureDevOpsIcon,
+  icon: AzureIcon,
 
   auth: {
     mode: 'apiKey',

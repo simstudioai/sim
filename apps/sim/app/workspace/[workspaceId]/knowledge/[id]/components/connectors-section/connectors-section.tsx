@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Badge, Button, Checkbox, ChipConfirmModal, cn, Loader, Tooltip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
@@ -15,14 +16,13 @@ import {
   Trash,
   XCircle,
 } from 'lucide-react'
-import { Badge, Button, Checkbox, ChipConfirmModal, Loader, Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -96,12 +96,13 @@ export function ConnectorsSection({
   }, [])
 
   const syncTriggeredAt = useRef<Record<string, number>>({})
-  const cooldownTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+  const cooldownTimersRef = useRef<Set<ReturnType<typeof setTimeout>> | null>(null)
+  cooldownTimersRef.current ??= new Set()
   const [, forceUpdate] = useState(0)
 
   useEffect(() => {
     return () => {
-      for (const timer of cooldownTimers.current) {
+      for (const timer of cooldownTimersRef.current ?? []) {
         clearTimeout(timer)
       }
     }
@@ -126,10 +127,10 @@ export function ConnectorsSection({
           onSuccess: () => {
             setError(null)
             const timer = setTimeout(() => {
-              cooldownTimers.current.delete(timer)
+              cooldownTimersRef.current?.delete(timer)
               forceUpdate((n) => n + 1)
             }, SYNC_COOLDOWN_MS)
-            cooldownTimers.current.add(timer)
+            cooldownTimersRef.current?.add(timer)
           },
           onError: (err) => {
             logger.error('Sync trigger failed', { error: err.message })
@@ -202,7 +203,7 @@ export function ConnectorsSection({
           No connected sources yet. Connect an external source to automatically sync documents.
         </p>
       ) : (
-        <div className='-mx-2 mt-2 flex flex-col gap-0.5'>
+        <div className='mt-2 flex flex-col gap-0.5'>
           {connectors.map((connector) => (
             <ConnectorCard
               key={connector.id}
@@ -302,8 +303,10 @@ function ConnectorCard({
 
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes =
-    connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []
+  const requiredScopes = useMemo(
+    () => (connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []),
+    [connectorDef]
+  )
 
   const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
     workspaceId,
@@ -347,7 +350,10 @@ function ConnectorCard({
             >
               {Icon && (
                 <Icon
-                  className={cn('size-5', brandBg ? 'text-white' : 'text-[var(--text-icon)]')}
+                  className={cn(
+                    'size-5',
+                    brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+                  )}
                 />
               )}
             </div>

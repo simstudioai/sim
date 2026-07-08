@@ -373,6 +373,34 @@ export async function initiateS3MultipartUpload(
 }
 
 /**
+ * Upload a single multipart part from the server (Body in hand), returning its
+ * `{ PartNumber, ETag }`. The presigned variant ({@link getS3MultipartPartUrls})
+ * is for browser uploads; this is the server-side streaming path.
+ */
+export async function uploadS3Part(
+  key: string,
+  uploadId: string,
+  partNumber: number,
+  body: Buffer,
+  customConfig?: S3Config
+): Promise<S3MultipartPart> {
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+  const response = await getS3Client().send(
+    new UploadPartCommand({
+      Bucket: config.bucket,
+      Key: key,
+      PartNumber: partNumber,
+      UploadId: uploadId,
+      Body: body,
+    })
+  )
+  if (!response.ETag) {
+    throw new Error(`S3 UploadPart returned no ETag for part ${partNumber} of ${key}`)
+  }
+  return { PartNumber: partNumber, ETag: response.ETag }
+}
+
+/**
  * Generate presigned URLs for uploading parts to S3
  */
 export async function getS3MultipartPartUrls(

@@ -3,10 +3,17 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import type { RevealedSimKeysByMessage } from '@/lib/copilot/chat/sim-key-redaction'
 import { captureRevealedSimKeys } from '@/lib/copilot/chat/sim-key-redaction'
-import type { MothershipStreamV1ErrorPayload } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { SyntheticFilePreviewPayload } from '@/lib/copilot/request/session'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
-import type { ToolResultPhasePayload } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
+import {
+  createTurnModel,
+  type TurnModel,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
+import {
+  contentBlocksToModel,
+  modelMainText,
+  modelToContentBlocks,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type {
   ChatMessage,
   ContentBlock,
@@ -30,33 +37,23 @@ export interface StreamLoopOptions {
 }
 
 export interface StreamLoopState {
-  blocks: ContentBlock[]
-  toolMap: Map<string, number>
-  toolArgsMap: Map<string, Record<string, unknown>>
-  subagentByParentToolCallId: Map<string, string>
-  subagentBySpanId: Map<string, string>
-  pendingToolResults: Map<string, ToolResultPhasePayload>
-  runningText: string
-  lastContentSource: 'main' | 'subagent' | null
+  /**
+   * The normalized turn model — the single source of truth for streamed state.
+   * `reduceEvent` folds every event into it; `flush` serializes it to the
+   * persisted/rendered `contentBlocks` shape. The handlers carry no block state.
+   */
+  model: TurnModel
   streamRequestId: string | undefined
-  activeSubagent: string | undefined
-  activeSubagentParentToolCallId: string | undefined
-  activeCompactionId: string | undefined
   sawStreamError: boolean
   sawCompleteEvent: boolean
   scheduledTextFlushFrame: number | null
 }
 
 export interface StreamEventScope {
-  scopedSubagent: string | undefined
   scopedParentToolCallId: string | undefined
   scopedAgentId: string | undefined
   scopedSpanId: string | undefined
-  scopedParentSpanId: string | undefined
-  spanIdentity: { spanId?: string; parentSpanId?: string }
 }
-
-type SpanIdentity = { spanId?: string; parentSpanId?: string }
 
 export interface StreamLoopDeps {
   workspaceId: string
@@ -136,36 +133,6 @@ export interface StreamLoopDeps {
 
 export interface StreamLoopOps {
   isStale: () => boolean
-  toEventMs: (ts: string | undefined) => number
-  stampBlockEnd: (block: ContentBlock | undefined, ts?: string) => void
-  ensureTextBlock: (
-    subagentName: string | undefined,
-    parentToolCallId: string | undefined,
-    ts?: string,
-    identity?: SpanIdentity
-  ) => ContentBlock
-  ensureThinkingBlock: (
-    subagentName: string | undefined,
-    parentToolCallId: string | undefined,
-    ts?: string,
-    identity?: SpanIdentity
-  ) => ContentBlock
-  resolveScopedSubagent: (
-    agentId: string | undefined,
-    parentToolCallId: string | undefined,
-    spanId?: string
-  ) => string | undefined
-  resolveParentForSubagentBlock: (
-    subagent: string | undefined,
-    scopedParent: string | undefined
-  ) => string | undefined
-  appendInlineErrorTag: (
-    tag: string,
-    subagentName?: string,
-    parentToolCallId?: string,
-    ts?: string
-  ) => void
-  buildInlineErrorTag: (payload: MothershipStreamV1ErrorPayload) => string
   flush: () => void
   flushText: () => void
 }
@@ -189,18 +156,12 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
   const preserveState = deps.options.preserveExistingState === true
 
   const state: StreamLoopState = {
-    blocks: preserveState ? [...deps.streamingBlocksRef.current] : [],
-    toolMap: new Map<string, number>(),
-    toolArgsMap: new Map<string, Record<string, unknown>>(),
-    subagentByParentToolCallId: new Map<string, string>(),
-    subagentBySpanId: new Map<string, string>(),
-    pendingToolResults: new Map<string, ToolResultPhasePayload>(),
-    runningText: preserveState ? deps.streamingContentRef.current || '' : '',
-    lastContentSource: null,
+    // On a reconnect that preserves state, rebuild the model from the last
+    // serialized snapshot so live events fold into the identical model.
+    model: preserveState
+      ? contentBlocksToModel(deps.streamingBlocksRef.current)
+      : createTurnModel(),
     streamRequestId: undefined,
-    activeSubagent: undefined,
-    activeSubagentParentToolCallId: undefined,
-    activeCompactionId: undefined,
     sawStreamError: false,
     sawCompleteEvent: false,
     scheduledTextFlushFrame: null,
@@ -210,140 +171,29 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     (deps.expectedGen !== undefined && deps.streamGenRef.current !== deps.expectedGen) ||
     deps.options.shouldContinue?.() === false
 
-  if (preserveState) {
-    for (let i = 0; i < state.blocks.length; i++) {
-      const tc = state.blocks[i].toolCall
-      if (tc) {
-        state.toolMap.set(tc.id, i)
-        if (tc.params) state.toolArgsMap.set(tc.id, tc.params)
-      }
-    }
-    for (const block of state.blocks) {
-      if (block.type === 'subagent' && block.spanId && block.content) {
-        state.subagentBySpanId.set(block.spanId, block.content)
-      }
-    }
-    for (let i = state.blocks.length - 1; i >= 0; i--) {
-      if (state.blocks[i].type === 'subagent' && state.blocks[i].content) {
-        state.activeSubagent = state.blocks[i].content
-        state.activeSubagentParentToolCallId = state.blocks[i].parentToolCallId
-        break
-      }
-      if (state.blocks[i].type === 'subagent_end') {
-        break
-      }
-    }
-  } else if (!isStale()) {
+  if (!preserveState && !isStale()) {
     deps.streamingContentRef.current = ''
     deps.streamingBlocksRef.current = []
   }
 
-  const toEventMs = (ts: string | undefined): number => {
-    if (ts) {
-      const parsed = Date.parse(ts)
-      if (Number.isFinite(parsed)) return parsed
-    }
-    return Date.now()
-  }
-
-  const stampBlockEnd = (block: ContentBlock | undefined, ts?: string) => {
-    if (block && block.endedAt === undefined) block.endedAt = toEventMs(ts)
-  }
-
-  const ensureTextBlock = (
-    subagentName: string | undefined,
-    parentToolCallId: string | undefined,
-    ts?: string,
-    identity?: SpanIdentity
-  ): ContentBlock => {
-    const last = state.blocks[state.blocks.length - 1]
-    if (
-      last?.type === 'text' &&
-      last.subagent === subagentName &&
-      last.parentToolCallId === parentToolCallId &&
-      last.spanId === identity?.spanId
-    ) {
-      return last
-    }
-    stampBlockEnd(last, ts)
-    const b: ContentBlock = { type: 'text', content: '', timestamp: toEventMs(ts) }
-    if (subagentName) b.subagent = subagentName
-    if (parentToolCallId) b.parentToolCallId = parentToolCallId
-    if (identity?.spanId) b.spanId = identity.spanId
-    if (identity?.parentSpanId) b.parentSpanId = identity.parentSpanId
-    state.blocks.push(b)
-    return b
-  }
-
-  const ensureThinkingBlock = (
-    subagentName: string | undefined,
-    parentToolCallId: string | undefined,
-    ts?: string,
-    identity?: SpanIdentity
-  ): ContentBlock => {
-    const targetType = subagentName ? 'subagent_thinking' : 'thinking'
-    const last = state.blocks[state.blocks.length - 1]
-    if (
-      last?.type === targetType &&
-      last.subagent === subagentName &&
-      last.parentToolCallId === parentToolCallId &&
-      last.spanId === identity?.spanId
-    ) {
-      return last
-    }
-    stampBlockEnd(last, ts)
-    const b: ContentBlock = { type: targetType, content: '', timestamp: toEventMs(ts) }
-    if (subagentName) b.subagent = subagentName
-    if (parentToolCallId) b.parentToolCallId = parentToolCallId
-    if (identity?.spanId) b.spanId = identity.spanId
-    if (identity?.parentSpanId) b.parentSpanId = identity.parentSpanId
-    state.blocks.push(b)
-    return b
-  }
-
-  const resolveScopedSubagent = (
-    agentId: string | undefined,
-    parentToolCallId: string | undefined,
-    spanId?: string
-  ): string | undefined => {
-    if (agentId) return agentId
-    if (spanId) {
-      const scoped = state.subagentBySpanId.get(spanId)
-      if (scoped) return scoped
-    }
-    if (parentToolCallId) {
-      const scoped = state.subagentByParentToolCallId.get(parentToolCallId)
-      if (scoped) return scoped
-    }
-    return state.activeSubagent
-  }
-
-  const resolveParentForSubagentBlock = (
-    subagent: string | undefined,
-    scopedParent: string | undefined
-  ): string | undefined => {
-    if (!subagent) return undefined
-    if (scopedParent) return scopedParent
-    if (state.activeSubagent === subagent) return state.activeSubagentParentToolCallId
-    for (const [parent, name] of state.subagentByParentToolCallId) {
-      if (name === subagent) return parent
-    }
-    return undefined
-  }
-
   const flush = () => {
     if (isStale()) return
-    deps.streamingBlocksRef.current = [...state.blocks]
+    // The model is authoritative: serialize it to the persisted/rendered block
+    // shape and main-lane content for every snapshot write.
+    const modelBlocks = modelToContentBlocks(state.model)
+    const modelContent = modelMainText(state.model)
+    deps.streamingBlocksRef.current = modelBlocks
+    deps.streamingContentRef.current = modelContent
     captureRevealedSimKeys(
       deps.revealedSimKeysRef.current,
       [deps.assistantId, state.streamRequestId],
-      state.runningText
+      modelContent
     )
     const activeChatId = deps.options.targetChatId ?? deps.chatIdRef.current
     if (!activeChatId) {
       const snapshot: Partial<ChatMessage> = {
-        content: state.runningText,
-        contentBlocks: [...state.blocks],
+        content: modelContent,
+        contentBlocks: modelBlocks,
       }
       if (state.streamRequestId) snapshot.requestId = state.streamRequestId
       deps.setPendingMessages((prev) => {
@@ -364,8 +214,8 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
 
     const assistantMessage = deps.buildAssistantSnapshotMessage({
       id: deps.assistantId,
-      content: state.runningText,
-      contentBlocks: state.blocks,
+      content: modelContent,
+      contentBlocks: modelBlocks,
       ...(state.streamRequestId ? { requestId: state.streamRequestId } : {}),
     })
     deps.upsertMothershipChatHistory(activeChatId, (current) => {
@@ -404,46 +254,8 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     })
   }
 
-  const appendInlineErrorTag = (
-    tag: string,
-    subagentName?: string,
-    parentToolCallId?: string,
-    ts?: string
-  ) => {
-    if (state.runningText.includes(tag)) return
-    const tb = ensureTextBlock(subagentName, parentToolCallId, ts)
-    const prefix = state.runningText.length > 0 && !state.runningText.endsWith('\n') ? '\n' : ''
-    tb.content = `${tb.content ?? ''}${prefix}${tag}`
-    state.runningText += `${prefix}${tag}`
-    deps.streamingContentRef.current = state.runningText
-    flush()
-  }
-
-  const buildInlineErrorTag = (payload: MothershipStreamV1ErrorPayload) => {
-    const message =
-      (typeof payload.displayMessage === 'string' ? payload.displayMessage : undefined) ||
-      (typeof payload.message === 'string' ? payload.message : undefined) ||
-      (typeof payload.error === 'string' ? payload.error : undefined) ||
-      'An unexpected error occurred'
-    const provider = typeof payload.provider === 'string' ? payload.provider : undefined
-    const code = typeof payload.code === 'string' ? payload.code : undefined
-    return `<mothership-error>${JSON.stringify({
-      message,
-      ...(code ? { code } : {}),
-      ...(provider ? { provider } : {}),
-    })}</mothership-error>`
-  }
-
   const ops: StreamLoopOps = {
     isStale,
-    toEventMs,
-    stampBlockEnd,
-    ensureTextBlock,
-    ensureThinkingBlock,
-    resolveScopedSubagent,
-    resolveParentForSubagentBlock,
-    appendInlineErrorTag,
-    buildInlineErrorTag,
     flush,
     flushText,
   }

@@ -10,8 +10,9 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import {
@@ -43,6 +44,16 @@ class ConnectorDeletedException extends Error {
 }
 
 const SYNC_BATCH_SIZE = 5
+/** Estimated source bytes for a doc whose listing did not report a size. */
+const DEFAULT_OP_SIZE_BYTES = 4 * 1024 * 1024
+/**
+ * Max summed source bytes hydrated/uploaded concurrently within a batch. Each
+ * in-flight file materializes as a content string plus an upload buffer, so this
+ * bounds peak worker memory: a few large files near the per-file cap are processed
+ * in smaller sub-chunks instead of all at once, while small files still process up
+ * to SYNC_BATCH_SIZE at a time.
+ */
+const CONTENT_INFLIGHT_BUDGET_BYTES = 64 * 1024 * 1024
 const MAX_PAGES = 500
 const MAX_SAFE_TITLE_LENGTH = 200
 const STALE_PROCESSING_MINUTES = 45
@@ -58,6 +69,82 @@ type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
 type DocOp =
   | { type: 'add'; extDoc: ExternalDocument }
   | { type: 'update'; existingId: string; extDoc: ExternalDocument }
+  | { type: 'skip'; extDoc: ExternalDocument }
+
+type DocClassification =
+  | { type: 'add' }
+  | { type: 'update'; existingId: string }
+  | { type: 'skip' }
+  | { type: 'unchanged' }
+  | { type: 'drop' }
+
+/**
+ * Decides what a listed external document becomes during reconciliation.
+ *
+ * - `skip`: connector flagged it (e.g. too large) and it is not already indexed —
+ *   record a visible `failed` document instead of dropping it silently. A file that
+ *   is already indexed is kept as-is (last-known-good) rather than downgraded.
+ * - `drop`: empty, non-deferred content that cannot be indexed.
+ * - `add` / `update` / `unchanged`: normal content reconciliation by content hash.
+ */
+export function classifyExternalDoc(
+  extDoc: Pick<ExternalDocument, 'content' | 'contentDeferred' | 'contentHash' | 'skippedReason'>,
+  existing: { id: string; contentHash: string | null } | undefined
+): DocClassification {
+  if (extDoc.skippedReason) {
+    return existing ? { type: 'unchanged' } : { type: 'skip' }
+  }
+  if (!extDoc.content.trim() && !extDoc.contentDeferred) {
+    return { type: 'drop' }
+  }
+  if (!existing) {
+    return { type: 'add' }
+  }
+  if (existing.contentHash !== extDoc.contentHash) {
+    return { type: 'update', existingId: existing.id }
+  }
+  return { type: 'unchanged' }
+}
+
+/** Estimated source bytes for a pending op, taken from its listing metadata. */
+function estimateOpSizeBytes(op: DocOp): number {
+  // Skip ops load no content (just a row insert), so they do not count against the
+  // in-flight content budget.
+  if (op.type === 'skip') return 0
+  const size = op.extDoc.metadata?.fileSize ?? op.extDoc.metadata?.size
+  return typeof size === 'number' && Number.isFinite(size) && size > 0
+    ? size
+    : DEFAULT_OP_SIZE_BYTES
+}
+
+/**
+ * Splits content ops into sub-chunks bounded by both a count (maxCount) and a summed
+ * byte budget, so large files are hydrated/uploaded a few at a time. A single op
+ * larger than the budget still forms its own chunk (always >= 1 op per chunk).
+ */
+export function chunkOpsByByteBudget(
+  ops: DocOp[],
+  budgetBytes: number,
+  maxCount: number
+): DocOp[][] {
+  const chunks: DocOp[][] = []
+  let current: DocOp[] = []
+  let currentBytes = 0
+  for (const op of ops) {
+    const bytes = estimateOpSizeBytes(op)
+    if (current.length > 0 && (current.length >= maxCount || currentBytes + bytes > budgetBytes)) {
+      chunks.push(current)
+      current = []
+      currentBytes = 0
+    }
+    current.push(op)
+    currentBytes += bytes
+  }
+  if (current.length > 0) {
+    chunks.push(current)
+  }
+  return chunks
+}
 
 /** Single-roundtrip liveness check used between batches. */
 async function checkSyncLiveness(
@@ -239,7 +326,7 @@ export async function dispatchSync(
         fullSync: options?.fullSync,
         requestId,
       },
-      { tags }
+      { tags, region: await resolveTriggerRegion() }
     )
     logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
   } else {
@@ -532,25 +619,34 @@ export async function executeSync(
         continue
       }
 
-      if (!extDoc.content.trim() && !extDoc.contentDeferred) {
-        logger.info(`Skipping empty document: ${extDoc.title}`, {
-          externalId: extDoc.externalId,
-        })
-        continue
-      }
-
       const existing = existingByExternalId.get(extDoc.externalId)
+      const classification = classifyExternalDoc(extDoc, existing)
 
-      if (!existing) {
-        pendingOps.push({ type: 'add', extDoc })
-      } else if (existing.contentHash !== extDoc.contentHash) {
-        pendingOps.push({ type: 'update', existingId: existing.id, extDoc })
-      } else {
-        result.docsUnchanged++
+      switch (classification.type) {
+        case 'skip':
+          pendingOps.push({ type: 'skip', extDoc })
+          break
+        case 'drop':
+          logger.info(`Skipping empty document: ${extDoc.title}`, {
+            externalId: extDoc.externalId,
+          })
+          break
+        case 'add':
+          pendingOps.push({ type: 'add', extDoc })
+          break
+        case 'update':
+          pendingOps.push({ type: 'update', existingId: classification.existingId, extDoc })
+          break
+        case 'unchanged':
+          result.docsUnchanged++
+          break
       }
     }
 
-    for (let i = 0; i < pendingOps.length; i += SYNC_BATCH_SIZE) {
+    // Batch by both count and summed content bytes so a few large files near the
+    // per-file cap never hydrate/upload together and exhaust the worker heap.
+    const batches = chunkOpsByByteBudget(pendingOps, CONTENT_INFLIGHT_BUDGET_BYTES, SYNC_BATCH_SIZE)
+    for (const rawBatch of batches) {
       const liveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
       if (liveness.connectorDeleted) {
         throw new ConnectorDeletedException(connectorId)
@@ -559,10 +655,16 @@ export async function executeSync(
         throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
       }
 
-      const rawBatch = pendingOps.slice(i, i + SYNC_BATCH_SIZE)
+      // Oversized/skipped docs become visible `failed` rows (never silent). They are
+      // flagged either at listing time (skip ops here) or discovered only at fetch
+      // time during hydration below; both are collected and persisted after hydration.
+      const skipExtDocs: ExternalDocument[] = rawBatch
+        .filter((op) => op.type === 'skip')
+        .map((op) => op.extDoc)
 
-      const deferredOps = rawBatch.filter((op) => op.extDoc.contentDeferred)
-      const readyOps = rawBatch.filter((op) => !op.extDoc.contentDeferred)
+      const contentOps = rawBatch.filter((op) => op.type !== 'skip')
+      const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
+      const readyOps = contentOps.filter((op) => !op.extDoc.contentDeferred)
 
       if (deferredOps.length > 0) {
         if (connectorConfig.auth.mode === 'oauth') {
@@ -577,7 +679,30 @@ export async function executeSync(
               op.extDoc.externalId,
               syncContext
             )
-            if (!fullDoc?.content.trim()) return null
+            // A connector may only learn a file is too large at fetch time (its
+            // listing has no size). Surface that as a failed row for new files; keep
+            // already-indexed files as last-known-good rather than downgrading them.
+            if (fullDoc?.skippedReason) {
+              if (op.type === 'add') {
+                skipExtDocs.push({
+                  ...op.extDoc,
+                  skippedReason: fullDoc.skippedReason,
+                  contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
+                  metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
+                })
+              } else if (op.type === 'update') {
+                // Already-indexed file is kept as last-known-good (not downgraded), so it
+                // counts as unchanged rather than slipping past every result counter.
+                result.docsUnchanged++
+              }
+              return null
+            }
+            if (!fullDoc?.content.trim()) {
+              // An empty re-fetch leaves an already-indexed update as last-known-good; count
+              // it as unchanged so the totals still reconcile with documents seen.
+              if (op.type === 'update') result.docsUnchanged++
+              return null
+            }
             const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
             if (
               op.type === 'update' &&
@@ -612,6 +737,27 @@ export async function executeSync(
                 outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
             })
           }
+        }
+      }
+
+      // Record all skipped (oversized) docs in this batch in one bulk insert.
+      if (skipExtDocs.length > 0) {
+        try {
+          const recorded = await skipDocuments(
+            connector.knowledgeBaseId,
+            connectorId,
+            connector.connectorType,
+            skipExtDocs,
+            sourceConfig
+          )
+          result.docsFailed += recorded
+        } catch (error) {
+          result.docsFailed += skipExtDocs.length
+          logger.error('Failed to record skipped documents', {
+            connectorId,
+            count: skipExtDocs.length,
+            error: toError(error).message,
+          })
         }
       }
 
@@ -734,6 +880,9 @@ export async function executeSync(
           lt(document.uploadedAt, syncStartedAt),
           gt(document.uploadedAt, retryCutoff),
           eq(document.userExcluded, false),
+          // Skipped (oversized) docs are recorded as content-less failed rows with no
+          // storage key; they cannot be reprocessed, so exclude them from retry.
+          isNotNull(document.storageKey),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
@@ -939,6 +1088,82 @@ function kbOwnershipMetadata(
   return kbOwner.workspaceId
     ? { workspaceId: kbOwner.workspaceId, userId: kbOwner.userId, originalName }
     : undefined
+}
+
+/** Builds a content-less `failed` document row for a skipped (e.g. oversized) file. */
+function buildSkippedDocumentRow(
+  knowledgeBaseId: string,
+  connectorId: string,
+  connectorType: string,
+  extDoc: ExternalDocument,
+  sourceConfig?: Record<string, unknown>
+) {
+  const reason = extDoc.skippedReason ?? 'Document was skipped during sync'
+  const tagValues = extDoc.metadata
+    ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
+    : undefined
+  // Connectors put the source size under either `fileSize` or `size`; accept both
+  // so the skipped failed row shows the real size instead of 0.
+  const rawSize = extDoc.metadata?.fileSize ?? extDoc.metadata?.size
+  const fileSize =
+    typeof rawSize === 'number' && Number.isFinite(rawSize) ? Math.max(0, Math.trunc(rawSize)) : 0
+
+  return {
+    id: generateId(),
+    knowledgeBaseId,
+    filename: extDoc.title,
+    fileUrl: '',
+    storageKey: null,
+    fileSize,
+    mimeType: 'text/plain',
+    processingStatus: 'failed',
+    processingError: reason,
+    enabled: true,
+    connectorId,
+    externalId: extDoc.externalId,
+    contentHash: extDoc.contentHash,
+    sourceUrl: extDoc.sourceUrl ?? null,
+    ...tagValues,
+    uploadedAt: new Date(),
+  }
+}
+
+/**
+ * Records source files that were intentionally not indexed (e.g. they exceed the
+ * connector's size limit) as content-less `failed` documents in a single bulk insert.
+ * This keeps the files visible in the knowledge base UI — with `processingError`
+ * explaining why — instead of silently dropping them. The rows have no storage key,
+ * so they are excluded from the stuck-document retry sweep (nothing to reprocess).
+ *
+ * Only called for files not already indexed; previously-indexed files that later
+ * exceed the limit are kept as-is (last-known-good) by `classifyExternalDoc`.
+ *
+ * Returns the number of rows recorded.
+ */
+async function skipDocuments(
+  knowledgeBaseId: string,
+  connectorId: string,
+  connectorType: string,
+  extDocs: ExternalDocument[],
+  sourceConfig?: Record<string, unknown>
+): Promise<number> {
+  if (extDocs.length === 0) {
+    return 0
+  }
+  const rows = extDocs.map((extDoc) =>
+    buildSkippedDocumentRow(knowledgeBaseId, connectorId, connectorType, extDoc, sourceConfig)
+  )
+
+  await db.transaction(async (tx) => {
+    const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
+    if (!isActive) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
+    }
+
+    await tx.insert(document).values(rows)
+  })
+
+  return rows.length
 }
 
 /**

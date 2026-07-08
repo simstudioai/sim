@@ -1,0 +1,43 @@
+---
+title: Monitoring & Automated Research
+description: A scheduled agent that watches sources you care about, researches what changed, and reports back, on its own.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Use case" title="Monitoring & Automated Research" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Build a system that runs on a schedule, checks the sources you care about, researches what's new, and delivers a synthesized report, competitor moves, market signals, anything worth watching, without you asking each time.
+
+<WhatYouWillLearn
+  items={[
+    { title: 'Run on a schedule', body: 'Trigger a workflow on a timer so the work happens on its own.' },
+    { title: 'Research with tools', body: 'Let an agent search the web, read pages, and synthesize findings.' },
+    { title: 'Deliver the result', body: 'Post a summary to Slack or save a report file each run.' },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The problem', time: '0:00' },
+    { title: 'Schedule trigger', time: '0:35' },
+    { title: 'Research with tools', time: '1:25' },
+    { title: 'Synthesize findings', time: '2:20' },
+    { title: 'Deliver the report', time: '3:10' },
+  ]}
+/>
+
+</div>
+
+## What you'll build
+
+A **Schedule trigger** kicks the workflow off. An **Agent** block with search tools gathers and reads sources, synthesizes what changed, and a final step delivers it: a Slack message, or a saved report [file](/academy/files/intro).
+
+This composes [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [files](/academy/files/intro).

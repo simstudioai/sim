@@ -1,4 +1,3 @@
-import { auth as mcpAuth } from '@modelcontextprotocol/sdk/client/auth.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -17,6 +16,7 @@ import {
   loadOauthRowByState,
   loadPreregisteredClient,
   type McpOauthCallbackReason,
+  mcpAuthGuarded,
   SimMcpOauthProvider,
 } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
@@ -144,9 +144,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const preregistered = await loadPreregisteredClient(server.id)
     const provider = new SimMcpOauthProvider({ row, preregistered })
-    let result: Awaited<ReturnType<typeof mcpAuth>>
+    let result: Awaited<ReturnType<typeof mcpAuthGuarded>>
     try {
-      result = await mcpAuth(provider, {
+      result = await mcpAuthGuarded(provider, {
         serverUrl: server.url,
         authorizationCode: code,
       })

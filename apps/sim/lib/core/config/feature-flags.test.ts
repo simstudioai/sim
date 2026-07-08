@@ -10,6 +10,8 @@ const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
   envRef: {
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
+    FORKING_ENABLED: undefined as boolean | undefined,
+    DEPLOY_AS_BLOCK: undefined as boolean | undefined,
   },
   flagRef: { isAppConfigEnabled: false },
 }))
@@ -61,6 +63,9 @@ describe('getFeatureFlags', () => {
     const flags = await getFeatureFlags()
     // All registered flags should be present, disabled (env vars unset in test env)
     expect(flags['mothership-beta']).toEqual({ enabled: false })
+    expect(flags['pii-redaction']).toEqual({ enabled: false })
+    expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
+    expect(flags['trigger-eu-region']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
@@ -86,6 +91,9 @@ describe('getFeatureFlags', () => {
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
     expect(flags['mothership-beta']).toEqual({ enabled: false })
+    expect(flags['pii-redaction']).toEqual({ enabled: false })
+    expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
+    expect(flags['trigger-eu-region']).toEqual({ enabled: false })
   })
 
   it('degrades gracefully on a malformed document', async () => {
@@ -100,6 +108,44 @@ describe('isFeatureEnabled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     flagRef.isAppConfigEnabled = false
+    envRef.FORKING_ENABLED = undefined
+    envRef.DEPLOY_AS_BLOCK = undefined
+  })
+
+  describe('workspace-forking flag', () => {
+    it('falls back to FORKING_ENABLED when AppConfig is disabled', async () => {
+      envRef.FORKING_ENABLED = undefined
+      expect(await isFeatureEnabled('workspace-forking', { userId: 'u1', orgId: 'o1' })).toBe(false)
+
+      envRef.FORKING_ENABLED = true
+      expect(await isFeatureEnabled('workspace-forking', { userId: 'u1', orgId: 'o1' })).toBe(true)
+    })
+
+    it('targets specific orgs/users via AppConfig, ignoring the fallback secret', async () => {
+      envRef.FORKING_ENABLED = undefined
+      withAppConfig({ 'workspace-forking': { orgIds: ['o1'], userIds: ['u9'] } })
+
+      expect(await isFeatureEnabled('workspace-forking', { orgId: 'o1' })).toBe(true)
+      expect(await isFeatureEnabled('workspace-forking', { userId: 'u9' })).toBe(true)
+      expect(await isFeatureEnabled('workspace-forking', { orgId: 'o2', userId: 'u1' })).toBe(false)
+    })
+  })
+
+  describe('deploy-as-block flag', () => {
+    it('falls back to DEPLOY_AS_BLOCK when AppConfig is disabled', async () => {
+      envRef.DEPLOY_AS_BLOCK = undefined
+      expect(await isFeatureEnabled('deploy-as-block', { userId: 'u1', orgId: 'o1' })).toBe(false)
+
+      envRef.DEPLOY_AS_BLOCK = true
+      expect(await isFeatureEnabled('deploy-as-block', { userId: 'u1', orgId: 'o1' })).toBe(true)
+    })
+
+    it('targets specific orgs via AppConfig, ignoring the fallback secret', async () => {
+      envRef.DEPLOY_AS_BLOCK = undefined
+      withAppConfig({ 'deploy-as-block': { orgIds: ['o1'] } })
+      expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o1' })).toBe(true)
+      expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o2' })).toBe(false)
+    })
   })
 
   it('returns false for an unknown flag', async () => {

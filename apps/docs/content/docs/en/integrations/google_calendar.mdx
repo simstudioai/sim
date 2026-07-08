@@ -50,7 +50,7 @@ Create a new event in Google Calendar. Returns API-aligned fields only.
 | `location` | string | No | Event location |
 | `startDateTime` | string | Yes | Start time. Use a datetime with timezone offset \(2025-06-03T10:00:00-08:00\) or a date \(2025-06-03\) for an all-day event |
 | `endDateTime` | string | Yes | End time. Use a datetime with timezone offset \(2025-06-03T11:00:00-08:00\) or a date \(2025-06-04\) for an all-day event |
-| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\). Required if datetime does not include offset. Defaults to America/Los_Angeles if not provided. |
+| `timeZone` | string | No | IANA time zone \(e.g., America/Los_Angeles\). Used as-is when provided. For recurring events a time zone is required to expand the recurrence correctly; for one-off events it is only needed when the datetime omits a UTC offset \(a naive datetime defaults to America/Los_Angeles\). |
 | `attendees` | array | No | Array of attendee email addresses |
 | `recurrence` | string | No | Recurrence rule\(s\) in RFC 5545 format \(e.g., RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR\). Separate multiple rules with newlines. |
 | `addGoogleMeet` | boolean | No | Attach a Google Meet video conference link to the event |
@@ -88,7 +88,7 @@ List events from Google Calendar. Returns API-aligned fields only.
 | `q` | string | No | Free-text search across event summary, description, location, attendees, and organizer |
 | `maxResults` | number | No | Maximum number of events to return \(max 2500\) |
 | `pageToken` | string | No | Token for retrieving the next page of results |
-| `orderBy` | string | No | Order of events returned \(startTime or updated\). Defaults to startTime. |
+| `orderBy` | string | No | Order of events: startTime \(chronological, the default\) or updated \(last-modified\). startTime is always valid here because singleEvents is set. |
 | `showDeleted` | boolean | No | Include deleted events |
 
 #### Output
@@ -141,9 +141,9 @@ Update an existing event in Google Calendar. Returns API-aligned fields only.
 | `location` | string | No | New event location |
 | `startDateTime` | string | No | New start time. Use a datetime with timezone offset \(2025-06-03T10:00:00-08:00\) or a date \(2025-06-03\) for an all-day event |
 | `endDateTime` | string | No | New end time. Use a datetime with timezone offset \(2025-06-03T11:00:00-08:00\) or a date \(2025-06-04\) for an all-day event |
-| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\). Required if datetime does not include offset. |
-| `attendees` | array | No | Array of attendee email addresses \(replaces the existing attendee list\) |
-| `recurrence` | string | No | Recurrence rule\(s\) in RFC 5545 format \(e.g., RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR\). Separate multiple rules with newlines. |
+| `timeZone` | string | No | IANA time zone \(e.g., America/Los_Angeles\) applied to the start/end times provided in this update. Provide a new start and/or end time to change the time zone; a time zone on its own is not applied. Required for recurring events to expand the recurrence correctly. |
+| `attendees` | array | No | Array of attendee email addresses. When one or more emails are provided, they replace the existing attendee list. Leaving this empty keeps the current attendees unchanged \(it does not clear them\). |
+| `recurrence` | string | No | Recurrence rule\(s\) in RFC 5545 format \(e.g., RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR\). Separate multiple rules with newlines. When provided, replaces the event's recurrence; leaving it empty keeps the existing recurrence unchanged. Requires a timeZone for timed events. |
 | `addGoogleMeet` | boolean | No | Attach a Google Meet video conference link to the event |
 | `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
 
@@ -239,7 +239,7 @@ Get instances of a recurring event from Google Calendar. Returns API-aligned fie
 
 ### `google_calendar_list_calendars`
 
-List all calendars in the user
+List all calendars in the user's calendar list. Returns API-aligned fields only.
 
 #### Input
 
@@ -372,6 +372,47 @@ Create a new secondary calendar. Returns API-aligned fields only.
 | `location` | string | Calendar location |
 | `timeZone` | string | Calendar time zone |
 
+### `google_calendar_update_calendar`
+
+Update a secondary calendar's metadata. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID to update \(e.g., primary or calendar@group.calendar.google.com\) |
+| `summary` | string | No | New title for the calendar |
+| `description` | string | No | New description for the calendar |
+| `location` | string | No | New geographic location of the calendar as free-form text |
+| `timeZone` | string | No | New time zone of the calendar as an IANA name \(e.g., America/Los_Angeles\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Calendar ID |
+| `summary` | string | Calendar title |
+| `description` | string | Calendar description |
+| `location` | string | Calendar location |
+| `timeZone` | string | Calendar time zone |
+
+### `google_calendar_delete_calendar`
+
+Permanently delete a secondary calendar. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Yes | Secondary calendar ID to delete \(e.g., calendar@group.calendar.google.com\). The primary calendar cannot be deleted. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `calendarId` | string | Deleted calendar ID |
+| `deleted` | boolean | Whether deletion was successful |
+
 ### `google_calendar_share_calendar`
 
 Grant a user, group, or domain access to a calendar. Returns API-aligned fields only.
@@ -384,6 +425,27 @@ Grant a user, group, or domain access to a calendar. Returns API-aligned fields 
 | `role` | string | Yes | Access role to grant: freeBusyReader, reader, writer, or owner |
 | `scopeType` | string | Yes | Type of grantee: user, group, domain, or default \(public\) |
 | `scopeValue` | string | No | Email \(user/group\), domain name \(domain\), or empty for default. Required unless scope type is default. |
+| `sendNotifications` | boolean | No | Whether to send a notification email about the change. Defaults to true. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ACL rule ID |
+| `role` | string | Granted access role |
+| `scope` | json | Grantee scope \(type and value\) |
+
+### `google_calendar_update_acl`
+
+Change the access role granted by an existing calendar sharing (ACL) rule. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Calendar ID to modify \(e.g., primary or calendar@group.calendar.google.com\) |
+| `ruleId` | string | Yes | ACL rule ID to update \(e.g., user:person@example.com\) |
+| `role` | string | Yes | New access role to grant: freeBusyReader, reader, writer, or owner |
 | `sendNotifications` | boolean | No | Whether to send a notification email about the change. Defaults to true. |
 
 #### Output

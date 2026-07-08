@@ -266,6 +266,43 @@ describe('RateLimiter', () => {
     })
   })
 
+  describe('checkRateLimitDirect', () => {
+    const config = { maxTokens: 3, refillRate: 1, refillIntervalMs: 60_000 }
+
+    it('should reflect the storage decision when it succeeds', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue({
+        allowed: true,
+        tokensRemaining: 2,
+        resetAt: new Date(),
+      })
+
+      const result = await rateLimiter.checkRateLimitDirect('public:contact:ip', config)
+
+      expect(result.allowed).toBe(true)
+      expect(result.remaining).toBe(2)
+    })
+
+    it('should fail open on storage error by default', async () => {
+      mockAdapter.consumeTokens.mockRejectedValue(new Error('Storage error'))
+
+      const result = await rateLimiter.checkRateLimitDirect('public:contact:ip', config)
+
+      expect(result.allowed).toBe(true)
+      expect(result.remaining).toBe(1)
+    })
+
+    it('should fail closed on storage error when failClosed is set', async () => {
+      mockAdapter.consumeTokens.mockRejectedValue(new Error('Storage error'))
+
+      const result = await rateLimiter.checkRateLimitDirect('public:contact:ip', config, {
+        failClosed: true,
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.remaining).toBe(0)
+    })
+  })
+
   describe('subscription plan handling', () => {
     it('should use pro plan limits', async () => {
       const proSubscription = { plan: 'pro', referenceId: testUserId }

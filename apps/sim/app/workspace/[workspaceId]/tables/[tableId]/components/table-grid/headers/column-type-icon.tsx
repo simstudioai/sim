@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { Tooltip } from '@/components/emcn'
+import { Tooltip } from '@sim/emcn'
 import {
   Calendar as CalendarIcon,
   PlayOutline,
@@ -10,7 +10,7 @@ import {
   TypeNumber,
   TypeText,
   WorkflowX,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
 import type { BlockIconInfo } from '../types'
 
 export const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {

@@ -2,7 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { encodeSSE, readSSEStream, SSE_HEADERS } from '@/lib/core/utils/sse'
+import {
+  encodeSSE,
+  readSSEEvents,
+  readSSELines,
+  readSSEStream,
+  SSE_HEADERS,
+} from '@/lib/core/utils/sse'
 
 function createStreamFromChunks(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
   let index = 0
@@ -309,5 +315,344 @@ describe('readSSEStream', () => {
       const result = await readSSEStream(stream)
       expect(result).toBe('FirstSecond')
     })
+  })
+})
+
+function streamFromStringChunks(chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder()
+  return createStreamFromChunks(chunks.map((c) => encoder.encode(c)))
+}
+
+describe('readSSEEvents', () => {
+  it('parses `\\n\\n`-framed events', async () => {
+    const stream = streamFromStringChunks([
+      'data: {"n":1}\n\n',
+      'data: {"n":2}\n\n',
+      'data: {"n":3}\n\n',
+    ])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+    })
+    expect(events).toEqual([1, 2, 3])
+  })
+
+  it('parses `\\n`-framed events', async () => {
+    const stream = streamFromStringChunks(['data: {"n":1}\ndata: {"n":2}\ndata: {"n":3}\n'])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+    })
+    expect(events).toEqual([1, 2, 3])
+  })
+
+  it('reassembles events split across chunk boundaries', async () => {
+    const stream = streamFromStringChunks(['data: {"ms', 'g":"hel', 'lo"}\n\n'])
+    const events: Array<{ msg: string }> = []
+    await readSSEEvents<{ msg: string }>(stream, {
+      onEvent: (e) => {
+        events.push(e)
+      },
+    })
+    expect(events).toEqual([{ msg: 'hello' }])
+  })
+
+  it('emits a final data: line that has no trailing newline (stream tail)', async () => {
+    const stream = streamFromStringChunks(['data: {"n":1}\n', 'data: {"n":2}'])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+    })
+    expect(events).toEqual([1, 2])
+  })
+
+  it('flushes a multi-byte character in the final unterminated line', async () => {
+    const encoder = new TextEncoder()
+    const euro = encoder.encode('€')
+    const chunk1 = new Uint8Array([...encoder.encode('data: {"s":"'), euro[0], euro[1]])
+    const chunk2 = new Uint8Array([euro[2], ...encoder.encode('"}')])
+    const stream = createStreamFromChunks([chunk1, chunk2])
+    const events: Array<{ s: string }> = []
+    await readSSEEvents<{ s: string }>(stream, {
+      onEvent: (e) => {
+        events.push(e)
+      },
+    })
+    expect(events).toEqual([{ s: '€' }])
+  })
+
+  it('skips the [DONE] sentinel', async () => {
+    const stream = streamFromStringChunks(['data: {"n":1}\n\n', 'data: [DONE]\n\n'])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+    })
+    expect(events).toEqual([1])
+  })
+
+  it('accepts `data:` with and without a leading space', async () => {
+    const stream = streamFromStringChunks(['data:{"n":1}\n\n', 'data: {"n":2}\n\n'])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+    })
+    expect(events).toEqual([1, 2])
+  })
+
+  it('strips trailing carriage returns (\\r\\n framing)', async () => {
+    const stream = streamFromStringChunks(['data: {"n":1}\r\n\r\n', 'data: {"n":2}\r\n\r\n'])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+    })
+    expect(events).toEqual([1, 2])
+  })
+
+  it('routes unparseable payloads to onParseError and continues', async () => {
+    const stream = streamFromStringChunks(['data: not-json\n\n', 'data: {"n":2}\n\n'])
+    const events: number[] = []
+    const onParseError = vi.fn()
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+      onParseError,
+    })
+    expect(events).toEqual([2])
+    expect(onParseError).toHaveBeenCalledTimes(1)
+    expect(onParseError).toHaveBeenCalledWith('not-json', expect.any(Error))
+  })
+
+  it('stops early when onEvent returns true', async () => {
+    const stream = streamFromStringChunks([
+      'data: {"n":1}\n\n',
+      'data: {"n":2}\n\n',
+      'data: {"n":3}\n\n',
+    ])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+        return e.n === 2
+      },
+    })
+    expect(events).toEqual([1, 2])
+  })
+
+  it('does not process events once the signal is aborted', async () => {
+    const controller = new AbortController()
+    const stream = streamFromStringChunks(['data: {"n":1}\n\n', 'data: {"n":2}\n\n'])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      signal: controller.signal,
+      onEvent: (e) => {
+        events.push(e.n)
+        controller.abort()
+      },
+    })
+    expect(events).toEqual([1])
+  })
+
+  it('returns immediately when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const stream = streamFromStringChunks(['data: {"n":1}\n\n'])
+    const onEvent = vi.fn()
+    await readSSEEvents(stream, { signal: controller.signal, onEvent })
+    expect(onEvent).not.toHaveBeenCalled()
+  })
+
+  it('releases the reader lock for a stream source', async () => {
+    const stream = streamFromStringChunks(['data: {"n":1}\n\n'])
+    await readSSEEvents<{ n: number }>(stream, { onEvent: () => {} })
+    expect(() => stream.getReader()).not.toThrow()
+  })
+
+  it('does not release the lock for a reader source', async () => {
+    const stream = streamFromStringChunks(['data: {"n":1}\n\n'])
+    const reader = stream.getReader()
+    await readSSEEvents<{ n: number }>(reader, { onEvent: () => {} })
+    expect(() => stream.getReader()).toThrow()
+    reader.releaseLock()
+  })
+
+  it('accepts a Response source', async () => {
+    const response = new Response(streamFromStringChunks(['data: {"n":7}\n\n']))
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(response, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+    })
+    expect(events).toEqual([7])
+  })
+
+  it('silently skips unparseable payloads when no onParseError is provided', async () => {
+    const stream = streamFromStringChunks(['data: not-json\n\n', 'data: {"n":2}\n\n'])
+    const events: number[] = []
+    await expect(
+      readSSEEvents<{ n: number }>(stream, {
+        onEvent: (e) => {
+          events.push(e.n)
+        },
+      })
+    ).resolves.toBeUndefined()
+    expect(events).toEqual([2])
+  })
+
+  it('surfaces a fatal parse error when onParseError throws', async () => {
+    const stream = streamFromStringChunks(['data: not-json\n\n', 'data: {"n":2}\n\n'])
+    const events: number[] = []
+    await expect(
+      readSSEEvents<{ n: number }>(stream, {
+        onEvent: (e) => {
+          events.push(e.n)
+        },
+        onParseError: () => {
+          throw new Error('boom')
+        },
+      })
+    ).rejects.toThrow('boom')
+    expect(events).toEqual([])
+  })
+
+  it('stops early when onEvent resolves true asynchronously', async () => {
+    const stream = streamFromStringChunks([
+      'data: {"n":1}\n\n',
+      'data: {"n":2}\n\n',
+      'data: {"n":3}\n\n',
+    ])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: async (e) => {
+        events.push(e.n)
+        return e.n === 2
+      },
+    })
+    expect(events).toEqual([1, 2])
+  })
+
+  it('throws "No response body" for a Response without a body', async () => {
+    const response = new Response(null)
+    await expect(readSSEEvents(response, { onEvent: () => {} })).rejects.toThrow('No response body')
+  })
+})
+
+describe('readSSELines', () => {
+  it('delivers raw (un-parsed) data payloads', async () => {
+    const stream = streamFromStringChunks(['data: raw-one\n\n', 'data: {"keep":"asString"}\n\n'])
+    const lines: string[] = []
+    await readSSELines(stream, {
+      onData: (raw) => {
+        lines.push(raw)
+      },
+    })
+    expect(lines).toEqual(['raw-one', '{"keep":"asString"}'])
+  })
+
+  it('skips [DONE] and blank separator lines', async () => {
+    const stream = streamFromStringChunks(['data: a\n\ndata: b\n\ndata: [DONE]\n\n'])
+    const lines: string[] = []
+    await readSSELines(stream, {
+      onData: (raw) => {
+        lines.push(raw)
+      },
+    })
+    expect(lines).toEqual(['a', 'b'])
+  })
+
+  it('preserves the raw payload verbatim (no JSON parsing)', async () => {
+    const stream = streamFromStringChunks(['data: {"unterminated\n\n', 'data:no-space\n\n'])
+    const lines: string[] = []
+    await readSSELines(stream, {
+      onData: (raw) => {
+        lines.push(raw)
+      },
+    })
+    expect(lines).toEqual(['{"unterminated', 'no-space'])
+  })
+
+  it('strips a trailing carriage return from each line', async () => {
+    const stream = streamFromStringChunks(['data: one\r\n\r\ndata: two\r\n\r\n'])
+    const lines: string[] = []
+    await readSSELines(stream, {
+      onData: (raw) => {
+        lines.push(raw)
+      },
+    })
+    expect(lines).toEqual(['one', 'two'])
+  })
+
+  it('stops early when onData returns true', async () => {
+    const stream = streamFromStringChunks(['data: a\n\ndata: b\n\ndata: c\n\n'])
+    const lines: string[] = []
+    await readSSELines(stream, {
+      onData: (raw) => {
+        lines.push(raw)
+        return raw === 'b'
+      },
+    })
+    expect(lines).toEqual(['a', 'b'])
+  })
+
+  it('does not deliver any line when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const stream = streamFromStringChunks(['data: a\n\n'])
+    const onData = vi.fn()
+    await readSSELines(stream, { signal: controller.signal, onData })
+    expect(onData).not.toHaveBeenCalled()
+  })
+
+  it('stops between events in the same chunk once aborted mid-stream', async () => {
+    const controller = new AbortController()
+    const stream = streamFromStringChunks(['data: a\n\ndata: b\n\ndata: c\n\n'])
+    const lines: string[] = []
+    await readSSELines(stream, {
+      signal: controller.signal,
+      onData: (raw) => {
+        lines.push(raw)
+        if (raw === 'a') controller.abort()
+      },
+    })
+    expect(lines).toEqual(['a'])
+  })
+
+  it('releases the lock for a stream source', async () => {
+    const stream = streamFromStringChunks(['data: a\n\n'])
+    await readSSELines(stream, { onData: () => {} })
+    expect(() => stream.getReader()).not.toThrow()
+  })
+
+  it('does not release the lock for a reader source', async () => {
+    const stream = streamFromStringChunks(['data: a\n\n'])
+    const reader = stream.getReader()
+    await readSSELines(reader, { onData: () => {} })
+    expect(() => stream.getReader()).toThrow()
+    reader.releaseLock()
+  })
+
+  it('releases the lock for a stream source even when onData throws', async () => {
+    const stream = streamFromStringChunks(['data: a\n\n'])
+    await expect(
+      readSSELines(stream, {
+        onData: () => {
+          throw new Error('handler failed')
+        },
+      })
+    ).rejects.toThrow('handler failed')
+    expect(() => stream.getReader()).not.toThrow()
   })
 })

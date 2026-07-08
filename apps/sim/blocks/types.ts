@@ -366,8 +366,6 @@ export interface SubBlockConfig {
   // OAuth specific properties - serviceId is the canonical identifier for OAuth services
   serviceId?: string
   requiredScopes?: string[]
-  // Whether this credential selector supports credential sets (for trigger blocks)
-  supportsCredentialSets?: boolean
   // Selector properties — declarative mapping to a SelectorKey
   selectorKey?: SelectorKey
   selectorAllowSearch?: boolean
@@ -416,6 +414,13 @@ export interface SubBlockConfig {
     blockId: string,
     optionId: string
   ) => Promise<{ label: string; id: string } | null>
+  /**
+   * tool-input only: tool categories the consuming block cannot execute. They
+   * stay visible in the picker but are greyed out with a tooltip rather than
+   * hidden. Block/integration tools always run via `executeTool`, so only the
+   * non-registry categories (`mcp`, `custom-tool`) can be marked unsupported.
+   */
+  unsupportedToolTypes?: ('mcp' | 'custom-tool')[]
 }
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {

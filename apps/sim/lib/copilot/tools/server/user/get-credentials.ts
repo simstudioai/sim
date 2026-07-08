@@ -3,11 +3,13 @@ import { account, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
-import { jwtDecode } from 'jwt-decode'
+import { decodeJwt } from 'jose'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getAllOAuthServices } from '@/lib/oauth'
+import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 interface GetCredentialsParams {
   workflowId?: string
@@ -47,6 +49,12 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
 
     const userId = authenticatedUserId
 
+    // Resolve workspace access once and thread it into both credential lookups
+    // below; each would otherwise re-resolve the same workspace-admin status.
+    const workspaceAccess: WorkspaceAccess | undefined = workspaceId
+      ? await checkWorkspaceAccess(workspaceId, userId)
+      : undefined
+
     logger.info('Fetching credentials for authenticated user', {
       userId,
       hasWorkflowId: !!params?.workflowId,
@@ -84,7 +92,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       let displayName = ''
       if (acc.idToken) {
         try {
-          const decoded = jwtDecode<{ email?: string; name?: string }>(acc.idToken)
+          const decoded = decodeJwt<{ email?: string; name?: string }>(acc.idToken)
           displayName = decoded.email || decoded.name || ''
         } catch (error) {
           logger.warn('Failed to decode JWT id token', {
@@ -110,6 +118,31 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       })
     }
 
+    // Surface workspace-shared OAuth/service-account credentials the user can use,
+    // including those they reach as a derived workspace admin (not just their own
+    // personal account connections). Keyed by credential id so the agent references
+    // the workspace credential, not a legacy account id.
+    if (workspaceId) {
+      const sharedCredentials = await getAccessibleOAuthCredentials(workspaceId, userId, {
+        isWorkspaceAdmin: workspaceAccess?.canAdmin ?? false,
+      })
+      const seenCredentialIds = new Set(connectedCredentials.map((c) => c.id))
+      for (const cred of sharedCredentials) {
+        if (seenCredentialIds.has(cred.id)) continue
+        connectedProviderIds.add(cred.providerId)
+        const [, featureType = 'default'] = cred.providerId.split('-')
+        connectedCredentials.push({
+          id: cred.id,
+          name: cred.displayName,
+          provider: cred.providerId,
+          serviceName:
+            allOAuthServices.find((s) => s.providerId === cred.providerId)?.name ?? cred.providerId,
+          lastUsed: cred.updatedAt.toISOString(),
+          isDefault: featureType === 'default',
+        })
+      }
+    }
+
     // Build list of not connected services
     const notConnectedServices = allOAuthServices
       .filter((service) => !connectedProviderIds.has(service.providerId))
@@ -121,7 +154,11 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       }))
 
     // Fetch environment variables from both personal and workspace
-    const envResult = await getPersonalAndWorkspaceEnv(userId, workspaceId)
+    const envResult = await getPersonalAndWorkspaceEnv(
+      userId,
+      workspaceId,
+      workspaceAccess ? { workspaceAccess } : undefined
+    )
 
     // Get all unique variable names from both personal and workspace
     const personalVarNames = Object.keys(envResult.personalEncrypted)

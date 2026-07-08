@@ -192,10 +192,10 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       success: true,
       output: {
         query: data.query,
-        results: data.results.map((result: any) => ({
+        results: (data.results ?? []).map((result: any) => ({
           title: result.title,
           url: result.url,
-          snippet: result.snippet,
+          content: result.content,
           ...(result.score !== undefined && { score: result.score }),
           ...(result.raw_content && { raw_content: result.raw_content }),
           ...(result.favicon && { favicon: result.favicon }),

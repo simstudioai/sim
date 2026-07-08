@@ -7,7 +7,6 @@ import {
   getUsersWithPermissions,
   getWorkspaceById,
   getWorkspaceWithOwner,
-  hasAdminPermission,
   hasWorkspaceAdminAccess,
   workspaceExists,
 } from '@/lib/workspaces/permissions/utils'
@@ -54,7 +53,7 @@ describe('Permission Utils', () => {
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
 
-      const result = await getUserEntityPermissions('user123', 'workspace', 'workspace456')
+      const result = await getUserEntityPermissions('user123', 'workflow', 'workflow456')
 
       expect(result).toBe('admin')
     })
@@ -78,7 +77,7 @@ describe('Permission Utils', () => {
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
 
-      const result = await getUserEntityPermissions('user999', 'workspace', 'workspace999')
+      const result = await getUserEntityPermissions('user999', 'workflow', 'workflow999')
 
       expect(result).toBe('admin')
     })
@@ -101,7 +100,7 @@ describe('Permission Utils', () => {
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
 
-      const result = await getUserEntityPermissions('user123', 'workspace', 'workspace456')
+      const result = await getUserEntityPermissions('user123', 'workflow', 'workflow456')
 
       expect(result).toBe('write')
     })
@@ -137,86 +136,37 @@ describe('Permission Utils', () => {
     })
   })
 
-  describe('hasAdminPermission', () => {
-    it('should return true when user has admin permission for workspace', async () => {
-      const chain = createMockChain([{ id: 'perm1' }])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('admin-user', 'workspace123')
-
-      expect(result).toBe(true)
-    })
-
-    it('should return false when user has no admin permission for workspace', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('regular-user', 'workspace123')
-
-      expect(result).toBe(false)
-    })
-
-    it('should return false when user has write permission but not admin', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('write-user', 'workspace123')
-
-      expect(result).toBe(false)
-    })
-
-    it('should return false when user has read permission but not admin', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('read-user', 'workspace123')
-
-      expect(result).toBe(false)
-    })
-
-    it('should handle non-existent workspace', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('user123', 'non-existent-workspace')
-
-      expect(result).toBe(false)
-    })
-
-    it('should handle empty user ID', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('', 'workspace123')
-
-      expect(result).toBe(false)
-    })
-  })
-
   describe('getUsersWithPermissions', () => {
-    it('should return empty array when no users have permissions for workspace', async () => {
-      const usersChain = createMockChain([])
-      mockDb.select.mockReturnValue(usersChain)
+    function mockSelectSequence(results: any[][]) {
+      let index = 0
+      mockDb.select.mockImplementation(() => createMockChain(results[index++] ?? []))
+    }
+
+    const joinedAt = new Date('2026-04-22T00:00:00.000Z')
+
+    it('should return empty array when the workspace does not exist', async () => {
+      mockSelectSequence([[]])
 
       const result = await getUsersWithPermissions('workspace123')
 
       expect(result).toEqual([])
     })
 
-    it('should return users with their permissions for workspace', async () => {
-      const mockUsersResults = [
-        {
-          userId: 'user1',
-          email: 'alice@example.com',
-          name: 'Alice Smith',
-          image: 'https://example.com/alice.png',
-          permissionType: 'admin' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-        },
-      ]
-
-      const usersChain = createMockChain(mockUsersResults)
-      mockDb.select.mockReturnValue(usersChain)
+    it('should return users with their explicit permissions for a personal workspace', async () => {
+      mockSelectSequence([
+        [{ id: 'workspace456', ownerId: 'owner-user', organizationId: null }],
+        [
+          {
+            userId: 'user1',
+            email: 'alice@example.com',
+            name: 'Alice Smith',
+            image: 'https://example.com/alice.png',
+            permissionType: 'admin' as PermissionType,
+            joinedAt,
+            userOrganizationId: null,
+          },
+        ],
+      ])
 
       const result = await getUsersWithPermissions('workspace456')
 
@@ -229,111 +179,165 @@ describe('Permission Utils', () => {
           permissionType: 'admin',
           isExternal: false,
           joinedAt: '2026-04-22T00:00:00.000Z',
+          roleSource: 'explicit',
         },
       ])
     })
 
-    it('marks users as external when they are not members of the workspace organization', async () => {
-      const mockUsersResults = [
-        {
-          userId: 'internal-user',
-          email: 'internal@example.com',
-          name: 'Internal User',
-          image: null,
-          permissionType: 'admin' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-          workspaceOrganizationId: 'org-1',
-          workspaceOwnerId: 'internal-user',
-          userOrganizationId: 'org-1',
-        },
-        {
-          userId: 'external-user',
-          email: 'external@example.com',
-          name: 'External User',
-          image: null,
-          permissionType: 'write' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-          workspaceOrganizationId: 'org-1',
-          workspaceOwnerId: 'internal-user',
-          userOrganizationId: 'org-2',
-        },
-      ]
-
-      const usersChain = createMockChain(mockUsersResults)
-      mockDb.select.mockReturnValue(usersChain)
+    it('tags the workspace owner with roleSource owner', async () => {
+      mockSelectSequence([
+        [{ id: 'workspace456', ownerId: 'user1', organizationId: null }],
+        [
+          {
+            userId: 'user1',
+            email: 'owner@example.com',
+            name: 'Owner',
+            image: null,
+            permissionType: 'admin' as PermissionType,
+            joinedAt,
+            userOrganizationId: null,
+          },
+        ],
+      ])
 
       const result = await getUsersWithPermissions('workspace456')
 
-      expect(result.map((u) => ({ email: u.email, isExternal: u.isExternal }))).toEqual([
-        { email: 'internal@example.com', isExternal: false },
-        { email: 'external@example.com', isExternal: true },
+      expect(result[0].roleSource).toBe('owner')
+    })
+
+    it('merges organization admins as derived workspace admins', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'owner-user', organizationId: 'org-1' }],
+        [
+          {
+            userId: 'member-user',
+            email: 'member@example.com',
+            name: 'Member',
+            image: null,
+            permissionType: 'read' as PermissionType,
+            joinedAt,
+            userOrganizationId: 'org-1',
+          },
+        ],
+        [
+          {
+            userId: 'org-admin-user',
+            email: 'orgadmin@example.com',
+            name: 'Org Admin',
+            image: null,
+            joinedAt,
+          },
+        ],
       ])
+
+      const result = await getUsersWithPermissions('ws')
+      const orgAdmin = result.find((u) => u.userId === 'org-admin-user')
+
+      expect(orgAdmin).toMatchObject({
+        permissionType: 'admin',
+        roleSource: 'org-admin',
+        isExternal: false,
+      })
+    })
+
+    it('marks users as external when they are not members of the workspace organization', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'internal-user', organizationId: 'org-1' }],
+        [
+          {
+            userId: 'internal-user',
+            email: 'internal@example.com',
+            name: 'Internal User',
+            image: null,
+            permissionType: 'admin' as PermissionType,
+            joinedAt,
+            userOrganizationId: 'org-1',
+          },
+          {
+            userId: 'external-user',
+            email: 'external@example.com',
+            name: 'External User',
+            image: null,
+            permissionType: 'write' as PermissionType,
+            joinedAt,
+            userOrganizationId: 'org-2',
+          },
+        ],
+        [],
+      ])
+
+      const result = await getUsersWithPermissions('ws')
+      const byEmail = new Map(result.map((u) => [u.email, u.isExternal]))
+
+      expect(byEmail.get('internal@example.com')).toBe(false)
+      expect(byEmail.get('external@example.com')).toBe(true)
     })
 
     it('marks a non-owner member of another org as external on a personal workspace', async () => {
-      const mockUsersResults = [
-        {
-          userId: 'owner-user',
-          email: 'owner@example.com',
-          name: 'Owner',
-          image: null,
-          permissionType: 'admin' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-          workspaceOrganizationId: null,
-          workspaceOwnerId: 'owner-user',
-          userOrganizationId: null,
-        },
-        {
-          userId: 'guest-user',
-          email: 'guest@example.com',
-          name: 'Guest',
-          image: null,
-          permissionType: 'write' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-          workspaceOrganizationId: null,
-          workspaceOwnerId: 'owner-user',
-          userOrganizationId: 'org-guest',
-        },
-      ]
-
-      const usersChain = createMockChain(mockUsersResults)
-      mockDb.select.mockReturnValue(usersChain)
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'owner-user', organizationId: null }],
+        [
+          {
+            userId: 'owner-user',
+            email: 'owner@example.com',
+            name: 'Owner',
+            image: null,
+            permissionType: 'admin' as PermissionType,
+            joinedAt,
+            userOrganizationId: null,
+          },
+          {
+            userId: 'guest-user',
+            email: 'guest@example.com',
+            name: 'Guest',
+            image: null,
+            permissionType: 'write' as PermissionType,
+            joinedAt,
+            userOrganizationId: 'org-guest',
+          },
+        ],
+      ])
 
       const result = await getUsersWithPermissions('workspace-personal')
+      const byEmail = new Map(result.map((u) => [u.email, u.isExternal]))
 
-      expect(result.map((u) => ({ email: u.email, isExternal: u.isExternal }))).toEqual([
-        { email: 'owner@example.com', isExternal: false },
-        { email: 'guest@example.com', isExternal: true },
-      ])
+      expect(byEmail.get('owner@example.com')).toBe(false)
+      expect(byEmail.get('guest@example.com')).toBe(true)
     })
 
-    it('should return multiple users with different permission levels', async () => {
-      const mockUsersResults = [
-        {
-          userId: 'user1',
-          email: 'admin@example.com',
-          name: 'Admin User',
-          permissionType: 'admin' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-        },
-        {
-          userId: 'user2',
-          email: 'writer@example.com',
-          name: 'Writer User',
-          permissionType: 'write' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-        },
-        {
-          userId: 'user3',
-          email: 'reader@example.com',
-          name: 'Reader User',
-          permissionType: 'read' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-        },
-      ]
-
-      const usersChain = createMockChain(mockUsersResults)
-      mockDb.select.mockReturnValue(usersChain)
+    it('should return multiple users sorted by email', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'owner-user', organizationId: null }],
+        [
+          {
+            userId: 'user1',
+            email: 'a-admin@example.com',
+            name: 'Admin User',
+            image: null,
+            permissionType: 'admin' as PermissionType,
+            joinedAt,
+            userOrganizationId: null,
+          },
+          {
+            userId: 'user2',
+            email: 'b-writer@example.com',
+            name: 'Writer User',
+            image: null,
+            permissionType: 'write' as PermissionType,
+            joinedAt,
+            userOrganizationId: null,
+          },
+          {
+            userId: 'user3',
+            email: 'c-reader@example.com',
+            name: 'Reader User',
+            image: null,
+            permissionType: 'read' as PermissionType,
+            joinedAt,
+            userOrganizationId: null,
+          },
+        ],
+      ])
 
       const result = await getUsersWithPermissions('workspace456')
 
@@ -344,18 +348,20 @@ describe('Permission Utils', () => {
     })
 
     it('should handle users with empty names', async () => {
-      const mockUsersResults = [
-        {
-          userId: 'user1',
-          email: 'test@example.com',
-          name: '',
-          permissionType: 'read' as PermissionType,
-          joinedAt: new Date('2026-04-22T00:00:00.000Z'),
-        },
-      ]
-
-      const usersChain = createMockChain(mockUsersResults)
-      mockDb.select.mockReturnValue(usersChain)
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'owner-user', organizationId: null }],
+        [
+          {
+            userId: 'user1',
+            email: 'test@example.com',
+            name: '',
+            image: null,
+            permissionType: 'read' as PermissionType,
+            joinedAt,
+            userOrganizationId: null,
+          },
+        ],
+      ])
 
       const result = await getUsersWithPermissions('workspace123')
 
@@ -364,9 +370,15 @@ describe('Permission Utils', () => {
   })
 
   describe('hasWorkspaceAdminAccess', () => {
-    it('should return true when user owns the workspace', async () => {
-      const chain = createMockChain([{ ownerId: 'user123' }])
-      mockDb.select.mockReturnValue(chain)
+    it('should return true for the workspace owner via their explicit admin row', async () => {
+      let callCount = 0
+      mockDb.select.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockChain([{ ownerId: 'user123' }])
+        }
+        return createMockChain([{ permissionType: 'admin' }])
+      })
 
       const result = await hasWorkspaceAdminAccess('user123', 'workspace456')
 
@@ -380,7 +392,7 @@ describe('Permission Utils', () => {
         if (callCount === 1) {
           return createMockChain([{ ownerId: 'other-user' }])
         }
-        return createMockChain([{ id: 'perm1' }])
+        return createMockChain([{ permissionType: 'admin' }])
       })
 
       const result = await hasWorkspaceAdminAccess('user123', 'workspace456')
@@ -647,7 +659,7 @@ describe('Permission Utils', () => {
 
       const result = await getManageableWorkspaces('user123')
 
-      expect(result).toHaveLength(2) // Should include duplicates from admin permissions
+      expect(result).toHaveLength(1)
     })
 
     it('should handle empty user ID gracefully', async () => {
@@ -758,13 +770,21 @@ describe('Permission Utils', () => {
         exists: false,
         hasAccess: false,
         canWrite: false,
+        canAdmin: false,
         workspace: null,
+        permission: null,
       })
     })
 
-    it('should return full access when user is workspace owner', async () => {
-      const chain = createMockChain([{ id: 'workspace123', ownerId: 'user123' }])
-      mockDb.select.mockReturnValue(chain)
+    it('should return full access for the workspace owner via their explicit admin row', async () => {
+      let callCount = 0
+      mockDb.select.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockChain([{ id: 'workspace123', ownerId: 'user123' }])
+        }
+        return createMockChain([{ permissionType: 'admin' }])
+      })
 
       const result = await checkWorkspaceAccess('workspace123', 'user123')
 
@@ -772,7 +792,9 @@ describe('Permission Utils', () => {
         exists: true,
         hasAccess: true,
         canWrite: true,
+        canAdmin: true,
         workspace: { id: 'workspace123', ownerId: 'user123' },
+        permission: 'admin',
       })
     })
 
@@ -861,6 +883,72 @@ describe('Permission Utils', () => {
       const result = await checkWorkspaceAccess('', 'user123')
 
       expect(result.exists).toBe(false)
+      expect(result.hasAccess).toBe(false)
+    })
+  })
+
+  describe('organization admin inheritance', () => {
+    function mockSelectSequence(results: any[][]) {
+      let index = 0
+      mockDb.select.mockImplementation(() => createMockChain(results[index++] ?? []))
+    }
+
+    it('checkWorkspaceAccess grants admin to org admins without an explicit row', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'other-user', organizationId: 'org-1' }],
+        [],
+        [{ role: 'admin' }],
+      ])
+
+      const result = await checkWorkspaceAccess('ws', 'org-admin-user')
+
+      expect(result.hasAccess).toBe(true)
+      expect(result.canWrite).toBe(true)
+      expect(result.canAdmin).toBe(true)
+    })
+
+    it('getUserEntityPermissions returns admin for an org owner without an explicit row', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'other-user', organizationId: 'org-1' }],
+        [],
+        [{ role: 'owner' }],
+      ])
+
+      const result = await getUserEntityPermissions('org-owner-user', 'workspace', 'ws')
+
+      expect(result).toBe('admin')
+    })
+
+    it('hasWorkspaceAdminAccess is true for an org admin of the workspace org', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'other-user', organizationId: 'org-1' }],
+        [],
+        [{ role: 'admin' }],
+      ])
+
+      const result = await hasWorkspaceAdminAccess('org-admin-user', 'ws')
+
+      expect(result).toBe(true)
+    })
+
+    it('does not elevate a plain org member', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'other-user', organizationId: 'org-1' }],
+        [],
+        [{ role: 'member' }],
+      ])
+
+      const result = await checkWorkspaceAccess('ws', 'org-member-user')
+
+      expect(result.hasAccess).toBe(false)
+      expect(result.canAdmin).toBe(false)
+    })
+
+    it('does not elevate org admins on a workspace with no organization', async () => {
+      mockSelectSequence([[{ id: 'ws', ownerId: 'other-user', organizationId: null }], []])
+
+      const result = await checkWorkspaceAccess('ws', 'some-user')
+
       expect(result.hasAccess).toBe(false)
     })
   })

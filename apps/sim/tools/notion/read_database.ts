@@ -35,7 +35,7 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
 
   request: {
     url: (params: NotionReadDatabaseParams) => {
-      return `https://api.notion.com/v1/databases/${params.databaseId}`
+      return `https://api.notion.com/v1/databases/${params.databaseId.trim()}`
     },
     method: 'GET',
     headers: (params: NotionReadDatabaseParams) => {

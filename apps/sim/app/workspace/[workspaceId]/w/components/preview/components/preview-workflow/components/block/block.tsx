@@ -1,8 +1,8 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
+import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import { Handle, type NodeProps, Position } from 'reactflow'
-import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
   getDisplayValue,
   resolveDropdownLabel,
@@ -19,6 +19,7 @@ import {
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -375,7 +376,9 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
               className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
             >
-              <IconComponent className='size-[16px] text-white' />
+              <IconComponent
+                className={`size-[16px] ${enabled ? getTileIconColorClass(blockConfig.bgColor) : 'text-[var(--text-icon)]'}`}
+              />
             </div>
           )}
           <span

@@ -16,10 +16,13 @@ import {
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
 import {
+  type AllMembersConflict,
   acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
+  findAllMembersWorkspaceConflict,
   findScopeConflicts,
   findWorkspacesNotInOrganization,
+  formatAllMembersConflictError,
   formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
@@ -45,7 +48,7 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
     }
 
-    const workspaces = group.appliesToAllWorkspaces ? [] : await getGroupWorkspaces(id)
+    const workspaces = group.isDefault ? [] : await getGroupWorkspaces(id)
 
     return NextResponse.json({
       permissionGroup: {
@@ -69,6 +72,7 @@ export const PUT = withRouteHandler(
     // Populated inside the transaction when a scope conflict is detected, so the
     // catch can format the 409 after the rollback.
     let scopeConflicts: ScopeConflict[] = []
+    let allMembersConflict: AllMembersConflict | null = null
 
     try {
       const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
@@ -111,28 +115,32 @@ export const PUT = withRouteHandler(
         ? { ...currentConfig, ...updates.config }
         : currentConfig
 
-      // Resolve the target workspace scope. Setting the group as default forces
-      // all-workspaces; otherwise an explicit `appliesToAllWorkspaces` wins, and
-      // supplying `workspaceIds` alone implies a specific scope.
-      const scopeProvided =
-        updates.appliesToAllWorkspaces !== undefined ||
-        updates.workspaceIds !== undefined ||
-        updates.isDefault === true
+      // Demoting the org default with no new scope: it becomes a non-default
+      // group with no workspaces (inert) until an admin re-scopes it. The client
+      // sends only `isDefault: false`, so this never forwards a workspace list.
+      const demotingDefaultToInert =
+        group.isDefault && updates.isDefault === false && updates.workspaceIds === undefined
 
-      const resolvedAppliesToAll =
-        updates.isDefault === true
-          ? true
-          : updates.appliesToAllWorkspaces !== undefined
-            ? updates.appliesToAllWorkspaces
-            : updates.workspaceIds !== undefined
-              ? false
-              : group.appliesToAllWorkspaces
-
+      // "Org-wide" is definitionally `isDefault` (the default group), so the
+      // effective scope follows it: a default group targets no specific
+      // workspaces; a non-default group targets its `workspaceIds`.
       const effectiveIsDefault =
         updates.isDefault !== undefined ? updates.isDefault : group.isDefault
-      if (effectiveIsDefault && !resolvedAppliesToAll) {
+
+      // Scope is rewritten when the group is promoted to default, demoted to
+      // inert, or handed an explicit workspace list.
+      const scopeProvided =
+        demotingDefaultToInert || updates.workspaceIds !== undefined || updates.isDefault === true
+
+      // The default group governs every workspace, so it can't also name specific
+      // ones. The contract rejects `isDefault: true` + workspaceIds, but a direct
+      // API caller can still send workspaceIds against a group that is already the
+      // default — reject rather than silently dropping them.
+      if (effectiveIsDefault && updates.workspaceIds !== undefined) {
         return NextResponse.json(
-          { error: 'The default group must apply to all workspaces' },
+          {
+            error: 'The default group governs all workspaces and cannot target specific workspaces',
+          },
           { status: 400 }
         )
       }
@@ -142,14 +150,11 @@ export const PUT = withRouteHandler(
       // ("keep current"), they're read under the lock instead (see below) so the
       // conflict check and the write share one consistent snapshot.
       let providedWorkspaceIds: string[] | null = null
-      if (!resolvedAppliesToAll && updates.workspaceIds !== undefined) {
+      if (!effectiveIsDefault && updates.workspaceIds !== undefined) {
+        // Zero workspaces is allowed on update: the group then governs nothing
+        // (the resolver inner-joins on the link table, so an empty group never
+        // matches any workspace). No "at least one" floor here.
         providedWorkspaceIds = Array.from(new Set(updates.workspaceIds))
-        if (providedWorkspaceIds.length === 0) {
-          return NextResponse.json(
-            { error: 'Select at least one workspace when the group targets specific workspaces' },
-            { status: 400 }
-          )
-        }
         const invalid = await findWorkspacesNotInOrganization(providedWorkspaceIds, organizationId)
         if (invalid.length > 0) {
           return NextResponse.json(
@@ -175,12 +180,12 @@ export const PUT = withRouteHandler(
         if (scopeProvided) {
           await acquirePermissionGroupOrgLock(tx, organizationId)
 
-          if (!resolvedAppliesToAll) {
+          if (!effectiveIsDefault) {
+            // May resolve to an empty list — a non-default group is allowed to
+            // target zero workspaces (governs nothing). The write below deletes
+            // the old links and inserts none.
             resolvedWorkspaceIds =
               providedWorkspaceIds ?? (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
-            if (resolvedWorkspaceIds.length === 0) {
-              throw new Error('NO_WORKSPACES')
-            }
           }
 
           const members = await tx
@@ -191,7 +196,6 @@ export const PUT = withRouteHandler(
             {
               organizationId,
               excludeGroupId: id,
-              appliesToAllWorkspaces: resolvedAppliesToAll,
               workspaceIds: resolvedWorkspaceIds,
               candidateUserIds: members.map((m) => m.userId),
             },
@@ -201,9 +205,25 @@ export const PUT = withRouteHandler(
             scopeConflicts = conflicts
             throw new Error('SCOPE_CONFLICT')
           }
+
+          // With no explicit members the group governs all members of its
+          // workspaces; reject when another all-members group already does.
+          if (!effectiveIsDefault && members.length === 0) {
+            const conflict = await findAllMembersWorkspaceConflict(
+              { organizationId, excludeGroupId: id, workspaceIds: resolvedWorkspaceIds },
+              tx
+            )
+            if (conflict) {
+              allMembersConflict = conflict
+              throw new Error('ALL_MEMBERS_CONFLICT')
+            }
+          }
         }
 
         if (updates.isDefault === true) {
+          // Demote the prior default to a non-default group (only the default may
+          // be org-wide); it ends up with no workspaces (inert) until an admin
+          // re-scopes it.
           await tx
             .update(permissionGroup)
             .set({ isDefault: false, updatedAt: now })
@@ -221,7 +241,6 @@ export const PUT = withRouteHandler(
             ...(updates.name !== undefined && { name: updates.name }),
             ...(updates.description !== undefined && { description: updates.description }),
             ...(updates.isDefault !== undefined && { isDefault: updates.isDefault }),
-            ...(scopeProvided && { appliesToAllWorkspaces: resolvedAppliesToAll }),
             config: newConfig,
             updatedAt: now,
           })
@@ -231,7 +250,7 @@ export const PUT = withRouteHandler(
           await tx
             .delete(permissionGroupWorkspace)
             .where(eq(permissionGroupWorkspace.permissionGroupId, id))
-          if (!resolvedAppliesToAll && resolvedWorkspaceIds.length > 0) {
+          if (!effectiveIsDefault && resolvedWorkspaceIds.length > 0) {
             await tx.insert(permissionGroupWorkspace).values(
               resolvedWorkspaceIds.map((workspaceId) => ({
                 id: generateId(),
@@ -251,7 +270,7 @@ export const PUT = withRouteHandler(
         .where(eq(permissionGroup.id, id))
         .limit(1)
 
-      const finalWorkspaceIds = updated.appliesToAllWorkspaces
+      const finalWorkspaceIds = updated.isDefault
         ? []
         : (await getGroupWorkspaces(id)).map((ws) => ws.id)
 
@@ -287,10 +306,14 @@ export const PUT = withRouteHandler(
           { status: 409 }
         )
       }
-      if (error instanceof Error && error.message === 'NO_WORKSPACES') {
+      if (
+        error instanceof Error &&
+        error.message === 'ALL_MEMBERS_CONFLICT' &&
+        allMembersConflict
+      ) {
         return NextResponse.json(
-          { error: 'Select at least one workspace when the group targets specific workspaces' },
-          { status: 400 }
+          { error: formatAllMembersConflictError(allMembersConflict) },
+          { status: 409 }
         )
       }
       if (getPostgresErrorCode(error) === '23505') {

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { generateShortId } from '@sim/utils/id'
-import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   isSimRuleEventType,

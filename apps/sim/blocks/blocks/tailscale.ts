@@ -29,6 +29,7 @@ export const TailscaleBlock: BlockConfig = {
         { label: 'Get Device Routes', id: 'get_device_routes' },
         { label: 'Set Device Routes', id: 'set_device_routes' },
         { label: 'Update Device Key', id: 'update_device_key' },
+        { label: 'Expire Device Key', id: 'expire_device_key' },
         { label: 'List DNS Nameservers', id: 'list_dns_nameservers' },
         { label: 'Set DNS Nameservers', id: 'set_dns_nameservers' },
         { label: 'Get DNS Preferences', id: 'get_dns_preferences' },
@@ -36,11 +37,14 @@ export const TailscaleBlock: BlockConfig = {
         { label: 'Get DNS Search Paths', id: 'get_dns_searchpaths' },
         { label: 'Set DNS Search Paths', id: 'set_dns_searchpaths' },
         { label: 'List Users', id: 'list_users' },
+        { label: 'Suspend User', id: 'suspend_user' },
+        { label: 'Delete User', id: 'delete_user' },
         { label: 'Create Auth Key', id: 'create_auth_key' },
         { label: 'List Auth Keys', id: 'list_auth_keys' },
         { label: 'Get Auth Key', id: 'get_auth_key' },
         { label: 'Delete Auth Key', id: 'delete_auth_key' },
         { label: 'Get ACL', id: 'get_acl' },
+        { label: 'Set ACL', id: 'set_acl' },
       ],
       value: () => 'list_devices',
     },
@@ -74,6 +78,7 @@ export const TailscaleBlock: BlockConfig = {
           'get_device_routes',
           'set_device_routes',
           'update_device_key',
+          'expire_device_key',
         ],
       },
       required: {
@@ -86,6 +91,7 @@ export const TailscaleBlock: BlockConfig = {
           'get_device_routes',
           'set_device_routes',
           'update_device_key',
+          'expire_device_key',
         ],
       },
     },
@@ -144,6 +150,11 @@ export const TailscaleBlock: BlockConfig = {
       placeholder: '8.8.8.8,8.8.4.4',
       condition: { field: 'operation', value: 'set_dns_nameservers' },
       required: { field: 'operation', value: 'set_dns_nameservers' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of DNS nameserver IP addresses (e.g., 8.8.8.8,8.8.4.4). Return ONLY the comma-separated IP addresses - no explanations, no extra text.',
+      },
     },
     {
       id: 'magicDNS',
@@ -163,6 +174,11 @@ export const TailscaleBlock: BlockConfig = {
       placeholder: 'corp.example.com,internal.example.com',
       condition: { field: 'operation', value: 'set_dns_searchpaths' },
       required: { field: 'operation', value: 'set_dns_searchpaths' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of DNS search path domains (e.g., corp.example.com,internal.example.com). Return ONLY the comma-separated domains - no explanations, no extra text.',
+      },
     },
     {
       id: 'keyId',
@@ -224,6 +240,30 @@ export const TailscaleBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_auth_key' },
       mode: 'advanced',
     },
+    {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Enter user ID',
+      condition: { field: 'operation', value: ['suspend_user', 'delete_user'] },
+      required: { field: 'operation', value: ['suspend_user', 'delete_user'] },
+    },
+    {
+      id: 'acl',
+      title: 'ACL Policy',
+      type: 'long-input',
+      placeholder: '{"acls": [{"action": "accept", "users": ["*"], "ports": ["*:*"]}]}',
+      condition: { field: 'operation', value: 'set_acl' },
+      required: { field: 'operation', value: 'set_acl' },
+    },
+    {
+      id: 'ifMatch',
+      title: 'If-Match ETag',
+      type: 'short-input',
+      placeholder: 'ETag from Get ACL, or "ts-default"',
+      condition: { field: 'operation', value: 'set_acl' },
+      mode: 'advanced',
+    },
   ],
 
   tools: {
@@ -236,6 +276,7 @@ export const TailscaleBlock: BlockConfig = {
       'tailscale_get_device_routes',
       'tailscale_set_device_routes',
       'tailscale_update_device_key',
+      'tailscale_expire_device_key',
       'tailscale_list_dns_nameservers',
       'tailscale_set_dns_nameservers',
       'tailscale_get_dns_preferences',
@@ -243,11 +284,14 @@ export const TailscaleBlock: BlockConfig = {
       'tailscale_get_dns_searchpaths',
       'tailscale_set_dns_searchpaths',
       'tailscale_list_users',
+      'tailscale_suspend_user',
+      'tailscale_delete_user',
       'tailscale_create_auth_key',
       'tailscale_list_auth_keys',
       'tailscale_get_auth_key',
       'tailscale_delete_auth_key',
       'tailscale_get_acl',
+      'tailscale_set_acl',
     ],
     config: {
       tool: (params) => `tailscale_${params.operation}`,
@@ -258,10 +302,13 @@ export const TailscaleBlock: BlockConfig = {
         }
         if (params.deviceId) mapped.deviceId = params.deviceId
         if (params.keyId) mapped.keyId = params.keyId
+        if (params.userId) mapped.userId = params.userId
         if (params.tags) mapped.tags = params.tags
         if (params.routes) mapped.routes = params.routes
         if (params.dnsServers) mapped.dns = params.dnsServers
         if (params.searchPaths) mapped.searchPaths = params.searchPaths
+        if (params.acl) mapped.acl = params.acl
+        if (params.ifMatch) mapped.ifMatch = params.ifMatch
         if (params.authorized !== undefined) mapped.authorized = params.authorized === 'true'
         if (params.keyExpiryDisabled !== undefined)
           mapped.keyExpiryDisabled = params.keyExpiryDisabled === 'true'
@@ -282,6 +329,9 @@ export const TailscaleBlock: BlockConfig = {
     tailnet: { type: 'string', description: 'Tailnet name' },
     deviceId: { type: 'string', description: 'Device ID' },
     keyId: { type: 'string', description: 'Auth key ID' },
+    userId: { type: 'string', description: 'User ID' },
+    acl: { type: 'string', description: 'ACL policy file as a JSON string' },
+    ifMatch: { type: 'string', description: 'ETag for optimistic concurrency on ACL updates' },
     authorized: { type: 'string', description: 'Authorization status' },
     keyExpiryDisabled: { type: 'string', description: 'Whether to disable key expiry' },
     tags: { type: 'string', description: 'Comma-separated tags' },
@@ -300,6 +350,7 @@ export const TailscaleBlock: BlockConfig = {
     devices: { type: 'json', description: 'List of devices in the tailnet' },
     count: { type: 'number', description: 'Total count of items returned' },
     id: { type: 'string', description: 'Device or auth key ID' },
+    nodeId: { type: 'string', description: 'Preferred device ID' },
     name: { type: 'string', description: 'Device name' },
     hostname: { type: 'string', description: 'Device hostname' },
     user: { type: 'string', description: 'Associated user' },
@@ -331,11 +382,12 @@ export const TailscaleBlock: BlockConfig = {
     key: { type: 'string', description: 'Auth key value (only at creation)' },
     keyId: { type: 'string', description: 'Auth key ID' },
     description: { type: 'string', description: 'Auth key description' },
-    expires: { type: 'string', description: 'Expiration timestamp' },
+    expires: { type: 'string', description: 'Device key or auth key expiration timestamp' },
     revoked: { type: 'string', description: 'Revocation timestamp' },
     capabilities: { type: 'json', description: 'Auth key capabilities' },
     acl: { type: 'string', description: 'ACL policy as JSON string' },
     etag: { type: 'string', description: 'ACL ETag for conditional updates' },
+    userId: { type: 'string', description: 'User ID' },
   },
 }
 
@@ -356,7 +408,7 @@ export const TailscaleBlockMeta = {
       icon: TailscaleIcon,
       title: 'Tailscale ACL drift detector',
       prompt:
-        'Create a scheduled workflow that diffs Tailscale ACLs against the source of truth, alerts on drift, and writes the drift report to Slack.',
+        'Create a scheduled workflow that diffs Tailscale ACLs against the source of truth, alerts on drift to Slack, and, on approval, pushes the corrected policy back with Set ACL.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
@@ -376,7 +428,7 @@ export const TailscaleBlockMeta = {
       icon: TailscaleIcon,
       title: 'Tailscale offboarder',
       prompt:
-        "Create a workflow that on a Workday termination deletes the departing engineer's Tailscale devices, revokes their auth keys, and writes the security audit log.",
+        "Create a workflow that on a Workday termination deletes the departing engineer's Tailscale devices, revokes their auth keys, suspends their tailnet user account, and writes the security audit log.",
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'enterprise'],
@@ -429,9 +481,24 @@ export const TailscaleBlockMeta = {
     },
     {
       name: 'offboard-device',
-      description: 'Deauthorize or remove a departing user device and revoke its auth keys.',
+      description:
+        "Deauthorize or remove a departing user's devices and auth keys, then suspend or delete their tailnet account.",
       content:
-        '# Offboard a Tailscale Device\n\nRemove a device from the tailnet during offboarding so access is cut cleanly.\n\n## Steps\n1. Use List Devices to find the deviceId tied to the departing user.\n2. To immediately cut access use Authorize Device set to Deauthorize, or Delete Device to remove it entirely.\n3. Use List Auth Keys to find any keys the user created, then Delete Auth Key for each.\n4. Capture the device detail with Get Device before deletion if you need an audit record.\n\n## Output\nConfirm the device was deauthorized or deleted and list the revoked auth keys for the offboarding audit log.',
+        '# Offboard a Tailscale Device\n\nRemove a device from the tailnet during offboarding so access is cut cleanly.\n\n## Steps\n1. Use List Devices to find the deviceId tied to the departing user.\n2. To immediately cut access use Authorize Device set to Deauthorize, or Delete Device to remove it entirely.\n3. Use List Auth Keys to find any keys the user created, then Delete Auth Key for each.\n4. Use List Users to find the userId, then Suspend User to freeze access reversibly, or Delete User to remove the account entirely.\n5. Capture the device detail with Get Device before deletion if you need an audit record.\n\n## Output\nConfirm the device was deauthorized or deleted, the auth keys were revoked, and the user account was suspended or deleted for the offboarding audit log.',
+    },
+    {
+      name: 'update-tailnet-acl',
+      description:
+        'Push an updated ACL policy file to the tailnet using ETag-guarded writes to avoid clobbering concurrent edits.',
+      content:
+        '# Update the Tailnet ACL as Policy-as-Code\n\nApply a reviewed ACL change programmatically instead of editing it by hand in the admin console.\n\n## Steps\n1. Use Get ACL to fetch the current policy file and its etag.\n2. Compute or generate the new policy JSON from your source of truth (git, agent-authored rules, etc.).\n3. Use Set ACL with the new ACL Policy JSON, passing the etag from step 1 in If-Match to guard against concurrent updates (use "ts-default" instead if you only want to replace an untouched default policy).\n4. If the write fails with a precondition error, re-fetch the ACL and retry.\n\n## Output\nReturn the updated ACL JSON and its new etag, plus a summary of what changed for the change-management record.',
+    },
+    {
+      name: 'lock-down-compromised-device',
+      description:
+        "Immediately expire a suspected-compromised device's node key so it must re-authenticate before rejoining the tailnet.",
+      content:
+        "# Lock Down a Compromised Device\n\nCut off a device the moment it looks compromised, without waiting for its key to expire naturally.\n\n## Steps\n1. Use Get Device or List Devices to confirm the deviceId and review its tags, addresses, and lastSeen.\n2. Use Expire Device Key to immediately invalidate the device's node key so it can no longer connect until it re-authenticates.\n3. For a harder block, follow up with Authorize Device set to Deauthorize, or Delete Device to remove it outright.\n4. Log the deviceId, hostname, and user in the incident record.\n\n## Output\nConfirm the key was expired (and the device deauthorized/deleted if applicable) for the security incident log.",
     },
   ],
 } as const satisfies BlockMeta

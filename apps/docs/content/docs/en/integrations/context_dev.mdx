@@ -65,7 +65,7 @@ Scrape any URL and return the raw HTML content of the page.
 | --------- | ---- | ----------- |
 | `html` | string | Raw HTML content of the page |
 | `url` | string | The scraped URL |
-| `type` | string | Detected content type \(html, xml, json, text, csv, markdown, svg, pdf\) |
+| `type` | string | Detected content type \(html, xml, json, text, csv, markdown, svg, pdf, doc, docx\) |
 
 ### `context_dev_scrape_images`
 
@@ -177,7 +177,7 @@ Build a sitemap of a domain and return every discovered page URL.
 | --------- | ---- | ----------- |
 | `domain` | string | The domain that was mapped |
 | `urls` | array | All page URLs discovered from the sitemap |
-| `meta` | object | Sitemap discovery stats \(sitemapsDiscovered, sitemapsFetched, errors\) |
+| `meta` | object | Sitemap discovery stats \(sitemapsDiscovered, sitemapsFetched, sitemapsSkipped, errors\) |
 
 ### `context_dev_search`
 
@@ -191,6 +191,8 @@ Search the web with natural language and optionally scrape results to markdown.
 | `includeDomains` | array | No | Only return results from these domains |
 | `excludeDomains` | array | No | Exclude results from these domains |
 | `freshness` | string | No | Recency filter \(last_24_hours, last_week, last_month, last_year\) |
+| `numResults` | number | No | Number of results to return \(10-100, default 10\) |
+| `country` | string | No | Restrict results to a country \(ISO 3166-1 alpha-2 code, e.g. US\) |
 | `queryFanout` | boolean | No | Expand the query into parallel variants for broader coverage |
 | `markdownEnabled` | boolean | No | Scrape each result page to markdown \(default: false\) |
 | `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
@@ -275,7 +277,7 @@ Detect and extract structured product details from a single product page URL.
 
 ### `context_dev_extract_products`
 
-Extract the product catalog from a brand
+Extract the product catalog from a brand's website by domain (beta).
 
 #### Input
 
@@ -338,7 +340,7 @@ Extract the font families, usage stats, and font files used by a domain.
 
 ### `context_dev_scrape_styleguide`
 
-Extract a domain
+Extract a domain's design system: colors, typography, spacing, shadows, and UI components.
 
 #### Input
 
@@ -449,7 +451,7 @@ Retrieve brand data for a domain: logos, colors, backdrops, socials, address, an
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
 ### `context_dev_get_brand_by_name`
@@ -488,7 +490,7 @@ Retrieve brand data by company name: logos, colors, socials, address, and indust
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
 ### `context_dev_get_brand_by_email`
@@ -526,7 +528,7 @@ Retrieve brand data from a work email address. Free/disposable emails are reject
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
 ### `context_dev_get_brand_by_ticker`
@@ -565,7 +567,7 @@ Retrieve brand data for a public company by its stock ticker symbol.
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
 ### `context_dev_get_brand_simplified`
@@ -632,7 +634,7 @@ Identify the brand behind a raw bank/card transaction descriptor and return its 
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
 
 ### `context_dev_prefetch_domain`
@@ -657,7 +659,7 @@ Queue a domain for brand-data prefetching to reduce latency on later requests (s
 
 ### `context_dev_prefetch_by_email`
 
-Queue an email
+Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected.
 
 #### Input
 

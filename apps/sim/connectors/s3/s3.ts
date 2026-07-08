@@ -6,13 +6,22 @@ import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.ser
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { s3ConnectorMeta } from '@/connectors/s3/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate, readBodyWithLimit } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  isSkippedDocument,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+  takeIndexableWithinCap,
+} from '@/connectors/utils'
 import { encodeS3PathComponent, getSignatureKey } from '@/tools/s3/utils'
 
 const logger = createLogger('S3Connector')
 
 /** Maximum object size to sync. Larger objects are skipped during listing. */
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 
 /** Number of objects requested per ListObjectsV2 page (S3 caps at 1000). */
 const LIST_MAX_KEYS = 1000
@@ -509,23 +518,21 @@ export const s3Connector: ConnectorConfig = {
       cursor
     )
 
-    let documents = objects
-      .filter((entry) => isSupportedKey(entry.key, allowedExtensions))
-      .filter((entry) => entry.size > 0 && entry.size <= MAX_FILE_SIZE)
-      .map((entry) => objectToStub(ctx, entry))
+    const stubs = objects
+      .filter((entry) => isSupportedKey(entry.key, allowedExtensions) && entry.size > 0)
+      .map((entry) => stubOrSkipBySize(objectToStub(ctx, entry), entry.size, MAX_FILE_SIZE))
 
-    let slicedSome = false
-    if (maxObjects > 0) {
-      const remaining = maxObjects - previouslyFetched
-      if (documents.length > remaining) {
-        slicedSome = true
-        documents = documents.slice(0, remaining)
-      }
-    }
+    const { documents, indexableCount, capReached } = takeIndexableWithinCap(
+      stubs,
+      isSkippedDocument,
+      maxObjects,
+      previouslyFetched
+    )
+    const slicedSome = documents.length < stubs.length
 
-    const totalFetched = previouslyFetched + documents.length
+    const totalFetched = previouslyFetched + indexableCount
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxObjects > 0 && totalFetched >= maxObjects
+    const hitLimit = capReached
     const moreAvailable = slicedSome || (isTruncated && Boolean(nextContinuationToken))
     if (hitLimit && moreAvailable && syncContext) syncContext.listingCapped = true
 
@@ -563,13 +570,24 @@ export const s3Connector: ConnectorConfig = {
 
       if (declaredLength > MAX_FILE_SIZE) {
         logger.warn('Skipping oversized S3 object', { key, size: declaredLength })
-        return null
+        return markSkipped(
+          objectToStub(ctx, { key, etag, lastModified, size: declaredLength }),
+          sizeLimitSkipReason(MAX_FILE_SIZE)
+        )
       }
 
       const body = await readBodyWithLimit(response, MAX_FILE_SIZE)
       if (body === null) {
         logger.warn('Skipping oversized S3 object (size cap exceeded while streaming)', { key })
-        return null
+        return markSkipped(
+          objectToStub(ctx, {
+            key,
+            etag,
+            lastModified,
+            size: Number.isFinite(declaredLength) ? declaredLength : 0,
+          }),
+          sizeLimitSkipReason(MAX_FILE_SIZE)
+        )
       }
       const content = body.toString('utf-8')
       if (!content.trim()) return null

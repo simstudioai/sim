@@ -1,9 +1,27 @@
 import { setupGlobalFetchMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
-import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
+import {
+  remapCustomBlockInputKeys,
+  WorkflowBlockHandler,
+} from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+
+const { mockExecutorExecute, mockCreateSnapshot } = vi.hoisted(() => ({
+  mockExecutorExecute: vi.fn(),
+  mockCreateSnapshot: vi.fn(),
+}))
+
+vi.mock('@/executor', () => ({
+  Executor: class {
+    execute = mockExecutorExecute
+  },
+}))
+
+vi.mock('@/lib/logs/execution/snapshot/service', () => ({
+  snapshotService: { createSnapshotWithDeduplication: mockCreateSnapshot },
+}))
 
 vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: vi.fn().mockResolvedValue('test-token'),
@@ -161,6 +179,119 @@ describe('WorkflowBlockHandler', () => {
     })
   })
 
+  describe('workspace containment', () => {
+    const inputs = { workflowId: 'child-workflow-id' }
+
+    it('should fail a cross-workspace child in the draft loader path', async () => {
+      const ctx = { ...mockContext, workspaceId: 'workspace-parent' }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Foreign Workflow',
+              workspaceId: 'workspace-other',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+
+      await expect(handler.execute(ctx, mockBlock, inputs)).rejects.toThrow(
+        'Child workflow child-workflow-id belongs to a different workspace and cannot be executed'
+      )
+      expect(mockCreateSnapshot).not.toHaveBeenCalled()
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+    })
+
+    it('should fail a cross-workspace child in the deployed loader path', async () => {
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-parent',
+        isDeployedContext: true,
+      }
+
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                name: 'Foreign Workflow',
+                workspaceId: 'workspace-other',
+                variables: {},
+              },
+            }),
+        }
+      })
+
+      await expect(handler.execute(ctx, mockBlock, inputs)).rejects.toThrow(
+        'Child workflow child-workflow-id belongs to a different workspace and cannot be executed'
+      )
+      expect(mockCreateSnapshot).not.toHaveBeenCalled()
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+    })
+
+    it('should execute a same-workspace child as before', async () => {
+      const ctx = { ...mockContext, workspaceId: 'workspace-parent' }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      const result = await handler.execute(ctx, mockBlock, inputs)
+
+      expect(result).toMatchObject({
+        success: true,
+        childWorkflowId: 'child-workflow-id',
+        childWorkflowName: 'Child Workflow',
+        childWorkflowSnapshotId: 'snapshot-1',
+        result: { data: 'ok' },
+      })
+      expect(mockExecutorExecute).toHaveBeenCalledWith('child-workflow-id')
+    })
+
+    it('should fail closed when the executing context has no workspace', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+        'Cannot execute child workflow child-workflow-id: executing context has no workspace'
+      )
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+    })
+  })
+
   describe('loadChildWorkflow', () => {
     it('should return null for 404 responses', async () => {
       const workflowId = 'non-existent-workflow'
@@ -257,5 +388,47 @@ describe('WorkflowBlockHandler', () => {
         childTraceSpans: [],
       })
     })
+  })
+})
+
+describe('remapCustomBlockInputKeys', () => {
+  const childBlocks = {
+    start: {
+      type: 'start_trigger',
+      subBlocks: {
+        inputFormat: {
+          value: [
+            { id: 'f1', name: 'firstName', type: 'string' },
+            { id: 'f2', name: 'payload', type: 'object' },
+          ],
+        },
+      },
+    },
+  }
+
+  it('maps field ids to current names and drops keys with no matching field', () => {
+    const out = remapCustomBlockInputKeys(
+      { f1: 'Theodore', removed: 'stale' },
+      childBlocks as Record<string, unknown>
+    )
+    expect(out).toEqual({ firstName: 'Theodore' })
+    expect('removed' in out).toBe(false)
+  })
+
+  it('decodes an object/array input from its JSON-string value (no double-encoding)', () => {
+    const out = remapCustomBlockInputKeys(
+      { f1: 'Theodore', f2: '"hello"' },
+      childBlocks as Record<string, unknown>
+    )
+    expect(out).toEqual({ firstName: 'Theodore', payload: 'hello' })
+  })
+
+  it('parses a real object value and leaves invalid JSON as a raw string', () => {
+    expect(
+      remapCustomBlockInputKeys({ f2: '{"a":1}' }, childBlocks as Record<string, unknown>)
+    ).toEqual({ payload: { a: 1 } })
+    expect(
+      remapCustomBlockInputKeys({ f2: 'not json' }, childBlocks as Record<string, unknown>)
+    ).toEqual({ payload: 'not json' })
   })
 })

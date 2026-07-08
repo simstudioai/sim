@@ -1,4 +1,4 @@
-import { Calendar } from '@/components/emcn/icons'
+import { Calendar } from '@sim/emcn/icons'
 import type {
   PreviewColumn,
   PreviewRow,

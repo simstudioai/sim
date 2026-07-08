@@ -1,11 +1,10 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Label, Switch } from '@/components/emcn'
+import { handleKeyboardActivation, Label, Switch, toast } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
@@ -60,6 +59,7 @@ export function ChunkEditor({
 
   const [editedContent, setEditedContent] = useState(isCreateMode ? '' : chunkContent)
   const [savedContent, setSavedContent] = useState(chunkContent)
+  const validationToastIdRef = useRef<string | null>(null)
   const [tokenizerOn, setTokenizerOn] = useState(false)
   const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
   const savedContentRef = useRef(chunkContent)
@@ -109,8 +109,18 @@ export function ChunkEditor({
   const handleSave = useCallback(async () => {
     const content = editedContentRef.current
     const trimmed = content.trim()
-    if (trimmed.length === 0) throw new Error('Content cannot be empty')
-    if (trimmed.length > 10000) throw new Error('Content exceeds maximum length')
+    /** Toast every failed attempt, replacing the previous validation toast so retries refresh instead of stack. */
+    const failValidation = (message: string): never => {
+      if (validationToastIdRef.current) toast.dismiss(validationToastIdRef.current)
+      validationToastIdRef.current = toast.error(message)
+      throw new Error(message)
+    }
+    if (trimmed.length === 0) failValidation('Content cannot be empty')
+    if (trimmed.length > 10000) failValidation('Content exceeds maximum length (10,000 characters)')
+    if (validationToastIdRef.current) {
+      toast.dismiss(validationToastIdRef.current)
+      validationToastIdRef.current = null
+    }
 
     if (isCreateMode) {
       const created = await createChunk({
@@ -206,7 +216,7 @@ export function ChunkEditor({
       <div
         role='group'
         aria-label='Chunk content editor'
-        className='flex min-h-0 flex-1 cursor-text overflow-hidden'
+        className='flex min-h-0 flex-1 cursor-text flex-col overflow-hidden'
         onClick={(e) => {
           if (e.target === e.currentTarget) textareaRef.current?.focus()
         }}
@@ -218,7 +228,7 @@ export function ChunkEditor({
         {tokenizerOn ? (
           <div
             ref={tokenizedScrollRef}
-            className='h-full w-full cursor-default overflow-y-auto whitespace-pre-wrap break-words p-6 font-sans text-[var(--text-body)] text-sm'
+            className='mx-auto h-full w-full max-w-[48rem] cursor-default overflow-y-auto whitespace-pre-wrap break-words px-8 py-6 font-sans text-[var(--text-body)] text-sm'
           >
             {tokenStrings.map((token, index) => (
               <span
@@ -245,7 +255,7 @@ export function ChunkEditor({
                     ? 'This chunk is synced from a connector and cannot be edited'
                     : 'Read-only view'
             }
-            className='min-h-0 flex-1 resize-none border-0 bg-transparent p-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
+            className='mx-auto min-h-0 w-full max-w-[48rem] flex-1 resize-none border-0 bg-transparent px-8 py-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
             disabled={!canEdit}
             readOnly={!canEdit}
             spellCheck={false}

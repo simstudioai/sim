@@ -3,6 +3,7 @@ import {
   batchPresignedUploadResponseSchema,
   presignedUploadResponseSchema,
 } from '@/lib/api/contracts/file-uploads'
+import { workspaceFileIdSchema } from '@/lib/api/contracts/primitives'
 import {
   type ContractBodyInput,
   type ContractJsonResponse,
@@ -281,14 +282,10 @@ export const storageContextSchema = z.enum([
   'workspace-logos',
 ])
 
-export const downloadContextSchema = z.union([storageContextSchema, z.literal('general')])
-
 export const fileDownloadBodySchema = z
   .object({
     key: z.string().optional(),
     name: z.string().optional(),
-    isExecutionFile: z.boolean().optional(),
-    context: downloadContextSchema.optional(),
     url: z
       .string()
       .url()
@@ -465,11 +462,11 @@ export const fileServeQuerySchema = z.object({
 })
 
 export const fileViewParamsSchema = z.object({
-  id: z.string().uuid('File ID must be a valid UUID'),
+  id: workspaceFileIdSchema,
 })
 
 export const fileExportParamsSchema = z.object({
-  id: z.string().uuid('File ID must be a valid UUID'),
+  id: workspaceFileIdSchema,
 })
 
 export const boxUploadContract = defineRouteContract({

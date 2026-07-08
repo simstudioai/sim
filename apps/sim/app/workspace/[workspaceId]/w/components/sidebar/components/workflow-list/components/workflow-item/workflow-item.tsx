@@ -1,14 +1,12 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { chipVariants, cn } from '@sim/emcn'
+import { Lock } from '@sim/emcn/icons'
 import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { chipVariants } from '@/components/emcn'
-import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -44,6 +42,7 @@ import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 interface WorkflowItemProps {
+  workspaceId: string
   workflow: WorkflowMetadata
   active: boolean
 }
@@ -56,11 +55,19 @@ interface WorkflowItemProps {
  * @param props - Component props
  * @returns Workflow item with drag and selection support
  */
-export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
-  const { isAnyDragActive, dragDisabled, onWorkflowClick, onItemDragStart, onItemDragEnd } =
-    useSidebarListContext()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+export const WorkflowItem = memo(function WorkflowItem({
+  workspaceId,
+  workflow,
+  active,
+}: WorkflowItemProps) {
+  const {
+    isAnyDragActive,
+    dragDisabled,
+    activeWorkflowIdRef,
+    onWorkflowClick,
+    onItemDragStart,
+    onItemDragEnd,
+  } = useSidebarListContext()
   const selectedWorkflows = useFolderStore((state) => state.selectedWorkflows)
   const updateWorkflowMutation = useUpdateWorkflow()
   const userPermissions = useUserPermissionsContext()
@@ -106,7 +113,7 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
     useDeleteWorkflow({
       workspaceId,
       workflowIds: capturedSelectionRef.current?.workflowIds || [],
-      isActive: (workflowIds) => workflowIds.includes(params.workflowId as string),
+      isActive: (workflowIds) => workflowIds.includes(activeWorkflowIdRef.current ?? ''),
       onSuccess: () => setIsDeleteModalOpen(false),
     })
 
@@ -114,7 +121,7 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
     workspaceId,
     workflowIds: capturedSelectionRef.current?.workflowIds || [],
     folderIds: capturedSelectionRef.current?.folderIds || [],
-    isActiveWorkflow: (id) => id === params.workflowId,
+    isActiveWorkflow: (id) => id === activeWorkflowIdRef.current,
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
@@ -137,8 +144,8 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
     { workspaceId }
   )
 
-  const { handleExportWorkflow: handleExportWorkflows } = useExportWorkflow()
-  const { handleExportSelection } = useExportSelection()
+  const { handleExportWorkflow: handleExportWorkflows } = useExportWorkflow({ workspaceId })
+  const { handleExportSelection } = useExportSelection({ workspaceId })
 
   const handleDuplicate = useCallback(() => {
     if (!capturedSelectionRef.current) return
@@ -508,4 +515,4 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
       />
     </>
   )
-}
+})

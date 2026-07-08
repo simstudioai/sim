@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Upgrade } from '@/app/workspace/[workspaceId]/upgrade/upgrade'
 
@@ -9,5 +10,9 @@ export default async function UpgradePage({
   params: Promise<{ workspaceId: string }>
 }) {
   const { workspaceId } = await params
-  return <Upgrade workspaceId={workspaceId} />
+  return (
+    <Suspense fallback={<div className='h-full bg-[var(--bg)]' />}>
+      <Upgrade workspaceId={workspaceId} />
+    </Suspense>
+  )
 }

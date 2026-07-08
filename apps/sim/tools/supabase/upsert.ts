@@ -7,7 +7,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
   id: 'supabase_upsert',
   name: 'Supabase Upsert',
   description: 'Insert or update data in a Supabase table (upsert operation)',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -35,6 +35,13 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
       visibility: 'user-or-llm',
       description: 'The data to upsert (insert or update) - array of objects or a single object',
     },
+    onConflict: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated column(s) with a unique or primary key constraint to resolve conflicts on (e.g., "email"). Defaults to the primary key.',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -47,7 +54,11 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
     url: (params) => {
       const tableValidation = validateDatabaseIdentifier(params.table, 'table')
       if (!tableValidation.isValid) throw new Error(tableValidation.error)
-      return `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
+      if (params.onConflict?.trim()) {
+        url += `&on_conflict=${encodeURIComponent(params.onConflict.trim())}`
+      }
+      return url
     },
     method: 'POST',
     headers: (params) => {

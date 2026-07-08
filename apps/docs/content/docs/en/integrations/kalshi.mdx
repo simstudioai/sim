@@ -45,6 +45,15 @@ Retrieve a list of prediction markets from Kalshi with all filtering options (V2
 | `status` | string | No | Filter by market status: "unopened", "open", "closed", or "settled" |
 | `seriesTicker` | string | No | Filter by series ticker \(e.g., "KXBTC", "INX", "FED-RATE"\) |
 | `eventTicker` | string | No | Filter by event ticker \(e.g., "KXBTC-24DEC31", "INX-25JAN03"\) |
+| `minCreatedTs` | number | No | Minimum created timestamp in Unix seconds \(e.g., 1704067200\) |
+| `maxCreatedTs` | number | No | Maximum created timestamp in Unix seconds \(e.g., 1704153600\) |
+| `minUpdatedTs` | number | No | Minimum updated timestamp in Unix seconds \(e.g., 1704067200\) |
+| `minCloseTs` | number | No | Minimum close timestamp in Unix seconds \(e.g., 1704067200\) |
+| `maxCloseTs` | number | No | Maximum close timestamp in Unix seconds \(e.g., 1704153600\) |
+| `minSettledTs` | number | No | Minimum settled timestamp in Unix seconds \(e.g., 1704067200\) |
+| `maxSettledTs` | number | No | Maximum settled timestamp in Unix seconds \(e.g., 1704153600\) |
+| `tickers` | string | No | Comma-separated list of tickers \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
+| `mveFilter` | string | No | Multivariate event filter: "only" or "exclude" |
 | `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -160,6 +169,8 @@ Retrieve a list of events from Kalshi with optional filtering (V2 - exact API re
 | `status` | string | No | Filter by event status: "open", "closed", or "settled" |
 | `seriesTicker` | string | No | Filter by series ticker \(e.g., "KXBTC", "INX", "FED-RATE"\) |
 | `withNestedMarkets` | string | No | Include nested markets in response: "true" or "false" |
+| `withMilestones` | string | No | Include milestones in response: "true" or "false" |
+| `minCloseTs` | number | No | Minimum close timestamp in Unix seconds \(e.g., 1704067200\) |
 | `limit` | string | No | Number of results to return \(1-200, default: 200\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -249,6 +260,8 @@ Retrieve your open positions from Kalshi (V2 - exact API response)
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
+| `countFilter` | string | No | Restrict to positions with non-zero values for the given fields \(comma-separated\): "position", "total_traded" |
+| `subaccount` | string | No | Subaccount identifier to get positions for |
 | `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -287,6 +300,9 @@ Retrieve your orders from Kalshi with optional filtering (V2 with full API respo
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
 | `status` | string | No | Filter by order status: "resting", "canceled", or "executed" |
+| `minTs` | string | No | Minimum timestamp filter \(Unix timestamp, e.g., "1704067200"\) |
+| `maxTs` | string | No | Maximum timestamp filter \(Unix timestamp, e.g., "1704153600"\) |
+| `subaccount` | string | No | Subaccount identifier to filter orders |
 | `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -375,6 +391,7 @@ Retrieve the orderbook (yes and no bids) for a specific market (V2 - includes de
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+| `depth` | number | No | Number of price levels to return \(e.g., 10, 20\). Default: all levels |
 
 #### Output
 
@@ -397,6 +414,9 @@ Retrieve recent trades with additional filtering options (V2 - includes trade_id
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `minTs` | number | No | Minimum timestamp in Unix seconds \(e.g., 1704067200\) |
+| `maxTs` | number | No | Maximum timestamp in Unix seconds \(e.g., 1704153600\) |
 | `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -458,7 +478,7 @@ Retrieve OHLC candlestick data aggregated across all markets in an event (V2 - f
 
 ### `kalshi_get_fills`
 
-Retrieve your portfolio
+Retrieve your portfolio's fills/trades from Kalshi (V2 - exact API response)
 
 #### Input
 
@@ -470,6 +490,7 @@ Retrieve your portfolio
 | `orderId` | string | No | Filter by order ID \(e.g., "abc123-def456-ghi789"\) |
 | `minTs` | number | No | Minimum timestamp in Unix seconds \(e.g., 1704067200\) |
 | `maxTs` | number | No | Maximum timestamp in Unix seconds \(e.g., 1704153600\) |
+| `subaccount` | string | No | Subaccount identifier to get fills for |
 | `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -504,6 +525,7 @@ Retrieve your portfolio settlement history from Kalshi (V2 - exact API response)
 | `eventTicker` | string | No | Filter by event ticker \(e.g., "KXBTC-24DEC31"\) |
 | `minTs` | number | No | Minimum settled timestamp in Unix seconds \(e.g., 1704067200\) |
 | `maxTs` | number | No | Maximum settled timestamp in Unix seconds \(e.g., 1704153600\) |
+| `subaccount` | string | No | Subaccount number \(0 for primary, 1-63 for subaccounts\) |
 | `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -534,6 +556,7 @@ Retrieve details of a specific market series by ticker (V2 - exact API response)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `seriesTicker` | string | Yes | Series ticker identifier \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+| `includeVolume` | string | No | Include volume data in response \(true/false\) |
 
 #### Output
 
@@ -565,6 +588,9 @@ Retrieve a list of market series from Kalshi with optional filtering (V2 - exact
 | --------- | ---- | -------- | ----------- |
 | `category` | string | No | Filter by category \(e.g., "Economics", "Politics", "Crypto"\) |
 | `tags` | string | No | Filter by comma-separated tags |
+| `includeProductMetadata` | string | No | Include product metadata in response \(true/false\) |
+| `includeVolume` | string | No | Include volume data in response \(true/false\) |
+| `minUpdatedTs` | number | No | Minimum updated timestamp in Unix seconds \(e.g., 1704067200\) |
 
 #### Output
 
@@ -644,7 +670,7 @@ Create a new order on a Kalshi prediction market (V2 with full API response)
 | `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
 | `side` | string | Yes | Side of the order: "yes" or "no" |
 | `action` | string | Yes | Action type: "buy" or "sell" |
-| `count` | string | Yes | Number of contracts to trade \(e.g., "10", "100"\) |
+| `count` | string | No | Number of contracts to trade \(e.g., "10", "100"\). Provide count or countFp |
 | `type` | string | No | Order type: "limit" or "market" \(default: "limit"\) |
 | `yesPrice` | string | No | Yes price in cents \(1-99\) |
 | `noPrice` | string | No | No price in cents \(1-99\) |
@@ -658,6 +684,9 @@ Create a new order on a Kalshi prediction market (V2 with full API response)
 | `reduceOnly` | string | No | Set to 'true' for position reduction only |
 | `selfTradePreventionType` | string | No | Self-trade prevention: 'taker_at_cross' or 'maker' |
 | `orderGroupId` | string | No | Associated order group ID |
+| `countFp` | string | No | Count in fixed-point for fractional contracts |
+| `cancelOrderOnPause` | string | No | Set to 'true' to cancel order on market pause |
+| `subaccount` | string | No | Subaccount to use for the order |
 
 #### Output
 
@@ -772,6 +801,7 @@ Modify the price or quantity of an existing order on Kalshi (V2 with full API re
 | `noPrice` | string | No | Updated no price in cents \(1-99\) |
 | `yesPriceDollars` | string | No | Updated yes price in dollars \(e.g., "0.56"\) |
 | `noPriceDollars` | string | No | Updated no price in dollars \(e.g., "0.56"\) |
+| `countFp` | string | No | Count in fixed-point for fractional contracts |
 
 #### Output
 

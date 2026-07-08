@@ -122,7 +122,7 @@ export async function executeVfsGrep(
       const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
       result = isWorkspaceFileGrepPath(rawPath)
         ? await vfs.grepFile(rawPath, pattern, grepOptions)
-        : vfs.grep(pattern, rawPath, grepOptions)
+        : await vfs.grep(pattern, rawPath, grepOptions)
     }
     const key =
       outputMode === 'files_with_matches' ? 'files' : outputMode === 'count' ? 'counts' : 'matches'
@@ -324,7 +324,7 @@ export async function executeVfsRead(
       }
     }
 
-    const result = vfs.read(path, offset, limit)
+    const result = await vfs.read(path, offset, limit)
     if (!result) {
       const suggestions = vfs.suggestSimilar(path)
       logger.warn('vfs_read file not found', { path, suggestions })

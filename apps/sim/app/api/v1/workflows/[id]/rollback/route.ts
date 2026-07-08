@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1RollbackWorkflowBodySchema,

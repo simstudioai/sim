@@ -103,8 +103,31 @@ export const GoogleFormsBlock: BlockConfig = {
       id: 'pageSize',
       title: 'Page Size',
       type: 'short-input',
+      mode: 'advanced',
       placeholder: 'Max responses to retrieve (default 5000)',
       condition: { field: 'operation', value: 'get_responses' },
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Token from a previous response for the next page',
+      condition: { field: 'operation', value: 'get_responses' },
+    },
+    {
+      id: 'filter',
+      title: 'Filter',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'timestamp > 2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'get_responses' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Google Forms responses filter expression based on the user\'s description. Only timestamp filters are supported, in the form "timestamp > N" or "timestamp >= N" where N is an RFC3339 UTC datetime (e.g. 2024-01-01T00:00:00Z). Return ONLY the filter expression - no explanations, no extra text.',
+        placeholder: 'Describe the time range to filter responses by...',
+      },
     },
     // Create Form specific fields
     {
@@ -249,6 +272,8 @@ Example for "Add a required multiple choice question about favorite color":
           formId, // Canonical param from formSelector (basic) or manualFormId (advanced)
           responseId,
           pageSize,
+          pageToken,
+          filter,
           title,
           documentTitle,
           unpublished,
@@ -272,6 +297,8 @@ Example for "Add a required multiple choice question about favorite color":
               formId: effectiveFormId,
               responseId: responseId ? String(responseId).trim() : undefined,
               pageSize: pageSize ? Number(pageSize) : undefined,
+              pageToken: pageToken ? String(pageToken).trim() : undefined,
+              filter: filter ? String(filter).trim() : undefined,
             }
           case 'get_form':
           case 'list_watches':
@@ -324,6 +351,8 @@ Example for "Add a required multiple choice question about favorite color":
     formId: { type: 'string', description: 'Google Form ID' },
     responseId: { type: 'string', description: 'Specific response ID' },
     pageSize: { type: 'string', description: 'Max responses to retrieve' },
+    pageToken: { type: 'string', description: 'Page token for the next page of responses' },
+    filter: { type: 'string', description: 'Timestamp filter for responses' },
     title: { type: 'string', description: 'Form title for creation' },
     documentTitle: { type: 'string', description: 'Document title in Drive' },
     unpublished: { type: 'boolean', description: 'Create as unpublished' },
@@ -339,6 +368,15 @@ Example for "Add a required multiple choice question about favorite color":
     responses: {
       type: 'json',
       description: 'Array of form responses',
+      condition: {
+        field: 'operation',
+        value: 'get_responses',
+        and: { field: 'responseId', value: ['', undefined, null] },
+      },
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token to fetch the next page of responses',
       condition: {
         field: 'operation',
         value: 'get_responses',

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { knowledgeSearchBodySchema } from '@/lib/api/contracts/knowledge'
 import { parseJsonBody, validationErrorResponse } from '@/lib/api/server'

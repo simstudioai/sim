@@ -6,14 +6,21 @@ import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.ser
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  computeContentHash,
+  joinTagArray,
+  markSkipped,
+  parseTagDate,
+  sizeLimitSkipReason,
+} from '@/connectors/utils'
+import { normalizeGitLabHost, UnsafeGitLabHostError } from '@/tools/gitlab/utils'
 
 const logger = createLogger('GitLabConnector')
 
-const DEFAULT_HOST = 'gitlab.com'
 const PAGE_SIZE = 100
 /** Max repository file size to index. Larger blobs are skipped. */
-const MAX_FILE_SIZE = 10 * 1024 * 1024
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 /** Bytes sniffed for NUL when detecting binary files (matches git's heuristic). */
 const BINARY_SNIFF_BYTES = 8000
 
@@ -168,16 +175,16 @@ interface GitLabProject {
 }
 
 /**
- * Normalizes the host config value: trims whitespace, strips any protocol
- * prefix and trailing slashes, and falls back to gitlab.com when empty.
+ * Normalizes the host config value via the shared GitLab host normalizer:
+ * trims, strips any protocol prefix and trailing slashes, rejects structurally
+ * unsafe hosts (userinfo, whitespace, embedded path), and falls back to
+ * gitlab.com when empty. Shared with the GitLab tools and webhook provider so
+ * every surface resolves and validates hosts identically.
+ *
+ * @throws {UnsafeGitLabHostError} when a non-empty host is structurally unsafe.
  */
 function normalizeHost(rawHost: unknown): string {
-  const host = typeof rawHost === 'string' ? rawHost.trim() : ''
-  if (!host) return DEFAULT_HOST
-  return host
-    .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '')
-    .trim()
+  return normalizeGitLabHost(rawHost)
 }
 
 /**
@@ -324,9 +331,25 @@ function fileToDocument(
   const blobSha = file.blob_id?.trim()
   if (!blobSha) return null
 
+  const title = path.split('/').pop() || path
+  const skippedForSize = (size: number): ExternalDocument => {
+    logger.info('Skipping oversized GitLab file', { path, size })
+    return markSkipped(
+      {
+        externalId: `${FILE_PREFIX}${path}`,
+        title,
+        content: '',
+        mimeType: 'text/plain',
+        sourceUrl: buildFileSourceUrl(apiBase, encodedProject, host, projectPath, ref, path),
+        contentHash: buildFileContentHash(encodedProject, path, blobSha),
+        metadata: { contentType: 'file', title, path, size },
+      },
+      sizeLimitSkipReason(MAX_FILE_SIZE)
+    )
+  }
+
   if (typeof file.size === 'number' && file.size > MAX_FILE_SIZE) {
-    logger.info('Skipping oversized GitLab file', { path, size: file.size })
-    return null
+    return skippedForSize(file.size)
   }
 
   const raw = typeof file.content === 'string' ? file.content : ''
@@ -336,12 +359,10 @@ function fileToDocument(
     return null
   }
   if (buffer.byteLength > MAX_FILE_SIZE) {
-    logger.info('Skipping oversized GitLab file', { path, size: buffer.byteLength })
-    return null
+    return skippedForSize(buffer.byteLength)
   }
 
   const content = buffer.toString('utf8')
-  const title = path.split('/').pop() || path
   const body = composeBody(title, content)
   if (!body.trim()) return null
 
@@ -920,7 +941,18 @@ export const gitlabConnector: ConnectorConfig = {
       return { valid: false, error: 'Max items must be a positive number' }
     }
 
-    const host = normalizeHost(sourceConfig.host)
+    let host: string
+    try {
+      host = normalizeHost(sourceConfig.host)
+    } catch (error) {
+      if (error instanceof UnsafeGitLabHostError) {
+        return {
+          valid: false,
+          error: 'Host must be a valid GitLab domain (e.g. gitlab.example.com)',
+        }
+      }
+      throw error
+    }
     const apiBase = buildApiBase(host)
     const encodedProject = encodeProjectId(project)
     const choice = getContentTypeChoice(sourceConfig)

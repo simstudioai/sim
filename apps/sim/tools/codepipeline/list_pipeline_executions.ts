@@ -124,6 +124,10 @@ export const listPipelineExecutionsTool: ToolConfig<
           },
           triggerType: { type: 'string', description: 'What triggered the execution' },
           triggerDetail: { type: 'string', description: 'Detail about the trigger' },
+          rollbackTargetPipelineExecutionId: {
+            type: 'string',
+            description: 'Execution ID this run rolled back to, if it was a rollback',
+          },
           sourceRevisions: {
             type: 'array',
             description: 'Source revisions (commit IDs, summaries, URLs) for the execution',

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -11,7 +12,6 @@ import {
 import { WorkflowOperationSchema } from '@sim/realtime-protocol/schemas'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { ZodError } from 'zod'
 import { persistWorkflowOperation } from '@/database/operations'
 import type { AuthenticatedSocket } from '@/middleware/auth'

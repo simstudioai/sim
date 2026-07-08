@@ -1,13 +1,6 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { format } from 'date-fns'
-import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
-import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
@@ -24,14 +17,21 @@ import {
   chipContentGap,
   chipContentLabelClass,
   chipVariants,
+  cn,
   Loader,
   Tooltip,
   Trash,
-} from '@/components/emcn'
-import { Database, DatabaseX } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Database, DatabaseX } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { format } from 'date-fns'
+import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryState, useQueryStates } from 'nuqs'
+import { usePostHog } from 'posthog-js/react'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { cn } from '@/lib/core/utils/cn'
-import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
@@ -58,6 +58,16 @@ import {
   DocumentContextMenu,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import {
+  addConnectorParam,
+  DEFAULT_KB_SORT_COLUMN,
+  DEFAULT_KB_SORT_DIRECTION,
+  documentFiltersParsers,
+  documentFiltersUrlKeys,
+  type KbSortColumn,
+  pageParam,
+  pageUrlKeys,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -80,6 +90,7 @@ import {
   useUpdateDocument,
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 
@@ -169,12 +180,13 @@ interface TagValue {
  */
 function getDocumentTags(doc: DocumentData, definitions: TagDefinition[]): TagValue[] {
   const result: TagValue[] = []
+  const defsBySlot = new Map(definitions.map((d) => [d.tagSlot, d]))
 
   for (const slot of ALL_TAG_SLOTS) {
     const raw = doc[slot]
     if (raw == null) continue
 
-    const def = definitions.find((d) => d.tagSlot === slot)
+    const def = defsBySlot.get(slot)
     const fieldType = def?.fieldType || getFieldTypeForSlot(slot) || 'text'
 
     let value: string
@@ -208,9 +220,10 @@ export function KnowledgeBase({
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const pathname = usePathname()
-  const addConnectorParam = searchParams.get(ADD_CONNECTOR_SEARCH_PARAM)
+  const [addConnectorType, setAddConnectorType] = useQueryState(
+    addConnectorParam.key,
+    addConnectorParam.parser
+  )
   const posthog = usePostHog()
 
   useEffect(() => {
@@ -236,9 +249,7 @@ export function KnowledgeBase({
   })
   const { mutate: bulkDocumentMutation, isPending: isBulkOperating } = useBulkDocumentOperation()
 
-  const [searchQuery, setSearchQuery] = useState('')
   const [showTagsModal, setShowTagsModal] = useState(false)
-  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [tagFilterEntries, setTagFilterEntries] = useState<
     {
       id: string
@@ -253,22 +264,23 @@ export function KnowledgeBase({
 
   const activeTagFilters: DocumentTagFilter[] = useMemo(
     () =>
-      tagFilterEntries
-        .filter((f) => f.tagSlot && f.value.trim())
-        .map((f) => ({
+      tagFilterEntries.reduce<DocumentTagFilter[]>((acc, f) => {
+        if (!f.tagSlot || !f.value.trim()) return acc
+        // A `between` filter only applies once both bounds are set. Sending it
+        // with just the lower bound would be rejected at the API boundary and
+        // break the whole list while the user is still entering the range.
+        if (f.operator === 'between' && !f.valueTo.trim()) return acc
+        acc.push({
           tagSlot: f.tagSlot,
           fieldType: f.fieldType,
           operator: f.operator,
           value: f.value,
-          ...(f.operator === 'between' && f.valueTo ? { valueTo: f.valueTo } : {}),
-        })),
+          ...(f.operator === 'between' ? { valueTo: f.valueTo } : {}),
+        })
+        return acc
+      }, []),
     [tagFilterEntries]
   )
-
-  const handleSearchChange = useCallback((newQuery: string) => {
-    setSearchQuery(newQuery)
-    setCurrentPage(1)
-  }, [])
 
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(() => new Set())
   const [isSelectAllMode, setIsSelectAllMode] = useState(false)
@@ -278,32 +290,64 @@ export function KnowledgeBase({
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showConnectorsModal, setShowConnectorsModal] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
+  const [currentPage, setCurrentPage] = useQueryState(pageParam.key, {
+    ...pageParam.parser,
+    ...pageUrlKeys,
+  })
+
+  const [
+    { q: searchQuery, enabled: enabledFilter, sort: sortColumn, dir: sortDirection },
+    setDocumentFilters,
+  ] = useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The document query below reads a debounced value so it
+   * doesn't refetch on every keystroke. Changing the search resets pagination.
+   */
+  const handleSearchChange = useCallback(
+    (newQuery: string) => {
+      const trimmed = newQuery.trim()
+      const next = trimmed.length > 0 ? trimmed : null
+      setDocumentFilters(
+        { q: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(300) }
+      )
+      setCurrentPage(1)
+    },
+    [setDocumentFilters, setCurrentPage]
+  )
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  /**
+   * The resolved sort is exposed to the sort menu only when it differs from the
+   * default, mirroring the prior `null`-means-default semantics.
+   */
+  const activeSort = useMemo(
+    () =>
+      sortColumn === DEFAULT_KB_SORT_COLUMN && sortDirection === DEFAULT_KB_SORT_DIRECTION
+        ? null
+        : { column: sortColumn, direction: sortDirection },
+    [sortColumn, sortDirection]
+  )
+
+  const setEnabledFilter = useCallback(
+    (value: 'all' | 'enabled' | 'disabled') => {
+      setDocumentFilters({ enabled: value })
+      setCurrentPage(1)
+    },
+    [setDocumentFilters, setCurrentPage]
+  )
+
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
-  const showAddConnectorModal = addConnectorParam != null
-  const searchParamsRef = useRef(searchParams)
-  searchParamsRef.current = searchParams
+  const showAddConnectorModal = addConnectorType != null
   const updateAddConnectorParam = useCallback(
     (value: string | null) => {
-      const current = searchParamsRef.current
-      const currentValue = current.get(ADD_CONNECTOR_SEARCH_PARAM)
-      if (value === currentValue || (value === null && currentValue === null)) return
-      const next = new URLSearchParams(current.toString())
-      if (value === null) {
-        next.delete(ADD_CONNECTOR_SEARCH_PARAM)
-      } else {
-        next.set(ADD_CONNECTOR_SEARCH_PARAM, value)
-      }
-      const qs = next.toString()
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      void setAddConnectorType(value, { history: 'replace', scroll: false })
     },
-    [pathname, router]
+    [setAddConnectorType]
   )
   const setShowAddConnectorModal = useCallback(
     (open: boolean) => updateAddConnectorParam(open ? '' : null),
@@ -338,11 +382,11 @@ export function KnowledgeBase({
     updateDocument,
     refreshDocuments,
   } = useKnowledgeBaseDocuments(id, {
-    search: searchQuery || undefined,
+    search: debouncedSearchQuery || undefined,
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
-    sortBy: (activeSort?.column ?? 'uploadedAt') as DocumentSortField,
-    sortOrder: (activeSort?.direction ?? 'desc') as SortOrder,
+    sortBy: sortColumn as DocumentSortField,
+    sortOrder: sortDirection as SortOrder,
     refetchInterval: (data) => {
       if (isDeleting) return false
       const hasPending = data?.documents?.some(
@@ -860,15 +904,19 @@ export function KnowledgeBase({
       ],
       active: activeSort,
       onSort: (column, direction) => {
-        setActiveSort({ column, direction })
+        setDocumentFilters({ sort: column as KbSortColumn, dir: direction })
         setCurrentPage(1)
       },
+      /**
+       * Clearing writes the defaults back (stripped by clearOnDefault), so the
+       * sort menu reads "no active sort" again and the URL stays clean.
+       */
       onClear: () => {
-        setActiveSort(null)
+        setDocumentFilters({ sort: DEFAULT_KB_SORT_COLUMN, dir: DEFAULT_KB_SORT_DIRECTION })
         setCurrentPage(1)
       },
     }),
-    [activeSort]
+    [activeSort, setDocumentFilters, setCurrentPage]
   )
 
   const filterContent = useMemo(
@@ -882,11 +930,10 @@ export function KnowledgeBase({
                 variant='ghost'
                 onClick={() => {
                   setEnabledFilter('all')
-                  setCurrentPage(1)
                   setSelectedDocuments(new Set())
                   setIsSelectAllMode(false)
                 }}
-                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
+                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
               >
                 Clear
               </Button>
@@ -898,7 +945,6 @@ export function KnowledgeBase({
             onChange={(value) => {
               if (value !== 'all' && value !== 'enabled' && value !== 'disabled') return
               setEnabledFilter(value)
-              setCurrentPage(1)
               setSelectedDocuments(new Set())
               setIsSelectAllMode(false)
             }}
@@ -971,16 +1017,15 @@ export function KnowledgeBase({
               label: `Status: ${enabledFilter === 'enabled' ? 'Enabled' : 'Disabled'}`,
               onRemove: () => {
                 setEnabledFilter('all')
-                setCurrentPage(1)
                 setSelectedDocuments(new Set())
                 setIsSelectAllMode(false)
               },
             },
           ]
         : []),
-      ...tagFilterEntries
-        .filter((f) => f.tagSlot && f.value.trim())
-        .map((f) => ({
+      ...tagFilterEntries.reduce<{ label: string; onRemove: () => void }[]>((acc, f) => {
+        if (!f.tagSlot || !f.value.trim()) return acc
+        acc.push({
           label: `${f.tagName}: ${f.value}`,
           onRemove: () => {
             const updated = tagFilterEntries.filter((e) => e.id !== f.id)
@@ -989,7 +1034,9 @@ export function KnowledgeBase({
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
           },
-        })),
+        })
+        return acc
+      }, []),
     ],
     [enabledFilter, tagFilterEntries]
   )
@@ -1284,7 +1331,7 @@ export function KnowledgeBase({
           onOpenChange={setShowAddConnectorModal}
           onConnectorTypeChange={updateAddConnectorParam}
           knowledgeBaseId={id}
-          initialConnectorType={addConnectorParam || undefined}
+          initialConnectorType={addConnectorType || undefined}
         />
       )}
 
@@ -1428,10 +1475,24 @@ const createEmptyEntry = (): TagFilterEntry => ({
   tagName: '',
   tagSlot: '',
   fieldType: 'text',
-  operator: 'eq',
+  operator: 'contains',
   value: '',
   valueTo: '',
 })
+
+/**
+ * Default operator when a tag is selected. Text filters default to `contains`
+ * so typing part of a value finds matches (exact `equals` stays one click away
+ * in the operator dropdown); other field types keep their first, equality
+ * operator.
+ */
+function getDefaultOperatorForFieldType(
+  fieldType: FilterFieldType,
+  operators: ReturnType<typeof getOperatorsForFieldType>
+): string {
+  if (fieldType === 'text') return 'contains'
+  return operators[0]?.value ?? 'eq'
+}
 
 interface TagFilterSectionProps {
   tagDefinitions: TagDefinition[]
@@ -1461,7 +1522,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
             fullWidth
             flush
           />
-          <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>to</span>
+          <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
           <ChipDatePicker
             value={entry.valueTo || undefined}
             onChange={(value) => onChange({ valueTo: value })}
@@ -1492,7 +1553,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
           onChange={(event) => onChange({ value: event.target.value })}
           placeholder='From'
         />
-        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>to</span>
+        <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
         <ChipInput
           value={entry.valueTo}
           onChange={(event) => onChange({ valueTo: event.target.value })}
@@ -1563,7 +1624,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
       tagName,
       tagSlot: def?.tagSlot || '',
       fieldType,
-      operator: operators[0]?.value || 'eq',
+      operator: getDefaultOperatorForFieldType(fieldType, operators),
       value: '',
       valueTo: '',
     })
@@ -1587,7 +1648,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
         {activeCount > 0 && (
           <Button
             variant='ghost'
-            className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
+            className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
             onClick={() => onChange([])}
           >
             Clear all
@@ -1610,7 +1671,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
             <div key={entry.id} className='flex flex-col gap-2'>
               {index > 0 && (
                 <div className='flex items-center gap-2'>
-                  <span className='shrink-0 text-[var(--text-muted)] text-xs leading-none'>
+                  <span className='shrink-0 text-[var(--text-muted)] text-caption leading-none'>
                     and
                   </span>
                   <div className='h-px flex-1 bg-[var(--border-1)]' />

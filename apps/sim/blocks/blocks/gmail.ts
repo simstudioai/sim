@@ -1,4 +1,4 @@
-import { Card } from '@/components/emcn/icons'
+import { Card } from '@sim/emcn/icons'
 import { GmailIcon, LemlistIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'

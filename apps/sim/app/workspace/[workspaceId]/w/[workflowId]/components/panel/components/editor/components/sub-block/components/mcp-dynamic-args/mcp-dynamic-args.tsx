@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
+import { Combobox, FieldDivider, Label, Slider, Switch } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Combobox, FieldDivider, Label, Slider, Switch } from '@/components/emcn/components'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'

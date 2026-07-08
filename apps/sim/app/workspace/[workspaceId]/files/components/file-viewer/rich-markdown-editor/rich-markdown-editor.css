@@ -1,0 +1,412 @@
+.rich-markdown-prose {
+  flex: 1 1 auto;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-inter);
+  font-size: 15px;
+  font-weight: 430;
+  line-height: 25px;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.rich-markdown-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* One consistent ring for every node that can only be selected as a whole (divider, image,
+   code block, table) — so a mouse click and a keyboard NodeSelection look identical. */
+.rich-markdown-prose .ProseMirror-selectednode {
+  outline: 2px solid var(--brand-secondary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* An image is its own framed element; ring the image itself so the indicator hugs the picture
+   rather than the node's bounding box, which can be far wider/taller than a small image. */
+.rich-markdown-prose .ProseMirror-selectednode:has(img) {
+  outline: none;
+}
+
+.rich-markdown-prose .ProseMirror-selectednode img {
+  outline: 2px solid var(--brand-secondary);
+  outline-offset: 2px;
+}
+
+/* The inline mention chip isn't a block leaf, so it skips the heavy outline ring above and just uses
+   the same native text-selection highlight as the surrounding prose. ProseMirror puts `selectednode`
+   on the node-view wrapper, so match it via `:has` (the chip span itself when it's the selected node). */
+.rich-markdown-prose .mention-chip.ProseMirror-selectednode,
+.rich-markdown-prose .ProseMirror-selectednode:has(.mention-chip) {
+  outline: none;
+}
+
+.rich-markdown-prose > * + * {
+  margin-top: 0.6em;
+}
+
+.rich-markdown-prose > :first-child {
+  margin-top: 0;
+}
+
+.rich-markdown-prose h1,
+.rich-markdown-prose h2,
+.rich-markdown-prose h3,
+.rich-markdown-prose h4,
+.rich-markdown-prose h5,
+.rich-markdown-prose h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.rich-markdown-prose h1 {
+  font-size: 1.6em;
+  margin-top: 1.4em;
+}
+
+.rich-markdown-prose h2 {
+  font-size: 1.3em;
+  margin-top: 1.3em;
+}
+
+.rich-markdown-prose h3 {
+  font-size: 1.1em;
+  margin-top: 1.2em;
+}
+
+.rich-markdown-prose h4 {
+  font-size: 1em;
+  margin-top: 1.1em;
+}
+
+.rich-markdown-prose h5 {
+  font-size: 0.875em;
+  margin-top: 1.1em;
+}
+
+.rich-markdown-prose h6 {
+  font-size: 0.8em;
+  margin-top: 1.1em;
+  color: var(--text-secondary);
+}
+
+.rich-markdown-prose strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.rich-markdown-prose em {
+  font-style: italic;
+  color: var(--text-primary);
+}
+
+.rich-markdown-prose del,
+.rich-markdown-prose s {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+}
+
+.rich-markdown-prose a {
+  color: var(--brand-secondary);
+  cursor: pointer;
+}
+
+.rich-markdown-prose a:hover {
+  text-decoration: underline;
+}
+
+/* Render the gap cursor (e.g. above a leading divider) as a normal vertical caret rather
+   than ProseMirror's default short horizontal bar, which reads as a stray underscore. */
+.rich-markdown-prose .ProseMirror-gapcursor::after {
+  top: 0;
+  width: 2px;
+  height: 1.25em;
+  border-top: none;
+  background-color: var(--text-primary);
+}
+
+/* …except between two adjacent leaves (dividers/images), where that caret floats as a stray mark in
+   empty space the view gives no hint about. Hide it there (matching Linear): the gap cursor stays
+   functional — typing still inserts a block between them — it just isn't drawn. Leading/trailing gaps
+   keep theirs. The keymap plugin sets `data-gap-between-leaves` when both neighbours are leaves. */
+.rich-markdown-prose[data-gap-between-leaves] .ProseMirror-gapcursor::after {
+  display: none;
+}
+
+.rich-markdown-prose ul,
+.rich-markdown-prose ol {
+  padding-left: 1.25em;
+}
+
+.rich-markdown-prose ul {
+  list-style: disc;
+}
+
+.rich-markdown-prose ol {
+  list-style: decimal;
+}
+
+.rich-markdown-prose li > p {
+  margin: 0;
+}
+
+.rich-markdown-prose li::marker {
+  color: var(--text-primary);
+}
+
+.rich-markdown-prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.rich-markdown-prose ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+/* One line tall with the box centered, so it aligns with the item's first line. */
+.rich-markdown-prose ul[data-type="taskList"] li > label {
+  display: flex;
+  align-items: center;
+  height: 1.6667em; /* = the prose 25px line-height at 15px font */
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.rich-markdown-prose ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* TaskItem nests content as li > div > p, which the `li > p` reset misses, leaving UA margins. */
+.rich-markdown-prose ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
+/* Match the design-system Checkbox (emcn) rather than the platform-native control. */
+.rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--border-1);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background-color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background-color: var(--surface-2);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.rich-markdown-prose blockquote {
+  border-left: 2px solid var(--divider);
+  padding-left: 1rem;
+  color: var(--text-primary);
+  font-style: italic;
+}
+
+.rich-markdown-prose code {
+  font-family: var(--font-martian-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  background: var(--surface-5);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 0.125rem 0.375rem;
+}
+
+.rich-markdown-prose pre,
+.rich-markdown-prose .mermaid-diagram-frame {
+  background: var(--surface-5);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+/* A rendered Mermaid diagram wears the same frame as a code block (single source of truth above),
+   centered within it. */
+.rich-markdown-prose .mermaid-diagram-frame {
+  display: flex;
+  justify-content: center;
+}
+
+/* Override ProseMirror's built-in `.ProseMirror pre { white-space: pre-wrap }` (the
+   `.code-editor-theme` class raises specificity so this wins): code blocks scroll by default and
+   only wrap when the line-wrap toggle sets data-wrap, breaking long unbroken tokens too. The
+   `overflow-wrap`/`word-break` resets undo the editor-wide `overflow-wrap: anywhere`, which would
+   otherwise still break a long unbroken token even under `white-space: pre`. */
+.rich-markdown-prose pre.code-editor-theme,
+.rich-markdown-prose pre.code-editor-theme code {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.rich-markdown-prose pre.code-editor-theme[data-wrap="true"],
+.rich-markdown-prose pre.code-editor-theme[data-wrap="true"] code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dark .rich-markdown-prose pre,
+.dark .rich-markdown-prose .mermaid-diagram-frame {
+  background: var(--code-bg);
+}
+
+.rich-markdown-prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 21px;
+}
+
+/* Raw, unrendered markdown constructs the schema has no real node/mark for (raw HTML blocks,
+   comments, footnotes) — held verbatim and re-emitted byte-for-byte on save (./raw-markdown-snippet.ts).
+   Same neutral surface as `code`/`pre` below (no color tint — a tint reads as a warning/error state,
+   which isn't the signal here); the hover "Raw HTML"/"Footnote" badge is what conveys "not interpreted". */
+.rich-markdown-prose .raw-markdown-block,
+.rich-markdown-prose .raw-markdown-inline {
+  font-family: var(--font-martian-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  color: var(--text-muted);
+  background: var(--surface-5);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dark .rich-markdown-prose .raw-markdown-block,
+.dark .rich-markdown-prose .raw-markdown-inline {
+  background: var(--code-bg);
+}
+
+.rich-markdown-prose .raw-markdown-block {
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.rich-markdown-prose .raw-markdown-inline {
+  border-radius: 4px;
+  padding: 0.0625rem 0.3rem;
+}
+
+.rich-markdown-prose hr {
+  border: none;
+  border-top: 1px solid var(--divider);
+  margin: 1.5em 0;
+}
+
+/* A divider/image swept into a range selection (e.g. select-all) — the browser's native ::selection
+   highlight skips leaf nodes (they hold no text), so the keymap's decoration paints the band itself.
+   A divider is a void <hr> (no pseudo-elements), so a box-shadow spreads the selection band around its
+   hairline without shifting layout; an image rings instead. */
+.rich-markdown-prose hr.rich-leaf-in-selection {
+  box-shadow: 0 0 0 0.4em var(--selection-bg);
+  border-radius: 1px;
+}
+
+.dark .rich-markdown-prose hr.rich-leaf-in-selection {
+  box-shadow: 0 0 0 0.4em var(--selection-dark);
+}
+
+.rich-markdown-prose .rich-leaf-in-selection:has(img) img,
+.rich-markdown-prose img.rich-leaf-in-selection {
+  outline: 2px solid var(--selection-bg);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.rich-markdown-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 1rem 0;
+  overflow: hidden;
+}
+
+.rich-markdown-prose th,
+.rich-markdown-prose td {
+  position: relative;
+  border: 1px solid var(--divider);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  font-size: 14px;
+  line-height: 1.5rem;
+}
+
+.rich-markdown-prose th {
+  background: var(--surface-4);
+  font-weight: 600;
+}
+
+.rich-markdown-prose th > p,
+.rich-markdown-prose td > p {
+  margin: 0;
+}
+
+.rich-markdown-prose .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surface-active);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.rich-markdown-prose .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--brand-secondary);
+  pointer-events: none;
+}
+
+/*
+ * prosemirror-tables' column-resizing plugin toggles the `resize-cursor` class on the editor root
+ * while the pointer is over a column boundary; without this rule the handle shows but the cursor
+ * never changes to the resize affordance.
+ */
+.rich-markdown-prose.resize-cursor {
+  cursor: col-resize;
+}
+
+.rich-markdown-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--text-subtle);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/*
+ * Field variant (modal embed): match the surrounding chip fields' typography exactly —
+ * body at the chip `text-sm` (14px) scale and the placeholder at `--text-muted` (not the
+ * lighter document `--text-subtle`), so the editor reads as one of the form's fields.
+ */
+.rich-markdown-field-prose {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.rich-markdown-field-prose p.is-editor-empty:first-child::before {
+  color: var(--text-muted);
+}

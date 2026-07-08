@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useRef, useState } from 'react'
 import {
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,7 +12,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import {
   ArrowLeft,
   ArrowRight,
@@ -23,9 +24,8 @@ import {
   PlayOutline,
   Trash,
   Workflow,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
-import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowGroupType } from '@/lib/table'
 import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -36,6 +36,18 @@ import type { DisplayColumn } from '../types'
  *  group-header options menu and the inline quick-run dropdown so the two
  *  surfaces stay in sync. */
 const LIMITED_RUN_PRESETS = [10, 1000] as const
+
+/** Labels for the table-scoped run items. With an active filter the run is
+ *  scoped to matching rows, so the labels say "filtered rows" to make the
+ *  narrowed target visible. Shared by both menu surfaces. */
+function runMenuLabels(hasActiveFilter: boolean) {
+  const rows = hasActiveFilter ? 'filtered rows' : 'rows'
+  return {
+    all: `Run all ${rows}`,
+    incomplete: `Run empty ${rows}`,
+    limited: (max: number) => `Run ${max.toLocaleString()} empty ${rows}`,
+  }
+}
 
 interface ColumnOptionsMenuProps {
   open: boolean
@@ -65,6 +77,9 @@ interface ColumnOptionsMenuProps {
   /** When set, surfaces a "Run N selected rows" item above Run all. */
   onRunColumnSelected?: () => void
   selectedRowCount?: number
+  /** Table-scoped run items honor the active filter; when true the labels say
+   *  "filtered rows" so the narrowed scope is visible. */
+  hasActiveFilter?: boolean
   /** When set, the menu surfaces a "View workflow" item that opens a popup
    *  preview of the configured workflow. */
   onViewWorkflow?: () => void
@@ -97,12 +112,14 @@ export function ColumnOptionsMenu({
   onRunColumnLimited,
   onRunColumnSelected,
   selectedRowCount = 0,
+  hasActiveFilter = false,
   onViewWorkflow,
   isPinned,
   onPinToggle,
 }: ColumnOptionsMenuProps) {
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
+  const runLabels = runMenuLabels(hasActiveFilter)
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -140,15 +157,15 @@ export function ColumnOptionsMenu({
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
-                  Run all rows
+                  {runLabels.all}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
-                  Run empty rows
+                  {runLabels.incomplete}
                 </DropdownMenuItem>
                 {onRunColumnLimited &&
                   LIMITED_RUN_PRESETS.map((max) => (
                     <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
-                      {`Run ${max.toLocaleString()} empty rows`}
+                      {runLabels.limited(max)}
                     </DropdownMenuItem>
                   ))}
               </DropdownMenuSubContent>
@@ -221,6 +238,9 @@ interface WorkflowGroupMetaCellProps {
   /** Row ids in the user's current multi-row selection; when non-empty the
    *  run menu adds a "Run N selected rows" option. */
   selectedRowIds?: string[] | null
+  /** True when the grid has an active filter — table-scoped run items apply
+   *  only to matching rows and are labeled "filtered rows". */
+  hasActiveFilter?: boolean
   /** Opens a popup preview of the underlying workflow. */
   onViewWorkflow?: (workflowId: string) => void
   /** When set, the meta cell becomes draggable and forwards events through
@@ -267,6 +287,7 @@ export function WorkflowGroupMetaCell({
   onDeleteColumn,
   onDeleteGroup,
   selectedRowIds,
+  hasActiveFilter = false,
   onViewWorkflow,
   onDragStart,
   onDragOver,
@@ -292,6 +313,7 @@ export function WorkflowGroupMetaCell({
   const didDragRef = useRef(false)
 
   const selectedCount = selectedRowIds?.length ?? 0
+  const runLabels = runMenuLabels(hasActiveFilter)
 
   function handleRunAll() {
     if (groupId) onRunColumn?.(groupId, 'all')
@@ -443,11 +465,13 @@ export function WorkflowGroupMetaCell({
                   {`Run ${selectedCount} selected ${selectedCount === 1 ? 'row' : 'rows'}`}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={handleRunAll}>Run all rows</DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleRunIncomplete}>Run empty rows</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleRunIncomplete}>
+                {runLabels.incomplete}
+              </DropdownMenuItem>
               {LIMITED_RUN_PRESETS.map((max) => (
                 <DropdownMenuItem key={max} onSelect={() => handleRunLimited(max)}>
-                  {`Run ${max.toLocaleString()} empty rows`}
+                  {runLabels.limited(max)}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -470,6 +494,7 @@ export function WorkflowGroupMetaCell({
           onRunColumnLimited={onRunColumn ? handleRunLimited : undefined}
           onRunColumnSelected={onRunColumn && selectedCount > 0 ? handleRunSelected : undefined}
           selectedRowCount={selectedCount}
+          hasActiveFilter={hasActiveFilter}
           onViewWorkflow={onViewWorkflow ? () => onViewWorkflow(workflowId) : undefined}
           isPinned={isPinned}
           onPinToggle={onPinToggle}

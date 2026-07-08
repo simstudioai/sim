@@ -1,5 +1,5 @@
 import {
-  STORAGE_MOVE_OUTPUT_PROPERTIES,
+  STORAGE_COPY_OUTPUT_PROPERTIES,
   type SupabaseStorageCopyParams,
   type SupabaseStorageCopyResponse,
 } from '@/tools/supabase/types'
@@ -10,7 +10,7 @@ export const storageCopyTool: ToolConfig<SupabaseStorageCopyParams, SupabaseStor
   id: 'supabase_storage_copy',
   name: 'Supabase Storage Copy',
   description: 'Copy a file within a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -86,8 +86,8 @@ export const storageCopyTool: ToolConfig<SupabaseStorageCopyParams, SupabaseStor
     message: { type: 'string', description: 'Operation status message' },
     results: {
       type: 'object',
-      description: 'Copy operation result',
-      properties: STORAGE_MOVE_OUTPUT_PROPERTIES,
+      description: 'Copy operation result with the destination object key',
+      properties: STORAGE_COPY_OUTPUT_PROPERTIES,
     },
   },
 }

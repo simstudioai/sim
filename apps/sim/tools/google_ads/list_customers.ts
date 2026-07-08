@@ -34,7 +34,7 @@ export const googleAdsListCustomersTool: ToolConfig<
   },
 
   request: {
-    url: 'https://googleads.googleapis.com/v19/customers:listAccessibleCustomers',
+    url: 'https://googleads.googleapis.com/v24/customers:listAccessibleCustomers',
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

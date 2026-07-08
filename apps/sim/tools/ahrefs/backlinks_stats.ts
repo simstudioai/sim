@@ -8,7 +8,7 @@ export const backlinksStatsTool: ToolConfig<
   id: 'ahrefs_backlinks_stats',
   name: 'Ahrefs Backlinks Stats',
   description:
-    'Get backlink statistics for a target domain or URL. Returns totals for different backlink types including dofollow, nofollow, text, image, and redirect links.',
+    'Get backlink and referring domain totals for a target domain or URL, both currently live and across all time.',
   version: '1.0.0',
 
   params: {
@@ -24,13 +24,13 @@ export const backlinksStatsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match). Example: "domain"',
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains, default), exact (exact URL match). Example: "domain"',
     },
     date: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Date for historical data in YYYY-MM-DD format (defaults to today)',
+      description: 'Date to report metrics on, in YYYY-MM-DD format (defaults to today)',
     },
     apiKey: {
       type: 'string',
@@ -64,16 +64,16 @@ export const backlinksStatsTool: ToolConfig<
       throw new Error(data.error?.message || data.error || 'Failed to get backlinks stats')
     }
 
+    const metrics = data.metrics || {}
+
     return {
       success: true,
       output: {
         stats: {
-          total: data.live ?? data.total ?? 0,
-          dofollow: data.live_dofollow ?? data.dofollow ?? 0,
-          nofollow: data.live_nofollow ?? data.nofollow ?? 0,
-          text: data.text ?? 0,
-          image: data.image ?? 0,
-          redirect: data.redirect ?? 0,
+          liveBacklinks: metrics.live ?? 0,
+          liveReferringDomains: metrics.live_refdomains ?? 0,
+          allTimeBacklinks: metrics.all_time ?? 0,
+          allTimeReferringDomains: metrics.all_time_refdomains ?? 0,
         },
       },
     }
@@ -82,14 +82,21 @@ export const backlinksStatsTool: ToolConfig<
   outputs: {
     stats: {
       type: 'object',
-      description: 'Backlink statistics summary',
+      description: 'Backlink and referring domain totals',
       properties: {
-        total: { type: 'number', description: 'Total number of live backlinks' },
-        dofollow: { type: 'number', description: 'Number of dofollow backlinks' },
-        nofollow: { type: 'number', description: 'Number of nofollow backlinks' },
-        text: { type: 'number', description: 'Number of text backlinks' },
-        image: { type: 'number', description: 'Number of image backlinks' },
-        redirect: { type: 'number', description: 'Number of redirect backlinks' },
+        liveBacklinks: { type: 'number', description: 'Number of currently live backlinks' },
+        liveReferringDomains: {
+          type: 'number',
+          description: 'Number of currently live referring domains',
+        },
+        allTimeBacklinks: {
+          type: 'number',
+          description: 'Total backlinks ever discovered, including lost ones',
+        },
+        allTimeReferringDomains: {
+          type: 'number',
+          description: 'Total referring domains ever discovered, including lost ones',
+        },
       },
     },
   },

@@ -1,18 +1,17 @@
 'use client'
 
+import { Chip } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip } from '@/components/emcn'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   InboxEnableToggle,
   InboxSettingsTab,
   InboxTaskList,
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 export function Inbox() {
   const params = useParams()
@@ -20,26 +19,30 @@ export function Inbox() {
   const workspaceId = params.workspaceId as string
 
   const { data: config, isLoading } = useInboxConfig(workspaceId)
-  const { data: subscriptionResponse, isLoading: isSubLoading } = useSubscriptionData({
-    enabled: isBillingEnabled,
-  })
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
+  const { canAdmin } = useUserPermissionsContext()
 
-  if (isLoading || (isBillingEnabled && isSubLoading)) {
+  if (isLoading) {
     return null
   }
 
-  if (isBillingEnabled && !subscriptionAccess.hasUsableMaxAccess) {
+  if (!config?.entitled) {
+    if (config?.enabled && canAdmin) {
+      return (
+        <SettingsPanel>
+          <InboxEnableToggle />
+        </SettingsPanel>
+      )
+    }
     return (
       <div className='flex h-full flex-col bg-[var(--bg)]'>
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
             <div className='flex flex-col items-center justify-center gap-4 py-20'>
               <div className='text-center'>
-                <h3 className='font-medium text-[16px] text-[var(--text-primary)]'>
+                <h3 className='font-medium text-[var(--text-primary)] text-md'>
                   Sim Mailer requires an active Max plan
                 </h3>
-                <p className='mt-1.5 text-[14px] text-[var(--text-muted)]'>
+                <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
                   Upgrade to Max and ensure billing is active to receive tasks via email and let Sim
                   work on your behalf.
                 </p>
@@ -59,25 +62,21 @@ export function Inbox() {
   }
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-6 pb-6'>
-          <InboxEnableToggle />
+    <SettingsPanel>
+      <InboxEnableToggle />
 
-          {config?.enabled && (
-            <>
-              <InboxSettingsTab />
+      {config?.enabled && (
+        <>
+          <InboxSettingsTab />
 
-              <SettingsSection label='Inbox'>
-                <p className='mb-3 text-[12px] text-[var(--text-muted)]'>
-                  Email tasks received by this workspace.
-                </p>
-                <InboxTaskList />
-              </SettingsSection>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+          <SettingsSection label='Inbox'>
+            <p className='mb-3 text-[var(--text-muted)] text-caption'>
+              Email tasks received by this workspace.
+            </p>
+            <InboxTaskList />
+          </SettingsSection>
+        </>
+      )}
+    </SettingsPanel>
   )
 }

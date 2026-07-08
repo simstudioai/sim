@@ -9,6 +9,15 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 
 const logger = createLogger('useVerification')
 
+/**
+ * Mutually-exclusive phases of the email-OTP verification machine.
+ * - `idle`: awaiting input
+ * - `verifying`: a verify request is in flight
+ * - `verified`: code accepted, redirecting
+ * - `error`: last verify attempt failed (paired with `errorMessage`)
+ */
+type VerificationStatus = 'idle' | 'verifying' | 'verified' | 'error'
+
 interface UseVerificationParams {
   hasEmailService: boolean
   isProduction: boolean
@@ -18,9 +27,8 @@ interface UseVerificationParams {
 interface UseVerificationReturn {
   otp: string
   email: string
-  isLoading: boolean
-  isVerified: boolean
-  isInvalidOtp: boolean
+  status: VerificationStatus
+  isResending: boolean
   errorMessage: string
   isOtpComplete: boolean
   hasEmailService: boolean
@@ -41,10 +49,9 @@ export function useVerification({
   const { refetch: refetchSession } = useSession()
   const [otp, setOtp] = useState('')
   const [email, setEmail] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [isVerified, setIsVerified] = useState(false)
+  const [status, setStatus] = useState<VerificationStatus>('idle')
+  const [isResending, setIsResending] = useState(false)
   const [isSendingInitialOtp, setIsSendingInitialOtp] = useState(false)
-  const [isInvalidOtp, setIsInvalidOtp] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null)
   const [isInviteFlow, setIsInviteFlow] = useState(false)
@@ -96,8 +103,7 @@ export function useVerification({
   async function verifyCode() {
     if (!isOtpComplete || !email) return
 
-    setIsLoading(true)
-    setIsInvalidOtp(false)
+    setStatus('verifying')
     setErrorMessage('')
 
     try {
@@ -108,7 +114,7 @@ export function useVerification({
       })
 
       if (response && !response.error) {
-        setIsVerified(true)
+        setStatus('verified')
 
         try {
           await refetchSession()
@@ -135,12 +141,9 @@ export function useVerification({
       } else {
         logger.info('Setting invalid OTP state - API error response')
         const message = 'Invalid verification code. Please check and try again.'
-        setIsInvalidOtp(true)
+        setStatus('error')
         setErrorMessage(message)
-        logger.info('Error state after API error:', {
-          isInvalidOtp: true,
-          errorMessage: message,
-        })
+        logger.info('Error state after API error:', { errorMessage: message })
         setOtp('')
       }
     } catch (error: any) {
@@ -155,23 +158,18 @@ export function useVerification({
         message = 'Too many failed attempts. Please request a new code.'
       }
 
-      setIsInvalidOtp(true)
+      setStatus('error')
       setErrorMessage(message)
-      logger.info('Error state after caught error:', {
-        isInvalidOtp: true,
-        errorMessage: message,
-      })
+      logger.info('Error state after caught error:', { errorMessage: message })
 
       setOtp('')
-    } finally {
-      setIsLoading(false)
     }
   }
 
   function resendCode() {
     if (!email || !hasEmailService || !isEmailVerificationEnabled) return
 
-    setIsLoading(true)
+    setIsResending(true)
     setErrorMessage('')
 
     const normalizedEmail = normalizeEmail(email)
@@ -185,32 +183,43 @@ export function useVerification({
         setErrorMessage('Failed to resend verification code. Please try again later.')
       })
       .finally(() => {
-        setIsLoading(false)
+        setIsResending(false)
       })
   }
 
+  /**
+   * On a complete (6-char) code, clear any lingering message — including a
+   * resend failure (which sets `errorMessage` while `status` stays `idle`) — and
+   * exit the error state, matching the prior unconditional reset on a full OTP.
+   */
   function handleOtpChange(value: string) {
     if (value.length === 6) {
-      setIsInvalidOtp(false)
+      if (status === 'error') setStatus('idle')
       setErrorMessage('')
     }
     setOtp(value)
   }
 
   useEffect(() => {
-    if (otp.length === 6 && email && !isLoading && !isVerified) {
+    if (
+      otp.length === 6 &&
+      email &&
+      status !== 'verifying' &&
+      status !== 'verified' &&
+      !isResending
+    ) {
       const timeoutId = setTimeout(() => {
         verifyCode()
       }, 300)
 
       return () => clearTimeout(timeoutId)
     }
-  }, [otp, email, isLoading, isVerified])
+  }, [otp, email, status, isResending])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (!isEmailVerificationEnabled) {
-        setIsVerified(true)
+        setStatus('verified')
 
         const handleRedirect = async () => {
           try {
@@ -234,9 +243,8 @@ export function useVerification({
   return {
     otp,
     email,
-    isLoading,
-    isVerified,
-    isInvalidOtp,
+    status,
+    isResending,
     errorMessage,
     isOtpComplete,
     hasEmailService,

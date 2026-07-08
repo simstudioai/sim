@@ -145,3 +145,126 @@ export interface ListDomainsResult extends ToolResponse {
     hasMore: boolean
   }
 }
+
+/** Cancel Email */
+export interface CancelEmailParams {
+  resendApiKey: string
+  cancelEmailId: string
+}
+
+export interface CancelEmailResult extends ToolResponse {
+  output: {
+    id: string
+  }
+}
+
+/** Create Audience */
+export interface CreateAudienceParams {
+  resendApiKey: string
+  audienceName: string
+}
+
+export interface CreateAudienceResult extends ToolResponse {
+  output: {
+    id: string
+    name: string
+  }
+}
+
+/** Get Audience */
+export interface GetAudienceParams {
+  resendApiKey: string
+  audienceId: string
+}
+
+export interface GetAudienceResult extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    createdAt: string
+  }
+}
+
+/** List Audiences */
+export interface ListAudiencesParams {
+  resendApiKey: string
+}
+
+export interface ListAudiencesResult extends ToolResponse {
+  output: {
+    audiences: Array<{
+      id: string
+      name: string
+      created_at: string
+    }>
+    hasMore: boolean
+  }
+}
+
+/** Delete Audience */
+export interface DeleteAudienceParams {
+  resendApiKey: string
+  audienceId: string
+}
+
+export interface DeleteAudienceResult extends ToolResponse {
+  output: {
+    id: string
+    deleted: boolean
+  }
+}
+
+/** Create Broadcast */
+export interface CreateBroadcastParams {
+  resendApiKey: string
+  audienceId: string
+  broadcastFrom: string
+  broadcastSubject: string
+  broadcastReplyTo?: string
+  broadcastHtml?: string
+  broadcastText?: string
+  broadcastName?: string
+  broadcastPreviewText?: string
+}
+
+export interface CreateBroadcastResult extends ToolResponse {
+  output: {
+    id: string
+  }
+}
+
+/** Send Broadcast */
+export interface SendBroadcastParams {
+  resendApiKey: string
+  broadcastId: string
+  broadcastScheduledAt?: string
+}
+
+export interface SendBroadcastResult extends ToolResponse {
+  output: {
+    id: string
+  }
+}
+
+/** Get Broadcast */
+export interface GetBroadcastParams {
+  resendApiKey: string
+  broadcastId: string
+}
+
+export interface GetBroadcastResult extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    audienceId: string | null
+    segmentId: string | null
+    from: string
+    subject: string
+    replyTo: string | string[] | null
+    previewText: string | null
+    status: string
+    createdAt: string
+    scheduledAt: string | null
+    sentAt: string | null
+  }
+}

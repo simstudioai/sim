@@ -21,7 +21,7 @@ vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
 }))
 
-vi.mock('@sim/workflow-authz', () => ({
+vi.mock('@sim/platform-authz/workflow', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
 }))
 

@@ -8,6 +8,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getUserProfile } from '@/lib/users/queries'
 
 const logger = createLogger('UpdateUserProfileAPI')
 
@@ -84,17 +85,7 @@ export const GET = withRouteHandler(async () => {
 
     const userId = session.user.id
 
-    const [userRecord] = await db
-      .select({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        emailVerified: user.emailVerified,
-      })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1)
+    const userRecord = await getUserProfile(userId)
 
     if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })

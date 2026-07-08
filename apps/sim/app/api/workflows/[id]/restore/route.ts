@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderMutable,
+  FolderLockedError,
+  WorkflowLockedError,
+} from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
-import { assertFolderMutable, FolderLockedError, WorkflowLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { restoreWorkflowContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'

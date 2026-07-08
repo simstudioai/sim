@@ -1,13 +1,14 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   bulkKnowledgeDocumentsContract,
   createKnowledgeDocumentsContract,
   listKnowledgeDocumentsQuerySchema,
+  parseDocumentTagFiltersParam,
 } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
@@ -23,8 +24,8 @@ import {
   getProcessingConfig,
   KnowledgeBaseFileOwnershipError,
   processDocumentsWithQueue,
-  type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
+import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
@@ -67,6 +68,18 @@ export const GET = withRouteHandler(
       const { enabledFilter, search, limit, offset, sortBy, sortOrder, tagFilters } =
         queryResult.data
 
+      let parsedTagFilters: TagFilterCondition[] | undefined
+      try {
+        parsedTagFilters = parseDocumentTagFiltersParam(tagFilters) as
+          | TagFilterCondition[]
+          | undefined
+      } catch {
+        return NextResponse.json(
+          { error: 'tagFilters must be a valid JSON array' },
+          { status: 400 }
+        )
+      }
+
       const result = await getDocuments(
         knowledgeBaseId,
         {
@@ -76,7 +89,7 @@ export const GET = withRouteHandler(
           offset,
           ...(sortBy && { sortBy }),
           ...(sortOrder && { sortOrder }),
-          tagFilters: tagFilters as TagFilterCondition[] | undefined,
+          tagFilters: parsedTagFilters,
         },
         requestId
       )

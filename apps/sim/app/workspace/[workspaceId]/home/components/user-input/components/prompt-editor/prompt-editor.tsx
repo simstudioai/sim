@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   OVERLAY_CLASSES,
@@ -27,6 +27,14 @@ export interface PromptEditorProps extends PromptEditorKeyPolicy {
   placeholder?: string
   /** Focuses the editor (caret at end) on mount. */
   autoFocus?: boolean
+  /**
+   * Renders the editor as a non-editable display surface: the textarea becomes
+   * `readOnly` (so the chip overlay still paints `@`-mention / `/`-skill chips
+   * and the text stays selectable/copyable) and the caret-anchored resource and
+   * skill menus are not mounted. Use for read-only records — e.g. a finished
+   * scheduled task — where the prompt should render with chips but not be edited.
+   */
+  readOnly?: boolean
   /**
    * Layout/sizing only — a height cap (`max-h-[200px]`) or fill (`flex-1`)
    * for the scroll container. The text chrome is owned by the editor.
@@ -56,6 +64,7 @@ export function PromptEditor({
   editor,
   placeholder,
   autoFocus = false,
+  readOnly = false,
   className,
   'aria-label': ariaLabel,
   onSubmit,
@@ -73,22 +82,24 @@ export function PromptEditor({
   }, [value, textareaRef])
 
   useEffect(() => {
-    if (autoFocus) editor.focusAtEnd()
+    if (autoFocus && !readOnly) editor.focusAtEnd()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only focus
   }, [])
 
   /**
    * Clicking the editor's empty regions (padding, space below the last line)
    * focuses the textarea; clicks on the textarea itself keep native caret
-   * placement.
+   * placement. No-op in read-only mode: the surface is display-only, so a
+   * padding click should not pull focus onto the non-editable textarea.
    */
   const handleSurfaceClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      if (readOnly) return
       if (e.target === textareaRef.current) return
       if ((e.target as HTMLElement).closest('button')) return
       textareaRef.current?.focus()
     },
-    [textareaRef]
+    [readOnly, textareaRef]
   )
 
   const overlayContent = useMemo(() => {
@@ -111,6 +122,11 @@ export function PromptEditor({
       return <span>{displayText}</span>
     }
 
+    const contextByLabel = new Map<string, (typeof contexts)[number]>()
+    for (const c of contexts) {
+      if (!contextByLabel.has(c.label)) contextByLabel.set(c.label, c)
+    }
+
     const elements: React.ReactNode[] = []
     let lastIndex = 0
     for (let i = 0; i < ranges.length; i++) {
@@ -122,7 +138,7 @@ export function PromptEditor({
       }
 
       const mentionLabel = stripMentionTrigger(range.token)
-      const matchingCtx = contexts.find((c) => c.label === mentionLabel)
+      const matchingCtx = contextByLabel.get(mentionLabel)
 
       const mentionIconNode = matchingCtx ? (
         <ContextMentionIcon
@@ -167,38 +183,45 @@ export function PromptEditor({
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={editor.handleInputChange}
-          onKeyDown={(e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty })}
-          onPaste={editor.handlePaste}
+          readOnly={readOnly}
+          onChange={readOnly ? undefined : editor.handleInputChange}
+          onKeyDown={
+            readOnly ? undefined : (e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty })
+          }
+          onPaste={readOnly ? undefined : editor.handlePaste}
           onCopy={editor.handleCopy}
-          onCut={editor.handleCut}
-          onSelect={editor.handleSelectAdjust}
-          onMouseUp={editor.handleSelectAdjust}
+          onCut={readOnly ? undefined : editor.handleCut}
+          onSelect={readOnly ? undefined : editor.handleSelectAdjust}
+          onMouseUp={readOnly ? undefined : editor.handleSelectAdjust}
           placeholder={placeholder}
           aria-label={ariaLabel}
           rows={1}
-          className={TEXTAREA_BASE_CLASSES}
+          className={cn(TEXTAREA_BASE_CLASSES, readOnly && 'cursor-default caret-transparent')}
         />
       </div>
 
-      <PlusMenuDropdown
-        ref={editor.plusMenuRef}
-        availableResources={editor.availableResources}
-        onResourceSelect={editor.insertResource}
-        onClose={editor.handlePlusMenuClose}
-        textareaRef={editor.textareaRef}
-        pendingCursorRef={editor.pendingCursorRef}
-        mentionQuery={editor.mentionQuery ?? undefined}
-      />
-      <SkillsMenuDropdown
-        ref={editor.skillsMenuRef}
-        skills={editor.skills}
-        onSkillSelect={editor.handleSkillSelect}
-        onClose={editor.handleSkillsMenuClose}
-        textareaRef={editor.textareaRef}
-        pendingCursorRef={editor.pendingCursorRef}
-        slashQuery={editor.slashQuery ?? undefined}
-      />
+      {!readOnly && (
+        <>
+          <PlusMenuDropdown
+            ref={editor.plusMenuRef}
+            availableResources={editor.availableResources}
+            onResourceSelect={editor.insertResource}
+            onClose={editor.handlePlusMenuClose}
+            textareaRef={editor.textareaRef}
+            pendingCursorRef={editor.pendingCursorRef}
+            mentionQuery={editor.mentionQuery ?? undefined}
+          />
+          <SkillsMenuDropdown
+            ref={editor.skillsMenuRef}
+            skills={editor.skills}
+            onSkillSelect={editor.handleSkillSelect}
+            onClose={editor.handleSkillsMenuClose}
+            textareaRef={editor.textareaRef}
+            pendingCursorRef={editor.pendingCursorRef}
+            slashQuery={editor.slashQuery ?? undefined}
+          />
+        </>
+      )}
     </div>
   )
 }

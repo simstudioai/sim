@@ -116,7 +116,13 @@ export const similarwebWebsiteOverviewTool: ToolConfig<
           search: sources.Search ?? sources.search ?? null,
           social: sources.Social ?? sources.social ?? null,
           mail: sources.Mail ?? sources.mail ?? null,
-          paidReferrals: sources['Paid Referrals'] ?? sources.paid_referrals ?? null,
+          paidReferrals:
+            sources['Paid Referrals'] ??
+            // SimilarWeb's API Lite response literally uses "paid _referrals" (space before
+            // the underscore) as the key for this field.
+            sources['paid _referrals'] ??
+            sources.paid_referrals ??
+            null,
         },
       },
     }

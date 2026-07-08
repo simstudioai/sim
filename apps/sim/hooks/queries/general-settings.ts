@@ -7,7 +7,7 @@ import {
   type MothershipEnvironment,
   type UserSettingsApi,
   updateUserSettingsContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/user'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 
@@ -20,6 +20,8 @@ export const generalSettingsKeys = {
   all: ['generalSettings'] as const,
   settings: () => [...generalSettingsKeys.all, 'settings'] as const,
 }
+
+export const GENERAL_SETTINGS_STALE_TIME = 60 * 60 * 1000
 
 /**
  * General settings type
@@ -79,7 +81,7 @@ export function useGeneralSettings() {
       syncThemeToNextThemes(settings.theme)
       return settings
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }
 
@@ -95,7 +97,7 @@ export function prefetchGeneralSettings(queryClient: QueryClient) {
       syncThemeToNextThemes(settings.theme)
       return settings
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }
 

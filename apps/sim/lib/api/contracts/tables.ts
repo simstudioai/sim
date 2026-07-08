@@ -1,8 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import type {
   CsvHeaderMapping,
+  EnrichmentRunDetail,
   Filter,
   RowData,
   Sort,
@@ -390,6 +392,18 @@ export const importTableAsyncBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   fileKey: z.string().min(1, 'fileKey is required'),
   fileName: z.string().min(1, 'fileName is required'),
+  /**
+   * Whether the source object is deleted once the import is terminal. Defaults to true (the upload
+   * flow stores a single-use temp object); pass false when importing an existing workspace file
+   * (e.g. the file viewer's "Import as a table") that must survive the import.
+   */
+  deleteSourceFile: z.boolean().optional(),
+  /**
+   * IANA zone used to interpret naive datetime strings in the file (Excel and
+   * Sheets exports carry no offset). Defaults to the importing user's saved
+   * timezone, else UTC.
+   */
+  timezone: ianaTimezoneSchema.optional(),
 })
 
 export type ImportTableAsyncBody = z.input<typeof importTableAsyncBodySchema>
@@ -672,6 +686,12 @@ export const importIntoTableAsyncBodySchema = z.object({
   mode: csvImportModeSchema,
   mapping: z.record(z.string(), z.string().nullable()).optional(),
   createColumns: z.array(z.string()).optional(),
+  /**
+   * IANA zone used to interpret naive datetime strings in the file (Excel and
+   * Sheets exports carry no offset). Defaults to the importing user's saved
+   * timezone, else UTC.
+   */
+  timezone: ianaTimezoneSchema.optional(),
 })
 
 export type ImportIntoTableAsyncBody = z.input<typeof importIntoTableAsyncBodySchema>
@@ -891,6 +911,29 @@ export const deleteTableRowContract = defineRouteContract({
     ),
   },
 })
+
+export const enrichmentDetailParamsSchema = tableRowParamsSchema.extend({
+  groupId: z.string().min(1),
+})
+
+/**
+ * Per-(row, group) enrichment cascade breakdown. Modeled as a domain object so
+ * the `EnrichmentRunDetail` TS type stays the single source of truth (matching
+ * `tableRowSchema` / `tableDefinitionSchema`). `null` when the cell has no
+ * recorded run or the run predates this feature.
+ */
+export const getEnrichmentDetailContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/rows/[rowId]/enrichment/[groupId]',
+  params: enrichmentDetailParamsSchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({ detail: domainObjectSchema<EnrichmentRunDetail>().nullable() })
+    ),
+  },
+})
+export type GetEnrichmentDetailResponse = ContractJsonResponse<typeof getEnrichmentDetailContract>
 
 export const deleteTableRowsContract = defineRouteContract({
   method: 'DELETE',
@@ -1297,13 +1340,17 @@ export const listActiveDispatchesContract = defineRouteContract({
     schema: successResponseSchema(
       z.object({
         dispatches: z.array(activeDispatchSchema),
-        /** Total cells across the table whose `status === 'running'`. The
-         *  client maintains this incrementally via cell SSE events; this
-         *  field is the bootstrap snapshot on mount. */
-        runningCellCount: z.number().int().nonnegative(),
-        /** Map rowId → number of running cells on that row. Drives the
-         *  per-row badge next to the Stop button. */
+        /** Map rowId → number of in-flight (queued/running/pending) cells on
+         *  that row. Sums to the "X running" badge and drives the per-row
+         *  gutter Run/Stop button. Server-authoritative: refetched on a
+         *  throttle as cell SSE events arrive, plus optimistic stamps on
+         *  run-click. */
         runningByRowId: z.record(z.string(), z.number().int().positive()),
+        /** Whether any in-flight cell is actually claimed by a worker
+         *  (`status === 'running'`) — table-wide, unlike the client's
+         *  loaded-rows view. Drives the header's "Queueing" vs "N running"
+         *  label once the run's active window scrolls past the loaded rows. */
+        hasRunning: z.boolean(),
       })
     ),
   },
@@ -1312,11 +1359,15 @@ export const listActiveDispatchesContract = defineRouteContract({
 export type ActiveDispatch = z.output<typeof activeDispatchSchema>
 
 export const tableEventStreamQuerySchema = z.object({
+  /** Replay cursor: events with `eventId > from` are replayed on connect.
+   *  `0` replays the whole buffer (prune recovery). Absent → the server tails
+   *  from the latest event id — a fresh mount has just fetched current state
+   *  from the DB, so replaying history would only rewind it. */
   from: z.preprocess((value) => {
-    if (typeof value !== 'string') return 0
+    if (typeof value !== 'string') return undefined
     const parsed = Number.parseInt(value, 10)
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
-  }, z.number().int().min(0)),
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
+  }, z.number().int().min(0).optional()),
 })
 
 export const tableEventStreamContract = defineRouteContract({

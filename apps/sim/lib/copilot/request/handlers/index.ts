@@ -33,17 +33,16 @@ export const subAgentHandlers: Record<string, StreamHandler> = {
   [MothershipStreamV1EventType.span]: handleSpanEvent,
 }
 
-export function handleSubagentRouting(event: StreamEvent, context: StreamingContext): boolean {
+export function handleSubagentRouting(event: StreamEvent, _context: StreamingContext): boolean {
   if (event.scope?.lane !== 'subagent') return false
 
-  // Keep the latest scoped parent on hand for legacy callers, but subagent
-  // handlers should prefer the event-local scope for correctness.
-  if (event.scope?.parentToolCallId) {
-    context.subAgentParentToolCallId = event.scope.parentToolCallId
-  }
-
-  if (!context.subAgentParentToolCallId) {
-    logger.warn('Subagent event missing parent tool call', {
+  // Scope-only attribution: a subagent event MUST carry its own parentToolCallId.
+  // With concurrent subagents there is no single "current" lane to fall back to —
+  // routing by a global pointer would mis-attribute interleaved events to the
+  // last-started subagent. A missing parentToolCallId is a contract violation
+  // (Go always stamps it), so warn and route to the main lane rather than guess.
+  if (!event.scope?.parentToolCallId) {
+    logger.warn('Subagent event missing parent tool call id; routing to main lane', {
       type: event.type,
       subagent: event.scope?.agentId,
     })

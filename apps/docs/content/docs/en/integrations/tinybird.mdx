@@ -30,7 +30,7 @@ Connect Tinybird to your workflows today to accelerate data-driven features, aut
 
 ## Usage Instructions
 
-Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.
+Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, manage Data Sources by appending from a URL, truncating, or deleting rows by condition, and poll the status of asynchronous jobs.
 
 
 
@@ -50,7 +50,7 @@ Send events to a Tinybird Data Source using the Events API. Supports JSON and ND
 | `wait` | boolean | No | Wait for database acknowledgment before responding. Enables safer retries but introduces latency. Defaults to false. |
 | `format` | string | No | Format of the events data: "ndjson" \(default\) or "json" |
 | `compression` | string | No | Compression format: "none" \(default\) or "gzip" |
-| `token` | string | Yes | Tinybird API Token with DATASOURCE:APPEND or DATASOURCE:CREATE scope |
+| `token` | string | Yes | Tinybird API Token with DATASOURCES:APPEND or DATASOURCES:CREATE scope |
 
 #### Output
 
@@ -70,7 +70,7 @@ Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.
 | `base_url` | string | Yes | Tinybird API base URL \(e.g., https://api.tinybird.co\) |
 | `query` | string | Yes | SQL query to execute. Specify your desired output format \(e.g., FORMAT JSON, FORMAT CSV, FORMAT TSV\). JSON format provides structured data, while other formats return raw text. Example: "SELECT * FROM my_datasource LIMIT 100 FORMAT JSON" |
 | `pipeline` | string | No | Optional pipe name. When provided, enables SELECT * FROM _ syntax. Example: "my_pipe", "analytics_pipe" |
-| `token` | string | Yes | Tinybird API Token with PIPE:READ scope |
+| `token` | string | Yes | Tinybird API Token with PIPES:READ scope |
 
 #### Output
 
@@ -96,7 +96,7 @@ Call a published Tinybird Pipe API Endpoint by name, passing dynamic parameters 
 | `pipe` | string | Yes | Name of the published Pipe API Endpoint to call. Example: "top_pages" |
 | `parameters` | json | No | Dynamic Pipe parameters as a JSON object, sent as query-string arguments. Example: \{"start_date": "2024-01-01", "limit": 10\} |
 | `q` | string | No | Optional SQL to run on top of the Pipe result. Use "_" to reference the Pipe. Example: "SELECT count\(\) FROM _" |
-| `token` | string | Yes | Tinybird API Token with PIPE:READ scope |
+| `token` | string | Yes | Tinybird API Token with PIPES:READ scope |
 
 #### Output
 
@@ -125,7 +125,7 @@ Append data to a Tinybird Data Source from a remote file URL (CSV, NDJSON, Parqu
 | `datasource` | string | Yes | Name of the existing Data Source to append to. Example: "events_raw" |
 | `url` | string | Yes | Publicly accessible URL of the file to append. Example: "https://example.com/data.csv" |
 | `format` | string | No | Format of the source file: "csv" \(default\), "ndjson", or "parquet" |
-| `token` | string | Yes | Tinybird API Token with DATASOURCES:CREATE scope |
+| `token` | string | Yes | Tinybird API Token with DATASOURCES:APPEND or DATASOURCES:CREATE scope |
 
 #### Output
 
@@ -182,5 +182,33 @@ Delete rows from a Tinybird Data Source matching a SQL condition.
 | `job_url` | string | URL to query the delete job status |
 | `status` | string | Current job status \(e.g., "waiting", "done"\) |
 | `job` | json | Full delete job details \(kind, id, status, delete_condition, rows_affected, ...\) |
+
+### `tinybird_get_job`
+
+Check the status of an asynchronous Tinybird job (import, delete, etc.) by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | Yes | Tinybird API base URL \(e.g., https://api.tinybird.co\) |
+| `job_id` | string | Yes | ID of the job to check, as returned by an append or delete operation |
+| `token` | string | Yes | Tinybird API Token with ADMIN scope, or the token that started the job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Job identifier |
+| `job_id` | string | Job identifier \(same as id\) |
+| `kind` | string | Job kind \(e.g., "import", "delete_data", "populateview", "copy"\) |
+| `status` | string | Current job status: "waiting", "working", "done", "error", or "cancelled" |
+| `job_url` | string | URL to re-query this job status |
+| `created_at` | string | Timestamp the job was created |
+| `started_at` | string | Timestamp the job started running |
+| `updated_at` | string | Timestamp of the last job status update |
+| `is_cancellable` | boolean | Whether the job can still be cancelled |
+| `error` | string | Error message, present only when status is "error" |
+| `job` | json | Full raw job details, including kind-specific fields \(statistics, datasource, delete_condition, etc.\) |
 
 

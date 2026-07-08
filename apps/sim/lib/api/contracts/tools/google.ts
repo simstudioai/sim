@@ -53,6 +53,13 @@ export const googleDriveDownloadBodySchema = z.object({
   includeRevisions: z.boolean().optional().default(true),
 })
 
+export const googleDriveExportBodySchema = z.object({
+  accessToken: googleAccessTokenSchema,
+  fileId: z.string().min(1, 'File ID is required'),
+  mimeType: z.string().min(1, 'Target export MIME type is required'),
+  fileName: z.string().optional().nullable(),
+})
+
 export const googleVaultDownloadExportFileBodySchema = z.object({
   accessToken: googleAccessTokenSchema,
   bucketName: z.string().min(1, 'Bucket name is required'),
@@ -175,6 +182,13 @@ export const googleDriveDownloadContract = defineRouteContract({
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
+export const googleDriveExportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/google_drive/export',
+  body: googleDriveExportBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
 export const googleVaultDownloadExportFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/google_vault/download-export-file',
@@ -202,6 +216,7 @@ export type GmailSendBody = ContractBodyInput<typeof gmailSendContract>
 export type GmailUnarchiveBody = ContractBodyInput<typeof gmailUnarchiveContract>
 export type GoogleDriveUploadBody = ContractBodyInput<typeof googleDriveUploadContract>
 export type GoogleDriveDownloadBody = ContractBodyInput<typeof googleDriveDownloadContract>
+export type GoogleDriveExportBody = ContractBodyInput<typeof googleDriveExportContract>
 export type GoogleVaultDownloadExportFileBody = ContractBodyInput<
   typeof googleVaultDownloadExportFileContract
 >
@@ -222,6 +237,7 @@ export type GmailSendResponse = ContractJsonResponse<typeof gmailSendContract>
 export type GmailUnarchiveResponse = ContractJsonResponse<typeof gmailUnarchiveContract>
 export type GoogleDriveUploadResponse = ContractJsonResponse<typeof googleDriveUploadContract>
 export type GoogleDriveDownloadResponse = ContractJsonResponse<typeof googleDriveDownloadContract>
+export type GoogleDriveExportResponse = ContractJsonResponse<typeof googleDriveExportContract>
 export type GoogleVaultDownloadExportFileResponse = ContractJsonResponse<
   typeof googleVaultDownloadExportFileContract
 >

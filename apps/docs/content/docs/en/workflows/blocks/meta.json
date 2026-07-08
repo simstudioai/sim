@@ -16,6 +16,7 @@
     "human-in-the-loop",
     "variables",
     "wait",
-    "credential"
+    "credential",
+    "pi"
   ]
 }

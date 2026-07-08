@@ -2,7 +2,11 @@ import { deleteChannelMessageTool } from '@/tools/microsoft_teams/delete_channel
 import { deleteChatMessageTool } from '@/tools/microsoft_teams/delete_chat_message'
 import { getMessageTool } from '@/tools/microsoft_teams/get_message'
 import { listChannelMembersTool } from '@/tools/microsoft_teams/list_channel_members'
+import { listChannelsTool } from '@/tools/microsoft_teams/list_channels'
+import { listChatMembersTool } from '@/tools/microsoft_teams/list_chat_members'
+import { listChatsTool } from '@/tools/microsoft_teams/list_chats'
 import { listTeamMembersTool } from '@/tools/microsoft_teams/list_team_members'
+import { listTeamsTool } from '@/tools/microsoft_teams/list_teams'
 import { readChannelTool } from '@/tools/microsoft_teams/read_channel'
 import { readChatTool } from '@/tools/microsoft_teams/read_chat'
 import { replyToMessageTool } from '@/tools/microsoft_teams/reply_to_message'
@@ -27,3 +31,7 @@ export const microsoftTeamsSetReactionTool = setReactionTool
 export const microsoftTeamsUnsetReactionTool = unsetReactionTool
 export const microsoftTeamsListTeamMembersTool = listTeamMembersTool
 export const microsoftTeamsListChannelMembersTool = listChannelMembersTool
+export const microsoftTeamsListChatMembersTool = listChatMembersTool
+export const microsoftTeamsListTeamsTool = listTeamsTool
+export const microsoftTeamsListChatsTool = listChatsTool
+export const microsoftTeamsListChannelsTool = listChannelsTool

@@ -16,10 +16,25 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
 
   configFields: [
     {
+      id: 'folderSelector',
+      title: 'Folders',
+      type: 'selector',
+      selectorKey: 'google.drive',
+      mimeType: 'application/vnd.google-apps.folder',
+      canonicalParamId: 'folderId',
+      mode: 'basic',
+      multi: true,
+      placeholder: 'Select one or more folders (optional)',
+      required: false,
+    },
+    {
       id: 'folderId',
-      title: 'Folder ID',
+      title: 'Folder IDs',
       type: 'short-input',
-      placeholder: 'e.g. 1aBcDeFgHiJkLmNoPqRsTuVwXyZ (optional)',
+      canonicalParamId: 'folderId',
+      mode: 'advanced',
+      multi: true,
+      placeholder: 'e.g. 1aBcDeFg…, 2cDeFgHi… (comma-separated for multiple)',
       required: false,
     },
     {

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import type { NextRequest } from 'next/server'
 import {
   type ApiKeyAuthResult,

@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { DAYTONA_TOOLBOX_BASE_URL, extractDaytonaError } from '@/tools/daytona/utils'
 
@@ -60,7 +61,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       logger.info(`[${requestId}] Downloading file: ${userFile.name} (${userFile.size} bytes)`)
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+      try {
+        const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+        fileBuffer = servable.buffer
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        logger.error(`[${requestId}] Failed to download file from storage:`, error)
+        return NextResponse.json(
+          { success: false, error: getErrorMessage(error, 'Failed to download file') },
+          { status: 500 }
+        )
+      }
       fileName = params.fileName || userFile.name
     } else if (params.fileContent) {
       logger.info(`[${requestId}] Using legacy base64 content input`)

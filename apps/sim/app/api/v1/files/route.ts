@@ -7,6 +7,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
   readFormDataWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -30,7 +31,6 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
-const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 /** GET /api/v1/files — List all files in a workspace. */
 export const GET = withRouteHandler(async (request: NextRequest) => {

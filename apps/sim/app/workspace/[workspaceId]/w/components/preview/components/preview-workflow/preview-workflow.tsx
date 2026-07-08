@@ -13,9 +13,9 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
+import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { cn } from '@/lib/core/utils/cn'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'

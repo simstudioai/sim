@@ -4,7 +4,7 @@ import { account, credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createWorkspaceCredentialContract,
@@ -17,6 +17,11 @@ import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  getCredentialActorContext,
+  isSharedCredentialType,
+  SHARED_CREDENTIAL_TYPES,
+} from '@/lib/credentials/access'
 import {
   AtlassianValidationError,
   normalizeAtlassianDomain,
@@ -228,7 +233,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       whereClauses.push(eq(credential.providerId, providerId))
     }
 
-    const credentials = await db
+    const isWorkspaceAdmin = workspaceAccess.canAdmin
+    const accessClause = isWorkspaceAdmin
+      ? or(
+          isNotNull(credentialMember.id),
+          inArray(credential.type, SHARED_CREDENTIAL_TYPES),
+          eq(credential.envOwnerUserId, session.user.id)
+        )
+      : or(isNotNull(credentialMember.id), eq(credential.envOwnerUserId, session.user.id))
+
+    const rows = await db
       .select({
         id: credential.id,
         workspaceId: credential.workspaceId,
@@ -242,10 +256,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         createdBy: credential.createdBy,
         createdAt: credential.createdAt,
         updatedAt: credential.updatedAt,
-        role: credentialMember.role,
+        memberRole: credentialMember.role,
       })
       .from(credential)
-      .innerJoin(
+      .leftJoin(
         credentialMember,
         and(
           eq(credentialMember.credentialId, credential.id),
@@ -253,7 +267,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           eq(credentialMember.status, 'active')
         )
       )
-      .where(and(...whereClauses))
+      .where(and(...whereClauses, accessClause))
+
+    const credentials = rows.map(({ memberRole, ...rest }) => ({
+      ...rest,
+      role:
+        isWorkspaceAdmin && isSharedCredentialType(rest.type) ? 'admin' : (memberRole ?? 'member'),
+    }))
 
     return NextResponse.json({ credentials })
   } catch (error) {
@@ -440,29 +460,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (existingCredential) {
-      const [membership] = await db
-        .select({
-          id: credentialMember.id,
-          status: credentialMember.status,
-          role: credentialMember.role,
-        })
-        .from(credentialMember)
-        .where(
-          and(
-            eq(credentialMember.credentialId, existingCredential.id),
-            eq(credentialMember.userId, session.user.id)
-          )
-        )
-        .limit(1)
+      const access = await getCredentialActorContext(existingCredential.id, session.user.id, {
+        workspaceAccess,
+      })
 
-      if (!membership || membership.status !== 'active') {
+      if (!access.member && !access.isAdmin) {
         return NextResponse.json(
           { error: 'A credential with this source already exists in this workspace' },
           { status: 409 }
         )
       }
 
-      const canUpdateExistingCredential = membership.role === 'admin'
+      const canUpdateExistingCredential = access.isAdmin
       const shouldUpdateDisplayName =
         type === 'oauth' &&
         resolvedDisplayName &&
@@ -498,11 +507,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const now = new Date()
     const credentialId = generateId()
-    const {
-      ownerId: workspaceOwnerId,
-      memberUserIds: workspaceMemberUserIds,
-      adminUserIds: workspaceAdminUserIds,
-    } = await getWorkspaceMembership(workspaceId)
+    const { ownerId: workspaceOwnerId, memberUserIds: workspaceMemberUserIds } =
+      await getWorkspaceMembership(workspaceId)
 
     await db.transaction(async (tx) => {
       // service_account has no DB-level unique index on (workspaceId, providerId,
@@ -537,8 +543,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if ((type === 'env_workspace' || type === 'service_account') && workspaceOwnerId) {
         if (workspaceMemberUserIds.length > 0) {
           for (const memberUserId of workspaceMemberUserIds) {
-            const isAdmin =
-              memberUserId === session.user.id || workspaceAdminUserIds.has(memberUserId)
+            const isAdmin = memberUserId === session.user.id
             await tx.insert(credentialMember).values({
               id: generateId(),
               credentialId,

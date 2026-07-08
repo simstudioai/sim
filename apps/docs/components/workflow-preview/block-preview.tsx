@@ -1,109 +1,68 @@
 'use client'
 
-import {
-  BLOCK_DISPLAY_SPECS,
-  type BlockDisplaySpec,
-} from '@/components/workflow-preview/block-display-specs'
-import { BLOCK_ICONS } from '@/components/workflow-preview/block-icons'
+import { useMemo } from 'react'
+import { domAnimation, LazyMotion } from 'framer-motion'
+import ReactFlow, { type NodeTypes, ReactFlowProvider } from 'reactflow'
+import 'reactflow/dist/style.css'
+import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
+import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
+import { toReactFlowElements } from '@/components/workflow-preview/workflow-data'
 
-/** Display scale for the hero — bump this one number to resize. */
-const SCALE = 1.3
-
-const DOT = '-translate-y-1/2 absolute top-1/2 h-5 w-[7px]'
-const HEADER_DOT = '-translate-y-1/2 absolute top-[20px] h-5 w-[7px]'
-
-/**
- * Static, app-styled block card — the same visual as the canvas WorkflowBlock, but
- * with non-interactive decorative handles (no ReactFlow, so it can't be panned/dragged).
- */
-function BlockCard({ spec }: { spec: BlockDisplaySpec }) {
-  const Icon = BLOCK_ICONS[spec.type]
-  const branches = spec.branches ?? []
-  const hasContent = spec.rows.length > 0 || branches.length > 0 || Boolean(spec.showError)
-
-  return (
-    <div className='relative w-[250px] select-none rounded-[8px] border border-[var(--wp-border-1)] bg-[var(--wp-surface)]'>
-      {!spec.hideTargetHandle && (
-        <span className={`${HEADER_DOT} left-[-8px] rounded-l-[2px] bg-[var(--wp-edge)]`} />
-      )}
-      {!spec.hideSourceHandle && (
-        <span className={`${HEADER_DOT} right-[-8px] rounded-r-[2px] bg-[var(--wp-edge)]`} />
-      )}
-
-      <div
-        className={`flex items-center justify-between p-2 ${hasContent ? 'border-[var(--wp-border-1)] border-b' : ''}`}
-      >
-        <div className='flex min-w-0 flex-1 items-center gap-2.5'>
-          <div
-            className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-            style={{ background: spec.bgColor }}
-          >
-            {Icon && <Icon className='size-[16px] text-white' />}
-          </div>
-          <span className='truncate font-medium text-[16px] text-[var(--wp-text)]'>
-            {spec.name}
-          </span>
-        </div>
-      </div>
-
-      {hasContent && (
-        <div className='flex flex-col gap-2 p-2'>
-          {spec.rows.map((row) => (
-            <div key={row.title} className='flex items-center gap-2'>
-              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
-                {row.title}
-              </span>
-              {row.value && (
-                <span className='flex min-w-0 flex-1 items-center justify-end font-normal text-[14px] text-[var(--wp-text)]'>
-                  <span className='truncate'>{row.value}</span>
-                </span>
-              )}
-            </div>
-          ))}
-
-          {branches.map((branch) => (
-            <div key={branch} className='relative flex items-center justify-between gap-2'>
-              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
-                {branch}
-              </span>
-              <span className='font-normal text-[14px] text-[var(--wp-text-3)]'>-</span>
-              <span className={`${DOT} right-[-16px] rounded-r-[2px] bg-[var(--wp-edge)]`} />
-            </div>
-          ))}
-
-          {spec.showError && (
-            <div className='relative flex items-center'>
-              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
-                error
-              </span>
-              <span className={`${DOT} right-[-16px] rounded-r-[2px] bg-[#ef4444]`} />
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
+/** The hero mounts the same node type the canvas uses, so it can never drift. */
+const NODE_TYPES: NodeTypes = { previewBlock: DocsBlockNode }
+const PRO_OPTIONS = { hideAttribution: true }
+/** `maxZoom` mirrors the previous hand-rolled hero's 1.3 scale. */
+const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.3 } as const
 
 interface BlockPreviewProps {
-  /** Block key from {@link BLOCK_DISPLAY_SPECS} (e.g. `agent`, `condition`, `webhook_trigger`). */
+  /** Block key from {@link BLOCK_DISPLAY_WORKFLOWS} (e.g. `agent`, `condition`, `webhook_trigger`). */
   type: string
 }
 
 /**
- * Renders a single block exactly as it appears on the builder canvas, from its
- * hand-authored display spec — static (no canvas) and scaled up. Use as the hero on a
- * block reference page: `<BlockPreview type="agent" />`. Edit specs in `block-display-specs.ts`.
+ * Renders a single block exactly as it appears on the builder canvas, drawn by the
+ * shared {@link WorkflowBlockView} (via `DocsBlockNode`) through the same ReactFlow
+ * machinery as the multi-block diagrams — never a parallel hand-rolled card. Static
+ * and non-interactive (no pan/zoom), centered in a bordered container. Use as the hero
+ * on a block reference page: `<BlockPreview type="agent" />`. Edit the source data in
+ * `block-display-workflows.ts`.
  */
 export function BlockPreview({ type }: BlockPreviewProps) {
-  const spec = BLOCK_DISPLAY_SPECS[type]
-  if (!spec) return null
+  const workflow = BLOCK_DISPLAY_WORKFLOWS[type]
+
+  const elements = useMemo(() => (workflow ? toReactFlowElements(workflow) : null), [workflow])
+
+  if (!workflow || !elements) return null
 
   return (
-    <div className='wp-scope not-prose my-6 flex justify-center overflow-x-auto rounded-xl border border-[var(--wp-border)] bg-[var(--wp-canvas)] px-6 py-10'>
-      <div style={{ zoom: SCALE }}>
-        <BlockCard spec={spec} />
-      </div>
+    <div
+      className='not-prose my-6 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
+      style={{ height: 400 }}
+    >
+      <LazyMotion features={domAnimation}>
+        <ReactFlowProvider>
+          <ReactFlow
+            nodes={elements.nodes}
+            edges={elements.edges}
+            nodeTypes={NODE_TYPES}
+            proOptions={PRO_OPTIONS}
+            fitView
+            fitViewOptions={FIT_VIEW_OPTIONS}
+            minZoom={0.2}
+            maxZoom={1.3}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            zoomOnScroll={false}
+            zoomOnDoubleClick={false}
+            zoomOnPinch={false}
+            panOnDrag={false}
+            panOnScroll={false}
+            preventScrolling={false}
+            className='h-full w-full'
+          />
+        </ReactFlowProvider>
+      </LazyMotion>
     </div>
   )
 }

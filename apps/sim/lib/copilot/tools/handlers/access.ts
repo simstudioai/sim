@@ -1,9 +1,7 @@
-import { db } from '@sim/db'
-import { permissions, workspace } from '@sim/db/schema'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import type { getWorkflowById } from '@/lib/workflows/utils'
-import { checkWorkspaceAccess, getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 type WorkflowRecord = NonNullable<Awaited<ReturnType<typeof getWorkflowById>>>
 
@@ -33,26 +31,16 @@ export async function ensureWorkflowAccess(
 }
 
 export async function getDefaultWorkspaceId(userId: string): Promise<string> {
-  const workspaces = await db
-    .select({ workspaceId: workspace.id })
-    .from(permissions)
-    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        isNull(workspace.archivedAt)
-      )
-    )
-    .orderBy(desc(workspace.createdAt))
-    .limit(1)
+  const accessibleRows = await listAccessibleWorkspaceRowsForUser(userId)
+  const mostRecent = accessibleRows
+    .map((row) => row.workspace)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]
 
-  const workspaceId = workspaces[0]?.workspaceId
-  if (!workspaceId) {
+  if (!mostRecent) {
     throw new Error('No workspace found for user')
   }
 
-  return workspaceId
+  return mostRecent.id
 }
 
 export async function ensureWorkspaceAccess(
@@ -68,9 +56,7 @@ export async function ensureWorkspaceAccess(
   if (level === 'read') return
 
   if (level === 'admin') {
-    if (access.workspace?.ownerId === userId) return
-    const perm = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    if (perm !== 'admin') {
+    if (!access.canAdmin) {
       throw new Error('Admin access required for this workspace')
     }
     return

@@ -1,15 +1,17 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, memo, useEffect, useMemo, useRef } from 'react'
+import { type ComponentPropsWithoutRef, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
+// prismjs core must load before its language components — they register on the
+// global `Prism` it installs (on `window`/`global`); fixes SSR + client order.
+import 'prismjs'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
-import '@/components/emcn/components/code/code.css'
-import { Checkbox, CopyCodeButton, highlight, languages } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import '@sim/emcn/components/code/code.css'
+import { Checkbox, CopyCodeButton, cn, highlight, languages } from '@sim/emcn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   type ContentSegment,
@@ -51,16 +53,41 @@ const PROSE_CLASSES = cn(
 
 /**
  * Soft fade for newly revealed text. Paired with {@link useSmoothText}, which
- * paces the reveal: `sep: 'char'` fades each character as the pacer exposes it
- * (so a growing trailing word never re-animates), and `stagger: 0` keeps the
- * cadence driven by the pacer rather than an overlapping per-token delay ramp.
+ * paces the reveal; `stagger: 0` keeps the cadence driven by the pacer rather
+ * than an overlapping per-token delay ramp — every span revealed in one tick
+ * fades as a unit, so `sep: 'word'` looks identical to `sep: 'char'` while
+ * creating ~5x fewer spans. That span count is the dominant mid-stream cost:
+ * the animate plugin rebuilds a span per token for the WHOLE trailing block on
+ * every reveal tick, so per-char wrapping of a long paragraph meant thousands
+ * of hast nodes + React elements reconciled ~40x/sec. Streamdown's
+ * prev-content tracking keeps a word that grows across two ticks from
+ * re-fading (its continuation renders unfaded), and the pacer's word-boundary
+ * snapping makes such splits rare to begin with.
  */
 const STREAM_ANIMATION = {
   animation: 'fadeIn',
   duration: 220,
   stagger: 0,
-  sep: 'char',
+  sep: 'word',
 } as const
+
+/**
+ * How long after the reveal fully settles before the animated tree is dropped.
+ * Must exceed {@link STREAM_ANIMATION}'s 220ms duration so the last characters
+ * finish fading at full opacity before their spans are swapped for plain text.
+ */
+const ANIMATION_DRAIN_MS = 300
+
+/**
+ * Once a segment has revealed this many characters, new text stops fading in;
+ * the word-paced reveal itself is unchanged. Fade cost scales with segment
+ * length — every reveal tick rebuilds a span per word for the WHOLE trailing
+ * markdown block — so on an unbroken wall of text it eventually swamps the
+ * frame budget (measured: ~9k-char single paragraphs spent ~30% of main-thread
+ * time in long tasks) while the fade itself is imperceptible detail that deep
+ * into a reply.
+ */
+const FADE_MAX_REVEALED_CHARS = 6000
 
 function startsInlineWord(value: string): boolean {
   return /^[A-Za-z0-9_(]/.test(value)
@@ -279,6 +306,7 @@ interface ChatContentProps {
   isStreaming?: boolean
   onOptionSelect?: (id: string) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onRevealStateChange?: (isRevealing: boolean) => void
 }
 
 function ChatContentInner({
@@ -286,28 +314,108 @@ function ChatContentInner({
   isStreaming = false,
   onOptionSelect,
   onWorkspaceResourceSelect,
+  onRevealStateChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
+
+  const onRevealStateChangeRef = useRef(onRevealStateChange)
+  onRevealStateChangeRef.current = onRevealStateChange
 
   const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
   const streamedContent = useSmoothText(displayContent, isStreaming)
   const isRevealing = isStreaming || streamedContent.length < displayContent.length
 
+  useEffect(() => {
+    onRevealStateChangeRef.current?.(isRevealing)
+  }, [isRevealing])
+
   /**
-   * One-way latch: once a message has streamed in this mount, keep rendering it
-   * through Streamdown's streaming/animation pipeline for the rest of its life.
-   * Drives `mode`, `animated`, AND `isAnimating` together — all three must stay
-   * constant across the completion boundary. Streamdown removes the per-word
-   * `<span>` wrappers (and re-parses the whole message) the instant `isAnimating`
-   * goes false, so wiring `isAnimating` to `isRevealing` (which flips at
-   * completion) reintroduces the streaming→static flash this latch exists to
-   * prevent. Content is stable once revealed, so a permanently-true
-   * `isAnimating` never re-fades anything.
+   * Streaming-tree lifecycle. While a message streams (and until its reveal
+   * drains), it renders through Streamdown's streaming/animated pipeline, whose
+   * animate plugin wraps every character in its own `<span data-sd-animate>` —
+   * thousands of DOM nodes per streamed message. Holding that tree forever made
+   * long sessions progressively laggier until a refresh (which renders the same
+   * transcript static). `animationDrained` flips one-way
+   * {@link ANIMATION_DRAIN_MS} after the reveal settles and swaps to the static
+   * pipeline; the drain window lets the last 220ms fades finish so the swap
+   * trades identical pixels, unlike flipping at `isRevealing`'s edge, which cut
+   * running fades short (the old completion flash).
+   *
+   * The swap must REMOUNT Streamdown (via `key`), not just flip its props:
+   * Streamdown's default element components are memoized on className + source
+   * position (`E`/`qe` in streamdown 2.5), so a re-parse of unchanged content
+   * without the animate plugin bails at every unoverridden element (`p`,
+   * `strong`, `tr`, headings, …) and leaves the stale per-char span DOM in
+   * place. The settled instance keeps the streaming parser (`parserTree`
+   * below) so the remount only sheds the spans, never re-interprets the
+   * markdown.
+   *
+   * The drain is deliberately one-way: a stream that resumes afterwards
+   * (reconnect/continuation) reveals paced but unfaded, because re-arming
+   * mounts a fresh animate plugin with no prev-content tracking, which would
+   * re-fade the entire already-visible message.
    */
-  const streamedThisSession = useRef(false)
-  if (isStreaming) streamedThisSession.current = true
-  const keepStreamingTree = isRevealing || streamedThisSession.current
+  const [streamedThisSession, setStreamedThisSession] = useState(false)
+  const [animationDrained, setAnimationDrained] = useState(false)
+  const [fadeCutoff, setFadeCutoff] = useState(false)
+
+  /**
+   * The per-session latches above outlive the content when React reuses this
+   * instance for a different logical message — parent rows key by turn
+   * position and text segments by run ordinal (both deliberately stable across
+   * the live→persisted id swap), so an ordinal shift or regeneration can hand
+   * a settled instance brand-new content whose stale `animationDrained` would
+   * silently render the new stream static. Reset the latches when the content
+   * is REPLACED (not an append of the previous string) after the instance has
+   * settled. A resumed turn only ever appends, so this never undoes the
+   * one-way drain; mid-stream sanitize rewrites are excluded by the
+   * `animationDrained` gate (the drain only fires after settle). All latches
+   * are render-phase `useState` adjustments (prev-tracker idiom), not refs —
+   * they are read during render, and state is concurrent-safe where a
+   * render-phase ref mutation is not.
+   */
+  const [prevDisplayContent, setPrevDisplayContent] = useState(displayContent)
+  if (prevDisplayContent !== displayContent) {
+    setPrevDisplayContent(displayContent)
+    if (!displayContent.startsWith(prevDisplayContent) && animationDrained) {
+      setStreamedThisSession(false)
+      setFadeCutoff(false)
+      setAnimationDrained(false)
+    }
+  }
+
+  if (isStreaming && !streamedThisSession) setStreamedThisSession(true)
+
+  useEffect(() => {
+    if (isRevealing || animationDrained || !streamedThisSession) return
+    const timeout = setTimeout(() => setAnimationDrained(true), ANIMATION_DRAIN_MS)
+    return () => clearTimeout(timeout)
+  }, [isRevealing, animationDrained, streamedThisSession])
+
+  /**
+   * `parserTree` (drives `mode`) stays latched for the mount's life: streaming
+   * mode is the only one that applies remend/incomplete-markdown repair and
+   * block-split parsing, so a settled message must KEEP the streaming parser —
+   * swapping to `mode='static'` at drain re-parses the same source through a
+   * different pipeline (no remend, whole-doc parse) and visibly flashes on any
+   * reply with unbalanced markdown. `streamingTree` (drives the remount key
+   * and animation props) additionally drops at drain, so the settled instance
+   * re-renders through the SAME parser minus the per-word animation spans —
+   * byte-identical pixels. Only never-streamed mounts (reloaded history)
+   * render static.
+   */
+  const parserTree = isRevealing || streamedThisSession
+  const streamingTree = parserTree && !animationDrained
+
+  /**
+   * One-way fade cutoff (see {@link FADE_MAX_REVEALED_CHARS}). Latched so a
+   * sanitize-induced content shrink back across the boundary cannot re-arm
+   * `animated` — a fresh animate plugin has no prev-content tracking and would
+   * re-fade the entire visible segment.
+   */
+  if (!fadeCutoff && streamedContent.length > FADE_MAX_REVEALED_CHARS) setFadeCutoff(true)
+  const fadeActive = streamingTree && !fadeCutoff
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -327,93 +435,89 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
-  const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
-  if (hasSpecialContent) {
-    type BlockSegment = Exclude<
-      ContentSegment,
-      { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }
-    >
-    type RenderGroup =
-      | { kind: 'inline'; markdown: string }
-      | { kind: 'block'; segment: BlockSegment; index: number }
+  type BlockSegment = Exclude<
+    ContentSegment,
+    { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }
+  >
+  type RenderGroup =
+    | { kind: 'inline'; markdown: string }
+    | { kind: 'block'; segment: BlockSegment; index: number }
 
-    const groups: RenderGroup[] = []
-    let pendingMarkdown = ''
+  const groups: RenderGroup[] = []
+  let pendingMarkdown = ''
 
-    const flushMarkdown = () => {
-      if (pendingMarkdown.trim()) {
-        groups.push({ kind: 'inline', markdown: pendingMarkdown })
-      }
-      pendingMarkdown = ''
+  const flushMarkdown = () => {
+    if (pendingMarkdown.trim()) {
+      groups.push({ kind: 'inline', markdown: pendingMarkdown })
     }
-
-    for (let i = 0; i < parsed.segments.length; i++) {
-      const s = parsed.segments[i]
-      const nextSegment = parsed.segments[i + 1]
-      if (s.type === 'workspace_resource') {
-        // Files are addressed by their encoded VFS path (copied verbatim from the tag);
-        // workflows/tables/KBs by id. The angle-bracket link destination keeps the path
-        // intact through markdown parsing (tolerates parens) without re-encoding it.
-        const ref = s.data.type === 'file' ? (s.data.path ?? s.data.id ?? '') : (s.data.id ?? '')
-        const label = s.data.title || ref
-        pendingMarkdown = appendInlineReferenceMarkdown(
-          pendingMarkdown,
-          `[${label}](<#wsres-${s.data.type}-${ref}>)`,
-          nextSegment
-        )
-      } else if (s.type === 'text' || s.type === 'thinking') {
-        pendingMarkdown += s.content
-      } else {
-        flushMarkdown()
-        groups.push({ kind: 'block', segment: s, index: i })
-      }
-    }
-    flushMarkdown()
-
-    return (
-      <div className='space-y-3'>
-        {groups.map((group, i) => {
-          if (group.kind === 'inline') {
-            return (
-              <div
-                key={`inline-${i}`}
-                className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
-              >
-                <Streamdown
-                  mode={keepStreamingTree ? undefined : 'static'}
-                  animated={keepStreamingTree ? STREAM_ANIMATION : false}
-                  isAnimating={keepStreamingTree}
-                  components={MARKDOWN_COMPONENTS}
-                >
-                  {group.markdown}
-                </Streamdown>
-              </div>
-            )
-          }
-          return (
-            <SpecialTags
-              key={`special-${group.index}`}
-              segment={group.segment}
-              onOptionSelect={onOptionSelect}
-            />
-          )
-        })}
-        {parsed.hasPendingTag && isRevealing && <PendingTagIndicator />}
-      </div>
-    )
+    pendingMarkdown = ''
   }
 
+  for (let i = 0; i < parsed.segments.length; i++) {
+    const s = parsed.segments[i]
+    const nextSegment = parsed.segments[i + 1]
+    if (s.type === 'workspace_resource') {
+      // Files are addressed by their encoded VFS path (copied verbatim from the tag);
+      // workflows/tables/KBs by id. The angle-bracket link destination keeps the path
+      // intact through markdown parsing (tolerates parens) without re-encoding it.
+      const ref = s.data.type === 'file' ? (s.data.path ?? s.data.id ?? '') : (s.data.id ?? '')
+      const label = s.data.title || ref
+      pendingMarkdown = appendInlineReferenceMarkdown(
+        pendingMarkdown,
+        `[${label}](<#wsres-${s.data.type}-${ref}>)`,
+        nextSegment
+      )
+    } else if (s.type === 'text' || s.type === 'thinking') {
+      pendingMarkdown += s.content
+    } else {
+      flushMarkdown()
+      groups.push({ kind: 'block', segment: s, index: i })
+    }
+  }
+  flushMarkdown()
+
+  /**
+   * Plain text and special-tag content share ONE render structure. A message
+   * with no special tags is simply a single inline group — it must NOT get a
+   * dedicated JSX branch, because most replies gain a trailing `<options>` tag
+   * (suggested follow-ups) at the very end, and switching branches at that
+   * moment re-parents the Streamdown to a different tree position. React then
+   * remounts it with a fresh animate plugin and the ENTIRE message re-fades
+   * from transparent — the "flash at the conclusion". With the unified
+   * structure the leading text group keeps its position (`inline-0`) and only
+   * the new special block mounts.
+   */
   return (
-    <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-      <Streamdown
-        mode={keepStreamingTree ? undefined : 'static'}
-        animated={keepStreamingTree ? STREAM_ANIMATION : false}
-        isAnimating={keepStreamingTree}
-        components={MARKDOWN_COMPONENTS}
-      >
-        {streamedContent}
-      </Streamdown>
+    <div className='space-y-3'>
+      {groups.map((group, i) => {
+        if (group.kind === 'inline') {
+          return (
+            <div
+              key={`inline-${i}`}
+              className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
+            >
+              <Streamdown
+                key={streamingTree ? 'stream' : 'settled'}
+                mode={parserTree ? undefined : 'static'}
+                animated={fadeActive ? STREAM_ANIMATION : false}
+                isAnimating={streamingTree}
+                components={MARKDOWN_COMPONENTS}
+              >
+                {group.markdown}
+              </Streamdown>
+            </div>
+          )
+        }
+        return (
+          <SpecialTags
+            key={`special-${group.index}`}
+            segment={group.segment}
+            onOptionSelect={onOptionSelect}
+          />
+        )
+      })}
+      {parsed.hasPendingTag && isRevealing && <PendingTagIndicator />}
     </div>
   )
 }

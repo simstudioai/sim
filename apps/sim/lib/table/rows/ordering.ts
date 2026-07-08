@@ -344,6 +344,51 @@ export async function selectRowIdPage(params: {
 }
 
 /**
+ * Like {@link selectRowIdPage} but returns each row's `data` too, for the bulk-update worker which
+ * must merge the patch into the existing row to validate the result. Same keyset walk on the
+ * `(table_id, id)` index, `created_at <= cutoff`, tenant-scoped, seqscan-off for jsonb filters.
+ *
+ * `excludeIfPatched` (a JSON patch string) skips rows that already contain the patch
+ * (`data @> patch`). The update worker passes it so a retried run doesn't re-walk and re-count
+ * rows an earlier attempt already updated — updated rows still exist (unlike deletes), and they
+ * still match the filter when the patch doesn't touch a filtered column, so without this a retry
+ * would double-count progress. It also skips no-op updates of rows that already hold those values.
+ */
+export async function selectRowDataPage(params: {
+  tableId: string
+  workspaceId: string
+  cutoff: Date
+  filterClause?: SQL
+  afterId?: string
+  limit: number
+  excludeIfPatched?: string
+}): Promise<Array<{ id: string; data: RowData }>> {
+  const { tableId, workspaceId, cutoff, filterClause, afterId, limit, excludeIfPatched } = params
+  const selectPage = (executor: DbExecutor) =>
+    executor
+      .select({ id: userTableRows.id, data: userTableRows.data })
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, tableId),
+          eq(userTableRows.workspaceId, workspaceId),
+          lte(userTableRows.createdAt, cutoff),
+          afterId ? gt(userTableRows.id, afterId) : undefined,
+          excludeIfPatched
+            ? sql`NOT (${userTableRows.data} @> ${excludeIfPatched}::jsonb)`
+            : undefined,
+          filterClause
+        )
+      )
+      .orderBy(asc(userTableRows.id))
+      .limit(limit)
+  const rows = filterClause
+    ? await withSeqscanOff(async (trx) => selectPage(trx))
+    : await selectPage(db)
+  return rows.map((r) => ({ id: r.id, data: r.data as RowData }))
+}
+
+/**
  * Deletes one page of rows for the async delete-job worker, committing each `DELETE_BATCH_SIZE`
  * chunk in its own short transaction. One statement per transaction bounds how long the
  * statement-level row_count trigger's lock on the definition row is held (a page-wide transaction
@@ -377,4 +422,38 @@ export async function deletePageByIds(
     deleted += rows.length
   }
   return deleted
+}
+
+/**
+ * Applies a JSONB-merge patch (`data || patchJson`) to a page of row ids, committed in
+ * UPDATE_BATCH_SIZE chunks (each its own transaction, 60s timeout) so a large background update
+ * makes incremental, resumable progress. Returns the number of rows updated.
+ */
+export async function updatePageByIds(
+  tableId: string,
+  workspaceId: string,
+  rowIds: string[],
+  patchJson: string
+): Promise<number> {
+  const now = new Date()
+  let updated = 0
+  for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
+    const batch = rowIds.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
+    const rows = await db.transaction(async (trx) => {
+      await setTableTxTimeouts(trx, { statementMs: 60_000 })
+      return trx
+        .update(userTableRows)
+        .set({ data: sql`${userTableRows.data} || ${patchJson}::jsonb`, updatedAt: now })
+        .where(
+          and(
+            eq(userTableRows.tableId, tableId),
+            eq(userTableRows.workspaceId, workspaceId),
+            inArray(userTableRows.id, batch)
+          )
+        )
+        .returning({ id: userTableRows.id })
+    })
+    updated += rows.length
+  }
+  return updated
 }

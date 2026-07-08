@@ -39,7 +39,17 @@ Search the web with the Custom Search API
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to execute |
 | `searchEngineId` | string | Yes | Custom Search Engine ID |
-| `num` | string | No | Number of results to return \(default: 10, max: 10\) |
+| `num` | string | No | Number of results to return \(1-10, default 10\) |
+| `start` | number | No | Index of the first result \(1-based, for pagination; start + num must be &lt;= 100\) |
+| `dateRestrict` | string | No | Restrict results by recency: d\[n\] days, w\[n\] weeks, m\[n\] months, y\[n\] years |
+| `fileType` | string | No | Restrict to a file extension \(e.g., pdf, doc\) |
+| `safe` | string | No | SafeSearch level: "active" or "off" \(default off\) |
+| `searchType` | string | No | Set to "image" to perform an image search |
+| `siteSearch` | string | No | A site to include or exclude from results |
+| `siteSearchFilter` | string | No | Whether to include \("i"\) or exclude \("e"\) the siteSearch site |
+| `lr` | string | No | Restrict to a language, e.g. "lang_en" |
+| `gl` | string | No | Two-letter country code to boost geographically relevant results |
+| `sort` | string | No | Sort expression, e.g. "date" |
 | `apiKey` | string | Yes | Google API key |
 
 #### Output
@@ -48,14 +58,29 @@ Search the web with the Custom Search API
 | --------- | ---- | ----------- |
 | `items` | array | Array of search results from Google |
 |   ↳ `title` | string | Title of the search result |
+|   ↳ `htmlTitle` | string | Title of the search result with HTML markup |
 |   ↳ `link` | string | URL of the search result |
-|   ↳ `snippet` | string | Snippet or description of the search result |
 |   ↳ `displayLink` | string | Display URL \(abbreviated form\) |
+|   ↳ `snippet` | string | Snippet or description of the search result |
+|   ↳ `htmlSnippet` | string | Snippet of the search result with HTML markup |
+|   ↳ `formattedUrl` | string | Display URL shown beneath the result |
+|   ↳ `mime` | string | MIME type of the result |
+|   ↳ `fileFormat` | string | File format of the result |
+|   ↳ `cacheId` | string | ID of Google's cached version |
 |   ↳ `pagemap` | object | PageMap information for the result \(structured data\) |
+|   ↳ `image` | object | Image metadata \(present when searchType is image\) |
+|     ↳ `contextLink` | string | URL of the page hosting the image |
+|     ↳ `height` | number | Image height in pixels |
+|     ↳ `width` | number | Image width in pixels |
+|     ↳ `byteSize` | number | Image file size in bytes |
+|     ↳ `thumbnailLink` | string | Thumbnail image URL |
+|     ↳ `thumbnailHeight` | number | Thumbnail height in pixels |
+|     ↳ `thumbnailWidth` | number | Thumbnail width in pixels |
 | `searchInformation` | object | Information about the search query and results |
 |   ↳ `totalResults` | string | Total number of search results available |
 |   ↳ `searchTime` | number | Time taken to perform the search in seconds |
 |   ↳ `formattedSearchTime` | string | Formatted search time for display |
 |   ↳ `formattedTotalResults` | string | Formatted total results count for display |
+| `nextPageStartIndex` | number | Start index for the next page of results \(null if no further results\) |
 
 

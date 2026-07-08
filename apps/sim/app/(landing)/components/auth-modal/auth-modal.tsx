@@ -1,10 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { X } from 'lucide-react'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
 import {
   Loader,
   Modal,
@@ -13,7 +9,11 @@ import {
   ModalDescription,
   ModalTitle,
   ModalTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { X } from 'lucide-react'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'
@@ -45,7 +45,7 @@ const FALLBACK_STATUS: ProviderStatus = {
 }
 
 const SOCIAL_BTN =
-  'relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:cursor-not-allowed disabled:opacity-50'
+  'relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--border-1)] text-[13.5px] text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-50'
 
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
@@ -69,44 +69,65 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const [view, setView] = useState<AuthView>(defaultView)
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
   const [socialLoading, setSocialLoading] = useState<'github' | 'google' | 'microsoft' | null>(null)
-  const brand = useMemo(() => getBrandConfig(), [])
+  const brand = getBrandConfig()
 
   useEffect(() => {
     fetchProviderStatus().then(setProviderStatus)
   }, [])
 
-  const hasSocial =
-    providerStatus?.githubAvailable ||
-    providerStatus?.googleAvailable ||
-    providerStatus?.microsoftAvailable
   const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
   const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
-  const hasModalContent = hasSocial || ssoEnabled
 
-  useEffect(() => {
-    if (!open || !providerStatus) return
+  /**
+   * Signup is unavailable when registration is disabled, so the shown view is
+   * clamped to login rather than mirrored into state through an effect.
+   */
+  const effectiveView: AuthView =
+    view === 'signup' && providerStatus?.registrationDisabled ? 'login' : view
+
+  /**
+   * Tracks whether the visitor still wants the modal open. Cleared on dismiss so a
+   * provider-status fetch that resolves afterwards can't reopen it or re-fire the
+   * opened event.
+   */
+  const openRequestedRef = useRef(false)
+
+  function openWithStatus(status: ProviderStatus) {
+    const hasModalContent =
+      status.githubAvailable || status.googleAvailable || status.microsoftAvailable || ssoEnabled
     if (!hasModalContent) {
+      /** Close the loader (no-op if never opened) and route out; disabled registration sends signup to login. */
       setOpen(false)
-      router.push(defaultView === 'login' ? '/login' : '/signup')
+      router.push(status.registrationDisabled || defaultView === 'login' ? '/login' : '/signup')
       return
     }
-    if (providerStatus.registrationDisabled && view === 'signup') {
-      setView('login')
-    }
-  }, [open, providerStatus, hasModalContent, defaultView, router, view])
+    const initialView: AuthView =
+      defaultView === 'signup' && status.registrationDisabled ? 'login' : defaultView
+    setOpen(true)
+    setView(initialView)
+    captureClientEvent('auth_modal_opened', { view: initialView, source })
+  }
 
   function handleOpenChange(nextOpen: boolean) {
-    if (nextOpen && providerStatus && !hasModalContent) {
-      router.push(defaultView === 'login' ? '/login' : '/signup')
+    if (!nextOpen) {
+      openRequestedRef.current = false
+      setOpen(false)
       return
     }
-    setOpen(nextOpen)
-    if (nextOpen) {
-      const initialView =
-        defaultView === 'signup' && providerStatus?.registrationDisabled ? 'login' : defaultView
-      setView(initialView)
-      captureClientEvent('auth_modal_opened', { view: initialView, source })
+    if (providerStatus) {
+      openWithStatus(providerStatus)
+      return
     }
+    /** Status not loaded yet: open the loader immediately for responsiveness, then resolve. */
+    openRequestedRef.current = true
+    setOpen(true)
+    fetchProviderStatus().then((status) => {
+      setProviderStatus(status)
+      if (!openRequestedRef.current) return
+      /** Consume the request so a queued double-click can't open twice (no duplicate event). */
+      openRequestedRef.current = false
+      openWithStatus(status)
+    })
   }
 
   async function handleSocialLogin(provider: 'github' | 'google' | 'microsoft') {
@@ -127,32 +148,29 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
   function handleEmailContinue() {
     setOpen(false)
-    router.push(view === 'login' ? '/login' : '/signup')
+    router.push(effectiveView === 'login' ? '/login' : '/signup')
   }
 
   return (
     <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalTrigger asChild>{children}</ModalTrigger>
-      <ModalContent
-        size='sm'
-        className='dark bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)]'
-      >
+      <ModalContent size='sm' className='dark bg-[var(--bg)] text-[var(--text-primary)]'>
         <ModalTitle className='sr-only'>
-          {view === 'login' ? 'Log in' : 'Create account'}
+          {effectiveView === 'login' ? 'Log in' : 'Create account'}
         </ModalTitle>
         <ModalDescription className='sr-only'>
-          {view === 'login' ? 'Sign in to your account' : 'Create a new account'}
+          {effectiveView === 'login' ? 'Sign in to your account' : 'Create a new account'}
         </ModalDescription>
 
         <div className='relative px-6 pt-6 pb-6'>
           <ModalClose className='absolute top-6 right-6 rounded-sm opacity-70 transition-opacity hover:opacity-100'>
-            <X className='size-5 text-[var(--landing-text-muted)]' />
+            <X className='size-5 text-[var(--text-muted)]' />
             <span className='sr-only'>Close</span>
           </ModalClose>
 
           {!providerStatus ? (
             <div className='flex items-center justify-center py-16'>
-              <Loader className='size-5 text-[var(--landing-text-muted)]' animate />
+              <Loader className='size-5 text-[var(--text-muted)]' animate />
             </div>
           ) : (
             <>
@@ -166,11 +184,11 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   className='h-[22px] w-auto shrink-0 object-contain'
                 />
                 <div className='flex flex-col gap-1 text-left'>
-                  <p className='text-[22px] text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] leading-[125%] tracking-[0.02em]'>
+                  <p className='text-[22px] text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] leading-[125%] tracking-[0.02em]'>
                     Start building.
                   </p>
-                  <h2 className='text-[22px] text-white leading-[110%] tracking-[-0.02em]'>
-                    {view === 'login' ? 'Log in to continue' : 'Create free account'}
+                  <h2 className='text-[22px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
+                    {effectiveView === 'login' ? 'Log in to continue' : 'Create free account'}
                   </h2>
                 </div>
               </div>
@@ -222,17 +240,14 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                 )}
               </div>
 
-              {/* Email option only available on login — signup is OAuth-only */}
-              {emailEnabled && view === 'login' && (
+              {emailEnabled && (
                 <>
                   <div className='relative my-4'>
                     <div className='absolute inset-0 flex items-center'>
-                      <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
+                      <div className='w-full border-[var(--border)] border-t' />
                     </div>
                     <div className='relative flex justify-center text-[13.5px]'>
-                      <span className='bg-[var(--landing-bg)] px-4 text-[var(--landing-text-muted)]'>
-                        Or
-                      </span>
+                      <span className='bg-[var(--bg)] px-4 text-[var(--text-muted)]'>Or</span>
                     </div>
                   </div>
 
@@ -247,18 +262,20 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
               )}
 
               <div className='mt-4 text-center text-[13.5px]'>
-                <span className='text-[var(--landing-text-muted)]'>
-                  {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
+                <span className='text-[var(--text-muted)]'>
+                  {effectiveView === 'login'
+                    ? "Don't have an account? "
+                    : 'Already have an account? '}
                 </span>
-                {view === 'login' && providerStatus.registrationDisabled ? (
-                  <span className='text-[var(--landing-text-muted)]'>Registration is disabled</span>
+                {effectiveView === 'login' && providerStatus.registrationDisabled ? (
+                  <span className='text-[var(--text-muted)]'>Registration is disabled</span>
                 ) : (
                   <button
                     type='button'
-                    onClick={() => setView(view === 'login' ? 'signup' : 'login')}
-                    className='text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
+                    onClick={() => setView(effectiveView === 'login' ? 'signup' : 'login')}
+                    className='text-[var(--text-primary)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
                   >
-                    {view === 'login' ? 'Sign up' : 'Sign in'}
+                    {effectiveView === 'login' ? 'Sign up' : 'Sign in'}
                   </button>
                 )}
               </div>

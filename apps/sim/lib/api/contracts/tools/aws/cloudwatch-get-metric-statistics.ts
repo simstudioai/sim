@@ -21,7 +21,10 @@ const GetMetricStatisticsSchema = z.object({
   startTime: z.coerce.number().int(),
   endTime: z.coerce.number().int(),
   period: z.coerce.number().int().min(1),
-  statistics: z.array(z.enum(['Average', 'Sum', 'Minimum', 'Maximum', 'SampleCount'])).min(1),
+  statistics: z
+    .array(z.enum(['Average', 'Sum', 'Minimum', 'Maximum', 'SampleCount']))
+    .min(1, 'At least one statistic is required')
+    .max(5, 'At most 5 statistics are allowed per GetMetricStatistics call'),
   dimensions: z.string().optional(),
 })
 

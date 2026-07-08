@@ -4,7 +4,10 @@ import type {
   TrelloActionBoardTarget,
   TrelloActionCardTarget,
   TrelloActionListTarget,
+  TrelloBoard,
   TrelloCard,
+  TrelloChecklist,
+  TrelloChecklistItem,
   TrelloComment,
   TrelloLabel,
   TrelloList,
@@ -52,7 +55,7 @@ function getOptionalNumber(value: unknown): number | null {
   return null
 }
 
-function getIdArray(value: unknown): string[] {
+export function getIdArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return []
   }
@@ -82,7 +85,7 @@ function mapTrelloLabel(value: unknown): TrelloLabel | null {
   }
 }
 
-function mapTrelloMember(value: unknown): TrelloMember | null {
+export function mapTrelloMember(value: unknown): TrelloMember | null {
   if (!isRecordLike(value) || typeof value.id !== 'string') {
     return null
   }
@@ -172,6 +175,49 @@ export function mapTrelloCard(value: unknown): TrelloCard {
     labels,
     due: getOptionalString(value.due),
     dueComplete: getOptionalBoolean(value.dueComplete),
+  }
+}
+
+export function mapTrelloBoard(value: unknown): TrelloBoard {
+  if (!isRecordLike(value)) {
+    throw new Error('Trello returned an invalid board object')
+  }
+
+  return {
+    id: getRequiredString(value.id, 'id'),
+    name: getRequiredString(value.name, 'name'),
+    desc: typeof value.desc === 'string' ? value.desc : '',
+    url: getRequiredString(value.url, 'url'),
+    closed: typeof value.closed === 'boolean' ? value.closed : false,
+    idOrganization: getOptionalString(value.idOrganization),
+  }
+}
+
+export function mapTrelloChecklist(value: unknown): TrelloChecklist {
+  if (!isRecordLike(value)) {
+    throw new Error('Trello returned an invalid checklist object')
+  }
+
+  return {
+    id: getRequiredString(value.id, 'id'),
+    name: getRequiredString(value.name, 'name'),
+    idCard: getRequiredString(value.idCard, 'idCard'),
+    idBoard: getOptionalString(value.idBoard),
+    pos: getNumber(value.pos),
+  }
+}
+
+export function mapTrelloChecklistItem(value: unknown): TrelloChecklistItem {
+  if (!isRecordLike(value)) {
+    throw new Error('Trello returned an invalid checklist item object')
+  }
+
+  return {
+    id: getRequiredString(value.id, 'id'),
+    name: getRequiredString(value.name, 'name'),
+    state: getRequiredString(value.state, 'state'),
+    pos: getNumber(value.pos),
+    idChecklist: getOptionalString(value.idChecklist),
   }
 }
 

@@ -15,6 +15,7 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
@@ -257,7 +258,8 @@ export async function createTable(
   // Stamp stable ids so the table is id-keyed from its first row write.
   const schema = withGeneratedColumnIds(data.schema)
 
-  // Use provided maxRows (from billing plan) or fall back to default
+  // Row limits are enforced per-write against the current plan (see assertRowCapacity); the stored
+  // column is vestigial, so it just takes the caller's value (if any) or the default.
   const maxRows = data.maxRows ?? TABLE_LIMITS.MAX_ROWS_PER_TABLE
   const maxTables = data.maxTables ?? TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE
 
@@ -279,6 +281,18 @@ export async function createTable(
     data.jobStatus === 'running' && data.jobId
       ? { id: data.jobId, type: data.jobType ?? 'import', startedAt: now }
       : null
+
+  // Starter rows count against the plan too. Checked before the tx (the lookup is a
+  // separate pool read) — a new table starts empty, so the footprint is just these.
+  const initialRowCount = data.initialRowCount ?? 0
+  let rowLimit: number | undefined
+  if (initialRowCount > 0) {
+    rowLimit = await assertRowCapacity({
+      workspaceId: data.workspaceId,
+      currentRowCount: 0,
+      addedRows: initialRowCount,
+    })
+  }
 
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
   // to prevent TOCTOU race on the table count limit
@@ -331,7 +345,6 @@ export async function createTable(
         })
       }
 
-      const initialRowCount = data.initialRowCount ?? 0
       if (initialRowCount > 0) {
         const orderKeys = nKeysBetween(null, null, initialRowCount)
         const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({
@@ -355,6 +368,15 @@ export async function createTable(
       throw new TableConflictError(data.name)
     }
     throw error
+  }
+
+  if (initialRowCount > 0 && rowLimit !== undefined) {
+    notifyTableRowUsage({
+      workspaceId: data.workspaceId,
+      currentRowCount: 0,
+      addedRows: initialRowCount,
+      limit: rowLimit,
+    })
   }
 
   logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)

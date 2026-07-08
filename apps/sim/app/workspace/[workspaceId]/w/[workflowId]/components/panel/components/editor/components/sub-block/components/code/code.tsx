@@ -1,21 +1,20 @@
 import type { ReactElement } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Check, Wand2 } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import 'prismjs/components/prism-python'
-import { createLogger } from '@sim/logger'
-import Editor from 'react-simple-code-editor'
 import {
   CODE_LINE_HEIGHT_PX,
   Code as CodeEditor,
   calculateGutterWidth,
+  cn,
   Duplicate,
   getCodeEditorProps,
   highlight,
   languages,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { Check, Wand2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/core/utils/cn'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
   isLikelyReferenceSegment,

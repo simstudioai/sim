@@ -16,6 +16,7 @@ import { ollamaProvider } from '@/providers/ollama'
 import { ollamaCloudProvider } from '@/providers/ollama-cloud'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
+import { sakanaProvider } from '@/providers/sakana'
 import { togetherProvider } from '@/providers/together'
 import type { ProviderConfig, ProviderId } from '@/providers/types'
 import { vertexProvider } from '@/providers/vertex'
@@ -34,6 +35,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   xai: xAIProvider,
   cerebras: cerebrasProvider,
   groq: groqProvider,
+  sakana: sakanaProvider,
   vllm: vllmProvider,
   litellm: litellmProvider,
   mistral: mistralProvider,

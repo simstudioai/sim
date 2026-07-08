@@ -1,15 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { DatePicker } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { Calendar, cn, Popover, PopoverAnchor, PopoverContent, toast } from '@sim/emcn'
 import type { ColumnDefinition } from '@/lib/table'
+import { isCalendarDateString } from '@/lib/table/dates'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import {
   cleanCellValue,
+  dateValueToLocalParts,
   displayToStorage,
   formatValueForInput,
   storageToDisplay,
+  todayLocalCalendarDate,
 } from '../../../utils'
 
 interface InlineEditorProps {
@@ -20,7 +23,22 @@ interface InlineEditorProps {
   onCancel: () => void
 }
 
-/** Inline editor for `date` columns — text input + popover DatePicker. */
+/** Redirect wheel gestures over an inline editor to the surrounding table scroll container. */
+function handleEditorWheel(e: React.WheelEvent<HTMLInputElement>) {
+  e.preventDefault()
+  const container = e.currentTarget.closest('[data-table-scroll]') as HTMLElement | null
+  if (container) {
+    container.scrollBy(e.deltaX, e.deltaY)
+  }
+}
+
+/**
+ * Inline editor for `date` columns — text input + popover with a calendar and
+ * a time field. Picking a day on a date-only value commits immediately (the
+ * pick fully determines the value); when the value carries a time, picker
+ * edits update the draft in place — the day pick keeps the time-of-day
+ * (including seconds), the time field keeps the day — and Enter/blur commits.
+ */
 function InlineDateEditor({
   value,
   column,
@@ -29,15 +47,35 @@ function InlineDateEditor({
   onCancel,
 }: InlineEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const doneRef = useRef(false)
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  /** Timestamp of the last pointerdown inside the popover — blur-save skips
+   *  and refocuses while a popover interaction is in flight (covers browsers
+   *  where buttons don't take focus on click). */
+  const popoverPointerAtRef = useRef(0)
+  const timeZone = useTimezone()
 
   const storedValue = formatValueForInput(value, column.type)
-  const [draft, setDraft] = useState(() =>
-    initialCharacter !== undefined ? initialCharacter : storageToDisplay(storedValue)
-  )
+  const initialDraft =
+    initialCharacter !== undefined
+      ? initialCharacter
+      : storageToDisplay(storedValue, { seconds: true })
+  const [draft, setDraft] = useState(initialDraft)
+  const [invalid, setInvalid] = useState(false)
+  /** Picker commits mutate the draft from timeouts/child handlers; reading it
+   *  through a ref keeps the scheduled blur-save from saving a stale draft. */
+  const draftRef = useRef(draft)
+  draftRef.current = draft
 
-  const pickerValue = displayToStorage(draft) || storedValue || undefined
+  /** The calendar works on wall times; feed it the draft's literal wall
+   *  representation. */
+  const draftParts = dateValueToLocalParts(displayToStorage(draft, timeZone) ?? storedValue)
+  const pickerValue = draftParts.day
+    ? draftParts.time
+      ? `${draftParts.day}T${draftParts.time}`
+      : draftParts.day
+    : undefined
 
   useEffect(() => {
     const input = inputRef.current
@@ -56,13 +94,33 @@ function InlineDateEditor({
   const doSave = useCallback(
     (reason: SaveReason, storageVal?: string) => {
       if (doneRef.current) return
-      doneRef.current = true
       clearTimeout(blurTimeoutRef.current)
-      const raw = storageVal ?? displayToStorage(draft) ?? draft
-      const val = raw && !Number.isNaN(Date.parse(raw)) ? raw : null
-      onSave(val, reason)
+      const current = draftRef.current
+      // Untouched draft → re-save the stored value byte-identical. Re-parsing
+      // the display form would re-stamp the offset with THIS viewer's zone,
+      // silently shifting the instant of a value someone else wrote.
+      if (storageVal === undefined && initialCharacter === undefined && current === initialDraft) {
+        doneRef.current = true
+        onSave(storedValue || null, reason)
+        return
+      }
+      const raw = storageVal ?? displayToStorage(current, timeZone) ?? current
+      if (raw && Number.isNaN(Date.parse(raw))) {
+        if (reason === 'blur') {
+          if (!invalid) toast.error('Invalid date')
+          doneRef.current = true
+          onCancel()
+        } else {
+          toast.error('Invalid date')
+          setInvalid(true)
+          inputRef.current?.focus()
+        }
+        return
+      }
+      doneRef.current = true
+      onSave(raw || null, reason)
     },
-    [draft, onSave]
+    [invalid, onSave, onCancel, timeZone, initialDraft, initialCharacter, storedValue]
   )
 
   const handleKeyDown = useCallback(
@@ -83,16 +141,45 @@ function InlineDateEditor({
     [doSave, onCancel]
   )
 
-  const handleBlur = useCallback(() => {
-    blurTimeoutRef.current = setTimeout(() => doSave('blur'), 200)
+  const handlePopoverPointerDown = useCallback(() => {
+    popoverPointerAtRef.current = Date.now()
+  }, [])
+
+  /** Saves on blur unless focus (or an in-flight pointer interaction) is still
+   *  inside the editor's input/popover system. */
+  const scheduleBlurSave = useCallback(() => {
+    clearTimeout(blurTimeoutRef.current)
+    blurTimeoutRef.current = setTimeout(() => {
+      const active = document.activeElement
+      if (active && (active === inputRef.current || popoverRef.current?.contains(active))) return
+      if (Date.now() - popoverPointerAtRef.current < 300) {
+        inputRef.current?.focus()
+        return
+      }
+      doSave('blur')
+    }, 200)
   }, [doSave])
 
+  /**
+   * The calendar (with `showTime`) owns the day/time merge and emits either a
+   * bare `YYYY-MM-DD` (no time — the pick fully determines the value, commit
+   * immediately) or a local `YYYY-MM-DDTHH:mm[:ss]` wall time (update the
+   * draft and keep editing).
+   */
   const handlePickerChange = useCallback(
-    (dateStr: string) => {
+    (picked: string) => {
       clearTimeout(blurTimeoutRef.current)
-      doSave('enter', dateStr)
+      if (isCalendarDateString(picked)) {
+        doSave('enter', picked)
+        return
+      }
+      const canonical = displayToStorage(picked, timeZone)
+      if (!canonical) return
+      setDraft(storageToDisplay(canonical, { seconds: true }))
+      setInvalid(false)
+      inputRef.current?.focus()
     },
-    [doSave]
+    [doSave, timeZone]
   )
 
   const handlePickerOpenChange = useCallback((open: boolean) => {
@@ -108,25 +195,36 @@ function InlineDateEditor({
         ref={inputRef}
         type='text'
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setInvalid(false)
+        }}
         onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
+        onBlur={scheduleBlurSave}
         placeholder='mm/dd/yyyy'
         className={cn(
-          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
+          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+          invalid && 'text-[var(--text-error)]'
         )}
       />
-      <div className='absolute top-full left-0 size-0'>
-        <DatePicker
-          mode='single'
-          value={pickerValue}
-          onChange={handlePickerChange}
-          open={true}
-          onOpenChange={handlePickerOpenChange}
-          showTrigger={false}
-          size='sm'
-        />
-      </div>
+      <Popover open onOpenChange={handlePickerOpenChange}>
+        <PopoverAnchor className='absolute top-full left-0 size-0' />
+        <PopoverContent
+          ref={popoverRef}
+          align='start'
+          sideOffset={4}
+          className='w-auto p-0'
+          onPointerDownCapture={handlePopoverPointerDown}
+          onBlurCapture={scheduleBlurSave}
+        >
+          <Calendar
+            value={pickerValue}
+            onChange={handlePickerChange}
+            showTime
+            today={todayLocalCalendarDate(timeZone)}
+          />
+        </PopoverContent>
+      </Popover>
     </>
   )
 }
@@ -143,6 +241,7 @@ function InlineTextEditor({
   const [draft, setDraft] = useState(() =>
     initialCharacter !== undefined ? initialCharacter : formatValueForInput(value, column.type)
   )
+  const [invalid, setInvalid] = useState(false)
   const doneRef = useRef(false)
 
   useEffect(() => {
@@ -158,22 +257,33 @@ function InlineTextEditor({
     }
   }, [])
 
-  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    const container = e.currentTarget.closest('[data-table-scroll]') as HTMLElement | null
-    if (container) {
-      container.scrollBy(e.deltaX, e.deltaY)
+  const rejectDraft = (message: string, reason: SaveReason) => {
+    if (reason === 'blur') {
+      if (!invalid) toast.error(message)
+      doneRef.current = true
+      onCancel()
+    } else {
+      toast.error(message)
+      setInvalid(true)
+      inputRef.current?.focus()
     }
   }
 
   const doSave = (reason: SaveReason) => {
     if (doneRef.current) return
-    doneRef.current = true
+    let cleaned: unknown
     try {
-      onSave(cleanCellValue(draft, column), reason)
+      cleaned = cleanCellValue(draft, column)
     } catch {
-      onCancel()
+      rejectDraft('Invalid JSON', reason)
+      return
     }
+    if (column.type === 'number' && cleaned === null && draft.trim() !== '') {
+      rejectDraft('Invalid number', reason)
+      return
+    }
+    doneRef.current = true
+    onSave(cleaned, reason)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -198,11 +308,17 @@ function InlineTextEditor({
       type='text'
       inputMode={isNumber ? 'decimal' : undefined}
       value={draft ?? ''}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        setInvalid(false)
+      }}
       onKeyDown={handleKeyDown}
-      onWheel={handleWheel}
+      onWheel={handleEditorWheel}
       onBlur={() => doSave('blur')}
-      className='w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
+      className={cn(
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+        invalid && 'text-[var(--text-error)]'
+      )}
     />
   )
 }

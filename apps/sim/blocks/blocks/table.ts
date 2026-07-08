@@ -58,6 +58,7 @@ interface TableBlockParams {
   sortBuilder?: unknown
   bulkFilterMode?: string
   bulkFilterBuilder?: unknown
+  conflictColumn?: string
 }
 
 /** Normalized params after parsing, ready for tool request body */
@@ -70,6 +71,7 @@ interface ParsedParams {
   sort?: unknown
   limit?: number
   offset?: number
+  conflictTarget?: string
 }
 
 /** Transforms raw block params into tool request params for each operation */
@@ -82,6 +84,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
   upsert_row: (params) => ({
     tableId: params.tableId,
     data: parseJSON(params.data, 'Row Data'),
+    conflictTarget: params.conflictColumn || undefined,
   }),
 
   batch_insert_rows: (params) => ({
@@ -273,6 +276,30 @@ Table with columns: customer_id (string), total (number), status (string)
 Return ONLY the data JSON:`,
         generationType: 'table-schema',
       },
+    },
+
+    // Upsert - which unique column to match on (required when 2+ unique columns)
+    // Basic: pick a unique column. Advanced: enter the column id directly.
+    {
+      id: 'conflictColumnSelector',
+      title: 'Conflict Column',
+      type: 'column-selector',
+      canonicalParamId: 'conflictColumn',
+      mode: 'basic',
+      selectorKey: 'table.columns',
+      placeholder: 'Select a unique column',
+      dependsOn: ['tableSelector'],
+      condition: { field: 'operation', value: 'upsert_row' },
+    },
+    {
+      id: 'manualConflictColumn',
+      title: 'Conflict Column',
+      type: 'short-input',
+      canonicalParamId: 'conflictColumn',
+      mode: 'advanced',
+      placeholder: 'Enter the column id',
+      dependsOn: ['tableId'],
+      condition: { field: 'operation', value: 'upsert_row' },
     },
 
     // Batch Insert - multiple rows
@@ -631,6 +658,11 @@ Return ONLY the sort JSON:`,
     sortBuilder: { type: 'json', description: 'Visual sort builder conditions' },
     sort: { type: 'json', description: 'Sort order (JSON)' },
     offset: { type: 'number', description: 'Query result offset' },
+    conflictColumn: {
+      type: 'string',
+      description:
+        'Unique column to match on for upsert (required if the table has multiple unique columns)',
+    },
   },
 
   outputs: {
@@ -655,8 +687,8 @@ Return ONLY the sort JSON:`,
     },
     rowCount: {
       type: 'number',
-      description: 'Number of rows returned',
-      condition: { field: 'operation', value: 'query_rows' },
+      description: 'Rows returned (query) or total rows in the table (get schema)',
+      condition: { field: 'operation', value: ['query_rows', 'get_schema'] },
     },
     totalCount: {
       type: 'number',
@@ -695,7 +727,17 @@ Return ONLY the sort JSON:`,
     },
     columns: {
       type: 'array',
-      description: 'Column definitions',
+      description: 'Column definitions (each includes its stable id)',
+      condition: { field: 'operation', value: 'get_schema' },
+    },
+    columnCount: {
+      type: 'number',
+      description: 'Number of columns',
+      condition: { field: 'operation', value: 'get_schema' },
+    },
+    maxRows: {
+      type: 'number',
+      description: "Max rows per table for the workspace's plan",
       condition: { field: 'operation', value: 'get_schema' },
     },
     message: { type: 'string', description: 'Operation status message' },

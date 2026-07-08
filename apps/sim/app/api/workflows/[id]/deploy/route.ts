@@ -1,7 +1,7 @@
 import { db, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { updatePublicApiContract } from '@/lib/api/contracts/deployments'

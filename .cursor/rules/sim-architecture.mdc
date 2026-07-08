@@ -28,7 +28,7 @@ apps/
 └── realtime/            # Bun Socket.IO server (collaborative canvas)
 
 packages/                # @sim/* — audit, auth, db, logger, realtime-protocol,
-                         # security, tsconfig, utils, workflow-authz,
+                         # security, tsconfig, utils, platform-authz,
                          # workflow-persistence, workflow-types
 ```
 

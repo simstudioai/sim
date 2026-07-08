@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
@@ -125,7 +125,7 @@ export async function performFullDeploy(
     workflowName: workflowName || workflowRecord.name || undefined,
     description: params.versionDescription,
     name: params.versionName,
-    validateWorkflowState: async (workflowState, executor) => {
+    validateWorkflowState: async (workflowState) => {
       const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
       if (!scheduleValidation.isValid) {
         return {
@@ -134,10 +134,7 @@ export async function performFullDeploy(
           errorCode: 'validation',
         }
       }
-      const triggerValidation = await validateTriggerWebhookConfigForDeploy(
-        workflowState.blocks,
-        executor
-      )
+      const triggerValidation = await validateTriggerWebhookConfigForDeploy(workflowState.blocks)
       if (!triggerValidation.success) {
         return {
           success: false,

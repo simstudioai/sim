@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { toast } from '@/components/emcn'
 import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'

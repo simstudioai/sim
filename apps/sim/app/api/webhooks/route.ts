@@ -1,14 +1,14 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId, generateShortId } from '@sim/utils/id'
 import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
   WorkflowLockedError,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
@@ -17,7 +17,6 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
@@ -27,11 +26,8 @@ import {
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
-import {
-  findConflictingWebhookPathOwner,
-  syncWebhooksForCredentialSet,
-} from '@/lib/webhooks/utils.server'
-import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
+import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WebhooksAPI')
 
@@ -51,7 +47,6 @@ async function revertSavedWebhook(
         path: existingWebhook.path,
         provider: existingWebhook.provider,
         providerConfig: existingWebhook.providerConfig,
-        credentialSetId: existingWebhook.credentialSetId,
         isActive: existingWebhook.isActive,
         archivedAt: existingWebhook.archivedAt,
         updatedAt: existingWebhook.updatedAt,
@@ -151,12 +146,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }
 
-    const workspacePermissionRows = await db
-      .select({ workspaceId: permissions.entityId })
-      .from(permissions)
-      .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace')))
-
-    const workspaceIds = workspacePermissionRows.map((row) => row.workspaceId)
+    const accessibleRows = await listAccessibleWorkspaceRowsForUser(session.user.id, 'all')
+    const workspaceIds = accessibleRows.map((row) => row.workspace.id)
     if (workspaceIds.length === 0) {
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }
@@ -370,144 +361,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowRecord.workspaceId || undefined
     )
 
-    // For credential sets, we fan out to create one webhook per credential at save time.
-    // This applies to all OAuth-based triggers, not just polling ones.
-    // Check for credentialSetId directly (frontend may already extract it) or credential set value in credential fields
-    const rawCredentialId = (resolvedProviderConfig?.credentialId ||
-      resolvedProviderConfig?.triggerCredentials) as string | undefined
-    const directCredentialSetId = resolvedProviderConfig?.credentialSetId as string | undefined
-
-    if (directCredentialSetId || rawCredentialId) {
-      const credentialSetId =
-        directCredentialSetId ||
-        (rawCredentialId && isCredentialSetValue(rawCredentialId)
-          ? extractCredentialSetId(rawCredentialId)
-          : null)
-
-      if (credentialSetId) {
-        logger.info(
-          `[${requestId}] Credential set detected for ${provider} trigger. Syncing webhooks for set ${credentialSetId}`
-        )
-
-        const oauthProviderId = getProviderIdFromServiceId(provider)
-
-        const {
-          credentialId: _cId,
-          triggerCredentials: _tCred,
-          credentialSetId: _csId,
-          ...baseProviderConfig
-        } = resolvedProviderConfig
-
-        try {
-          const syncResult = await syncWebhooksForCredentialSet({
-            workflowId,
-            blockId: blockId || '',
-            provider,
-            basePath: finalPath,
-            credentialSetId,
-            oauthProviderId,
-            providerConfig: baseProviderConfig,
-            requestId,
-          })
-
-          if (syncResult.webhooks.length === 0) {
-            logger.error(
-              `[${requestId}] No webhooks created for credential set - no valid credentials found`
-            )
-            return NextResponse.json(
-              {
-                error: `No valid credentials found in credential set for ${provider}`,
-                details: 'Please ensure team members have connected their accounts',
-              },
-              { status: 400 }
-            )
-          }
-
-          const providerHandler = getProviderHandler(provider)
-
-          if (providerHandler.configurePolling) {
-            const configureErrors: string[] = []
-
-            for (const wh of syncResult.webhooks) {
-              if (wh.isNew) {
-                const webhookRows = await db
-                  .select()
-                  .from(webhook)
-                  .where(and(eq(webhook.id, wh.id), isNull(webhook.archivedAt)))
-                  .limit(1)
-
-                if (webhookRows.length > 0) {
-                  const success = await providerHandler.configurePolling({
-                    webhook: webhookRows[0],
-                    requestId,
-                  })
-                  if (!success) {
-                    configureErrors.push(
-                      `Failed to configure webhook for credential ${wh.credentialId}`
-                    )
-                    logger.warn(
-                      `[${requestId}] Failed to configure ${provider} polling for webhook ${wh.id}`
-                    )
-                  }
-                }
-              }
-            }
-
-            if (
-              configureErrors.length > 0 &&
-              configureErrors.length === syncResult.webhooks.length
-            ) {
-              logger.error(`[${requestId}] All webhook configurations failed, rolling back`)
-              for (const wh of syncResult.webhooks) {
-                await db.delete(webhook).where(eq(webhook.id, wh.id))
-              }
-              return NextResponse.json(
-                {
-                  error: `Failed to configure ${provider} polling`,
-                  details: 'Please check account permissions and try again',
-                },
-                { status: 500 }
-              )
-            }
-          }
-
-          logger.info(
-            `[${requestId}] Successfully synced ${syncResult.webhooks.length} webhooks for credential set ${credentialSetId}`
-          )
-
-          // Return the first webhook as the "primary" for the UI
-          // The UI will query by credentialSetId to get all of them
-          const primaryWebhookRows = await db
-            .select()
-            .from(webhook)
-            .where(and(eq(webhook.id, syncResult.webhooks[0].id), isNull(webhook.archivedAt)))
-            .limit(1)
-
-          return NextResponse.json(
-            {
-              webhook: primaryWebhookRows[0],
-              credentialSetInfo: {
-                credentialSetId,
-                totalWebhooks: syncResult.webhooks.length,
-                created: syncResult.created,
-                updated: syncResult.updated,
-                deleted: syncResult.deleted,
-              },
-            },
-            { status: syncResult.created > 0 ? 201 : 200 }
-          )
-        } catch (err) {
-          logger.error(`[${requestId}] Error syncing webhooks for credential set`, err)
-          return NextResponse.json(
-            {
-              error: `Failed to configure ${provider} webhook`,
-              details: getErrorMessage(err, 'Unknown error'),
-            },
-            { status: 500 }
-          )
-        }
-      }
-    }
     let externalSubscriptionCreated = false
     const createTempWebhookData = (providerConfigOverride = resolvedProviderConfig) => ({
       id: targetWebhookId || generateShortId(),
@@ -583,8 +436,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             blockId,
             provider,
             providerConfig: configToSave,
-            credentialSetId:
-              ((configToSave as Record<string, unknown>)?.credentialSetId as string | null) || null,
             isActive: true,
             updatedAt: new Date(),
           })
@@ -608,8 +459,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             path: finalPath,
             provider,
             providerConfig: configToSave,
-            credentialSetId:
-              ((configToSave as Record<string, unknown>)?.credentialSetId as string | null) || null,
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),

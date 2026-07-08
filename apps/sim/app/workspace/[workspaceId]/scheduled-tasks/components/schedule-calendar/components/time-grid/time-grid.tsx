@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { chipPrimaryFillTokens, cn } from '@sim/emcn'
 import { format } from 'date-fns'
-import { chipPrimaryFillTokens } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { zonedClockDate } from '@/lib/core/utils/timezone'
 import { CalendarEventChip } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar/components/calendar-event-chip'
 import {

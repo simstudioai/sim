@@ -1,16 +1,12 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { MoreHorizontal, Pin } from 'lucide-react'
-import Link from 'next/link'
-import { useParams, usePathname, useRouter } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Chip,
   ChipLink,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -22,7 +18,7 @@ import {
   Skeleton,
   Tooltip,
   Upload,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import {
   BookOpen,
   Calendar,
@@ -37,10 +33,14 @@ import {
   Table,
   Task,
   Workflow,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { MoreHorizontal, Pin } from 'lucide-react'
+import Link from 'next/link'
+import { useParams, usePathname, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
@@ -86,6 +86,7 @@ import {
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
@@ -347,7 +348,16 @@ const HIDDEN_STYLE = { display: 'none' } as const
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar() {
+interface SidebarProps {
+  /**
+   * Authoritative collapse state, derived once in {@link WorkspaceChrome} from the
+   * `sidebar_collapsed` cookie (server prop → store after hydration) and passed in
+   * so the rail's structure, labels, and width all read a single source.
+   */
+  isCollapsed: boolean
+}
+
+export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -364,6 +374,7 @@ export const Sidebar = memo(function Sidebar() {
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const providers = useProvidersStore((state) => state.providers)
   const providerModelSignature = useMemo(
     () =>
@@ -375,10 +386,9 @@ export const Sidebar = memo(function Sidebar() {
 
   useEffect(() => {
     initializeSearchData(filterBlocks)
-  }, [initializeSearchData, filterBlocks, providerModelSignature])
+  }, [initializeSearchData, filterBlocks, providerModelSignature, customBlockOverlayVersion])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
-  const isCollapsed = useSidebarStore((state) => state.isCollapsed)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const isOnWorkflowPage = !!workflowId
 
@@ -1273,7 +1283,7 @@ export const Sidebar = memo(function Sidebar() {
                   type='button'
                   onClick={toggleCollapsed}
                   className={cn(
-                    'sidebar-collapse-btn ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
+                    'ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
                     isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
                   )}
                   aria-label='Collapse sidebar'
@@ -1735,6 +1745,10 @@ export const Sidebar = memo(function Sidebar() {
         connectedAccounts={searchModalConnectedAccounts}
         isOnWorkflowPage={!!workflowId}
         isOnIntegrationsPage={isOnIntegrationsPage}
+        canEdit={canEdit}
+        onCreateWorkflow={handleCreateWorkflow}
+        onCreateFolder={handleCreateFolder}
+        onImportWorkflow={handleImportWorkflow}
       />
 
       <HelpModal

@@ -1,14 +1,14 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { formatDuration } from '@sim/utils/formatting'
-import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
-import { createPortal } from 'react-dom'
 import {
+  Badge,
   Button,
+  Chip,
   ChipInput,
   ChipModalTabs,
   Code,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,24 +16,35 @@ import {
   DropdownMenuTrigger,
   Duplicate,
   Eye,
+  handleKeyboardActivation,
   Redo,
   Search as SearchIcon,
   Tooltip,
-} from '@/components/emcn'
-import { Workflow } from '@/components/emcn/icons'
+  useCopyToClipboard,
+} from '@sim/emcn'
+import { Workflow, Wrench } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { useQueryState } from 'nuqs'
+import { createPortal } from 'react-dom'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import {
   ExecutionSnapshot,
   FileCards,
   TraceView,
 } from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
+import {
+  logDetailsTabParam,
+  logDetailsTabUrlKeys,
+} from '@/app/workspace/[workspaceId]/logs/search-params'
 import {
   DELETED_WORKFLOW_LABEL,
   formatDate,
@@ -42,11 +53,11 @@ import {
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
+import type { ChatContext } from '@/stores/panel'
 
 /**
  * Renders an already-apportioned integer credit value. `dollars` is only used
@@ -262,23 +273,34 @@ interface LogDetailsContentProps {
 
 export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
-  const [prevLogId, setPrevLogId] = useState(log.id)
+  const [activeTab, setActiveTab] = useQueryState(logDetailsTabParam.key, {
+    ...logDetailsTabParam.parser,
+    ...logDetailsTabUrlKeys,
+  })
   const { copied: copiedRunId, copy: copyRunId } = useCopyToClipboard({ resetMs: 1500 })
-
-  if (prevLogId !== log.id) {
-    setPrevLogId(log.id)
-    setActiveTab('overview')
-  }
 
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
+  const router = useRouter()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+
   const { config: permissionConfig } = usePermissionConfig()
 
+  const isInitialTabMountRef = useRef(true)
+  /**
+   * Honors a deep-linked tab on first mount; resets to overview only when
+   * switching to a different log.
+   */
   useEffect(() => {
+    if (isInitialTabMountRef.current) {
+      isInitialTabMountRef.current = false
+    } else {
+      setActiveTab('overview')
+    }
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable nuqs setter; reset tab when switching logs
   }, [log.id])
 
   const isLikelyExecution = !!log.executionId && log.trigger !== 'mothership'
@@ -369,6 +391,38 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
   const formattedTimestamp = formatDate(log.createdAt)
   const logStatus = getDisplayStatus(log.status)
 
+  /**
+   * Troubleshooting hands the failed run off to Chat, tagging it by
+   * `executionId`. A real Chat run can't be debugged from inside itself, so
+   * mothership-triggered logs are excluded — `isLikelyExecution` already encodes
+   * "has an executionId and isn't a mothership run".
+   */
+  const canTroubleshoot = log.status === 'failed' && isLikelyExecution
+
+  /**
+   * Hands the failed run to Chat. When a chat is already mounted (e.g. the run
+   * is being viewed inside Chat's resource panel) it consumes the tagged
+   * message directly; otherwise a one-shot handoff is persisted and we navigate
+   * to a fresh chat that picks it up on mount. Navigation is gated on a
+   * successful store, so a failed write never strands the user on an empty chat.
+   */
+  const handleTroubleshoot = useCallback(() => {
+    if (!log.executionId) return
+    const workflowName = log.workflow?.name?.trim() || null
+    const context: ChatContext = {
+      kind: 'logs',
+      executionId: log.executionId,
+      label: workflowName ?? 'this run',
+    }
+    const message = workflowName
+      ? `The "${workflowName}" workflow run failed. Investigate the error in this run and help me fix it.`
+      : 'This workflow run failed. Investigate the error in this run and help me fix it.'
+    if (sendMothershipMessage(message, [context])) return
+    if (MothershipHandoffStorage.store({ message, contexts: [context] }, workspaceId)) {
+      router.push(`/workspace/${workspaceId}/home`)
+    }
+  }, [log.executionId, log.workflow?.name, workspaceId, router])
+
   return (
     <>
       <div className='mt-4 flex min-h-0 flex-1 flex-col'>
@@ -421,7 +475,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     role='button'
                     tabIndex={0}
                     aria-label='Copy run ID'
-                    className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
+                    className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
                     onClick={() => copyRunId(log.executionId!)}
                     onKeyDown={(event) =>
                       handleKeyboardActivation(event, () => copyRunId(log.executionId!))
@@ -437,7 +491,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 )}
 
                 {/* Level */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     Level
                   </span>
@@ -445,7 +499,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 </div>
 
                 {/* Trigger */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     Trigger
                   </span>
@@ -459,7 +513,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 </div>
 
                 {/* Duration */}
-                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <div className='flex h-10 items-center justify-between px-3'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     Duration
                   </span>
@@ -470,33 +524,39 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
                 {/* Version */}
                 {log.deploymentVersion && (
-                  <div className='flex h-10 items-center gap-2 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center gap-2 px-3'>
                     <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                       Version
                     </span>
                     <div className='flex w-0 flex-1 justify-end'>
-                      <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-[9px] py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
+                      <Badge variant='green' size='sm' className='max-w-full truncate'>
                         {log.deploymentVersionName || `v${log.deploymentVersion}`}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 )}
 
                 {/* Snapshot */}
                 {showWorkflowState && (
-                  <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center justify-between px-3'>
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Snapshot
                     </span>
-                    <Button
-                      variant='default'
-                      size='sm'
-                      className='gap-1'
-                      onClick={() => setIsExecutionSnapshotOpen(true)}
-                    >
-                      <Eye className='size-3' />
+                    <Chip leftIcon={Eye} flush onClick={() => setIsExecutionSnapshotOpen(true)}>
                       View Snapshot
-                    </Button>
+                    </Chip>
+                  </div>
+                )}
+
+                {/* Troubleshoot */}
+                {canTroubleshoot && (
+                  <div className='flex h-10 items-center justify-between px-3'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                      Troubleshoot
+                    </span>
+                    <Chip leftIcon={Wrench} flush onClick={handleTroubleshoot}>
+                      Troubleshoot in Chat
+                    </Chip>
                   </div>
                 )}
               </div>
@@ -535,10 +595,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               {hasCostInfo && costBreakdown && (
                 <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
                   {costBreakdown.rows.map((row) => (
-                    <div
-                      key={row.key}
-                      className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
-                    >
+                    <div key={row.key} className='flex h-10 items-center justify-between px-3'>
                       <span className='min-w-0 truncate font-medium text-[var(--text-tertiary)] text-caption'>
                         {row.label}
                       </span>
@@ -547,7 +604,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       </span>
                     </div>
                   ))}
-                  <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <div className='flex h-10 items-center justify-between px-3'>
                     <span className='font-medium text-[var(--text-secondary)] text-caption'>
                       Total
                     </span>
@@ -556,7 +613,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     </span>
                   </div>
                   {(costBreakdown.tokens.input > 0 || costBreakdown.tokens.output > 0) && (
-                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                    <div className='flex h-10 items-center justify-between px-3'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Tokens
                       </span>

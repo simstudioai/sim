@@ -52,12 +52,12 @@ export function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): 
   return true
 }
 
-/** Returns sticky row-number column dimensions sized to the digit count of `maxRows`. */
+/** Returns sticky row-number column dimensions sized to the digit count of `rowCount`. */
 export function checkboxColLayout(
-  maxRows: number,
+  rowCount: number,
   hasWorkflowCols: boolean
 ): { colWidth: number; numRegionWidth: number } {
-  const digits = maxRows > 0 ? Math.floor(Math.log10(maxRows)) + 1 : 1
+  const digits = rowCount > 0 ? Math.floor(Math.log10(rowCount)) + 1 : 1
   const numWidth = Math.max(20, digits * 8 + 4)
   // Region the number/checkbox is centered within (digit width + 12px breathing
   // room, min 32). The select-all header checkbox centers in the same region so it
@@ -116,10 +116,18 @@ export function expandToDisplayColumns(
         size++
       }
       const group = groupById.get(gid)
+      // Pre-index outputs by column name for O(1) lookup. First output wins on a
+      // duplicate columnName, exactly matching the previous `Array.find()` behavior.
+      const outputByColumnName = new Map<string, WorkflowGroup['outputs'][number]>()
+      if (group) {
+        for (const o of group.outputs) {
+          if (!outputByColumnName.has(o.columnName)) outputByColumnName.set(o.columnName, o)
+        }
+      }
       const startIdx = out.length
       for (let k = 0; k < size; k++) {
         const child = columns[i + k]
-        const output = group?.outputs.find((o) => o.columnName === getColumnId(child))
+        const output = outputByColumnName.get(getColumnId(child))
         out.push({
           ...child,
           key: getColumnId(child),

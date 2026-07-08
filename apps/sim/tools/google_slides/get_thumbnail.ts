@@ -30,7 +30,7 @@ interface GetThumbnailResponse {
 const THUMBNAIL_SIZES = ['SMALL', 'MEDIUM', 'LARGE'] as const
 
 // Available MIME types for thumbnails
-const MIME_TYPES = ['PNG', 'GIF'] as const
+const MIME_TYPES = ['PNG'] as const
 
 export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailResponse> = {
   id: 'google_slides_get_thumbnail',
@@ -73,7 +73,7 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The MIME type of the thumbnail image: PNG or GIF. Defaults to PNG.',
+      description: 'The MIME type of the thumbnail image: PNG. Defaults to PNG.',
     },
   },
 

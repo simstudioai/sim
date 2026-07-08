@@ -40,6 +40,17 @@ export const usePanelStore = create<PanelState>()(
     }),
     {
       name: 'panel-state',
+      /**
+       * Persist only the durable panel preferences. `activeTab` MUST be kept:
+       * the blocking script in `app/layout.tsx` reads it from this persisted
+       * `panel-state` entry to set `data-panel-active-tab` before hydration,
+       * preventing a tab flash. The transient `isResizing` drag flag and the
+       * `_hasHydrated` hydration marker are excluded.
+       */
+      partialize: (state) => ({
+        panelWidth: state.panelWidth,
+        activeTab: state.activeTab,
+      }),
       onRehydrateStorage: () => (state) => {
         // Sync CSS variables with stored state after rehydration
         if (state && typeof window !== 'undefined') {

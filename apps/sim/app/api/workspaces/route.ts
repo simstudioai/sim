@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { permissions, settings, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
@@ -26,6 +26,7 @@ import {
   UPGRADE_TO_INVITE_REASON,
   WORKSPACE_MODE,
 } from '@/lib/workspaces/policy'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('Workspaces')
 
@@ -62,29 +63,7 @@ export const GET = withRouteHandler(async (request: Request) => {
     .limit(1)
 
   const [userWorkspaces, userSettings] = await Promise.all([
-    db
-      .select({
-        workspace: workspace,
-        permissionType: permissions.permissionType,
-      })
-      .from(permissions)
-      .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-      .where(
-        scope === 'all'
-          ? and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace'))
-          : scope === 'archived'
-            ? and(
-                eq(permissions.userId, session.user.id),
-                eq(permissions.entityType, 'workspace'),
-                sql`${workspace.archivedAt} IS NOT NULL`
-              )
-            : and(
-                eq(permissions.userId, session.user.id),
-                eq(permissions.entityType, 'workspace'),
-                isNull(workspace.archivedAt)
-              )
-      )
-      .orderBy(desc(workspace.createdAt)),
+    listAccessibleWorkspaceRowsForUser(session.user.id, scope),
     settingsQuery,
   ])
 

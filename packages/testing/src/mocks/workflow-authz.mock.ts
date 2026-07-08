@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 /**
  * Real `WorkflowLockedError` subclass used by tests so `instanceof` checks in
  * route handlers behave the same as in production. Mirrors the shape exported
- * by `@sim/workflow-authz`.
+ * by `@sim/platform-authz/workflow`.
  */
 export class MockWorkflowLockedError extends Error {
   readonly status = 423
@@ -17,7 +17,7 @@ export class MockWorkflowLockedError extends Error {
 /**
  * Real `FolderLockedError` subclass used by tests so `instanceof` checks in
  * route handlers behave the same as in production. Mirrors the shape exported
- * by `@sim/workflow-authz`.
+ * by `@sim/platform-authz/workflow`.
  */
 export class MockFolderLockedError extends Error {
   readonly status = 423
@@ -31,7 +31,7 @@ export class MockFolderLockedError extends Error {
 /**
  * Real `FolderNotFoundError` subclass used by tests so `instanceof` checks in
  * route handlers behave the same as in production. Mirrors the shape exported
- * by `@sim/workflow-authz`.
+ * by `@sim/platform-authz/workflow`.
  */
 export class MockFolderNotFoundError extends Error {
   readonly status = 400
@@ -51,7 +51,7 @@ const unlockedStatus = {
 }
 
 /**
- * Controllable mocks for the `@sim/workflow-authz` package.
+ * Controllable mocks for the `@sim/platform-authz/workflow` entry.
  *
  * Defaults assume permissive access (no lock, write allowed). Override with
  * `mockResolvedValue` per test when exercising the lock/permission paths.
@@ -82,11 +82,11 @@ export const workflowAuthzMockFns = {
 }
 
 /**
- * Static mock module for `@sim/workflow-authz`.
+ * Static mock module for `@sim/platform-authz/workflow`.
  *
  * @example
  * ```ts
- * vi.mock('@sim/workflow-authz', () => workflowAuthzMock)
+ * vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
  * ```
  */
 export const workflowAuthzMock = {

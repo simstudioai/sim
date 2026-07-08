@@ -8,7 +8,7 @@ export const SimWorkspaceEventBlock: BlockConfig = {
   // can scrape the type for icon-map keys; a test asserts it stays equal to
   // the constant.
   type: 'sim_workspace_event',
-  name: 'Sim',
+  name: 'Sim Workspace Events',
   description:
     'Run this workflow when workspace events occur: run errors or successes, deployments, and alert conditions like latency or cost spikes.',
   category: 'triggers',

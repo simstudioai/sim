@@ -1,25 +1,19 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 export interface WorkspaceMembership {
   ownerId: string | null
   /** All workspace members: the owner plus everyone with a workspace permission. */
   memberUserIds: string[]
-  /**
-   * Members who default to a credential **admin** role on shared workspace
-   * credentials (secrets and service accounts): the owner plus anyone with
-   * workspace `admin` permission. Manual per-credential overrides are preserved
-   * separately on re-sync.
-   */
-  adminUserIds: Set<string>
 }
 
 /**
- * Resolves a workspace's membership in one owner lookup + one permissions scan,
- * returning both the full member set and the admin-defaulting subset (owner +
- * workspace `admin` permission).
+ * Resolves a workspace's membership in one owner lookup + one permissions scan.
+ * Credential-admin status is derived from workspace role at access time, so
+ * members are seeded only for use access (the owner plus permission holders).
  */
 export async function getWorkspaceMembership(workspaceId: string): Promise<WorkspaceMembership> {
   const [workspaceRows, permissionRows] = await Promise.all([
@@ -29,22 +23,18 @@ export async function getWorkspaceMembership(workspaceId: string): Promise<Works
       .where(eq(workspace.id, workspaceId))
       .limit(1),
     db
-      .select({ userId: permissions.userId, permissionType: permissions.permissionType })
+      .select({ userId: permissions.userId })
       .from(permissions)
       .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))),
   ])
 
   const ownerId = workspaceRows[0]?.ownerId ?? null
   const memberUserIds = new Set<string>(permissionRows.map((row) => row.userId))
-  const adminUserIds = new Set<string>(
-    permissionRows.filter((row) => row.permissionType === 'admin').map((row) => row.userId)
-  )
   if (ownerId) {
     memberUserIds.add(ownerId)
-    adminUserIds.add(ownerId)
   }
 
-  return { ownerId, memberUserIds: Array.from(memberUserIds), adminUserIds }
+  return { ownerId, memberUserIds: Array.from(memberUserIds) }
 }
 
 export interface WorkspaceEnvKeyAdminAccess {
@@ -132,7 +122,6 @@ export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
 async function ensureWorkspaceCredentialMemberships(
   credentialId: string,
   memberUserIds: string[],
-  adminUserIds: Set<string>,
   invitedBy: string
 ) {
   if (!memberUserIds.length) return
@@ -162,7 +151,7 @@ async function ensureWorkspaceCredentialMemberships(
     id: generateId(),
     credentialId,
     userId: memberUserId,
-    role: (adminUserIds.has(memberUserId) ? 'admin' : 'member') as 'admin' | 'member',
+    role: 'member' as const,
     status: 'active' as const,
     joinedAt: now,
     invitedBy,
@@ -191,7 +180,7 @@ export async function syncWorkspaceEnvCredentials(params: {
   actingUserId: string
 }) {
   const { workspaceId, envKeys, actingUserId } = params
-  const { ownerId, memberUserIds, adminUserIds } = await getWorkspaceMembership(workspaceId)
+  const { ownerId, memberUserIds } = await getWorkspaceMembership(workspaceId)
 
   if (!ownerId) return
 
@@ -242,7 +231,7 @@ export async function syncWorkspaceEnvCredentials(params: {
   }
 
   for (const credentialId of credentialIdsToEnsureMembership) {
-    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, adminUserIds, ownerId)
+    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, ownerId)
   }
 
   if (normalizedKeys.length > 0) {
@@ -276,7 +265,7 @@ export async function createWorkspaceEnvCredentials(params: {
   const keys = Array.from(new Set(newKeys.filter(Boolean)))
   if (keys.length === 0) return
 
-  const { ownerId, memberUserIds, adminUserIds } = await getWorkspaceMembership(workspaceId)
+  const { ownerId, memberUserIds } = await getWorkspaceMembership(workspaceId)
 
   if (!ownerId) return
 
@@ -308,9 +297,7 @@ export async function createWorkspaceEnvCredentials(params: {
       id: generateId(),
       credentialId,
       userId: memberUserId,
-      role: (adminUserIds.has(memberUserId) || memberUserId === actingUserId
-        ? 'admin'
-        : 'member') as 'admin' | 'member',
+      role: (memberUserId === actingUserId ? 'admin' : 'member') as 'admin' | 'member',
       status: 'active' as const,
       joinedAt: now,
       invitedBy: actingUserId,
@@ -442,8 +429,12 @@ export async function syncPersonalEnvCredentialsForUser(params: {
 
 export async function getAccessibleEnvCredentials(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { isWorkspaceAdmin?: boolean }
 ): Promise<AccessibleEnvCredential[]> {
+  const isWorkspaceAdmin =
+    options?.isWorkspaceAdmin ?? (await hasWorkspaceAdminAccess(userId, workspaceId))
+
   const rows = await db
     .select({
       type: credential.type,
@@ -452,7 +443,7 @@ export async function getAccessibleEnvCredentials(
       updatedAt: credential.updatedAt,
     })
     .from(credential)
-    .innerJoin(
+    .leftJoin(
       credentialMember,
       and(
         eq(credentialMember.credentialId, credential.id),
@@ -463,18 +454,23 @@ export async function getAccessibleEnvCredentials(
     .where(
       and(
         eq(credential.workspaceId, workspaceId),
-        inArray(credential.type, ['env_workspace', 'env_personal'])
+        inArray(credential.type, ['env_workspace', 'env_personal']),
+        or(
+          isNotNull(credentialMember.id),
+          eq(credential.envOwnerUserId, userId),
+          isWorkspaceAdmin ? eq(credential.type, 'env_workspace') : undefined
+        )
       )
     )
 
   return rows
     .filter(
-      (row): row is AccessibleEnvCredential =>
-        (row.type === 'env_workspace' || row.type === 'env_personal') && Boolean(row.envKey)
+      (row): row is typeof row & { type: 'env_workspace' | 'env_personal'; envKey: string } =>
+        row.envKey !== null && (row.type === 'env_workspace' || row.type === 'env_personal')
     )
     .map((row) => ({
       type: row.type,
-      envKey: row.envKey!,
+      envKey: row.envKey,
       envOwnerUserId: row.envOwnerUserId,
       updatedAt: row.updatedAt,
     }))
@@ -490,8 +486,39 @@ export interface AccessibleOAuthCredential {
 
 export async function getAccessibleOAuthCredentials(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { isWorkspaceAdmin?: boolean }
 ): Promise<AccessibleOAuthCredential[]> {
+  const isWorkspaceAdmin =
+    options?.isWorkspaceAdmin ?? (await hasWorkspaceAdminAccess(userId, workspaceId))
+
+  if (isWorkspaceAdmin) {
+    const rows = await db
+      .select({
+        id: credential.id,
+        providerId: credential.providerId,
+        displayName: credential.displayName,
+        updatedAt: credential.updatedAt,
+      })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.workspaceId, workspaceId),
+          inArray(credential.type, ['oauth', 'service_account'])
+        )
+      )
+
+    return rows
+      .filter((row): row is typeof row & { providerId: string } => Boolean(row.providerId))
+      .map((row) => ({
+        id: row.id,
+        providerId: row.providerId,
+        displayName: row.displayName,
+        role: 'admin' as const,
+        updatedAt: row.updatedAt,
+      }))
+  }
+
   const rows = await db
     .select({
       id: credential.id,

@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, isValidUuid } from '@sim/utils/id'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
@@ -61,6 +61,7 @@ import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
+import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
@@ -72,6 +73,7 @@ import {
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
@@ -454,7 +456,7 @@ async function handleExecutePost(
     }
 
     // Programmatic execution (API key or public API) is gated on the workflow's
-    // workspace billed account — the same entity MCP/A2A/webhooks/chat gate on —
+    // workspace billed account — the same entity MCP/webhooks/chat gate on —
     // so a paid workspace is never blocked because an individual is on free.
     if (auth.authType === AuthType.API_KEY || isPublicApiAccess) {
       if (!gateWorkspaceId) {
@@ -527,6 +529,7 @@ async function handleExecutePost(
       startBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
+      parentWorkspaceId,
     } = validation.data
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
 
@@ -642,6 +645,7 @@ async function handleExecutePost(
               stopAfterBlockId: _stopAfterBlockId,
               runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
+              parentWorkspaceId: _parentWorkspaceId,
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
@@ -726,6 +730,25 @@ async function handleExecutePost(
       return NextResponse.json(
         { error: workflowAuthorization.message || 'Access denied' },
         { status: workflowAuthorization.status }
+      )
+    }
+
+    /**
+     * Workflow-in-workflow invocations (e.g. the agent `workflow_executor`
+     * tool) declare the parent execution's workspace. Reject execution when
+     * the target workflow lives in a different workspace so a stale or
+     * foreign workflow id cannot silently execute with the parent's context.
+     * The error intentionally omits the target's workspace id.
+     */
+    if (parentWorkspaceId && workflowAuthorization.workflow?.workspaceId !== parentWorkspaceId) {
+      reqLogger.warn('Blocked cross-workspace child workflow execution', {
+        parentWorkspaceId,
+      })
+      return NextResponse.json(
+        {
+          error: `Child workflow ${workflowId} belongs to a different workspace and cannot be executed`,
+        },
+        { status: 403 }
       )
     }
 
@@ -838,12 +861,17 @@ async function handleExecutePost(
           variables: deployedVariables,
         }
 
-        const serializedWorkflow = new Serializer().serializeWorkflow(
-          workflowData.blocks,
-          workflowData.edges,
-          workflowData.loops,
-          workflowData.parallels,
-          false
+        // Custom blocks resolve only inside the org overlay; wrap this pre-execution
+        // serialize (used for input file-field discovery) the same way the core does.
+        const customBlockRows = await getCustomBlockRowsForWorkspace(workspaceId)
+        const serializedWorkflow = await withCustomBlockOverlay(customBlockRows, async () =>
+          new Serializer().serializeWorkflow(
+            workflowData.blocks,
+            workflowData.edges,
+            workflowData.loops,
+            workflowData.parallels,
+            false
+          )
         )
 
         const executionContext = {
@@ -1235,12 +1263,28 @@ async function handleExecutePost(
           const isBuffered = event.type !== 'stream:chunk' && event.type !== 'stream:done'
           let eventToSend = event
           if (isBuffered) {
-            const entry = terminalStatus
-              ? await eventWriter.writeTerminal(event, terminalStatus)
-              : await eventWriter.write(event)
-            eventToSend = entry.event
-            eventToSend.eventId = entry.eventId
-            terminalEventPublished ||= Boolean(terminalStatus)
+            try {
+              const entry = terminalStatus
+                ? await eventWriter.writeTerminal(event, terminalStatus)
+                : await eventWriter.write(event)
+              eventToSend = entry.event
+              eventToSend.eventId = entry.eventId
+              terminalEventPublished ||= Boolean(terminalStatus)
+            } catch (e) {
+              // The event buffer (Redis replay store) rejected this event — e.g. the flush
+              // batch exceeds the per-write byte cap for large block outputs. The buffer only
+              // backs reconnect/replay; the live SSE stream is the primary delivery. Fall
+              // through to enqueue the event live (below) instead of throwing, so terminal
+              // events still reach the active client and the UI doesn't hang on "running".
+              // Marking a terminal event delivered-live as published lets finalization close
+              // the stream cleanly instead of aborting it with controller.error().
+              reqLogger.warn('Event buffer write failed; delivering event over live stream only', {
+                eventType: event.type,
+                terminal: Boolean(terminalStatus),
+                error: toError(e).message,
+              })
+              terminalEventPublished ||= Boolean(terminalStatus)
+            }
           }
           if (!isStreamClosed) {
             try {

@@ -10,7 +10,8 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('SelectorValidator')
 
@@ -44,12 +45,21 @@ export async function validateSelectorIds(
       case 'oauth-input': {
         if (context.workspaceId) {
           // In workspace workflows, oauth-input values are workspace credential IDs.
-          // Accept both current credential IDs and legacy account IDs when the user
-          // has active membership to the workspace credential.
+          // Accept both current credential IDs and legacy account IDs. Workspace
+          // admins (incl. derived org admins) can reference any shared credential;
+          // other members need active credential membership.
+          const isWorkspaceAdmin = (await checkWorkspaceAccess(context.workspaceId, context.userId))
+            .canAdmin
+
+          const matchWhere = and(
+            eq(credential.workspaceId, context.workspaceId),
+            inArray(credential.type, ['oauth', 'service_account']),
+            or(inArray(credential.id, idsArray), inArray(credential.accountId, idsArray))
+          )
           const results = await db
             .select({ credentialId: credential.id, accountId: credential.accountId })
             .from(credential)
-            .innerJoin(
+            .leftJoin(
               credentialMember,
               and(
                 eq(credentialMember.credentialId, credential.id),
@@ -57,13 +67,7 @@ export async function validateSelectorIds(
                 eq(credentialMember.status, 'active')
               )
             )
-            .where(
-              and(
-                eq(credential.workspaceId, context.workspaceId),
-                inArray(credential.type, ['oauth', 'service_account']),
-                or(inArray(credential.id, idsArray), inArray(credential.accountId, idsArray))
-              )
-            )
+            .where(and(matchWhere, isWorkspaceAdmin ? undefined : isNotNull(credentialMember.id)))
 
           existingIds = Array.from(
             new Set(
@@ -83,17 +87,22 @@ export async function validateSelectorIds(
           const existingSet = new Set(existingIds)
           const invalidIds = idsArray.filter((id) => !existingSet.has(id))
           if (invalidIds.length > 0) {
+            const accessibleSelect = {
+              id: credential.id,
+              displayName: credential.displayName,
+              accountId: credential.accountId,
+              credentialProviderId: credential.providerId,
+              accountProviderId: account.providerId,
+            }
+            const accessibleWhere = and(
+              eq(credential.workspaceId, context.workspaceId),
+              inArray(credential.type, ['oauth', 'service_account'])
+            )
             const allAccessibleCredentials = await db
-              .select({
-                id: credential.id,
-                displayName: credential.displayName,
-                accountId: credential.accountId,
-                credentialProviderId: credential.providerId,
-                accountProviderId: account.providerId,
-              })
+              .select(accessibleSelect)
               .from(credential)
               .leftJoin(account, eq(credential.accountId, account.id))
-              .innerJoin(
+              .leftJoin(
                 credentialMember,
                 and(
                   eq(credentialMember.credentialId, credential.id),
@@ -102,10 +111,7 @@ export async function validateSelectorIds(
                 )
               )
               .where(
-                and(
-                  eq(credential.workspaceId, context.workspaceId),
-                  inArray(credential.type, ['oauth', 'service_account'])
-                )
+                and(accessibleWhere, isWorkspaceAdmin ? undefined : isNotNull(credentialMember.id))
               )
 
             const availableCredentials = allAccessibleCredentials

@@ -1,13 +1,36 @@
 ---
 title: Roles and permissions
-description: Organization roles, workspace permission levels, and who can do what.
+description: How organization, workspace, and credential roles work together — and how they inherit.
 pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Video } from '@/components/ui/video'
 
-Access in Sim has two layers: **organization roles** (Owner, Admin, Member) govern the organization itself, and **workspace permissions** (Read, Write, Admin) govern what each member can do inside a workspace.
+Access in Sim is organized into three nested levels — your **organization**, the **workspaces** inside it, and the **credentials** (connected accounts and secrets) inside those. Each level has its own roles, and roles **inherit downward**: an admin at one level is automatically an admin at the level below. Inheritance only ever *adds* access — it never takes access away from someone who already has it.
+
+## How roles inherit
+
+Each level has its own set of roles:
+
+| Level | Roles |
+|-------|-------|
+| **Organization** | Owner, Admin, Member |
+| **Workspace** | Read, Write, Admin |
+| **Credentials** (shared connections and secrets) | Member, Admin |
+
+Higher roles flow down automatically:
+
+- An organization **Owner or Admin** is automatically an **Admin of every workspace** in the organization — no per-workspace invite required.
+- A workspace **Admin** is automatically an **Admin of every shared credential** in that workspace — OAuth connections, service accounts, and workspace secrets.
+
+Put together, an organization Owner or Admin can administer every workspace and every shared credential in the organization, top to bottom.
+
+Inherited roles are **automatic and locked**. In member lists they show greyed out with a short tooltip saying where the role comes from (for example, *"Organization admins are automatically workspace admins"*), and they can't be lowered there — you change them at the level they come from.
+
+<Callout type="info">
+**Personal secrets are the one exception.** A user's personal environment variables stay private to them and are never shared or inherited — not by workspace Admins, not by organization Owners or Admins, not by anyone.
+</Callout>
 
 ## Workspaces and Organizations
 
@@ -96,32 +119,20 @@ Here's a detailed breakdown of what users can do with each permission level:
 - Invite new users to the workspace with any permission level
 - Remove users from the workspace
 - Manage workspace settings and integrations
-- Configure external tool connections
+- Administer every shared credential in the workspace (OAuth connections, service accounts, and workspace secrets)
 - Delete workflows created by other users
+- Delete the workspace
 
 **What they cannot do:**
-- Delete the workspace (only the workspace owner can do this)
-- Remove the workspace owner from the workspace
+- Change a role that's inherited from a higher level — an organization admin's workspace role, or the owner's, is locked and managed where it comes from
 
 ---
 
-## Workspace Owner vs Admin
+## Workspace Owner
 
-Every workspace has one **Owner** (the person who created it) plus any number of **Admins**.
+Every workspace has one **Owner** — usually the person who created it. The Owner is simply an Admin whose role is fixed: in the member list it shows as a locked **Admin** (tooltip *"Workspace owner"*), so it can't be lowered. An Owner has no abilities a regular Admin lacks.
 
-### Workspace Owner
-- Has all Admin permissions
-- Can delete the workspace
-- Cannot be removed from the workspace
-- Can transfer ownership to another user
-
-### Workspace Admin  
-- Can do everything except delete the workspace or remove the owner
-- Can be removed from the workspace by the owner or other admins
-
-<Callout type="info">
-  For shared (organization) workspaces, the organization's Owner and Admins are treated as Admins of every workspace in the organization, even without an explicit per-workspace invite.
-</Callout>
+Any Admin — whether invited directly or an admin by way of their organization role — can manage members and settings and delete the workspace. On a shared workspace an Admin can also remove the Owner; ownership then passes to the organization's owner, so the workspace always has one. (The organization's owner is the one account that can't be removed this way — they're the final fallback.) On your personal workspace you are the Owner and can't be removed.
 
 ---
 
@@ -146,15 +157,35 @@ Every workspace has one **Owner** (the person who created it) plus any number of
 Users can create two types of environment variables:
 
 ### Personal Environment Variables
-- Only visible to the individual user
+- Only visible to the individual user, and never shared or inherited — not even by workspace or organization admins
 - Available in all workflows they run
 - Managed in **Settings**, then go to **Secrets**
 
 ### Workspace Environment Variables
-- **Read permission**: Can see variable names and values
-- **Write/Admin permission**: Can add, edit, and delete variables
-- Available to all workspace members
-- If a personal variable has the same name as a workspace variable, the personal one takes priority
+- **Read**: see variable names (the values stay hidden unless you're an admin of that secret)
+- **Write**: add new variables, and edit or delete ones you created
+- **Admin**: add, edit, delete, and view the values of any workspace variable
+- Workspace variables are a kind of workspace credential, so they follow the [Credential Access](#credential-access) rules below — workspace Admins are admins of all of them
+- Available to all workspace members. If a workspace variable and a personal variable share the same name, the **workspace** value wins when a workflow runs
+
+---
+
+## Credential Access
+
+Workspace credentials — OAuth connections, service accounts, and workspace environment variables — have two roles of their own:
+
+- **Credential Member**: can use the credential in workflows.
+- **Credential Admin**: can use it and also edit, delete, and share it.
+
+These roles follow your workspace role:
+
+- **Workspace Admins are automatically Credential Admins** of every shared credential in the workspace (OAuth connections, service accounts, and workspace environment variables). Because organization Owners and Admins are workspace Admins everywhere, they are Credential Admins too. These automatic roles are fixed — they show greyed out with a tooltip in the credential's member list and cannot be changed.
+- **Read and Write members are Credential Members** by default — they can use shared credentials but cannot edit, delete, or share them unless someone makes them a Credential Admin (you are always an admin of credentials you create).
+- **Personal environment variables** are the exception: they stay private to their owner and are never shared with workspace admins.
+
+<Callout type="info">
+  A Credential Admin can both use and manage a credential, so a workspace Admin can run workflows that use any shared OAuth connection in the workspace — including one another member added.
+</Callout>
 
 ---
 
@@ -173,7 +204,7 @@ An organization has three roles: **Owner**, **Admin**, and **Member**.
 - Invite and remove team members from the organization
 - Create new shared workspaces under the organization
 - Manage billing, seat count, and subscription settings
-- Access all shared workspaces within the organization as a workspace Admin
+- Access every shared workspace in the organization as a workspace Admin automatically (no per-workspace invite), including administering the credentials inside them
 - Promote members to Admin or demote Admins to Member
 
 <Callout type="info">
@@ -192,8 +223,9 @@ import { FAQ } from '@/components/ui/faq'
   { question: "What is the difference between organization roles and workspace permissions?", answer: "Organization roles (Owner, Admin, or Member) control who can manage the organization itself, including inviting people, creating shared workspaces, and handling billing. Workspace permissions (Read, Write, Admin) control what a user can do within a specific workspace, such as viewing, editing, or managing workflows. Internal members need both an organization role and a workspace permission to work within a shared workspace. External workspace members do not have an organization role in your org; they only have workspace-level access." },
   { question: "What happens to my shared workspaces if I cancel or downgrade my Team plan?", answer: "Existing shared workspaces remain accessible to current members, but new invitations are disabled until you upgrade back to a Team or Enterprise plan. No workspaces or members are deleted — the organization is simply dormant until billing is re-enabled." },
   { question: "Can I restrict which integrations or model providers a team member can use?", answer: "Yes, on Enterprise-entitled organizations. Any organization owner or admin can create permission groups with fine-grained controls, including restricting allowed integrations and allowed model providers to specific lists. You can also disable access to MCP tools, custom tools, skills, and various platform features like the knowledge base, API keys, or Copilot on a per-group basis. Permission groups are scoped to the organization and can govern either all workspaces or a specific subset — a user can belong to multiple groups but is governed by exactly one group in any given workspace." },
-  { question: "What happens when a personal environment variable has the same name as a workspace variable?", answer: "The personal environment variable takes priority. When a workflow runs, if both a personal and workspace variable share the same name, the personal value is used. This allows individual users to override shared workspace configuration when needed." },
-  { question: "Can an Admin remove the workspace owner?", answer: "No. The workspace owner cannot be removed from the workspace by anyone. Only the workspace owner can delete the workspace or transfer ownership to another user. Admins can do everything else, including inviting and removing other users and managing workspace settings." },
-  { question: "What are permission groups and how do they work?", answer: "Permission groups are an Enterprise access control feature that lets organization owners and admins define granular restrictions beyond the standard Read/Write/Admin roles. Groups are scoped to the organization and can govern either all workspaces or a specific subset. A user can belong to multiple groups, but at most one governs them in any given workspace: a workspace-specific group takes precedence over an all-workspaces group, which takes precedence over the organization's default group. A permission group can hide UI sections (like trace spans, knowledge base, API keys, or deployment options), disable features (MCP tools, custom tools, skills, invitations), and restrict which integrations and model providers its members can access. Members are assigned manually, and an organization can designate one group as the default (always all-workspaces) that governs everyone not explicitly assigned — including external workspace members. Execution-time enforcement is based on the organization that owns the workflow's workspace, not the user's current UI context." },
+  { question: "What happens when a personal environment variable has the same name as a workspace variable?", answer: "The workspace variable wins. When a workflow runs, the resolver checks workspace variables first and falls back to a personal variable only when no workspace variable shares that name. This keeps shared, team-managed values authoritative in production workflows." },
+  { question: "Can an Admin remove the workspace owner?", answer: "On a shared (organization) workspace, yes — any Admin can remove the workspace Owner, and ownership passes to the organization's owner so the workspace always has one. The organization's owner is the single account that can't be removed this way, since they're the final fallback. On your personal workspace you are the Owner and can't remove yourself. The Owner is not a higher permission tier than Admin: every Admin — including those who inherit the role from their organization — can manage members and settings and delete the workspace." },
+  { question: "Who can manage a workspace's credentials and secrets?", answer: "Workspace Admins are automatically Credential Admins of the workspace's shared credentials — OAuth connections, service accounts, and workspace environment variables — so they can use, edit, delete, and share them, and run workflows that rely on them. Organization Owners and Admins get this too because they are workspace Admins everywhere. Read and Write members get use-only access to shared credentials unless they are explicitly made a Credential Admin. Personal environment variables are never shared; they stay private to their owner." },
+  { question: "What are permission groups and how do they work?", answer: "Permission groups are an Enterprise access control feature that lets organization owners and admins define granular restrictions beyond the standard Read/Write/Admin roles. The organization's default group is org-wide; every other group targets specific workspaces and, by default, governs all members of those workspaces (including external members) — add members to restrict it to specific people. A user is governed by one group per workspace: a group they're an explicit member of takes precedence over an all-members group (one with no members) on that workspace, which takes precedence over the organization's default group. A permission group can hide UI sections (like trace spans, knowledge base, API keys, or deployment options), disable features (MCP tools, custom tools, skills, invitations), and restrict which integrations and model providers its members can access. Only one group per organization can be the default; it ignores members and governs everyone not covered by a workspace group, including external members. Restrictions are enforced based on the organization that owns the workflow's workspace, not on which workspace you're currently viewing." },
   { question: "How should I set up permissions for a new team member?", answer: "Start with the lowest permission level they need. Invite teammates to the organization as Members, then add them to the relevant workspace with Read permission if they only need visibility, Write if they need to create and run workflows, or Admin if they need to manage the workspace and its users. For clients, partners, or users who already belong to another Sim organization, use external workspace access so they can collaborate without joining your organization or consuming a seat." },
 ]} />

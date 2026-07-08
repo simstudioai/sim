@@ -51,11 +51,11 @@ packages/
 ├── auth/                   # @sim/auth — shared Better Auth verifier
 ├── db/                     # @sim/db — drizzle schema + client
 ├── logger/                 # @sim/logger
+├── platform-authz/         # @sim/platform-authz — workspace + workflow authz (subpath exports)
 ├── realtime-protocol/      # @sim/realtime-protocol — socket op constants + zod schemas
 ├── security/               # @sim/security — safeCompare
 ├── tsconfig/               # shared tsconfig presets
 ├── utils/                  # @sim/utils
-├── workflow-authz/         # @sim/workflow-authz
 ├── workflow-persistence/   # @sim/workflow-persistence
 └── workflow-types/         # @sim/workflow-types — pure BlockState/Loop/Parallel types
 ```
@@ -93,7 +93,7 @@ Use barrel exports (`index.ts`) when a folder has 3+ exports. Do not re-export f
 
 1. React/core libraries
 2. External libraries
-3. UI components (`@/components/emcn`, `@/components/ui`)
+3. UI components (`@sim/emcn`, `@/components/ui`)
 4. Utilities (`@/lib/...`)
 5. Stores (`@/stores/...`)
 6. Feature imports
@@ -126,6 +126,8 @@ export function Component({ requiredProp, optionalProp = false }: ComponentProps
 ```
 
 Extract when: 50+ lines, used in 2+ files, or has own state/logic. Keep inline when: < 10 lines, single use, purely presentational.
+
+Behavior-preserving render-performance idioms — lazy-init object refs, hoist closure-free values/functions to module scope, pre-index repeated lookups with `Map`/`Set`, and never mutating a shared array in place — are in `.claude/rules/sim-react-performance.md` (which also explains why `toSorted`/`toReversed` are unsafe on client render paths despite the ES2023 tsconfig lib — SWC does not polyfill prototype methods, so use `[...arr].sort()`). For the render-timing effect/state anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
 
 ## API Contracts
 
@@ -288,6 +290,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
 
+export const ENTITY_LIST_STALE_TIME = 60 * 1000
+
 async function fetchEntities(workspaceId: string, signal?: AbortSignal): Promise<EntityList> {
   const data = await requestJson(listEntitiesContract, {
     query: { workspaceId },
@@ -301,7 +305,7 @@ export function useEntityList(workspaceId?: string) {
     queryKey: entityKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: ENTITY_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -324,7 +328,7 @@ export const entityKeys = {
 ### Query Hooks
 
 - Every `queryFn` must forward `signal` for request cancellation
-- Every query must have an explicit `staleTime`
+- Every query must have an explicit `staleTime`, assigned from a named exported constant, never an inline numeric literal — a server-side prefetch hydrating the same query key must import and reuse that constant so the two never drift out of sync
 - Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
 
 ```typescript
@@ -333,7 +337,7 @@ export function useEntityList(workspaceId?: string) {
     queryKey: entityKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: ENTITY_LIST_STALE_TIME,
     placeholderData: keepPreviousData, // OK: workspaceId varies
   })
 }
@@ -367,9 +371,15 @@ export function useUpdateEntity() {
 }
 ```
 
+## URL / Query-Param State
+
+Shareable *client* view-state (active tab/panel, filters, search query, pagination, selected entity id, view mode, a deep-linked drawer/modal) lives in the URL via [`nuqs`](https://nuqs.dev) — not in a store synced with effects, and never read via `useSearchParams().get(...)` / `new URLSearchParams(window.location.search)`. Remote data stays in React Query; high-frequency / large / ephemeral / socket-synced state stays in Zustand (canvas pan/zoom, cursor, drag, resize widths, live collaborative selection).
+
+Co-locate a `search-params.ts` per feature exporting the parser map (single source of truth, shared by client `useQueryStates`/`useQueryState` and server `createSearchParamsCache`). Never `import { z }` in client code for params — use nuqs parsers. Full decision framework, conventions, the debounced-input pattern, and the workflow-editor carve-out are in `.claude/rules/sim-url-state.md`.
+
 ## Styling
 
-Use Tailwind only, no inline styles. Use `cn()` from `@/lib/core/utils/cn` for conditional classes.
+Use Tailwind only, no inline styles. Use `cn()` from `@sim/emcn` for conditional classes.
 
 ```typescript
 <div className={cn('base-classes', isActive && 'active-classes')} />
@@ -385,7 +395,7 @@ On chip components (see "EMCN Components"), drive chrome through PROPS, not `cla
 
 ## EMCN Components
 
-Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA only when 2+ genuine variants exist; otherwise plain `cn()`.
+Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons come from the `@sim/emcn/icons` subpath, and CSS modules from their file path. Never deep-import other component subpaths. Use CVA only when 2+ genuine variants exist; otherwise plain `cn()`.
 
 The chip family is the canonical UI chrome and is progressively replacing the legacy EMCN primitives — always reach for the chip equivalent: `ChipInput` over `Input`, `ChipTextarea` over `Textarea`, `ChipModal`/`ChipModalField` over `Modal`, `ChipSelect`/`ChipCombobox` (searchable) or `ChipDropdown` (simple menu-select) over `Select`/`Combobox`, `ChipSwitch` over `Switch`, `ChipDatePicker` over a raw date field, `Chip`/`ChipLink` for pill buttons/links, `ChipTag` for inline tags/badges. For context/action menus the canonical control is `DropdownMenu` (not a chip, but the standard menu — not a hand-rolled popover). Components OWN their chrome (single source of truth) — consumers pass props, not class overrides. Authoring rules in `.claude/rules/emcn-components.md`; consumer rules in `.claude/rules/sim-styling.md`.
 
@@ -409,7 +419,7 @@ Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.cursor/rules/s
 
 ### Global Mocks (vitest.setup.ts)
 
-`@sim/db`, `@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/workflow-authz`, `@/blocks/registry`, `@/lib/auth`, `@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@trigger.dev/sdk`, and store mocks are provided globally. Do NOT re-mock them unless overriding behavior. (The `vi.mock('@/lib/auth', ...)` in the example below is an override of the global mock so `getSession` can be controlled per-test.)
+`@sim/db`, `@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/platform-authz/workflow`, `@/blocks/registry`, `@/lib/auth`, `@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@trigger.dev/sdk`, and store mocks are provided globally. Do NOT re-mock them unless overriding behavior. (The `vi.mock('@/lib/auth', ...)` in the example below is an override of the global mock so `getSession` can be controlled per-test.)
 
 ### Standard Test Pattern
 
@@ -463,7 +473,7 @@ New integrations are built in order: **Tools** → **Block** → **Icon** → (o
 
 Two hard rules that the skills assume:
 
-- **Tool IDs are `snake_case`** (`service_action`) and must be registered in `tools/registry.ts`; blocks register in `blocks/registry.ts` (alphabetically).
+- **Tool IDs are `snake_case`** (`service_action`) and must be registered in `tools/registry.ts`; blocks register in `blocks/registry-maps.ts` — the `BLOCK_REGISTRY` config map and `BLOCK_META_REGISTRY` catalog-meta map (alphabetically). `blocks/registry.ts` holds only the accessor functions (`getBlock`, `getAllBlocks`, …).
 - **`tools.config.tool` runs during serialization (before variable resolution)** — never do `Number()` or other type coercions there, or dynamic references like `<Block.output>` are destroyed. Put all type coercions in `tools.config.params`, which runs during execution after variables resolve.
 
 For the full authoring instructions — SubBlock property tables, `condition`/`dependsOn`/`required`/`mode`/`canonicalParamId` syntax, required block metadata (`integrationType`, `tags`, `authMode`, `docsLink`, `{Service}BlockMeta`), file-input/`normalizeFileInput` patterns, and checklists — use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`.

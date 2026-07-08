@@ -2,7 +2,7 @@ import type {
   SupabaseStorageGetPublicUrlParams,
   SupabaseStorageGetPublicUrlResponse,
 } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { encodeStoragePath, encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageGetPublicUrlTool: ToolConfig<
@@ -12,7 +12,7 @@ export const storageGetPublicUrlTool: ToolConfig<
   id: 'supabase_storage_get_public_url',
   name: 'Supabase Storage Get Public URL',
   description: 'Get the public URL for a file in a Supabase storage bucket',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     projectId: {
@@ -39,41 +39,45 @@ export const storageGetPublicUrlTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'If true, forces download instead of inline display (default: false)',
     },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Your Supabase service role secret key',
-    },
   },
 
-  request: {
-    url: (params) => `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket/${params.bucket}`,
-    method: 'GET',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
-  },
+  /**
+   * Public URLs are deterministic and built entirely from the project ID,
+   * bucket, and path — no network request is required. `directExecution`
+   * short-circuits the HTTP request so we never hit the API just to discard
+   * its response.
+   */
+  directExecution: async (params: SupabaseStorageGetPublicUrlParams) => {
+    const bucket = encodeStorageSegment(params.bucket)
+    const path = encodeStoragePath(params.path)
+    let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${bucket}/${path}`
 
-  transformResponse: async (response: Response, params?: SupabaseStorageGetPublicUrlParams) => {
-    if (!params?.projectId) {
-      throw new Error('projectId is required to construct the public URL')
-    }
-    let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${params.bucket}/${params.path}`
-
-    if (params?.download) {
-      publicUrl += '?download=true'
+    if (params.download) {
+      // Supabase's `download` query param is a filename override, not a
+      // boolean flag — an empty value forces a download while preserving
+      // the original filename. Sending the literal string "true" would
+      // instead rename the downloaded file to "true".
+      publicUrl += '?download='
     }
 
     return {
       success: true,
       output: {
         message: 'Successfully generated public URL',
-        publicUrl: publicUrl,
+        publicUrl,
       },
       error: undefined,
     }
+  },
+
+  request: {
+    url: (params) => {
+      const bucket = encodeStorageSegment(params.bucket)
+      const path = encodeStoragePath(params.path)
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${bucket}/${path}`
+    },
+    method: 'GET',
+    headers: () => ({}),
   },
 
   outputs: {

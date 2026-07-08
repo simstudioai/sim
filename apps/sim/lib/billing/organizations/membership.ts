@@ -7,8 +7,6 @@
 
 import { db } from '@sim/db'
 import {
-  credential,
-  credentialMember,
   invitation,
   member,
   organization,
@@ -30,6 +28,7 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -398,109 +397,6 @@ async function reassignOwnedOrganizationWorkspacesTx({
     })
 
   return reassignedWorkspaces.length
-}
-
-async function revokeWorkspaceCredentialMembershipsTx({
-  tx,
-  workspaceIds,
-  userId,
-}: {
-  tx: DbOrTx
-  workspaceIds: string[]
-  userId: string
-}) {
-  if (workspaceIds.length === 0) return 0
-
-  const workspaceCredentialRows = await tx
-    .select({
-      credentialId: credential.id,
-      workspaceId: credential.workspaceId,
-      ownerId: workspace.ownerId,
-    })
-    .from(credential)
-    .innerJoin(workspace, eq(credential.workspaceId, workspace.id))
-    .where(inArray(credential.workspaceId, workspaceIds))
-
-  if (workspaceCredentialRows.length === 0) return 0
-
-  const credentialIds = workspaceCredentialRows.map((row) => row.credentialId)
-  const ownerByCredentialId = new Map(
-    workspaceCredentialRows.map((row) => [row.credentialId, row.ownerId])
-  )
-
-  const userAdminMemberships = await tx
-    .select({ credentialId: credentialMember.credentialId })
-    .from(credentialMember)
-    .where(
-      and(
-        eq(credentialMember.userId, userId),
-        eq(credentialMember.role, 'admin'),
-        eq(credentialMember.status, 'active'),
-        inArray(credentialMember.credentialId, credentialIds)
-      )
-    )
-
-  for (const { credentialId } of userAdminMemberships) {
-    const ownerId = ownerByCredentialId.get(credentialId)
-    if (!ownerId || ownerId === userId) continue
-
-    const otherAdmins = await tx
-      .select({ id: credentialMember.id })
-      .from(credentialMember)
-      .where(
-        and(
-          eq(credentialMember.credentialId, credentialId),
-          eq(credentialMember.role, 'admin'),
-          eq(credentialMember.status, 'active'),
-          ne(credentialMember.userId, userId)
-        )
-      )
-      .limit(1)
-
-    if (otherAdmins.length > 0) continue
-
-    const now = new Date()
-    const [existingOwnerMembership] = await tx
-      .select({ id: credentialMember.id })
-      .from(credentialMember)
-      .where(
-        and(eq(credentialMember.credentialId, credentialId), eq(credentialMember.userId, ownerId))
-      )
-      .limit(1)
-
-    if (existingOwnerMembership) {
-      await tx
-        .update(credentialMember)
-        .set({ role: 'admin', status: 'active', updatedAt: now })
-        .where(eq(credentialMember.id, existingOwnerMembership.id))
-    } else {
-      await tx.insert(credentialMember).values({
-        id: generateId(),
-        credentialId,
-        userId: ownerId,
-        role: 'admin',
-        status: 'active',
-        joinedAt: now,
-        invitedBy: ownerId,
-        createdAt: now,
-        updatedAt: now,
-      })
-    }
-  }
-
-  const revokedMemberships = await tx
-    .update(credentialMember)
-    .set({ status: 'revoked', updatedAt: new Date() })
-    .where(
-      and(
-        eq(credentialMember.userId, userId),
-        eq(credentialMember.status, 'active'),
-        inArray(credentialMember.credentialId, credentialIds)
-      )
-    )
-    .returning({ credentialId: credentialMember.credentialId })
-
-  return revokedMemberships.length
 }
 
 interface MembershipValidationResult {
@@ -1114,11 +1010,11 @@ export async function removeUserFromOrganization(
         )
         .returning({ entityId: permissions.entityId })
 
-      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx({
+      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx(
         tx,
         workspaceIds,
-        userId,
-      })
+        userId
+      )
       const capturedUsage = await captureDepartedUsage()
 
       return {
@@ -1308,11 +1204,11 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
         )
         .returning({ id: permissionGroupMember.id })
 
-      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx({
+      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx(
         tx,
         workspaceIds,
-        userId,
-      })
+        userId
+      )
 
       const cancelledInvitations = targetUser?.email
         ? await tx

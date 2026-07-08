@@ -17,6 +17,7 @@ import { googleCalendarConnector } from '@/connectors/google-calendar'
 import { googleDocsConnector } from '@/connectors/google-docs'
 import { googleDriveConnector } from '@/connectors/google-drive'
 import { googleFormsConnector } from '@/connectors/google-forms'
+import { googleMeetConnector } from '@/connectors/google-meet'
 import { googleSheetsConnector } from '@/connectors/google-sheets'
 import { grainConnector } from '@/connectors/grain'
 import { granolaConnector } from '@/connectors/granola'
@@ -77,6 +78,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   google_docs: googleDocsConnector,
   google_drive: googleDriveConnector,
   google_forms: googleFormsConnector,
+  google_meet: googleMeetConnector,
   google_sheets: googleSheetsConnector,
   grain: grainConnector,
   granola: granolaConnector,

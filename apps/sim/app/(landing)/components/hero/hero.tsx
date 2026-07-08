@@ -1,127 +1,126 @@
-'use client'
+import Image from 'next/image'
+import { HeroPlatformLoop } from '@/app/(landing)/components/hero/components/hero-platform-loop'
+import { HeroStat } from '@/app/(landing)/components/hero/components/hero-stat'
+import { HeroCta } from '@/app/(landing)/components/hero-cta'
+import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 
-import dynamic from 'next/dynamic'
-import { cn } from '@/lib/core/utils/cn'
-import { trackLandingCta } from '@/app/(landing)/landing-analytics'
-
-const AuthModal = dynamic(
-  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
-  { loading: () => null }
-)
-
-const DemoRequestModal = dynamic(
-  () =>
-    import('@/app/(landing)/components/demo-request/demo-request-modal').then(
-      (m) => m.DemoRequestModal
-    ),
-  { loading: () => null }
-)
-
-const LandingPreview = dynamic(
-  () =>
-    import('@/app/(landing)/components/landing-preview/landing-preview').then(
-      (mod) => mod.LandingPreview
-    ),
-  {
-    ssr: false,
-    loading: () => <div className='aspect-[1116/615] w-full rounded bg-[var(--landing-bg)]' />,
-  }
-)
-
-const CTA_BASE =
-  'inline-flex items-center h-[32px] rounded-[5px] border px-2.5 font-[430] font-season text-sm'
-
-export default function Hero() {
+/**
+ * Landing hero - the only `<h1>` on the page.
+ *
+ * A single stacked flow (no split panels): headline and the sign-up row sit
+ * left-aligned at the top; below them a full-width media frame
+ * previews the platform UI; the customer-logo row closes the section centered
+ * underneath. The section is capped and centered at the shared `max-w-[1460px]`
+ * (`mx-auto`) with the `px-20 max-lg:px-8 max-sm:px-5` gutter so the headline
+ * starts on the navbar wordmark's vertical line.
+ *
+ * Text blocks stack a uniform 22px apart (`gap-[22px]`); the media frame and
+ * logo row carry their own larger top margins to read as separate bands.
+ *
+ * The sign-up row is the shared {@link HeroCta} - the single source of truth for
+ * the email-capture bar and the "Book a demo" / "Sign up" chips - reused
+ * verbatim by every platform and solutions hero so the primary CTA never drifts.
+ *
+ * The media frame: the painted landscape backdrop (`hero-backdrop.jpg`,
+ * rendered via `next/image` `fill` + `object-cover` with `priority` - it is the
+ * LCP element) behind a white window (a soft three-part shadow stack:
+ * `0 0 0 1px rgba(0,0,0,0.08)` ring in place of a CSS border, plus
+ * `0 2px 6px rgba(0,0,0,0.05)` contact and `0 4px 42px rgba(0,0,0,0.06)`
+ * ambient shadows; no browser toolbar) filled edge to edge by the REAL
+ * platform UI - a 2x
+ * screenshot (`hero-platform-ui.png`, 2560x1470: a 1280x735 layout shown in
+ * the 1080x620 window, so the UI reads at 84.4% - the "mini app" type scale
+ * cursor.com's demo window uses) of the chat-everywhere two-pane (seeded
+ * Mothership chat left, staged workflow right) captured from the
+ * `readme-tour-capture` route via
+ * `exports/readme-banner/capture-hero-platform.mjs`. The window is
+ * `rounded-[10px]` - matching cursor.com's demo window - and the shot's
+ * workspace container renders at the concentric inner radius `4px` (outer
+ * 10px - 6px gap; overridden at capture time from the chrome's 8px). Only the
+ * SIDEBAR
+ * remains visible from the shot: the {@link HeroPlatformLoop} island overlays
+ * the container interior (full-width chat that stages the workflow pane in,
+ * replaying the conversation with the goo ThinkingLoader; blocks stay
+ * draggable), inset a hair INSIDE the shot's own baked outlines so the visible
+ * chrome is the real UI's pixels - never re-drawn.
+ * The frame is `1300/720` and the window `1080/620` at `83.08%` width, centered
+ * - matching cursor.com's hero media proportions, with backdrop showing on all
+ * four sides. Decorative, `aria-hidden`; the `--surface-3` fill remains as the
+ * loading fallback under the backdrop.
+ *
+ * The headline/CTA column shares its row with the right-aligned
+ * {@link HeroStat} (the "Global work done by Sim" figure with its vertical
+ * progress rail and staggered page-load entrance), hidden below `lg` where
+ * the row has no room.
+ *
+ * The shared {@link TrustedBy} block renders in its `row` layout - a centered
+ * muted label above a single centered row of bare wordmarks.
+ *
+ * Carries the sr-only ~50-word product summary for AI citation (CLAUDE.md → GEO).
+ */
+export function Hero() {
   return (
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      itemScope
-      itemType='https://schema.org/WebApplication'
-      className='relative flex flex-col items-center overflow-hidden bg-[var(--landing-bg)] pt-[60px] lg:pt-[100px]'
+      className='mx-auto flex w-full max-w-[1460px] flex-col items-start gap-[22px] px-20 pt-[112px] text-left max-sm:px-5 max-sm:pt-12 max-lg:px-8 max-xl:pt-20'
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
-        1,000+ integrations and every major LLM, including OpenAI, Anthropic Claude, Google Gemini,
-        Mistral, and xAI Grok, to create agents that automate real work. Build agents visually with
-        the workflow builder, conversationally through Chat, or programmatically with the API.
-        Trusted by over 100,000 builders at startups and Fortune 500 companies. SOC2 compliant.
+        1,000+ integrations and every major LLM to create agents that automate real work, visually,
+        conversationally, or with code. Trusted by over 100,000 builders, SOC2 compliant, and
+        production-ready for teams of every size.
       </p>
 
-      <div className='relative z-10 flex flex-col items-center gap-3'>
-        <h1
-          id='hero-heading'
-          itemProp='name'
-          className='text-balance font-[430] font-season text-[36px] text-white leading-[100%] tracking-[-0.02em] sm:text-[48px] lg:text-[72px]'
-        >
-          Build AI Agents
-        </h1>
-        <p
-          itemProp='description'
-          className='whitespace-nowrap text-center font-[430] font-season text-[4.4vw] text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] leading-[125%] tracking-[0.02em] sm:whitespace-normal sm:text-lg lg:text-xl'
-        >
-          Sim is the AI Workspace for Agent Builders
-        </p>
+      <div className='flex w-full items-end justify-between gap-8'>
+        <div className='flex flex-col gap-[22px]'>
+          <h1
+            id='hero-heading'
+            className='text-balance text-[64px] text-[var(--text-primary)] leading-[1.05] tracking-[-0.01em] max-sm:text-[36px] max-xl:text-[52px] [&>br]:max-sm:hidden'
+          >
+            Sim is your AI workspace <br />
+            for building agentic workflows.
+          </h1>
 
-        <div className='mt-3 flex items-center gap-2'>
-          <DemoRequestModal theme='light'>
-            <button
-              type='button'
-              className={cn(
-                CTA_BASE,
-                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-              )}
-              aria-label='Get a demo'
-              onClick={() =>
-                trackLandingCta({ label: 'Get a demo', section: 'hero', destination: 'demo_modal' })
-              }
-            >
-              Get a demo
-            </button>
-          </DemoRequestModal>
-          <AuthModal defaultView='signup' source='hero'>
-            <button
-              type='button'
-              className={cn(
-                CTA_BASE,
-                'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-              )}
-              aria-label='Get started with Sim'
-              onClick={() =>
-                trackLandingCta({
-                  label: 'Get started',
-                  section: 'hero',
-                  destination: 'auth_modal',
-                })
-              }
-            >
-              Get started
-            </button>
-          </AuthModal>
+          <p className='text-[var(--text-muted)] text-base leading-[1.5]'>
+            The open-source workspace where teams build, deploy, and manage AI agents.
+          </p>
+
+          <HeroCta />
+        </div>
+
+        <HeroStat />
+      </div>
+
+      <div
+        aria-hidden='true'
+        className='relative mt-[34px] aspect-[1300/720] w-full overflow-hidden rounded-lg bg-[var(--surface-3)] max-sm:aspect-[4/3]'
+      >
+        <Image
+          src='/landing/hero-backdrop.jpg'
+          alt=''
+          fill
+          priority
+          quality={90}
+          sizes='(max-width: 1460px) 100vw, 1300px'
+          className='object-cover'
+        />
+        <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex aspect-[1080/620] w-[83.08%] flex-col overflow-hidden rounded-[10px] bg-[var(--surface-1)] shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_6px_0_rgba(0,0,0,0.05),0_4px_42px_0_rgba(0,0,0,0.06)]'>
+          <div className='relative flex-1'>
+            <Image
+              src='/landing/hero-platform-ui.png'
+              alt=''
+              fill
+              priority
+              sizes='(max-width: 1460px) 83vw, 1080px'
+              className='object-cover object-left-top'
+            />
+            <HeroPlatformLoop />
+          </div>
         </div>
       </div>
 
-      <div className='relative z-10 mx-auto mt-6 w-[92vw] px-[1.6vw] lg:mt-[3.2vw] lg:w-full lg:px-16'>
-        <div
-          aria-hidden='true'
-          className='absolute top-0 left-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute top-0 right-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute bottom-0 left-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute right-0 bottom-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div className='relative z-10 overflow-hidden rounded border border-[var(--landing-bg-elevated)]'>
-          <LandingPreview />
-        </div>
-      </div>
+      <TrustedBy layout='row' className='mt-[42px] w-full max-sm:mt-6' />
     </section>
   )
 }

@@ -1,6 +1,7 @@
 import type React from 'react'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
+import { perceivedBrightness } from '@/lib/colors'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
@@ -79,6 +80,29 @@ export function getBlockIconAndColor(
   const blockConfig = getBlock(blockType)
   if (blockConfig) return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
   return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
+}
+
+/**
+ * Max YIQ weighted sum (255 × (0.299 + 0.587 + 0.114) × 1000). `perceivedBrightness`
+ * is that sum normalized to 0–1, so the original integer cutoffs map exactly to
+ * `cutoff / MAX_YIQ_SUM` here.
+ */
+const MAX_YIQ_SUM = 255_000
+
+/** Returns 'text-white' for dark backgrounds, dark text for light ones. */
+export function iconColorClass(bgColor: string): string {
+  const brightness = perceivedBrightness(bgColor)
+  return brightness !== null && brightness > 160_000 / MAX_YIQ_SUM ? 'text-[#111111]' : 'text-white'
+}
+
+/**
+ * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).
+ * Below the brightness threshold we fall back to the neutral block color used
+ * for blocks with no distinct identity; everything brighter passes through.
+ */
+export function adjustBgForContrast(bgColor: string): string {
+  const brightness = perceivedBrightness(bgColor)
+  return brightness !== null && brightness < 30_000 / MAX_YIQ_SUM ? DEFAULT_BLOCK_COLOR : bgColor
 }
 
 export function parseTime(value?: string | number | null): number {

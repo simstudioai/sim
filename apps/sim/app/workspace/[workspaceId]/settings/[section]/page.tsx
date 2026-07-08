@@ -35,7 +35,6 @@ const SECTION_TITLES: Record<string, string> = {
   mcp: 'MCP Tools',
   'custom-tools': 'Custom Tools',
   'workflow-mcp-servers': 'MCP Servers',
-  'credential-sets': 'Email Polling',
   'data-retention': 'Data Retention',
   'recently-deleted': 'Recently Deleted',
   debug: 'Debug',

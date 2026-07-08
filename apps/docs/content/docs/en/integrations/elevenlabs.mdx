@@ -1,6 +1,6 @@
 ---
 title: ElevenLabs
-description: Convert text to speech with ElevenLabs
+description: Generate and transform audio with ElevenLabs
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -27,7 +27,7 @@ In Sim, the ElevenLabs integration enables your agents to convert text to lifeli
 
 ## Usage Instructions
 
-Integrate ElevenLabs into the workflow. Can convert text to speech.
+Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.
 
 
 
@@ -54,5 +54,215 @@ Convert text to speech using ElevenLabs voices
 | --------- | ---- | ----------- |
 | `audioUrl` | string | The URL of the generated audio |
 | `audioFile` | file | The generated audio file |
+
+### `elevenlabs_sound_effects`
+
+Generate a sound effect from a text prompt using ElevenLabs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+| `text` | string | Yes | The prompt describing the sound effect \(e.g., "thunder rumbling in the distance"\) |
+| `modelId` | string | No | The model to use \(defaults to eleven_text_to_sound_v2\) |
+| `durationSeconds` | number | No | Length of the sound in seconds \(0.5-30\). Omit to auto-determine |
+| `promptInfluence` | number | No | How closely to follow the prompt from 0.0 to 1.0 \(default 0.3\) |
+| `loop` | boolean | No | Whether to generate a seamlessly looping sound effect \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL of the generated sound effect |
+| `audioFile` | file | The generated sound effect file |
+
+### `elevenlabs_speech_to_speech`
+
+Convert audio into a chosen ElevenLabs voice while preserving content and emotion
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+| `voiceId` | string | Yes | The ID of the target voice to convert the audio into |
+| `audioFile` | file | Yes | The source audio file to convert \(e.g., MP3, WAV, M4A\) |
+| `modelId` | string | No | The model to use \(defaults to eleven_english_sts_v2\) |
+| `removeBackgroundNoise` | boolean | No | Whether to isolate the voice and remove background noise \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL of the converted audio |
+| `audioFile` | file | The converted audio file |
+
+### `elevenlabs_audio_isolation`
+
+Remove background noise from an audio file, isolating the speech using ElevenLabs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+| `audioFile` | file | Yes | The audio file to isolate speech from \(e.g., MP3, WAV, M4A\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | URL of the isolated audio |
+| `audioFile` | file | The isolated audio file |
+
+### `elevenlabs_list_voices`
+
+List the voices available in your ElevenLabs account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+| `search` | string | No | Search term to filter voices by name, description, labels, or category |
+| `category` | string | No | Filter by category: premade, cloned, generated, or professional |
+| `pageSize` | number | No | Number of voices to return \(1-100, default 10\) |
+| `nextPageToken` | string | No | Page token from a previous response to fetch the next page of voices |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `voices` | array | List of voices |
+|   ↳ `voiceId` | string | Unique voice identifier |
+|   ↳ `name` | string | Voice name |
+|   ↳ `category` | string | Voice category |
+|   ↳ `description` | string | Voice description |
+|   ↳ `labels` | json | Voice labels \(accent, gender, age, use case\) |
+|   ↳ `previewUrl` | string | URL to a preview audio sample |
+|   ↳ `settings` | json | Default voice settings |
+| `totalCount` | number | Total number of matching voices |
+| `hasMore` | boolean | Whether more voices are available |
+| `nextPageToken` | string | Token to fetch the next page |
+
+### `elevenlabs_get_voice`
+
+Get metadata and settings for a specific ElevenLabs voice
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+| `voiceId` | string | Yes | The ID of the voice to retrieve \(e.g., "21m00Tcm4TlvDq8ikWAM"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `voiceId` | string | Unique voice identifier |
+| `name` | string | Voice name |
+| `category` | string | Voice category |
+| `description` | string | Voice description |
+| `labels` | json | Voice labels \(accent, gender, age, use case\) |
+| `previewUrl` | string | URL to a preview audio sample |
+| `settings` | json | Default voice settings |
+| `availableForTiers` | array | Subscription tiers the voice is available on |
+| `highQualityBaseModelIds` | array | Model IDs that support high-quality output for this voice |
+| `isOwner` | boolean | Whether the current user owns this voice |
+
+### `elevenlabs_get_voice_settings`
+
+Get the configured settings for a specific ElevenLabs voice
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+| `voiceId` | string | Yes | The ID of the voice whose settings to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stability` | number | Voice stability \(0.0-1.0\) |
+| `similarityBoost` | number | Similarity boost \(0.0-1.0\) |
+| `style` | number | Style exaggeration \(0.0-1.0\) |
+| `useSpeakerBoost` | boolean | Whether speaker boost is enabled |
+| `speed` | number | Speech speed \(1.0 = normal\) |
+
+### `elevenlabs_edit_voice_settings`
+
+Update the settings for a specific ElevenLabs voice
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+| `voiceId` | string | Yes | The ID of the voice to update |
+| `stability` | number | No | Voice stability from 0.0 to 1.0 \(default 0.5\) |
+| `similarityBoost` | number | No | Similarity boost from 0.0 to 1.0 \(default 0.75\) |
+| `style` | number | No | Style exaggeration from 0.0 to 1.0 \(default 0\) |
+| `useSpeakerBoost` | boolean | No | Whether to enhance similarity to the original speaker \(default true\) |
+| `speed` | number | No | Speech speed where 1.0 is normal \(default 1.0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Request outcome \("ok" on success\) |
+
+### `elevenlabs_list_models`
+
+List the models available in ElevenLabs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `models` | array | List of available models |
+|   ↳ `modelId` | string | Unique model identifier |
+|   ↳ `name` | string | Model name |
+|   ↳ `description` | string | Model description |
+|   ↳ `canDoTextToSpeech` | boolean | Supports text-to-speech |
+|   ↳ `canDoVoiceConversion` | boolean | Supports voice conversion |
+|   ↳ `canUseStyle` | boolean | Supports the style parameter |
+|   ↳ `canUseSpeakerBoost` | boolean | Supports speaker boost |
+|   ↳ `languages` | array | Languages supported by the model |
+|     ↳ `languageId` | string | Language code |
+|     ↳ `name` | string | Language name |
+
+### `elevenlabs_get_user`
+
+Get account and subscription information for the ElevenLabs user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Unique user identifier |
+| `isNewUser` | boolean | Whether the user is new |
+| `subscription` | object | Subscription and usage details |
+|   ↳ `tier` | string | Subscription tier |
+|   ↳ `characterCount` | number | Characters used this period |
+|   ↳ `characterLimit` | number | Character quota for this period |
+|   ↳ `canExtendCharacterLimit` | boolean | Whether the character limit can be extended |
+|   ↳ `status` | string | Subscription status |
+|   ↳ `nextCharacterCountResetUnix` | number | Unix timestamp when the character count resets |
 
 

@@ -1,14 +1,15 @@
 import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
-import { and, eq } from 'drizzle-orm'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { oauthCredentialsQuerySchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getCredentialActorContext } from '@/lib/credentials/access'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   getCanonicalScopesForProvider,
@@ -114,11 +115,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       effectiveWorkspaceId = workflowAuthorization.workflow?.workspaceId || undefined
     }
 
+    let requesterCanAdmin = false
     if (effectiveWorkspaceId) {
       const workspaceAccess = await checkWorkspaceAccess(effectiveWorkspaceId, requesterUserId)
       if (!workspaceAccess.hasAccess) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+      requesterCanAdmin = workspaceAccess.canAdmin
     }
 
     if (credentialId) {
@@ -150,19 +153,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           }
 
           if (!workflowId) {
-            const [membership] = await db
-              .select({ id: credentialMember.id })
-              .from(credentialMember)
-              .where(
-                and(
-                  eq(credentialMember.credentialId, platformCredential.id),
-                  eq(credentialMember.userId, requesterUserId),
-                  eq(credentialMember.status, 'active')
-                )
-              )
-              .limit(1)
-
-            if (!membership) {
+            const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
+            if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
               return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
             }
           }
@@ -193,19 +185,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
           }
         } else {
-          const [membership] = await db
-            .select({ id: credentialMember.id })
-            .from(credentialMember)
-            .where(
-              and(
-                eq(credentialMember.credentialId, platformCredential.id),
-                eq(credentialMember.userId, requesterUserId),
-                eq(credentialMember.status, 'active')
-              )
-            )
-            .limit(1)
-
-          if (!membership) {
+          const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
+          if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
           }
         }
@@ -237,17 +218,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         userId: requesterUserId,
       })
 
+      const oauthSelect = {
+        id: credential.id,
+        displayName: credential.displayName,
+        providerId: account.providerId,
+        scope: account.scope,
+        updatedAt: account.updatedAt,
+      }
       const credentialsData = await db
-        .select({
-          id: credential.id,
-          displayName: credential.displayName,
-          providerId: account.providerId,
-          scope: account.scope,
-          updatedAt: account.updatedAt,
-        })
+        .select(oauthSelect)
         .from(credential)
         .innerJoin(account, eq(credential.accountId, account.id))
-        .innerJoin(
+        .leftJoin(
           credentialMember,
           and(
             eq(credentialMember.credentialId, credential.id),
@@ -259,7 +241,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           and(
             eq(credential.workspaceId, effectiveWorkspaceId),
             eq(credential.type, 'oauth'),
-            eq(account.providerId, providerParam)
+            eq(account.providerId, providerParam),
+            requesterCanAdmin ? undefined : isNotNull(credentialMember.id)
           )
         )
 
@@ -270,15 +253,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const saProviderId = getServiceAccountProviderForProviderId(providerParam)
 
       if (saProviderId) {
+        const saSelect = {
+          id: credential.id,
+          displayName: credential.displayName,
+          providerId: credential.providerId,
+          updatedAt: credential.updatedAt,
+        }
         const serviceAccountCreds = await db
-          .select({
-            id: credential.id,
-            displayName: credential.displayName,
-            providerId: credential.providerId,
-            updatedAt: credential.updatedAt,
-          })
+          .select(saSelect)
           .from(credential)
-          .innerJoin(
+          .leftJoin(
             credentialMember,
             and(
               eq(credentialMember.credentialId, credential.id),
@@ -290,7 +274,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             and(
               eq(credential.workspaceId, effectiveWorkspaceId),
               eq(credential.type, 'service_account'),
-              eq(credential.providerId, saProviderId)
+              eq(credential.providerId, saProviderId),
+              requesterCanAdmin ? undefined : isNotNull(credentialMember.id)
             )
           )
 

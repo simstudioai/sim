@@ -1,14 +1,20 @@
 'use client'
-
-import { format } from 'date-fns'
 import {
-  Calendar,
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+  chipFieldSurfaceClass,
+  cn,
+} from '@sim/emcn'
+import { Calendar } from '@sim/emcn/icons'
+import { format } from 'date-fns'
+import { useParams } from 'next/navigation'
+import {
+  PromptEditor,
+  usePromptEditor,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import type {
   ScheduledTask,
   ScheduledTaskStatus,
@@ -35,7 +41,7 @@ interface TaskDetailsModalProps {
 /**
  * Read-only record modal for tasks that are running or already finished —
  * pending tasks open the edit `TaskModal` instead. Three plaintext fields:
- * Status and the run time as copy fields, the prompt as a view-only textarea.
+ * Status and the run time as copy fields, the prompt as a view-only chip editor.
  */
 export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
   return (
@@ -47,23 +53,54 @@ export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
       size='md'
       srTitle='Scheduled task'
     >
-      {task && (
-        <>
-          <ChipModalHeader icon={Calendar} onClose={onClose}>
-            Scheduled task
-          </ChipModalHeader>
-          <ChipModalBody>
-            <ChipModalField type='copy' title='Status' value={STATUS_COPY[task.status].label} />
-            <ChipModalField
-              type='copy'
-              title={STATUS_COPY[task.status].timeTitle}
-              value={format(task.runAt, "EEEE, MMMM d, yyyy 'at' h:mm a")}
-            />
-            <ChipModalField type='textarea' title='Prompt' value={task.prompt} viewOnly />
-          </ChipModalBody>
-          <ChipModalFooter onCancel={onClose} primaryAction={{ label: 'Done', onClick: onClose }} />
-        </>
-      )}
+      {/* Key by the occurrence id so switching tasks while the modal stays open
+          remounts the content — the editor seeds prompt + contexts on mount, so
+          without a fresh mount it would keep showing the first task's prompt. */}
+      {task && <TaskDetailsContent key={task.id} task={task} onClose={onClose} />}
     </ChipModal>
+  )
+}
+
+/**
+ * Inner content, mounted only while a task is shown (the Radix portal unmounts
+ * closed content). Holding the read-only editor here keeps its mention-data
+ * queries from firing on page load and re-seeds from the task on each open.
+ */
+function TaskDetailsContent({ task, onClose }: { task: ScheduledTask; onClose: () => void }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  /**
+   * Seed the stored resource mentions (files, tables, knowledge) as the editor's
+   * initial contexts — these can't be recovered from the prompt text alone. The
+   * mount chipify pass then merges integration `@`-mentions and `/`-skills on top
+   * (they DO chipify from text), so the overlay renders the full set. Seeding is
+   * deliberate over a post-mount `setContexts`, which would clobber the
+   * auto-registered integration/skill contexts.
+   */
+  const editor = usePromptEditor({
+    workspaceId,
+    initialValue: task.prompt,
+    initialContexts: task.contexts,
+  })
+
+  return (
+    <>
+      <ChipModalHeader icon={Calendar} onClose={onClose}>
+        Scheduled task
+      </ChipModalHeader>
+      <ChipModalBody>
+        <ChipModalField type='copy' title='Status' value={STATUS_COPY[task.status].label} />
+        <ChipModalField
+          type='copy'
+          title={STATUS_COPY[task.status].timeTitle}
+          value={format(task.runAt, "EEEE, MMMM d, yyyy 'at' h:mm a")}
+        />
+        <ChipModalField type='custom' title='Prompt'>
+          <div className={cn(chipFieldSurfaceClass, 'max-h-[200px] overflow-y-auto px-1 py-0.5')}>
+            <PromptEditor editor={editor} readOnly aria-label='Prompt' />
+          </div>
+        </ChipModalField>
+      </ChipModalBody>
+      <ChipModalFooter onCancel={onClose} primaryAction={{ label: 'Done', onClick: onClose }} />
+    </>
   )
 }

@@ -180,27 +180,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  create_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description: 'Folder name.',
-        },
-        parentId: {
-          type: 'string',
-          description: 'Optional parent folder ID.',
-        },
-        workspaceId: {
-          type: 'string',
-          description: 'Optional workspace ID.',
-        },
-      },
-      required: ['name'],
-    },
-    resultSchema: undefined,
-  },
   create_workflow: {
     parameters: {
       type: 'object',
@@ -302,22 +281,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['paths'],
-    },
-    resultSchema: undefined,
-  },
-  delete_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        folderIds: {
-          type: 'array',
-          description: 'The folder IDs to delete.',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['folderIds'],
     },
     resultSchema: undefined,
   },
@@ -2154,18 +2117,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  list_folders: {
-    parameters: {
-      type: 'object',
-      properties: {
-        workspaceId: {
-          type: 'string',
-          description: 'Optional workspace ID to list folders for.',
-        },
-      },
-    },
-    resultSchema: undefined,
-  },
   list_integration_tools: {
     parameters: {
       properties: {
@@ -2339,6 +2290,45 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           items: {
             type: 'string',
           },
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
+  manage_folder: {
+    parameters: {
+      type: 'object',
+      properties: {
+        destinationPath: {
+          type: 'string',
+          description:
+            'Destination parent folder\'s VFS path for move/create. Omit (or pass "workflows") to target the workspace root.',
+        },
+        folderId: {
+          type: 'string',
+          description:
+            'Target folder ID, used as a fallback when path is not given. Readable from a contained workflow\'s meta.json "folderId".',
+        },
+        name: {
+          type: 'string',
+          description:
+            'Folder name. Required for rename (the new name); for create when you pass a destination parent instead of a full path.',
+        },
+        operation: {
+          type: 'string',
+          description: 'The operation to perform.',
+          enum: ['create', 'rename', 'move', 'delete'],
+        },
+        parentId: {
+          type: 'string',
+          description:
+            'Destination parent folder ID, used as a fallback when destinationPath is not given.',
+        },
+        path: {
+          type: 'string',
+          description:
+            'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path. Identifies the folder for rename/move/delete; for create it is the new folder\'s full path (its parent must already exist).',
         },
       },
       required: ['operation'],
@@ -2578,24 +2568,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['path'],
-    },
-    resultSchema: undefined,
-  },
-  move_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        folderId: {
-          type: 'string',
-          description: 'The folder ID to move.',
-        },
-        parentId: {
-          type: 'string',
-          description:
-            'Target parent folder ID. Omit or pass empty string to move to workspace root.',
-        },
-      },
-      required: ['folderId'],
     },
     resultSchema: undefined,
   },
@@ -3686,7 +3658,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             limit: {
               type: 'number',
-              description: 'Maximum rows to return or affect (optional, default 100)',
+              description:
+                'Maximum rows to return or affect (optional, default 100). Omit on update_rows_by_filter / delete_rows_by_filter to act on every match.',
             },
             mapping: {
               type: 'object',

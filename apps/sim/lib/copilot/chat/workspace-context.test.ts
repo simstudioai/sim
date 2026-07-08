@@ -17,7 +17,7 @@ vi.mock('@sim/db/schema', () => ({
 }))
 
 import { canonicalWorkflowVfsDir } from '@/lib/copilot/vfs/path-utils'
-import { buildWorkspaceMd, type WorkspaceMdData } from './workspace-context'
+import { buildVfsSnapshot, buildWorkspaceMd, type WorkspaceMdData } from './workspace-context'
 
 function baseData(overrides: Partial<WorkspaceMdData> = {}): WorkspaceMdData {
   return {
@@ -114,5 +114,182 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
   it('renders (none) when no integrations are connected', () => {
     const md = buildWorkspaceMd(baseData({ oauthIntegrations: [] }))
     expect(md).toContain('## Connected Integrations\n(none)')
+  })
+})
+
+describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
+  it('is byte-identical regardless of input row order', () => {
+    const a = buildWorkspaceMd(
+      baseData({
+        members: [
+          { name: 'Bob', email: 'bob@x.com', permissionType: 'admin' },
+          { name: 'Amy', email: 'amy@x.com', permissionType: 'write' },
+        ],
+        workflows: [
+          { id: 'wf-2', name: 'Zeta', isDeployed: false, folderPath: null },
+          { id: 'wf-1', name: 'Alpha', isDeployed: true, folderPath: null },
+        ],
+        tables: [
+          { id: 't-2', name: 'Orders', description: null, rowCount: 5 },
+          { id: 't-1', name: 'Customers', description: null, rowCount: 9 },
+        ],
+        knowledgeBases: [
+          { id: 'kb-2', name: 'Docs', connectorTypes: ['notion', 'github'] },
+          { id: 'kb-1', name: 'Articles', connectorTypes: ['github', 'notion'] },
+        ],
+        oauthIntegrations: [
+          { id: 'c-2', providerId: 'slack', displayName: null, role: null },
+          { id: 'c-1', providerId: 'github', displayName: null, role: null },
+        ],
+        envVariables: ['ZED', 'API_KEY'],
+        customTools: [
+          { id: 'ct-2', name: 'Beta Tool' },
+          { id: 'ct-1', name: 'Alpha Tool' },
+        ],
+        mcpServers: [
+          { id: 'mcp-2', name: 'Zulu', url: null, enabled: false },
+          { id: 'mcp-1', name: 'Mike', url: 'https://x', enabled: true },
+        ],
+        skills: [
+          { id: 'sk-2', name: 'Writer', description: 'writes' },
+          { id: 'sk-1', name: 'Editor', description: 'edits' },
+        ],
+        jobs: [
+          {
+            id: 'j-2',
+            title: 'Nightly',
+            prompt: 'run nightly',
+            cronExpression: '0 0 * * *',
+            status: 'active',
+            lifecycle: 'persistent',
+            sourceTaskName: null,
+          },
+          {
+            id: 'j-1',
+            title: 'Hourly',
+            prompt: 'run hourly',
+            cronExpression: '0 * * * *',
+            status: 'active',
+            lifecycle: 'persistent',
+            sourceTaskName: null,
+          },
+        ],
+      })
+    )
+    const b = buildWorkspaceMd(
+      baseData({
+        members: [
+          { name: 'Amy', email: 'amy@x.com', permissionType: 'write' },
+          { name: 'Bob', email: 'bob@x.com', permissionType: 'admin' },
+        ],
+        workflows: [
+          { id: 'wf-1', name: 'Alpha', isDeployed: true, folderPath: null },
+          { id: 'wf-2', name: 'Zeta', isDeployed: false, folderPath: null },
+        ],
+        tables: [
+          { id: 't-1', name: 'Customers', description: null, rowCount: 9 },
+          { id: 't-2', name: 'Orders', description: null, rowCount: 5 },
+        ],
+        knowledgeBases: [
+          { id: 'kb-1', name: 'Articles', connectorTypes: ['notion', 'github'] },
+          { id: 'kb-2', name: 'Docs', connectorTypes: ['github', 'notion'] },
+        ],
+        oauthIntegrations: [
+          { id: 'c-1', providerId: 'github', displayName: null, role: null },
+          { id: 'c-2', providerId: 'slack', displayName: null, role: null },
+        ],
+        envVariables: ['API_KEY', 'ZED'],
+        customTools: [
+          { id: 'ct-1', name: 'Alpha Tool' },
+          { id: 'ct-2', name: 'Beta Tool' },
+        ],
+        mcpServers: [
+          { id: 'mcp-1', name: 'Mike', url: 'https://x', enabled: true },
+          { id: 'mcp-2', name: 'Zulu', url: null, enabled: false },
+        ],
+        skills: [
+          { id: 'sk-1', name: 'Editor', description: 'edits' },
+          { id: 'sk-2', name: 'Writer', description: 'writes' },
+        ],
+        jobs: [
+          {
+            id: 'j-1',
+            title: 'Hourly',
+            prompt: 'run hourly',
+            cronExpression: '0 * * * *',
+            status: 'active',
+            lifecycle: 'persistent',
+            sourceTaskName: null,
+          },
+          {
+            id: 'j-2',
+            title: 'Nightly',
+            prompt: 'run nightly',
+            cronExpression: '0 0 * * *',
+            status: 'active',
+            lifecycle: 'persistent',
+            sourceTaskName: null,
+          },
+        ],
+      })
+    )
+    expect(a).toBe(b)
+  })
+
+  it('ignores volatile workflow run timestamps', () => {
+    const withRun = buildWorkspaceMd(
+      baseData({
+        workflows: [
+          {
+            id: 'wf-1',
+            name: 'Alpha',
+            isDeployed: false,
+            folderPath: null,
+            lastRunAt: new Date('2026-06-18T12:00:00Z'),
+          },
+        ],
+      })
+    )
+    const withoutRun = buildWorkspaceMd(
+      baseData({
+        workflows: [{ id: 'wf-1', name: 'Alpha', isDeployed: false, folderPath: null }],
+      })
+    )
+    expect(withRun).toBe(withoutRun)
+    expect(withRun).not.toContain('last run')
+  })
+
+  it('ignores volatile table row counts', () => {
+    const a = buildWorkspaceMd(
+      baseData({ tables: [{ id: 't-1', name: 'Customers', description: null, rowCount: 1 }] })
+    )
+    const b = buildWorkspaceMd(
+      baseData({ tables: [{ id: 't-1', name: 'Customers', description: null, rowCount: 9999 }] })
+    )
+    expect(a).toBe(b)
+    expect(a).not.toContain('rows')
+  })
+})
+
+describe('custom blocks', () => {
+  const customBlocks = [
+    { type: 'custom_block_abc', name: 'Invoice Parser', description: 'Parses invoices' },
+  ]
+
+  it('renders a Custom Blocks section in the workspace markdown', () => {
+    const md = buildWorkspaceMd(baseData({ customBlocks }))
+    expect(md).toContain('## Custom Blocks (1)')
+    expect(md).toContain('- **Invoice Parser** (custom_block_abc) — Parses invoices')
+  })
+
+  it('omits the section when there are no custom blocks', () => {
+    expect(buildWorkspaceMd(baseData())).not.toContain('## Custom Blocks')
+  })
+
+  it('never leaks custom blocks into the typed snapshot Go diffs (diff-safety)', () => {
+    const withBlocks = buildVfsSnapshot(baseData({ customBlocks }))
+    const without = buildVfsSnapshot(baseData())
+    expect('customBlocks' in withBlocks).toBe(false)
+    expect(JSON.stringify(withBlocks)).toBe(JSON.stringify(without))
   })
 })

@@ -12,56 +12,45 @@ import type {
   StreamEventScope,
   StreamLoopContext,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
+import { reduceEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 
-function computeEventScope(
-  ctx: StreamLoopContext,
-  parsed: PersistedStreamEventEnvelope
-): StreamEventScope {
-  const scopedParentToolCallId =
-    typeof parsed.scope?.parentToolCallId === 'string' ? parsed.scope.parentToolCallId : undefined
-  const scopedAgentId = typeof parsed.scope?.agentId === 'string' ? parsed.scope.agentId : undefined
-  const scopedSpanId = typeof parsed.scope?.spanId === 'string' ? parsed.scope.spanId : undefined
-  const scopedParentSpanId =
-    typeof parsed.scope?.parentSpanId === 'string' ? parsed.scope.parentSpanId : undefined
-  const scopedSubagent = ctx.ops.resolveScopedSubagent(
-    scopedAgentId,
-    scopedParentToolCallId,
-    scopedSpanId
-  )
-  const spanIdentity: { spanId?: string; parentSpanId?: string } = {
-    ...(scopedSpanId ? { spanId: scopedSpanId } : {}),
-    ...(scopedParentSpanId ? { parentSpanId: scopedParentSpanId } : {}),
-  }
+// The model owns subagent attribution by scope identity; only the span handler
+// needs scope, and only these three fields (agent id for file-preview seeding,
+// span/parent ids for lane identity).
+function computeEventScope(parsed: PersistedStreamEventEnvelope): StreamEventScope {
   return {
-    scopedSubagent,
-    scopedParentToolCallId,
-    scopedAgentId,
-    scopedSpanId,
-    scopedParentSpanId,
-    spanIdentity,
+    scopedParentToolCallId:
+      typeof parsed.scope?.parentToolCallId === 'string'
+        ? parsed.scope.parentToolCallId
+        : undefined,
+    scopedAgentId: typeof parsed.scope?.agentId === 'string' ? parsed.scope.agentId : undefined,
+    scopedSpanId: typeof parsed.scope?.spanId === 'string' ? parsed.scope.spanId : undefined,
   }
 }
 
 /**
- * Routes a parsed stream event to its handler. Per-event subagent/span scope is
- * resolved once here and passed to the handlers that nest blocks by it. The
- * caller's transport loop owns staleness, cursor dedup, and `streamId`/
- * `streamRequestId` updates; this function only mutates the supplied context.
+ * Folds a parsed stream event into the model (the single source of truth), then
+ * routes it to its side-effect handler. Span scope is computed only for the span
+ * handler (handlers no longer nest blocks — the model does). The caller's
+ * transport loop owns staleness, cursor dedup, and `streamId`/`streamRequestId`.
  */
 export function dispatchStreamEvent(
   ctx: StreamLoopContext,
   parsed: PersistedStreamEventEnvelope
 ): void {
-  const scope = computeEventScope(ctx, parsed)
+  // The model is the single source of truth: fold every event into it first,
+  // then run the handlers for their side effects (resource/query/preview) and
+  // the snapshot flush, which serializes the model.
+  reduceEvent(ctx.state.model, parsed)
   switch (parsed.type) {
     case MothershipStreamV1EventType.session:
       handleSessionEvent(ctx, parsed)
       break
     case MothershipStreamV1EventType.text:
-      handleTextEvent(ctx, parsed, scope)
+      handleTextEvent(ctx, parsed)
       break
     case MothershipStreamV1EventType.tool:
-      handleToolEvent(ctx, parsed, scope)
+      handleToolEvent(ctx, parsed)
       break
     case MothershipStreamV1EventType.resource:
       handleResourceEvent(ctx, parsed)
@@ -70,10 +59,10 @@ export function dispatchStreamEvent(
       handleRunEvent(ctx, parsed)
       break
     case MothershipStreamV1EventType.span:
-      handleSpanEvent(ctx, parsed, scope)
+      handleSpanEvent(ctx, parsed, computeEventScope(parsed))
       break
     case MothershipStreamV1EventType.error:
-      handleErrorEvent(ctx, parsed, scope)
+      handleErrorEvent(ctx, parsed)
       break
     case MothershipStreamV1EventType.complete:
       handleCompleteEvent(ctx, parsed)

@@ -21,6 +21,8 @@ describe('phone-number enrichment cascade', () => {
       'wiza',
       'findymail',
       'prospeo',
+      'leadmagic',
+      'datagma',
     ])
   })
 
@@ -73,6 +75,30 @@ describe('phone-number enrichment cascade', () => {
       })
       expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
       expect(p.mapOutput({ person: { mobile: { mobile: '+1555' } } })).toEqual({ phone: '+1555' })
+    })
+  })
+
+  describe('leadmagic', () => {
+    const p = provider('leadmagic')
+    it('keys off the LinkedIn URL and skips without one', () => {
+      expect(p.toolId).toBe('leadmagic_find_mobile')
+      expect(p.buildParams(linkedinOnly)).toEqual({
+        profile_url: 'https://linkedin.com/in/johndoe',
+      })
+      expect(p.buildParams(nameDomain)).toBeNull()
+      expect(p.mapOutput({ mobile_number: '+1555' })).toEqual({ phone: '+1555' })
+      expect(p.mapOutput({ mobile_number: null })).toBeNull()
+    })
+  })
+
+  describe('datagma', () => {
+    const p = provider('datagma')
+    it('passes the LinkedIn URL as username and skips without one', () => {
+      expect(p.toolId).toBe('datagma_find_phone')
+      expect(p.buildParams(linkedinOnly)).toEqual({ username: 'https://linkedin.com/in/johndoe' })
+      expect(p.buildParams(nameDomain)).toBeNull()
+      expect(p.mapOutput({ phone: '+1555' })).toEqual({ phone: '+1555' })
+      expect(p.mapOutput({ phone: null })).toBeNull()
     })
   })
 })

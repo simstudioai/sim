@@ -501,14 +501,20 @@ function getTimezoneAbbreviation(timezone: string): string {
  * Converts a cron expression to a human-readable string format
  * Uses the cronstrue library for accurate parsing of complex cron expressions
  *
+ * Croner spells the last weekday of the month as `<weekday>#L` (e.g. `1#L`) while
+ * cronstrue spells the same thing `<weekday>L`; the expression is normalized to
+ * cronstrue's syntax for display only, so the stored cron keeps croner's syntax
+ * and scheduling stays correct.
+ *
  * @param cronExpression - The cron expression to parse
  * @param timezone - Optional IANA timezone string to include in the description
  * @returns Human-readable description of the schedule
  */
 export const parseCronToHumanReadable = (cronExpression: string, timezone?: string): string => {
   try {
+    const forDisplay = cronExpression.replace(/([0-7])#L\b/g, '$1L')
     const baseDescription = cronstrue
-      .toString(cronExpression, {
+      .toString(forDisplay, {
         use24HourTimeFormat: false,
         verbose: false,
       })

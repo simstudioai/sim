@@ -517,6 +517,16 @@ describe('Schedule Utilities', () => {
       expect(parseCronToHumanReadable('30 14 15 * *')).toContain('15')
     })
 
+    it.concurrent('should describe the nth weekday of the month', () => {
+      expect(parseCronToHumanReadable('30 9 * * 1#3')).toContain('third Monday')
+    })
+
+    it.concurrent("should describe croner's last-weekday syntax without a null ordinal", () => {
+      const result = parseCronToHumanReadable('30 9 * * 1#L')
+      expect(result).toContain('last Monday')
+      expect(result).not.toContain('null')
+    })
+
     it.concurrent('should include timezone information when provided', () => {
       const resultPT = parseCronToHumanReadable('0 9 * * *', 'America/Los_Angeles')
       // Intl.DateTimeFormat returns PST or PDT depending on DST

@@ -4,6 +4,7 @@ import type { Edge } from 'reactflow'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks'
@@ -151,15 +152,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
       } else if (subBlock.defaultValue !== undefined) {
         initialValue = subBlock.defaultValue
       } else if (subBlock.type === 'input-format' || subBlock.type === 'response-format') {
-        initialValue = [
-          {
-            id: generateId(),
-            name: '',
-            type: 'string',
-            value: '',
-            collapsed: false,
-          },
-        ]
+        initialValue = [createDefaultInputFormatField()]
       } else if (subBlock.type === 'table') {
         initialValue = []
       }

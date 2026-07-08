@@ -121,6 +121,7 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
     body: (params: GoogleContactsUpdateParams) => {
       const person: Record<string, any> = {
         etag: params.etag,
+        metadata: { sources: [{ type: 'CONTACT', etag: params.etag }] },
       }
 
       if (params.givenName || params.familyName) {

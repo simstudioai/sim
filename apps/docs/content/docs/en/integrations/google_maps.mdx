@@ -289,6 +289,43 @@ Get detailed information about a specific place
 | `vicinity` | string | Simplified address \(neighborhood/street\) |
 | `businessStatus` | string | Business status \(OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY\) |
 
+### `google_maps_places_nearby`
+
+Search for places of a given type within a radius of a location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Maps API key |
+| `lat` | number | Yes | Latitude of the center point to search around |
+| `lng` | number | Yes | Longitude of the center point to search around |
+| `radius` | number | Yes | Search radius in meters \(up to 50000\) |
+| `includedTypes` | array | No | Place types to include in the results \(e.g., restaurant, cafe\) |
+| `maxResultCount` | number | No | Maximum number of results to return \(1-20, defaults to 20\) |
+| `rankPreference` | string | No | How to rank results: POPULARITY \(default\) or DISTANCE |
+| `languageCode` | string | No | Language code for the response \(e.g., en, es\) |
+| `regionCode` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `places` | array | List of places found near the given location |
+|   ↳ `placeId` | string | Google Place resource ID |
+|   ↳ `name` | string | Place name |
+|   ↳ `formattedAddress` | string | Formatted address |
+|   ↳ `lat` | number | Latitude |
+|   ↳ `lng` | number | Longitude |
+|   ↳ `types` | array | Place types |
+|   ↳ `rating` | number | Average rating \(1-5\) |
+|   ↳ `userRatingsTotal` | number | Number of ratings |
+|   ↳ `priceLevel` | string | Price level \(e.g., PRICE_LEVEL_MODERATE\) |
+|   ↳ `openNow` | boolean | Whether currently open |
+|   ↳ `businessStatus` | string | Business status |
+
 ### `google_maps_places_search`
 
 Search for places using a text query
@@ -304,6 +341,7 @@ Search for places using a text query
 | `type` | string | No | Place type filter \(e.g., restaurant, cafe, hotel\) |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
 | `region` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
+| `pageToken` | string | No | Token from a previous search response to fetch the next page of results. Wait a couple seconds after receiving the token before using it, or the API returns INVALID_REQUEST |
 | `pricing` | per_request | No | No description |
 | `rateLimit` | string | No | No description |
 
@@ -325,6 +363,43 @@ Search for places using a text query
 |   ↳ `photoReference` | string | Photo reference for Photos API |
 |   ↳ `businessStatus` | string | Business status |
 | `nextPageToken` | string | Token for fetching the next page of results |
+
+### `google_maps_pollen`
+
+Get a daily pollen forecast (grass, tree, weed) for a location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Maps API key with Pollen API enabled |
+| `lat` | number | Yes | Latitude coordinate |
+| `lng` | number | Yes | Longitude coordinate |
+| `days` | number | No | Number of forecast days to return \(1-5, defaults to 1\) |
+| `languageCode` | string | No | Language code for the response \(e.g., "en", "es"\) |
+| `plantsDescription` | boolean | No | Include detailed plant descriptions \(defaults to true\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `regionCode` | string | Region code \(ISO 3166-1 alpha-2\) for the location |
+| `dailyInfo` | array | Daily pollen forecast entries |
+|   ↳ `date` | object | Calendar date of the forecast entry |
+|   ↳ `pollenTypeInfo` | array | Pollen type indices \(grass, tree, weed\) |
+|     ↳ `code` | string | Pollen type code \(GRASS, TREE, WEED\) |
+|     ↳ `displayName` | string | Display name |
+|     ↳ `inSeason` | boolean | Whether the pollen type is in season |
+|     ↳ `indexInfo` | object | Universal Pollen Index \(UPI\) info |
+|     ↳ `healthRecommendations` | array | Health recommendations |
+|   ↳ `plantInfo` | array | Per-plant forecast with descriptions |
+|     ↳ `code` | string | Plant code \(e.g., BIRCH, RAGWEED\) |
+|     ↳ `displayName` | string | Display name |
+|     ↳ `inSeason` | boolean | Whether the plant is in season |
+|     ↳ `indexInfo` | object | Universal Pollen Index \(UPI\) info |
+|     ↳ `plantDescription` | object | Plant details \(type, family, season, cross-reactions\) |
 
 ### `google_maps_reverse_geocode`
 
@@ -379,6 +454,36 @@ Snap GPS coordinates to the nearest road segment
 |   ↳ `placeId` | string | Place ID for this road segment |
 | `warningMessage` | string | Warning message if any \(e.g., if points could not be snapped\) |
 
+### `google_maps_solar`
+
+Get solar potential and panel insights for the building nearest a location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Maps API key with Solar API enabled |
+| `lat` | number | Yes | Latitude coordinate |
+| `lng` | number | Yes | Longitude coordinate |
+| `requiredQuality` | string | No | Minimum imagery quality to accept \(HIGH, MEDIUM, or BASE\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Resource name of the building \(e.g., "buildings/ChIJ..."\) |
+| `center` | object | Center coordinate of the building |
+|   ↳ `lat` | number | Latitude |
+|   ↳ `lng` | number | Longitude |
+| `imageryDate` | object | Date the underlying imagery was captured |
+| `imageryQuality` | string | Quality of the imagery used \(HIGH, MEDIUM, BASE\) |
+| `regionCode` | string | Region code \(ISO 3166-1 alpha-2\) for the building |
+| `postalCode` | string | Postal code of the building |
+| `administrativeArea` | string | Administrative area \(e.g., state or province\) |
+| `solarPotential` | object | Solar potential: max panel count/area, sunshine hours, carbon offset, panel specs, and configs |
+
 ### `google_maps_speed_limits`
 
 Get speed limits for road segments. Requires either path coordinates or placeIds.
@@ -390,6 +495,7 @@ Get speed limits for road segments. Requires either path coordinates or placeIds
 | `apiKey` | string | Yes | Google Maps API key with Roads API enabled |
 | `path` | string | No | Pipe-separated list of lat,lng coordinates \(required if placeIds not provided\) |
 | `placeIds` | array | No | Array of Place IDs for road segments \(required if path not provided\) |
+| `units` | string | No | Units for the returned speed limits: KPH \(default\) or MPH |
 
 #### Output
 

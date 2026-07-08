@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
   type WorkflowWorkspaceAuthorizationResult,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { enforceUserRateLimit } from '@/lib/core/rate-limiter'

@@ -1,14 +1,7 @@
 import { db } from '@sim/db'
-import {
-  account,
-  credentialSet,
-  webhook,
-  workflow,
-  workflowDeploymentVersion,
-} from '@sim/db/schema'
+import { account, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
-import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import type { WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
 import {
   getOAuthToken,
@@ -148,8 +141,13 @@ export async function runWithConcurrency(
 }
 
 /**
- * Read-merge-write pattern for updating provider-specific config fields.
+ * Atomically merge provider-specific config fields into `webhook.provider_config`.
  * Each provider passes its specific state updates (historyId, lastSeenGuids, etc.).
+ *
+ * The column is `json` (not `jsonb`), which has no merge operators, so the existing
+ * value is cast to `jsonb` for the `||`/`-` merge and the result cast back to `json`
+ * for storage. Casting is required — a bare `jsonb` expression cannot be assigned to
+ * the `json` column.
  */
 export async function updateWebhookProviderConfig(
   webhookId: string,
@@ -157,16 +155,20 @@ export async function updateWebhookProviderConfig(
   logger: Logger
 ): Promise<void> {
   try {
-    const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
-    const existingConfig = (result[0]?.providerConfig as Record<string, unknown>) || {}
+    const defined: Record<string, unknown> = {}
+    const removedKeys: string[] = []
+    for (const [key, value] of Object.entries(configUpdates)) {
+      if (value === undefined) removedKeys.push(key)
+      else defined[key] = value
+    }
+
+    const merged = sql`COALESCE(${webhook.providerConfig}::jsonb, '{}'::jsonb) || ${JSON.stringify(defined)}::jsonb`
+    const nextConfig = removedKeys.length > 0 ? sql`(${merged}) - ${removedKeys}::text[]` : merged
 
     await db
       .update(webhook)
       .set({
-        providerConfig: {
-          ...existingConfig,
-          ...configUpdates,
-        } as Record<string, unknown>,
+        providerConfig: sql`(${nextConfig})::json`,
         updatedAt: new Date(),
       })
       .where(eq(webhook.id, webhookId))
@@ -182,39 +184,14 @@ export async function updateWebhookProviderConfig(
 export async function resolveOAuthCredential(
   webhookData: WebhookRecord,
   oauthProvider: string,
-  requestId: string,
-  logger: Logger
+  requestId: string
 ): Promise<string> {
   const metadata = webhookData.providerConfig as Record<string, unknown> | null
   const credentialId = metadata?.credentialId as string | undefined
   const userId = metadata?.userId as string | undefined
-  const credentialSetId = (webhookData.credentialSetId as string | undefined) ?? undefined
 
   if (!credentialId && !userId) {
     throw new Error(`Missing credential info for webhook ${webhookData.id}`)
-  }
-
-  if (credentialSetId) {
-    const [cs] = await db
-      .select({ organizationId: credentialSet.organizationId })
-      .from(credentialSet)
-      .where(eq(credentialSet.id, credentialSetId))
-      .limit(1)
-
-    if (cs?.organizationId) {
-      const hasAccess = await isOrganizationOnTeamOrEnterprisePlan(cs.organizationId)
-      if (!hasAccess) {
-        logger.error(
-          `[${requestId}] Polling Group plan restriction: Your current plan does not support Polling Groups. Upgrade to Team or Enterprise to use this feature.`,
-          {
-            webhookId: webhookData.id,
-            credentialSetId,
-            organizationId: cs.organizationId,
-          }
-        )
-        throw new Error('Polling Group plan restriction')
-      }
-    }
   }
 
   let accessToken: string | null = null

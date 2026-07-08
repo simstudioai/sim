@@ -7,6 +7,7 @@ import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
@@ -114,6 +115,7 @@ export const vllmProvider: ProviderConfig = {
      * IP blocklist and blocked-port checks still apply, so SSRF protection is intact.
      */
     let pinnedFetch: typeof fetch | undefined
+    let pinnedIP: string | undefined
     if (userProvidedEndpoint) {
       const validation = await validateUrlWithDNS(userProvidedEndpoint, 'vLLM endpoint', {
         allowHttp: true,
@@ -128,15 +130,20 @@ export const vllmProvider: ProviderConfig = {
       if (!validation.resolvedIP) {
         throw new Error('Invalid vLLM endpoint: could not resolve a pinnable IP address')
       }
-      pinnedFetch = createPinnedFetch(validation.resolvedIP)
+      pinnedIP = validation.resolvedIP
+      pinnedFetch = createPinnedFetch(pinnedIP)
     }
 
     const apiKey = request.apiKey || env.VLLM_API_KEY || 'empty'
-    const vllm = new OpenAI({
-      apiKey,
-      baseURL: `${baseUrl}/v1`,
-      ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
-    })
+    const vllm = getCachedProviderClient(
+      `vllm::${apiKey}::${baseUrl}::${pinnedIP ?? 'no-pin'}`,
+      () =>
+        new OpenAI({
+          apiKey,
+          baseURL: `${baseUrl}/v1`,
+          ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
+        })
+    )
 
     const allMessages: Message[] = []
 

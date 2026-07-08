@@ -8,7 +8,8 @@ import { secureFetchWithValidation } from '@/lib/core/security/input-validation.
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { ServiceNowAttachment } from '@/tools/servicenow/types'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
@@ -52,8 +53,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
 
-    const contentType = userFile.type || 'application/octet-stream'
-    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+    let fileBuffer: Buffer
+    let resolvedContentType: string
+    try {
+      const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+      fileBuffer = servable.buffer
+      resolvedContentType = servable.contentType
+    } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
+      logger.error(`[${requestId}] Failed to download file from storage:`, error)
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Failed to download file') },
+        { status: 500 }
+      )
+    }
+
+    const contentType = resolvedContentType || userFile.type || 'application/octet-stream'
 
     const baseUrl = body.instanceUrl.trim().replace(/\/$/, '')
     const uploadParams = new URLSearchParams({
