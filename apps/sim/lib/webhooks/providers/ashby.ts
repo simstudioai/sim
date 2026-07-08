@@ -54,10 +54,19 @@ export const ashbyHandler: WebhookProviderHandler = {
     const offer = data.offer as Record<string, unknown> | undefined
 
     if (application?.id) {
-      return `ashby:${action}:${application.id}:${application.updatedAt ?? ''}`
+      // updatedAt is required by Ashby's schema, but if it's ever absent we
+      // can't tell retries of the same event apart from a genuinely new one
+      // (e.g. a later stage change) — skip dedup rather than risk collapsing
+      // two distinct events into the same key.
+      if (!application.updatedAt) return null
+      return `ashby:${action}:${application.id}:${application.updatedAt}`
     }
     if (offer?.id) {
-      return `ashby:${action}:${offer.id}:${offer.decidedAt ?? ''}`
+      // offerCreate fires exactly once per offer, so the id alone is a
+      // stable key. `decidedAt` is populated only after the fact (candidate
+      // responds), so including it would give a retry of the same delivery
+      // a different key than the original attempt and defeat dedup.
+      return `ashby:${action}:${offer.id}`
     }
     if (candidate?.id) {
       return `ashby:${action}:${candidate.id}`

@@ -143,9 +143,23 @@ describe('ashbyHandler', () => {
       expect(ashbyHandler.extractIdempotencyId!(body)).toBe('ashby:jobCreate:job-1')
     })
 
-    it('derives a key from offer id + decidedAt for offerCreate', () => {
-      const body = { action: 'offerCreate', data: { offer: { id: 'offer-1', decidedAt: null } } }
-      expect(ashbyHandler.extractIdempotencyId!(body)).toBe('ashby:offerCreate:offer-1:')
+    it('derives a stable key from offer id alone, ignoring mutable decidedAt', () => {
+      const created = { action: 'offerCreate', data: { offer: { id: 'offer-1', decidedAt: null } } }
+      expect(ashbyHandler.extractIdempotencyId!(created)).toBe('ashby:offerCreate:offer-1')
+
+      // a retry delivered after decidedAt was populated must produce the same key
+      const retriedAfterDecision = {
+        action: 'offerCreate',
+        data: { offer: { id: 'offer-1', decidedAt: '2026-01-02T00:00:00Z' } },
+      }
+      expect(ashbyHandler.extractIdempotencyId!(retriedAfterDecision)).toBe(
+        ashbyHandler.extractIdempotencyId!(created)
+      )
+    })
+
+    it('returns null when application updatedAt is missing, rather than risk a false collision', () => {
+      const body = { action: 'candidateStageChange', data: { application: { id: 'app-1' } } }
+      expect(ashbyHandler.extractIdempotencyId!(body)).toBeNull()
     })
 
     it('returns null when no recognizable resource is present', () => {
