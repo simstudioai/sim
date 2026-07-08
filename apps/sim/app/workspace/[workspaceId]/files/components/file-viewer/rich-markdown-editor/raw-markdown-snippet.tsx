@@ -167,6 +167,10 @@ function verbatimNodeConfig({ name, inline, badgeLabel }: VerbatimNodeOptions) {
     marks: '',
     code: true,
     defining: !inline,
+    // Block verbatim nodes hold exact source text; `isolating` stops a boundary Backspace/Delete from
+    // joining across their edge, which would otherwise merge their raw markdown into an adjacent
+    // paragraph as HTML-escaped prose and destroy the node (silent data loss on save).
+    isolating: !inline,
     selectable: true,
     atom: false,
     parseHTML() {
