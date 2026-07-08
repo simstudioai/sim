@@ -26,6 +26,10 @@ export interface ScriptMigration {
   name: string
   /** Env vars the migration needs; the runner throws before `up` if any is unset. */
   requiredEnv?: readonly string[]
-  /** Applies the migration using the runner's session (statement_timeout is already 0). */
+  /**
+   * Applies the migration using the runner's session. The runner resets
+   * `statement_timeout` and `lock_timeout` to 0 first, so long backfills and
+   * blocking lock acquisitions wait instead of aborting with `55P03`.
+   */
   up(sql: Sql): Promise<void>
 }

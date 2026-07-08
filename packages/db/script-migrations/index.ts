@@ -30,6 +30,18 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
     names.add(migration.name)
   }
 
+  /**
+   * The SQL-migration phase leaves `lock_timeout = '5s'` on this session (DDL
+   * must fail fast rather than queue a table-wide stall). Script migrations
+   * want the opposite: they block on app-held row/advisory locks (e.g. the
+   * per-table insert lock in the order_key backfill) and must wait them out —
+   * exactly like the standalone scripts they replace, which ran on fresh
+   * connections with the Postgres defaults. `SET` cannot be parameterized,
+   * hence `unsafe` with constants.
+   */
+  await sql.unsafe('SET statement_timeout = 0')
+  await sql.unsafe('SET lock_timeout = 0')
+
   await sql`
     CREATE TABLE IF NOT EXISTS script_migrations (
       name text PRIMARY KEY,
@@ -56,7 +68,10 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
     console.log(`Applying script migration ${migration.name}...`)
     const startedAt = Date.now()
     await migration.up(sql)
-    await sql`INSERT INTO script_migrations (name) VALUES (${migration.name})`
+    await sql`
+      INSERT INTO script_migrations (name) VALUES (${migration.name})
+      ON CONFLICT (name) DO NOTHING
+    `
     console.log(`Script migration ${migration.name} applied in ${Date.now() - startedAt}ms.`)
   }
 }
