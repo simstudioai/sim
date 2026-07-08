@@ -1574,6 +1574,14 @@ export const backgroundWorkStatus = pgTable(
       table.workflowId,
       table.status
     ),
+    // Expression indexes for listSurfacedBackgroundWork's metadata legs: `->>` equality can't
+    // use a GIN index, and one unindexable leg in its `or()` forces a full-table scan.
+    metaChildWorkspaceIdx: index('background_work_status_meta_child_ws_idx').on(
+      sql`(${table.metadata} ->> 'childWorkspaceId')`
+    ),
+    metaOtherWorkspaceIdx: index('background_work_status_meta_other_ws_idx').on(
+      sql`(${table.metadata} ->> 'otherWorkspaceId')`
+    ),
   })
 )
 

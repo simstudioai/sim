@@ -1,5 +1,5 @@
 {
-  "id": "3f30fe6a-41e3-4765-90c0-50cc2de2387c",
+  "id": "c405fc48-c6bb-4786-863f-3d3e686095b5",
   "prevId": "b932608c-c10f-4085-8f59-0621b23071f4",
   "version": "7",
   "dialect": "postgresql",
@@ -1026,6 +1026,36 @@
               "expression": "status",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "background_work_status_meta_child_ws_idx": {
+          "name": "background_work_status_meta_child_ws_idx",
+          "columns": [
+            {
+              "expression": "(\"metadata\" ->> 'childWorkspaceId')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "background_work_status_meta_other_ws_idx": {
+          "name": "background_work_status_meta_other_ws_idx",
+          "columns": [
+            {
+              "expression": "(\"metadata\" ->> 'otherWorkspaceId')",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
