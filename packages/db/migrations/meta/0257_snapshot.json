@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
   "id": "c405fc48-c6bb-4786-863f-3d3e686095b5",
-=======
-  "id": "554b063d-95f6-424c-bb2f-bc752b1060a8",
->>>>>>> bbc79edfc8 (feat(fork-chat): add fork chat to mothership)
   "prevId": "b932608c-c10f-4085-8f59-0621b23071f4",
   "version": "7",
   "dialect": "postgresql",
