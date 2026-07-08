@@ -197,15 +197,8 @@ export const batchInsertTableRowsBodySchema = z
         TABLE_LIMITS.MAX_BATCH_INSERT_SIZE,
         `Cannot insert more than ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows per batch`
       ),
-    positions: z.array(z.number().int().min(0)).max(TABLE_LIMITS.MAX_BATCH_INSERT_SIZE).optional(),
-    /** Fractional ordering: exact per-row order keys (undo restore). Takes precedence over `positions`. */
+    /** Fractional ordering: exact per-row order keys (undo restore). */
     orderKeys: z.array(z.string().min(1)).max(TABLE_LIMITS.MAX_BATCH_INSERT_SIZE).optional(),
-  })
-  .refine((data) => !data.positions || data.positions.length === data.rows.length, {
-    message: 'positions array length must match rows array length',
-  })
-  .refine((data) => !data.positions || new Set(data.positions).size === data.positions.length, {
-    message: 'positions must not contain duplicates',
   })
   .refine((data) => !data.orderKeys || data.orderKeys.length === data.rows.length, {
     message: 'orderKeys array length must match rows array length',

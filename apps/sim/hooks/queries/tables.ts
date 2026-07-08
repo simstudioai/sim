@@ -779,7 +779,7 @@ type BatchCreateTableRowsParams = Omit<BatchInsertTableRowsBodyInput, 'workspace
 type BatchCreateTableRowsResponse = ContractJsonResponse<typeof batchCreateTableRowsContract>
 
 /**
- * Batch create rows in a table. Supports optional per-row positions for undo restore.
+ * Batch create rows in a table. Supports optional per-row order keys for undo restore.
  */
 export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
@@ -793,7 +793,6 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         body: {
           workspaceId,
           rows: variables.rows as RowData[],
-          positions: variables.positions,
           orderKeys: variables.orderKeys,
         },
       })

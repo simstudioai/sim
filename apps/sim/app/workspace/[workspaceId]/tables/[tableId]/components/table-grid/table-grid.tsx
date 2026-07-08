@@ -2732,7 +2732,7 @@ export function TableGrid({
 
       if (createBatchRows.length > 0) {
         batchCreateRef.current(
-          { rows: createBatchRows, positions: createBatchPositions },
+          { rows: createBatchRows },
           {
             onSuccess: (response) => {
               const createdRows = response?.data?.rows ?? []

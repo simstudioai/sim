@@ -3,11 +3,11 @@
 /**
  * Backfills the `order_key` column on `user_table_rows`.
  *
- * Row ordering is moving from the contiguous integer `position` to a fractional
- * string `order_key` (O(1) insert/delete — no reshift/recompact). This script
- * assigns each existing row a key derived from its current `position` order, so
- * the new ordering matches today's once the `TABLES_FRACTIONAL_ORDERING` flag is
- * flipped on.
+ * Row ordering uses a fractional string `order_key` (O(1) insert/delete — no
+ * reshift/recompact) rather than the legacy contiguous integer `position`. This
+ * script assigns each existing row a key derived from its current `position`
+ * order, so the fractional ordering matches the legacy ordering for rows that
+ * predate the column.
  *
  * Per-table-atomic: each table is keyed inside one transaction holding the same
  * per-table advisory lock the app uses for inserts, so a concurrent insert can't

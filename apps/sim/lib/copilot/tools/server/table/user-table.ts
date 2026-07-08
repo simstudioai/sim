@@ -361,20 +361,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const positions = args.positions as number[] | undefined
-          if (positions !== undefined && positions.length !== args.rows.length) {
-            return {
-              success: false,
-              message: `positions length (${positions.length}) must match rows length (${args.rows.length})`,
-            }
-          }
-          if (positions !== undefined && new Set(positions).size !== positions.length) {
-            return {
-              success: false,
-              message: 'positions must not contain duplicate values',
-            }
-          }
-
           const table = await getTableById(args.tableId)
           if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
@@ -390,7 +376,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               rows: args.rows.map((r: RowData) => rowDataNameToId(r, idByName)),
               workspaceId,
               userId: context.userId,
-              positions,
             },
             table,
             requestId

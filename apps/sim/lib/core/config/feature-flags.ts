@@ -62,10 +62,6 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
-  'tables-fractional-ordering': {
-    description: 'Order table rows by fractional order_key instead of legacy integer position',
-    fallback: 'TABLES_FRACTIONAL_ORDERING',
-  },
   'mothership-beta': {
     description:
       'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler. ' +

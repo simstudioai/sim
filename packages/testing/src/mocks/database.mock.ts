@@ -100,7 +100,15 @@ export function createMockSqlOperators() {
  * })
  * ```
  */
-const limit = vi.fn(() => Promise.resolve([] as unknown[]))
+const offset = vi.fn(() => Promise.resolve([] as unknown[]))
+// `.limit()` returns a builder that is awaitable (default empty page) and also
+// exposes `.offset()` for keyset/OFFSET paging (`.limit(n).offset(m)`).
+const limitBuilder = () => {
+  const thenable: any = Promise.resolve([] as unknown[])
+  thenable.offset = offset
+  return thenable
+}
+const limit = vi.fn(limitBuilder)
 const returning = vi.fn(() => Promise.resolve([] as unknown[]))
 const execute = vi.fn(() => Promise.resolve([] as unknown[]))
 
@@ -169,6 +177,7 @@ export const dbChainMockFns = {
   from,
   where,
   limit,
+  offset,
   orderBy,
   returning,
   innerJoin,
@@ -211,7 +220,8 @@ export function resetDbChainMock(): void {
   update.mockImplementation(() => ({ set }))
   set.mockImplementation(() => ({ where }))
   del.mockImplementation(() => ({ where }))
-  limit.mockImplementation(() => Promise.resolve([] as unknown[]))
+  limit.mockImplementation(limitBuilder)
+  offset.mockImplementation(() => Promise.resolve([] as unknown[]))
   orderBy.mockImplementation(terminalBuilder)
   returning.mockImplementation(() => Promise.resolve([] as unknown[]))
   having.mockImplementation(terminalBuilder)
